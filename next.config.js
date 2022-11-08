@@ -9,6 +9,14 @@ const nextConfig = {
         source: "/.well-known/:path*",
         destination: "/api/well-known/:path*",
       },
+      {
+        source: "/users/:path*",
+        destination: "/api/users/:path*",
+      },
+      {
+        source: "/inbox",
+        destination: "/api/inbox",
+      },
     ];
   },
 };
