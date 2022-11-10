@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { generate } from 'peggy'
 import fs from 'fs/promises'
 import path from 'path'
+import { IncomingHttpHeaders } from 'http'
 
 interface StringMap {
   [key: string]: string
@@ -11,7 +12,7 @@ const SIGNATURE_KEYS = ['keyId', 'algorithm', 'headers', 'signature']
 
 export async function parse(signature: string): Promise<StringMap> {
   const grammar = await fs.readFile(
-    path.resolve(__dirname, 'signature.pegjs'),
+    path.resolve(process.cwd(), 'lib', 'signature.pegjs'),
     'utf-8'
   )
   const parser = generate(grammar)
@@ -26,8 +27,8 @@ export async function parse(signature: string): Promise<StringMap> {
 }
 
 // TODO: Add more checks later https://github.com/mastodon/mastodon/blob/main/app/controllers/concerns/signature_verification.rb#L78
-export async function verify(headers: StringMap, publicKey: string) {
-  const headerSignature = await parse(headers.signature)
+export async function verify(headers: IncomingHttpHeaders, publicKey: string) {
+  const headerSignature = await parse(headers.signature as string)
   if (!headerSignature.headers) return
 
   const comparedSignedString = headerSignature.headers

@@ -8,11 +8,10 @@ export async function up(knex: Knex): Promise<void> {
       table.text('privateKey')
     })
     .createTable('status', function (table) {
-      table.string('id').primary()
+      table.string('uri').primary()
       table.string('accountId').unsigned().notNullable()
       table.foreign('accountId').references('id').inTable('accounts')
 
-      table.string('uri')
       table.string('url')
       table.text('text')
       table.text('summary')
