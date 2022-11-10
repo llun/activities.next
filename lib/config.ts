@@ -1,1 +1,13 @@
-export const HOST = "f6db-31-161-149-130.eu.ngrok.io";
+const config = {
+  host: 'chat.llun.in.th',
+  database: {
+    type: 'knex',
+    client: 'better-sqlite3',
+    useNullAsDefault: true,
+    connection: {
+      filename: './dev.sqlite3'
+    }
+  }
+}
+
+export default config

@@ -1,15 +1,9 @@
 import type { Knex } from 'knex'
 
-// Update with your config settings.
+import sharedConfig from './lib/config'
 
 const config: { [key: string]: Knex.Config } = {
-  development: {
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: './dev.sqlite3'
-    }
-  }
+  development: sharedConfig.database
 }
 
 module.exports = config
