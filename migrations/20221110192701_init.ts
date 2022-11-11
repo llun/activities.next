@@ -9,7 +9,7 @@ export async function up(knex: Knex): Promise<void> {
     })
     .createTable('status', function (table) {
       table.string('uri').primary()
-      table.string('accountId').unsigned().notNullable()
+      table.string('accountId').unsigned()
       table.foreign('accountId').references('id').inTable('accounts')
 
       table.string('url')
