@@ -1,6 +1,7 @@
+import memoize from 'lodash/memoize'
 import { Sqlite3Storage } from './sqlite3'
 import { getConfig } from '../config'
-export const getStorage = async () => {
+export const getStorage = memoize(async () => {
   const config = await getConfig()
   switch (config.database.type) {
     case 'sqlite3':
@@ -8,4 +9,4 @@ export const getStorage = async () => {
     default:
       return null
   }
-}
+})

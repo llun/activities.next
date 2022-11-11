@@ -59,11 +59,13 @@ export interface StreamsJSON {
 const ApiHandler: NextApiHandler = async (req, res) => {
   const headerSignature = req.headers.signature
   if (!headerSignature) {
+    console.log(Date.now(), 'POST /inbox -> 400')
     return res.status(400).send('Bad request')
   }
 
   const signatureParts = await parse(headerSignature as string)
   if (!signatureParts.keyId) {
+    console.log(Date.now(), 'POST /inbox -> 400')
     return res.status(400).send('Bad request')
   }
 
@@ -74,7 +76,8 @@ const ApiHandler: NextApiHandler = async (req, res) => {
     }
   }).then((response) => response.json())
   if (!verify(req.headers, sender.publicKey.publicKeyPem)) {
-    return res.status(403).send('Bad request')
+    console.log(Date.now(), 'POST /inbox -> 403')
+    return res.status(400).send('Bad request')
   }
 
   const body = JSON.parse(req.body) as StreamsJSON
@@ -82,9 +85,11 @@ const ApiHandler: NextApiHandler = async (req, res) => {
   switch (body.type) {
     case 'Create': {
       storage?.createStatus(fromJson(body.object))
+      console.log(Date.now(), 'POST /inbox -> 200')
       return res.status(202).send('')
     }
     default:
+      console.log(Date.now(), 'POST /inbox -> 404')
       res.status(404).send('Unsupported')
   }
 }

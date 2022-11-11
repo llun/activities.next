@@ -20,8 +20,8 @@ export interface Status {
   language?: string
 
   thread?: string
-  converstion: string
-  media_attachment_ids: string[]
+  conversation: string
+  mediaAttachmentIds: string[]
 }
 
 export const fromJson = (data: StreamsObject): Status => ({
@@ -37,6 +37,6 @@ export const fromJson = (data: StreamsObject): Status => ({
   visibility: 'public',
   language: Object.keys(data.contentMap).shift(),
 
-  converstion: data.conversation,
-  media_attachment_ids: []
+  conversation: data.conversation,
+  mediaAttachmentIds: []
 })
