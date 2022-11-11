@@ -1,6 +1,60 @@
 import type { NextApiHandler } from 'next'
 import { parse, verify } from '../../lib/signature'
 import { getStorage } from '../../lib/storage'
+import { fromJson } from '../../lib/models/status'
+
+export interface StreamsTag {}
+
+export interface StreamsObjectReplies {
+  id: string
+  type: 'Collection'
+  first: {}
+}
+
+export type StreamsObjectType = 'Note'
+
+export interface StreamsObject {
+  id: string
+  type: StreamsObjectType
+  summary: string | null
+  inReplyTo: string | null
+  published: string
+  url: string
+  attributedTo: string
+  to: string[]
+  cc: string[]
+  sensitive: boolean
+  atomUri: string
+  inReplyToAtomUri: string | null
+  conversation: string
+  content: string
+  contentMap: {
+    [key: string]: string
+  }
+  attachment: string[]
+  tag: StreamsTag[]
+  replies: StreamsObjectReplies
+}
+
+export interface StreamsSignature {
+  type: 'string'
+  creator: string
+  created: string
+  signatureValue: string
+}
+
+export type StreamType = 'Create'
+
+export interface StreamsJSON {
+  id: 'https://glasgow.social/users/llun/statuses/109321528195480284/activity'
+  type: StreamType
+  actor: string
+  published: string // published time
+  to: string[]
+  cc: string[]
+  object: StreamsObject
+  signature: StreamsSignature
+}
 
 const ApiHandler: NextApiHandler = async (req, res) => {
   const headerSignature = req.headers.signature
@@ -23,10 +77,15 @@ const ApiHandler: NextApiHandler = async (req, res) => {
     return res.status(403).send('Bad request')
   }
 
-  const body = JSON.parse(req.body)
+  const body = JSON.parse(req.body) as StreamsJSON
   const storage = await getStorage()
-  storage?.createStatus({})
-
-  res.status(202).send('')
+  switch (body.type) {
+    case 'Create': {
+      storage?.createStatus(fromJson(body.object))
+      return res.status(202).send('')
+    }
+    default:
+      res.status(404).send('Unsupported')
+  }
 }
 export default ApiHandler
