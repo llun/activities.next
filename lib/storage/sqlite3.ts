@@ -16,4 +16,10 @@ export class Sqlite3Storage {
     await this.database.insert(rest).into('status')
     console.log(rest)
   }
+
+  async getStatuses() {
+    return this.database<Status>('status')
+      .select('*')
+      .orderBy('createdAt', 'desc')
+  }
 }

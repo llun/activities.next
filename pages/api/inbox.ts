@@ -75,7 +75,7 @@ const ApiHandler: NextApiHandler = async (req, res) => {
       Accept: 'application/activity+json, application/ld+json'
     }
   }).then((response) => response.json())
-  if (!verify(req.headers, sender.publicKey.publicKeyPem)) {
+  if (!verify(req.headers, sender.publicKey?.publicKeyPem)) {
     console.log(Date.now(), 'POST /inbox -> 403')
     return res.status(400).send('Bad request')
   }
