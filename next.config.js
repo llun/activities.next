@@ -6,19 +6,23 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: "/.well-known/:path*",
-        destination: "/api/well-known/:path*",
+        source: '/.well-known/:path*',
+        destination: '/api/well-known/:path*'
       },
       {
-        source: "/users/:path*",
-        destination: "/api/users/:path*",
+        source: '/users/:path*',
+        destination: '/api/users/:path*'
       },
       {
-        source: "/inbox",
-        destination: "/api/inbox",
+        source: '/inbox',
+        destination: '/api/inbox'
       },
-    ];
-  },
-};
+      {
+        source: '/nodeinfo',
+        destination: '/api/nodeinfo'
+      }
+    ]
+  }
+}
 
-module.exports = nextConfig;
+module.exports = nextConfig
