@@ -8,17 +8,23 @@ export class Sqlite3Storage {
     this.database = knex(config)
   }
 
-  createAccount() {}
-  getAccountById() {}
+  async isAccountExists(email?: string | null) {
+    if (!email) return false
+    const response = await this.database('accounts')
+      .where('email', email)
+      .count('id as count')
+      .first()
+    return Boolean(response?.count && response?.count > 0)
+  }
 
   async createStatus(status: Status) {
     const { account, mediaAttachmentIds, ...rest } = status
-    await this.database.insert(rest).into('status')
+    await this.database.insert(rest).into('statuses')
     console.log(rest)
   }
 
   async getStatuses() {
-    return this.database<Status>('status')
+    return this.database<Status>('statuses')
       .select('*')
       .orderBy('createdAt', 'desc')
   }

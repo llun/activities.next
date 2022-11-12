@@ -4,10 +4,12 @@ export async function up(knex: Knex): Promise<void> {
   return knex.schema
     .createTable('accounts', function (table) {
       table.string('id').primary()
+      table.string('handle').unique()
+      table.string('email').unique()
       table.text('publicKey')
       table.text('privateKey')
     })
-    .createTable('status', function (table) {
+    .createTable('statuses', function (table) {
       table.string('uri').primary()
       table.string('accountId').unsigned()
       table.foreign('accountId').references('id').inTable('accounts')
