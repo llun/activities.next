@@ -5,7 +5,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const config = await getConfig()
+  const config = getConfig()
   res.setHeader('Content-Type', 'application/xrd+xml; charset=utf-8')
   res.status(200).send(
     `

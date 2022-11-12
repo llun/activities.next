@@ -1,5 +1,7 @@
 import { GetServerSideProps, NextPage } from 'next'
 import parse from 'html-react-parser'
+import { useSession, signIn, signOut } from 'next-auth/react'
+
 import { Status } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 
@@ -8,6 +10,22 @@ interface Props {
 }
 
 const Page: NextPage<Props> = ({ statuses }) => {
+  const { data: session } = useSession()
+  if (session) {
+    return (
+      <>
+        Signed in as {session.user?.email} <br />
+        <button onClick={() => signOut()}>Sign out</button>
+      </>
+    )
+  }
+  return (
+    <>
+      Not signed in <br />
+      <button onClick={() => signIn()}>Sign in</button>
+    </>
+  )
+
   return (
     <div className="prose container mx-auto">
       <section className="w-full py-4 grid grid-cols-1 gap-6">

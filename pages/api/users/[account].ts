@@ -10,7 +10,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<Data>
 ) {
-  const config = await getConfig()
+  const config = getConfig()
   const { account } = req.query
   const user = {
     '@context': [
