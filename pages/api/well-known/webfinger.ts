@@ -2,8 +2,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getConfig } from '../../../lib/config'
 
-type Link =
-  | { rel: string; type: string; href: string }
+export type Link =
+  | { rel: string; type?: string; href: string }
   | { rel: string; template: string }
 
 type Data = {
