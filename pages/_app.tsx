@@ -1,7 +1,7 @@
 import type { AppProps } from 'next/app'
 import { SessionProvider } from 'next-auth/react'
 
-import './global.css'
+import 'bootstrap/dist/css/bootstrap.css'
 
 export default function App({
   Component,

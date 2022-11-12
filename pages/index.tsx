@@ -6,6 +6,7 @@ import { authOptions } from './api/auth/[...nextauth]'
 
 import { Status } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
+import { Button } from '../lib/components/Button'
 
 interface Props {
   isAccountExists: boolean
@@ -16,8 +17,10 @@ const Page: NextPage<Props> = ({ statuses, isAccountExists }) => {
   const { data: session } = useSession()
   if (session) {
     return (
-      <div className="prose container mx-auto">
-        <button onClick={() => signOut()}>Sign out</button>
+      <div className="container">
+        <Button type="primary" onClick={() => signOut()}>
+          Sign out
+        </Button>
 
         {!isAccountExists && <section>Enter your handle name</section>}
         {isAccountExists && (
@@ -28,7 +31,7 @@ const Page: NextPage<Props> = ({ statuses, isAccountExists }) => {
                 <textarea className="mt-1 block w-full" rows={3}></textarea>
               </label>
               <div className="block">
-                <button>Send</button>
+                <Button type="primary">Send</Button>
               </div>
             </section>
             <section className="w-full grid grid-cols-1">
@@ -44,9 +47,10 @@ const Page: NextPage<Props> = ({ statuses, isAccountExists }) => {
     )
   }
   return (
-    <div className="prose container mx-auto">
-      Not signed in <br />
-      <button onClick={() => signIn()}>Sign in</button>
+    <div className="container">
+      <Button type="primary" onClick={() => signIn('github')}>
+        Sign in with Github
+      </Button>
     </div>
   )
 }
