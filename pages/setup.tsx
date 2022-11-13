@@ -19,7 +19,7 @@ const Page: NextPage<Props> = () => {
       </Head>
       <Header session={session} />
       <section className="container pt-4">
-        <form>
+        <form action="/api/users/setup" method="post">
           <div className="mb-3">
             <label htmlFor="handle" className="form-label">
               Handle
@@ -28,13 +28,14 @@ const Page: NextPage<Props> = () => {
               type="text"
               className="form-control"
               id="handle"
+              name="handle"
               aria-describedby="handleHelp"
             />
             <div id="handleHelp" className="form-text">
               Handle name that will show before domain.
             </div>
           </div>
-          <Button>Submit</Button>
+          <Button type="submit">Submit</Button>
         </form>
       </section>
     </main>
