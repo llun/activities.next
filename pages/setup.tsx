@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { authOptions } from './api/auth/[...nextauth]'
 
 import { Header } from '../lib/components/Header'
+import { Button } from '../lib/components/Button'
 
 interface Props {}
 
@@ -16,7 +17,25 @@ const Page: NextPage<Props> = () => {
         <title>Activities: setup</title>
       </Head>
       <Header session={session} />
-      <section className="container pt-4">Setup your handle here</section>
+      <section className="container pt-4">
+        <form>
+          <div className="mb-3">
+            <label htmlFor="handle" className="form-label">
+              Handle
+            </label>
+            <input
+              type="text"
+              className="form-control"
+              id="handle"
+              aria-describedby="handleHelp"
+            />
+            <div id="handleHelp" className="form-text">
+              Handle name that will show before domain.
+            </div>
+          </div>
+          <Button>Submit</Button>
+        </form>
+      </section>
     </main>
   )
 }
