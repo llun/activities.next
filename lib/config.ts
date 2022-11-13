@@ -6,6 +6,7 @@ import type { Knex } from 'knex'
 export interface Config {
   host: string
   database: Knex.Config & { type: 'sqlite3' }
+  allowEmails: string[]
   auth?: {
     github?: {
       id: string
