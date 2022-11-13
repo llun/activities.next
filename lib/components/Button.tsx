@@ -3,7 +3,8 @@ import cn from 'classnames'
 
 interface Props {
   children: ReactNode
-  type:
+  type?: 'button' | 'submit'
+  variant?:
     | 'primary'
     | 'secondary'
     | 'success'
@@ -16,9 +17,18 @@ interface Props {
   onClick?: React.MouseEventHandler<HTMLButtonElement>
 }
 
-export const Button: FC<Props> = ({ children, type, onClick }) => {
+export const Button: FC<Props> = ({
+  children,
+  type = 'button',
+  variant = 'primary',
+  onClick
+}) => {
   return (
-    <button className={cn('btn', `btn-${type}`)} onClick={onClick}>
+    <button
+      className={cn('btn', `btn-${variant}`)}
+      type={type}
+      onClick={onClick}
+    >
       {children}
     </button>
   )
