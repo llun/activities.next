@@ -12,6 +12,12 @@ Add `config.json` with database config
     "connection": {
       "filename": "./dev.sqlite3"
     }
+  },
+  "auth": {
+    "github": {
+      "id": "GITHUB_APP_CLIENT_ID",
+      "secret": "GITHUB_APP_SECRET"
+    }
   }
 }
 ```
