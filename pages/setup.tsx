@@ -6,6 +6,7 @@ import { authOptions } from './api/auth/[...nextauth]'
 
 import { Header } from '../lib/components/Header'
 import { Button } from '../lib/components/Button'
+import { getConfig } from '../lib/config'
 
 interface Props {}
 
@@ -46,6 +47,16 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
 }) => {
   const session = await unstable_getServerSession(req, res, authOptions)
   if (!session?.user) {
+    return {
+      redirect: {
+        destination: '/signin',
+        permanent: false
+      }
+    }
+  }
+
+  const config = getConfig()
+  if (!config.allowEmails.includes(session?.user?.email || '')) {
     return {
       redirect: {
         destination: '/signin',

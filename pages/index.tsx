@@ -9,6 +9,7 @@ import { Status } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
+import { getConfig } from '../lib/config'
 
 interface Props {
   statuses: Status[]
@@ -55,11 +56,12 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     unstable_getServerSession(req, res, authOptions)
   ])
 
-  if (!storage) {
-    return { notFound: true }
-  }
-
-  if (!session?.user?.email) {
+  const config = getConfig()
+  if (
+    !session?.user?.email ||
+    !config.allowEmails.includes(session?.user?.email || '') ||
+    !storage
+  ) {
     return {
       redirect: {
         destination: '/signin',
