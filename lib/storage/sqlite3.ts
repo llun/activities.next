@@ -33,6 +33,12 @@ export class Sqlite3Storage {
     return accountId
   }
 
+  async getAccountFromHandle(handle: string) {
+    return (await this.database('account')
+      .where('handle', handle)
+      .first()) as Account
+  }
+
   async createStatus(status: Status) {
     const { account, mediaAttachmentIds, ...rest } = status
     await this.database.insert(rest).into('statuses')
