@@ -6,8 +6,16 @@ export async function up(knex: Knex): Promise<void> {
       table.string('id').primary()
       table.string('handle').unique()
       table.string('email').unique()
+      table.string('name')
+      table.text('summary')
+      table.boolean('manuallyApprovesFollowers')
+      table.boolean('discoverable')
+
       table.text('publicKey')
       table.text('privateKey')
+
+      table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+      table.timestamp('updatedAt', { useTz: true })
     })
     .createTable('statuses', function (table) {
       table.string('uri').primary()

@@ -1,5 +1,6 @@
 // Next.js API route support: https://nextjs.org/docs/api-routes/introduction
 import type { NextApiRequest, NextApiResponse } from 'next'
+import formatInTimeZone from 'date-fns-tz/formatInTimeZone'
 import { getConfig } from '../../../lib/config'
 import { getStorage } from '../../../lib/storage'
 
@@ -110,7 +111,6 @@ export default async function handler(
   if (!person) {
     return res.status(404).json({ error: 'Not Found' })
   }
-  console.log(person)
 
   const user = {
     ...CONTEXT,
@@ -128,7 +128,11 @@ export default async function handler(
     url: `https://${config.host}/@${account}`,
     manuallyApprovesFollowers: false,
     discoverable: false,
-    published: '2022-11-08T00:00:00Z',
+    published: formatInTimeZone(
+      person.createdAt,
+      'GMT+0',
+      "yyyy-MM-dd'T'HH:mm:ss'Z'"
+    ),
     devices: `https://${config.host}/users/${account}/collections/devices`,
     publicKey: {
       id: `https://${config.host}/users/${account}#main-key`,

@@ -29,12 +29,16 @@ export class Sqlite3Storage {
 
   async createAccount(account: Account) {
     const accountId = crypto.randomUUID()
-    await this.database('accounts').insert({ id: accountId, ...account })
+    await this.database('accounts').insert({
+      id: accountId,
+      ...account,
+      createdAt: new Date()
+    })
     return accountId
   }
 
   async getAccountFromHandle(handle: string) {
-    return (await this.database('account')
+    return (await this.database('accounts')
       .where('handle', handle)
       .first()) as Account
   }
@@ -42,7 +46,6 @@ export class Sqlite3Storage {
   async createStatus(status: Status) {
     const { account, mediaAttachmentIds, ...rest } = status
     await this.database.insert(rest).into('statuses')
-    console.log(rest)
   }
 
   async getStatuses() {
