@@ -24,15 +24,16 @@ const Page: NextPage<Props> = ({ statuses }) => {
       </Head>
       <Header session={session} />
       <section className="container pt-4">
-        <section className="w-full py-4 grid grid-cols-1 gap-6">
-          <label className="block">
-            <span className="text-gray-700">Message</span>
-            <textarea className="mt-1 block w-full" rows={3}></textarea>
-          </label>
-          <div className="block">
-            <Button>Send</Button>
+        <form action="/api/outbox" method="post">
+          <div className="mb-3">
+            <textarea
+              className="form-control"
+              rows={3}
+              name="status"
+            ></textarea>
           </div>
-        </section>
+          <Button>Send</Button>
+        </form>
         <section className="w-full grid grid-cols-1">
           {statuses.map((status) => (
             <div key={status.uri} className="block">
