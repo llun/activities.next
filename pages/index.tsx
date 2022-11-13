@@ -24,8 +24,6 @@ const Page: NextPage<Props> = ({ statuses }) => {
       </Head>
       <Header session={session} />
       <section className="container pt-4">
-        <Button onClick={() => signOut()}>Sign out</Button>
-
         <section className="w-full py-4 grid grid-cols-1 gap-6">
           <label className="block">
             <span className="text-gray-700">Message</span>

@@ -7,6 +7,7 @@ import { authOptions } from './api/auth/[...nextauth]'
 import { Header } from '../lib/components/Header'
 import { Button } from '../lib/components/Button'
 import { getConfig } from '../lib/config'
+import { getStorage } from '../lib/storage'
 
 interface Props {}
 
@@ -61,6 +62,16 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     return {
       redirect: {
         destination: '/signin',
+        permanent: false
+      }
+    }
+  }
+
+  const storage = await getStorage()
+  if (await storage?.isAccountExists(session?.user?.email)) {
+    return {
+      redirect: {
+        destination: '/',
         permanent: false
       }
     }
