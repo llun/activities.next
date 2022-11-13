@@ -4,6 +4,7 @@ import cn from 'classnames'
 interface Props {
   children: ReactNode
   type?: 'button' | 'submit'
+  outline?: boolean
   variant?:
     | 'primary'
     | 'secondary'
@@ -20,12 +21,13 @@ interface Props {
 export const Button: FC<Props> = ({
   children,
   type = 'button',
+  outline,
   variant = 'primary',
   onClick
 }) => {
   return (
     <button
-      className={cn('btn', `btn-${variant}`)}
+      className={cn('btn', `btn${outline ? '-outline' : ''}-${variant}`)}
       type={type}
       onClick={onClick}
     >

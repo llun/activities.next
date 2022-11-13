@@ -1,4 +1,5 @@
 import { GetServerSideProps, NextPage } from 'next'
+import Head from 'next/head'
 import { getCsrfToken } from 'next-auth/react'
 import { unstable_getServerSession } from 'next-auth/next'
 import { authOptions } from './api/auth/[...nextauth]'
@@ -15,12 +16,17 @@ interface Props {
 const Page: NextPage<Props> = ({ csrfToken, host }) => {
   return (
     <main>
+      <Head>
+        <title>Activities: signin</title>
+      </Head>
       <Header />
       <section className="container pt-4">
         <form action={`https://${host}/api/auth/signin/github`} method="POST">
           <input type="hidden" name="csrfToken" value={csrfToken} />
           <input type="hidden" name="callbackUrl" value={`https://${host}`} />
-          <Button type="submit">Sign in with Github</Button>
+          <Button outline type="submit">
+            Sign in with Github
+          </Button>
         </form>
       </section>
     </main>

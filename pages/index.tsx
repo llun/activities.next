@@ -1,6 +1,7 @@
 import { GetServerSideProps, NextPage } from 'next'
+import Head from 'next/head'
 import parse from 'html-react-parser'
-import { signOut } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
 import { unstable_getServerSession } from 'next-auth/next'
 import { authOptions } from './api/auth/[...nextauth]'
 
@@ -14,9 +15,13 @@ interface Props {
 }
 
 const Page: NextPage<Props> = ({ statuses }) => {
+  const { data: session } = useSession()
   return (
     <main>
-      <Header />
+      <Head>
+        <title>Activities: timeline</title>
+      </Head>
+      <Header session={session} />
       <section className="container pt-4">
         <Button onClick={() => signOut()}>Sign out</Button>
 
