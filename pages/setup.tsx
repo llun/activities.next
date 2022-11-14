@@ -68,7 +68,16 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   }
 
   const storage = await getStorage()
-  if (await storage?.isAccountExists(session?.user?.email)) {
+  if (!storage) {
+    return {
+      redirect: {
+        destination: '/signin',
+        permanent: false
+      }
+    }
+  }
+
+  if (await storage.isAccountExists(session.user.email)) {
     return {
       redirect: {
         destination: '/',
