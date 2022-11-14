@@ -4,9 +4,18 @@ export async function up(knex: Knex): Promise<void> {
   return knex.schema
     .createTable('accounts', function (table) {
       table.string('id').primary()
-      table.string('handle').unique()
       table.string('email').unique()
-      table.string('name')
+
+      table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+      table.timestamp('updatedAt', { useTz: true })
+    })
+    .createTable('actors', function (table) {
+      table.string('id').unique()
+      table.string('handle').unique()
+
+      table.string('accountId').unsigned()
+      table.foreign('accountId').references('id').inTable('accounts')
+
       table.text('summary')
       table.boolean('manuallyApprovesFollowers')
       table.boolean('discoverable')
@@ -19,8 +28,8 @@ export async function up(knex: Knex): Promise<void> {
     })
     .createTable('statuses', function (table) {
       table.string('uri').primary()
-      table.string('accountId').unsigned()
-      table.foreign('accountId').references('id').inTable('accounts')
+      table.string('actorId').unsigned()
+      table.foreign('actorId').references('id').inTable('actors')
 
       table.string('url')
       table.text('text')

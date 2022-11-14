@@ -1,8 +1,7 @@
-// Next.js API route support: https://nextjs.org/docs/api-routes/introduction
 import type { NextApiRequest, NextApiResponse } from 'next'
-import formatInTimeZone from 'date-fns-tz/formatInTimeZone'
 import { getConfig } from '../../../lib/config'
 import { getStorage } from '../../../lib/storage'
+import { getISOTimeUTC } from '../../../lib/time'
 
 const CONTEXT = {
   '@context': [
@@ -107,8 +106,8 @@ export default async function handler(
     return res.status(500).json({ error: 'Internal Server Error' })
   }
 
-  const person = await storage.getAccountFromHandle(account as string)
-  if (!person) {
+  const actor = await storage.getActorFromHandle(account as string)
+  if (!actor) {
     return res.status(404).json({ error: 'Not Found' })
   }
 
@@ -128,16 +127,12 @@ export default async function handler(
     url: `https://${config.host}/@${account}`,
     manuallyApprovesFollowers: false,
     discoverable: false,
-    published: formatInTimeZone(
-      person.createdAt,
-      'GMT+0',
-      "yyyy-MM-dd'T'HH:mm:ss'Z'"
-    ),
+    published: getISOTimeUTC(actor.createdAt),
     devices: `https://${config.host}/users/${account}/collections/devices`,
     publicKey: {
       id: `https://${config.host}/users/${account}#main-key`,
       owner: `https://${config.host}/users/${account}`,
-      publicKeyPem: person.publicKey
+      publicKeyPem: actor.publicKey
     },
     tag: [],
     attachment: [],

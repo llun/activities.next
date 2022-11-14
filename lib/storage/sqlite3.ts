@@ -2,6 +2,7 @@ import { knex, Knex } from 'knex'
 import crypto from 'crypto'
 import { Account } from '../models/account'
 import { Status } from '../models/status'
+import { Actor } from '../models/actor'
 
 export class Sqlite3Storage {
   database: Knex
@@ -20,27 +21,45 @@ export class Sqlite3Storage {
   }
 
   async isHandleExists(handle: string) {
-    const response = await this.database('accounts')
+    const response = await this.database('actors')
       .where('handle', handle)
       .count('id as count')
       .first()
     return Boolean(response?.count && response?.count > 0)
   }
 
-  async createAccount(account: Account) {
+  async createAccount(params: {
+    email: string
+    handle: string
+    privateKey: string
+    publicKey: string
+  }) {
+    const { email, handle, privateKey, publicKey } = params
     const accountId = crypto.randomUUID()
-    await this.database('accounts').insert({
-      id: accountId,
-      ...account,
-      createdAt: new Date()
+    const actorId = crypto.randomUUID()
+    const currentTime = Date.now()
+    await this.database.transaction(async (trx) => {
+      await trx('accounts').insert({
+        id: accountId,
+        email,
+        createdAt: currentTime
+      })
+      await trx('actors').insert({
+        id: actorId,
+        handle,
+        publicKey,
+        privateKey,
+        createdAt: currentTime
+      })
     })
+
     return accountId
   }
 
-  async getAccountFromHandle(handle: string) {
-    return (await this.database('accounts')
+  async getActorFromHandle(handle: string) {
+    return (await this.database('actors')
       .where('handle', handle)
-      .first()) as Account
+      .first()) as Actor
   }
 
   async createStatus(status: Status) {
