@@ -1,9 +1,11 @@
 import { GetServerSideProps, NextPage } from 'next'
 import Head from 'next/head'
 import Link from 'next/link'
+import { unstable_getServerSession } from 'next-auth'
 import { useSession } from 'next-auth/react'
 import cn from 'classnames'
 
+import { authOptions } from './api/auth/[...nextauth]'
 import { Header } from '../lib/components/Header'
 import { getPerson } from '../lib/activities'
 
@@ -71,6 +73,16 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   res,
   query
 }) => {
+  const session = await unstable_getServerSession(req, res, authOptions)
+  if (!session?.user) {
+    return {
+      redirect: {
+        destination: '/signin',
+        permanent: false
+      }
+    }
+  }
+
   const { actor } = query
   if (!actor) {
     return { notFound: true }
