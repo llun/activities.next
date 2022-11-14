@@ -24,7 +24,8 @@
     "next-auth": "^4.16.4",
     "peggy": "^2.0.1",
     "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "react-dom": "18.2.0",
+    "sass": "^1.56.1"
   },
   "devDependencies": {
     "@swc-node/register": "^1.5.4",

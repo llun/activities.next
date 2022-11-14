@@ -2,9 +2,12 @@ import { GetServerSideProps, NextPage } from 'next'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
+import cn from 'classnames'
 
 import { Header } from '../lib/components/Header'
 import { getPerson } from '../lib/activities'
+
+import styles from './[actor].module.scss'
 
 interface Props {
   handle: string
@@ -15,7 +18,13 @@ interface Props {
   createdAt: number
 }
 
-const Page: NextPage<Props> = ({ handle, url }) => {
+const Page: NextPage<Props> = ({
+  handle,
+  url,
+  iconUrl,
+  followersCount,
+  followingCount
+}) => {
   const { data: session } = useSession()
   return (
     <main>
@@ -24,13 +33,22 @@ const Page: NextPage<Props> = ({ handle, url }) => {
       </Head>
       <Header session={session} />
       <section className="container pt-4">
-        <section className="w-full grid grid-cols-1">
-          <h1>@{handle}</h1>
-          <small>
-            <Link href={url} target={'_blank'}>
-              {url}
-            </Link>
-          </small>
+        <section className="card">
+          <div className="card-body d-flex">
+            <img className={cn(styles.icon, 'me-2')} src={iconUrl} />
+            <div>
+              <h1>@{handle}</h1>
+              <small>
+                <Link href={url} target={'_blank'}>
+                  {url}
+                </Link>
+              </small>
+              <p>
+                <strong>Following:</strong> {followingCount}
+                <strong className="ms-2">Followers:</strong> {followersCount}
+              </p>
+            </div>
+          </div>
         </section>
       </section>
     </main>
