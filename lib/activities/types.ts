@@ -68,6 +68,12 @@ export type Image = {
   url: string
 }
 
+export type Mention = {
+  type: 'Mention'
+  href: string
+  name: string
+}
+
 export type Person = typeof PersonContext & {
   id: string
   type: 'Person'
@@ -90,7 +96,7 @@ export type Person = typeof PersonContext & {
     owner: string
     publicKeyPem: string
   }
-  tag: string[]
+  tag: Mention[]
   attachment: PropertyValue[]
   endpoints: {
     sharedInbox: string
@@ -105,4 +111,74 @@ export type OrderedCollection = {
   totalItems: number
   first: string
   last?: string
+}
+
+export type CollectionPage = {
+  type: 'CollectionPage'
+  next: string
+  partOf: string
+  items: []
+}
+
+export type Collection = {
+  id: string
+  type: 'Collection'
+  first: CollectionPage
+}
+
+export type Note = {
+  id: string
+  type: 'Note'
+  summary: null
+  inReplyTo: string
+  published: string
+  url: string
+  attributedTo: string
+  to: string[]
+  cc: string[]
+  sensitive: boolean
+  atomUri: string
+  inReplyToAtomUri: string
+  conversation: string
+  content: string
+  contentMap: {
+    [locale: string]: string
+  }
+  attachment: PropertyValue[]
+  tag: Mention[]
+  replies: Collection
+}
+
+export type CreateActivity = {
+  id: string
+  type: 'Create'
+  actor: string
+  published: string
+  to: string[]
+  cc: string[]
+  object: Note
+}
+
+export const OutboxContext = {
+  '@context': [
+    'https://www.w3.org/ns/activitystreams',
+    {
+      ostatus: 'http://ostatus.org#',
+      atomUri: 'ostatus:atomUri',
+      inReplyToAtomUri: 'ostatus:inReplyToAtomUri',
+      conversation: 'ostatus:conversation',
+      sensitive: 'as:sensitive',
+      toot: 'http://joinmastodon.org/ns#',
+      votersCount: 'toot:votersCount'
+    }
+  ]
+}
+
+export type OrderedCollectionPage = typeof OutboxContext & {
+  id: string
+  type: 'OrderedCollectionPage'
+  next: string
+  prev: string
+  partOf: string
+  orderedItems: CreateActivity[]
 }
