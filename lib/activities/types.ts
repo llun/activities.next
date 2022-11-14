@@ -104,4 +104,5 @@ export type OrderedCollection = {
   type: 'OrderedCollection'
   totalItems: number
   first: string
+  last?: string
 }

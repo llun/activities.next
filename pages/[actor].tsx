@@ -15,6 +15,7 @@ interface Props {
   url: string
   followersCount: number
   followingCount: number
+  totalPosts: number
   createdAt: number
 }
 
@@ -23,7 +24,9 @@ const Page: NextPage<Props> = ({
   url,
   iconUrl,
   followersCount,
-  followingCount
+  followingCount,
+  totalPosts,
+  createdAt
 }) => {
   const { data: session } = useSession()
   return (
@@ -44,8 +47,16 @@ const Page: NextPage<Props> = ({
                 </Link>
               </small>
               <p>
-                <strong>Following:</strong> {followingCount}
-                <strong className="ms-2">Followers:</strong> {followersCount}
+                <span>{totalPosts} Posts</span>
+                <span className="ms-2">{followingCount} Following</span>
+                <span className="ms-2">{followersCount} Followers</span>
+              </p>
+              <p>
+                Joined{' '}
+                {new Intl.DateTimeFormat('en-US', {
+                  dateStyle: 'long',
+                  timeStyle: 'short'
+                }).format(new Date(createdAt))}
               </p>
             </div>
           </div>
@@ -83,6 +94,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
         handle: person.handle,
         iconUrl: person.icon?.url || '',
         url: person.url,
+        totalPosts: person.totalPosts,
         followersCount: person.followersCount,
         followingCount: person.followingCount,
         createdAt: person.createdAt
@@ -96,6 +108,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       handle: '',
       iconUrl: '',
       url: '',
+      totalPosts: 0,
       followersCount: 0,
       followingCount: 0,
       createdAt: 0

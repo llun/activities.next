@@ -12,13 +12,18 @@ export const getPerson = memoize(async (id: string) => {
   if (response.status !== 200) return null
 
   const json: Person = await response.json()
-  const [followers, following] = await Promise.all([
+  const [followers, following, posts] = await Promise.all([
     fetch(json.followers, {
       headers: SHARED_HEADERS
     }).then((res) =>
       res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
     ),
     fetch(json.following, {
+      headers: SHARED_HEADERS
+    }).then((res) =>
+      res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
+    ),
+    fetch(json.outbox, {
       headers: SHARED_HEADERS
     }).then((res) =>
       res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
@@ -38,6 +43,7 @@ export const getPerson = memoize(async (id: string) => {
 
     followersCount: followers?.totalItems || 0,
     followingCount: following?.totalItems || 0,
+    totalPosts: posts?.totalItems || 0,
 
     createdAt: new Date(json.published).getTime()
   }
