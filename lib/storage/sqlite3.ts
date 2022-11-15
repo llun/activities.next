@@ -1,8 +1,8 @@
 import { knex, Knex } from 'knex'
 import crypto from 'crypto'
-import { Account } from '../models/account'
 import { Status } from '../models/status'
 import { Actor } from '../models/actor'
+import { getConfig } from '../config'
 
 export class Sqlite3Storage {
   database: Knex
@@ -20,9 +20,9 @@ export class Sqlite3Storage {
     return Boolean(response?.count && response?.count > 0)
   }
 
-  async isHandleExists(handle: string) {
+  async isUsernameExists(username: string) {
     const response = await this.database('actors')
-      .where('handle', handle)
+      .where('preferredUsername', username)
       .count('id as count')
       .first()
     return Boolean(response?.count && response?.count > 0)
@@ -30,13 +30,14 @@ export class Sqlite3Storage {
 
   async createAccount(params: {
     email: string
-    handle: string
+    username: string
     privateKey: string
     publicKey: string
   }) {
-    const { email, handle, privateKey, publicKey } = params
+    const { email, username, privateKey, publicKey } = params
+    const config = getConfig()
     const accountId = crypto.randomUUID()
-    const actorId = crypto.randomUUID()
+    const actorId = `https://${config.host}/users/${username}`
     const currentTime = Date.now()
     await this.database.transaction(async (trx) => {
       await trx('accounts').insert({
@@ -46,7 +47,7 @@ export class Sqlite3Storage {
       })
       await trx('actors').insert({
         id: actorId,
-        handle,
+        preferredUsername: username,
         publicKey,
         privateKey,
         createdAt: currentTime

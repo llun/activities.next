@@ -1,6 +1,12 @@
+import { Account } from './account'
+
 export interface Actor {
-  handle: string
+  id: string
+  preferredUsername: string
   summary: string
+
+  account?: Account
+  following?: Actor
 
   manuallyApprovesFollowers: boolean
   discoverable: boolean

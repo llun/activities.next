@@ -22,18 +22,18 @@ const Page: NextPage<Props> = () => {
       <section className="container pt-4">
         <form action="/api/users/setup" method="post">
           <div className="mb-3">
-            <label htmlFor="handle" className="form-label">
-              Handle
+            <label htmlFor="username" className="form-label">
+              Username
             </label>
             <input
               type="text"
               className="form-control"
-              id="handle"
-              name="handle"
-              aria-describedby="handleHelp"
+              id="username"
+              name="username"
+              aria-describedby="usernameHelp"
             />
-            <div id="handleHelp" className="form-text">
-              Handle name that will show before domain.
+            <div id="usernameHelp" className="form-text">
+              Username name that will show before domain.
             </div>
           </div>
           <Button type="submit">Submit</Button>

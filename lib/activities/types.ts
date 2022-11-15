@@ -102,6 +102,7 @@ export type Person = typeof PersonContext & {
     sharedInbox: string
   }
   icon?: Image
+  image?: Image
 }
 
 export type OrderedCollection = {

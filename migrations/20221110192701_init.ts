@@ -11,10 +11,13 @@ export async function up(knex: Knex): Promise<void> {
     })
     .createTable('actors', function (table) {
       table.string('id').unique()
-      table.string('handle').unique()
+      table.string('preferredUsername').unique()
 
       table.string('accountId').unsigned()
       table.foreign('accountId').references('id').inTable('accounts')
+
+      table.string('followingId')
+      table.foreign('followingId').references('id').inTable('actors')
 
       table.text('summary')
       table.boolean('manuallyApprovesFollowers')
