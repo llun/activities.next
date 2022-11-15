@@ -12,6 +12,7 @@ import { Header } from '../lib/components/Header'
 import { getPerson, getPosts } from '../lib/activities'
 
 import styles from './[actor].module.scss'
+import { Button } from '../lib/components/Button'
 
 interface Props {
   handle: string
@@ -49,11 +50,14 @@ const Page: NextPage<Props> = ({
       <Header session={session} />
       <section className="container pt-4">
         <section className="card">
-          <div className="card-body d-flex">
+          <div className="card-body d-flex flex-column flex-sm-row">
             {iconUrl && (
-              <img className={cn(styles.icon, 'me-2')} src={iconUrl} />
+              <img
+                className={cn(styles.icon, 'me-4', 'mb-2', 'flex-shrink-0')}
+                src={iconUrl}
+              />
             )}
-            <div>
+            <div className="flex-fill">
               <h1>@{handle}</h1>
               <small>
                 <Link href={url} target={'_blank'}>
@@ -72,6 +76,9 @@ const Page: NextPage<Props> = ({
                   timeStyle: 'short'
                 }).format(new Date(createdAt))}
               </p>
+            </div>
+            <div className="flex-shrink-0">
+              <Button>Follow</Button>
             </div>
           </div>
         </section>
