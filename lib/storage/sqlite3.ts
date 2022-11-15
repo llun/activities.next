@@ -13,11 +13,11 @@ export class Sqlite3Storage {
 
   async isAccountExists(email?: string | null) {
     if (!email) return false
-    const response = await this.database('accounts')
+    const result = await this.database('accounts')
       .where('email', email)
       .count('id as count')
       .first()
-    return Boolean(response?.count && response?.count > 0)
+    return Boolean(result?.count && result?.count > 0)
   }
 
   async isUsernameExists(username: string) {
@@ -47,6 +47,7 @@ export class Sqlite3Storage {
       })
       await trx('actors').insert({
         id: actorId,
+        accountId,
         preferredUsername: username,
         publicKey,
         privateKey,
@@ -57,10 +58,24 @@ export class Sqlite3Storage {
     return accountId
   }
 
-  async getActorFromHandle(handle: string) {
-    return (await this.database('actors')
-      .where('handle', handle)
-      .first()) as Actor
+  async getActorFromEmail(email: string) {
+    return this.database('actors')
+      .select<Actor>('actors.*')
+      .leftJoin('accounts', 'actors.accountId', 'accounts.id')
+      .where('accounts.email', email)
+      .first()
+  }
+
+  async isCurrentActorFollowing(
+    currentActorId: string,
+    followingActorId: string
+  ) {
+    const result = await this.database('actors')
+      .where('followingId', followingActorId)
+      .andWhere('id', currentActorId)
+      .count('id as count')
+      .first()
+    return Boolean(result?.count && result?.count > 0)
   }
 
   async createStatus(status: Status) {

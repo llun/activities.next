@@ -32,7 +32,7 @@ export const getPerson = memoize(async (id: string) => {
 
   return {
     id: json.id,
-    handle: json.preferredUsername,
+    username: json.preferredUsername,
     icon: json.icon,
     url: json.url,
     summary: json.summary,

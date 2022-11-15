@@ -3,7 +3,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { unstable_getServerSession } from 'next-auth'
 import { useSession } from 'next-auth/react'
-import parse, { attributesToProps } from 'html-react-parser'
+import parse from 'html-react-parser'
 import cn from 'classnames'
 import formatDistanceToNow from 'date-fns/formatDistanceToNow'
 
@@ -13,9 +13,11 @@ import { getPerson, getPosts } from '../lib/activities'
 
 import styles from './[actor].module.scss'
 import { Button } from '../lib/components/Button'
+import { getStorage } from '../lib/storage'
 
 interface Props {
-  handle: string
+  isFollowing: boolean
+  username: string
   iconUrl?: string
   url: string
   followersCount: number
@@ -32,7 +34,8 @@ interface Props {
 }
 
 const Page: NextPage<Props> = ({
-  handle,
+  isFollowing,
+  username,
   url,
   iconUrl,
   followersCount,
@@ -58,7 +61,7 @@ const Page: NextPage<Props> = ({
               />
             )}
             <div className="flex-fill">
-              <h1>@{handle}</h1>
+              <h1>@{username}</h1>
               <small>
                 <Link href={url} target={'_blank'}>
                   {url}
@@ -78,7 +81,8 @@ const Page: NextPage<Props> = ({
               </p>
             </div>
             <div className="flex-shrink-0">
-              <Button>Follow</Button>
+              {!isFollowing && <Button>Follow</Button>}
+              {isFollowing && <Button variant="danger">Unfollow</Button>}
             </div>
           </div>
         </section>
@@ -113,8 +117,11 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   res,
   query
 }) => {
-  const session = await unstable_getServerSession(req, res, authOptions)
-  if (!session?.user) {
+  const [storage, session] = await Promise.all([
+    getStorage(),
+    unstable_getServerSession(req, res, authOptions)
+  ])
+  if (!session?.user || !session?.user?.email || !storage) {
     return {
       redirect: {
         destination: '/signin',
@@ -136,16 +143,26 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   // External Account
   if (parts.length === 2) {
     const [account, domain] = parts
-    const person = await getPerson(`https://${domain}/users/${account}`)
-    if (!person) {
+    const actorId = `https://${domain}/users/${account}`
+    const [currentActor, person] = await Promise.all([
+      storage.getActorFromEmail(session.user.email),
+      getPerson(actorId)
+    ])
+
+    if (!person || !currentActor) {
       return { notFound: true }
     }
 
     const posts = person.totalPosts > 0 ? await getPosts(person.urls.posts) : []
+    const isFollowing = await storage.isCurrentActorFollowing(
+      currentActor.id,
+      actorId
+    )
 
     return {
       props: {
-        handle: person.handle,
+        isFollowing,
+        username: person.username,
         iconUrl: person.icon?.url || '',
         url: person.url,
         totalPosts: person.totalPosts,

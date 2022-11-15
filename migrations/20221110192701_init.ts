@@ -13,7 +13,7 @@ export async function up(knex: Knex): Promise<void> {
       table.string('id').unique()
       table.string('preferredUsername').unique()
 
-      table.string('accountId').unsigned()
+      table.string('accountId')
       table.foreign('accountId').references('id').inTable('accounts')
 
       table.string('followingId')
