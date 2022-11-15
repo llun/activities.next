@@ -22,7 +22,7 @@ export default async function handler(
     return res.status(500).json({ error: 'Internal Server Error' })
   }
 
-  const actor = await storage.getActorFromHandle(account as string)
+  const actor = await storage.getActorFromUsername(account as string)
   if (!actor) {
     return res.status(404).json({ error: 'Not Found' })
   }

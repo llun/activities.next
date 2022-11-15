@@ -29,7 +29,7 @@ export async function parse(signature: string): Promise<StringMap> {
 // TODO: Add more checks later https://github.com/mastodon/mastodon/blob/main/app/controllers/concerns/signature_verification.rb#L78
 export async function verify(headers: IncomingHttpHeaders, publicKey: string) {
   const headerSignature = await parse(headers.signature as string)
-  if (!headerSignature.headers) return
+  if (!headerSignature.headers) return false
 
   const comparedSignedString = headerSignature.headers
     .split(' ')
@@ -47,4 +47,22 @@ export async function verify(headers: IncomingHttpHeaders, publicKey: string) {
   } catch {
     return false
   }
+}
+
+export async function sign(
+  request: string,
+  headers: IncomingHttpHeaders,
+  privateKey: string
+) {
+  const signedString = [
+    request,
+    `host: ${headers['host']}`,
+    `date: ${headers['date']}`,
+    `digest: ${headers['digest']}`,
+    `content-type: ${headers['content-type']}`
+  ].join('\n')
+  const signer = crypto.createSign('rsa-sha256')
+  signer.write(signedString)
+  signer.end()
+  return signer.sign(privateKey, 'base64')
 }

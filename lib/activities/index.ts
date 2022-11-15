@@ -1,5 +1,9 @@
 import memoize from 'lodash/memoize'
+import crypto from 'crypto'
 import { OrderedCollection, OrderedCollectionPage, Person } from './types'
+import { getConfig } from '../config'
+import { sign } from '../signature'
+import { Actor } from '../models/actor'
 
 const SHARED_HEADERS = {
   Accept: 'application/activity+json, application/ld+json'
@@ -73,3 +77,35 @@ export const getPosts = memoize(async (id?: string) => {
     createdAt: new Date(item.published).getTime()
   }))
 })
+
+export const follow = async (currentActor: Actor, targetActorId: string) => {
+  const config = getConfig()
+  const content = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `https://${config.host}/${crypto.randomUUID()}`,
+    type: 'Follow',
+    actor: currentActor.id,
+    object: targetActorId
+  }
+  const url = new URL(targetActorId)
+  const digest = `SHA-256=${crypto
+    .createHash('sha-256')
+    .update(JSON.stringify(content))
+    .digest('base64')}`
+  const host = url.host
+  const contentType = 'application/activity+json'
+  const date = new Date().toUTCString()
+
+  const headers = {
+    host,
+    date,
+    digest,
+    'content-type': contentType
+  }
+  const signature = await sign(
+    `(request-target): post ${url.pathname}/inbox`,
+    headers,
+    currentActor.privateKey
+  )
+  console.log(signature)
+}

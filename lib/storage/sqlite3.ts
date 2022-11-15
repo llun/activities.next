@@ -78,6 +78,12 @@ export class Sqlite3Storage {
     return Boolean(result?.count && result?.count > 0)
   }
 
+  async getActorFromUsername(username: string) {
+    return this.database<Actor>('actors')
+      .where('preferredUsername', username)
+      .first()
+  }
+
   async createStatus(status: Status) {
     const { account, mediaAttachmentIds, ...rest } = status
     await this.database.insert(rest).into('statuses')

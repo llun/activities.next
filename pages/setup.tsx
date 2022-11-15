@@ -20,7 +20,7 @@ const Page: NextPage<Props> = () => {
       </Head>
       <Header session={session} />
       <section className="container pt-4">
-        <form action="/api/users/setup" method="post">
+        <form action="/api/v1/setup" method="post">
           <div className="mb-3">
             <label htmlFor="username" className="form-label">
               Username

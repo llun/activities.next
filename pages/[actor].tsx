@@ -19,6 +19,7 @@ interface Props {
   isFollowing: boolean
   username: string
   iconUrl?: string
+  id: string
   url: string
   followersCount: number
   followingCount: number
@@ -36,6 +37,7 @@ interface Props {
 const Page: NextPage<Props> = ({
   isFollowing,
   username,
+  id,
   url,
   iconUrl,
   followersCount,
@@ -81,7 +83,21 @@ const Page: NextPage<Props> = ({
               </p>
             </div>
             <div className="flex-shrink-0">
-              {!isFollowing && <Button>Follow</Button>}
+              {!isFollowing && (
+                <Button
+                  onClick={() => {
+                    fetch('/api/v1/accounts/follow', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({ target: id })
+                    })
+                  }}
+                >
+                  Follow
+                </Button>
+              )}
               {isFollowing && <Button variant="danger">Unfollow</Button>}
             </div>
           </div>
@@ -162,6 +178,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     return {
       props: {
         isFollowing,
+        id: person.id,
         username: person.username,
         iconUrl: person.icon?.url || '',
         url: person.url,
@@ -177,8 +194,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   // Internal Account
   return {
     props: {
-      handle: '',
+      isFollowing: false,
+      username: '',
       iconUrl: '',
+      id: '',
       url: '',
       totalPosts: 0,
       followersCount: 0,

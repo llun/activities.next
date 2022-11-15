@@ -15,8 +15,6 @@ export default async function handler(
 ) {
   switch (req.method) {
     case 'POST': {
-      const username = req.body.username
-
       const [storage, session] = await Promise.all([
         getStorage(),
         unstable_getServerSession(req, res, authOptions)
@@ -25,6 +23,8 @@ export default async function handler(
       if (!storage || !session?.user?.email) {
         return res.status(302).redirect('/singin')
       }
+
+      const username = req.body.username
       if (await storage?.isUsernameExists(username)) {
         return res.status(302).redirect('/setup?error=HANDLE_ALREADY_EXISTS')
       }
@@ -39,7 +39,7 @@ export default async function handler(
           type: 'pkcs8',
           format: 'pem',
           cipher: 'aes-256-cbc',
-          passphrase: 'top secret'
+          passphrase: ''
         }
       })
       await storage.createAccount({
