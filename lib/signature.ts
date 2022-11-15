@@ -64,5 +64,5 @@ export async function sign(
   const signer = crypto.createSign('rsa-sha256')
   signer.write(signedString)
   signer.end()
-  return signer.sign(privateKey, 'base64')
+  return signer.sign({ key: privateKey, passphrase: 'top secret' }, 'base64')
 }
