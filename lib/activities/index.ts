@@ -1,5 +1,5 @@
 import memoize from 'lodash/memoize'
-import { OrderedCollection, Person } from './types'
+import { OrderedCollection, OrderedCollectionPage, Person } from './types'
 
 const SHARED_HEADERS = {
   Accept: 'application/activity+json, application/ld+json'
@@ -31,6 +31,7 @@ export const getPerson = memoize(async (id: string) => {
   ])
 
   return {
+    id: json.id,
     handle: json.preferredUsername,
     icon: json.icon,
     url: json.url,
@@ -45,6 +46,30 @@ export const getPerson = memoize(async (id: string) => {
     followingCount: following?.totalItems || 0,
     totalPosts: posts?.totalItems || 0,
 
+    urls: {
+      followers: followers?.first,
+      following: following?.first,
+      posts: posts?.first
+    },
+
     createdAt: new Date(json.published).getTime()
   }
+})
+
+export const getPosts = memoize(async (id?: string) => {
+  if (!id) return []
+
+  const response = await fetch(id, {
+    headers: SHARED_HEADERS
+  })
+  if (response.status !== 200) return []
+
+  const json: OrderedCollectionPage = await response.json()
+  return json.orderedItems.map((item) => ({
+    actor: item.actor,
+    id: item.object.id,
+    url: item.object.url,
+    content: item.object.content,
+    createdAt: new Date(item.published).getTime()
+  }))
 })

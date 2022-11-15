@@ -3,21 +3,30 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { unstable_getServerSession } from 'next-auth'
 import { useSession } from 'next-auth/react'
+import parse, { attributesToProps } from 'html-react-parser'
 import cn from 'classnames'
+import formatDistanceToNow from 'date-fns/formatDistanceToNow'
 
 import { authOptions } from './api/auth/[...nextauth]'
 import { Header } from '../lib/components/Header'
-import { getPerson } from '../lib/activities'
+import { getPerson, getPosts } from '../lib/activities'
 
 import styles from './[actor].module.scss'
 
 interface Props {
   handle: string
-  iconUrl: string
+  iconUrl?: string
   url: string
   followersCount: number
   followingCount: number
   totalPosts: number
+  posts: {
+    actor: string
+    id: string
+    url: string
+    content: string
+    createdAt: number
+  }[]
   createdAt: number
 }
 
@@ -28,6 +37,7 @@ const Page: NextPage<Props> = ({
   followersCount,
   followingCount,
   totalPosts,
+  posts,
   createdAt
 }) => {
   const { data: session } = useSession()
@@ -40,7 +50,9 @@ const Page: NextPage<Props> = ({
       <section className="container pt-4">
         <section className="card">
           <div className="card-body d-flex">
-            <img className={cn(styles.icon, 'me-2')} src={iconUrl} />
+            {iconUrl && (
+              <img className={cn(styles.icon, 'me-2')} src={iconUrl} />
+            )}
             <div>
               <h1>@{handle}</h1>
               <small>
@@ -62,6 +74,27 @@ const Page: NextPage<Props> = ({
               </p>
             </div>
           </div>
+        </section>
+        <section className="mt-4">
+          {posts.map((post) => (
+            <div key={post.id} className={cn('d-flex')}>
+              <div className="flex-fill me-1">
+                {parse(post.content, {
+                  replace: (domNode: any) => {
+                    if (domNode.attribs && domNode.name === 'a') {
+                      domNode.attribs.target = '_blank'
+                      return domNode
+                    }
+
+                    return domNode
+                  }
+                })}
+              </div>
+              <div className="flex-shrink-0">
+                {formatDistanceToNow(post.createdAt)}
+              </div>
+            </div>
+          ))}
         </section>
       </section>
     </main>
@@ -97,10 +130,12 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   if (parts.length === 2) {
     const [account, domain] = parts
     const person = await getPerson(`https://${domain}/users/${account}`)
-
     if (!person) {
       return { notFound: true }
     }
+
+    const posts = person.totalPosts > 0 ? await getPosts(person.urls.posts) : []
+
     return {
       props: {
         handle: person.handle,
@@ -109,6 +144,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
         totalPosts: person.totalPosts,
         followersCount: person.followersCount,
         followingCount: person.followingCount,
+        posts,
         createdAt: person.createdAt
       }
     }
@@ -123,6 +159,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       totalPosts: 0,
       followersCount: 0,
       followingCount: 0,
+      posts: [],
       createdAt: 0
     }
   }
