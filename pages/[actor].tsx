@@ -162,7 +162,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     const actorId = `https://${domain}/users/${account}`
     const [currentActor, person] = await Promise.all([
       storage.getActorFromEmail(session.user.email),
-      getPerson(actorId)
+      getPerson(actorId, true)
     ])
 
     if (!person || !currentActor) {

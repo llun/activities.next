@@ -1,10 +1,15 @@
-// Next.js API route support: https://nextjs.org/docs/api-routes/introduction
 import type { NextApiRequest, NextApiResponse } from 'next'
 import util from 'util'
 
-type Data = {
-  name: string
-}
+import { parse } from '../../../../lib/signature'
+
+type Data =
+  | {
+      name: string
+    }
+  | {
+      error: string
+    }
 
 function follow() {
   // target_account = account_from_uri(object_uri)
@@ -42,13 +47,48 @@ function follow() {
 
 function unfollow() {}
 
-export default function handler(
+export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<Data>
 ) {
+  const headerSignature = req.headers.signature
+  if (!headerSignature) {
+    return res.status(400).send({ error: 'Bad Request' })
+  }
+
+  const signatureParts = await parse(headerSignature as string)
+  if (!signatureParts.keyId) {
+    return res.status(400).send({ error: 'Bad Request' })
+  }
+
   console.log('user inbox', req.query, req.headers)
   console.log(util.inspect(req.body, false, null, true))
   res.status(200).json({ name: 'John Doe' })
+
+  /**
+   * user inbox { account: 'me' } {
+  host: 'chat.llun.in.th',
+  'user-agent': 'http.rb/5.1.0 (Mastodon/4.0.1; +https://glasgow.social/)',
+  'content-length': '358',
+  'accept-encoding': 'gzip',
+  'cdn-loop': 'cloudflare',
+  'cf-connecting-ip': '35.176.29.0',
+  'cf-ipcountry': 'GB',
+  'cf-ray': '76aea7538da8769b-LHR',
+  'cf-visitor': '{"scheme":"https"}',
+  'cf-warp-tag-id': '2438ab28-f04b-4dfc-8169-ee5c28319095',
+  connection: 'keep-alive',
+  'content-type': 'application/activity+json',
+  date: 'Wed, 16 Nov 2022 07:53:33 GMT',
+  digest: 'SHA-256=AVI4RrJyuPLMhpOPHBh4uNVOn0BpMtc+VG07FxBuow0=',
+  signature: 'keyId="https://glasgow.social/users/llun#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="OKzOH/KFIF5gTdcUuUhn1hcKNsRTUD95xXvvu/YhiMwtfpNz2OOdRWd6nYJHRBFN721pZMBwyqjj1VdS5SOOO64g04FQXPXgPUqKBQF6ZNkoS4Xgj3yPA+BIvyWTN7U9la16Mej2ICVyl5+JtDYH6uMe0EU2MuTBjf843wxPLp30/RWHrMroOjUNuMitanw1gexjSiAHvFNLJvpEg0EW3sn/uA/IaINC1pvBI64S8ky1662GDTrsVXaiqugvUhkZN39cC+B5sSguscoyMB3QKtkw0mDit1gWxk4vZrvGXQn6OSXa6HiMJ0DevuLpe9t2tqJEBUgFGVExt1j0qFn0gg=="',
+  'x-forwarded-for': '35.176.29.0',
+  'x-forwarded-proto': 'https'
+}
+'{"@context":"https://www.w3.org/ns/activitystreams","id":"https://glasgow.social/users/llun#accepts/follows/53870","type":"Accept","actor":"https://glasgow.social/users/llun","object":{"id":"https://chat.llun.in.th/af9ca279-aad7-4d7c-bdc2-d12dba728e15","type":"Follow","actor":"https://chat.llun.in.th/users/me","object":"https://glasgow.social/users/llun"}}'
+
+
+   */
 
   /**
    * follow

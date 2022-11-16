@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   console.log(
     `${new Intl.DateTimeFormat('en-US', {
       dateStyle: 'short',
@@ -9,4 +9,7 @@ export function middleware(request: NextRequest) {
       request.nextUrl.pathname
     }`
   )
+  if (request.method === 'POST') {
+    console.log(await request.text())
+  }
 }

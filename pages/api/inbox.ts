@@ -2,6 +2,7 @@ import type { NextApiHandler } from 'next'
 import { parse, verify } from '../../lib/signature'
 import { getStorage } from '../../lib/storage'
 import { fromJson } from '../../lib/models/status'
+import { getPerson } from '../../lib/activities'
 
 export interface StreamsTag {}
 
@@ -59,24 +60,20 @@ export interface StreamsJSON {
 const ApiHandler: NextApiHandler = async (req, res) => {
   const headerSignature = req.headers.signature
   if (!headerSignature) {
-    console.log(Date.now(), 'POST /inbox -> 400')
     return res.status(400).send('Bad request')
   }
 
   const signatureParts = await parse(headerSignature as string)
   if (!signatureParts.keyId) {
-    console.log(Date.now(), 'POST /inbox -> 400')
     return res.status(400).send('Bad request')
   }
 
-  const sender = await fetch(signatureParts.keyId, {
-    headers: {
-      Host: new URL(signatureParts.keyId).host,
-      Accept: 'application/activity+json, application/ld+json'
-    }
-  }).then((response) => response.json())
-  if (!verify('post /inbox', req.headers, sender.publicKey?.publicKeyPem)) {
-    console.log(Date.now(), 'POST /inbox -> 403')
+  const sender = await getPerson(signatureParts.keyId, false)
+  if (!sender) {
+    return res.status(400).send('Bad request')
+  }
+
+  if (!verify('post /inbox', req.headers, sender.publicKey)) {
     return res.status(400).send('Bad request')
   }
 
@@ -85,11 +82,9 @@ const ApiHandler: NextApiHandler = async (req, res) => {
   switch (body.type) {
     case 'Create': {
       storage?.createStatus(fromJson(body.object))
-      console.log(Date.now(), 'POST /inbox -> 200')
       return res.status(202).send('')
     }
     default:
-      console.log(Date.now(), 'POST /inbox -> 404')
       res.status(404).send('Unsupported')
   }
 }
