@@ -26,7 +26,7 @@ export function guard<T>(handle: NextApiHandler<T>) {
     if (!req.url) {
       return res.status(400).send(ERROR_400)
     }
-    const requestUrl = new URL(req.url)
+    const requestUrl = new URL(req.url, `http://${req.headers.host}`)
     if (
       !verify(
         `${req.method?.toLowerCase()} ${requestUrl.pathname}`,

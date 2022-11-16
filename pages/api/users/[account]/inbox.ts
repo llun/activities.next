@@ -144,15 +144,13 @@ export default guard(async (req: NextApiRequest, res: NextApiResponse) => {
           acceptFollow.actor
         )
         if (!follow) {
-          res.status(404).json(ERROR_404)
+          return res.status(404).json(ERROR_404)
         }
         await storage.updateFollowStatus(followId, 'Accepted')
 
-        res.status(202).send('')
-        return
+        return res.status(202).send('')
       default:
-        res.status(202).send('')
-        return
+        return res.status(202).send('')
     }
   }
 

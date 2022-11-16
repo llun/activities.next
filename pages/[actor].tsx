@@ -169,7 +169,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       return { notFound: true }
     }
 
-    const posts = person.totalPosts > 0 ? await getPosts(person.urls.posts) : []
+    const posts =
+      (person.totalPosts || 0) > 0 ? await getPosts(person.urls?.posts) : []
     const isFollowing = await storage.isCurrentActorFollowing(
       currentActor.id,
       actorId
@@ -182,9 +183,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
         username: person.username,
         iconUrl: person.icon?.url || '',
         url: person.url,
-        totalPosts: person.totalPosts,
-        followersCount: person.followersCount,
-        followingCount: person.followingCount,
+        totalPosts: person.totalPosts || 0,
+        followersCount: person.followersCount || 0,
+        followingCount: person.followingCount || 0,
         posts,
         createdAt: person.createdAt
       }
