@@ -7,6 +7,7 @@ export interface Config {
   host: string
   database: Knex.Config & { type: 'sqlite3' }
   allowEmails: string[]
+  secretPhase: string
   auth?: {
     github?: {
       id: string

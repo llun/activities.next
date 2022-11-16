@@ -3,6 +3,7 @@ import { generate } from 'peggy'
 import fs from 'fs/promises'
 import path from 'path'
 import { IncomingHttpHeaders } from 'http'
+import { getConfig } from './config'
 
 interface StringMap {
   [key: string]: string
@@ -64,5 +65,8 @@ export async function sign(
   const signer = crypto.createSign('rsa-sha256')
   signer.write(signedString)
   signer.end()
-  return signer.sign({ key: privateKey, passphrase: 'top secret' }, 'base64')
+  return signer.sign(
+    { key: privateKey, passphrase: getConfig().secretPhase },
+    'base64'
+  )
 }

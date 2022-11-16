@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import util from 'util'
 import { authOptions } from '../auth/[...nextauth]'
 import { getStorage } from '../../../lib/storage'
+import { getConfig } from '../../../lib/config'
 
 type Data = {
   done: boolean
@@ -39,7 +40,7 @@ export default async function handler(
           type: 'pkcs8',
           format: 'pem',
           cipher: 'aes-256-cbc',
-          passphrase: 'top secret'
+          passphrase: getConfig().secretPhase
         }
       })
       await storage.createAccount({
