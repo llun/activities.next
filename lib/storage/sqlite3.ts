@@ -87,6 +87,15 @@ export class Sqlite3Storage {
       .first()
   }
 
+  async getActorFollowingCount(actorId: string) {
+    const result = await this.database('follows')
+      .where('actorId', actorId)
+      .andWhere('status', 'Accepted')
+      .count('* as count')
+      .first()
+    return (result?.count as number) || 0
+  }
+
   async createFollow(actor: Actor, targetActorId: string) {
     const currentTime = Date.now()
     const follow: Follow = {
