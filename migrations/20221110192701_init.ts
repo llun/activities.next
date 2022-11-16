@@ -16,9 +16,6 @@ export async function up(knex: Knex): Promise<void> {
       table.string('accountId')
       table.foreign('accountId').references('id').inTable('accounts')
 
-      table.string('followingId')
-      table.foreign('followingId').references('id').inTable('actors')
-
       table.text('summary')
       table.boolean('manuallyApprovesFollowers')
       table.boolean('discoverable')
@@ -31,7 +28,7 @@ export async function up(knex: Knex): Promise<void> {
     })
     .createTable('statuses', function (table) {
       table.string('uri').primary()
-      table.string('actorId').unsigned()
+      table.string('actorId')
       table.foreign('actorId').references('id').inTable('actors')
 
       table.string('url')
@@ -45,6 +42,17 @@ export async function up(knex: Knex): Promise<void> {
 
       table.string('thread')
       table.string('conversation')
+
+      table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+      table.timestamp('updatedAt', { useTz: true })
+    })
+    .createTable('follows', function (table) {
+      table.string('id').primary()
+      table.string('actorId')
+      table.foreign('actorId').references('id').inTable('actors')
+
+      table.string('targetActorId')
+      table.string('status')
 
       table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
       table.timestamp('updatedAt', { useTz: true })

@@ -33,7 +33,8 @@ export default async function handler(
         return res.status(302).redirect('/singin')
       }
 
-      await follow(currentActor, target)
+      const followItem = await storage.createFollow(currentActor, target)
+      await follow(followItem.id, currentActor, target)
       return res.status(200).json({ done: true })
     }
     default:

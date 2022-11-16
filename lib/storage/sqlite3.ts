@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { Status } from '../models/status'
 import { Actor } from '../models/actor'
 import { getConfig } from '../config'
+import { Follow } from '../models/follow'
 
 export class Sqlite3Storage {
   database: Knex
@@ -43,7 +44,8 @@ export class Sqlite3Storage {
       await trx('accounts').insert({
         id: accountId,
         email,
-        createdAt: currentTime
+        createdAt: currentTime,
+        updatedAt: currentTime
       })
       await trx('actors').insert({
         id: actorId,
@@ -51,7 +53,8 @@ export class Sqlite3Storage {
         preferredUsername: username,
         publicKey,
         privateKey,
-        createdAt: currentTime
+        createdAt: currentTime,
+        updatedAt: currentTime
       })
     })
 
@@ -82,6 +85,23 @@ export class Sqlite3Storage {
     return this.database<Actor>('actors')
       .where('preferredUsername', username)
       .first()
+  }
+
+  async createFollow(actor: Actor, targetActorId: string) {
+    const currentTime = Date.now()
+    const follow: Follow = {
+      id: crypto.randomUUID(),
+      actor,
+      targetActorId,
+      status: 'Requested',
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
+    await this.database('follows').insert({
+      ...follow,
+      actorId: actor.id
+    })
+    return follow
   }
 
   async createStatus(status: Status) {

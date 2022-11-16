@@ -96,11 +96,15 @@ export const getPosts = memoize(async (id?: string) => {
   }))
 })
 
-export const follow = async (currentActor: Actor, targetActorId: string) => {
+export const follow = async (
+  id: string,
+  currentActor: Actor,
+  targetActorId: string
+) => {
   const config = getConfig()
   const content = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `https://${config.host}/${crypto.randomUUID()}`,
+    id: `https://${config.host}/${id}`,
     type: 'Follow',
     actor: currentActor.id,
     object: targetActorId

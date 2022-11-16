@@ -15,5 +15,5 @@ export interface Actor {
   privateKey: string
 
   createdAt: number
-  updatedAt?: number
+  updatedAt: number
 }
