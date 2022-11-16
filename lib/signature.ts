@@ -4,6 +4,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { IncomingHttpHeaders } from 'http'
 import { getConfig } from './config'
+import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
 
 interface StringMap {
   [key: string]: string

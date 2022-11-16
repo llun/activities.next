@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import util from 'util'
+import { guard } from '../../../../lib/guard'
 
 import { parse } from '../../../../lib/signature'
 
@@ -45,27 +46,7 @@ function follow() {
   // end
 }
 
-function unfollow() {}
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<Data>
-) {
-  const headerSignature = req.headers.signature
-  if (!headerSignature) {
-    return res.status(400).send({ error: 'Bad Request' })
-  }
-
-  const signatureParts = await parse(headerSignature as string)
-  if (!signatureParts.keyId) {
-    return res.status(400).send({ error: 'Bad Request' })
-  }
-
-  console.log('user inbox', req.query, req.headers)
-  console.log(util.inspect(req.body, false, null, true))
-  res.status(200).json({ name: 'John Doe' })
-
-  /**
+/**
    * user inbox { account: 'me' } {
   host: 'chat.llun.in.th',
   'user-agent': 'http.rb/5.1.0 (Mastodon/4.0.1; +https://glasgow.social/)',
@@ -90,7 +71,7 @@ export default async function handler(
 
    */
 
-  /**
+/**
    * follow
    * user inbox { account: 'fix' } {
   host: 'chat.llun.in.th',
@@ -115,7 +96,7 @@ export default async function handler(
 
    */
 
-  /**
+/**
    * unfollow
  * user inbox { account: 'fix' } {
   host: 'chat.llun.in.th',
@@ -139,4 +120,9 @@ export default async function handler(
 '{"@context":"https://www.w3.org/ns/activitystreams","id":"https://glasgow.social/users/llun#follows/41502/undo","type":"Undo","actor":"https://glasgow.social/users/llun","object":{"id":"https://glasgow.social/3ba6b825-1f36-4d2e-b875-e54c54c757b0","type":"Follow","actor":"https://glasgow.social/users/llun","object":"https://chat.llun.in.th/users/fix"}}'
 
  */
-}
+
+export default guard(async (req: NextApiRequest, res: NextApiResponse) => {
+  console.log('user inbox', req.query, req.headers)
+  console.log(util.inspect(req.body, false, null, true))
+  res.status(200).json({ name: 'John Doe' })
+})
