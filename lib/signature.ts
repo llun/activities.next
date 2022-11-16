@@ -9,8 +9,6 @@ interface StringMap {
   [key: string]: string
 }
 
-const SIGNATURE_KEYS = ['keyId', 'algorithm', 'headers', 'signature']
-
 export async function parse(signature: string): Promise<StringMap> {
   const grammar = await fs.readFile(
     path.resolve(process.cwd(), 'lib', 'signature.pegjs'),
@@ -28,14 +26,19 @@ export async function parse(signature: string): Promise<StringMap> {
 }
 
 // TODO: Add more checks later https://github.com/mastodon/mastodon/blob/main/app/controllers/concerns/signature_verification.rb#L78
-export async function verify(headers: IncomingHttpHeaders, publicKey: string) {
+export async function verify(
+  requestTarget: string,
+  headers: IncomingHttpHeaders,
+  publicKey: string
+) {
   const headerSignature = await parse(headers.signature as string)
   if (!headerSignature.headers) return false
 
   const comparedSignedString = headerSignature.headers
     .split(' ')
     .map((item) => {
-      if (item === '(request-target)') return '(request-target): post /inbox'
+      if (item === '(request-target)')
+        return `(request-target): ${requestTarget}`
       return `${item}: ${headers[item]}`
     })
     .join('\n')

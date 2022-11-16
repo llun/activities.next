@@ -2,7 +2,7 @@ import memoize from 'lodash/memoize'
 import crypto from 'crypto'
 import { OrderedCollection, OrderedCollectionPage, Person } from './types'
 import { getConfig } from '../config'
-import { sign } from '../signature'
+import { sign, verify } from '../signature'
 import { Actor } from '../models/actor'
 
 const SHARED_HEADERS = {
@@ -107,5 +107,16 @@ export const follow = async (currentActor: Actor, targetActorId: string) => {
     headers,
     currentActor.privateKey
   )
-  console.log(signature)
+  const signatureHeader = `keyId="${currentActor.id}#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="${signature}"`
+  const response = await fetch(`${targetActorId}/inbox`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      signature: signatureHeader
+    },
+    body: JSON.stringify(content)
+  })
+  console.log(response.status)
+  const t = await response.text()
+  console.log(t)
 }

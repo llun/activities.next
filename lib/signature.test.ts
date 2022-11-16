@@ -1,5 +1,9 @@
 import { parse, verify } from './signature'
 
+jest.mock('./config', () => ({
+  getConfig: () => ({ secretPhase: '' })
+}))
+
 describe('#parse', () => {
   test('split signature into parts', async () => {
     const signature =
@@ -22,6 +26,7 @@ describe('#verify', () => {
   it('returns true when signature and public key is matched', async () => {
     expect(
       await verify(
+        'post /inbox',
         {
           host: 'chat.llun.in.th',
           'content-length': '2682',
@@ -39,6 +44,7 @@ describe('#verify', () => {
   it('returns false when signature and public key is matched but header information is wrong', async () => {
     expect(
       await verify(
+        'post /inbox',
         {
           host: 'chat.llun.in.th',
           'content-length': '2682',
@@ -56,6 +62,7 @@ describe('#verify', () => {
   it('returns false when signature and public key is not matched', async () => {
     expect(
       await verify(
+        'post /inbox',
         {
           host: 'chat.llun.in.th',
           'content-length': '2682',
