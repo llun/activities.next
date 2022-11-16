@@ -9,7 +9,7 @@ export async function middleware(request: NextRequest) {
       request.nextUrl.pathname
     }`
   )
-  if (request.method === 'POST') {
+  if (request.method !== 'GET') {
     console.log(await request.text())
   }
 }

@@ -1,8 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import util from 'util'
+import { AcceptFollow } from '../../../../lib/activities/types'
+import { getConfig } from '../../../../lib/config'
+import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { guard } from '../../../../lib/guard'
 
 import { parse } from '../../../../lib/signature'
+import { getStorage } from '../../../../lib/storage'
 
 type Data =
   | {
@@ -122,6 +126,36 @@ function follow() {
  */
 
 export default guard(async (req: NextApiRequest, res: NextApiResponse) => {
+  if (req.method === 'POST') {
+    const activity = JSON.parse(req.body)
+    const storage = await getStorage()
+    if (!storage) {
+      return res.status(400).json(ERROR_400)
+    }
+
+    switch (activity.type) {
+      case 'Accept':
+        const acceptFollow = activity as AcceptFollow
+        const followId = acceptFollow.object.id.substring(
+          `https://${getConfig().host}/`.length
+        )
+        const follow = await storage.getFollowFromId(
+          followId,
+          acceptFollow.actor
+        )
+        if (!follow) {
+          res.status(404).json(ERROR_404)
+        }
+        await storage.updateFollowStatus(followId, 'Accepted')
+
+        res.status(202).send('')
+        return
+      default:
+        res.status(202).send('')
+        return
+    }
+  }
+
   console.log('user inbox', req.query, req.headers)
   console.log(util.inspect(req.body, false, null, true))
   res.status(200).json({ name: 'John Doe' })
