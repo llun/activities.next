@@ -135,7 +135,7 @@ export default apiGuard(
       }
 
       switch (activity.type) {
-        case 'Accept':
+        case 'Accept': {
           const acceptFollow = activity as AcceptFollow
           const followId = acceptFollow.object.id.substring(
             `https://${getConfig().host}/`.length
@@ -148,8 +148,23 @@ export default apiGuard(
             return res.status(404).json(ERROR_404)
           }
           await storage.updateFollowStatus(followId, 'Accepted')
-
           return res.status(202).send('')
+        }
+        case 'Reject': {
+          const rejectFollow = activity as AcceptFollow
+          const followId = rejectFollow.object.id.substring(
+            `https://${getConfig().host}/`.length
+          )
+          const follow = await storage.getFollowFromId(
+            followId,
+            rejectFollow.actor
+          )
+          if (!follow) {
+            return res.status(404).json(ERROR_404)
+          }
+          await storage.updateFollowStatus(followId, 'Rejected')
+          return res.status(202).send('')
+        }
         default:
           return res.status(202).send('')
       }

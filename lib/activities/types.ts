@@ -191,10 +191,17 @@ export type Follow = {
   object: string
 }
 
-export type AcceptFollow = {
+export type BaseFollow = {
   '@context': 'https://www.w3.org/ns/activitystreams'
   id: string
-  type: 'Accept'
   actor: string
   object: Follow
+}
+
+export type AcceptFollow = BaseFollow & {
+  type: 'Accept'
+}
+
+export type RejectFollow = BaseFollow & {
+  type: 'Reject'
 }
