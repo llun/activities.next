@@ -88,6 +88,10 @@ export class Sqlite3Storage {
       .first()
   }
 
+  async getActorFromId(id: string) {
+    return this.database<Actor>('actors').where('id', id).first()
+  }
+
   async getActorFollowingCount(actorId: string) {
     const result = await this.database('follows')
       .where('actorId', actorId)
@@ -106,7 +110,7 @@ export class Sqlite3Storage {
     return (result?.count as number) || 0
   }
 
-  async createFollow(actor: Actor, targetActorId: string) {
+  async createFollow(actorId: string, targetActorId: string) {
     const currentTime = Date.now()
     const baseFollow = {
       id: crypto.randomUUID(),
@@ -117,12 +121,9 @@ export class Sqlite3Storage {
     }
     await this.database('follows').insert({
       ...baseFollow,
-      actorId: actor.id
+      actorId: actorId
     })
-    return {
-      ...baseFollow,
-      actor
-    }
+    return baseFollow
   }
 
   async getFollowFromId(id: string, actorId: string) {

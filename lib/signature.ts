@@ -5,6 +5,7 @@ import path from 'path'
 import { IncomingHttpHeaders } from 'http'
 import { getConfig } from './config'
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
+import { Actor } from './models/actor'
 
 interface StringMap {
   [key: string]: string
@@ -54,7 +55,7 @@ export async function verify(
   }
 }
 
-export async function sign(
+export function sign(
   request: string,
   headers: IncomingHttpHeaders,
   privateKey: string
@@ -73,4 +74,37 @@ export async function sign(
     { key: privateKey, passphrase: getConfig().secretPhase },
     'base64'
   )
+}
+
+export function headers(
+  currentActor: Actor,
+  method: string,
+  targetUrl: string,
+  content: any
+) {
+  const url = new URL(targetUrl)
+  const digest = `SHA-256=${crypto
+    .createHash('sha-256')
+    .update(JSON.stringify(content))
+    .digest('base64')}`
+  const host = url.host
+  const contentType = 'application/activity+json'
+  const date = new Date().toUTCString()
+
+  const headers = {
+    host,
+    date,
+    digest,
+    'content-type': contentType
+  }
+  const signature = sign(
+    `(request-target): ${method} ${url.pathname}`,
+    headers,
+    currentActor.privateKey
+  )
+  const signatureHeader = `keyId="${currentActor.id}#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="${signature}"`
+  return {
+    ...headers,
+    signature: signatureHeader
+  }
 }

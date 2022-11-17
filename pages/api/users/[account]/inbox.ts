@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import util from 'util'
-import { AcceptFollow } from '../../../../lib/activities/types'
+import { acceptFollow } from '../../../../lib/activities'
+import { AcceptFollow, FollowRequest } from '../../../../lib/activities/types'
 import { getConfig } from '../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { apiGuard } from '../../../../lib/guard'
@@ -163,6 +164,23 @@ export default apiGuard(
             return res.status(404).json(ERROR_404)
           }
           await storage.updateFollowStatus(followId, 'Rejected')
+          return res.status(202).send('')
+        }
+        case 'Follow': {
+          const followRequest = activity as FollowRequest
+          const actor = await storage.getActorFromId(followRequest.object)
+          if (!actor) {
+            console.log('No actor found')
+            return res.status(404).json(ERROR_404)
+          }
+
+          await Promise.all([
+            await storage.createFollow(
+              followRequest.actor,
+              followRequest.object
+            ),
+            await acceptFollow(actor, followRequest)
+          ])
           return res.status(202).send('')
         }
         default:

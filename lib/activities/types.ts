@@ -184,24 +184,30 @@ export type OrderedCollectionPage = typeof OutboxContext & {
   orderedItems: CreateActivity[]
 }
 
-export type Follow = {
+export type BaseFollow = {
+  '@context': 'https://www.w3.org/ns/activitystreams'
+  id: string
+  actor: string
+}
+
+export type FollowRequest = BaseFollow & {
+  type: 'Follow'
+  object: string
+}
+
+export type FollowObject = {
   id: string
   type: 'Follow'
   actor: string
   object: string
 }
 
-export type BaseFollow = {
-  '@context': 'https://www.w3.org/ns/activitystreams'
-  id: string
-  actor: string
-  object: Follow
-}
-
 export type AcceptFollow = BaseFollow & {
   type: 'Accept'
+  object: FollowObject
 }
 
 export type RejectFollow = BaseFollow & {
   type: 'Reject'
+  object: FollowObject
 }

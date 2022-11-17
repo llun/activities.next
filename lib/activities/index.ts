@@ -1,8 +1,13 @@
 import memoize from 'lodash/memoize'
-import crypto from 'crypto'
-import { OrderedCollection, OrderedCollectionPage, Person } from './types'
+import {
+  AcceptFollow,
+  FollowRequest,
+  OrderedCollection,
+  OrderedCollectionPage,
+  Person
+} from './types'
 import { getConfig } from '../config'
-import { sign } from '../signature'
+import { headers } from '../signature'
 import { Actor } from '../models/actor'
 
 const SHARED_HEADERS = {
@@ -102,40 +107,16 @@ export const follow = async (
   targetActorId: string
 ) => {
   const config = getConfig()
-  const content = {
+  const content: FollowRequest = {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id: `https://${config.host}/${id}`,
     type: 'Follow',
     actor: currentActor.id,
     object: targetActorId
   }
-  const url = new URL(targetActorId)
-  const digest = `SHA-256=${crypto
-    .createHash('sha-256')
-    .update(JSON.stringify(content))
-    .digest('base64')}`
-  const host = url.host
-  const contentType = 'application/activity+json'
-  const date = new Date().toUTCString()
-
-  const headers = {
-    host,
-    date,
-    digest,
-    'content-type': contentType
-  }
-  const signature = await sign(
-    `(request-target): post ${url.pathname}/inbox`,
-    headers,
-    currentActor.privateKey
-  )
-  const signatureHeader = `keyId="${currentActor.id}#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="${signature}"`
   const response = await fetch(`${targetActorId}/inbox`, {
     method: 'POST',
-    headers: {
-      ...headers,
-      signature: signatureHeader
-    },
+    headers: headers(currentActor, 'post', `${targetActorId}/inbox`, content),
     body: JSON.stringify(content)
   })
   console.log(response.status)
@@ -144,3 +125,34 @@ export const follow = async (
 }
 
 export const unfollow = async (currentActor: Actor, targetActorId: string) => {}
+
+export const acceptFollow = async (
+  currentActor: Actor,
+  followRequest: FollowRequest
+) => {
+  const acceptFollowRequest: AcceptFollow = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${currentActor.id}#accepts/followers`,
+    type: 'Accept',
+    actor: currentActor.id,
+    object: {
+      id: followRequest.id,
+      type: 'Follow',
+      actor: followRequest.actor,
+      object: followRequest.object
+    }
+  }
+  const response = await fetch(`${followRequest.actor}/inbox`, {
+    method: 'POST',
+    headers: headers(
+      currentActor,
+      'post',
+      `${followRequest.actor}/inbox`,
+      acceptFollowRequest
+    ),
+    body: JSON.stringify(acceptFollowRequest)
+  })
+  console.log(response.status)
+  const t = await response.text()
+  console.log(t)
+}

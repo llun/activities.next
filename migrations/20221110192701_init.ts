@@ -29,7 +29,6 @@ export async function up(knex: Knex): Promise<void> {
     .createTable('statuses', function (table) {
       table.string('uri').primary()
       table.string('actorId')
-      table.foreign('actorId').references('id').inTable('actors')
 
       table.string('url')
       table.text('text')
@@ -49,7 +48,6 @@ export async function up(knex: Knex): Promise<void> {
     .createTable('follows', function (table) {
       table.string('id').primary()
       table.string('actorId')
-      table.foreign('actorId').references('id').inTable('actors')
 
       table.string('targetActorId')
       table.string('status')
