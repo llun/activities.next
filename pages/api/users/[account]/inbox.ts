@@ -155,9 +155,7 @@ export default apiGuard(
       }
     }
 
-    console.log('user inbox', req.query, req.headers)
-    console.log(util.inspect(req.body, false, null, true))
-    res.status(200).json({ name: 'John Doe' })
+    return res.status(404).json(ERROR_404)
   },
   ['POST']
 )

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { Person, PersonContext } from '../../../lib/activities/types'
 import { getConfig } from '../../../lib/config'
+import { ERROR_404, ERROR_500 } from '../../../lib/errors'
 import { getStorage } from '../../../lib/storage'
 import { getISOTimeUTC } from '../../../lib/time'
 
@@ -19,12 +20,12 @@ export default async function handler(
 
   const storage = await getStorage()
   if (!storage) {
-    return res.status(500).json({ error: 'Internal Server Error' })
+    return res.status(500).json(ERROR_500)
   }
 
   const actor = await storage.getActorFromUsername(account as string)
   if (!actor) {
-    return res.status(404).json({ error: 'Not Found' })
+    return res.status(404).json(ERROR_404)
   }
 
   const user: Person = {

@@ -191,7 +191,6 @@ export default function handler(
   req: NextApiRequest,
   res: NextApiResponse<Data>
 ) {
-  console.log('v1/timelines/public', req.query, req.headers)
   res.status(200).json({
     uri: 'chat.llun.in.th',
     title: 'Personal llun Mastodon',
