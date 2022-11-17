@@ -142,7 +142,7 @@ export default apiGuard(
           )
           const follow = await storage.getFollowFromId(
             followId,
-            acceptFollow.actor
+            acceptFollow.object.actor
           )
           if (!follow) {
             return res.status(404).json(ERROR_404)
@@ -157,7 +157,7 @@ export default apiGuard(
           )
           const follow = await storage.getFollowFromId(
             followId,
-            rejectFollow.actor
+            rejectFollow.object.actor
           )
           if (!follow) {
             return res.status(404).json(ERROR_404)
