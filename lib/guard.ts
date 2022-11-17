@@ -20,20 +20,24 @@ export function apiGuard<T>(
 
     const headerSignature = req.headers.signature
     if (!headerSignature) {
+      console.error('-> 400 No Signature')
       return res.status(400).send(ERROR_400)
     }
 
     const signatureParts = await parse(headerSignature as string)
     if (!signatureParts.keyId) {
+      console.error('-> 400 No Signature key')
       return res.status(400).send(ERROR_400)
     }
 
     const sender = await getPerson(signatureParts.keyId, false)
     if (!sender) {
+      console.error('-> 400 Person not found')
       return res.status(400).send(ERROR_400)
     }
 
     if (!req.url) {
+      console.error('-> 400 Invalid URL')
       return res.status(400).send(ERROR_400)
     }
     const requestUrl = new URL(req.url, `http://${req.headers.host}`)
@@ -44,6 +48,7 @@ export function apiGuard<T>(
         sender.publicKey
       )
     ) {
+      console.error('-> 400 Invalid Signature')
       return res.status(400).send(ERROR_400)
     }
 
