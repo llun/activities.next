@@ -3,7 +3,7 @@ import { parse, verify } from '../../lib/signature'
 import { getStorage } from '../../lib/storage'
 import { fromJson } from '../../lib/models/status'
 import { getPerson } from '../../lib/activities'
-import { guard } from '../../lib/guard'
+import { apiGuard } from '../../lib/guard'
 
 export interface StreamsTag {}
 
@@ -58,17 +58,20 @@ export interface StreamsJSON {
   signature: StreamsSignature
 }
 
-const ApiHandler: NextApiHandler = guard(async (req, res) => {
-  const body = JSON.parse(req.body) as StreamsJSON
-  const storage = await getStorage()
-  switch (body.type) {
-    case 'Create': {
-      storage?.createStatus(fromJson(body.object))
-      return res.status(202).send('')
+const ApiHandler: NextApiHandler = apiGuard(
+  async (req, res) => {
+    const body = JSON.parse(req.body) as StreamsJSON
+    const storage = await getStorage()
+    switch (body.type) {
+      case 'Create': {
+        storage?.createStatus(fromJson(body.object))
+        return res.status(202).send('')
+      }
+      default:
+        res.status(404).send('Unsupported')
     }
-    default:
-      res.status(404).send('Unsupported')
-  }
-})
+  },
+  ['POST']
+)
 
 export default ApiHandler

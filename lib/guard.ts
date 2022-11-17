@@ -3,11 +3,21 @@ import { getPerson } from './activities'
 import { ERROR_400 } from './errors'
 import { parse, verify } from './signature'
 
-export function guard<T>(handle: NextApiHandler<T>) {
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+
+export function apiGuard<T>(
+  handle: NextApiHandler<T>,
+  guardMethods?: HttpMethod[]
+) {
   return async (
     req: NextApiRequest,
     res: NextApiResponse<T | { error: string }>
   ) => {
+    if (!guardMethods) return handle(req, res)
+    if (!guardMethods.includes(req.method as HttpMethod)) {
+      return handle(req, res)
+    }
+
     const headerSignature = req.headers.signature
     if (!headerSignature) {
       return res.status(400).send(ERROR_400)
