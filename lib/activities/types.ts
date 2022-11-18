@@ -216,3 +216,22 @@ export type UndoFollow = BaseFollow & {
   type: 'Undo'
   object: FollowObject
 }
+
+export type HashTag = {
+  type: string
+  href: string
+  name: string
+}
+
+export type HashTagCollection = {
+  '@context': [
+    'https://www.w3.org/ns/activitystreams',
+    {
+      Hashtag: 'as:Hashtag'
+    }
+  ]
+  id: string
+  type: 'Collection'
+  totalItems: number
+  items: HashTag[]
+}
