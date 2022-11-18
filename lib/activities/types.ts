@@ -235,3 +235,11 @@ export type HashTagCollection = {
   totalItems: number
   items: HashTag[]
 }
+
+export type FeaturedOrderedItems = {
+  '@context': 'https://www.w3.org/ns/activitystreams'
+  id: string
+  type: 'OrderedCollection'
+  totalItems: number
+  orderedItems: []
+}
