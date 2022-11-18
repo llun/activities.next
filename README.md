@@ -1,4 +1,8 @@
-# Personal Mastodon Server
+# Activity.next
+
+ActivityPub server with Next.JS
+
+## Setup
 
 Add `config.json` with database config
 
