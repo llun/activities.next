@@ -4,11 +4,13 @@ import {
   FollowRequest,
   OrderedCollection,
   OrderedCollectionPage,
-  Person
+  Person,
+  UndoFollow
 } from './types'
 import { getConfig } from '../config'
 import { headers } from '../signature'
 import { Actor } from '../models/actor'
+import { Follow } from '../models/follow'
 
 const SHARED_HEADERS = {
   Accept: 'application/activity+json, application/ld+json'
@@ -124,7 +126,34 @@ export const follow = async (
   console.log(t)
 }
 
-export const unfollow = async (currentActor: Actor, targetActorId: string) => {}
+export const unfollow = async (currentActor: Actor, follow: Follow) => {
+  const config = getConfig()
+  const unfollowRequest: UndoFollow = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `https://${config.host}/${id}`,
+    type: 'Undo',
+    actor: currentActor.id,
+    object: {
+      id: `https://${config.host}/${follow.id}`,
+      type: 'Follow',
+      actor: follow.actorId,
+      object: follow.targetActorId
+    }
+  }
+  const response = await fetch(`${follow.targetActorId}/inbox`, {
+    method: 'POST',
+    headers: headers(
+      currentActor,
+      'post',
+      `${follow.targetActorId}/inbox`,
+      unfollowRequest
+    ),
+    body: JSON.stringify(unfollowRequest)
+  })
+  console.log(response.status)
+  const t = await response.text()
+  console.log(t)
+}
 
 export const acceptFollow = async (
   currentActor: Actor,

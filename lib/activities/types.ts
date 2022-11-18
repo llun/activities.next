@@ -211,3 +211,8 @@ export type RejectFollow = BaseFollow & {
   type: 'Reject'
   object: FollowObject
 }
+
+export type UndoFollow = BaseFollow & {
+  type: 'Undo'
+  object: FollowObject
+}

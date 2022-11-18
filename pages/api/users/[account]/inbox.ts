@@ -183,6 +183,22 @@ export default apiGuard(
           ])
           return res.status(202).send('')
         }
+        case 'Undo': {
+          const undo = {
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: 'https://mastodon.in.th/users/llun#follows/20534/undo',
+            type: 'Undo',
+            actor: 'https://mastodon.in.th/users/llun',
+            object: {
+              id: 'https://mastodon.in.th/c24825f9-43ea-4e6f-8416-1d6043405172',
+              type: 'Follow',
+              actor: 'https://mastodon.in.th/users/llun',
+              object: 'https://chat.llun.in.th/users/me'
+            }
+          }
+
+          return res.status(202).send('')
+        }
         default:
           return res.status(202).send('')
       }

@@ -1,9 +1,6 @@
-import { Actor } from './actor'
-
 export interface Follow {
   id: string
-  actor: Actor
-
+  actorId: string
   targetActorId: string
   status: 'Requested' | 'Accepted'
 
