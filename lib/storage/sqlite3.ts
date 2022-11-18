@@ -126,25 +126,25 @@ export class Sqlite3Storage {
     return baseFollow
   }
 
-  async getFollowFromId(id: string, actorId: string) {
-    const [follow, actor] = await Promise.all([
-      this.database('follows').where('id', id).first(),
-      this.database('actors').where('id', id).first()
-    ])
-    if (follow.actorId !== actorId) {
-      return null
-    }
-    return {
-      ...follow,
-      actor
-    } as Follow
+  async getFollowFromId(followId: string) {
+    return this.database<Follow>('follows').where('id', followId).first()
+  }
+
+  async getAcceptedOrRequestedFollow(actorId: string, targetActorId: string) {
+    console.log('actorId', targetActorId)
+    return this.database<Follow>('follows')
+      .where('actorId', actorId)
+      .where('targetActorId', targetActorId)
+      .whereIn('status', ['Accepted', 'Requested'])
+      .orderBy('createdAt', 'desc')
+      .first()
   }
 
   async updateFollowStatus(
-    id: string,
-    status: 'Requested' | 'Accepted' | 'Rejected'
+    followId: string,
+    status: 'Requested' | 'Accepted' | 'Rejected' | 'Undo'
   ) {
-    await this.database('follows').where('id', id).update({
+    await this.database('follows').where('id', followId).update({
       status,
       updatedAt: Date.now()
     })

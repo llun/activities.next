@@ -130,7 +130,7 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
   const config = getConfig()
   const unfollowRequest: UndoFollow = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `https://${config.host}/${id}`,
+    id: `https://${config.host}/${currentActor.id}#follows/${follow.id}/undo`,
     type: 'Undo',
     actor: currentActor.id,
     object: {

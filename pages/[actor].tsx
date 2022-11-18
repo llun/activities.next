@@ -98,7 +98,22 @@ const Page: NextPage<Props> = ({
                   Follow
                 </Button>
               )}
-              {isFollowing && <Button variant="danger">Unfollow</Button>}
+              {isFollowing && (
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    fetch('/api/v1/accounts/unfollow', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({ target: id })
+                    })
+                  }}
+                >
+                  Unfollow
+                </Button>
+              )}
             </div>
           </div>
         </section>

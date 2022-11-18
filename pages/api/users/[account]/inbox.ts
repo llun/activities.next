@@ -1,7 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import util from 'util'
 import { acceptFollow } from '../../../../lib/activities'
-import { AcceptFollow, FollowRequest } from '../../../../lib/activities/types'
+import {
+  AcceptFollow,
+  FollowRequest,
+  UndoFollow
+} from '../../../../lib/activities/types'
 import { getConfig } from '../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { apiGuard } from '../../../../lib/guard'
@@ -141,10 +145,7 @@ export default apiGuard(
           const followId = acceptFollow.object.id.substring(
             `https://${getConfig().host}/`.length
           )
-          const follow = await storage.getFollowFromId(
-            followId,
-            acceptFollow.object.actor
-          )
+          const follow = await storage.getFollowFromId(followId)
           if (!follow) {
             return res.status(404).json(ERROR_404)
           }
@@ -156,10 +157,7 @@ export default apiGuard(
           const followId = rejectFollow.object.id.substring(
             `https://${getConfig().host}/`.length
           )
-          const follow = await storage.getFollowFromId(
-            followId,
-            rejectFollow.object.actor
-          )
+          const follow = await storage.getFollowFromId(followId)
           if (!follow) {
             return res.status(404).json(ERROR_404)
           }
@@ -181,23 +179,19 @@ export default apiGuard(
             ),
             await acceptFollow(actor, followRequest)
           ])
-          return res.status(202).send('')
+          return res.status(202).send({ target: followRequest.object })
         }
         case 'Undo': {
-          const undo = {
-            '@context': 'https://www.w3.org/ns/activitystreams',
-            id: 'https://mastodon.in.th/users/llun#follows/20534/undo',
-            type: 'Undo',
-            actor: 'https://mastodon.in.th/users/llun',
-            object: {
-              id: 'https://mastodon.in.th/c24825f9-43ea-4e6f-8416-1d6043405172',
-              type: 'Follow',
-              actor: 'https://mastodon.in.th/users/llun',
-              object: 'https://chat.llun.in.th/users/me'
-            }
+          const undoRequest = activity as UndoFollow
+          const followId = undoRequest.object.id.substring(
+            `https://${getConfig().host}/`.length
+          )
+          const follow = await storage.getFollowFromId(followId)
+          if (!follow) {
+            return res.status(404).json(ERROR_404)
           }
-
-          return res.status(202).send('')
+          await storage.updateFollowStatus(followId, 'Undo')
+          return res.status(202).send({ target: undoRequest.object.object })
         }
         default:
           return res.status(202).send('')
