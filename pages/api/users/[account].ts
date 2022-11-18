@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { Person, PersonContext } from '../../../lib/activities/types'
+import { PersonContext } from '../../../lib/activities/context'
+import { Person } from '../../../lib/activities/types'
 import { getConfig } from '../../../lib/config'
 import { ERROR_404, ERROR_500 } from '../../../lib/errors'
 import { getStorage } from '../../../lib/storage'
@@ -29,7 +30,7 @@ export default async function handler(
   }
 
   const user: Person = {
-    ...PersonContext,
+    '@context': PersonContext,
     id: `https://${config.host}/users/${account}`,
     type: 'Person',
     following: `https://${config.host}/users/${account}/following`,

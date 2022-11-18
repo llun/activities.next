@@ -1,60 +1,6 @@
-export const PersonContext = {
-  '@context': [
-    'https://www.w3.org/ns/activitystreams',
-    'https://w3id.org/security/v1',
-    {
-      manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
-      toot: 'http://joinmastodon.org/ns#',
-      featured: {
-        '@id': 'toot:featured',
-        '@type': '@id'
-      },
-      featuredTags: {
-        '@id': 'toot:featuredTags',
-        '@type': '@id'
-      },
-      alsoKnownAs: {
-        '@id': 'as:alsoKnownAs',
-        '@type': '@id'
-      },
-      movedTo: {
-        '@id': 'as:movedTo',
-        '@type': '@id'
-      },
-      schema: 'http://schema.org#',
-      PropertyValue: 'schema:PropertyValue',
-      value: 'schema:value',
-      discoverable: 'toot:discoverable',
-      Device: 'toot:Device',
-      Ed25519Signature: 'toot:Ed25519Signature',
-      Ed25519Key: 'toot:Ed25519Key',
-      Curve25519Key: 'toot:Curve25519Key',
-      EncryptedMessage: 'toot:EncryptedMessage',
-      publicKeyBase64: 'toot:publicKeyBase64',
-      deviceId: 'toot:deviceId',
-      claim: {
-        '@type': '@id',
-        '@id': 'toot:claim'
-      },
-      fingerprintKey: {
-        '@type': '@id',
-        '@id': 'toot:fingerprintKey'
-      },
-      identityKey: {
-        '@type': '@id',
-        '@id': 'toot:identityKey'
-      },
-      devices: {
-        '@type': '@id',
-        '@id': 'toot:devices'
-      },
-      messageFranking: 'toot:messageFranking',
-      messageType: 'toot:messageType',
-      cipherText: 'toot:cipherText',
-      suspended: 'toot:suspended'
-    }
-  ]
-}
+export type Context =
+  | string
+  | { [key in string]: string | { '@id': string; '@type': string } }
 
 export type PropertyValue = {
   type: 'PropertyValue'
@@ -74,7 +20,8 @@ export type Mention = {
   name: string
 }
 
-export type Person = typeof PersonContext & {
+export type Person = {
+  '@context': Context | Context[]
   id: string
   type: 'Person'
   following: string
@@ -106,7 +53,7 @@ export type Person = typeof PersonContext & {
 }
 
 export type OrderedCollection = {
-  '@context': 'https://www.w3.org/ns/activitystreams'
+  '@context': Context | Context[]
   id: string
   type: 'OrderedCollection'
   totalItems: number
@@ -160,22 +107,8 @@ export type CreateActivity = {
   object: Note
 }
 
-export const OutboxContext = {
-  '@context': [
-    'https://www.w3.org/ns/activitystreams',
-    {
-      ostatus: 'http://ostatus.org#',
-      atomUri: 'ostatus:atomUri',
-      inReplyToAtomUri: 'ostatus:inReplyToAtomUri',
-      conversation: 'ostatus:conversation',
-      sensitive: 'as:sensitive',
-      toot: 'http://joinmastodon.org/ns#',
-      votersCount: 'toot:votersCount'
-    }
-  ]
-}
-
-export type OrderedCollectionPage = typeof OutboxContext & {
+export type OrderedCollectionPage = {
+  '@context': Context | Context[]
   id: string
   type: 'OrderedCollectionPage'
   next: string
@@ -185,7 +118,7 @@ export type OrderedCollectionPage = typeof OutboxContext & {
 }
 
 export type BaseFollow = {
-  '@context': 'https://www.w3.org/ns/activitystreams'
+  '@context': Context | Context[]
   id: string
   actor: string
 }
@@ -224,12 +157,7 @@ export type HashTag = {
 }
 
 export type HashTagCollection = {
-  '@context': [
-    'https://www.w3.org/ns/activitystreams',
-    {
-      Hashtag: 'as:Hashtag'
-    }
-  ]
+  '@context': Context | Context[]
   id: string
   type: 'Collection'
   totalItems: number
@@ -237,9 +165,46 @@ export type HashTagCollection = {
 }
 
 export type FeaturedOrderedItems = {
-  '@context': 'https://www.w3.org/ns/activitystreams'
+  '@context': Context | Context[]
   id: string
   type: 'OrderedCollection'
   totalItems: number
-  orderedItems: []
+  orderedItems: Note[]
 }
+
+export type Signature = {
+  type: string
+  creator: string
+  created: string
+  signatureValue: string
+}
+
+export type BaseInboxActivity = {
+  '@context': Context | Context[]
+  id: string
+  actor: string
+  to: string[]
+}
+
+export type InboxCreate = BaseInboxActivity & {
+  type: 'Create'
+  published: string
+  cc: string[]
+  object: Note
+  signature: Signature
+}
+
+export type InboxAnnounce = BaseInboxActivity & {
+  type: 'Announce'
+  published: string
+  cc: string[]
+  object: string
+}
+
+export type InboxUndo = BaseInboxActivity & {
+  type: 'Undo'
+  object: InboxAnnounce
+  signature: Signature
+}
+
+export type InboxActivities = InboxCreate | InboxAnnounce | InboxUndo
