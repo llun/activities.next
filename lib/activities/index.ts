@@ -121,9 +121,7 @@ export const follow = async (
     headers: headers(currentActor, 'post', `${targetActorId}/inbox`, content),
     body: JSON.stringify(content)
   })
-  console.log(response.status)
-  const t = await response.text()
-  console.log(t)
+  return response.status === 202
 }
 
 export const unfollow = async (currentActor: Actor, follow: Follow) => {
@@ -150,9 +148,7 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
     ),
     body: JSON.stringify(unfollowRequest)
   })
-  console.log(response.status)
-  const t = await response.text()
-  console.log(t)
+  return response.status === 202
 }
 
 export const acceptFollow = async (
@@ -181,7 +177,5 @@ export const acceptFollow = async (
     ),
     body: JSON.stringify(acceptFollowRequest)
   })
-  console.log(response.status)
-  const t = await response.text()
-  console.log(t)
+  return response.status === 202
 }
