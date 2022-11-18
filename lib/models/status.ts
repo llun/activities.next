@@ -1,4 +1,4 @@
-import { StreamsObject } from '../../pages/api/inbox'
+import { Note } from '../activities/types'
 import { Account } from './account'
 
 export type Visibility = 'public' | 'unlisted' | 'private' | 'direct'
@@ -24,7 +24,7 @@ export interface Status {
   mediaAttachmentIds: string[]
 }
 
-export const fromJson = (data: StreamsObject): Status => ({
+export const fromJson = (data: Note): Status => ({
   uri: data.id,
   url: data.url || data.id,
   text: data.content,
