@@ -28,9 +28,10 @@ export async function up(knex: Knex): Promise<void> {
     })
     .createTable('statuses', function (table) {
       table.string('uri').primary()
+      table.string('url')
+
       table.string('actorId')
 
-      table.string('url')
       table.text('text')
       table.text('summary')
 

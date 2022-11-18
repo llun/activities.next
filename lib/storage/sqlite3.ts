@@ -151,7 +151,7 @@ export class Sqlite3Storage {
   }
 
   async createStatus(status: Status) {
-    const { account, mediaAttachmentIds, ...rest } = status
+    const { mediaAttachmentIds, ...rest } = status
     await this.database.insert(rest).into('statuses')
   }
 

@@ -7,7 +7,9 @@ export type Visibility = 'public' | 'unlisted' | 'private' | 'direct'
 export interface Status {
   uri: string
   url: string
-  account?: Account
+
+  actorId: string
+
   text: string
   summary: string | null
 
@@ -27,6 +29,9 @@ export interface Status {
 export const fromJson = (data: Note): Status => ({
   uri: data.id,
   url: data.url || data.id,
+
+  actorId: data.attributedTo,
+
   text: data.content,
   summary: data.summary,
 

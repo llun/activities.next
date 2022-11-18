@@ -17,3 +17,5 @@ export interface Actor {
   createdAt: number
   updatedAt: number
 }
+
+export const getUsernameFromId = (actorId: string) => actorId.split('/').pop()

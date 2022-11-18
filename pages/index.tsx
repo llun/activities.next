@@ -1,8 +1,11 @@
 import { GetServerSideProps, NextPage } from 'next'
 import Head from 'next/head'
 import parse from 'html-react-parser'
-import { signOut, useSession } from 'next-auth/react'
+import { useSession } from 'next-auth/react'
 import { unstable_getServerSession } from 'next-auth/next'
+import cn from 'classnames'
+import { formatDistanceToNow } from 'date-fns'
+
 import { authOptions } from './api/auth/[...nextauth]'
 
 import { Status } from '../lib/models/status'
@@ -10,6 +13,7 @@ import { getStorage } from '../lib/storage'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { getConfig } from '../lib/config'
+import { getUsernameFromId } from '../lib/models/actor'
 
 interface Props {
   statuses: Status[]
@@ -34,13 +38,34 @@ const Page: NextPage<Props> = ({ statuses }) => {
           </div>
           <Button>Send</Button>
         </form>
-        <section className="w-full grid grid-cols-1">
-          {statuses.map((status) => (
-            <div key={status.uri} className="block">
-              {parse(status.text)}
-            </div>
-          ))}
-        </section>
+        {statuses.length > 0 && (
+          <section className="w-full grid grid-cols-1 mt-4">
+            {statuses.map((status) => (
+              <div key={status.uri} className="block">
+                <div>
+                  <strong>@{getUsernameFromId(status.actorId)}</strong>
+                </div>
+                <div className={cn('d-flex')}>
+                  <div className="flex-fill me-1">
+                    {parse(status.text, {
+                      replace: (domNode: any) => {
+                        if (domNode.attribs && domNode.name === 'a') {
+                          domNode.attribs.target = '_blank'
+                          return domNode
+                        }
+
+                        return domNode
+                      }
+                    })}
+                  </div>
+                  <div className="flex-shrink-0">
+                    {formatDistanceToNow(status.createdAt)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
       </section>
     </main>
   )
