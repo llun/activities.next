@@ -1,15 +1,15 @@
-import { Note } from '../activities/types'
-import { Account } from './account'
+import { Note, Question } from '../activities/types'
 
 export type Visibility = 'public' | 'unlisted' | 'private' | 'direct'
 
 // https://github.com/mastodon/mastodon/blob/a5394980f22e061ec7e4f6df3f3b571624f5ca7d/app/lib/activitypub/parser/status_parser.rb#L3
 export interface Status {
-  uri: string
+  id: string
   url: string
 
   actorId: string
 
+  type: 'Note' | 'Question'
   text: string
   summary: string | null
 
@@ -26,12 +26,13 @@ export interface Status {
   mediaAttachmentIds: string[]
 }
 
-export const fromJson = (data: Note): Status => ({
-  uri: data.id,
+export const fromJson = (data: Note | Question): Status => ({
+  id: data.id,
   url: data.url || data.id,
 
   actorId: data.attributedTo,
 
+  type: data.type,
   text: data.content,
   summary: data.summary,
 

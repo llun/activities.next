@@ -97,6 +97,19 @@ export type Note = {
   replies: Collection
 }
 
+export type QuestionNote = {
+  type: 'Note'
+  name: string
+  replies: { type: 'Collection'; totalItems: number }
+}
+
+export type Question = Note & {
+  type: 'Question'
+  endTime: string
+  votersCount: number
+  oneOf: QuestionNote[]
+}
+
 export type CreateActivity = {
   id: string
   type: 'Create'
@@ -190,7 +203,7 @@ export type InboxCreate = BaseInboxActivity & {
   type: 'Create'
   published: string
   cc: string[]
-  object: Note
+  object: Note | Question
   signature: Signature
 }
 
@@ -204,6 +217,12 @@ export type InboxAnnounce = BaseInboxActivity & {
 export type InboxUndo = BaseInboxActivity & {
   type: 'Undo'
   object: InboxAnnounce
+  signature: Signature
+}
+
+export type InboxUpdate = BaseInboxActivity & {
+  type: 'Update'
+  object: Note | Question
   signature: Signature
 }
 

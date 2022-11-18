@@ -27,11 +27,12 @@ export async function up(knex: Knex): Promise<void> {
       table.timestamp('updatedAt', { useTz: true })
     })
     .createTable('statuses', function (table) {
-      table.string('uri').primary()
+      table.string('id').primary()
       table.string('url')
 
       table.string('actorId')
 
+      table.string('type')
       table.text('text')
       table.text('summary')
 
@@ -42,6 +43,16 @@ export async function up(knex: Knex): Promise<void> {
 
       table.string('thread')
       table.string('conversation')
+
+      table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+      table.timestamp('updatedAt', { useTz: true })
+    })
+    .createTable('questions', function (table) {
+      table.string('statusId')
+
+      table.text('options')
+
+      table.timestamp('endAt', { useTz: true }).defaultTo(knex.fn.now())
 
       table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
       table.timestamp('updatedAt', { useTz: true })
