@@ -1,5 +1,5 @@
 import type { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
-import { FeaturedOrderedItems } from '../../../../../lib/activities/types'
+import { FeaturedOrderedCollection } from '../../../../../lib/activities/entities/featuredOrderedCollection'
 import { getConfig } from '../../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../../lib/errors'
 import { getStorage } from '../../../../../lib/storage'
@@ -18,7 +18,7 @@ const handle: NextApiHandler = async (
   const actorId = `https://${config.host}/users/${account}`
   switch (req.method) {
     case 'GET': {
-      const json: FeaturedOrderedItems = {
+      const json: FeaturedOrderedCollection = {
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: `${actorId}/collections/featured`,
         type: 'OrderedCollection',

@@ -52,6 +52,8 @@ export async function up(knex: Knex): Promise<void> {
 
       table.text('options')
 
+      table.integer('votersCount').defaultTo(0)
+
       table.timestamp('endAt', { useTz: true }).defaultTo(knex.fn.now())
 
       table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())

@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { PersonContext } from '../../../lib/activities/context'
-import { Person } from '../../../lib/activities/types'
+import { Person } from '../../../lib/activities/entities/person'
 import { getConfig } from '../../../lib/config'
 import { ERROR_404, ERROR_500 } from '../../../lib/errors'
 import { getStorage } from '../../../lib/storage'

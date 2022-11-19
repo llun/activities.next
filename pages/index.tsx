@@ -41,7 +41,7 @@ const Page: NextPage<Props> = ({ statuses }) => {
         {statuses.length > 0 && (
           <section className="w-full grid grid-cols-1 mt-4">
             {statuses.map((status) => (
-              <div key={status.uri} className="block">
+              <div key={status.id} className="block">
                 <div>
                   <strong>@{getUsernameFromId(status.actorId)}</strong>
                 </div>

@@ -1,4 +1,5 @@
-import { Note, Question } from '../activities/types'
+import { Note } from '../activities/entities/note'
+import { Question } from '../activities/entities/question'
 
 export type Visibility = 'public' | 'unlisted' | 'private' | 'direct'
 
