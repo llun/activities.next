@@ -118,7 +118,9 @@ export class Sqlite3Storage implements Storage {
     const follow: Follow = {
       id: crypto.randomUUID(),
       actorId: actorId,
+      actorHost: new URL(actorId).host,
       targetActorId,
+      targetActorHost: new URL(targetActorId).host,
       status: 'Requested',
       createdAt: currentTime,
       updatedAt: currentTime

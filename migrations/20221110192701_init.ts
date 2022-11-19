@@ -62,8 +62,10 @@ export async function up(knex: Knex): Promise<void> {
     .createTable('follows', function (table) {
       table.string('id').primary()
       table.string('actorId')
+      table.string('actorHost')
 
       table.string('targetActorId')
+      table.string('targetActorHost')
       table.string('status')
 
       table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
@@ -72,5 +74,10 @@ export async function up(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
-  return knex.schema.dropTable('status').dropTable('accounts')
+  return knex.schema
+    .dropTable('follows')
+    .dropTable('questions')
+    .dropTable('status')
+    .dropTable('actors')
+    .dropTable('accounts')
 }
