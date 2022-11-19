@@ -1,63 +1,27 @@
 import memoize from 'lodash/memoize'
-import {
-  AcceptFollow,
-  FollowRequest,
-  OrderedCollection,
-  OrderedCollectionPage,
-  Person,
-  UndoFollow
-} from './types'
 import { getConfig } from '../config'
 import { headers } from '../signature'
 import { Actor } from '../models/actor'
 import { Follow } from '../models/follow'
+import { Person } from './entities/person'
+import { OrderedCollection } from './entities/orderedCollection'
+import { OrderedCollectionPage } from './entities/orderedCollectionPage'
+import { FollowRequest } from './actions/follow'
+import { UndoFollow } from './actions/undoFollow'
+import { AcceptFollow } from './actions/acceptFollow'
 
 const SHARED_HEADERS = {
   Accept: 'application/activity+json, application/ld+json'
 }
 
-export const getPerson = memoize(
-  async (id: string, withCollectionCount: boolean) => {
-    const response = await fetch(id, {
-      headers: SHARED_HEADERS
-    })
-    if (response.status !== 200) return null
+export const getPerson = async (id: string, withCollectionCount: boolean) => {
+  const response = await fetch(id, {
+    headers: SHARED_HEADERS
+  })
+  if (response.status !== 200) return null
 
-    const json: Person = await response.json()
-    if (!withCollectionCount) {
-      return {
-        id: json.id,
-        username: json.preferredUsername,
-        icon: json.icon,
-        url: json.url,
-        summary: json.summary,
-
-        manuallyApprovesFollowers: json.manuallyApprovesFollowers,
-        discoverable: json.discoverable,
-
-        publicKey: json.publicKey.publicKeyPem,
-        createdAt: new Date(json.published).getTime()
-      }
-    }
-
-    const [followers, following, posts] = await Promise.all([
-      fetch(json.followers, {
-        headers: SHARED_HEADERS
-      }).then((res) =>
-        res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
-      ),
-      fetch(json.following, {
-        headers: SHARED_HEADERS
-      }).then((res) =>
-        res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
-      ),
-      fetch(json.outbox, {
-        headers: SHARED_HEADERS
-      }).then((res) =>
-        res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
-      )
-    ])
-
+  const json: Person = await response.json()
+  if (!withCollectionCount) {
     return {
       id: json.id,
       username: json.preferredUsername,
@@ -69,23 +33,55 @@ export const getPerson = memoize(
       discoverable: json.discoverable,
 
       publicKey: json.publicKey.publicKeyPem,
-
-      followersCount: followers?.totalItems || 0,
-      followingCount: following?.totalItems || 0,
-      totalPosts: posts?.totalItems || 0,
-
-      urls: {
-        followers: followers?.first,
-        following: following?.first,
-        posts: posts?.first
-      },
-
       createdAt: new Date(json.published).getTime()
     }
   }
-)
 
-export const getPosts = memoize(async (id?: string) => {
+  const [followers, following, posts] = await Promise.all([
+    fetch(json.followers, {
+      headers: SHARED_HEADERS
+    }).then((res) =>
+      res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
+    ),
+    fetch(json.following, {
+      headers: SHARED_HEADERS
+    }).then((res) =>
+      res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
+    ),
+    fetch(json.outbox, {
+      headers: SHARED_HEADERS
+    }).then((res) =>
+      res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
+    )
+  ])
+
+  return {
+    id: json.id,
+    username: json.preferredUsername,
+    icon: json.icon,
+    url: json.url,
+    summary: json.summary,
+
+    manuallyApprovesFollowers: json.manuallyApprovesFollowers,
+    discoverable: json.discoverable,
+
+    publicKey: json.publicKey.publicKeyPem,
+
+    followersCount: followers?.totalItems || 0,
+    followingCount: following?.totalItems || 0,
+    totalPosts: posts?.totalItems || 0,
+
+    urls: {
+      followers: followers?.first,
+      following: following?.first,
+      posts: posts?.first
+    },
+
+    createdAt: new Date(json.published).getTime()
+  }
+}
+
+export const getPosts = async (id?: string) => {
   if (!id) return []
 
   const response = await fetch(id, {
@@ -101,7 +97,7 @@ export const getPosts = memoize(async (id?: string) => {
     content: item.object.content,
     createdAt: new Date(item.published).getTime()
   }))
-})
+}
 
 export const follow = async (
   id: string,
