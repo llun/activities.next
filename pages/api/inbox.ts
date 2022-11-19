@@ -1,11 +1,11 @@
 import type { NextApiHandler } from 'next'
 import { getStorage } from '../../lib/storage'
 import { fromJson } from '../../lib/models/status'
-import { apiGuard } from '../../lib/guard'
+import { activitiesGuard } from '../../lib/guard'
 import { ERROR_404 } from '../../lib/errors'
 import { StatusActivity } from '../../lib/activities/actions/status'
 
-const ApiHandler: NextApiHandler = apiGuard(
+const ApiHandler: NextApiHandler = activitiesGuard(
   async (req, res) => {
     const body = JSON.parse(req.body) as StatusActivity
     const storage = await getStorage()

@@ -5,11 +5,11 @@ import { FollowRequest } from '../../../../lib/activities/actions/follow'
 import { UndoFollow } from '../../../../lib/activities/actions/undoFollow'
 import { getConfig } from '../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
-import { apiGuard } from '../../../../lib/guard'
+import { activitiesGuard } from '../../../../lib/guard'
 
 import { getStorage } from '../../../../lib/storage'
 
-export default apiGuard(
+export default activitiesGuard(
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method === 'POST') {
       const activity = JSON.parse(req.body)

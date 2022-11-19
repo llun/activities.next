@@ -5,7 +5,7 @@ import { parse, verify } from './signature'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
-export function apiGuard<T>(
+export function activitiesGuard<T>(
   handle: NextApiHandler<T>,
   guardMethods?: HttpMethod[]
 ) {
