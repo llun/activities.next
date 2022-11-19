@@ -1,7 +1,12 @@
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
+import { Session, unstable_getServerSession } from 'next-auth'
 import { getPerson } from './activities'
 import { ERROR_400 } from './errors'
 import { parse, verify } from './signature'
+import { getStorage } from './storage'
+import { Storage } from './storage/types'
+import { authOptions } from '../pages/api/auth/[...nextauth]'
+import { Actor } from './models/actor'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
@@ -53,5 +58,59 @@ export function activitiesGuard<T>(
     }
 
     return handle(req, res)
+  }
+}
+
+export type BaseContext = {
+  storage: Storage
+  session: Session
+}
+
+export type SetupHandle = (
+  req: NextApiRequest,
+  res: NextApiResponse,
+  context: BaseContext & {
+    email: string
+  }
+) => unknown | Promise<unknown>
+
+export function SetupGuard(handle: SetupHandle) {
+  return async (req: NextApiRequest, res: NextApiResponse) => {
+    const [storage, session] = await Promise.all([
+      getStorage(),
+      unstable_getServerSession(req, res, authOptions)
+    ])
+    if (!storage || !session?.user?.email) {
+      return res.status(302).redirect('/singin')
+    }
+
+    return handle(req, res, { storage, session, email: session.user.email })
+  }
+}
+
+export type ApiHandle = (
+  req: NextApiRequest,
+  res: NextApiResponse,
+  context: BaseContext & {
+    currentActor: Actor
+  }
+) => unknown | Promise<unknown>
+
+export function ApiGuard(handle: ApiHandle) {
+  return async (req: NextApiRequest, res: NextApiResponse) => {
+    const [storage, session] = await Promise.all([
+      getStorage(),
+      unstable_getServerSession(req, res, authOptions)
+    ])
+    if (!storage || !session?.user?.email) {
+      return res.status(302).redirect('/singin')
+    }
+
+    const currentActor = await storage.getActorFromEmail(session.user.email)
+    if (!currentActor) {
+      return res.status(302).redirect('/singin')
+    }
+
+    return handle(req, res, { storage, session, currentActor })
   }
 }

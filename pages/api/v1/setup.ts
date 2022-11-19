@@ -1,32 +1,15 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
-import { unstable_getServerSession } from 'next-auth'
 import crypto from 'crypto'
 import util from 'util'
-import { authOptions } from '../auth/[...nextauth]'
-import { getStorage } from '../../../lib/storage'
 import { getConfig } from '../../../lib/config'
+import { SetupGuard } from '../../../lib/guard'
+import { ERROR_404 } from '../../../lib/errors'
 
-type Data = {
-  done: boolean
-}
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<Data>
-) {
+const handler = SetupGuard(async (req, res, context) => {
+  const { storage, email } = context
   switch (req.method) {
     case 'POST': {
-      const [storage, session] = await Promise.all([
-        getStorage(),
-        unstable_getServerSession(req, res, authOptions)
-      ])
-
-      if (!storage || !session?.user?.email) {
-        return res.status(302).redirect('/singin')
-      }
-
       const username = req.body.username
-      if (await storage?.isUsernameExists(username)) {
+      if (await storage.isUsernameExists(username)) {
         return res.status(302).redirect('/setup?error=HANDLE_ALREADY_EXISTS')
       }
 
@@ -44,14 +27,17 @@ export default async function handler(
         }
       })
       await storage.createAccount({
-        email: session?.user?.email,
+        email,
         username,
         privateKey: keyPair.privateKey,
         publicKey: keyPair.publicKey
       })
       return res.status(302).redirect('/')
     }
-    default:
-      res.status(200).json({ done: true })
+    default: {
+      return res.status(404).json(ERROR_404)
+    }
   }
-}
+})
+
+export default handler
