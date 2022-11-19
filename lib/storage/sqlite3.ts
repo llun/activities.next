@@ -155,9 +155,19 @@ export class Sqlite3Storage implements Storage {
     return this.database<Follow>('follows')
       .where('actorId', actorId)
       .where('targetActorId', targetActorId)
-      .whereIn('status', ['Accepted', 'Requested'])
+      .whereIn('status', [FollowStatus.Accepted, FollowStatus.Requested])
       .orderBy('createdAt', 'desc')
       .first()
+  }
+
+  async getFollowersHosts(params: { targetActorId: string }) {
+    const { targetActorId } = params
+    const hosts = await this.database<Follow>('follows')
+      .select('actorHost')
+      .where('targetActorId', targetActorId)
+      .where('status', FollowStatus.Accepted)
+      .distinct()
+    return hosts.map((item) => item.actorHost)
   }
 
   async updateFollowStatus(params: { followId: string; status: FollowStatus }) {

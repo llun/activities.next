@@ -33,6 +33,7 @@ export interface Storage {
     actorId: string
     targetActorId: string
   }): Promise<Follow | undefined>
+  getFollowersHosts(params: { targetActorId: string }): Promise<string[]>
   updateFollowStatus(params: {
     followId: string
     status: FollowStatus
