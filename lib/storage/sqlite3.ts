@@ -161,4 +161,12 @@ export class Sqlite3Storage implements Storage {
       .select('*')
       .orderBy('createdAt', 'desc')
   }
+
+  async getActorStatusesCount(actorId: string) {
+    const result = await this.database('statuses')
+      .where('actorId', actorId)
+      .count<{ count: number }>('* as count')
+      .first()
+    return result?.count || 0
+  }
 }

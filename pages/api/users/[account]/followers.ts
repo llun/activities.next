@@ -1,12 +1,9 @@
-import type { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
+import type { NextApiHandler } from 'next'
 import { getConfig } from '../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { getStorage } from '../../../../lib/storage'
 
-const handle: NextApiHandler = async (
-  req: NextApiRequest,
-  res: NextApiResponse
-) => {
+const handle: NextApiHandler = async (req, res) => {
   const { account, page } = req.query
   const config = getConfig()
   const storage = await getStorage()
