@@ -13,7 +13,7 @@ import { getStorage } from '../lib/storage'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { getConfig } from '../lib/config'
-import { getUsernameFromId } from '../lib/models/actor'
+import { getHostnameFromId, getUsernameFromId } from '../lib/models/actor'
 
 interface Props {
   statuses: Status[]
@@ -39,7 +39,10 @@ const Page: NextPage<Props> = ({ statuses }) => {
             {statuses.map((status) => (
               <div key={status.id} className="block">
                 <div>
-                  <strong>@{getUsernameFromId(status.actorId)}</strong>
+                  <strong>
+                    @{getUsernameFromId(status.actorId)}@
+                    {getHostnameFromId(status.actorId)}
+                  </strong>
                 </div>
                 <div className={cn('d-flex')}>
                   <div className="flex-fill me-1">

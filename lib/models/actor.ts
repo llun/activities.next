@@ -19,3 +19,4 @@ export interface Actor {
 }
 
 export const getUsernameFromId = (actorId: string) => actorId.split('/').pop()
+export const getHostnameFromId = (actorId: string) => new URL(actorId).hostname
