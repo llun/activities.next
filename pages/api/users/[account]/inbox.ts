@@ -57,7 +57,6 @@ export default activitiesGuard(
             id: followRequest.object
           })
           if (!actor) {
-            console.log('No actor found')
             return res.status(404).json(ERROR_404)
           }
 
@@ -73,15 +72,16 @@ export default activitiesGuard(
         }
         case 'Undo': {
           const undoRequest = activity as UndoFollow
-          const followId = undoRequest.object.id.substring(
-            `https://${getConfig().host}/`.length
-          )
-          const follow = await storage.getFollowFromId({ followId })
+          const follow = await storage.getAcceptedOrRequestedFollow({
+            actorId: undoRequest.object.actor,
+            targetActorId: undoRequest.object.object
+          })
           if (!follow) {
+            console.error('Fail to find follow', undoRequest)
             return res.status(404).json(ERROR_404)
           }
           await storage.updateFollowStatus({
-            followId,
+            followId: follow.id,
             status: FollowStatus.Undo
           })
           return res.status(202).send({ target: undoRequest.object.object })
