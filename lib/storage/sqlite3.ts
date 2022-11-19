@@ -1,11 +1,14 @@
 import { knex, Knex } from 'knex'
 import crypto from 'crypto'
+
+import { Storage } from './types'
+
 import { Status } from '../models/status'
 import { Actor } from '../models/actor'
 import { getConfig } from '../config'
 import { Follow } from '../models/follow'
 
-export class Sqlite3Storage {
+export class Sqlite3Storage implements Storage {
   database: Knex
 
   constructor(config: Knex.Config) {
@@ -112,18 +115,16 @@ export class Sqlite3Storage {
 
   async createFollow(actorId: string, targetActorId: string) {
     const currentTime = Date.now()
-    const baseFollow = {
+    const follow: Follow = {
       id: crypto.randomUUID(),
+      actorId: actorId,
       targetActorId,
       status: 'Requested',
       createdAt: currentTime,
       updatedAt: currentTime
     }
-    await this.database('follows').insert({
-      ...baseFollow,
-      actorId: actorId
-    })
-    return baseFollow
+    await this.database('follows').insert(follow)
+    return follow
   }
 
   async getFollowFromId(followId: string) {
@@ -131,7 +132,6 @@ export class Sqlite3Storage {
   }
 
   async getAcceptedOrRequestedFollow(actorId: string, targetActorId: string) {
-    console.log('actorId', targetActorId)
     return this.database<Follow>('follows')
       .where('actorId', actorId)
       .where('targetActorId', targetActorId)
@@ -155,7 +155,7 @@ export class Sqlite3Storage {
     await this.database.insert(rest).into('statuses')
   }
 
-  async getStatuses() {
+  async getStatuses(actorId: string) {
     return this.database<Status>('statuses')
       .select('*')
       .orderBy('createdAt', 'desc')
