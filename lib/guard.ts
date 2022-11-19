@@ -106,7 +106,9 @@ export function ApiGuard(handle: ApiHandle) {
       return res.status(302).redirect('/singin')
     }
 
-    const currentActor = await storage.getActorFromEmail(session.user.email)
+    const currentActor = await storage.getActorFromEmail({
+      email: session.user.email
+    })
     if (!currentActor) {
       return res.status(302).redirect('/singin')
     }

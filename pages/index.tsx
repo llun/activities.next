@@ -93,7 +93,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
-  const isAccountExists = await storage.isAccountExists(session?.user?.email)
+  const isAccountExists = await storage.isAccountExists({
+    email: session?.user?.email
+  })
   if (!isAccountExists) {
     return {
       redirect: {

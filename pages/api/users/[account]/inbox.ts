@@ -6,6 +6,7 @@ import { UndoFollow } from '../../../../lib/activities/actions/undoFollow'
 import { getConfig } from '../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { activitiesGuard } from '../../../../lib/guard'
+import { FollowStatus } from '../../../../lib/models/follow'
 
 import { getStorage } from '../../../../lib/storage'
 
@@ -24,12 +25,15 @@ export default activitiesGuard(
           const followId = acceptFollow.object.id.substring(
             `https://${getConfig().host}/`.length
           )
-          const follow = await storage.getFollowFromId(followId)
+          const follow = await storage.getFollowFromId({ followId })
           if (!follow) {
             return res.status(404).json(ERROR_404)
           }
           // TODO: Pull outbox after accepted
-          await storage.updateFollowStatus(followId, 'Accepted')
+          await storage.updateFollowStatus({
+            followId,
+            status: FollowStatus.Accepted
+          })
           return res.status(202).send('')
         }
         case 'Reject': {
@@ -37,26 +41,32 @@ export default activitiesGuard(
           const followId = rejectFollow.object.id.substring(
             `https://${getConfig().host}/`.length
           )
-          const follow = await storage.getFollowFromId(followId)
+          const follow = await storage.getFollowFromId({ followId })
           if (!follow) {
             return res.status(404).json(ERROR_404)
           }
-          await storage.updateFollowStatus(followId, 'Rejected')
+          await storage.updateFollowStatus({
+            followId,
+            status: FollowStatus.Rejected
+          })
           return res.status(202).send('')
         }
         case 'Follow': {
           const followRequest = activity as FollowRequest
-          const actor = await storage.getActorFromId(followRequest.object)
+          const actor = await storage.getActorFromId({
+            id: followRequest.object
+          })
           if (!actor) {
             console.log('No actor found')
             return res.status(404).json(ERROR_404)
           }
 
           await Promise.all([
-            await storage.createFollow(
-              followRequest.actor,
-              followRequest.object
-            ),
+            await storage.createFollow({
+              actorId: followRequest.actor,
+              targetActorId: followRequest.object,
+              status: FollowStatus.Accepted
+            }),
             await acceptFollow(actor, followRequest)
           ])
           return res.status(202).send({ target: followRequest.object })
@@ -66,11 +76,14 @@ export default activitiesGuard(
           const followId = undoRequest.object.id.substring(
             `https://${getConfig().host}/`.length
           )
-          const follow = await storage.getFollowFromId(followId)
+          const follow = await storage.getFollowFromId({ followId })
           if (!follow) {
             return res.status(404).json(ERROR_404)
           }
-          await storage.updateFollowStatus(followId, 'Undo')
+          await storage.updateFollowStatus({
+            followId,
+            status: FollowStatus.Undo
+          })
           return res.status(202).send({ target: undoRequest.object.object })
         }
         default:

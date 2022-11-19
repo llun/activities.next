@@ -11,7 +11,7 @@ const ApiHandler: NextApiHandler = activitiesGuard(
     const storage = await getStorage()
     switch (body.type) {
       case 'Create': {
-        storage?.createStatus(fromJson(body.object))
+        storage?.createStatus({ status: fromJson(body.object) })
         return res.status(202).send('')
       }
       default:

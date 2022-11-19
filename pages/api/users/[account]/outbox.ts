@@ -14,9 +14,9 @@ const handle: NextApiHandler = async (req, res) => {
   switch (req.method) {
     case 'GET': {
       if (!page) {
-        const totalItems = await storage.getActorStatusesCount(
-          account as string
-        )
+        const totalItems = await storage.getActorStatusesCount({
+          actorId: account as string
+        })
         const id = `https://${config.host}/users/${account}/outbox`
         return res.status(200).json({
           '@context': 'https://www.w3.org/ns/activitystreams',

@@ -17,7 +17,7 @@ const handle: NextApiHandler = async (req, res) => {
   switch (req.method) {
     case 'GET': {
       if (!page) {
-        const totalItems = await storage.getActorFollowersCount(actorId)
+        const totalItems = await storage.getActorFollowersCount({ actorId })
         return res.status(200).json({
           '@context': 'https://www.w3.org/ns/activitystreams',
           id,

@@ -181,7 +181,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   const [account, domain] = parts
   const actorId = `https://${domain}/users/${account}`
   const [currentActor, person] = await Promise.all([
-    storage.getActorFromEmail(session.user.email),
+    storage.getActorFromEmail({ email: session.user.email }),
     getPerson(actorId, true)
   ])
 
@@ -191,10 +191,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
 
   const posts =
     (person.totalPosts || 0) > 0 ? await getPosts(person.urls?.posts) : []
-  const isFollowing = await storage.isCurrentActorFollowing(
-    currentActor.id,
-    actorId
-  )
+  const isFollowing = await storage.isCurrentActorFollowing({
+    currentActorId: currentActor.id,
+    followingActorId: actorId
+  })
 
   return {
     props: {

@@ -24,7 +24,9 @@ export default async function handler(
     return res.status(500).json(ERROR_500)
   }
 
-  const actor = await storage.getActorFromUsername(account as string)
+  const actor = await storage.getActorFromUsername({
+    username: account as string
+  })
   if (!actor) {
     return res.status(404).json(ERROR_404)
   }

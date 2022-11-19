@@ -1,3 +1,10 @@
+export enum FollowStatus {
+  Requested = 'Requested',
+  Accepted = 'Accepted',
+  Undo = 'Undo',
+  Rejected = 'Rejected'
+}
+
 export interface Follow {
   id: string
   actorId: string
@@ -6,7 +13,7 @@ export interface Follow {
   targetActorId: string
   targetActorHost: string
 
-  status: 'Requested' | 'Accepted' | 'Undo' | 'Rejected'
+  status: FollowStatus
 
   createdAt: number
   updatedAt: number

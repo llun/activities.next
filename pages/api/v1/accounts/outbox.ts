@@ -36,7 +36,7 @@ const handler = ApiGuard(async (req, res, context) => {
         reply: `${id}/replies`,
         createdAt: currentTime
       }
-      await storage.createStatus(status)
+      await storage.createStatus({ status })
       return res.status(302).redirect('/')
     }
     default: {
