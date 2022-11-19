@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { unstable_getServerSession } from 'next-auth'
-import { follow, unfollow } from '../../../../lib/activities'
+import { unfollow } from '../../../../lib/activities'
 import { ERROR_404 } from '../../../../lib/errors'
 import { getStorage } from '../../../../lib/storage'
 import { authOptions } from '../../auth/[...nextauth]'

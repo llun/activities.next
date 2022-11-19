@@ -1,10 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { acceptFollow } from '../../../../lib/activities'
-import {
-  AcceptFollow,
-  FollowRequest,
-  UndoFollow
-} from '../../../../lib/activities/types'
+import { AcceptFollow } from '../../../../lib/activities/actions/acceptFollow'
+import { FollowRequest } from '../../../../lib/activities/actions/follow'
+import { UndoFollow } from '../../../../lib/activities/actions/undoFollow'
 import { getConfig } from '../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { apiGuard } from '../../../../lib/guard'

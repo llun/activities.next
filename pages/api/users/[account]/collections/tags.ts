@@ -1,5 +1,5 @@
 import type { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
-import { HashTagCollection } from '../../../../../lib/activities/types'
+import { HashTagCollection } from '../../../../../lib/activities/entities/hashTagCollection'
 import { getConfig } from '../../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../../lib/errors'
 import { getStorage } from '../../../../../lib/storage'
