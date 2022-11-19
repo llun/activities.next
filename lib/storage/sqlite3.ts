@@ -155,7 +155,8 @@ export class Sqlite3Storage implements Storage {
     await this.database.insert(rest).into('statuses')
   }
 
-  async getStatuses(actorId: string) {
+  async getStatuses(params?: { actorId?: string }) {
+    console.log('actorId', params?.actorId)
     return this.database<Status>('statuses')
       .select('*')
       .orderBy('createdAt', 'desc')

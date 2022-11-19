@@ -35,5 +35,5 @@ export interface Storage {
   ): Promise<void>
 
   createStatus(status: Status): Promise<void>
-  getStatuses(actorId: string): Promise<Status[]>
+  getStatuses(params?: { actorId?: string }): Promise<Status[]>
 }
