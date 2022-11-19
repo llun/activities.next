@@ -28,6 +28,7 @@ export default activitiesGuard(
           if (!follow) {
             return res.status(404).json(ERROR_404)
           }
+          // TODO: Pull outbox after accepted
           await storage.updateFollowStatus(followId, 'Accepted')
           return res.status(202).send('')
         }

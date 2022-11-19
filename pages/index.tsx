@@ -28,15 +28,11 @@ const Page: NextPage<Props> = ({ statuses }) => {
       </Head>
       <Header session={session} />
       <section className="container pt-4">
-        <form action="/api/outbox" method="post">
+        <form action="/api/v1/accounts/outbox" method="post">
           <div className="mb-3">
-            <textarea
-              className="form-control"
-              rows={3}
-              name="status"
-            ></textarea>
+            <textarea className="form-control" rows={3} name="message" />
           </div>
-          <Button>Send</Button>
+          <Button type="submit">Send</Button>
         </form>
         {statuses.length > 0 && (
           <section className="w-full grid grid-cols-1 mt-4">
