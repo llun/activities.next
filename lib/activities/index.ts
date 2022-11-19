@@ -9,6 +9,9 @@ import { OrderedCollectionPage } from './entities/orderedCollectionPage'
 import { FollowRequest } from './actions/follow'
 import { UndoFollow } from './actions/undoFollow'
 import { AcceptFollow } from './actions/acceptFollow'
+import { OutboxContext } from './context'
+import { Status } from '../models/status'
+import { getISOTimeUTC } from '../time'
 
 const SHARED_HEADERS = {
   Accept: 'application/activity+json, application/ld+json'
@@ -97,6 +100,60 @@ export const getPosts = async (id?: string) => {
     content: item.object.content,
     createdAt: new Date(item.published).getTime()
   }))
+}
+
+export const sendNote = async (
+  currentActor: Actor,
+  sharedInbox: string,
+  status: Status
+) => {
+  const published = getISOTimeUTC(status.createdAt)
+  const activity = {
+    '@context': OutboxContext,
+    id: `${status.id}/activity`,
+    type: 'Create',
+    actor: status.actorId,
+    published,
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    cc: [`${status.actorId}/followers`],
+    object: {
+      id: status.id,
+      type: 'Note',
+      summary: null,
+      inReplyTo: null,
+      published,
+      url: `https://mastodon.in.th/@llun/109371725928967373`,
+      attributedTo: status.actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${status.actorId}/followers`],
+      sensitive: false,
+      atomUri: status.id,
+      inReplyToAtomUri: null,
+      conversation: status.conversation,
+      content: status.text,
+      contentMap: { en: status.text },
+      attachment: [],
+      tag: [],
+      replies: {
+        id: status.reply,
+        type: 'Collection',
+        first: {
+          type: 'CollectionPage',
+          next: `${status.reply}?only_other_accounts=true&page=true`,
+          partOf: status.reply,
+          items: []
+        }
+      }
+    }
+  }
+  // TODO: Add LinkedDataSignature later
+  // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3
+  const response = await fetch(sharedInbox, {
+    method: 'POST',
+    headers: headers(currentActor, 'post', sharedInbox, activity),
+    body: JSON.stringify(activity)
+  })
+  console.log(response.status)
 }
 
 export const follow = async (

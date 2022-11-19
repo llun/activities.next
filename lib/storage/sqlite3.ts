@@ -182,6 +182,7 @@ export class Sqlite3Storage implements Storage {
     const { status } = params
     const { mediaAttachmentIds, ...rest } = status
     await this.database.insert(rest).into('statuses')
+    return status
   }
 
   async getStatuses(params?: { actorId?: string }) {

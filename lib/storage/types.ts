@@ -39,7 +39,7 @@ export interface Storage {
     status: FollowStatus
   }): Promise<void>
 
-  createStatus(params: { status: Status }): Promise<void>
+  createStatus(params: { status: Status }): Promise<Status>
   getStatuses(params?: { actorId?: string }): Promise<Status[]>
   getActorStatusesCount(params: { actorId: string }): Promise<number>
 }

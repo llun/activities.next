@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import format from 'date-fns/format'
+import { sendNote } from '../../../../lib/activities'
 
 import { getConfig } from '../../../../lib/config'
 import { ERROR_404 } from '../../../../lib/errors'
@@ -37,6 +38,15 @@ const handler = ApiGuard(async (req, res, context) => {
         createdAt: currentTime
       }
       await storage.createStatus({ status })
+      const hosts = await storage.getFollowersHosts({
+        targetActorId: currentActor.id
+      })
+      await Promise.all(
+        hosts.map((host) => {
+          const inbox = `https://${host}/inbox`
+          return sendNote(currentActor, inbox, status)
+        })
+      )
       return res.status(302).redirect('/')
     }
     default: {
