@@ -13,8 +13,11 @@ import { OutboxContext } from './context'
 import { Status } from '../models/status'
 import { getISOTimeUTC } from '../time'
 
+const USER_AGENT = 'activities.next/0.1'
+
 const SHARED_HEADERS = {
-  Accept: 'application/activity+json, application/ld+json'
+  Accept: 'application/activity+json, application/ld+json',
+  'User-Agent': USER_AGENT
 }
 
 export const getPerson = async (id: string, withCollectionCount: boolean) => {
@@ -150,7 +153,10 @@ export const sendNote = async (
   // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3
   const response = await fetch(sharedInbox, {
     method: 'POST',
-    headers: headers(currentActor, 'post', sharedInbox, activity),
+    headers: {
+      ...headers(currentActor, 'post', sharedInbox, activity),
+      'User-Agent': USER_AGENT
+    },
     body: JSON.stringify(activity)
   })
   console.log(response.status)
@@ -171,7 +177,10 @@ export const follow = async (
   }
   const response = await fetch(`${targetActorId}/inbox`, {
     method: 'POST',
-    headers: headers(currentActor, 'post', `${targetActorId}/inbox`, content),
+    headers: {
+      ...headers(currentActor, 'post', `${targetActorId}/inbox`, content),
+      'User-Agent': USER_AGENT
+    },
     body: JSON.stringify(content)
   })
   return response.status === 202
@@ -193,12 +202,15 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
   }
   const response = await fetch(`${follow.targetActorId}/inbox`, {
     method: 'POST',
-    headers: headers(
-      currentActor,
-      'post',
-      `${follow.targetActorId}/inbox`,
-      unfollowRequest
-    ),
+    headers: {
+      ...headers(
+        currentActor,
+        'post',
+        `${follow.targetActorId}/inbox`,
+        unfollowRequest
+      ),
+      'User-Agent': USER_AGENT
+    },
     body: JSON.stringify(unfollowRequest)
   })
   return response.status === 202
@@ -222,12 +234,15 @@ export const acceptFollow = async (
   }
   const response = await fetch(`${followRequest.actor}/inbox`, {
     method: 'POST',
-    headers: headers(
-      currentActor,
-      'post',
-      `${followRequest.actor}/inbox`,
-      acceptFollowRequest
-    ),
+    headers: {
+      ...headers(
+        currentActor,
+        'post',
+        `${followRequest.actor}/inbox`,
+        acceptFollowRequest
+      ),
+      'User-Agent': USER_AGENT
+    },
     body: JSON.stringify(acceptFollowRequest)
   })
   return response.status === 202
