@@ -30,6 +30,8 @@ const handler = ApiGuard(async (req, res, context) => {
           currentTime,
           'yyyy-MM-dd'
         )}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [`${currentActor.id}/followers`],
         mediaAttachmentIds: [],
         visibility: 'public',
         sensitive: false,
