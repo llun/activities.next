@@ -41,3 +41,6 @@ next-env.d.ts
 # shared configuration
 config.json
 config.*.json
+
+# local testing script
+lab.ts

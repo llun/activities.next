@@ -7,12 +7,17 @@ import {
   addDoc,
   getCountFromServer,
   query,
-  where
+  where,
+  getDocs,
+  limit,
+  doc,
+  getDoc
 } from 'firebase/firestore'
 
 import { Storage } from './types'
 import { Status } from '../models/status'
 import { Follow, FollowStatus } from '../models/follow'
+import { Actor } from '../models/actor'
 
 export interface FirebaseConfig extends FirebaseOptions {
   type: 'firebase'
@@ -77,7 +82,61 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorFromEmail(params: { email: string }) {
-    return undefined
+    const { email } = params
+    const accounts = collection(this.db, 'accounts')
+    const accountQuery = query(accounts, where('email', '==', email), limit(1))
+    const accountsSnapshot = await getDocs(accountQuery)
+    if (accountsSnapshot.docs.length !== 1) return undefined
+
+    const accountId = accountsSnapshot.docs[0].id
+    const actors = collection(this.db, 'actors')
+    const actorsQuery = query(
+      actors,
+      where('accountId', '==', accountId),
+      limit(1)
+    )
+    const actorsSnapshot = await getDocs(actorsQuery)
+    if (actorsSnapshot.docs.length !== 1) return undefined
+
+    const actorData = actorsSnapshot.docs[0].data()
+    return {
+      id: actorsSnapshot.docs[0].id,
+      ...actorData
+    } as Actor
+  }
+
+  async getActorFromUsername(params: { username: string }) {
+    const { username } = params
+    const actors = collection(this.db, 'actors')
+    const actorsQuery = query(
+      actors,
+      where('preferredUsername', '==', username),
+      limit(1)
+    )
+    const actorsSnapshot = await getDocs(actorsQuery)
+    if (actorsSnapshot.docs.length !== 1) return undefined
+
+    const actorData = actorsSnapshot.docs[0].data()
+    return {
+      id: actorsSnapshot.docs[0].id,
+      ...actorData
+    } as Actor
+  }
+
+  async getActorFromId(params: { id: string }) {
+    const { id } = params
+    const docRef = doc(this.db, 'actors', id)
+    const docSnap = await getDoc(docRef)
+
+    if (!docSnap.exists()) {
+      return undefined
+    }
+
+    const actorData = docSnap.data()
+    return {
+      id,
+      ...actorData
+    } as Actor
   }
 
   async isCurrentActorFollowing(params: {
@@ -85,14 +144,6 @@ export class FirebaseStorage implements Storage {
     followingActorId: string
   }) {
     return false
-  }
-
-  async getActorFromUsername(params: { username: string }) {
-    return undefined
-  }
-
-  async getActorFromId(params: { id: string }) {
-    return undefined
   }
 
   async getActorFollowingCount(params: { actorId: string }) {
