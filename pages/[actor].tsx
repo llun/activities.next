@@ -17,6 +17,7 @@ import { getStorage } from '../lib/storage'
 import { getConfig } from '../lib/config'
 
 interface Props {
+  isLoggedIn: boolean
   isFollowing: boolean
   username: string
   iconUrl?: string
@@ -36,6 +37,7 @@ interface Props {
 }
 
 const Page: NextPage<Props> = ({
+  isLoggedIn,
   isFollowing,
   username,
   id,
@@ -83,39 +85,41 @@ const Page: NextPage<Props> = ({
                 }).format(new Date(createdAt))}
               </p>
             </div>
-            <div className="flex-shrink-0">
-              {!isFollowing && (
-                <Button
-                  onClick={() => {
-                    fetch('/api/v1/accounts/follow', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json'
-                      },
-                      body: JSON.stringify({ target: id })
-                    })
-                  }}
-                >
-                  Follow
-                </Button>
-              )}
-              {isFollowing && (
-                <Button
-                  variant="danger"
-                  onClick={() => {
-                    fetch('/api/v1/accounts/unfollow', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json'
-                      },
-                      body: JSON.stringify({ target: id })
-                    })
-                  }}
-                >
-                  Unfollow
-                </Button>
-              )}
-            </div>
+            {isLoggedIn && (
+              <div className="flex-shrink-0">
+                {!isFollowing && (
+                  <Button
+                    onClick={() => {
+                      fetch('/api/v1/accounts/follow', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ target: id })
+                      })
+                    }}
+                  >
+                    Follow
+                  </Button>
+                )}
+                {isFollowing && (
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      fetch('/api/v1/accounts/unfollow', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ target: id })
+                      })
+                    }}
+                  >
+                    Unfollow
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </section>
         {posts.length > 0 && (
@@ -155,7 +159,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     getStorage(),
     unstable_getServerSession(req, res, authOptions)
   ])
-  if (!session?.user || !session?.user?.email || !storage) {
+
+  if (!storage) {
     return {
       redirect: {
         destination: '/signin',
@@ -180,12 +185,37 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
 
   const [account, domain] = parts
   const actorId = `https://${domain}/users/${account}`
-  const [currentActor, person] = await Promise.all([
-    storage.getActorFromEmail({ email: session.user.email }),
-    getPerson(actorId, true)
-  ])
+  const person = await getPerson(actorId, true)
 
-  if (!person || !currentActor) {
+  if (!person) {
+    return { notFound: true }
+  }
+
+  if (!(session?.user && !session?.user?.email)) {
+    const posts =
+      (person.totalPosts || 0) > 0 ? await getPosts(person.urls?.posts) : []
+    return {
+      props: {
+        isLoggedIn: false,
+        isFollowing: false,
+        id: person.id,
+        username: person.username,
+        iconUrl: person.icon?.url || '',
+        url: person.url,
+        totalPosts: person.totalPosts || 0,
+        followersCount: person.followersCount || 0,
+        followingCount: person.followingCount || 0,
+        posts,
+        createdAt: person.createdAt
+      }
+    }
+  }
+
+  const currentActor = await storage.getActorFromEmail({
+    email: session.user.email || ''
+  })
+
+  if (!currentActor) {
     return { notFound: true }
   }
 
@@ -198,6 +228,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
 
   return {
     props: {
+      isLoggedIn: true,
       isFollowing,
       id: person.id,
       username: person.username,
