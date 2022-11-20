@@ -1,14 +1,21 @@
 import crypto from 'crypto'
-import { FirebaseApp, initializeApp } from 'firebase/app'
-import { getFirestore, Firestore } from 'firebase/firestore/lite'
+import { FirebaseApp, FirebaseOptions, initializeApp } from 'firebase/app'
+import {
+  getFirestore,
+  Firestore,
+  collection,
+  addDoc,
+  getCountFromServer,
+  query,
+  where
+} from 'firebase/firestore'
 
 import { Storage } from './types'
 import { Status } from '../models/status'
 import { Follow, FollowStatus } from '../models/follow'
 
-export interface FirebaseConfig {
+export interface FirebaseConfig extends FirebaseOptions {
   type: 'firebase'
-  apiKey: string
 }
 
 export class FirebaseStorage implements Storage {
@@ -16,18 +23,28 @@ export class FirebaseStorage implements Storage {
   db: Firestore
 
   constructor(config: FirebaseConfig) {
-    this.app = initializeApp({
-      apiKey: config.apiKey
-    })
+    this.app = initializeApp(config)
     this.db = getFirestore(this.app)
   }
 
   async isAccountExists(params: { email?: string | null }) {
-    return false
+    const { email } = params
+    if (!email) return true
+
+    const accounts = collection(this.db, 'accounts')
+    const query_ = query(accounts, where('email', '==', email))
+    const snapshot = await getCountFromServer(query_)
+    return snapshot.data().count === 1
   }
 
   async isUsernameExists(params: { username: string }) {
-    return false
+    const { username } = params
+    if (!username) return true
+
+    const accounts = collection(this.db, 'actors')
+    const query_ = query(accounts, where('preferredUsername', '==', username))
+    const snapshot = await getCountFromServer(query_)
+    return snapshot.data().count === 1
   }
 
   async createAccount(params: {
@@ -36,7 +53,27 @@ export class FirebaseStorage implements Storage {
     privateKey: string
     publicKey: string
   }) {
-    return ''
+    const { email, username, privateKey, publicKey } = params
+    if (await this.isAccountExists({ email })) {
+      throw new Error('Account already exists')
+    }
+
+    const currentTime = Date.now()
+    const accountRef = await addDoc(collection(this.db, 'accounts'), {
+      email,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+    await addDoc(collection(this.db, 'actors'), {
+      accountId: accountRef.id,
+      preferredUsername: username,
+      publicKey,
+      privateKey,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+
+    return accountRef.id
   }
 
   async getActorFromEmail(params: { email: string }) {
