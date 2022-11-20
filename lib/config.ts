@@ -4,11 +4,11 @@ import memoize from 'lodash/memoize'
 import type { Knex } from 'knex'
 
 type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' }
-type DynamoDBDatabase = { type: 'dynamodb' }
+type FirebaseDatabase = { type: 'firebase' }
 
 export interface Config {
   host: string
-  database: KnexBaseDatabase | DynamoDBDatabase
+  database: KnexBaseDatabase | FirebaseDatabase
   allowEmails: string[]
   secretPhase: string
   auth?: {

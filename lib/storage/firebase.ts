@@ -4,7 +4,13 @@ import { Storage } from './types'
 import { Status } from '../models/status'
 import { Follow, FollowStatus } from '../models/follow'
 
-export class DynamoDBStorage implements Storage {
+export interface FirebaseConfig {
+  type: 'firebase'
+}
+
+export class FirebaseStorage implements Storage {
+  constructor(config: FirebaseConfig) {}
+
   async isAccountExists(params: { email?: string | null }) {
     return false
   }
