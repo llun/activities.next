@@ -1,4 +1,6 @@
 import crypto from 'crypto'
+import { FirebaseApp, initializeApp } from 'firebase/app'
+import { getFirestore, Firestore } from 'firebase/firestore/lite'
 
 import { Storage } from './types'
 import { Status } from '../models/status'
@@ -6,10 +8,19 @@ import { Follow, FollowStatus } from '../models/follow'
 
 export interface FirebaseConfig {
   type: 'firebase'
+  apiKey: string
 }
 
 export class FirebaseStorage implements Storage {
-  constructor(config: FirebaseConfig) {}
+  app: FirebaseApp
+  db: Firestore
+
+  constructor(config: FirebaseConfig) {
+    this.app = initializeApp({
+      apiKey: config.apiKey
+    })
+    this.db = getFirestore(this.app)
+  }
 
   async isAccountExists(params: { email?: string | null }) {
     return false
