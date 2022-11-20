@@ -17,6 +17,9 @@ export interface Status {
   createdAt: number
   updatedAt?: number
 
+  to: string[]
+  cc: string[]
+
   reply: string
   sensitive: boolean
   visibility: Visibility
@@ -36,6 +39,9 @@ export const fromJson = (data: Note | Question): Status => ({
   type: data.type,
   text: data.content,
   summary: data.summary,
+
+  to: data.to,
+  cc: data.cc,
 
   createdAt: new Date(data.published).getTime(),
 
