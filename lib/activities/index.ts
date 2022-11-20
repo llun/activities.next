@@ -1,4 +1,3 @@
-import memoize from 'lodash/memoize'
 import { getConfig } from '../config'
 import { headers } from '../signature'
 import { Actor } from '../models/actor'
