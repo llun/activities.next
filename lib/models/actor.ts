@@ -11,6 +11,9 @@ export interface Actor {
   manuallyApprovesFollowers: boolean
   discoverable: boolean
 
+  iconUrl?: string
+  headerImageUrl?: string
+
   publicKey: string
   privateKey: string
 

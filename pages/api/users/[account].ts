@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { PersonContext } from '../../../lib/activities/context'
 import { Person } from '../../../lib/activities/entities/person'
+import { Image } from '../../../lib/activities/entities/image'
 import { getConfig } from '../../../lib/config'
 import { ERROR_404, ERROR_500 } from '../../../lib/errors'
 import { getStorage } from '../../../lib/storage'
@@ -31,6 +32,25 @@ export default async function handler(
     return res.status(404).json(ERROR_404)
   }
 
+  const icon = actor.iconUrl
+    ? {
+        icon: {
+          type: 'Image',
+          mediaType: 'image/jpeg',
+          url: actor.iconUrl
+        } as Image
+      }
+    : null
+  const headerImage = actor.headerImageUrl
+    ? {
+        image: {
+          type: 'Image',
+          mediaType: 'image/png',
+          url: actor.headerImageUrl
+        } as Image
+      }
+    : null
+
   const user: Person = {
     '@context': PersonContext,
     id: `https://${config.host}/users/${account}`,
@@ -58,7 +78,9 @@ export default async function handler(
     attachment: [],
     endpoints: {
       sharedInbox: `https://${config.host}/inbox`
-    }
+    },
+    ...icon,
+    ...headerImage
   }
   res.status(200).json(user)
 }
