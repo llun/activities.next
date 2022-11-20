@@ -11,7 +11,9 @@ import {
   getDocs,
   limit,
   doc,
-  getDoc
+  getDoc,
+  updateDoc,
+  orderBy
 } from 'firebase/firestore'
 
 import { Storage } from './types'
@@ -147,11 +149,27 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorFollowingCount(params: { actorId: string }) {
-    return 0
+    const { actorId } = params
+    const follows = collection(this.db, 'follows')
+    const followsQuery = query(
+      follows,
+      where('actorId', '==', actorId),
+      where('status', '==', FollowStatus.Accepted)
+    )
+    const snapshot = await getCountFromServer(followsQuery)
+    return snapshot.data().count
   }
 
   async getActorFollowersCount(params: { actorId: string }) {
-    return 0
+    const { actorId } = params
+    const follows = collection(this.db, 'follows')
+    const followsQuery = query(
+      follows,
+      where('targetActorId', '==', actorId),
+      where('status', '==', FollowStatus.Accepted)
+    )
+    const snapshot = await getCountFromServer(followsQuery)
+    return snapshot.data().count
   }
 
   async createFollow(params: {
@@ -161,38 +179,94 @@ export class FirebaseStorage implements Storage {
   }) {
     const { actorId, targetActorId, status } = params
     const currentTime = Date.now()
-    const follow: Follow = {
-      id: crypto.randomUUID(),
+    const content = {
       actorId: actorId,
-      actorHost: new URL(actorId).host,
       targetActorId,
-      targetActorHost: new URL(targetActorId).host,
       status,
       createdAt: currentTime,
       updatedAt: currentTime
     }
-    return follow
+    const followRef = await addDoc(collection(this.db, 'follows'), content)
+    return {
+      id: followRef.id,
+      actorHost: new URL(actorId).host,
+      targetActorHost: new URL(targetActorId).host,
+      ...content
+    }
   }
 
   async getFollowFromId(params: { followId: string }) {
-    return undefined
+    const { followId } = params
+    const docRef = doc(this.db, 'follows', followId)
+    const docSnap = await getDoc(docRef)
+
+    if (!docSnap.exists()) {
+      return undefined
+    }
+
+    const followData = docSnap.data()
+    return {
+      id: followId,
+      actorHost: new URL(followData.actorId).host,
+      targetActorHost: new URL(followData.targetActorId).host,
+      ...followData
+    } as Follow
   }
 
   async getAcceptedOrRequestedFollow(params: {
     actorId: string
     targetActorId: string
   }) {
-    return undefined
+    const { actorId, targetActorId } = params
+    const follows = collection(this.db, 'follows')
+    const followsQuery = query(
+      follows,
+      where('actorId', '==', actorId),
+      where('targetActorId', '==', targetActorId),
+      where('status', 'in', [FollowStatus.Accepted, FollowStatus.Requested]),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    )
+    const followsSnapshot = await getDocs(followsQuery)
+    if (followsSnapshot.docs.length !== 1) return undefined
+
+    const followData = followsSnapshot.docs[0].data()
+    return {
+      id: followsSnapshot.docs[0].id,
+      actorHost: new URL(followData.actorId).host,
+      targetActorHost: new URL(followData.targetActorId).host,
+      ...followData
+    } as Follow
   }
 
   async getFollowersHosts(params: { targetActorId: string }) {
-    return []
+    const { targetActorId } = params
+    const follows = collection(this.db, 'follows')
+    const followsQuery = query(
+      follows,
+      where('targetActorId', '==', targetActorId),
+      where('status', '==', FollowStatus.Accepted)
+    )
+    const followsSnapshot = await getDocs(followsQuery)
+    const hosts: Set<string> = new Set()
+    followsSnapshot.forEach((doc) =>
+      hosts.add(new URL(doc.data().actorId).host)
+    )
+    return Array.from(hosts)
   }
 
-  async updateFollowStatus(params: {
-    followId: string
-    status: FollowStatus
-  }) {}
+  async updateFollowStatus(params: { followId: string; status: FollowStatus }) {
+    const { followId, status } = params
+    const follow = await this.getFollowFromId({ followId })
+    if (!follow) {
+      return
+    }
+
+    const follwRef = doc(this.db, 'follows', follow.id)
+    await updateDoc(follwRef, {
+      status
+    })
+  }
 
   async createStatus(params: { status: Status }) {
     const { status } = params
