@@ -2,6 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  assetPrefix: '/activities',
+
+  generateBuildId() {
+    return `activities-${Date.now()}`
+  },
 
   async rewrites() {
     return [
