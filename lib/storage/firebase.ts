@@ -13,7 +13,8 @@ import {
   doc,
   getDoc,
   updateDoc,
-  orderBy
+  orderBy,
+  setDoc
 } from 'firebase/firestore'
 
 import { Storage } from './types'
@@ -270,14 +271,26 @@ export class FirebaseStorage implements Storage {
 
   async createStatus(params: { status: Status }) {
     const { status } = params
+    await setDoc(doc(this.db, 'statuses', status.id), status)
     return status
   }
 
   async getStatuses(params?: { actorId?: string }) {
-    return []
+    const statuses = collection(this.db, 'statuses')
+    const statusesQuery = query(
+      statuses,
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    )
+    const statusesSnapshot = await getDocs(statusesQuery)
+    return statusesSnapshot.docs.map((item) => item.data() as Status)
   }
 
   async getActorStatusesCount(params: { actorId: string }) {
-    return 0
+    const { actorId } = params
+    const statuses = collection(this.db, 'statuses')
+    const statusesQuery = query(statuses, where('actorId', '==', actorId))
+    const snapshot = await getCountFromServer(statusesQuery)
+    return snapshot.data().count
   }
 }
