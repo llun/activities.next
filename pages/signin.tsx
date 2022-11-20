@@ -23,7 +23,11 @@ const Page: NextPage<Props> = ({ csrfToken, host }) => {
       <section className="container pt-4">
         <form action={`https://${host}/api/auth/signin/github`} method="POST">
           <input type="hidden" name="csrfToken" value={csrfToken} />
-          <input type="hidden" name="callbackUrl" value={`https://${host}`} />
+          <input
+            type="hidden"
+            name="callbackUrl"
+            value={`https://${host}/api/auth/callback/github`}
+          />
           <Button outline type="submit">
             Sign in with Github
           </Button>
@@ -52,7 +56,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   return {
     props: {
       csrfToken,
-      host: config.host
+      host: req.headers.host || config.host
     }
   }
 }
