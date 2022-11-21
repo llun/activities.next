@@ -1,10 +1,7 @@
 import { GetServerSideProps, NextPage } from 'next'
 import Head from 'next/head'
-import parse from 'html-react-parser'
 import { useSession } from 'next-auth/react'
 import { unstable_getServerSession } from 'next-auth/next'
-import cn from 'classnames'
-import { formatDistanceToNow } from 'date-fns'
 
 import { authOptions } from './api/auth/[...nextauth]'
 
@@ -13,8 +10,7 @@ import { getStorage } from '../lib/storage'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { getConfig } from '../lib/config'
-import { getHostnameFromId, getUsernameFromId } from '../lib/models/actor'
-import { Posts } from '../lib/components/Posts'
+import { Posts } from '../lib/components/Posts/Posts'
 
 interface Props {
   statuses: Status[]

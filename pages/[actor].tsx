@@ -13,7 +13,7 @@ import styles from './[actor].module.scss'
 import { Button } from '../lib/components/Button'
 import { getStorage } from '../lib/storage'
 import { getConfig } from '../lib/config'
-import { Posts } from '../lib/components/Posts'
+import { Posts } from '../lib/components/Posts/Posts'
 import { Status } from '../lib/models/status'
 
 interface Props {
