@@ -50,8 +50,6 @@ const Page: NextPage<Props> = ({
   createdAt
 }) => {
   const { data: session } = useSession()
-
-  console.log('Created At', Number.isInteger(createdAt))
   return (
     <main>
       <Head>
