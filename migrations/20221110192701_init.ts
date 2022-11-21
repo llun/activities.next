@@ -19,6 +19,7 @@ export async function up(knex: Knex): Promise<void> {
       table.string('accountId')
       table.foreign('accountId').references('id').inTable('accounts')
 
+      table.string('name')
       table.text('summary')
       table.boolean('manuallyApprovesFollowers')
       table.boolean('discoverable')

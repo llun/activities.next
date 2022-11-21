@@ -3,7 +3,8 @@ import { Account } from './account'
 export interface Actor {
   id: string
   preferredUsername: string
-  summary: string
+  name?: string
+  summary?: string
 
   account?: Account
   following?: Actor
