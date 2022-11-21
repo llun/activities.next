@@ -283,4 +283,17 @@ export class FirebaseStorage implements Storage {
     const snapshot = await getCountFromServer(statusesQuery)
     return snapshot.data().count
   }
+
+  async getActorStatuses(params: { actorId: string }) {
+    const { actorId } = params
+    const statuses = collection(this.db, 'statuses')
+    const statusesQuery = query(
+      statuses,
+      where('actorId', '==', actorId),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    )
+    const snapshot = await getDocs(statusesQuery)
+    return snapshot.docs.map((item) => item.data() as Status)
+  }
 }

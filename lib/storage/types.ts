@@ -42,4 +42,5 @@ export interface Storage {
   createStatus(params: { status: Status }): Promise<Status>
   getStatuses(params?: { actorId?: string }): Promise<Status[]>
   getActorStatusesCount(params: { actorId: string }): Promise<number>
+  getActorStatuses(params: { actorId: string }): Promise<Status[]>
 }
