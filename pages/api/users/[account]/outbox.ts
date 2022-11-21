@@ -30,7 +30,7 @@ const handle: NextApiHandler = async (req, res) => {
       }
 
       const statuses = await storage.getActorStatuses({ actorId })
-      return {
+      return res.status(200).json({
         '@context': OutboxContext,
         id: `${actorId}/outbox?page=true`,
         type: 'OrderedCollectionPage',
@@ -78,7 +78,7 @@ const handle: NextApiHandler = async (req, res) => {
             }
           }
         }))
-      }
+      })
     }
     default:
       return res.status(404).json(ERROR_404)
