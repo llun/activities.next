@@ -191,7 +191,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     return { notFound: true }
   }
 
-  if (!(session?.user && !session?.user?.email)) {
+  if (!(session?.user && session?.user?.email)) {
     const posts =
       (person.totalPosts || 0) > 0 ? await getPosts(person.urls?.posts) : []
     return {
