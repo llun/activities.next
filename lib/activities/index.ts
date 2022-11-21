@@ -32,6 +32,7 @@ export const getPerson = async (id: string, withCollectionCount: boolean) => {
       username: json.preferredUsername,
       icon: json.icon,
       url: json.url,
+      name: json.name,
       summary: json.summary,
 
       manuallyApprovesFollowers: json.manuallyApprovesFollowers,
@@ -65,6 +66,7 @@ export const getPerson = async (id: string, withCollectionCount: boolean) => {
     username: json.preferredUsername,
     icon: json.icon,
     url: json.url,
+    name: json.name,
     summary: json.summary,
 
     manuallyApprovesFollowers: json.manuallyApprovesFollowers,

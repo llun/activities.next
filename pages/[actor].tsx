@@ -15,11 +15,12 @@ import { getStorage } from '../lib/storage'
 import { getConfig } from '../lib/config'
 import { Posts } from '../lib/components/Posts/Posts'
 import { Status } from '../lib/models/status'
+import { getHostnameFromId, getUsernameFromId } from '../lib/models/actor'
 
 interface Props {
   isLoggedIn: boolean
   isFollowing: boolean
-  username: string
+  name: string
   iconUrl?: string
   id: string
   url: string
@@ -33,7 +34,7 @@ interface Props {
 const Page: NextPage<Props> = ({
   isLoggedIn,
   isFollowing,
-  username,
+  name,
   id,
   url,
   iconUrl,
@@ -61,12 +62,12 @@ const Page: NextPage<Props> = ({
               />
             )}
             <div className="flex-fill">
-              <h1>@{username}</h1>
-              <small>
+              <h1>{name}</h1>
+              <h4>
                 <Link href={url} target={'_blank'}>
-                  {url}
+                  @{getUsernameFromId(id)}@{getHostnameFromId(id)}
                 </Link>
-              </small>
+              </h4>
               <p>
                 <span>{totalPosts} Posts</span>
                 <span className="ms-2">{followingCount} Following</span>
@@ -173,7 +174,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
         isLoggedIn: false,
         isFollowing: false,
         id: person.id,
-        username: person.username,
+        name: person.name,
         iconUrl: person.icon?.url || '',
         url: person.url,
         totalPosts: person.totalPosts || 0,
@@ -204,7 +205,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       isLoggedIn: true,
       isFollowing,
       id: person.id,
-      username: person.username,
+      name: person.name,
       iconUrl: person.icon?.url || '',
       url: person.url,
       totalPosts: person.totalPosts || 0,
