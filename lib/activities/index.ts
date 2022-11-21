@@ -95,15 +95,13 @@ export const getPosts = async (id?: string) => {
   if (response.status !== 200) return []
 
   const json: OrderedCollectionPage = await response.json()
-  return json.orderedItems
-    .filter((item) => item.type === 'Create' && item.object.id)
-    .map((item) => ({
-      actor: item.actor,
-      id: item.object.id,
-      url: item.object.url || '',
-      content: item.object.content,
-      createdAt: new Date(item.published).getTime()
-    }))
+  return json.orderedItems.map((item) => ({
+    actor: item.actor,
+    id: item.object.id,
+    url: item.object.url || '',
+    content: item.object.content,
+    createdAt: new Date(item.published).getTime()
+  }))
 }
 
 export const sendNote = async (

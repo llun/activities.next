@@ -50,6 +50,8 @@ const Page: NextPage<Props> = ({
   createdAt
 }) => {
   const { data: session } = useSession()
+
+  console.log('Created At', Number.isInteger(createdAt))
   return (
     <main>
       <Head>
@@ -61,6 +63,7 @@ const Page: NextPage<Props> = ({
           <div className="card-body d-flex flex-column flex-sm-row">
             {iconUrl && (
               <img
+                alt="Actor icon"
                 className={cn(styles.icon, 'me-4', 'mb-2', 'flex-shrink-0')}
                 src={iconUrl}
               />
@@ -77,7 +80,7 @@ const Page: NextPage<Props> = ({
                 <span className="ms-2">{followingCount} Following</span>
                 <span className="ms-2">{followersCount} Followers</span>
               </p>
-              {createdAt && (
+              {Number.isInteger(createdAt) && (
                 <p>
                   Joined{' '}
                   {new Intl.DateTimeFormat('en-US', {
@@ -126,27 +129,25 @@ const Page: NextPage<Props> = ({
         </section>
         {posts.length > 0 && (
           <section className="mt-4">
-            {posts
-              .filter((post) => post.content)
-              .map((post) => (
-                <div key={post.id} className={cn('d-flex')}>
-                  <div className="flex-fill me-1">
-                    {parse(post.content, {
-                      replace: (domNode: any) => {
-                        if (domNode.attribs && domNode.name === 'a') {
-                          domNode.attribs.target = '_blank'
-                          return domNode
-                        }
-
+            {posts.map((post) => (
+              <div key={post.id} className={cn('d-flex')}>
+                <div className="flex-fill me-1">
+                  {parse(post.content, {
+                    replace: (domNode: any) => {
+                      if (domNode.attribs && domNode.name === 'a') {
+                        domNode.attribs.target = '_blank'
                         return domNode
                       }
-                    })}
-                  </div>
-                  <div className="flex-shrink-0">
-                    {formatDistanceToNow(post.createdAt)}
-                  </div>
+
+                      return domNode
+                    }
+                  })}
                 </div>
-              ))}
+                <div className="flex-shrink-0">
+                  {formatDistanceToNow(post.createdAt)}
+                </div>
+              </div>
+            ))}
           </section>
         )}
       </section>
@@ -222,8 +223,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     return { notFound: true }
   }
 
-  const posts =
-    (person.totalPosts || 0) > 0 ? await getPosts(person.urls?.posts) : []
+  const posts = await getPosts(person.urls?.posts)
   const isFollowing = await storage.isCurrentActorFollowing({
     currentActorId: currentActor.id,
     followingActorId: actorId
@@ -240,7 +240,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       totalPosts: person.totalPosts || 0,
       followersCount: person.followersCount || 0,
       followingCount: person.followingCount || 0,
-      posts,
+      posts: posts.filter((post) => post.content),
       createdAt: person.createdAt
     }
   }
