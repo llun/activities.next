@@ -124,25 +124,27 @@ const Page: NextPage<Props> = ({
         </section>
         {posts.length > 0 && (
           <section className="mt-4">
-            {posts.map((post) => (
-              <div key={post.id} className={cn('d-flex')}>
-                <div className="flex-fill me-1">
-                  {parse(post.content, {
-                    replace: (domNode: any) => {
-                      if (domNode.attribs && domNode.name === 'a') {
-                        domNode.attribs.target = '_blank'
+            {posts
+              .filter((post) => post.content)
+              .map((post) => (
+                <div key={post.id} className={cn('d-flex')}>
+                  <div className="flex-fill me-1">
+                    {parse(post.content, {
+                      replace: (domNode: any) => {
+                        if (domNode.attribs && domNode.name === 'a') {
+                          domNode.attribs.target = '_blank'
+                          return domNode
+                        }
+
                         return domNode
                       }
-
-                      return domNode
-                    }
-                  })}
+                    })}
+                  </div>
+                  <div className="flex-shrink-0">
+                    {formatDistanceToNow(post.createdAt)}
+                  </div>
                 </div>
-                <div className="flex-shrink-0">
-                  {formatDistanceToNow(post.createdAt)}
-                </div>
-              </div>
-            ))}
+              ))}
           </section>
         )}
       </section>
