@@ -14,6 +14,7 @@ import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { getConfig } from '../lib/config'
 import { getHostnameFromId, getUsernameFromId } from '../lib/models/actor'
+import { Posts } from '../lib/components/Posts'
 
 interface Props {
   statuses: Status[]
@@ -34,37 +35,7 @@ const Page: NextPage<Props> = ({ statuses }) => {
           </div>
           <Button type="submit">Send</Button>
         </form>
-        {statuses.length > 0 && (
-          <section className="w-full grid grid-cols-1 mt-4">
-            {statuses.map((status) => (
-              <div key={status.id} className="block">
-                <div>
-                  <strong>
-                    @{getUsernameFromId(status.actorId)}@
-                    {getHostnameFromId(status.actorId)}
-                  </strong>
-                </div>
-                <div className={cn('d-flex')}>
-                  <div className="flex-fill me-1">
-                    {parse(status.text, {
-                      replace: (domNode: any) => {
-                        if (domNode.attribs && domNode.name === 'a') {
-                          domNode.attribs.target = '_blank'
-                          return domNode
-                        }
-
-                        return domNode
-                      }
-                    })}
-                  </div>
-                  <div className="flex-shrink-0">
-                    {formatDistanceToNow(status.createdAt)}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </section>
-        )}
+        <Posts statuses={statuses} />
       </section>
     </main>
   )

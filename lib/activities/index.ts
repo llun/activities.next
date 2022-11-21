@@ -9,7 +9,7 @@ import { FollowRequest } from './actions/follow'
 import { UndoFollow } from './actions/undoFollow'
 import { AcceptFollow } from './actions/acceptFollow'
 import { OutboxContext } from './context'
-import { Status } from '../models/status'
+import { fromJson, Status } from '../models/status'
 import { getISOTimeUTC } from '../time'
 
 const USER_AGENT = 'activities.next/0.1'
@@ -95,13 +95,16 @@ export const getPosts = async (id?: string) => {
   if (response.status !== 200) return []
 
   const json: OrderedCollectionPage = await response.json()
-  return json.orderedItems.map((item) => ({
-    actor: item.actor,
-    id: item.object.id,
-    url: item.object.url || '',
-    content: item.object.content,
-    createdAt: new Date(item.published).getTime()
-  }))
+  return json.orderedItems
+    .map((item) => {
+      // Unsupported activity
+      if (item.type !== 'Create') return null
+      // Unsupported Object
+      if (item.object.type !== 'Note') return null
+
+      return fromJson(item.object)
+    })
+    .filter((item): item is Status => item !== null)
 }
 
 export const sendNote = async (

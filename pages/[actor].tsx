@@ -3,9 +3,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { unstable_getServerSession } from 'next-auth'
 import { useSession } from 'next-auth/react'
-import parse from 'html-react-parser'
 import cn from 'classnames'
-import formatDistanceToNow from 'date-fns/formatDistanceToNow'
 
 import { authOptions } from './api/auth/[...nextauth]'
 import { Header } from '../lib/components/Header'
@@ -15,6 +13,8 @@ import styles from './[actor].module.scss'
 import { Button } from '../lib/components/Button'
 import { getStorage } from '../lib/storage'
 import { getConfig } from '../lib/config'
+import { Posts } from '../lib/components/Posts'
+import { Status } from '../lib/models/status'
 
 interface Props {
   isLoggedIn: boolean
@@ -26,13 +26,7 @@ interface Props {
   followersCount: number
   followingCount: number
   totalPosts: number
-  posts: {
-    actor: string
-    id: string
-    url?: string
-    content: string
-    createdAt: number
-  }[]
+  posts: Status[]
   createdAt: number
 }
 
@@ -125,29 +119,7 @@ const Page: NextPage<Props> = ({
             )}
           </div>
         </section>
-        {posts.length > 0 && (
-          <section className="mt-4">
-            {posts.map((post) => (
-              <div key={post.id} className={cn('d-flex')}>
-                <div className="flex-fill me-1">
-                  {parse(post.content, {
-                    replace: (domNode: any) => {
-                      if (domNode.attribs && domNode.name === 'a') {
-                        domNode.attribs.target = '_blank'
-                        return domNode
-                      }
-
-                      return domNode
-                    }
-                  })}
-                </div>
-                <div className="flex-shrink-0">
-                  {formatDistanceToNow(post.createdAt)}
-                </div>
-              </div>
-            ))}
-          </section>
-        )}
+        <Posts statuses={posts} />
       </section>
     </main>
   )
@@ -238,7 +210,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       totalPosts: person.totalPosts || 0,
       followersCount: person.followersCount || 0,
       followingCount: person.followingCount || 0,
-      posts: posts.filter((post) => post.content),
+      posts,
       createdAt: person.createdAt
     }
   }
