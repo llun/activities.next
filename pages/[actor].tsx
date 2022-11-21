@@ -29,7 +29,7 @@ interface Props {
   posts: {
     actor: string
     id: string
-    url: string
+    url?: string
     content: string
     createdAt: number
   }[]
@@ -77,13 +77,15 @@ const Page: NextPage<Props> = ({
                 <span className="ms-2">{followingCount} Following</span>
                 <span className="ms-2">{followersCount} Followers</span>
               </p>
-              <p>
-                Joined{' '}
-                {new Intl.DateTimeFormat('en-US', {
-                  dateStyle: 'long',
-                  timeStyle: 'short'
-                }).format(new Date(createdAt))}
-              </p>
+              {createdAt && (
+                <p>
+                  Joined{' '}
+                  {new Intl.DateTimeFormat('en-US', {
+                    dateStyle: 'long',
+                    timeStyle: 'short'
+                  }).format(new Date(createdAt))}
+                </p>
+              )}
             </div>
             {isLoggedIn && (
               <div className="flex-shrink-0">
@@ -194,8 +196,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   }
 
   if (!(session?.user && session?.user?.email)) {
-    const posts =
-      (person.totalPosts || 0) > 0 ? await getPosts(person.urls?.posts) : []
+    const posts = await getPosts(person.urls?.posts)
     return {
       props: {
         isLoggedIn: false,
