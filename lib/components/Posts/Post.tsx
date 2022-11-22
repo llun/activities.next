@@ -1,7 +1,6 @@
 import { FC } from 'react'
 import cn from 'classnames'
 import parse from 'html-react-parser'
-import formatDistanceToNow from 'date-fns/formatDistanceToNow'
 
 import { Status } from '../../models/status'
 import styles from './Post.module.scss'

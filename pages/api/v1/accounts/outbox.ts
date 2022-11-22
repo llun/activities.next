@@ -1,7 +1,8 @@
 import crypto from 'crypto'
 import format from 'date-fns/format'
-import { sendNote } from '../../../../lib/activities'
+import linkifyStr from 'linkify-string'
 
+import { sendNote } from '../../../../lib/activities'
 import { getConfig } from '../../../../lib/config'
 import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
@@ -17,6 +18,13 @@ const handler = ApiGuard(async (req, res, context) => {
       const body = req.body
       const postId = crypto.randomUUID()
       const id = `${currentActor.id}/statuses/${postId}`
+
+      const content = linkifyStr(body.message.trim(), {
+        rel: 'nofollow noopener noreferrer',
+        target: '_blank',
+        truncate: 42,
+        defaultProtocol: 'https'
+      })
       const status: Status = {
         id: `${currentActor.id}/statuses/${postId}`,
         url: `https://${config.host}/@${getUsernameFromId(
@@ -24,7 +32,7 @@ const handler = ApiGuard(async (req, res, context) => {
         )}/${postId}`,
         actorId: currentActor.id,
         type: 'Note',
-        text: `<p>${body.message}</p>`,
+        text: `<p>${content}</p>`,
         summary: null,
         conversation: `tag:${config.host},${format(
           currentTime,

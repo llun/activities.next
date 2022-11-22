@@ -11,7 +11,7 @@
     "migrate": "knex migrate:latest"
   },
   "dependencies": {
-    "better-sqlite3": "^7.6.2",
+    "better-sqlite3": "^8.0.0",
     "bootstrap": "^5.2.2",
     "classnames": "^2.3.2",
     "date-fns": "^2.29.3",
@@ -20,14 +20,17 @@
     "html-react-parser": "^3.0.4",
     "jsonld": "^8.1.0",
     "knex": "^2.3.0",
+    "linkify-html": "^4.0.2",
+    "linkify-plugin-mention": "^4.0.2",
+    "linkify-string": "^4.0.2",
+    "linkifyjs": "^4.0.2",
     "lodash": "^4.17.21",
     "next": "13.0.4",
     "next-auth": "^4.17.0",
     "peggy": "^2.0.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "sass": "^1.56.1",
-    "twitter-text": "^3.1.0"
+    "sass": "^1.56.1"
   },
   "devDependencies": {
     "@swc-node/register": "^1.5.4",
