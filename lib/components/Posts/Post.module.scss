@@ -1,3 +1,11 @@
 .post {
   white-space: pre-wrap;
 }
+
+.invisible {
+  display: none;
+}
+
+.ellipsis:after {
+  content: '…';
+}
