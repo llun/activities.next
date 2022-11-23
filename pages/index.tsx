@@ -14,6 +14,7 @@ import { getConfig } from '../lib/config'
 import { Posts } from '../lib/components/Posts/Posts'
 import { Actor, getUsernameFromId } from '../lib/models/actor'
 import styles from './index.module.scss'
+import Image from 'next/image'
 
 interface Props {
   statuses: Status[]
@@ -33,23 +34,27 @@ const Page: NextPage<Props> = ({ actor, statuses }) => {
         <div className="row">
           <div className="col-12 col-md-3">
             {actor.iconUrl && (
-              <img
+              <Image
+                width={100}
+                height={100}
                 alt="Actor icon"
                 className={cn(styles.icon, 'me-4', 'mb-2', 'flex-shrink-0')}
                 src={actor.iconUrl}
               />
             )}
-            <h1>{actor.name}</h1>
-            <h4>@{getUsernameFromId(actor.id)}</h4>
-            {Number.isInteger(actor.createdAt) && (
-              <p>
-                Joined{' '}
-                {new Intl.DateTimeFormat('en-US', {
-                  dateStyle: 'long',
-                  timeStyle: 'short'
-                }).format(new Date(actor.createdAt))}
-              </p>
-            )}
+            <div>
+              <h1>{actor.name}</h1>
+              <h4>@{getUsernameFromId(actor.id)}</h4>
+              {Number.isInteger(actor.createdAt) && (
+                <p>
+                  Joined{' '}
+                  {new Intl.DateTimeFormat('en-US', {
+                    dateStyle: 'long',
+                    timeStyle: 'short'
+                  }).format(new Date(actor.createdAt))}
+                </p>
+              )}
+            </div>
           </div>
           <div className="col-12 col-md-9">
             <form action="/api/v1/accounts/outbox" method="post">

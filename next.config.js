@@ -8,6 +8,15 @@ const nextConfig = {
     return `activities-${Date.now()}`
   },
 
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**'
+      }
+    ]
+  },
+
   async rewrites() {
     return [
       {
