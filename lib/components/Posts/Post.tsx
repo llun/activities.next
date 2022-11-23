@@ -9,9 +9,36 @@ import { Button } from '../Button'
 
 interface Props {
   status: Status
+  showActions?: boolean
 }
 
-export const Post: FC<Props> = ({ status }) => {
+export const Actions: FC<Props> = ({ showActions = false }) => {
+  if (!showActions) return null
+  return (
+    <div className={cn(styles.actions)}>
+      <Button
+        className={styles.action}
+        variant="link"
+        onClick={() => {
+          console.log('Reply to')
+        }}
+      >
+        <i className="bi bi-reply"></i>
+      </Button>
+      <Button
+        className={styles.action}
+        variant="link"
+        onClick={() => {
+          console.log('Repost')
+        }}
+      >
+        <i className="bi bi-arrow-left-right"></i>
+      </Button>
+    </div>
+  )
+}
+
+export const Post: FC<Props> = ({ status, showActions = false }) => {
   return (
     <div key={status.id} className={cn('d-flex', styles.post)}>
       <div className={cn('flex-fill', 'me-1')}>
@@ -31,26 +58,7 @@ export const Post: FC<Props> = ({ status }) => {
             return domNode
           }
         })}
-        <div className={cn(styles.actions)}>
-          <Button
-            className={styles.action}
-            variant="link"
-            onClick={() => {
-              console.log('Reply to')
-            }}
-          >
-            <i className="bi bi-reply"></i>
-          </Button>
-          <Button
-            className={styles.action}
-            variant="link"
-            onClick={() => {
-              console.log('Repost')
-            }}
-          >
-            <i className="bi bi-arrow-left-right"></i>
-          </Button>
-        </div>
+        <Actions status={status} showActions={showActions} />
       </div>
       <div className={cn('flex-shrink-0', styles.misc)}>
         {formatDistanceToNow(status.createdAt)}

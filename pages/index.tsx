@@ -31,7 +31,7 @@ const Page: NextPage<Props> = ({ statuses }) => {
           </div>
           <Button type="submit">Send</Button>
         </form>
-        <Posts statuses={statuses} showActorId />
+        <Posts statuses={statuses} showActorId showActions />
       </section>
     </main>
   )

@@ -9,10 +9,15 @@ import styles from './Posts.module.scss'
 
 interface Props {
   showActorId?: boolean
+  showActions?: boolean
   statuses: Status[]
 }
 
-export const Posts: FC<Props> = ({ showActorId = false, statuses }) => {
+export const Posts: FC<Props> = ({
+  showActorId = false,
+  showActions = false,
+  statuses
+}) => {
   if (statuses.length === 0) return null
 
   return (
@@ -20,7 +25,7 @@ export const Posts: FC<Props> = ({ showActorId = false, statuses }) => {
       {statuses.map((status) => (
         <div key={status.id} className={cn(styles.block)}>
           <Actor actorId={(showActorId && status.actorId) || ''} />
-          <Post status={status} />
+          <Post status={status} showActions={showActions} />
         </div>
       ))}
     </section>
