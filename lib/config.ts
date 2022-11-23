@@ -1,8 +1,8 @@
-import fs from 'fs'
-import path from 'path'
-import memoize from 'lodash/memoize'
-import type { Knex } from 'knex'
 import { FirebaseOptions } from 'firebase/app'
+import fs from 'fs'
+import type { Knex } from 'knex'
+import memoize from 'lodash/memoize'
+import path from 'path'
 
 type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' }
 type FirebaseDatabase = FirebaseOptions & { type: 'firebase' }

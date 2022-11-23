@@ -1,8 +1,9 @@
-import Link from 'next/link'
-import { signOut } from 'next-auth/react'
-import { FC } from 'react'
-import { Button } from './Button'
 import { Session } from 'next-auth'
+import { signOut } from 'next-auth/react'
+import Link from 'next/link'
+import { FC } from 'react'
+
+import { Button } from './Button'
 
 interface Props {
   session?: Session | null

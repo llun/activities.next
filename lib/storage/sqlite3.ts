@@ -1,12 +1,11 @@
-import { knex, Knex } from 'knex'
 import crypto from 'crypto'
+import { Knex, knex } from 'knex'
 
-import { Storage } from './types'
-
-import { Status } from '../models/status'
-import { Actor } from '../models/actor'
 import { getConfig } from '../config'
+import { Actor } from '../models/actor'
 import { Follow, FollowStatus } from '../models/follow'
+import { Status } from '../models/status'
+import { Storage } from './types'
 
 export class Sqlite3Storage implements Storage {
   database: Knex

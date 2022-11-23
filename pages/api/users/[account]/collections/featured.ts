@@ -1,4 +1,5 @@
 import type { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
+
 import { FeaturedOrderedCollection } from '../../../../../lib/activities/entities/featuredOrderedCollection'
 import { getConfig } from '../../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../../lib/errors'

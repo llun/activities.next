@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+
 import { acceptFollow } from '../../../../lib/activities'
 import { AcceptFollow } from '../../../../lib/activities/actions/acceptFollow'
 import { FollowRequest } from '../../../../lib/activities/actions/follow'
@@ -7,7 +8,6 @@ import { getConfig } from '../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { activitiesGuard } from '../../../../lib/guard'
 import { FollowStatus } from '../../../../lib/models/follow'
-
 import { getStorage } from '../../../../lib/storage'
 
 export default activitiesGuard(

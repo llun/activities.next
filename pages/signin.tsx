@@ -1,12 +1,12 @@
 import { GetServerSideProps, NextPage } from 'next'
-import Head from 'next/head'
-import { getCsrfToken } from 'next-auth/react'
 import { unstable_getServerSession } from 'next-auth/next'
-import { authOptions } from './api/auth/[...nextauth]'
+import { getCsrfToken } from 'next-auth/react'
+import Head from 'next/head'
 
-import { getConfig } from '../lib/config'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
+import { getConfig } from '../lib/config'
+import { authOptions } from './api/auth/[...nextauth]'
 
 interface Props {
   csrfToken?: string

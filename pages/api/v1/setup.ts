@@ -1,8 +1,9 @@
 import crypto from 'crypto'
 import util from 'util'
+
 import { getConfig } from '../../../lib/config'
-import { SetupGuard } from '../../../lib/guard'
 import { ERROR_404 } from '../../../lib/errors'
+import { SetupGuard } from '../../../lib/guard'
 
 const handler = SetupGuard(async (req, res, context) => {
   const { storage, email } = context

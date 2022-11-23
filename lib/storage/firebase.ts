@@ -1,27 +1,27 @@
 import crypto from 'crypto'
 import { FirebaseApp, FirebaseOptions, initializeApp } from 'firebase/app'
 import {
-  getFirestore,
   Firestore,
-  collection,
   addDoc,
-  getCountFromServer,
-  query,
-  where,
-  getDocs,
-  limit,
+  collection,
   doc,
+  getCountFromServer,
   getDoc,
-  updateDoc,
+  getDocs,
+  getFirestore,
+  limit,
   orderBy,
-  setDoc
+  query,
+  setDoc,
+  updateDoc,
+  where
 } from 'firebase/firestore'
 
-import { Storage } from './types'
-import { Status } from '../models/status'
-import { Follow, FollowStatus } from '../models/follow'
-import { Actor } from '../models/actor'
 import { getConfig } from '../config'
+import { Actor } from '../models/actor'
+import { Follow, FollowStatus } from '../models/follow'
+import { Status } from '../models/status'
+import { Storage } from './types'
 
 export interface FirebaseConfig extends FirebaseOptions {
   type: 'firebase'

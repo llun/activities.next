@@ -3,3 +3,8 @@ singleQuote: true
 arrowParens: 'always'
 requirePragma: false
 trailingComma: 'none'
+importOrderSeparation: true
+importOrderSortSpecifiers: true
+importOrder:
+  - <THIRD_PARTY_MODULES>
+  - ^[./]

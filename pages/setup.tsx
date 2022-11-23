@@ -1,13 +1,13 @@
 import { GetServerSideProps, NextPage } from 'next'
-import Head from 'next/head'
 import { unstable_getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
-import { authOptions } from './api/auth/[...nextauth]'
+import Head from 'next/head'
 
-import { Header } from '../lib/components/Header'
 import { Button } from '../lib/components/Button'
+import { Header } from '../lib/components/Header'
 import { getConfig } from '../lib/config'
 import { getStorage } from '../lib/storage'
+import { authOptions } from './api/auth/[...nextauth]'
 
 interface Props {}
 

@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+
 import { getConfig } from '../../../lib/config'
 
 export default async function handler(

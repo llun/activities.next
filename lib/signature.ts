@@ -1,8 +1,9 @@
 import crypto from 'crypto'
-import { generate } from 'peggy'
 import fs from 'fs/promises'
-import path from 'path'
 import { IncomingHttpHeaders } from 'http'
+import path from 'path'
+import { generate } from 'peggy'
+
 import { getConfig } from './config'
 import { Actor } from './models/actor'
 

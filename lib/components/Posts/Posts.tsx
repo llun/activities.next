@@ -1,10 +1,9 @@
-import { FC } from 'react'
 import cn from 'classnames'
+import { FC } from 'react'
 
-import { Actor } from './Actor'
 import { Status } from '../../models/status'
+import { Actor } from './Actor'
 import { Post } from './Post'
-
 import styles from './Posts.module.scss'
 
 interface Props {

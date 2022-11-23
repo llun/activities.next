@@ -1,20 +1,20 @@
-import { GetServerSideProps, NextPage } from 'next'
-import Head from 'next/head'
-import { useSession } from 'next-auth/react'
-import { unstable_getServerSession } from 'next-auth/next'
 import cn from 'classnames'
+import { GetServerSideProps, NextPage } from 'next'
+import { unstable_getServerSession } from 'next-auth/next'
+import { useSession } from 'next-auth/react'
+import Head from 'next/head'
+import Image from 'next/image'
+import { useState } from 'react'
 
-import { authOptions } from './api/auth/[...nextauth]'
-
-import { Status } from '../lib/models/status'
-import { getStorage } from '../lib/storage'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
-import { getConfig } from '../lib/config'
 import { Posts } from '../lib/components/Posts/Posts'
+import { getConfig } from '../lib/config'
 import { Actor, getUsernameFromId } from '../lib/models/actor'
+import { Status } from '../lib/models/status'
+import { getStorage } from '../lib/storage'
+import { authOptions } from './api/auth/[...nextauth]'
 import styles from './index.module.scss'
-import Image from 'next/image'
 
 interface Props {
   statuses: Status[]
@@ -23,6 +23,7 @@ interface Props {
 
 const Page: NextPage<Props> = ({ actor, statuses }) => {
   const { data: session } = useSession()
+  const {} = useState<Status>()
 
   return (
     <main>

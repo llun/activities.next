@@ -1,12 +1,13 @@
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
 import { Session, unstable_getServerSession } from 'next-auth'
+
+import { authOptions } from '../pages/api/auth/[...nextauth]'
 import { getPerson } from './activities'
 import { ERROR_400 } from './errors'
+import { Actor } from './models/actor'
 import { parse, verify } from './signature'
 import { getStorage } from './storage'
 import { Storage } from './storage/types'
-import { authOptions } from '../pages/api/auth/[...nextauth]'
-import { Actor } from './models/actor'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 

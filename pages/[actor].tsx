@@ -1,21 +1,20 @@
+import cn from 'classnames'
 import { GetServerSideProps, NextPage } from 'next'
-import Head from 'next/head'
-import Link from 'next/link'
 import { unstable_getServerSession } from 'next-auth'
 import { useSession } from 'next-auth/react'
-import cn from 'classnames'
+import Head from 'next/head'
+import Link from 'next/link'
 
-import { authOptions } from './api/auth/[...nextauth]'
-import { Header } from '../lib/components/Header'
 import { getPerson, getPosts } from '../lib/activities'
-
-import styles from './[actor].module.scss'
 import { Button } from '../lib/components/Button'
-import { getStorage } from '../lib/storage'
-import { getConfig } from '../lib/config'
+import { Header } from '../lib/components/Header'
 import { Posts } from '../lib/components/Posts/Posts'
-import { Status } from '../lib/models/status'
+import { getConfig } from '../lib/config'
 import { getHostnameFromId, getUsernameFromId } from '../lib/models/actor'
+import { Status } from '../lib/models/status'
+import { getStorage } from '../lib/storage'
+import styles from './[actor].module.scss'
+import { authOptions } from './api/auth/[...nextauth]'
 
 interface Props {
   isLoggedIn: boolean

@@ -1,8 +1,9 @@
 import memoize from 'lodash/memoize'
-import { Sqlite3Storage } from './sqlite3'
+
 import { getConfig } from '../config'
-import { Storage } from './types'
 import { FirebaseStorage } from './firebase'
+import { Sqlite3Storage } from './sqlite3'
+import { Storage } from './types'
 
 export const getStorage = memoize(async (): Promise<Storage | null> => {
   const config = getConfig()

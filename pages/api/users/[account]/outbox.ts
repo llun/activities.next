@@ -1,4 +1,5 @@
 import type { NextApiHandler } from 'next'
+
 import { OutboxContext } from '../../../../lib/activities/context'
 import { getConfig } from '../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
