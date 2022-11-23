@@ -1,11 +1,11 @@
 import { FC } from 'react'
 import cn from 'classnames'
-import parse from 'html-react-parser'
-import { formatDistanceToNow } from 'date-fns'
 
 import { Actor } from './Actor'
 import { Status } from '../../models/status'
 import { Post } from './Post'
+
+import styles from './Posts.module.scss'
 
 interface Props {
   showActorId?: boolean
@@ -18,14 +18,9 @@ export const Posts: FC<Props> = ({ showActorId = false, statuses }) => {
   return (
     <section className={cn('w-full', 'grid', 'grid-cols-1', 'mt-4')}>
       {statuses.map((status) => (
-        <div key={status.id} className="block">
+        <div key={status.id} className={cn(styles.block)}>
           <Actor actorId={(showActorId && status.actorId) || ''} />
-          <div key={status.id} className={cn('d-flex')}>
-            <Post status={status} />
-            <div className="flex-shrink-0">
-              {formatDistanceToNow(status.createdAt)}
-            </div>
-          </div>
+          <Post status={status} />
         </div>
       ))}
     </section>
