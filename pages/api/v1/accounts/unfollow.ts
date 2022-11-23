@@ -1,6 +1,10 @@
 import { unfollow } from '../../../../lib/activities'
 import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
+import {
+  getHostnameFromId,
+  getUsernameFromId
+} from '../../../../lib/models/actor'
 import { FollowStatus } from '../../../../lib/models/follow'
 
 const handler = ApiGuard(async (req, res, context) => {
@@ -23,7 +27,9 @@ const handler = ApiGuard(async (req, res, context) => {
           status: FollowStatus.Undo
         })
       ])
-      return res.status(200).json({ done: true })
+      return res
+        .status(302)
+        .redirect(`/@${getUsernameFromId(target)}@${getHostnameFromId(target)}`)
     }
     default: {
       return res.status(404).json(ERROR_404)

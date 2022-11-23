@@ -1,6 +1,10 @@
 import { follow } from '../../../../lib/activities'
 import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
+import {
+  getHostnameFromId,
+  getUsernameFromId
+} from '../../../../lib/models/actor'
 import { FollowStatus } from '../../../../lib/models/follow'
 
 const handler = ApiGuard(async (req, res, context) => {
@@ -14,7 +18,9 @@ const handler = ApiGuard(async (req, res, context) => {
         status: FollowStatus.Requested
       })
       await follow(followItem.id, currentActor, target)
-      return res.status(200).json({ done: true })
+      return res
+        .status(302)
+        .redirect(`/@${getUsernameFromId(target)}@${getHostnameFromId(target)}`)
     }
     default: {
       res.status(404).json(ERROR_404)

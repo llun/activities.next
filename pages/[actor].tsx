@@ -86,35 +86,18 @@ const Page: NextPage<Props> = ({
             {isLoggedIn && (
               <div className="flex-shrink-0">
                 {!isFollowing && (
-                  <Button
-                    onClick={() => {
-                      fetch('/api/v1/accounts/follow', {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ target: id })
-                      })
-                    }}
-                  >
-                    Follow
-                  </Button>
+                  <form action="/api/v1/accounts/follow" method="post">
+                    <input type="hidden" name="target" value={id} />
+                    <Button type="submit">Follow</Button>
+                  </form>
                 )}
                 {isFollowing && (
-                  <Button
-                    variant="danger"
-                    onClick={() => {
-                      fetch('/api/v1/accounts/unfollow', {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ target: id })
-                      })
-                    }}
-                  >
-                    Unfollow
-                  </Button>
+                  <form action="/api/v1/accounts/unfollow" method="post">
+                    <input type="hidden" name="target" value={id} />
+                    <Button variant="danger" type="submit">
+                      Unfollow
+                    </Button>
+                  </form>
                 )}
               </div>
             )}
