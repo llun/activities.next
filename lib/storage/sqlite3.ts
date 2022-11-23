@@ -204,6 +204,7 @@ export class Sqlite3Storage implements Storage {
     return this.database<Status>('statuses')
       .select('*')
       .orderBy('createdAt', 'desc')
+      .limit(20)
   }
 
   async getActorStatusesCount(params: { actorId: string }) {
