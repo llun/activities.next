@@ -9,3 +9,9 @@
 .ellipsis:after {
   content: '…';
 }
+
+.misc {
+  display: flex;
+
+  flex-direction: column;
+}

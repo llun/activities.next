@@ -5,6 +5,7 @@ import formatDistanceToNow from 'date-fns/formatDistanceToNow'
 
 import { Status } from '../../models/status'
 import styles from './Post.module.scss'
+import { Button } from '../Button'
 
 interface Props {
   status: Status
@@ -30,9 +31,29 @@ export const Post: FC<Props> = ({ status }) => {
             return domNode
           }
         })}
-        <div className="flex-shrink-0">
-          {formatDistanceToNow(status.createdAt)}
+        <div className={cn(styles.actions)}>
+          <Button
+            className={styles.action}
+            variant="link"
+            onClick={() => {
+              console.log('Reply to')
+            }}
+          >
+            <i className="bi bi-reply"></i>
+          </Button>
+          <Button
+            className={styles.action}
+            variant="link"
+            onClick={() => {
+              console.log('Repost')
+            }}
+          >
+            <i className="bi bi-arrow-left-right"></i>
+          </Button>
         </div>
+      </div>
+      <div className={cn('flex-shrink-0', styles.misc)}>
+        {formatDistanceToNow(status.createdAt)}
       </div>
     </div>
   )
