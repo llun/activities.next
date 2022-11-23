@@ -129,7 +129,7 @@ export class Sqlite3Storage implements Storage {
     const currentTime = Date.now()
     const follow: Follow = {
       id: crypto.randomUUID(),
-      actorId: actorId,
+      actorId,
       actorHost: new URL(actorId).host,
       targetActorId,
       targetActorHost: new URL(targetActorId).host,

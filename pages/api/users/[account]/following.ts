@@ -30,6 +30,7 @@ const handle: NextApiHandler = async (
           first: `${id}?page=1`
         })
       }
+      return res.status(404).json(ERROR_404)
     }
     default:
       return res.status(404).json(ERROR_404)

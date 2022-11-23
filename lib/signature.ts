@@ -39,8 +39,9 @@ export async function verify(
   const comparedSignedString = headerSignature.headers
     .split(' ')
     .map((item) => {
-      if (item === '(request-target)')
+      if (item === '(request-target)') {
         return `(request-target): ${requestTarget}`
+      }
       return `${item}: ${headers[item]}`
     })
     .join('\n')
@@ -62,9 +63,9 @@ export function sign(
 ) {
   const signedString = [
     request,
-    `host: ${headers['host']}`,
-    `date: ${headers['date']}`,
-    `digest: ${headers['digest']}`,
+    `host: ${headers.host}`,
+    `date: ${headers.date}`,
+    `digest: ${headers.digest}`,
     `content-type: ${headers['content-type']}`
   ].join('\n')
   const signer = crypto.createSign('rsa-sha256')

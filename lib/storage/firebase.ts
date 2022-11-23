@@ -171,7 +171,7 @@ export class FirebaseStorage implements Storage {
     const { actorId, targetActorId, status } = params
     const currentTime = Date.now()
     const content = {
-      actorId: actorId,
+      actorId,
       targetActorId,
       status,
       createdAt: currentTime,

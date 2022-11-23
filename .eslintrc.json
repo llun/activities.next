@@ -1,3 +1,4 @@
 {
-  "extends": ["next/core-web-vitals", "standard"]
+  "extends": ["next/core-web-vitals", "standard", "prettier"],
+  "plugins": ["unused-imports"]
 }

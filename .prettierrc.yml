@@ -3,7 +3,6 @@ singleQuote: true
 arrowParens: 'always'
 requirePragma: false
 trailingComma: 'none'
-organizeImportsSkipDestructiveCodeActions: true
 importOrderSeparation: true
 importOrderSortSpecifiers: true
 importOrder:

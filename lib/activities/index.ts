@@ -129,7 +129,7 @@ export const sendNote = async (
       summary: null,
       inReplyTo: null,
       published,
-      url: `https://mastodon.in.th/@llun/109371725928967373`,
+      url: 'https://mastodon.in.th/@llun/109371725928967373',
       attributedTo: status.actorId,
       to: status.to,
       cc: status.cc,
