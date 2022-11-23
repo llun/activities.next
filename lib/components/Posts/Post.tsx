@@ -4,15 +4,21 @@ import parse from 'html-react-parser'
 import { FC } from 'react'
 
 import { Status } from '../../models/status'
+import { parseText } from '../../text'
 import { Button } from '../Button'
 import styles from './Post.module.scss'
 
 interface Props {
   status: Status
   showActions?: boolean
+  onReply?: (status: Status) => void
 }
 
-export const Actions: FC<Props> = ({ showActions = false }) => {
+export const Actions: FC<Props> = ({
+  status,
+  showActions = false,
+  onReply
+}) => {
   if (!showActions) return null
   return (
     <div className={cn(styles.actions)}>
@@ -20,7 +26,8 @@ export const Actions: FC<Props> = ({ showActions = false }) => {
         className={styles.action}
         variant="link"
         onClick={() => {
-          console.log('Reply to')
+          console.log(onReply)
+          onReply?.(status)
         }}
       >
         <i className="bi bi-reply"></i>
@@ -38,27 +45,13 @@ export const Actions: FC<Props> = ({ showActions = false }) => {
   )
 }
 
-export const Post: FC<Props> = ({ status, showActions = false }) => {
+export const Post: FC<Props> = (props) => {
+  const { status } = props
   return (
     <div key={status.id} className={cn('d-flex', styles.post)}>
       <div className={cn('flex-fill', 'me-1')}>
-        {parse(status.text, {
-          replace: (domNode: any) => {
-            if (domNode.name === 'span') {
-              if (domNode.attribs?.class === 'invisible')
-                domNode.attribs.class = styles.invisible
-              if (domNode.attribs?.class === 'ellipsis')
-                domNode.attribs.class = styles.ellipsis
-            }
-            if (domNode.attribs && domNode.name === 'a') {
-              domNode.attribs.target = '_blank'
-              return domNode
-            }
-
-            return domNode
-          }
-        })}
-        <Actions status={status} showActions={showActions} />
+        {parseText(status.text)}
+        <Actions {...props} />
       </div>
       <div className={cn('flex-shrink-0', styles.misc)}>
         {formatDistanceToNow(status.createdAt)}

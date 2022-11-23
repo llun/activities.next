@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { Posts } from '../lib/components/Posts/Posts'
+import { ReplyPreview } from '../lib/components/ReplyPreview'
 import { getConfig } from '../lib/config'
 import { Actor, getUsernameFromId } from '../lib/models/actor'
 import { Status } from '../lib/models/status'
@@ -23,7 +24,9 @@ interface Props {
 
 const Page: NextPage<Props> = ({ actor, statuses }) => {
   const { data: session } = useSession()
-  const {} = useState<Status>()
+  const [replyStatus, setReplyStatus] = useState<Status>()
+
+  console.log(replyStatus)
 
   return (
     <main>
@@ -58,13 +61,22 @@ const Page: NextPage<Props> = ({ actor, statuses }) => {
             </div>
           </div>
           <div className="col-12 col-md-9">
+            <ReplyPreview status={replyStatus} />
             <form action="/api/v1/accounts/outbox" method="post">
               <div className="mb-3">
                 <textarea className="form-control" rows={3} name="message" />
               </div>
               <Button type="submit">Send</Button>
             </form>
-            <Posts statuses={statuses} showActorId showActions />
+            <Posts
+              statuses={statuses}
+              showActorId
+              showActions
+              onReply={(status) => {
+                setReplyStatus(status)
+                window.scrollTo({ top: 0 })
+              }}
+            />
           </div>
         </div>
       </section>

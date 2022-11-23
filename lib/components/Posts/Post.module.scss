@@ -2,16 +2,7 @@
   white-space: pre-wrap;
 }
 
-.invisible {
-  display: none;
-}
-
-.ellipsis:after {
-  content: '…';
-}
-
 .misc {
   display: flex;
-
   flex-direction: column;
 }

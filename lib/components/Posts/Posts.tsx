@@ -10,12 +10,14 @@ interface Props {
   showActorId?: boolean
   showActions?: boolean
   statuses: Status[]
+  onReply?: (status: Status) => void
 }
 
 export const Posts: FC<Props> = ({
   showActorId = false,
   showActions = false,
-  statuses
+  statuses,
+  onReply
 }) => {
   if (statuses.length === 0) return null
 
@@ -24,7 +26,7 @@ export const Posts: FC<Props> = ({
       {statuses.map((status) => (
         <div key={status.id} className={cn(styles.block)}>
           <Actor actorId={(showActorId && status.actorId) || ''} />
-          <Post status={status} showActions={showActions} />
+          <Post status={status} showActions={showActions} onReply={onReply} />
         </div>
       ))}
     </section>

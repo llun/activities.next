@@ -1,0 +1,7 @@
+.invisible {
+  display: none;
+}
+
+.ellipsis:after {
+  content: '…';
+}
