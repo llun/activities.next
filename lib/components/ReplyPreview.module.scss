@@ -1,3 +1,6 @@
 .card {
   white-space: pre-wrap;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
 }

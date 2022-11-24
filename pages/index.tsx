@@ -26,8 +26,6 @@ const Page: NextPage<Props> = ({ actor, statuses }) => {
   const { data: session } = useSession()
   const [replyStatus, setReplyStatus] = useState<Status>()
 
-  console.log(replyStatus)
-
   return (
     <main>
       <Head>
@@ -61,7 +59,10 @@ const Page: NextPage<Props> = ({ actor, statuses }) => {
             </div>
           </div>
           <div className="col-12 col-md-9">
-            <ReplyPreview status={replyStatus} />
+            <ReplyPreview
+              status={replyStatus}
+              onClose={() => setReplyStatus()}
+            />
             <form action="/api/v1/accounts/outbox" method="post">
               <div className="mb-3">
                 <textarea className="form-control" rows={3} name="message" />
