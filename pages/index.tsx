@@ -4,7 +4,7 @@ import { unstable_getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import Image from 'next/image'
-import { useRef, useState } from 'react'
+import { FormEvent, FormEventHandler, useRef, useState } from 'react'
 
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
@@ -29,6 +29,7 @@ interface Props {
 const Page: NextPage<Props> = ({ actor, statuses }) => {
   const { data: session } = useSession()
   const [replyStatus, setReplyStatus] = useState<Status>()
+  const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
 
   const onReply = (status: Status) => {
@@ -39,7 +40,7 @@ const Page: NextPage<Props> = ({ actor, statuses }) => {
     const postBox = postBoxRef.current
 
     const replyText = `${getAtWithHostFromId(status.actorId)} `
-    postBox.textContent = replyText
+    postBox.value = replyText
     postBox.selectionStart = replyText.length
     postBox.selectionEnd = replyText.length
     postBox.focus()
@@ -50,7 +51,33 @@ const Page: NextPage<Props> = ({ actor, statuses }) => {
 
     if (!postBoxRef.current) return
     const postBox = postBoxRef.current
-    postBox.textContent = ''
+    postBox.value = ''
+  }
+
+  const onPost = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!postBoxRef.current) return
+
+    const message = postBoxRef.current.value
+    const response = await fetch('/api/v1/accounts/outbox', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        replyStatus,
+        message
+      })
+    })
+    if (response.status !== 200) {
+      // Handle error here
+      return
+    }
+
+    const json = await response.json()
+    setCurrentStatuses((previousValue) => [json.status, ...previousValue])
+    setReplyStatus(undefined)
+    postBoxRef.current.value = ''
   }
 
   return (
@@ -87,7 +114,7 @@ const Page: NextPage<Props> = ({ actor, statuses }) => {
           </div>
           <div className="col-12 col-md-9">
             <ReplyPreview status={replyStatus} onClose={onCloseReply} />
-            <form action="/api/v1/accounts/outbox" method="post">
+            <form onSubmit={onPost}>
               <div className="mb-3">
                 <textarea
                   ref={postBoxRef}
@@ -99,7 +126,7 @@ const Page: NextPage<Props> = ({ actor, statuses }) => {
               <Button type="submit">Send</Button>
             </form>
             <Posts
-              statuses={statuses}
+              statuses={currentStatuses}
               showActorId
               showActions
               onReply={onReply}

@@ -57,7 +57,7 @@ const handler = ApiGuard(async (req, res, context) => {
           return sendNote(currentActor, inbox, status)
         })
       )
-      return res.status(302).redirect('/')
+      return res.status(200).json({ status })
     }
     default: {
       res.status(404).json(ERROR_404)

@@ -155,7 +155,7 @@ export const sendNote = async (
   }
   // TODO: Add LinkedDataSignature later
   // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3
-  const response = await fetch(sharedInbox, {
+  await fetch(sharedInbox, {
     method: 'POST',
     headers: {
       ...headers(currentActor, 'post', sharedInbox, activity),
@@ -163,7 +163,6 @@ export const sendNote = async (
     },
     body: JSON.stringify(activity)
   })
-  console.log(response.status)
 }
 
 export const follow = async (
