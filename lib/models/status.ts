@@ -1,4 +1,6 @@
+import crypto from 'crypto'
 import format from 'date-fns/format'
+import 'linkify-plugin-mention'
 import linkifyStr from 'linkify-string'
 
 import { Note } from '../activities/entities/note'
@@ -73,13 +75,16 @@ export const createStatus = async ({
   const postId = crypto.randomUUID()
   const host = getConfig().host
   const id = `${currentActor.id}/statuses/${postId}`
+  const trimText = text.trim()
+  console.log(trimText)
 
-  const content = linkifyStr(text.trim(), {
+  const content = linkifyStr(trimText, {
     rel: 'nofollow noopener noreferrer',
     target: '_blank',
     truncate: 42,
     defaultProtocol: 'https'
   })
+  console.log(content)
   return {
     id: `${currentActor.id}/statuses/${postId}`,
     url: `https://${host}/${getAtUsernameFromId(currentActor.id)}/${postId}`,
