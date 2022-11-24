@@ -1,52 +1,17 @@
-import crypto from 'crypto'
-import format from 'date-fns/format'
-import linkifyStr from 'linkify-string'
-
 import { sendNote } from '../../../../lib/activities'
-import { getConfig } from '../../../../lib/config'
 import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
-import { getUsernameFromId } from '../../../../lib/models/actor'
-import { Status } from '../../../../lib/models/status'
+import { createStatus } from '../../../../lib/models/status'
 
 const handler = ApiGuard(async (req, res, context) => {
   const { currentActor, storage } = context
-  const config = getConfig()
   switch (req.method) {
     case 'POST': {
-      const currentTime = Date.now()
       const body = req.body
-      const postId = crypto.randomUUID()
-      const id = `${currentActor.id}/statuses/${postId}`
-
-      const content = linkifyStr(body.message.trim(), {
-        rel: 'nofollow noopener noreferrer',
-        target: '_blank',
-        truncate: 42,
-        defaultProtocol: 'https'
+      const status = await createStatus({
+        currentActor,
+        text: body.message
       })
-      const status: Status = {
-        id: `${currentActor.id}/statuses/${postId}`,
-        url: `https://${config.host}/@${getUsernameFromId(
-          currentActor.id
-        )}/${postId}`,
-        actorId: currentActor.id,
-        type: 'Note',
-        text: `<p>${content}</p>`,
-        summary: null,
-        conversation: `tag:${config.host},${format(
-          currentTime,
-          'yyyy-MM-dd'
-        )}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
-        to: ['https://www.w3.org/ns/activitystreams#Public'],
-        cc: [`${currentActor.id}/followers`],
-        mediaAttachmentIds: [],
-        visibility: 'public',
-        sensitive: false,
-        language: 'en',
-        reply: `${id}/replies`,
-        createdAt: currentTime
-      }
       await storage.createStatus({ status })
       const hosts = await storage.getFollowersHosts({
         targetActorId: currentActor.id

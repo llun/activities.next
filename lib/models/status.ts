@@ -1,5 +1,10 @@
+import format from 'date-fns/format'
+import linkifyStr from 'linkify-string'
+
 import { Note } from '../activities/entities/note'
 import { Question } from '../activities/entities/question'
+import { getConfig } from '../config'
+import { Actor, getAtUsernameFromId } from './actor'
 
 export type Visibility = 'public' | 'unlisted' | 'private' | 'direct'
 
@@ -53,3 +58,46 @@ export const fromJson = (data: Note | Question): Status => ({
   conversation: data.conversation,
   mediaAttachmentIds: []
 })
+
+interface CreateStatusParms {
+  text: string
+  currentActor: Actor
+  replyStatus?: Status
+}
+export const createStatus = async ({
+  currentActor,
+  text,
+  replyStatus
+}: CreateStatusParms): Promise<Status> => {
+  const currentTime = Date.now()
+  const postId = crypto.randomUUID()
+  const host = getConfig().host
+  const id = `${currentActor.id}/statuses/${postId}`
+
+  const content = linkifyStr(text.trim(), {
+    rel: 'nofollow noopener noreferrer',
+    target: '_blank',
+    truncate: 42,
+    defaultProtocol: 'https'
+  })
+  return {
+    id: `${currentActor.id}/statuses/${postId}`,
+    url: `https://${host}/${getAtUsernameFromId(currentActor.id)}/${postId}`,
+    actorId: currentActor.id,
+    type: 'Note',
+    text: `<p>${content}</p>`,
+    summary: null,
+    conversation: `tag:${host},${format(
+      currentTime,
+      'yyyy-MM-dd'
+    )}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    cc: [`${currentActor.id}/followers`],
+    mediaAttachmentIds: [],
+    visibility: 'public',
+    sensitive: false,
+    language: 'en',
+    reply: `${id}/replies`,
+    createdAt: currentTime
+  }
+}
