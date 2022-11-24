@@ -17,12 +17,15 @@ const MockStatus: Status = {
   type: 'Note',
   actorId: 'https://earth.social/users/thai',
   text: 'This is sample reply message',
+  summary: null,
+  reply: '',
   url: 'https://chat.llun.dev/@llun/statuses/12345',
   cc: [],
   to: [],
   conversation: 'conversation-id',
   sensitive: false,
   visibility: 'public',
+  mediaAttachmentIds: [],
   createdAt: Date.now() - 3600000,
   updatedAt: Date.now() - 3600000
 }
@@ -41,14 +44,14 @@ describe('#createStatus', () => {
     expect(status.text).toEqual('<p>This is a first post</p>')
   })
 
-  it.only('returns status with conversation from reply', async () => {
+  it('returns status with conversation from reply', async () => {
     const status = await createStatus({
       currentActor: MockActor,
       text: '@thai@earth.social Hey! how are you?',
       replyStatus: MockStatus
     })
     expect(status.text).toEqual(
-      '<p><span class="h-card"><a href="https://earth.social/@thai" class="u-url mention">@<span>earth</span></a></span> Hey! how are you?</p>'
+      '<p><span class="h-card"><a href="//earth.social/@thai" class="u-url mention">@<span>thai</span></a></span> Hey! how are you?</p>'
     )
     expect(status.conversation).toEqual(MockStatus.conversation)
     expect(status.cc).toContain(`https://earth.social/users/thai`)

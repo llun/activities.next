@@ -1,11 +1,11 @@
 import crypto from 'crypto'
 import format from 'date-fns/format'
-import 'linkify-plugin-mention'
 import linkifyStr from 'linkify-string'
 
 import { Note } from '../activities/entities/note'
 import { Question } from '../activities/entities/question'
 import { getConfig } from '../config'
+import '../linkify-mention'
 import { Actor, getAtUsernameFromId } from './actor'
 
 export type Visibility = 'public' | 'unlisted' | 'private' | 'direct'
@@ -76,15 +76,19 @@ export const createStatus = async ({
   const host = getConfig().host
   const id = `${currentActor.id}/statuses/${postId}`
   const trimText = text.trim()
-  console.log(trimText)
 
   const content = linkifyStr(trimText, {
     rel: 'nofollow noopener noreferrer',
     target: '_blank',
     truncate: 42,
-    defaultProtocol: 'https'
+    render: {
+      mention: ({ attributes, content }) => {
+        const { href } = attributes
+        const [user] = content.slice(1).split('@')
+        return `<span class="h-card"><a href="${href}" class="u-url mention">@<span>${user}</span></a></span>`
+      }
+    }
   })
-  console.log(content)
   return {
     id: `${currentActor.id}/statuses/${postId}`,
     url: `https://${host}/${getAtUsernameFromId(currentActor.id)}/${postId}`,
@@ -92,12 +96,16 @@ export const createStatus = async ({
     type: 'Note',
     text: `<p>${content}</p>`,
     summary: null,
-    conversation: `tag:${host},${format(
-      currentTime,
-      'yyyy-MM-dd'
-    )}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
+    conversation: replyStatus
+      ? replyStatus.conversation
+      : `tag:${host},${format(
+          currentTime,
+          'yyyy-MM-dd'
+        )}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
     to: ['https://www.w3.org/ns/activitystreams#Public'],
-    cc: [`${currentActor.id}/followers`],
+    cc: replyStatus
+      ? [`${currentActor.id}/followers`, replyStatus.actorId]
+      : [`${currentActor.id}/followers`],
     mediaAttachmentIds: [],
     visibility: 'public',
     sensitive: false,
