@@ -25,10 +25,7 @@ export const Actions: FC<Props> = ({
       <Button
         className={styles.action}
         variant="link"
-        onClick={() => {
-          console.log(onReply)
-          onReply?.(status)
-        }}
+        onClick={() => onReply?.(status)}
       >
         <i className="bi bi-reply"></i>
       </Button>

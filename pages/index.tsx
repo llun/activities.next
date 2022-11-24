@@ -4,14 +4,18 @@ import { unstable_getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import Image from 'next/image'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { Posts } from '../lib/components/Posts/Posts'
 import { ReplyPreview } from '../lib/components/ReplyPreview'
 import { getConfig } from '../lib/config'
-import { Actor, getUsernameFromId } from '../lib/models/actor'
+import {
+  Actor,
+  getAtWithHostFromId,
+  getUsernameFromId
+} from '../lib/models/actor'
 import { Status } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
@@ -25,6 +29,29 @@ interface Props {
 const Page: NextPage<Props> = ({ actor, statuses }) => {
   const { data: session } = useSession()
   const [replyStatus, setReplyStatus] = useState<Status>()
+  const postBoxRef = useRef<HTMLTextAreaElement>(null)
+
+  const onReply = (status: Status) => {
+    setReplyStatus(status)
+    window.scrollTo({ top: 0 })
+
+    if (!postBoxRef.current) return
+    const postBox = postBoxRef.current
+
+    const replyText = `${getAtWithHostFromId(status.actorId)} `
+    postBox.textContent = replyText
+    postBox.selectionStart = replyText.length
+    postBox.selectionEnd = replyText.length
+    postBox.focus()
+  }
+
+  const onCloseReply = () => {
+    setReplyStatus(undefined)
+
+    if (!postBoxRef.current) return
+    const postBox = postBoxRef.current
+    postBox.textContent = ''
+  }
 
   return (
     <main>
@@ -59,13 +86,15 @@ const Page: NextPage<Props> = ({ actor, statuses }) => {
             </div>
           </div>
           <div className="col-12 col-md-9">
-            <ReplyPreview
-              status={replyStatus}
-              onClose={() => setReplyStatus()}
-            />
+            <ReplyPreview status={replyStatus} onClose={onCloseReply} />
             <form action="/api/v1/accounts/outbox" method="post">
               <div className="mb-3">
-                <textarea className="form-control" rows={3} name="message" />
+                <textarea
+                  ref={postBoxRef}
+                  className="form-control"
+                  rows={3}
+                  name="message"
+                />
               </div>
               <Button type="submit">Send</Button>
             </form>
@@ -73,10 +102,7 @@ const Page: NextPage<Props> = ({ actor, statuses }) => {
               statuses={statuses}
               showActorId
               showActions
-              onReply={(status) => {
-                setReplyStatus(status)
-                window.scrollTo({ top: 0 })
-              }}
+              onReply={onReply}
             />
           </div>
         </div>
