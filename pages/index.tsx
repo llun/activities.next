@@ -4,7 +4,7 @@ import { unstable_getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import Image from 'next/image'
-import { FormEvent, FormEventHandler, useRef, useState } from 'react'
+import { FormEvent, useRef, useState } from 'react'
 
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'

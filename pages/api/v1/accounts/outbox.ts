@@ -1,7 +1,8 @@
 import { sendNote } from '../../../../lib/activities'
 import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
-import { createStatus } from '../../../../lib/models/status'
+import { Actor, getUsernameFromId } from '../../../../lib/models/actor'
+import { Status, createStatus } from '../../../../lib/models/status'
 
 const handler = ApiGuard(async (req, res, context) => {
   const { currentActor, storage } = context
@@ -16,10 +17,27 @@ const handler = ApiGuard(async (req, res, context) => {
       const hosts = await storage.getFollowersHosts({
         targetActorId: currentActor.id
       })
+
+      const replyStatus: Status = body.replyStatus
+      const mentions: Actor[] = replyStatus
+        ? [
+            {
+              id: replyStatus.actorId,
+              preferredUsername: getUsernameFromId(replyStatus.actorId) || '',
+              discoverable: false,
+              manuallyApprovesFollowers: false,
+              publicKey: '',
+              privateKey: '',
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            }
+          ]
+        : []
+
       await Promise.all(
         hosts.map((host) => {
           const inbox = `https://${host}/inbox`
-          return sendNote(currentActor, inbox, status)
+          return sendNote(currentActor, inbox, status, mentions)
         })
       )
       return res.status(200).json({ status })

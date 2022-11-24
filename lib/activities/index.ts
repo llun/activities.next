@@ -1,5 +1,5 @@
 import { getConfig } from '../config'
-import { Actor } from '../models/actor'
+import { Actor, getAtWithHostFromId } from '../models/actor'
 import { Follow } from '../models/follow'
 import { Status, fromJson } from '../models/status'
 import { headers } from '../signature'
@@ -112,7 +112,8 @@ export const getPosts = async (id?: string) => {
 export const sendNote = async (
   currentActor: Actor,
   sharedInbox: string,
-  status: Status
+  status: Status,
+  mentions: Actor[] = []
 ) => {
   const published = getISOTimeUTC(status.createdAt)
   const activity = {
@@ -140,7 +141,13 @@ export const sendNote = async (
       content: status.text,
       contentMap: { en: status.text },
       attachment: [],
-      tag: [],
+      tag: [
+        ...mentions.map((actor) => ({
+          type: 'Mention',
+          href: actor.id,
+          name: getAtWithHostFromId(actor.id)
+        }))
+      ],
       replies: {
         id: status.reply,
         type: 'Collection',
