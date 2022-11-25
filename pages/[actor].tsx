@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import cn from 'classnames'
 import { GetServerSideProps, NextPage } from 'next'
 import { unstable_getServerSession } from 'next-auth'

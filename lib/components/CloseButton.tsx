@@ -1,5 +1,5 @@
 import cn from 'classnames'
-import React, { FC, ReactNode } from 'react'
+import React, { FC } from 'react'
 
 interface Props {
   label?: string

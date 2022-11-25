@@ -1,6 +1,5 @@
 import cn from 'classnames'
 import formatDistanceToNow from 'date-fns/formatDistanceToNow'
-import parse from 'html-react-parser'
 import { FC } from 'react'
 
 import { Status } from '../../models/status'

@@ -199,7 +199,7 @@ export class Sqlite3Storage implements Storage {
     return { ...status, to, cc }
   }
 
-  async getStatuses(params?: { actorId?: string }) {
+  async getStatuses() {
     return this.database<Status>('statuses')
       .select('*')
       .orderBy('createdAt', 'desc')

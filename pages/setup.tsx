@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import { GetServerSideProps, NextPage } from 'next'
 import { unstable_getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
@@ -9,9 +10,7 @@ import { getConfig } from '../lib/config'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
 
-interface Props {}
-
-const Page: NextPage<Props> = () => {
+const Page: NextPage = () => {
   const { data: session } = useSession()
   return (
     <main>

@@ -1,6 +1,12 @@
 {
-  "extends": ["next/core-web-vitals", "standard", "prettier"],
-  "plugins": ["unused-imports", "jest"],
+  "extends": [
+    "next/core-web-vitals",
+    "standard",
+    "plugin:@typescript-eslint/recommended",
+    "prettier"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["unused-imports", "jest", "@typescript-eslint"],
   "overrides": [
     {
       "files": [

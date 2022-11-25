@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { FirebaseApp, FirebaseOptions, initializeApp } from 'firebase/app'
 import {
   Firestore,
@@ -12,7 +11,6 @@ import {
   limit,
   orderBy,
   query,
-  setDoc,
   updateDoc,
   where
 } from 'firebase/firestore'
@@ -136,7 +134,16 @@ export class FirebaseStorage implements Storage {
     currentActorId: string
     followingActorId: string
   }) {
-    return false
+    const { currentActorId, followingActorId } = params
+    const follows = collection(this.db, 'follows')
+    const followsQuery = query(
+      follows,
+      where('actorId', '==', currentActorId),
+      where('targetActorId', '==', followingActorId),
+      where('status', '==', FollowStatus.Accepted)
+    )
+    const snapshot = await getCountFromServer(followsQuery)
+    return snapshot.data().count > 0
   }
 
   async getActorFollowingCount(params: { actorId: string }) {
@@ -265,7 +272,7 @@ export class FirebaseStorage implements Storage {
     return status
   }
 
-  async getStatuses(params?: { actorId?: string }) {
+  async getStatuses() {
     const statuses = collection(this.db, 'statuses')
     const statusesQuery = query(
       statuses,

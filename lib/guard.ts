@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
 import { Session, unstable_getServerSession } from 'next-auth'
 

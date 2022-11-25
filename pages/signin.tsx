@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import { GetServerSideProps, NextPage } from 'next'
 import { unstable_getServerSession } from 'next-auth/next'
 import { getCsrfToken } from 'next-auth/react'
