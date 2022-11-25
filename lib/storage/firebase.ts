@@ -277,7 +277,7 @@ export class FirebaseStorage implements Storage {
     const statusesQuery = query(
       statuses,
       orderBy('createdAt', 'desc'),
-      limit(20)
+      limit(50)
     )
     const statusesSnapshot = await getDocs(statusesQuery)
     return statusesSnapshot.docs.map((item) => item.data() as Status)
