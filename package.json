@@ -12,6 +12,7 @@
     "migrate": "knex migrate:latest"
   },
   "dependencies": {
+    "@vercel/analytics": "^0.1.5",
     "better-sqlite3": "^8.0.0",
     "bootstrap": "^5.2.3",
     "bootstrap-icons": "^1.10.2",
@@ -36,7 +37,7 @@
   },
   "devDependencies": {
     "@swc-node/register": "^1.5.4",
-    "@trivago/prettier-plugin-sort-imports": "^3.4.0",
+    "@trivago/prettier-plugin-sort-imports": "^4.0.0",
     "@types/jest": "^29.2.3",
     "@types/jsonld": "^1.5.8",
     "@types/lodash": "^4.14.190",
@@ -51,7 +52,7 @@
     "eslint-config-next": "13.0.5",
     "eslint-config-prettier": "^8.5.0",
     "eslint-config-standard": "^17.0.0",
-    "eslint-plugin-jest": "^27.1.5",
+    "eslint-plugin-jest": "^27.1.6",
     "eslint-plugin-n": "^15.5.1",
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-unused-imports": "^2.0.0",

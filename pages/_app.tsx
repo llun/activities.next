@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react'
 import 'bootstrap-icons/font/bootstrap-icons.css'
 import 'bootstrap/dist/css/bootstrap.css'
 import { SessionProvider } from 'next-auth/react'
@@ -10,6 +11,7 @@ export default function App({
   return (
     <SessionProvider session={session}>
       <Component {...pageProps} />
+      <Analytics />
     </SessionProvider>
   )
 }
