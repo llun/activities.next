@@ -10,7 +10,8 @@ const handler = ApiGuard(async (req, res, context) => {
       const body = req.body
       const { status, mentions } = await createStatus({
         currentActor,
-        text: body.message
+        text: body.message,
+        replyStatus: body.replyStatus
       })
       await storage.createStatus({ status })
       const hosts = await storage.getFollowersHosts({
