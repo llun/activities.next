@@ -94,9 +94,9 @@ export const createStatus = async ({
         mentions.push({
           type: 'Mention',
           href: `https://${host}/users/${user}`,
-          name: `@${user}`
+          name: content
         })
-        return `<span class="h-card"><a href="${href}" class="u-url mention">@<span>${user}</span></a></span>`
+        return `<span class="h-card"><a href="https:${href}" class="u-url mention">@<span>${user}</span></a></span>`
       }
     }
   })

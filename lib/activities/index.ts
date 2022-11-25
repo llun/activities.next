@@ -1,5 +1,5 @@
 import { getConfig } from '../config'
-import { Actor, getAtWithHostFromId } from '../models/actor'
+import { Actor } from '../models/actor'
 import { Follow } from '../models/follow'
 import { Status, fromJson } from '../models/status'
 import { headers } from '../signature'

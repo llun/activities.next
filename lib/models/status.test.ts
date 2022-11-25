@@ -51,7 +51,7 @@ describe('#createStatus', () => {
       replyStatus: MockStatus
     })
     expect(status.text).toEqual(
-      '<p><span class="h-card"><a href="//earth.social/@thai" class="u-url mention">@<span>thai</span></a></span> Hey! how are you?</p>'
+      '<p><span class="h-card"><a href="https://earth.social/@thai" class="u-url mention">@<span>thai</span></a></span> Hey! how are you?</p>'
     )
     expect(status.conversation).toEqual(MockStatus.conversation)
     expect(status.cc).toContain(`https://earth.social/users/thai`)
@@ -59,7 +59,7 @@ describe('#createStatus', () => {
     expect(mentions).toContainEqual({
       type: 'Mention',
       href: 'https://earth.social/users/thai',
-      name: '@thai'
+      name: '@thai@earth.social'
     })
   })
 })
