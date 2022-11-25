@@ -8,6 +8,7 @@ import { AcceptFollow } from './actions/acceptFollow'
 import { FollowRequest } from './actions/follow'
 import { UndoFollow } from './actions/undoFollow'
 import { OutboxContext } from './context'
+import { Mention } from './entities/mention'
 import { OrderedCollection } from './entities/orderedCollection'
 import { OrderedCollectionPage } from './entities/orderedCollectionPage'
 import { Person } from './entities/person'
@@ -113,7 +114,7 @@ export const sendNote = async (
   currentActor: Actor,
   sharedInbox: string,
   status: Status,
-  mentions: Actor[] = []
+  mentions: Mention[] = []
 ) => {
   const published = getISOTimeUTC(status.createdAt)
   const activity = {
@@ -141,13 +142,7 @@ export const sendNote = async (
       content: status.text,
       contentMap: { en: status.text },
       attachment: [],
-      tag: [
-        ...mentions.map((actor) => ({
-          type: 'Mention',
-          href: actor.id,
-          name: getAtWithHostFromId(actor.id)
-        }))
-      ],
+      tag: [...mentions],
       replies: {
         id: status.reply,
         type: 'Collection',

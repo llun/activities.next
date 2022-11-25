@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import format from 'date-fns/format'
 import linkifyStr from 'linkify-string'
 
+import { Mention } from '../activities/entities/mention'
 import { Note } from '../activities/entities/note'
 import { Question } from '../activities/entities/question'
 import { getConfig } from '../config'
@@ -66,17 +67,22 @@ interface CreateStatusParms {
   currentActor: Actor
   replyStatus?: Status
 }
+interface CreateStatusReturns {
+  status: Status
+  mentions: Mention[]
+}
 export const createStatus = async ({
   currentActor,
   text,
   replyStatus
-}: CreateStatusParms): Promise<Status> => {
+}: CreateStatusParms): Promise<CreateStatusReturns> => {
   const currentTime = Date.now()
   const postId = crypto.randomUUID()
   const host = getConfig().host
   const id = `${currentActor.id}/statuses/${postId}`
   const trimText = text.trim()
 
+  const mentions: Mention[] = []
   const content = linkifyStr(trimText, {
     rel: 'nofollow noopener noreferrer',
     target: '_blank',
@@ -84,33 +90,42 @@ export const createStatus = async ({
     render: {
       mention: ({ attributes, content }) => {
         const { href } = attributes
-        const [user] = content.slice(1).split('@')
+        const [user, host] = content.slice(1).split('@')
+        mentions.push({
+          type: 'Mention',
+          href: `https://${host}/users/${user}`,
+          name: `@${user}`
+        })
         return `<span class="h-card"><a href="${href}" class="u-url mention">@<span>${user}</span></a></span>`
       }
     }
   })
+
   return {
-    id: `${currentActor.id}/statuses/${postId}`,
-    url: `https://${host}/${getAtUsernameFromId(currentActor.id)}/${postId}`,
-    actorId: currentActor.id,
-    type: 'Note',
-    text: `<p>${content}</p>`,
-    summary: null,
-    conversation: replyStatus
-      ? replyStatus.conversation
-      : `tag:${host},${format(
-          currentTime,
-          'yyyy-MM-dd'
-        )}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
-    to: ['https://www.w3.org/ns/activitystreams#Public'],
-    cc: replyStatus
-      ? [`${currentActor.id}/followers`, replyStatus.actorId]
-      : [`${currentActor.id}/followers`],
-    mediaAttachmentIds: [],
-    visibility: 'public',
-    sensitive: false,
-    language: 'en',
-    reply: `${id}/replies`,
-    createdAt: currentTime
+    status: {
+      id: `${currentActor.id}/statuses/${postId}`,
+      url: `https://${host}/${getAtUsernameFromId(currentActor.id)}/${postId}`,
+      actorId: currentActor.id,
+      type: 'Note',
+      text: `<p>${content}</p>`,
+      summary: null,
+      conversation: replyStatus
+        ? replyStatus.conversation
+        : `tag:${host},${format(
+            currentTime,
+            'yyyy-MM-dd'
+          )}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: replyStatus
+        ? [`${currentActor.id}/followers`, replyStatus.actorId]
+        : [`${currentActor.id}/followers`],
+      mediaAttachmentIds: [],
+      visibility: 'public',
+      sensitive: false,
+      language: 'en',
+      reply: `${id}/replies`,
+      createdAt: currentTime
+    },
+    mentions
   }
 }

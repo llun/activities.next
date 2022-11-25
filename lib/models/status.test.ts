@@ -32,7 +32,7 @@ const MockStatus: Status = {
 
 describe('#createStatus', () => {
   it('returns plain text status from content', async () => {
-    const status = await createStatus({
+    const { status } = await createStatus({
       currentActor: MockActor,
       text: 'This is a first post'
     })
@@ -44,8 +44,8 @@ describe('#createStatus', () => {
     expect(status.text).toEqual('<p>This is a first post</p>')
   })
 
-  it('returns status with conversation from reply', async () => {
-    const status = await createStatus({
+  it('returns status with conversation and mentions from reply', async () => {
+    const { status, mentions } = await createStatus({
       currentActor: MockActor,
       text: '@thai@earth.social Hey! how are you?',
       replyStatus: MockStatus
@@ -55,5 +55,11 @@ describe('#createStatus', () => {
     )
     expect(status.conversation).toEqual(MockStatus.conversation)
     expect(status.cc).toContain(`https://earth.social/users/thai`)
+    expect(mentions).toHaveLength(1)
+    expect(mentions).toContainEqual({
+      type: 'Mention',
+      href: 'https://earth.social/users/thai',
+      name: '@thai'
+    })
   })
 })
