@@ -1,7 +1,6 @@
 import crypto from 'crypto'
 import format from 'date-fns/format'
 import linkifyStr from 'linkify-string'
-import groupBy from 'lodash/groupBy'
 
 import { Mention } from '../activities/entities/mention'
 import { Note } from '../activities/entities/note'
@@ -129,23 +128,4 @@ export const createStatus = async ({
     },
     mentions
   }
-}
-
-export const group = (statuses: Status[]) => {
-  const conversations = groupBy(statuses, 'conversation')
-  const orderedConversation = Object.keys(conversations)
-    .map((conversationId) => {
-      const group = conversations[conversationId].sort(
-        (s1, s2) => s2.createdAt - s1.createdAt
-      )
-      const lastStatus = group[0]
-      return {
-        conversation: conversationId,
-        timestamp: lastStatus.createdAt,
-        statuses: group
-      }
-    })
-    .sort((c1, c2) => c2.timestamp - c1.timestamp)
-
-  return orderedConversation
 }
