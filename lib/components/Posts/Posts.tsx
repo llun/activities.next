@@ -37,17 +37,19 @@ export const Posts: FC<Props> = ({
             onReply={onReply}
           />
           {statuses.length > 1 && (
-            <div className={styles.thread}>
+            <ul className={styles.thread}>
               {statuses.slice(1).map((status) => (
-                <Post
-                  key={status.id}
-                  currentTime={currentTime}
-                  status={status}
-                  showActions={showActions}
-                  onReply={onReply}
-                />
+                <li key={status.id}>
+                  <Actor actorId={(showActorId && statuses[0].actorId) || ''} />
+                  <Post
+                    currentTime={currentTime}
+                    status={status}
+                    showActions={showActions}
+                    onReply={onReply}
+                  />
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </div>
       ))}
