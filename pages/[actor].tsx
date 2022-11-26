@@ -183,7 +183,6 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     return { notFound: true }
   }
 
-  console.log('URL ===>', person.urls)
   const posts = await getPosts(person.urls?.posts)
   const isFollowing = await storage.isCurrentActorFollowing({
     currentActorId: currentActor.id,
