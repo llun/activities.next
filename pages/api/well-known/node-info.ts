@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
+import { Link } from '../../../lib/activities/types'
 import { getConfig } from '../../../lib/config'
-import { Link } from './webfinger'
 
 type Data = {
   links: Link[]
