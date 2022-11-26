@@ -1,4 +1,5 @@
 import { Collection } from './collection'
+import { Document } from './document'
 import { Mention } from './mention'
 import { PropertyValue } from './propertyValue'
 
@@ -19,7 +20,7 @@ export interface BaseNote {
   contentMap: {
     [locale: string]: string
   }
-  attachment: PropertyValue[]
+  attachment: (PropertyValue | Document)[]
   tag: Mention[]
   replies: Collection
 }

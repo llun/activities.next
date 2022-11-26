@@ -105,6 +105,7 @@ export const getPosts = async (id?: string) => {
       // Unsupported Object
       if (item.object.type !== 'Note') return null
 
+      console.log(item.object)
       return fromJson(item.object)
     })
     .filter((item): item is Status => item !== null)
