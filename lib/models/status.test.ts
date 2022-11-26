@@ -99,7 +99,7 @@ describe('#group', () => {
       },
       {
         conversation: 'conversation2',
-        timestamp: 745,
+        timestamp: 740,
         statuses: [mocks[5], mocks[8]]
       },
       {
@@ -108,6 +108,6 @@ describe('#group', () => {
         statuses: [mocks[6]]
       }
     ]
-    expect(group(mocks)).toContainEqual(conversations)
+    expect(group(mocks)).toEqual(conversations)
   })
 })
