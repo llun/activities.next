@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import Link from 'next/link'
 
-import { getPerson, getPosts } from '../lib/activities'
+import { getPerson, getPosts, getWebfingerSelf } from '../lib/activities'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { Posts } from '../lib/components/Posts/Posts'
@@ -145,9 +145,12 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   }
 
   const [account, domain] = parts
-  const actorId = `https://${domain}/users/${account}`
-  const person = await getPerson(actorId, true)
+  const actorId = await getWebfingerSelf(`${account}@${domain}`)
+  if (!actorId) {
+    return { notFound: true }
+  }
 
+  const person = await getPerson(actorId, true)
   if (!person) {
     return { notFound: true }
   }
@@ -180,6 +183,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     return { notFound: true }
   }
 
+  console.log('URL ===>', person.urls)
   const posts = await getPosts(person.urls?.posts)
   const isFollowing = await storage.isCurrentActorFollowing({
     currentActorId: currentActor.id,

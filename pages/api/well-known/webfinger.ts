@@ -1,21 +1,12 @@
 // Next.js API route support: https://nextjs.org/docs/api-routes/introduction
 import type { NextApiRequest, NextApiResponse } from 'next'
 
+import { WebFinger } from '../../../lib/activities/types'
 import { getConfig } from '../../../lib/config'
-
-export type Link =
-  | { rel: string; type?: string; href: string }
-  | { rel: string; template: string }
-
-type Data = {
-  subject: string
-  aliases: string[]
-  links: Link[]
-}
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<Data>
+  res: NextApiResponse<WebFinger>
 ) {
   const config = getConfig()
   const { resource } = req.query
@@ -37,10 +28,6 @@ export default async function handler(
         rel: 'self',
         type: 'application/activity+json',
         href: `https://${config.host}/users/${account}`
-      },
-      {
-        rel: 'http://ostatus.org/schema/1.0/subscribe',
-        template: `https://${config.host}/authorize_interaction?uri={uri}`
       }
     ]
   })

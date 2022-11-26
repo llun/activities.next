@@ -12,12 +12,33 @@ import { Mention } from './entities/mention'
 import { OrderedCollection } from './entities/orderedCollection'
 import { OrderedCollectionPage } from './entities/orderedCollectionPage'
 import { Person } from './entities/person'
+import { WebFinger } from './types'
 
 const USER_AGENT = 'activities.next/0.1'
 
 const SHARED_HEADERS = {
   Accept: 'application/activity+json, application/ld+json',
   'User-Agent': USER_AGENT
+}
+
+export const getWebfingerSelf = async (account: string) => {
+  const [user, domain] = account.split('@')
+  if (!user || !domain) return null
+
+  const response = await fetch(
+    `https://${domain}/.well-known/webfinger?resource=acct:${account}`,
+    {
+      headers: {
+        Accept: 'application/json'
+      }
+    }
+  )
+  if (response.status !== 200) return null
+
+  const json = (await response.json()) as WebFinger
+  const item = json.links.find((item) => item.rel === 'self')
+  if (!item || !('href' in item)) return null
+  return item.href
 }
 
 export const getPerson = async (id: string, withCollectionCount: boolean) => {
@@ -80,9 +101,15 @@ export const getPerson = async (id: string, withCollectionCount: boolean) => {
     totalPosts: posts?.totalItems || 0,
 
     urls: {
-      followers: followers?.first,
-      following: following?.first,
-      posts: posts?.first
+      followers:
+        typeof followers?.first !== 'string'
+          ? followers?.first.id
+          : followers?.first,
+      following:
+        typeof following?.first !== 'string'
+          ? following?.first.id
+          : following?.first,
+      posts: typeof posts?.first !== 'string' ? posts?.first.id : posts?.first
     },
 
     createdAt: new Date(json.published).getTime()
@@ -105,7 +132,6 @@ export const getPosts = async (id?: string) => {
       // Unsupported Object
       if (item.object.type !== 'Note') return null
 
-      console.log(item.object)
       return fromJson(item.object)
     })
     .filter((item): item is Status => item !== null)
