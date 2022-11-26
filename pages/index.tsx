@@ -23,11 +23,12 @@ import { authOptions } from './api/auth/[...nextauth]'
 import styles from './index.module.scss'
 
 interface Props {
+  currentServerTime: number
   statuses: Status[]
   actor: Actor
 }
 
-const Page: NextPage<Props> = ({ actor, statuses }) => {
+const Page: NextPage<Props> = ({ actor, statuses, currentServerTime }) => {
   const { data: session } = useSession()
   const [replyStatus, setReplyStatus] = useState<Status>()
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
@@ -127,6 +128,7 @@ const Page: NextPage<Props> = ({ actor, statuses }) => {
               <Button type="submit">Send</Button>
             </form>
             <Posts
+              currentTime={new Date(currentServerTime)}
               statuses={currentStatuses}
               showActorId
               showActions
@@ -190,7 +192,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   return {
     props: {
       statuses,
-      actor
+      actor,
+      currentServerTime: Date.now()
     }
   }
 }

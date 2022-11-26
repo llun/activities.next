@@ -1,5 +1,5 @@
 import cn from 'classnames'
-import formatDistanceToNow from 'date-fns/formatDistanceToNow'
+import formatDistance from 'date-fns/formatDistance'
 import { FC } from 'react'
 
 import { Status } from '../../models/status'
@@ -8,6 +8,7 @@ import { Button } from '../Button'
 import styles from './Post.module.scss'
 
 interface Props {
+  currentTime: Date
   status: Status
   showActions?: boolean
   onReply?: (status: Status) => void
@@ -42,7 +43,7 @@ export const Actions: FC<Props> = ({
 }
 
 export const Post: FC<Props> = (props) => {
-  const { status } = props
+  const { status, currentTime } = props
   return (
     <div key={status.id} className={cn('d-flex', styles.post)}>
       <div className={cn('flex-fill', 'me-1')}>
@@ -50,7 +51,7 @@ export const Post: FC<Props> = (props) => {
         <Actions {...props} />
       </div>
       <div className={cn('flex-shrink-0', styles.misc)}>
-        {formatDistanceToNow(status.createdAt)}
+        {formatDistance(status.createdAt, currentTime)}
       </div>
     </div>
   )

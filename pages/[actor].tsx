@@ -18,6 +18,7 @@ import styles from './[actor].module.scss'
 import { authOptions } from './api/auth/[...nextauth]'
 
 interface Props {
+  currentServerTime: number
   isLoggedIn: boolean
   isFollowing: boolean
   name: string
@@ -32,6 +33,7 @@ interface Props {
 }
 
 const Page: NextPage<Props> = ({
+  currentServerTime,
   isLoggedIn,
   isFollowing,
   name,
@@ -103,7 +105,7 @@ const Page: NextPage<Props> = ({
             )}
           </div>
         </section>
-        <Posts statuses={posts} />
+        <Posts currentTime={new Date(currentServerTime)} statuses={posts} />
       </section>
     </main>
   )
@@ -154,6 +156,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     const posts = await getPosts(person.urls?.posts)
     return {
       props: {
+        currentServerTime: Date.now(),
         isLoggedIn: false,
         isFollowing: false,
         id: person.id,
@@ -185,6 +188,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
 
   return {
     props: {
+      currentServerTime: Date.now(),
       isLoggedIn: true,
       isFollowing,
       id: person.id,

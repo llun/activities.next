@@ -19,5 +19,8 @@
         "jest": true
       }
     }
-  ]
+  ],
+  "rules": {
+    "no-unused-vars": "off"
+  }
 }

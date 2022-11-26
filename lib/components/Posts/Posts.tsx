@@ -9,6 +9,7 @@ import styles from './Posts.module.scss'
 interface Props {
   showActorId?: boolean
   showActions?: boolean
+  currentTime: Date
   statuses: Status[]
   onReply?: (status: Status) => void
 }
@@ -16,6 +17,7 @@ interface Props {
 export const Posts: FC<Props> = ({
   showActorId = false,
   showActions = false,
+  currentTime,
   statuses,
   onReply
 }) => {
@@ -26,7 +28,12 @@ export const Posts: FC<Props> = ({
       {statuses.map((status) => (
         <div key={status.id} className={cn(styles.block)}>
           <Actor actorId={(showActorId && status.actorId) || ''} />
-          <Post status={status} showActions={showActions} onReply={onReply} />
+          <Post
+            currentTime={currentTime}
+            status={status}
+            showActions={showActions}
+            onReply={onReply}
+          />
         </div>
       ))}
     </section>
