@@ -3,9 +3,30 @@ import { Knex, knex } from 'knex'
 
 import { getConfig } from '../config'
 import { Actor } from '../models/actor'
+import { Attachment } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
 import { Status } from '../models/status'
-import { Storage } from './types'
+import {
+  CreateAccountParams,
+  CreateAttachmentParams,
+  CreateFollowParams,
+  CreateStatusParams,
+  GetAcceptedOrRequestedFollowParams,
+  GetActorFollowersCountParams,
+  GetActorFollowingCountParams,
+  GetActorFromEmailParams,
+  GetActorFromIdParams,
+  GetActorFromUsernameParams,
+  GetActorStatusesCountParams,
+  GetActorStatusesParams,
+  GetFollowFromIdParams,
+  GetFollowersHostsParams,
+  IsAccountExistsParams,
+  IsCurrentActorFollowingParams,
+  IsUsernameExistsParams,
+  Storage,
+  UpdateFollowStatusParams
+} from './types'
 
 export class Sqlite3Storage implements Storage {
   database: Knex
@@ -14,8 +35,7 @@ export class Sqlite3Storage implements Storage {
     this.database = knex(config)
   }
 
-  async isAccountExists(params: { email?: string | null }) {
-    const { email } = params
+  async isAccountExists({ email }: IsAccountExistsParams) {
     if (!email) return false
     const result = await this.database('accounts')
       .where('email', email)
@@ -24,8 +44,7 @@ export class Sqlite3Storage implements Storage {
     return Boolean(result?.count && result?.count > 0)
   }
 
-  async isUsernameExists(params: { username: string }) {
-    const { username } = params
+  async isUsernameExists({ username }: IsUsernameExistsParams) {
     const response = await this.database('actors')
       .where('preferredUsername', username)
       .count('id as count')
@@ -33,13 +52,12 @@ export class Sqlite3Storage implements Storage {
     return Boolean(response?.count && response?.count > 0)
   }
 
-  async createAccount(params: {
-    email: string
-    username: string
-    privateKey: string
-    publicKey: string
-  }) {
-    const { email, username, privateKey, publicKey } = params
+  async createAccount({
+    email,
+    username,
+    privateKey,
+    publicKey
+  }: CreateAccountParams) {
     const config = getConfig()
     const accountId = crypto.randomUUID()
     const actorId = `https://${config.host}/users/${username}`
@@ -65,8 +83,7 @@ export class Sqlite3Storage implements Storage {
     return accountId
   }
 
-  async getActorFromEmail(params: { email: string }) {
-    const { email } = params
+  async getActorFromEmail({ email }: GetActorFromEmailParams) {
     return this.database('actors')
       .select<Actor>('actors.*')
       .leftJoin('accounts', 'actors.accountId', 'accounts.id')
@@ -74,11 +91,10 @@ export class Sqlite3Storage implements Storage {
       .first()
   }
 
-  async isCurrentActorFollowing(params: {
-    currentActorId: string
-    followingActorId: string
-  }) {
-    const { currentActorId, followingActorId } = params
+  async isCurrentActorFollowing({
+    currentActorId,
+    followingActorId
+  }: IsCurrentActorFollowingParams) {
     const result = await this.database('follows')
       .where('actorId', currentActorId)
       .andWhere('targetActorId', followingActorId)
@@ -88,20 +104,17 @@ export class Sqlite3Storage implements Storage {
     return Boolean(result?.count && result?.count > 0)
   }
 
-  async getActorFromUsername(params: { username: string }) {
-    const { username } = params
+  async getActorFromUsername({ username }: GetActorFromUsernameParams) {
     return this.database<Actor>('actors')
       .where('preferredUsername', username)
       .first()
   }
 
-  async getActorFromId(params: { id: string }) {
-    const { id } = params
+  async getActorFromId({ id }: GetActorFromIdParams) {
     return this.database<Actor>('actors').where('id', id).first()
   }
 
-  async getActorFollowingCount(params: { actorId: string }) {
-    const { actorId } = params
+  async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
     const result = await this.database('follows')
       .where('actorId', actorId)
       .andWhere('status', 'Accepted')
@@ -110,8 +123,7 @@ export class Sqlite3Storage implements Storage {
     return (result?.count as number) || 0
   }
 
-  async getActorFollowersCount(params: { actorId: string }) {
-    const { actorId } = params
+  async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
     const result = await this.database('follows')
       .where('targetActorId', actorId)
       .andWhere('status', 'Accepted')
@@ -120,12 +132,7 @@ export class Sqlite3Storage implements Storage {
     return (result?.count as number) || 0
   }
 
-  async createFollow(params: {
-    actorId: string
-    targetActorId: string
-    status: FollowStatus
-  }) {
-    const { actorId, targetActorId, status } = params
+  async createFollow({ actorId, targetActorId, status }: CreateFollowParams) {
     const currentTime = Date.now()
     const follow: Follow = {
       id: crypto.randomUUID(),
@@ -141,16 +148,14 @@ export class Sqlite3Storage implements Storage {
     return follow
   }
 
-  async getFollowFromId(params: { followId: string }) {
-    const { followId } = params
+  async getFollowFromId({ followId }: GetFollowFromIdParams) {
     return this.database<Follow>('follows').where('id', followId).first()
   }
 
-  async getAcceptedOrRequestedFollow(params: {
-    actorId: string
-    targetActorId: string
-  }) {
-    const { actorId, targetActorId } = params
+  async getAcceptedOrRequestedFollow({
+    actorId,
+    targetActorId
+  }: GetAcceptedOrRequestedFollowParams) {
     return this.database<Follow>('follows')
       .where('actorId', actorId)
       .where('targetActorId', targetActorId)
@@ -159,8 +164,7 @@ export class Sqlite3Storage implements Storage {
       .first()
   }
 
-  async getFollowersHosts(params: { targetActorId: string }) {
-    const { targetActorId } = params
+  async getFollowersHosts({ targetActorId }: GetFollowersHostsParams) {
     const hosts = await this.database<Follow>('follows')
       .select('actorHost')
       .where('targetActorId', targetActorId)
@@ -169,16 +173,14 @@ export class Sqlite3Storage implements Storage {
     return hosts.map((item) => item.actorHost)
   }
 
-  async updateFollowStatus(params: { followId: string; status: FollowStatus }) {
-    const { followId, status } = params
+  async updateFollowStatus({ followId, status }: UpdateFollowStatusParams) {
     await this.database('follows').where('id', followId).update({
       status,
       updatedAt: Date.now()
     })
   }
 
-  async createStatus(params: { status: Status }) {
-    const { status } = params
+  async createStatus({ status }: CreateStatusParams) {
     const { to, cc, ...rest } = status
     await this.database.transaction(async (trx) => {
       await trx('statuses').insert(rest)
@@ -206,8 +208,7 @@ export class Sqlite3Storage implements Storage {
       .limit(20)
   }
 
-  async getActorStatusesCount(params: { actorId: string }) {
-    const { actorId } = params
+  async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
     const result = await this.database('statuses')
       .where('actorId', actorId)
       .count<{ count: number }>('* as count')
@@ -215,11 +216,30 @@ export class Sqlite3Storage implements Storage {
     return result?.count || 0
   }
 
-  async getActorStatuses(params: { actorId: string }) {
-    const { actorId } = params
+  async getActorStatuses({ actorId }: GetActorStatusesParams) {
     return this.database<Status>('statuses')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .limit(20)
+  }
+
+  async createAttachment({
+    statusId,
+    mediaType,
+    url,
+    width,
+    height,
+    name
+  }: CreateAttachmentParams): Promise<Attachment> {
+    const attachment: Attachment = {
+      statusId,
+      type: 'Document',
+      mediaType,
+      url,
+      width,
+      height,
+      name
+    }
+    return attachment
   }
 }

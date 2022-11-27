@@ -17,9 +17,30 @@ import {
 
 import { getConfig } from '../config'
 import { Actor } from '../models/actor'
+import { Attachment } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
 import { Status } from '../models/status'
-import { Storage } from './types'
+import {
+  CreateAccountParams,
+  CreateAttachmentParams,
+  CreateFollowParams,
+  CreateStatusParams,
+  GetAcceptedOrRequestedFollowParams,
+  GetActorFollowersCountParams,
+  GetActorFollowingCountParams,
+  GetActorFromEmailParams,
+  GetActorFromIdParams,
+  GetActorFromUsernameParams,
+  GetActorStatusesCountParams,
+  GetActorStatusesParams,
+  GetFollowFromIdParams,
+  GetFollowersHostsParams,
+  IsAccountExistsParams,
+  IsCurrentActorFollowingParams,
+  IsUsernameExistsParams,
+  Storage,
+  UpdateFollowStatusParams
+} from './types'
 
 export interface FirebaseConfig extends FirebaseOptions {
   type: 'firebase'
@@ -34,8 +55,7 @@ export class FirebaseStorage implements Storage {
     this.db = getFirestore(this.app)
   }
 
-  async isAccountExists(params: { email?: string | null }) {
-    const { email } = params
+  async isAccountExists({ email }: IsAccountExistsParams) {
     if (!email) return true
 
     const accounts = collection(this.db, 'accounts')
@@ -44,8 +64,7 @@ export class FirebaseStorage implements Storage {
     return snapshot.data().count === 1
   }
 
-  async isUsernameExists(params: { username: string }) {
-    const { username } = params
+  async isUsernameExists({ username }: IsUsernameExistsParams) {
     if (!username) return true
 
     const accounts = collection(this.db, 'actors')
@@ -54,13 +73,12 @@ export class FirebaseStorage implements Storage {
     return snapshot.data().count === 1
   }
 
-  async createAccount(params: {
-    email: string
-    username: string
-    privateKey: string
-    publicKey: string
-  }) {
-    const { email, username, privateKey, publicKey } = params
+  async createAccount({
+    email,
+    username,
+    privateKey,
+    publicKey
+  }: CreateAccountParams) {
     const config = getConfig()
     const actorId = `https://${config.host}/users/${username}`
     if (await this.isAccountExists({ email })) {
@@ -86,8 +104,7 @@ export class FirebaseStorage implements Storage {
     return accountRef.id
   }
 
-  async getActorFromEmail(params: { email: string }) {
-    const { email } = params
+  async getActorFromEmail({ email }: GetActorFromEmailParams) {
     const accounts = collection(this.db, 'accounts')
     const accountQuery = query(accounts, where('email', '==', email), limit(1))
     const accountsSnapshot = await getDocs(accountQuery)
@@ -106,8 +123,7 @@ export class FirebaseStorage implements Storage {
     return actorsSnapshot.docs[0].data() as Actor
   }
 
-  async getActorFromUsername(params: { username: string }) {
-    const { username } = params
+  async getActorFromUsername({ username }: GetActorFromUsernameParams) {
     const actors = collection(this.db, 'actors')
     const actorsQuery = query(
       actors,
@@ -120,8 +136,7 @@ export class FirebaseStorage implements Storage {
     return actorsSnapshot.docs[0].data() as Actor
   }
 
-  async getActorFromId(params: { id: string }) {
-    const { id } = params
+  async getActorFromId({ id }: GetActorFromIdParams) {
     const actors = collection(this.db, 'actors')
     const actorsQuery = query(actors, where('id', '==', id), limit(1))
     const actorsSnapshot = await getDocs(actorsQuery)
@@ -130,11 +145,10 @@ export class FirebaseStorage implements Storage {
     return actorsSnapshot.docs[0].data() as Actor
   }
 
-  async isCurrentActorFollowing(params: {
-    currentActorId: string
-    followingActorId: string
-  }) {
-    const { currentActorId, followingActorId } = params
+  async isCurrentActorFollowing({
+    currentActorId,
+    followingActorId
+  }: IsCurrentActorFollowingParams) {
     const follows = collection(this.db, 'follows')
     const followsQuery = query(
       follows,
@@ -146,8 +160,7 @@ export class FirebaseStorage implements Storage {
     return snapshot.data().count > 0
   }
 
-  async getActorFollowingCount(params: { actorId: string }) {
-    const { actorId } = params
+  async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
     const follows = collection(this.db, 'follows')
     const followsQuery = query(
       follows,
@@ -158,8 +171,7 @@ export class FirebaseStorage implements Storage {
     return snapshot.data().count
   }
 
-  async getActorFollowersCount(params: { actorId: string }) {
-    const { actorId } = params
+  async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
     const follows = collection(this.db, 'follows')
     const followsQuery = query(
       follows,
@@ -170,12 +182,7 @@ export class FirebaseStorage implements Storage {
     return snapshot.data().count
   }
 
-  async createFollow(params: {
-    actorId: string
-    targetActorId: string
-    status: FollowStatus
-  }) {
-    const { actorId, targetActorId, status } = params
+  async createFollow({ actorId, targetActorId, status }: CreateFollowParams) {
     const currentTime = Date.now()
     const content = {
       actorId,
@@ -193,8 +200,7 @@ export class FirebaseStorage implements Storage {
     }
   }
 
-  async getFollowFromId(params: { followId: string }) {
-    const { followId } = params
+  async getFollowFromId({ followId }: GetFollowFromIdParams) {
     const docRef = doc(this.db, 'follows', followId)
     const docSnap = await getDoc(docRef)
 
@@ -211,11 +217,10 @@ export class FirebaseStorage implements Storage {
     } as Follow
   }
 
-  async getAcceptedOrRequestedFollow(params: {
-    actorId: string
-    targetActorId: string
-  }) {
-    const { actorId, targetActorId } = params
+  async getAcceptedOrRequestedFollow({
+    actorId,
+    targetActorId
+  }: GetAcceptedOrRequestedFollowParams) {
     const follows = collection(this.db, 'follows')
     const followsQuery = query(
       follows,
@@ -237,8 +242,7 @@ export class FirebaseStorage implements Storage {
     } as Follow
   }
 
-  async getFollowersHosts(params: { targetActorId: string }) {
-    const { targetActorId } = params
+  async getFollowersHosts({ targetActorId }: GetFollowersHostsParams) {
     const follows = collection(this.db, 'follows')
     const followsQuery = query(
       follows,
@@ -253,8 +257,7 @@ export class FirebaseStorage implements Storage {
     return Array.from(hosts)
   }
 
-  async updateFollowStatus(params: { followId: string; status: FollowStatus }) {
-    const { followId, status } = params
+  async updateFollowStatus({ followId, status }: UpdateFollowStatusParams) {
     const follow = await this.getFollowFromId({ followId })
     if (!follow) {
       return
@@ -266,8 +269,7 @@ export class FirebaseStorage implements Storage {
     })
   }
 
-  async createStatus(params: { status: Status }) {
-    const { status } = params
+  async createStatus({ status }: CreateStatusParams) {
     await addDoc(collection(this.db, 'statuses'), status)
     return status
   }
@@ -283,16 +285,14 @@ export class FirebaseStorage implements Storage {
     return statusesSnapshot.docs.map((item) => item.data() as Status)
   }
 
-  async getActorStatusesCount(params: { actorId: string }) {
-    const { actorId } = params
+  async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
     const statuses = collection(this.db, 'statuses')
     const statusesQuery = query(statuses, where('actorId', '==', actorId))
     const snapshot = await getCountFromServer(statusesQuery)
     return snapshot.data().count
   }
 
-  async getActorStatuses(params: { actorId: string }) {
-    const { actorId } = params
+  async getActorStatuses({ actorId }: GetActorStatusesParams) {
     const statuses = collection(this.db, 'statuses')
     const statusesQuery = query(
       statuses,
@@ -302,5 +302,25 @@ export class FirebaseStorage implements Storage {
     )
     const snapshot = await getDocs(statusesQuery)
     return snapshot.docs.map((item) => item.data() as Status)
+  }
+
+  async createAttachment({
+    statusId,
+    mediaType,
+    url,
+    width,
+    height,
+    name
+  }: CreateAttachmentParams): Promise<Attachment> {
+    const attachment: Attachment = {
+      statusId,
+      type: 'Document',
+      mediaType,
+      url,
+      width,
+      height,
+      name
+    }
+    return attachment
   }
 }

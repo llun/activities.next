@@ -1,7 +1,7 @@
 export interface Attachment {
   statusId: string
   type: 'Document'
-  mediaTyle: string
+  mediaType: string
   url: string
   width: number
   height: number
