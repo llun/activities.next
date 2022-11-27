@@ -9,7 +9,6 @@ import { CreateStatus } from './actions/createStatus'
 jest.mock('../config', () => {
   const originalModule = jest.requireActual('../config')
   const { MOCK_SECRET_PHASES } = jest.requireActual('../stub/actor')
-  console.log(MOCK_SECRET_PHASES)
   return {
     __esModule: true,
     ...originalModule,
@@ -69,7 +68,12 @@ describe('#sendNote', () => {
       text: 'Hello'
     })
 
-    await sendNote(actor, 'https://llun.dev/inbox', status, mentions)
+    await sendNote({
+      currentActor: actor,
+      sharedInbox: 'https://llun.dev/inbox',
+      status,
+      mentions
+    })
     const [, options] = fetchMock.mock.lastCall as any
     const { body } = options
     const data = JSON.parse(body) as CreateStatus

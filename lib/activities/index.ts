@@ -37,7 +37,6 @@ export const getWebfingerSelf = async (account: string) => {
   if (response.status !== 200) return null
 
   const json = (await response.json()) as WebFinger
-  console.log(json)
   const item = json.links.find((item) => item.rel === 'self')
   if (!item || !('href' in item)) return null
   return item.href
@@ -139,12 +138,20 @@ export const getPosts = async (id?: string) => {
     .filter((item): item is Status => item !== null)
 }
 
-export const sendNote = async (
-  currentActor: Actor,
-  sharedInbox: string,
-  status: Status,
-  mentions: Mention[] = []
-) => {
+interface SendNoteParams {
+  currentActor: Actor
+  sharedInbox: string
+  status: Status
+  replyStatus?: Status
+  mentions?: Mention[]
+}
+export const sendNote = async ({
+  currentActor,
+  sharedInbox,
+  status,
+  replyStatus,
+  mentions = []
+}: SendNoteParams) => {
   const published = getISOTimeUTC(status.createdAt)
   const activity: CreateStatus = {
     '@context': OutboxContext,
@@ -154,7 +161,7 @@ export const sendNote = async (
     published,
     to: status.to,
     cc: status.cc,
-    object: toObject({ status, mentions })
+    object: toObject({ status, mentions, replyStatus })
   }
   // TODO: Add LinkedDataSignature later
   // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3

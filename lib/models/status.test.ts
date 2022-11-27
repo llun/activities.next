@@ -44,7 +44,6 @@ describe('#toObject', () => {
   it('converts status to Note object', () => {
     const status = MockStatus({ text: 'Hello' })
     const note = toObject({ status })
-    console.log(status.id)
     expect(note).toEqual({
       id: status.id,
       type: 'Note',

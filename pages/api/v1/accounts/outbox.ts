@@ -19,8 +19,15 @@ const handler = ApiGuard(async (req, res, context) => {
       })
       await Promise.all(
         hosts.map((host) => {
-          const inbox = `https://${host}/inbox`
-          return sendNote(currentActor, inbox, status, mentions)
+          // TODO: Get this from profile
+          const sharedInbox = `https://${host}/inbox`
+          return sendNote({
+            currentActor,
+            sharedInbox,
+            status,
+            mentions,
+            replyStatus: body.replyStatus
+          })
         })
       )
       return res.status(200).json({ status })
