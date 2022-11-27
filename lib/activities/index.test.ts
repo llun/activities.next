@@ -1,13 +1,15 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getWebfingerSelf, sendNote } from '.'
-import { createStatus, fromJson } from '../models/status'
-import { MOCK_SECRET_PHASES, MockActor } from '../stub/actor'
+import { createStatus } from '../models/status'
+import { MockActor } from '../stub/actor'
 import { MockWebfinger } from '../stub/webfinger'
 import { CreateStatus } from './actions/createStatus'
 
 jest.mock('../config', () => {
   const originalModule = jest.requireActual('../config')
+  const { MOCK_SECRET_PHASES } = jest.requireActual('../stub/actor')
+  console.log(MOCK_SECRET_PHASES)
   return {
     __esModule: true,
     ...originalModule,
@@ -57,7 +59,7 @@ describe('#sendNote', () => {
     fetchMock.resetMocks()
   })
 
-  it.only('fetch to shared inbox', async () => {
+  it('fetch to shared inbox', async () => {
     fetchMock.mockResponseOnce('', {
       status: 200
     })

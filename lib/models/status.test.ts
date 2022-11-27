@@ -1,8 +1,6 @@
-import { getConfig } from '../config'
 import { MockActor } from '../stub/actor'
 import { MockStatus } from '../stub/status'
 import { getISOTimeUTC } from '../time'
-import { getUsernameFromId } from './actor'
 import { createStatus, toObject } from './status'
 
 describe('#createStatus', () => {
@@ -45,7 +43,7 @@ describe('#createStatus', () => {
 describe('#toObject', () => {
   it('converts status to Note object', () => {
     const status = MockStatus({ text: 'Hello' })
-    const note = toObject(status)
+    const note = toObject({ status })
     console.log(status.id)
     expect(note).toEqual({
       id: status.id,
@@ -84,7 +82,7 @@ describe('#toObject', () => {
       currentActor: actor,
       text: '@null@llun.dev Heyllo'
     })
-    const note = toObject(status, mentions)
+    const note = toObject({ status, mentions })
     expect(note).toMatchObject({
       id: status.id,
       type: 'Note',
@@ -125,15 +123,14 @@ describe('#toObject', () => {
     })
     const { status, mentions } = await createStatus({
       currentActor: secondActor,
-      text: '@null@llun.dev Heyllo',
+      text: '@user1 Heyllo',
       replyStatus: originalStatus
     })
-    const note = toObject(status, mentions)
+    const note = toObject({ status, mentions, replyStatus: originalStatus })
     expect(note).toMatchObject({
       id: status.id,
       type: 'Note',
       summary: null,
-      inReplyTo: null,
       published: getISOTimeUTC(status.createdAt),
       url: status.url,
       attributedTo: status.actorId,
@@ -141,6 +138,7 @@ describe('#toObject', () => {
       cc: status.cc,
       sensitive: false,
       atomUri: status.id,
+      inReplyTo: originalStatus.id,
       inReplyToAtomUri: originalStatus.id,
       conversation: status.conversation,
       content: status.text,

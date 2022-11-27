@@ -131,12 +131,20 @@ export const createStatus = async ({
   }
 }
 
-export const toObject = (status: Status, mentions: Mention[] = []): Note => {
+interface ToObjectParams {
+  status: Status
+  mentions?: Mention[]
+  replyStatus?: Status
+}
+export const toObject = ({
+  status,
+  mentions = [],
+  replyStatus
+}: ToObjectParams): Note => {
   return {
     id: status.id,
     type: 'Note',
     summary: null,
-    inReplyTo: null,
     published: getISOTimeUTC(status.createdAt),
     url: status.url,
     attributedTo: status.actorId,
@@ -144,7 +152,8 @@ export const toObject = (status: Status, mentions: Mention[] = []): Note => {
     cc: status.cc,
     sensitive: false,
     atomUri: status.id,
-    inReplyToAtomUri: null,
+    inReplyToAtomUri: replyStatus?.id ?? null,
+    inReplyTo: replyStatus?.id ?? null,
     conversation: status.conversation,
     content: status.text,
     contentMap: { en: status.text },
@@ -156,7 +165,7 @@ export const toObject = (status: Status, mentions: Mention[] = []): Note => {
       first: {
         type: 'CollectionPage',
         next: `${status.reply}?only_other_accounts=true&page=true`,
-        partOf: status.reply,
+        partOf: replyStatus ? replyStatus.reply : status.reply,
         items: []
       }
     }

@@ -1,4 +1,4 @@
-import { getUsernameFromId } from '../models/actor'
+import { Actor } from '../models/actor'
 
 export const MOCK_SECRET_PHASES = 'secret phases'
 const MOCK_PUBLIC_KEY = `
@@ -77,9 +77,9 @@ interface Params {
 }
 export const MockActor = ({
   id = 'https://chat.llun.dev/users/me'
-}: Params) => ({
+}: Params): Actor => ({
   id,
-  preferredUsername: getUsernameFromId(id) || 'me',
+  preferredUsername: new URL(id).pathname.split('/').pop() ?? 'me',
   manuallyApprovesFollowers: false,
   discoverable: true,
   publicKey: MOCK_PUBLIC_KEY,
