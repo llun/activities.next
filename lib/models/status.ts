@@ -23,9 +23,6 @@ export interface Status {
   text: string
   summary: string | null
 
-  createdAt: number
-  updatedAt?: number
-
   to: string[]
   cc: string[]
 
@@ -36,6 +33,9 @@ export interface Status {
 
   thread?: string
   conversation: string
+
+  createdAt: number
+  updatedAt?: number
 }
 
 export const fromJson = (data: Note | Question): Status => ({
@@ -51,14 +51,15 @@ export const fromJson = (data: Note | Question): Status => ({
   to: data.to,
   cc: data.cc,
 
-  createdAt: new Date(data.published).getTime(),
-
   reply: data.replies.id,
   sensitive: data.sensitive,
   visibility: 'public',
   language: Object.keys(data.contentMap).shift(),
 
-  conversation: data.conversation
+  conversation: data.conversation,
+
+  createdAt: new Date(data.published).getTime(),
+  updatedAt: Date.now()
 })
 
 interface CreateStatusParms {

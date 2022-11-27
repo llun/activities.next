@@ -6,4 +6,7 @@ export interface Attachment {
   width: number
   height: number
   name?: string
+
+  createdAt: number
+  updatedAt?: number
 }

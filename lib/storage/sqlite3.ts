@@ -238,8 +238,14 @@ export class Sqlite3Storage implements Storage {
       url,
       width,
       height,
-      name
+      name,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     }
     return attachment
+  }
+
+  async getAttachments() {
+    return []
   }
 }

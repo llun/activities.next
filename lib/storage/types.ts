@@ -48,6 +48,9 @@ export type CreateAttachmentParams = {
   height: number
   name?: string
 }
+export type GetAttachmentsParams = {
+  statusId: string
+}
 
 export interface Storage {
   isAccountExists(params: IsAccountExistsParams): Promise<boolean>
@@ -80,4 +83,5 @@ export interface Storage {
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
+  getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
 }
