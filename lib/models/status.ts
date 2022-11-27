@@ -7,6 +7,7 @@ import { Note } from '../activities/entities/note'
 import { Question } from '../activities/entities/question'
 import { getConfig } from '../config'
 import '../linkify-mention'
+import { getISOTimeUTC } from '../time'
 import { Actor, getAtUsernameFromId } from './actor'
 
 export type Visibility = 'public' | 'unlisted' | 'private' | 'direct'
@@ -127,5 +128,37 @@ export const createStatus = async ({
       createdAt: currentTime
     },
     mentions
+  }
+}
+
+export const toObject = (status: Status, mentions: Mention[] = []): Note => {
+  return {
+    id: status.id,
+    type: 'Note',
+    summary: null,
+    inReplyTo: null,
+    published: getISOTimeUTC(status.createdAt),
+    url: status.url,
+    attributedTo: status.actorId,
+    to: status.to,
+    cc: status.cc,
+    sensitive: false,
+    atomUri: status.id,
+    inReplyToAtomUri: null,
+    conversation: status.conversation,
+    content: status.text,
+    contentMap: { en: status.text },
+    attachment: [],
+    tag: [...mentions],
+    replies: {
+      id: status.reply,
+      type: 'Collection',
+      first: {
+        type: 'CollectionPage',
+        next: `${status.reply}?only_other_accounts=true&page=true`,
+        partOf: status.reply,
+        items: []
+      }
+    }
   }
 }

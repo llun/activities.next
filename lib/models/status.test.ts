@@ -1,6 +1,9 @@
+import { getConfig } from '../config'
 import { MockActor } from '../stub/actor'
 import { MockStatus } from '../stub/status'
-import { createStatus } from './status'
+import { getISOTimeUTC } from '../time'
+import { getUsernameFromId } from './actor'
+import { createStatus, toObject } from './status'
 
 describe('#createStatus', () => {
   const mockActor = MockActor()
@@ -35,6 +38,43 @@ describe('#createStatus', () => {
       type: 'Mention',
       href: 'https://earth.social/users/thai',
       name: '@thai@earth.social'
+    })
+  })
+})
+
+describe('#toObject', () => {
+  it('converts status to Note object', () => {
+    const status = MockStatus({ text: 'Hello' })
+    const note = toObject(status)
+    console.log(status.id)
+    expect(note).toEqual({
+      id: status.id,
+      type: 'Note',
+      summary: null,
+      inReplyTo: null,
+      published: getISOTimeUTC(status.createdAt),
+      url: status.url,
+      attributedTo: status.actorId,
+      to: status.to,
+      cc: status.cc,
+      sensitive: false,
+      atomUri: status.id,
+      inReplyToAtomUri: null,
+      conversation: status.conversation,
+      content: status.text,
+      contentMap: { en: status.text },
+      attachment: [],
+      tag: [],
+      replies: {
+        id: status.reply,
+        type: 'Collection',
+        first: {
+          type: 'CollectionPage',
+          next: `${status.reply}?only_other_accounts=true&page=true`,
+          partOf: status.reply,
+          items: []
+        }
+      }
     })
   })
 })

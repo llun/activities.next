@@ -1,7 +1,7 @@
 import { getConfig } from '../config'
 import { Actor } from '../models/actor'
 import { Follow } from '../models/follow'
-import { Status, fromJson } from '../models/status'
+import { Status, fromJson, toObject } from '../models/status'
 import { headers } from '../signature'
 import { getISOTimeUTC } from '../time'
 import { AcceptFollow } from './actions/acceptFollow'
@@ -154,35 +154,7 @@ export const sendNote = async (
     published,
     to: status.to,
     cc: status.cc,
-    object: {
-      id: status.id,
-      type: 'Note',
-      summary: null,
-      inReplyTo: null,
-      published,
-      url: 'https://mastodon.in.th/@llun/109371725928967373',
-      attributedTo: status.actorId,
-      to: status.to,
-      cc: status.cc,
-      sensitive: false,
-      atomUri: status.id,
-      inReplyToAtomUri: null,
-      conversation: status.conversation,
-      content: status.text,
-      contentMap: { en: status.text },
-      attachment: [],
-      tag: [...mentions],
-      replies: {
-        id: status.reply,
-        type: 'Collection',
-        first: {
-          type: 'CollectionPage',
-          next: `${status.reply}?only_other_accounts=true&page=true`,
-          partOf: status.reply,
-          items: []
-        }
-      }
-    }
+    object: toObject(status, mentions)
   }
   // TODO: Add LinkedDataSignature later
   // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3
