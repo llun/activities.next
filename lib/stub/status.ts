@@ -26,6 +26,5 @@ export const MockStatus = ({
     'https://llun.dev/users/null'
   ],
   createdAt,
-  reply: 'https://earth.social/users/thai/statuses/109408808043120672/replies',
-  mediaAttachmentIds: []
+  reply: 'https://earth.social/users/thai/statuses/109408808043120672/replies'
 })

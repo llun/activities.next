@@ -36,7 +36,6 @@ export interface Status {
 
   thread?: string
   conversation: string
-  mediaAttachmentIds: string[]
 }
 
 export const fromJson = (data: Note | Question): Status => ({
@@ -59,8 +58,7 @@ export const fromJson = (data: Note | Question): Status => ({
   visibility: 'public',
   language: Object.keys(data.contentMap).shift(),
 
-  conversation: data.conversation,
-  mediaAttachmentIds: []
+  conversation: data.conversation
 })
 
 interface CreateStatusParms {
@@ -120,7 +118,6 @@ export const createStatus = async ({
       cc: replyStatus
         ? [`${currentActor.id}/followers`, replyStatus.actorId]
         : [`${currentActor.id}/followers`],
-      mediaAttachmentIds: [],
       visibility: 'public',
       sensitive: false,
       language: 'en',

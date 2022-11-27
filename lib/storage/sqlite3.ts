@@ -179,7 +179,7 @@ export class Sqlite3Storage implements Storage {
 
   async createStatus(params: { status: Status }) {
     const { status } = params
-    const { mediaAttachmentIds, to, cc, ...rest } = status
+    const { to, cc, ...rest } = status
     await this.database.transaction(async (trx) => {
       await trx('statuses').insert(rest)
       for (const item of to) {
