@@ -36,6 +36,7 @@ export const getWebfingerSelf = async (account: string) => {
   if (response.status !== 200) return null
 
   const json = (await response.json()) as WebFinger
+  console.log(json)
   const item = json.links.find((item) => item.rel === 'self')
   if (!item || !('href' in item)) return null
   return item.href
