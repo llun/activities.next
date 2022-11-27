@@ -5,6 +5,7 @@ import { Status, fromJson } from '../models/status'
 import { headers } from '../signature'
 import { getISOTimeUTC } from '../time'
 import { AcceptFollow } from './actions/acceptFollow'
+import { CreateStatus } from './actions/createStatus'
 import { FollowRequest } from './actions/follow'
 import { UndoFollow } from './actions/undoFollow'
 import { OutboxContext } from './context'
@@ -145,7 +146,7 @@ export const sendNote = async (
   mentions: Mention[] = []
 ) => {
   const published = getISOTimeUTC(status.createdAt)
-  const activity = {
+  const activity: CreateStatus = {
     '@context': OutboxContext,
     id: `${status.id}/activity`,
     type: 'Create',

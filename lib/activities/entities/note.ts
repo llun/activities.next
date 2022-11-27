@@ -6,7 +6,7 @@ import { PropertyValue } from './propertyValue'
 export interface BaseNote {
   id: string
   summary: null
-  inReplyTo: string
+  inReplyTo: string | null
   published: string
   url: string
   attributedTo: string
@@ -14,7 +14,7 @@ export interface BaseNote {
   cc: string[]
   sensitive: boolean
   atomUri: string
-  inReplyToAtomUri: string
+  inReplyToAtomUri: string | null
   conversation: string
   content: string
   contentMap: {
