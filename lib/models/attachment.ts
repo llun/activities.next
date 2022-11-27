@@ -1,4 +1,5 @@
 export interface Attachment {
+  id: string
   statusId: string
   type: 'Document'
   mediaType: string

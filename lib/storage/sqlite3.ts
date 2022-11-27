@@ -232,6 +232,7 @@ export class Sqlite3Storage implements Storage {
     name
   }: CreateAttachmentParams): Promise<Attachment> {
     const attachment: Attachment = {
+      id: crypto.randomUUID(),
       statusId,
       type: 'Document',
       mediaType,

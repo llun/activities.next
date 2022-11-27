@@ -33,6 +33,7 @@ import {
   GetActorFromUsernameParams,
   GetActorStatusesCountParams,
   GetActorStatusesParams,
+  GetAttachmentsParams,
   GetFollowFromIdParams,
   GetFollowersHostsParams,
   IsAccountExistsParams,
@@ -313,6 +314,7 @@ export class FirebaseStorage implements Storage {
     name
   }: CreateAttachmentParams): Promise<Attachment> {
     const attachment: Attachment = {
+      id: crypto.randomUUID(),
       statusId,
       type: 'Document',
       mediaType,
@@ -324,10 +326,17 @@ export class FirebaseStorage implements Storage {
       createdAt: Date.now(),
       updatedAt: Date.now()
     }
+    await addDoc(collection(this.db, 'attachments'), attachment)
     return attachment
   }
 
-  async getAttachments() {
-    return []
+  async getAttachments({ statusId }: GetAttachmentsParams) {
+    const attachments = collection(this.db, 'attachments')
+    const attachmentsQuery = query(
+      attachments,
+      where('statusId', '==', statusId)
+    )
+    const snapshot = await getDocs(attachmentsQuery)
+    return snapshot.docs.map((item) => item.data() as Attachment)
   }
 }
