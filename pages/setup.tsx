@@ -43,8 +43,11 @@ const Page: NextPage = () => {
 }
 
 export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
-  const session = await unstable_getServerSession(req, res, authOptions)
-  if (!session?.user) {
+  const [session, storage] = await Promise.all([
+    unstable_getServerSession(req, res, authOptions),
+    getStorage()
+  ])
+  if (!session?.user || !session.user.email || !storage) {
     return {
       redirect: {
         destination: '/signin',
@@ -54,17 +57,7 @@ export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
   }
 
   const config = getConfig()
-  if (!config.allowEmails.includes(session?.user?.email || '')) {
-    return {
-      redirect: {
-        destination: '/signin',
-        permanent: false
-      }
-    }
-  }
-
-  const storage = await getStorage()
-  if (!storage) {
+  if (!config.allowEmails.includes(session.user.email)) {
     return {
       redirect: {
         destination: '/signin',
