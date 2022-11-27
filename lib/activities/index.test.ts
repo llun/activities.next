@@ -2,7 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getWebfingerSelf, sendNote } from '.'
 import { createStatus, fromJson } from '../models/status'
-import { MockActor } from '../stub/actor'
+import { MOCK_SECRET_PHASES, MockActor } from '../stub/actor'
 import { MockWebfinger } from '../stub/webfinger'
 import { CreateStatus } from './actions/createStatus'
 
@@ -15,7 +15,7 @@ jest.mock('../config', () => {
       host: 'llun.test',
       database: {},
       allowEmails: [],
-      secretPhase: 'secret phases',
+      secretPhase: MOCK_SECRET_PHASES,
       auth: {}
     })
   }
@@ -61,7 +61,7 @@ describe('#sendNote', () => {
     fetchMock.mockResponseOnce('', {
       status: 200
     })
-    const actor = MockActor()
+    const actor = MockActor({})
     const { status, mentions } = await createStatus({
       currentActor: actor,
       text: 'Hello'

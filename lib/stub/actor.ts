@@ -1,9 +1,7 @@
-export const MockActor = () => ({
-  id: 'https://chat.llun.dev/users/me',
-  preferredUsername: 'me',
-  manuallyApprovesFollowers: false,
-  discoverable: true,
-  publicKey: `
+import { getUsernameFromId } from '../models/actor'
+
+export const MOCK_SECRET_PHASES = 'secret phases'
+const MOCK_PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAn2KRtMWF1GBZEKFta8Kp
 Fvy3rwK52sjk0ohkh+X4BN1tL/MTnHxmlgEVGhoQxnFo8Nq7iq79zdDlSQml6YL2
@@ -17,8 +15,8 @@ QiuCS9gQ0uwcUq0W0JSFILqkSYdBQRTEFZo6hLZkMyWElCxvowzZye7CSuj+qmlX
 bwsXXLUv565CjCBgl2F2XLBy7XJsEJghAJIWhNvWExbaiufc696l82prTZa9GvbQ
 pS0FKLPKiirqxGR13p0szNc657NsqFYGa7pJTVtE/hhCMzMGNxZ1T8jPwrfIVnzX
 o+AgFvHbOoupWz+YO8oa9gsCAwEAAQ==
------END PUBLIC KEY-----`,
-  privateKey: `
+-----END PUBLIC KEY-----`
+const MOCK_PRIVATE_KEY = `
 -----BEGIN ENCRYPTED PRIVATE KEY-----
 MIIJrTBXBgkqhkiG9w0BBQ0wSjApBgkqhkiG9w0BBQwwHAQIniXkufwg71gCAggA
 MAwGCCqGSIb3DQIJBQAwHQYJYIZIAWUDBAEqBBAS0+ccTuGhZmQ89whzQMaCBIIJ
@@ -72,7 +70,20 @@ wkReVRzFyV1CiIn/+tz8eRmgy+c8/7KBSrN6MRWkkl7pnehNmYjn38s/RdyghGXN
 ytyBqBUq8tTv95/hISUu1hG8XEfzc1+JIbBfXte4WQ2yXBU8eDHptTVtq6XSdzVZ
 88/Bt+NeDa7s9t7C364j6OnpbG+JvvNoYVBoCj8kQnmP8wlHrcobdi+8cnXUCDYz
 4LincnCDaKRnPEsxSpH+NpFYUn5wUUwxknRZzYkKMihQ
------END ENCRYPTED PRIVATE KEY-----`,
+-----END ENCRYPTED PRIVATE KEY-----`
+
+interface Params {
+  id?: string
+}
+export const MockActor = ({
+  id = 'https://chat.llun.dev/users/me'
+}: Params) => ({
+  id,
+  preferredUsername: getUsernameFromId(id) || 'me',
+  manuallyApprovesFollowers: false,
+  discoverable: true,
+  publicKey: MOCK_PUBLIC_KEY,
+  privateKey: MOCK_PRIVATE_KEY,
   createdAt: Date.now(),
   updatedAt: Date.now()
 })
