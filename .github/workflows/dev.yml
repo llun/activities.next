@@ -1,0 +1,18 @@
+name: Dev
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Use Node.js 16
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16
+      - name: Test
+        run: |
+          yarn install
+          yarn test
