@@ -1,3 +1,7 @@
+import crypto from 'crypto'
+
+import { Document } from '../activities/entities/document'
+
 interface Params {
   url: string
   name?: string
@@ -12,5 +16,5 @@ export const MockImageDocument = ({ url, name }: Params) => {
     focalPoint: [0.0, 0.0],
     width: 2000,
     height: 1500
-  }
+  } as Document
 }
