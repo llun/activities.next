@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { FirebaseApp, FirebaseOptions, initializeApp } from 'firebase/app'
 import {
   Firestore,
