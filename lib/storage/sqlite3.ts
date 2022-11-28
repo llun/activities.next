@@ -19,6 +19,7 @@ import {
   GetActorFromUsernameParams,
   GetActorStatusesCountParams,
   GetActorStatusesParams,
+  GetAttachmentsParams,
   GetFollowFromIdParams,
   GetFollowersHostsParams,
   IsAccountExistsParams,
@@ -231,10 +232,11 @@ export class Sqlite3Storage implements Storage {
       createdAt: Date.now(),
       updatedAt: Date.now()
     }
+    await this.database('attachments').insert(attachment)
     return attachment
   }
 
-  async getAttachments() {
-    return []
+  async getAttachments({ statusId }: GetAttachmentsParams) {
+    return this.database<Attachment>('attachments').where('statusId', statusId)
   }
 }
