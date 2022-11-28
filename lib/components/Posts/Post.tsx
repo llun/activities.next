@@ -1,5 +1,6 @@
 import cn from 'classnames'
 import formatDistance from 'date-fns/formatDistance'
+import Image from 'next/image'
 import { FC } from 'react'
 
 import { Attachment } from '../../models/attachment'
@@ -47,15 +48,33 @@ export const Actions: FC<Props> = ({
 export const Post: FC<Props> = (props) => {
   const { status, currentTime, attachments = [] } = props
   return (
-    <div key={status.id} className={cn('d-flex', styles.post)}>
-      <div className={cn('flex-fill', 'me-1')}>
-        {parseText(status.text)}
-        <Actions {...props} />
+    <div key={status.id} className={cn(styles.post)}>
+      <div className={cn('d-flex')}>
+        <div className={cn('flex-fill', 'me-1')}>{parseText(status.text)}</div>
+        <div className={cn('flex-shrink-0', styles.misc)}>
+          {formatDistance(status.createdAt, currentTime)}
+        </div>
       </div>
-      <div className={cn('flex-shrink-0', styles.misc)}>
-        {formatDistance(status.createdAt, currentTime)}
-      </div>
-      <div>{attachments.map((a) => a.id)}</div>
+      {attachments.length > 0 && (
+        <div
+          className={cn(styles.images)}
+          style={{
+            gridTemplateColumns: `repeat(${attachments.length}, 1fr)`
+          }}
+        >
+          {attachments.map((attachment, index) => (
+            <Image
+              key={attachment.id}
+              className={cn(styles.image)}
+              alt={attachment.name || `${status.id} Image ${index + 1}`}
+              src={attachment.url}
+              width={attachment.width}
+              height={attachment.height}
+            />
+          ))}
+        </div>
+      )}
+      <Actions {...props} />
     </div>
   )
 }
