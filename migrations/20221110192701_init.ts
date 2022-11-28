@@ -57,10 +57,6 @@ export async function up(knex: Knex): Promise<void> {
         .index('timeIndex')
       table.timestamp('updatedAt', { useTz: true }).index('timeIndex')
     })
-    .createTable('statusDeliveries', function (table) {
-      table.string('statusId').index('statusIndex')
-      table.string('to')
-    })
     .createTable('questions', function (table) {
       table.string('statusId').index('statusIndex')
 
@@ -98,7 +94,6 @@ export async function down(knex: Knex): Promise<void> {
     .dropTable('follows')
     .dropTable('questions')
     .dropTable('statuses')
-    .dropTable('statusDeliveries')
     .dropTable('actors')
     .dropTable('accounts')
 }

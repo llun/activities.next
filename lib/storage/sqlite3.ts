@@ -184,18 +184,6 @@ export class Sqlite3Storage implements Storage {
     const { to, cc, ...rest } = status
     await this.database.transaction(async (trx) => {
       await trx('statuses').insert(rest)
-      for (const item of to) {
-        await trx('statusDeliveries').insert({
-          statusId: rest.id,
-          to: item
-        })
-      }
-      for (const item of cc) {
-        await trx('statusDeliveries').insert({
-          statusId: rest.id,
-          to: item
-        })
-      }
     })
 
     return { ...status, to, cc }
