@@ -40,7 +40,7 @@ export const Posts: FC<Props> = ({
             <ul className={styles.thread}>
               {statuses.slice(1).map((status) => (
                 <li key={status.id}>
-                  <Actor actorId={(showActorId && statuses[0].actorId) || ''} />
+                  <Actor actorId={(showActorId && status.actorId) || ''} />
                   <Post
                     currentTime={currentTime}
                     status={status}
