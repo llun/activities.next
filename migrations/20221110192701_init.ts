@@ -97,7 +97,7 @@ export async function down(knex: Knex): Promise<void> {
   return knex.schema
     .dropTable('follows')
     .dropTable('questions')
-    .dropTable('status')
+    .dropTable('statuses')
     .dropTable('statusDeliveries')
     .dropTable('actors')
     .dropTable('accounts')
