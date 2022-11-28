@@ -105,7 +105,11 @@ const Page: NextPage<Props> = ({
             )}
           </div>
         </section>
-        <Posts currentTime={new Date(currentServerTime)} statuses={posts} />
+        <Posts
+          currentTime={new Date(currentServerTime)}
+          statuses={posts}
+          attachments={[]}
+        />
       </section>
     </main>
   )

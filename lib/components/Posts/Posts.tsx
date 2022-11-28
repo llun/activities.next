@@ -1,6 +1,8 @@
 import cn from 'classnames'
+import groupBy from 'lodash/groupBy'
 import { FC } from 'react'
 
+import { Attachment } from '../../models/attachment'
 import { conversation } from '../../models/helpers/conversation'
 import { Status } from '../../models/status'
 import { Actor } from './Actor'
@@ -12,6 +14,7 @@ interface Props {
   showActions?: boolean
   currentTime: Date
   statuses: Status[]
+  attachments: Attachment[]
   onReply?: (status: Status) => void
 }
 
@@ -20,11 +23,13 @@ export const Posts: FC<Props> = ({
   showActions = false,
   currentTime,
   statuses,
+  attachments,
   onReply
 }) => {
   if (statuses.length === 0) return null
 
   const conversations = conversation(statuses)
+  const attachmentsMap = groupBy(attachments, 'statusId')
   return (
     <section className={cn('w-full', 'grid', 'grid-cols-1', 'mt-4')}>
       {conversations.map(({ conversation, statuses }) => (
@@ -33,6 +38,7 @@ export const Posts: FC<Props> = ({
           <Post
             currentTime={currentTime}
             status={statuses[0]}
+            attachments={attachmentsMap[statuses[0].id]}
             showActions={showActions}
             onReply={onReply}
           />
@@ -44,6 +50,7 @@ export const Posts: FC<Props> = ({
                   <Post
                     currentTime={currentTime}
                     status={status}
+                    attachments={attachmentsMap[status.id]}
                     showActions={showActions}
                     onReply={onReply}
                   />

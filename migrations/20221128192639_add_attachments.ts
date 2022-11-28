@@ -10,6 +10,12 @@ export async function up(knex: Knex): Promise<void> {
     table.integer('width')
     table.integer('height')
     table.text('name')
+
+    table
+      .timestamp('createdAt', { useTz: true })
+      .defaultTo(knex.fn.now())
+      .index('timeIndex')
+    table.timestamp('updatedAt', { useTz: true }).index('timeIndex')
   })
 }
 

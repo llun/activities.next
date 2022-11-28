@@ -17,6 +17,7 @@ import {
   getAtWithHostFromId,
   getUsernameFromId
 } from '../lib/models/actor'
+import { Attachment } from '../lib/models/attachment'
 import { Status } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
@@ -25,10 +26,16 @@ import styles from './index.module.scss'
 interface Props {
   currentServerTime: number
   statuses: Status[]
+  attachments: Attachment[]
   actor: Actor
 }
 
-const Page: NextPage<Props> = ({ actor, statuses, currentServerTime }) => {
+const Page: NextPage<Props> = ({
+  actor,
+  statuses,
+  attachments,
+  currentServerTime
+}) => {
   const { data: session } = useSession()
   const [replyStatus, setReplyStatus] = useState<Status>()
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
@@ -130,6 +137,7 @@ const Page: NextPage<Props> = ({ actor, statuses, currentServerTime }) => {
             <Posts
               currentTime={new Date(currentServerTime)}
               statuses={currentStatuses}
+              attachments={attachments}
               showActorId
               showActions
               onReply={onReply}
@@ -189,9 +197,14 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
+  const statusesAttachments = await Promise.all(
+    statuses.map((status) => storage.getAttachments({ statusId: status.id }))
+  )
+
   return {
     props: {
       statuses,
+      attachments: statusesAttachments.flat(),
       actor,
       currentServerTime: Date.now()
     }

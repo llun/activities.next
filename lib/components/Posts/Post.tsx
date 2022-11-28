@@ -2,6 +2,7 @@ import cn from 'classnames'
 import formatDistance from 'date-fns/formatDistance'
 import { FC } from 'react'
 
+import { Attachment } from '../../models/attachment'
 import { Status } from '../../models/status'
 import { parseText } from '../../text'
 import { Button } from '../Button'
@@ -10,6 +11,7 @@ import styles from './Post.module.scss'
 interface Props {
   currentTime: Date
   status: Status
+  attachments: Attachment[]
   showActions?: boolean
   onReply?: (status: Status) => void
 }
@@ -43,7 +45,7 @@ export const Actions: FC<Props> = ({
 }
 
 export const Post: FC<Props> = (props) => {
-  const { status, currentTime } = props
+  const { status, currentTime, attachments = [] } = props
   return (
     <div key={status.id} className={cn('d-flex', styles.post)}>
       <div className={cn('flex-fill', 'me-1')}>
@@ -53,6 +55,7 @@ export const Post: FC<Props> = (props) => {
       <div className={cn('flex-shrink-0', styles.misc)}>
         {formatDistance(status.createdAt, currentTime)}
       </div>
+      <div>{attachments.map((a) => a.id)}</div>
     </div>
   )
 }
