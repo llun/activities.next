@@ -38,6 +38,7 @@ describe('#handleCreate', () => {
     expect(mockStorage.createAttachment).toHaveBeenCalledWith({
       statusId: note.id,
       mediaType: 'image/jpeg',
+      name: '',
       url: 'https://llun.dev/images/test1.jpg',
       width: 2000,
       height: 1500

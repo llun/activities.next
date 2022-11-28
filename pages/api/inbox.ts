@@ -16,6 +16,22 @@ interface HandleCreateParams {
 export const handleCreate = async ({ storage, object }: HandleCreateParams) => {
   const status = fromJson(object)
   await storage.createStatus({ status })
+  if (object.attachment) {
+    await Promise.all([
+      object.attachment.map(async (attachment) => {
+        if (attachment.type !== 'Document') return
+
+        await storage.createAttachment({
+          statusId: status.id,
+          mediaType: attachment.mediaType,
+          height: attachment.height,
+          width: attachment.width,
+          name: attachment.name || '',
+          url: attachment.url
+        })
+      })
+    ])
+  }
   return {
     status: 202,
     data: ''
