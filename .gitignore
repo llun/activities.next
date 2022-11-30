@@ -46,3 +46,6 @@ config.*.json
 # local testing script
 lab.ts
 wallaby.js
+# Sentry
+.sentryclirc
+sentry.properties
