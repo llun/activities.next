@@ -1,6 +1,9 @@
 import * as jsonld from 'jsonld'
 
+import { Status, toObject } from '../../models/status'
+import { getISOTimeUTC } from '../../time'
 import { ContextEntity } from '../entities/base'
+import { Mention } from '../entities/mention'
 import { Note } from '../entities/note'
 import { Question } from '../entities/question'
 import { Signature } from '../types'
@@ -15,19 +18,23 @@ export interface CreateStatus extends BaseActivity, ContextEntity {
   signature?: Signature
 }
 
-export const compact = () => {
+interface CompactParams {
+  status: Status
+  mentions?: Mention[]
+  replyStatus?: Status
+}
+export const compact = ({ status, mentions, replyStatus }: CompactParams) => {
+  const published = getISOTimeUTC(status.createdAt)
   const context = { '@context': 'https://www.w3.org/ns/activitystreams' }
   const document = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    '@type': 'Create',
-    '@id': 'https://llun.me/test',
-    object: {
-      '@id': 'https://llun.me/test/note',
-      '@type': 'https://www.w3.org/ns/activitystreams#Note',
-      name: 'A Simple Note',
-      content: 'This is a simple note',
-      published: '2015-01-25T12:34:56Za'
-    }
+    id: `${status.id}/activity`,
+    type: 'Create',
+    actor: status.actorId,
+    published,
+    to: status.to,
+    cc: status.cc,
+    object: toObject({ status, mentions, replyStatus })
   }
   return jsonld.compact(document, context)
 }

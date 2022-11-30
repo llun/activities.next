@@ -1,8 +1,8 @@
 import type { NextApiHandler } from 'next'
 
-import { OutboxContext } from '../../../../lib/activities/context'
 import { getConfig } from '../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
+import { toObject } from '../../../../lib/models/status'
 import { getStorage } from '../../../../lib/storage'
 import { getISOTimeUTC } from '../../../../lib/time'
 
@@ -32,7 +32,7 @@ const handle: NextApiHandler = async (req, res) => {
 
       const statuses = await storage.getActorStatuses({ actorId })
       return res.status(200).json({
-        '@context': OutboxContext,
+        '@context': 'https://www.w3.org/ns/activitystreams',
         id: `${actorId}/outbox?page=true`,
         type: 'OrderedCollectionPage',
         partOf: `${actorId}/outbox`,
@@ -43,41 +43,7 @@ const handle: NextApiHandler = async (req, res) => {
           published: getISOTimeUTC(status.createdAt),
           to: status.to,
           cc: status.cc,
-          object: {
-            id: status.id,
-            type: status.type,
-            summary: status.summary,
-            inReplyTo: null,
-            published: getISOTimeUTC(status.createdAt),
-            url: `https://${config.host}/@${account}/${new URL(
-              status.id
-            ).pathname
-              .split('/')
-              .pop()}`,
-            attributedTo: status.actorId,
-            to: status.to,
-            cc: status.cc,
-            sensitive: false,
-            atomUri: status.id,
-            inReplyToAtomUri: null,
-            conversation: status.conversation,
-            content: status.text,
-            contentMap: {
-              [status.language || 'en']: status.text
-            },
-            attachment: [],
-            tag: [],
-            replies: {
-              id: status.reply,
-              type: 'Collection',
-              first: {
-                type: 'CollectionPage',
-                next: `${status.reply}?only_other_accounts=true&page=true`,
-                partOf: status.reply,
-                items: []
-              }
-            }
-          }
+          object: toObject({ status })
         }))
       })
     }

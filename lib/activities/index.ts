@@ -154,7 +154,7 @@ export const sendNote = async ({
 }: SendNoteParams) => {
   const published = getISOTimeUTC(status.createdAt)
   const activity: CreateStatus = {
-    '@context': OutboxContext,
+    '@context': 'https://www.w3.org/ns/activitystreams',
     id: `${status.id}/activity`,
     type: 'Create',
     actor: status.actorId,

@@ -5,7 +5,6 @@ import { createStatus, toObject } from './status'
 
 describe('#createStatus', () => {
   const mockActor = MockActor({})
-  const mockStatus = MockStatus({ text: 'This is sample reply message' })
 
   it('returns plain text status from content', async () => {
     const { status } = await createStatus({
