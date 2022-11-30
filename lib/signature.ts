@@ -1,10 +1,9 @@
 import crypto from 'crypto'
-import fs from 'fs/promises'
 import { IncomingHttpHeaders } from 'http'
-import path from 'path'
 import { generate } from 'peggy'
 
 import { getConfig } from './config'
+import { SIGNATURE_GRAMMAR } from './grammar'
 import { Actor } from './models/actor'
 
 interface StringMap {
@@ -12,11 +11,7 @@ interface StringMap {
 }
 
 export async function parse(signature: string): Promise<StringMap> {
-  const grammar = await fs.readFile(
-    path.resolve(process.cwd(), 'public', 'signature.pegjs'),
-    'utf-8'
-  )
-  const parser = generate(grammar)
+  const parser = generate(SIGNATURE_GRAMMAR)
   try {
     return (parser.parse(signature) as [string, string][]).reduce(
       (out, item) => ({ ...out, [item[0]]: item[1] }),
