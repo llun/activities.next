@@ -16,17 +16,17 @@ export interface CreateStatus extends BaseActivity, ContextEntity {
 }
 
 export const compact = () => {
-  const context = 'https://www.w3.org/ns/activitystreams'
+  const context = { '@context': 'https://www.w3.org/ns/activitystreams' }
   const document = {
-    '@type': 'https://www.w3.org/ns/activitystreams#Create',
-    '@id': 'test',
-    'https://www.w3.org/ns/activitystreams#published': '2014-12-12T12:12:12Z',
-    'https://www.w3.org/ns/activitystreams#object': {
-      '@id': 'test/note',
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@type': 'Create',
+    '@id': 'https://llun.me/test',
+    object: {
+      '@id': 'https://llun.me/test/note',
       '@type': 'https://www.w3.org/ns/activitystreams#Note',
-      'https://www.w3.org/ns/activitystreams#name': 'A Simple Note',
-      'https://www.w3.org/ns/activitystreams#content': 'This is a simple note',
-      'https://www.w3.org/ns/activitystreams#published': '2014-12-12T12:12:12Z'
+      name: 'A Simple Note',
+      content: 'This is a simple note',
+      published: '2015-01-25T12:34:56Za'
     }
   }
   return jsonld.compact(document, context)

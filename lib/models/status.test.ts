@@ -19,25 +19,6 @@ describe('#createStatus', () => {
     expect(status.cc).toContain(`${mockActor.id}/followers`)
     expect(status.text).toEqual('<p>This is a first post</p>')
   })
-
-  it('returns status with conversation and mentions from reply', async () => {
-    const { status, mentions } = await createStatus({
-      currentActor: mockActor,
-      text: '@thai@earth.social Hey! how are you?',
-      replyStatus: mockStatus
-    })
-    expect(status.text).toEqual(
-      '<p><span class="h-card"><a href="https://earth.social/@thai" class="u-url mention">@<span>thai</span></a></span> Hey! how are you?</p>'
-    )
-    expect(status.conversation).toEqual(mockStatus.conversation)
-    expect(status.cc).toContain(`https://earth.social/users/thai`)
-    expect(mentions).toHaveLength(1)
-    expect(mentions).toContainEqual({
-      type: 'Mention',
-      href: 'https://earth.social/users/thai',
-      name: '@thai@earth.social'
-    })
-  })
 })
 
 describe('#toObject', () => {
@@ -54,12 +35,7 @@ describe('#toObject', () => {
       attributedTo: status.actorId,
       to: status.to,
       cc: status.cc,
-      sensitive: false,
-      atomUri: status.id,
-      inReplyToAtomUri: null,
-      conversation: status.conversation,
       content: status.text,
-      contentMap: { en: status.text },
       attachment: [],
       tag: [],
       replies: {
@@ -92,12 +68,7 @@ describe('#toObject', () => {
       attributedTo: status.actorId,
       to: status.to,
       cc: status.cc,
-      sensitive: false,
-      atomUri: status.id,
-      inReplyToAtomUri: null,
-      conversation: status.conversation,
       content: status.text,
-      contentMap: { en: status.text },
       attachment: [],
       tag: mentions,
       replies: {
@@ -107,50 +78,6 @@ describe('#toObject', () => {
           type: 'CollectionPage',
           next: `${status.reply}?only_other_accounts=true&page=true`,
           partOf: status.reply,
-          items: []
-        }
-      }
-    })
-  })
-
-  it('update all reply related properties', async () => {
-    const firstActor = MockActor({ id: 'https://chat.llun.dev/users/user1' })
-    const secondActor = MockActor({ id: 'https://chat.llun.dev/users/user2' })
-    const { status: originalStatus } = await createStatus({
-      currentActor: firstActor,
-      text: 'Yo'
-    })
-    const { status, mentions } = await createStatus({
-      currentActor: secondActor,
-      text: '@user1 Heyllo',
-      replyStatus: originalStatus
-    })
-    const note = toObject({ status, mentions, replyStatus: originalStatus })
-    expect(note).toMatchObject({
-      id: status.id,
-      type: 'Note',
-      summary: null,
-      published: getISOTimeUTC(status.createdAt),
-      url: status.url,
-      attributedTo: status.actorId,
-      to: status.to,
-      cc: status.cc,
-      sensitive: false,
-      atomUri: status.id,
-      inReplyTo: originalStatus.id,
-      inReplyToAtomUri: originalStatus.id,
-      conversation: status.conversation,
-      content: status.text,
-      contentMap: { en: status.text },
-      attachment: [],
-      tag: mentions,
-      replies: {
-        id: status.reply,
-        type: 'Collection',
-        first: {
-          type: 'CollectionPage',
-          next: `${status.reply}?only_other_accounts=true&page=true`,
-          partOf: originalStatus.reply,
           items: []
         }
       }

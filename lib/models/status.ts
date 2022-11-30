@@ -10,8 +10,6 @@ import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
 import { Actor, getAtUsernameFromId } from './actor'
 
-export type Visibility = 'public' | 'unlisted' | 'private' | 'direct'
-
 // https://github.com/mastodon/mastodon/blob/a5394980f22e061ec7e4f6df3f3b571624f5ca7d/app/lib/activitypub/parser/status_parser.rb#L3
 export interface Status {
   id: string
@@ -27,12 +25,6 @@ export interface Status {
   cc: string[]
 
   reply: string
-  sensitive: boolean
-  visibility: Visibility
-  language?: string
-
-  thread?: string
-  conversation: string
 
   createdAt: number
   updatedAt?: number
@@ -52,11 +44,6 @@ export const fromJson = (data: Note | Question): Status => ({
   cc: data.cc,
 
   reply: data.replies.id,
-  sensitive: data.sensitive,
-  visibility: 'public',
-  language: Object.keys(data.contentMap).shift(),
-
-  conversation: data.conversation,
 
   createdAt: new Date(data.published).getTime(),
   updatedAt: Date.now()
@@ -109,19 +96,10 @@ export const createStatus = async ({
       type: 'Note',
       text: `<p>${content}</p>`,
       summary: null,
-      conversation: replyStatus
-        ? replyStatus.conversation
-        : `tag:${host},${format(
-            currentTime,
-            'yyyy-MM-dd'
-          )}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: replyStatus
         ? [`${currentActor.id}/followers`, replyStatus.actorId]
         : [`${currentActor.id}/followers`],
-      visibility: 'public',
-      sensitive: false,
-      language: 'en',
       reply: `${id}/replies`,
       createdAt: currentTime
     },
@@ -148,13 +126,8 @@ export const toObject = ({
     attributedTo: status.actorId,
     to: status.to,
     cc: status.cc,
-    sensitive: false,
-    atomUri: status.id,
-    inReplyToAtomUri: replyStatus?.id ?? null,
     inReplyTo: replyStatus?.id ?? null,
-    conversation: status.conversation,
     content: status.text,
-    contentMap: { en: status.text },
     attachment: [],
     tag: [...mentions],
     replies: {

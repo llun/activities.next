@@ -12,14 +12,7 @@ export interface BaseNote {
   attributedTo: string
   to: string[]
   cc: string[]
-  sensitive: boolean
-  atomUri: string
-  inReplyToAtomUri: string | null
-  conversation: string
   content: string
-  contentMap: {
-    [locale: string]: string
-  }
   attachment: (PropertyValue | Document)[]
   tag: Mention[]
   replies: Collection

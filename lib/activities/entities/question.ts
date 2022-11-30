@@ -9,6 +9,5 @@ export interface QuestionNote {
 export interface Question extends BaseNote {
   type: 'Question'
   endTime: string
-  votersCount: number
   oneOf: QuestionNote[]
 }
