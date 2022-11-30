@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import format from 'date-fns/format'
+import * as jsonld from 'jsonld'
 import linkifyStr from 'linkify-string'
 
 import { Mention } from '../activities/entities/mention'
@@ -8,6 +8,7 @@ import { Question } from '../activities/entities/question'
 import { getConfig } from '../config'
 import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
+import { CONTEXT } from './activitystream.context'
 import { Actor, getAtUsernameFromId } from './actor'
 
 // https://github.com/mastodon/mastodon/blob/a5394980f22e061ec7e4f6df3f3b571624f5ca7d/app/lib/activitypub/parser/status_parser.rb#L3
@@ -141,4 +142,17 @@ export const toObject = ({
       }
     }
   }
+}
+
+export const compact = async ({ status }: ToObjectParams) => {
+  const context = {
+    '@context': 'https://www.w3.org/ns/activitystreams'
+  }
+  return jsonld.compact(
+    {
+      ...context,
+      ...toObject({ status })
+    },
+    context
+  )
 }
