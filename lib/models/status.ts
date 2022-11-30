@@ -39,7 +39,7 @@ export const fromJson = (data: Note | Question): Status => ({
 
   type: data.type,
   text: data.content,
-  summary: data.summary,
+  summary: data.summary || '',
 
   to: data.to,
   cc: data.cc,
