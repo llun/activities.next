@@ -13,7 +13,7 @@ interface StringMap {
 
 export async function parse(signature: string): Promise<StringMap> {
   const grammar = await fs.readFile(
-    path.resolve(__dirname, 'signature.pegjs'),
+    path.resolve(process.cwd(), 'public', 'signature.pegjs'),
     'utf-8'
   )
   const parser = generate(grammar)
