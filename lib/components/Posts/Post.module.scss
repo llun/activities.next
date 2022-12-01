@@ -7,15 +7,8 @@
   flex-direction: column;
 }
 
-.images {
+.media {
   display: grid;
   gap: 1rem;
 }
 
-.image {
-  object-fit: cover;
-  height: auto;
-  max-width: 100%;
-  max-height: 15rem;
-  border-radius: 1rem;
-}

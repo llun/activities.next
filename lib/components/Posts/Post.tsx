@@ -1,12 +1,12 @@
 import cn from 'classnames'
 import formatDistance from 'date-fns/formatDistance'
-import Image from 'next/image'
 import { FC } from 'react'
 
 import { Attachment } from '../../models/attachment'
 import { Status } from '../../models/status'
 import { parseText } from '../../text'
 import { Button } from '../Button'
+import { Media } from './Media'
 import styles from './Post.module.scss'
 
 interface Props {
@@ -57,20 +57,13 @@ export const Post: FC<Props> = (props) => {
       </div>
       {attachments.length > 0 && (
         <div
-          className={cn(styles.images)}
+          className={cn(styles.media)}
           style={{
             gridTemplateColumns: `repeat(${attachments.length}, 1fr)`
           }}
         >
-          {attachments.map((attachment, index) => (
-            <Image
-              key={attachment.id}
-              className={cn(styles.image)}
-              alt={attachment.name || `${status.id} Image ${index + 1}`}
-              src={attachment.url}
-              width={attachment.width}
-              height={attachment.height}
-            />
+          {attachments.map((attachment) => (
+            <Media key={attachment.id} attachment={attachment} />
           ))}
         </div>
       )}
