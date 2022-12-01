@@ -1,3 +1,4 @@
+import { CreateStatus } from '../activities/actions/createStatus'
 import { Document } from '../activities/entities/document'
 import { getISOTimeUTC } from '../time'
 import { MockNote } from './note'
@@ -40,5 +41,5 @@ export const MockCreateActivity = ({
     to: ['https://www.w3.org/ns/activitystreams#Public'],
     cc: ['https://glasgow.social/users/llun/followers'],
     object: MockNote({ content, conversation, documents, published })
-  }
+  } as CreateStatus
 }

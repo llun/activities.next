@@ -1,7 +1,7 @@
 import { MockActor } from '../stub/actor'
 import { MockStatus } from '../stub/status'
 import { getISOTimeUTC } from '../time'
-import { compact, createStatus, toObject } from './status'
+import { createStatus, toObject } from './status'
 
 describe('#createStatus', () => {
   const mockActor = MockActor({})
@@ -139,13 +139,5 @@ describe('#toObject', () => {
         }
       }
     })
-  })
-})
-
-describe('#compact', () => {
-  it.skip('returns jsonld compact note document', async () => {
-    const status = MockStatus({ text: 'Hello', createdAt: Date.now() })
-    const compactedStatus = await compact({ status })
-    expect(compactedStatus).toEqual(toObject({ status }))
   })
 })

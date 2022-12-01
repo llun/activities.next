@@ -10,8 +10,8 @@ export interface BaseNote {
   published: string
   url: string
   attributedTo: string
-  to: string[]
-  cc: string[]
+  to: string | string[]
+  cc: string | string[]
   content: string
   attachment: (PropertyValue | Document)[]
   tag: Mention[]

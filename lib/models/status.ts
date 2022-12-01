@@ -8,7 +8,6 @@ import { Question } from '../activities/entities/question'
 import { getConfig } from '../config'
 import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
-import { CONTEXT } from './activitystream.context'
 import { Actor, getAtUsernameFromId } from './actor'
 
 // https://github.com/mastodon/mastodon/blob/a5394980f22e061ec7e4f6df3f3b571624f5ca7d/app/lib/activitypub/parser/status_parser.rb#L3
@@ -41,8 +40,8 @@ export const fromJson = (data: Note | Question): Status => ({
   text: data.content,
   summary: data.summary || '',
 
-  to: data.to,
-  cc: data.cc,
+  to: Array.isArray(data.to) ? data.to : [data.to],
+  cc: Array.isArray(data.cc) ? data.cc : [data.cc],
 
   reply: data.replies.id,
 
@@ -142,17 +141,4 @@ export const toObject = ({
       }
     }
   }
-}
-
-export const compact = async ({ status }: ToObjectParams) => {
-  const context = {
-    '@context': 'https://www.w3.org/ns/activitystreams'
-  }
-  return jsonld.compact(
-    {
-      ...context,
-      ...toObject({ status })
-    },
-    context
-  )
 }

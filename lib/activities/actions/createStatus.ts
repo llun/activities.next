@@ -12,8 +12,8 @@ import { BaseActivity } from './base'
 export interface CreateStatus extends BaseActivity, ContextEntity {
   type: 'Create'
   published: string
-  to: string[]
-  cc: string[]
+  to: string | string[]
+  cc: string | string[]
   object: Note | Question
   signature?: Signature
 }
