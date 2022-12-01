@@ -3,6 +3,8 @@ import { Document } from './document'
 import { Mention } from './mention'
 import { PropertyValue } from './propertyValue'
 
+type Attachment = PropertyValue | Document
+
 export interface BaseNote {
   id: string
   summary: null
@@ -13,7 +15,7 @@ export interface BaseNote {
   to: string | string[]
   cc: string | string[]
   content: string
-  attachment: (PropertyValue | Document)[]
+  attachment: Attachment | Attachment[]
   tag: Mention[]
   replies: Collection
 }

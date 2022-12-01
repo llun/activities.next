@@ -11,6 +11,12 @@ import { fromJson } from '../../lib/models/status'
 import { getStorage } from '../../lib/storage'
 import { Storage } from '../../lib/storage/types'
 
+const getAttachments = (object: Note | Question) => {
+  if (!object.attachment) return null
+  if (Array.isArray(object.attachment)) return object.attachment
+  return [object.attachment]
+}
+
 interface HandleCreateParams {
   storage: Storage
   object: Note | Question
@@ -18,9 +24,11 @@ interface HandleCreateParams {
 export const handleCreate = async ({ storage, object }: HandleCreateParams) => {
   const status = fromJson(object)
   await storage.createStatus({ status })
-  if (object.attachment) {
+
+  const attachments = getAttachments(object)
+  if (attachments) {
     await Promise.all([
-      object.attachment.map(async (attachment) => {
+      attachments.map(async (attachment) => {
         if (attachment.type !== 'Document') return
 
         await storage.createAttachment({
