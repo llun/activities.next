@@ -30,8 +30,8 @@ export const Posts: FC<Props> = ({
   const attachmentsMap = groupBy(attachments, 'statusId')
   return (
     <section className={cn('w-full', 'grid', 'grid-cols-1', 'mt-4')}>
-      {statuses.map((status) => (
-        <div key={status.id} className={cn(styles.block)}>
+      {statuses.map((status, index) => (
+        <div key={`${index}-${status.id}`} className={cn(styles.block)}>
           <Actor actorId={(showActorId && status.actorId) || ''} />
           <Post
             currentTime={currentTime}
