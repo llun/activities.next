@@ -7,8 +7,35 @@
   flex-direction: column;
 }
 
-.media {
+.medias {
   display: grid;
   gap: 1rem;
 }
 
+.media {
+  cursor: pointer;
+  object-fit: cover;
+  height: auto;
+  width: 100%;
+  max-height: 15rem;
+  border-radius: 1rem;
+}
+
+.modal {
+  overscroll-behavior: contain;
+  position: absolute;
+  inset: 2.5rem;
+  border: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+  border-radius: 4px;
+  outline: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.selectedMedia {
+  object-fit: contain;
+  max-width: 100%;
+  max-height: 100%;
+}

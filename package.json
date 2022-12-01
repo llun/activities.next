@@ -12,7 +12,7 @@
     "migrate": "knex migrate:latest"
   },
   "dependencies": {
-    "@sentry/nextjs": "^7.22.0",
+    "@sentry/nextjs": "^7.23.0",
     "@vercel/analytics": "^0.1.5",
     "better-sqlite3": "^8.0.0",
     "bootstrap": "^5.2.3",
@@ -44,8 +44,8 @@
     "@trivago/prettier-plugin-sort-imports": "^4.0.0",
     "@types/jest": "^29.2.3",
     "@types/jsonld": "^1.5.8",
-    "@types/lodash": "^4.14.190",
-    "@types/node": "^18.11.9",
+    "@types/lodash": "^4.14.191",
+    "@types/node": "^18.11.10",
     "@types/react": "18.0.25",
     "@types/react-dom": "18.0.9",
     "@types/react-modal": "^3.13.1",

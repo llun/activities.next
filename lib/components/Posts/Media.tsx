@@ -7,16 +7,26 @@ import styles from './Media.module.scss'
 
 interface Props {
   caption?: string
+  className?: string
   attachment: Attachment
+  showVideoControl?: boolean
+  onClick?: () => void
 }
 
-export const Media: FC<Props> = ({ caption, attachment }) => {
+export const Media: FC<Props> = ({
+  className,
+  caption,
+  attachment,
+  showVideoControl = false,
+  onClick
+}) => {
   const { mediaType, url, name, id, width, height } = attachment
   if (mediaType.startsWith('image')) {
     return (
       <Image
+        onClick={onClick}
         key={id}
-        className={styles.image}
+        className={className}
         alt={caption ?? name ?? url}
         src={url}
         width={width}
@@ -27,7 +37,17 @@ export const Media: FC<Props> = ({ caption, attachment }) => {
 
   if (mediaType.startsWith('video')) {
     return (
-      <video className={styles.video} width={width} height={height}>
+      <video
+        className={className}
+        width={width}
+        height={height}
+        controls={showVideoControl}
+        onClick={(event) => {
+          // Don't play the video here
+          event.preventDefault()
+          onClick?.()
+        }}
+      >
         <source src={url} type={mediaType} />
       </video>
     )
