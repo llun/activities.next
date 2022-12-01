@@ -47,7 +47,7 @@ export const compact = async (activity: StatusActivity) => {
   const context = {
     '@context': 'https://www.w3.org/ns/activitystreams'
   }
-  return jsonld.compact(activity, context, {
+  const compactedActivity = await jsonld.compact(activity, context, {
     async documentLoader(url) {
       if (url === 'https://www.w3.org/ns/activitystreams') {
         return {
@@ -59,11 +59,12 @@ export const compact = async (activity: StatusActivity) => {
       return nodeDocumentLoader(url)
     }
   })
+  return compactedActivity as unknown
 }
 
 const ApiHandler: NextApiHandler = activitiesGuard(
   async (req, res) => {
-    const body = JSON.parse(req.body) as StatusActivity
+    const body = (await compact(JSON.parse(req.body))) as StatusActivity
     const storage = await getStorage()
     if (!storage) {
       return res.status(500).send(ERROR_500)

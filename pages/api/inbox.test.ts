@@ -56,7 +56,7 @@ describe('#handleCreate', () => {
 })
 
 describe('#compact', () => {
-  it('compact input with jsonld compact', async () => {
+  it('return clean input from jsonld compact', async () => {
     const activity = MockCreateActivity({
       content: 'Simple Content'
     })
