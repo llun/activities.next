@@ -1,5 +1,5 @@
 import { Note } from './activities/entities/note'
-import { deliverTo, isLocalFollowerId } from './inbox'
+import { deliverTo, isFollowerId, isLocalFollowerId } from './inbox'
 import { compact } from './jsonld'
 import {
   GetActorFromIdParams,
@@ -17,33 +17,25 @@ jest.mock('./config', () => ({
 
 const mockStorage = {
   getActorFromId: jest.fn(async ({ id }: GetActorFromIdParams) => {
-    if (['https://llun.dev/users/null'].includes(id)) return MockActor({ id })
+    if (['https://llun.test/users/null'].includes(id)) return MockActor({ id })
   }),
   getLocalFollowersForActorId: jest.fn(
     async ({ targetActorId }: GetLocalFollowersForActorIdParams) => {
       if (targetActorId === 'https://mastodon.in.th/users/friend') {
-        return ['https://llun.dev/users/null']
+        return ['https://llun.test/users/null']
       }
       return []
     }
   )
 } as any
 
-describe('#isLocalFollowerId', () => {
-  it('returns true when id starts with config host and ends with followers', () => {
-    expect(
-      isLocalFollowerId('https://llun.test/users/null/followers')
-    ).toBeTruthy()
+describe('#isFollowerId', () => {
+  it('returns true when id ends with followers', () => {
+    expect(isFollowerId('https://llun.test/users/null/followers')).toBeTruthy()
   })
 
   it('returns false when id is not followers', () => {
-    expect(isLocalFollowerId('https://llun.test/users/null')).toBeFalsy()
-  })
-
-  it('returns false when id is not starts with the config host', () => {
-    expect(
-      isLocalFollowerId('https://somethingelse.tld/users/null')
-    ).toBeFalsy()
+    expect(isFollowerId('https://llun.test/users/null')).toBeFalsy()
   })
 })
 
@@ -52,13 +44,13 @@ describe('#deliverTo', () => {
     const note = MockMastodonNote({
       content: 'Hello',
       to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: ['https://llun.dev/users/null'],
+      cc: ['https://llun.test/users/null'],
       withContext: true
     })
     const compactedNote = (await compact(note)) as Note
     expect(
       await deliverTo({ note: compactedNote, storage: mockStorage })
-    ).toEqual(['as:Public', 'https://llun.dev/users/null'])
+    ).toEqual(['as:Public', 'https://llun.test/users/null'])
   })
 
   it('remove non-existing users from the list except public', async () => {
@@ -66,10 +58,10 @@ describe('#deliverTo', () => {
       content: 'Hello',
       to: [
         'https://www.w3.org/ns/activitystreams#Public',
-        'https://llun.dev/users/null'
+        'https://llun.test/users/null'
       ],
       cc: [
-        'https://llun.dev/users/non-existing',
+        'https://llun.test/users/non-existing',
         'https://other.federate/users/someone'
       ],
       withContext: true
@@ -77,9 +69,9 @@ describe('#deliverTo', () => {
     const compactedNote = (await compact(note)) as Note
     expect(
       await deliverTo({ note: compactedNote, storage: mockStorage })
-    ).toEqual(['as:Public', 'https://llun.dev/users/null'])
+    ).toEqual(['as:Public', 'https://llun.test/users/null'])
   })
-  it.only('spread the followers and returns only users that exists in the system', async () => {
+  it('spread the followers and returns only users that exists in the system', async () => {
     const note = MockMastodonNote({
       content: 'Hello',
       to: [
@@ -92,6 +84,6 @@ describe('#deliverTo', () => {
     const compactedNote = (await compact(note)) as Note
     expect(
       await deliverTo({ note: compactedNote, storage: mockStorage })
-    ).toEqual(['as:Public', 'https://llun.dev/users/null'])
+    ).toEqual(['as:Public', 'https://llun.test/users/null'])
   })
 })
