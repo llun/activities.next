@@ -1,14 +1,25 @@
 import { Note } from './activities/entities/note'
 import { deliverTo } from './inbox'
 import { compact } from './jsonld'
-import { GetActorFromIdParams } from './storage/types'
+import {
+  GetActorFromIdParams,
+  GetLocalFollowersForActorIdParams
+} from './storage/types'
 import { MockActor } from './stub/actor'
 import { MockMastodonNote } from './stub/note'
 
 const mockStorage = {
   getActorFromId: jest.fn(async ({ id }: GetActorFromIdParams) => {
     if (['https://llun.dev/users/null'].includes(id)) return MockActor({ id })
-  })
+  }),
+  getLocalFollowersForActorId: jest.fn(
+    async ({ targetActorId }: GetLocalFollowersForActorIdParams) => {
+      if (targetActorId === 'https://mastodon.in.th/users/friend') {
+        return ['https://llun.dev/users/null']
+      }
+      return []
+    }
+  )
 } as any
 
 describe('#deliverTo', () => {
@@ -36,6 +47,21 @@ describe('#deliverTo', () => {
         'https://llun.dev/users/non-existing',
         'https://other.federate/users/someone'
       ],
+      withContext: true
+    })
+    const compactedNote = (await compact(note)) as Note
+    expect(
+      await deliverTo({ note: compactedNote, storage: mockStorage })
+    ).toEqual(['as:Public', 'https://llun.dev/users/null'])
+  })
+  it('spread the followers and returns only users that exists in the system', async () => {
+    const note = MockMastodonNote({
+      content: 'Hello',
+      to: [
+        'https://www.w3.org/ns/activitystreams#Public',
+        'https://mastodon.in.th/users/friend'
+      ],
+      cc: ['https://mastodon.in.th/users/friend/followers'],
       withContext: true
     })
     const compactedNote = (await compact(note)) as Note

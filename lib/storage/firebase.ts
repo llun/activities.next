@@ -37,6 +37,7 @@ import {
   GetAttachmentsParams,
   GetFollowFromIdParams,
   GetFollowersHostsParams,
+  GetLocalFollowersForActorIdParams,
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
@@ -217,6 +218,12 @@ export class FirebaseStorage implements Storage {
       targetActorHost: new URL(followData.targetActorId).host,
       ...followData
     } as Follow
+  }
+
+  async getLocalFollowersForActorId({
+    targetActorId
+  }: GetLocalFollowersForActorIdParams) {
+    return []
   }
 
   async getAcceptedOrRequestedFollow({

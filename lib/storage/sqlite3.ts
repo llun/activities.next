@@ -22,6 +22,7 @@ import {
   GetAttachmentsParams,
   GetFollowFromIdParams,
   GetFollowersHostsParams,
+  GetLocalFollowersForActorIdParams,
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
@@ -151,6 +152,12 @@ export class Sqlite3Storage implements Storage {
 
   async getFollowFromId({ followId }: GetFollowFromIdParams) {
     return this.database<Follow>('follows').where('id', followId).first()
+  }
+
+  async getLocalFollowersForActorId({
+    targetActorId
+  }: GetLocalFollowersForActorIdParams) {
+    return []
   }
 
   async getAcceptedOrRequestedFollow({
