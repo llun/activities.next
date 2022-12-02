@@ -1,7 +1,7 @@
 import { CreateStatus } from '../activities/actions/createStatus'
 import { Document } from '../activities/entities/document'
 import { getISOTimeUTC } from '../time'
-import { MockNote } from './note'
+import { MockMastodonNote } from './note'
 
 const CONTEXT = {
   '@context': [
@@ -24,12 +24,16 @@ interface Params {
   content: string
   conversation?: string
   documents?: Document[]
+  to?: string[]
+  cc?: string[]
   published?: number
 }
-export const MockCreateActivity = ({
+export const MockMastodonCreateActivity = ({
   content,
   conversation,
   documents,
+  to = ['https://www.w3.org/ns/activitystreams#Public'],
+  cc = ['https://glasgow.social/users/llun/followers'],
   published = Date.now()
 }: Params) => {
   return {
@@ -38,8 +42,15 @@ export const MockCreateActivity = ({
     type: 'Create',
     actor: 'https://glasgow.social/users/llun',
     published: getISOTimeUTC(published),
-    to: ['https://www.w3.org/ns/activitystreams#Public'],
-    cc: ['https://glasgow.social/users/llun/followers'],
-    object: MockNote({ content, conversation, documents, published })
+    to,
+    cc,
+    object: MockMastodonNote({
+      content,
+      conversation,
+      documents,
+      to,
+      cc,
+      published
+    })
   } as CreateStatus
 }

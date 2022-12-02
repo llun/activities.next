@@ -7,12 +7,16 @@ import { getISOTimeUTC } from '../time'
 interface MockNoteParams {
   content: string
   published?: number
+  to?: string[]
+  cc?: string[]
   documents?: Document[]
   conversation?: string
 }
-export const MockNote = ({
+export const MockMastodonNote = ({
   published = Date.now(),
   content,
+  to = ['https://www.w3.org/ns/activitystreams#Public'],
+  cc = [],
   documents,
   conversation
 }: MockNoteParams) =>
@@ -24,8 +28,8 @@ export const MockNote = ({
     published: getISOTimeUTC(published),
     url: 'https://glasgow.social/@llun/109417500731428509',
     attributedTo: 'https://glasgow.social/users/llun',
-    to: ['https://www.w3.org/ns/activitystreams#Public'],
-    cc: ['https://glasgow.social/users/llun/followers'],
+    to,
+    cc,
     sensitive: false,
     atomUri: 'https://glasgow.social/users/llun/statuses/109417500731428509',
     inReplyToAtomUri: null,
