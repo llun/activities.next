@@ -1,5 +1,5 @@
 import { Note } from './activities/entities/note'
-import { deliverTo, isFollowerId, isLocalFollowerId } from './inbox'
+import { deliverTo, isFollowerId } from './inbox'
 import { compact } from './jsonld'
 import {
   GetActorFromIdParams,
