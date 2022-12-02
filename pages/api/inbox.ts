@@ -1,4 +1,3 @@
-import * as jsonld from 'jsonld'
 import type { NextApiHandler } from 'next'
 
 import { StatusActivity } from '../../lib/activities/actions/status'
@@ -6,7 +5,7 @@ import { Note } from '../../lib/activities/entities/note'
 import { Question } from '../../lib/activities/entities/question'
 import { ERROR_404, ERROR_500 } from '../../lib/errors'
 import { activitiesGuard } from '../../lib/guard'
-import { CONTEXT } from '../../lib/models/activitystream.context'
+import { compact } from '../../lib/jsonld'
 import { fromJson } from '../../lib/models/status'
 import { getStorage } from '../../lib/storage'
 import { Storage } from '../../lib/storage/types'
@@ -46,28 +45,6 @@ export const handleCreate = async ({ storage, object }: HandleCreateParams) => {
     status: 202,
     data: ''
   }
-}
-
-const customJsonLD = jsonld as any
-const nodeDocumentLoader = customJsonLD.documentLoaders.node()
-
-export const compact = async (activity: StatusActivity) => {
-  const context = {
-    '@context': 'https://www.w3.org/ns/activitystreams'
-  }
-  const compactedActivity = await jsonld.compact(activity, context, {
-    async documentLoader(url) {
-      if (url === 'https://www.w3.org/ns/activitystreams') {
-        return {
-          contextUrl: null, // this is for a context via a link header
-          document: CONTEXT, // this is the actual document that was loaded
-          documentUrl: url // this is the actual context URL after redirects
-        }
-      }
-      return nodeDocumentLoader(url)
-    }
-  })
-  return compactedActivity as unknown
 }
 
 const ApiHandler: NextApiHandler = activitiesGuard(
