@@ -18,9 +18,11 @@ export const deliverTo = async ({ note, storage }: DeliverToParams) => {
         const followers = await storage.getLocalFollowersForActorId({
           targetActorId: id
         })
-        const localFollowers = followers.filter((item) =>
-          item.startsWith(`https://${getConfig().host}`)
-        )
+        const localFollowers = followers
+          .filter((item) =>
+            item.actorId.startsWith(`https://${getConfig().host}`)
+          )
+          .map((item) => item.actorId)
         return localFollowers
       }
 

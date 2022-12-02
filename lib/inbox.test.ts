@@ -1,6 +1,9 @@
+import crypto from 'crypto'
+
 import { Note } from './activities/entities/note'
 import { deliverTo, isFollowerId } from './inbox'
 import { compact } from './jsonld'
+import { Follow, FollowStatus } from './models/follow'
 import {
   GetActorFromIdParams,
   GetLocalFollowersForActorIdParams
@@ -22,7 +25,17 @@ const mockStorage = {
   getLocalFollowersForActorId: jest.fn(
     async ({ targetActorId }: GetLocalFollowersForActorIdParams) => {
       if (targetActorId === 'https://mastodon.in.th/users/friend') {
-        return ['https://llun.test/users/null']
+        const follow: Follow = {
+          id: crypto.randomUUID(),
+          actorId: 'https://llun.test/users/null',
+          actorHost: 'llun.test',
+          status: FollowStatus.Accepted,
+          targetActorId: 'https://mastodon.in.th/users/friend',
+          targetActorHost: 'mastodon.in.th',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+        return [follow]
       }
       return []
     }

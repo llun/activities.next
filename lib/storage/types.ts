@@ -74,7 +74,7 @@ export interface Storage {
   getFollowFromId(params: GetFollowFromIdParams): Promise<Follow | undefined>
   getLocalFollowersForActorId(
     params: GetLocalFollowersForActorIdParams
-  ): Promise<string[]>
+  ): Promise<Follow[]>
   getAcceptedOrRequestedFollow(
     params: GetAcceptedOrRequestedFollowParams
   ): Promise<Follow | undefined>

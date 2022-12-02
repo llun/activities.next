@@ -157,7 +157,11 @@ export class Sqlite3Storage implements Storage {
   async getLocalFollowersForActorId({
     targetActorId
   }: GetLocalFollowersForActorIdParams) {
-    return []
+    return this.database<Follow>('follows')
+      .where('targetActorId', targetActorId)
+      .where('actorHost', getConfig().host)
+      .whereIn('status', [FollowStatus.Accepted])
+      .orderBy('createdAt', 'desc')
   }
 
   async getAcceptedOrRequestedFollow({

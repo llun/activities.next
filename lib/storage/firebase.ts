@@ -223,7 +223,15 @@ export class FirebaseStorage implements Storage {
   async getLocalFollowersForActorId({
     targetActorId
   }: GetLocalFollowersForActorIdParams) {
-    return []
+    const follows = collection(this.db, 'follows')
+    const followsQuery = query(
+      follows,
+      where('targetActorId', '==', targetActorId),
+      where('actorHost', '==', getConfig().host),
+      where('status', '==', FollowStatus.Accepted)
+    )
+    const followsSnapshot = await getDocs(followsQuery)
+    return followsSnapshot.docs.map((doc) => doc.data() as Follow)
   }
 
   async getAcceptedOrRequestedFollow({
