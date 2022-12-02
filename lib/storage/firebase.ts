@@ -189,7 +189,9 @@ export class FirebaseStorage implements Storage {
     const currentTime = Date.now()
     const content = {
       actorId,
+      actorHost: new URL(actorId).host,
       targetActorId,
+      targetActorHost: new URL(targetActorId).host,
       status,
       createdAt: currentTime,
       updatedAt: currentTime
@@ -197,8 +199,6 @@ export class FirebaseStorage implements Storage {
     const followRef = await addDoc(collection(this.db, 'follows'), content)
     return {
       id: followRef.id,
-      actorHost: new URL(actorId).host,
-      targetActorHost: new URL(targetActorId).host,
       ...content
     }
   }
