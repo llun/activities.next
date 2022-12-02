@@ -1,5 +1,5 @@
 import { Note } from './activities/entities/note'
-import { deliverTo } from './inbox'
+import { deliverTo, isLocalFollowerId } from './inbox'
 import { compact } from './jsonld'
 import {
   GetActorFromIdParams,
@@ -7,6 +7,13 @@ import {
 } from './storage/types'
 import { MockActor } from './stub/actor'
 import { MockMastodonNote } from './stub/note'
+
+jest.mock('./config', () => ({
+  __esModule: true,
+  getConfig: jest.fn().mockReturnValue({
+    host: 'llun.test'
+  })
+}))
 
 const mockStorage = {
   getActorFromId: jest.fn(async ({ id }: GetActorFromIdParams) => {
@@ -21,6 +28,24 @@ const mockStorage = {
     }
   )
 } as any
+
+describe('#isLocalFollowerId', () => {
+  it('returns true when id starts with config host and ends with followers', () => {
+    expect(
+      isLocalFollowerId('https://llun.test/users/null/followers')
+    ).toBeTruthy()
+  })
+
+  it('returns false when id is not followers', () => {
+    expect(isLocalFollowerId('https://llun.test/users/null')).toBeFalsy()
+  })
+
+  it('returns false when id is not starts with the config host', () => {
+    expect(
+      isLocalFollowerId('https://somethingelse.tld/users/null')
+    ).toBeFalsy()
+  })
+})
 
 describe('#deliverTo', () => {
   it('concats to and cc to single list', async () => {
@@ -54,7 +79,7 @@ describe('#deliverTo', () => {
       await deliverTo({ note: compactedNote, storage: mockStorage })
     ).toEqual(['as:Public', 'https://llun.dev/users/null'])
   })
-  it('spread the followers and returns only users that exists in the system', async () => {
+  it.only('spread the followers and returns only users that exists in the system', async () => {
     const note = MockMastodonNote({
       content: 'Hello',
       to: [
