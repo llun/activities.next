@@ -5,11 +5,11 @@ import { CONTEXT } from './models/activitystream.context'
 const customJsonLD = jsonld as any
 const nodeDocumentLoader = customJsonLD.documentLoaders.node()
 
-export const compact = async (activity: any) => {
+export const compact = async (document: any) => {
   const context = {
     '@context': 'https://www.w3.org/ns/activitystreams'
   }
-  const compactedActivity = await jsonld.compact(activity, context, {
+  const compactedActivity = await jsonld.compact(document, context, {
     async documentLoader(url) {
       if (url === 'https://www.w3.org/ns/activitystreams') {
         return {

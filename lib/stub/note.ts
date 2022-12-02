@@ -11,6 +11,8 @@ interface MockNoteParams {
   cc?: string[]
   documents?: Document[]
   conversation?: string
+
+  withContext?: boolean
 }
 export const MockMastodonNote = ({
   published = Date.now(),
@@ -18,9 +20,14 @@ export const MockMastodonNote = ({
   to = ['https://www.w3.org/ns/activitystreams#Public'],
   cc = [],
   documents,
-  conversation
+  conversation,
+
+  withContext
 }: MockNoteParams) =>
   ({
+    ...(withContext
+      ? { '@context': 'https://www.w3.org/ns/activitystreams' }
+      : null),
     id: 'https://glasgow.social/users/llun/statuses/109417500731428509',
     type: 'Note',
     summary: null,

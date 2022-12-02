@@ -1,5 +1,4 @@
 import crypto from 'crypto'
-import * as jsonld from 'jsonld'
 import linkifyStr from 'linkify-string'
 
 import { Mention } from '../activities/entities/mention'
