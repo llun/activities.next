@@ -1,4 +1,3 @@
-import { ACTIVITY_STREAMS } from '../activities/context'
 import { fromJson } from '../models/status'
 import { MockActor } from '../stub/actor'
 import { MockImageDocument } from '../stub/imageDocument'
@@ -59,7 +58,7 @@ describe('#createNote', () => {
 
 describe('#createNoteFromUserInput', () => {
   const mockActor = MockActor({ id: 'https://llun.test/users/null' })
-  it.only('adds status to database and returns note', async () => {
+  it('adds status to database and returns note', async () => {
     const note = await createNoteFromUserInput({
       text: 'Hello',
       currentActor: mockActor,

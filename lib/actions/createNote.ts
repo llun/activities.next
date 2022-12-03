@@ -1,10 +1,7 @@
-import { ACTIVITY_STREAMS } from '../activities/context'
 import { Note } from '../activities/entities/note'
-import { compact } from '../jsonld'
 import { Actor } from '../models/actor'
-import { Status, createStatus, fromJson, toObject } from '../models/status'
+import { createStatus, fromJson, toObject } from '../models/status'
 import { Storage } from '../storage/types'
-import { getISOTimeUTC } from '../time'
 
 const getAttachments = (object: Note) => {
   if (!object.attachment) return null
