@@ -23,6 +23,7 @@ import {
   GetFollowFromIdParams,
   GetFollowersHostsParams,
   GetLocalFollowersForActorIdParams,
+  GetStatusParams,
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
@@ -199,6 +200,10 @@ export class Sqlite3Storage implements Storage {
     })
 
     return { ...status, to, cc }
+  }
+
+  async getStatus({ statusId }: GetStatusParams) {
+    return this.database<Status>('statuses').where('id', statusId).first()
   }
 
   async getStatuses() {

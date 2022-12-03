@@ -37,6 +37,7 @@ export type UpdateFollowStatusParams = {
   status: FollowStatus
 }
 export type CreateStatusParams = { status: Status }
+export type GetStatusParams = { statusId: string }
 // TODO: Update Status to/cc model to make it easier to filter target
 export type GetStatusesParams = { actorId?: string }
 export type GetActorStatusesCountParams = { actorId: string }
@@ -82,6 +83,7 @@ export interface Storage {
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
 
   createStatus(params: CreateStatusParams): Promise<Status>
+  getStatus(params: GetStatusParams): Promise<Status | undefined>
   getStatuses(params?: GetStatusesParams): Promise<Status[]>
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>

@@ -38,6 +38,7 @@ import {
   GetFollowFromIdParams,
   GetFollowersHostsParams,
   GetLocalFollowersForActorIdParams,
+  GetStatusParams,
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
@@ -289,6 +290,15 @@ export class FirebaseStorage implements Storage {
   async createStatus({ status }: CreateStatusParams) {
     await addDoc(collection(this.db, 'statuses'), status)
     return status
+  }
+
+  async getStatus({ statusId }: GetStatusParams) {
+    const statuses = collection(this.db, 'statuses')
+    const statusesQuery = query(statuses, where('id', '==', statusId), limit(1))
+    const statusesSnapshot = await getDocs(statusesQuery)
+    if (statusesSnapshot.docs.length !== 1) return undefined
+
+    return statusesSnapshot.docs[0].data() as Status
   }
 
   async getStatuses() {
