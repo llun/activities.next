@@ -1,6 +1,6 @@
-import { BaseNote } from './activities/entities/note'
-import { getConfig } from './config'
-import { Storage } from './storage/types'
+import { BaseNote, Note } from '../activities/entities/note'
+import { getConfig } from '../config'
+import { Storage } from '../storage/types'
 
 export const isFollowerId = (id: string) => id.endsWith('/followers')
 

@@ -1,17 +1,17 @@
 import crypto from 'crypto'
 
-import { Note } from './activities/entities/note'
-import { deliverTo, isFollowerId } from './inbox'
-import { compact } from './jsonld'
-import { Follow, FollowStatus } from './models/follow'
+import { Note } from '../activities/entities/note'
+import { compact } from '../jsonld'
+import { Follow, FollowStatus } from '../models/follow'
 import {
   GetActorFromIdParams,
   GetLocalFollowersForActorIdParams
-} from './storage/types'
-import { MockActor } from './stub/actor'
-import { MockMastodonNote } from './stub/note'
+} from '../storage/types'
+import { MockActor } from '../stub/actor'
+import { MockMastodonNote } from '../stub/note'
+import { deliverTo, isFollowerId } from './utils'
 
-jest.mock('./config', () => ({
+jest.mock('../config', () => ({
   __esModule: true,
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test'
