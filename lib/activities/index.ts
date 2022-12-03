@@ -10,6 +10,7 @@ import { FollowRequest } from './actions/follow'
 import { UndoFollow } from './actions/undoFollow'
 import { OutboxContext } from './context'
 import { Mention } from './entities/mention'
+import { Note } from './entities/note'
 import { OrderedCollection } from './entities/orderedCollection'
 import { OrderedCollectionPage } from './entities/orderedCollectionPage'
 import { Person } from './entities/person'
@@ -141,27 +142,22 @@ export const getPosts = async (id?: string) => {
 interface SendNoteParams {
   currentActor: Actor
   sharedInbox: string
-  status: Status
-  replyStatus?: Status
-  mentions?: Mention[]
+  note: Note
 }
 export const sendNote = async ({
   currentActor,
   sharedInbox,
-  status,
-  replyStatus,
-  mentions = []
+  note
 }: SendNoteParams) => {
-  const published = getISOTimeUTC(status.createdAt)
   const activity: CreateStatus = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${status.id}/activity`,
+    id: `${note.id}/activity`,
     type: 'Create',
-    actor: status.actorId,
-    published,
-    to: status.to,
-    cc: status.cc,
-    object: toObject({ status, mentions, replyStatus })
+    actor: note.attributedTo,
+    published: note.published,
+    to: note.to,
+    cc: note.cc,
+    object: note
   }
   // TODO: Add LinkedDataSignature later
   // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3

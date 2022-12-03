@@ -1,8 +1,8 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getWebfingerSelf, sendNote } from '.'
-import { createStatus } from '../models/status'
 import { MockActor } from '../stub/actor'
+import { MockMastodonNote } from '../stub/note'
 import { MockWebfinger } from '../stub/webfinger'
 import { CreateStatus } from './actions/createStatus'
 
@@ -63,16 +63,16 @@ describe('#sendNote', () => {
       status: 200
     })
     const actor = MockActor({})
-    const { status, mentions } = await createStatus({
-      currentActor: actor,
-      text: 'Hello'
+    const note = MockMastodonNote({
+      content: '<p>Hello</p>',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://chat.llun.dev/users/me/followers']
     })
 
     await sendNote({
       currentActor: actor,
       sharedInbox: 'https://llun.dev/inbox',
-      status,
-      mentions
+      note
     })
     const [, options] = fetchMock.mock.lastCall as any
     const { body } = options
