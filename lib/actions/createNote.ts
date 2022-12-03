@@ -1,6 +1,10 @@
+import { ACTIVITY_STREAMS } from '../activities/context'
 import { Note } from '../activities/entities/note'
-import { fromJson } from '../models/status'
+import { compact } from '../jsonld'
+import { Actor } from '../models/actor'
+import { Status, createStatus, fromJson, toObject } from '../models/status'
 import { Storage } from '../storage/types'
+import { getISOTimeUTC } from '../time'
 
 const getAttachments = (object: Note) => {
   if (!object.attachment) return null
@@ -37,4 +41,28 @@ export const createNote = async ({
     ])
   }
   return note
+}
+
+interface CreateNoteFromUserInputParams {
+  text: string
+  replyNoteId?: string
+  currentActor: Actor
+  storage: Storage
+}
+export const createNoteFromUserInput = async ({
+  text,
+  replyNoteId,
+  currentActor,
+  storage
+}: CreateNoteFromUserInputParams) => {
+  const replyStatus = replyNoteId
+    ? await storage.getStatus({ statusId: replyNoteId })
+    : undefined
+  const { status, mentions } = await createStatus({
+    currentActor,
+    text,
+    replyStatus
+  })
+  await storage.createStatus({ status })
+  return toObject({ status, mentions, replyStatus })
 }

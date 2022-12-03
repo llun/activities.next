@@ -1,11 +1,14 @@
+import { ACTIVITY_STREAMS } from '../activities/context'
 import { fromJson } from '../models/status'
+import { MockActor } from '../stub/actor'
 import { MockImageDocument } from '../stub/imageDocument'
 import { MockMastodonNote } from '../stub/note'
-import { createNote } from './createNote'
+import { createNote, createNoteFromUserInput } from './createNote'
 
 const mockStorage = {
   createStatus: jest.fn(),
-  createAttachment: jest.fn()
+  createAttachment: jest.fn(),
+  getStatus: jest.fn()
 } as any
 
 jest.useFakeTimers().setSystemTime(new Date('2022-11-28'))
@@ -50,6 +53,38 @@ describe('#createNote', () => {
       width: 2000,
       height: 1500,
       name: 'Second image'
+    })
+  })
+})
+
+describe('#createNoteFromUserInput', () => {
+  const mockActor = MockActor({ id: 'https://llun.test/users/null' })
+  it.only('adds status to database and returns note', async () => {
+    const note = await createNoteFromUserInput({
+      text: 'Hello',
+      currentActor: mockActor,
+      storage: mockStorage
+    })
+    expect(mockStorage.createStatus).toHaveBeenCalledWith({
+      status: {
+        id: note.id,
+        actorId: mockActor.id,
+        type: 'Note',
+        text: `<p>Hello</p>`,
+        reply: expect.toBeString(),
+        summary: null,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [`${mockActor.id}/followers`],
+        createdAt: expect.toBeNumber(),
+        url: expect.toBeString()
+      }
+    })
+    expect(note).toMatchObject({
+      type: 'Note',
+      content: '<p>Hello</p>',
+      attributedTo: mockActor.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${mockActor.id}/followers`]
     })
   })
 })

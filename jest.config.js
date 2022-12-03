@@ -16,6 +16,7 @@ const customJestConfig = {
   testEnvironment: 'node',
   automock: false,
   resetMocks: false,
+  setupFilesAfterEnv: ['jest-extended/all'],
   setupFiles: ['<rootDir>/jest.setup.js']
 }
 

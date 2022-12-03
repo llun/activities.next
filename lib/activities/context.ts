@@ -1,5 +1,7 @@
 import { Context } from './entities/base'
 
+export const ACTIVITY_STREAMS = 'https://www.w3.org/ns/activitystreams'
+
 export const PersonContext: Context[] = [
   'https://www.w3.org/ns/activitystreams',
   'https://w3id.org/security/v1',
