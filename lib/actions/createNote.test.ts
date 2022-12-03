@@ -1,7 +1,7 @@
-import { fromJson } from '../../lib/models/status'
-import { MockImageDocument } from '../../lib/stub/imageDocument'
-import { MockMastodonNote } from '../../lib/stub/note'
-import { handleCreate } from './inbox'
+import { fromJson } from '../models/status'
+import { MockImageDocument } from '../stub/imageDocument'
+import { MockMastodonNote } from '../stub/note'
+import { createNote } from './createNote'
 
 const mockStorage = {
   createStatus: jest.fn(),
@@ -10,10 +10,10 @@ const mockStorage = {
 
 jest.useFakeTimers().setSystemTime(new Date('2022-11-28'))
 
-describe('#handleCreate', () => {
-  it('add status into storage', async () => {
+describe('#createNote', () => {
+  it('adds not into storage and returns note', async () => {
     const note = MockMastodonNote({ content: '<p>Hello</p>' })
-    await handleCreate({ storage: mockStorage, object: note })
+    expect(await createNote({ storage: mockStorage, note })).toEqual(note)
     expect(mockStorage.createStatus).toHaveBeenCalledWith({
       status: fromJson(note)
     })
@@ -30,7 +30,7 @@ describe('#handleCreate', () => {
         })
       ]
     })
-    await handleCreate({ storage: mockStorage, object: note })
+    expect(await createNote({ storage: mockStorage, note })).toEqual(note)
     expect(mockStorage.createStatus).toHaveBeenCalledWith({
       status: fromJson(note)
     })

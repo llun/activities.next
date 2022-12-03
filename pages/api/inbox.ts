@@ -1,51 +1,11 @@
 import type { NextApiHandler } from 'next'
 
+import { createNote } from '../../lib/actions/createNote'
 import { StatusActivity } from '../../lib/activities/actions/status'
-import { Note } from '../../lib/activities/entities/note'
-import { Question } from '../../lib/activities/entities/question'
 import { ERROR_404, ERROR_500 } from '../../lib/errors'
 import { activitiesGuard } from '../../lib/guard'
 import { compact } from '../../lib/jsonld'
-import { fromJson } from '../../lib/models/status'
 import { getStorage } from '../../lib/storage'
-import { Storage } from '../../lib/storage/types'
-
-const getAttachments = (object: Note | Question) => {
-  if (!object.attachment) return null
-  if (Array.isArray(object.attachment)) return object.attachment
-  return [object.attachment]
-}
-
-interface HandleCreateParams {
-  storage: Storage
-  object: Note | Question
-}
-export const handleCreate = async ({ storage, object }: HandleCreateParams) => {
-  const status = fromJson(object)
-  await storage.createStatus({ status })
-
-  const attachments = getAttachments(object)
-  if (attachments) {
-    await Promise.all([
-      attachments.map(async (attachment) => {
-        if (attachment.type !== 'Document') return
-
-        await storage.createAttachment({
-          statusId: status.id,
-          mediaType: attachment.mediaType,
-          height: attachment.height,
-          width: attachment.width,
-          name: attachment.name || '',
-          url: attachment.url
-        })
-      })
-    ])
-  }
-  return {
-    status: 202,
-    data: ''
-  }
-}
 
 const ApiHandler: NextApiHandler = activitiesGuard(
   async (req, res) => {
@@ -57,11 +17,13 @@ const ApiHandler: NextApiHandler = activitiesGuard(
 
     switch (body.type) {
       case 'Create': {
-        const { status, data } = await handleCreate({
-          storage,
-          object: body.object
-        })
-        return res.status(status).send(data)
+        switch (body.object.type) {
+          case 'Note': {
+            await createNote({ storage, note: body.object })
+            break
+          }
+        }
+        return res.status(202).send('')
       }
       default:
         return res.status(404).send(ERROR_404)
