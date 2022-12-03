@@ -1,15 +1,15 @@
 import { getConfig } from '../config'
+import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
+import { compact } from '../jsonld/index'
+import { W3ID_URL } from '../jsonld/w3id'
 import { Actor } from '../models/actor'
 import { Follow } from '../models/follow'
-import { Status, fromJson, toObject } from '../models/status'
+import { Status, fromJson } from '../models/status'
 import { headers } from '../signature'
-import { getISOTimeUTC } from '../time'
 import { AcceptFollow } from './actions/acceptFollow'
 import { CreateStatus } from './actions/createStatus'
 import { FollowRequest } from './actions/follow'
 import { UndoFollow } from './actions/undoFollow'
-import { OutboxContext } from './context'
-import { Mention } from './entities/mention'
 import { Note } from './entities/note'
 import { OrderedCollection } from './entities/orderedCollection'
 import { OrderedCollectionPage } from './entities/orderedCollectionPage'
@@ -43,42 +43,53 @@ export const getWebfingerSelf = async (account: string) => {
   return item.href
 }
 
-export const getPerson = async (id: string, withCollectionCount: boolean) => {
+export const getPerson = async (id: string, withCollectionCount = false) => {
   const response = await fetch(id, {
     headers: SHARED_HEADERS
   })
   if (response.status !== 200) return null
 
-  const json: Person = await response.json()
+  const json = await response.json()
+  const person: Person = (await compact(json)) as any
+
+  console.log(person)
   if (!withCollectionCount) {
     return {
-      id: json.id,
-      username: json.preferredUsername,
-      icon: json.icon,
-      url: json.url,
-      name: json.name,
-      summary: json.summary,
+      id: person.id,
+      username: person.preferredUsername,
+      icon: person.icon,
+      url: person.url,
+      name: person.name,
+      summary: person.summary,
 
-      manuallyApprovesFollowers: json.manuallyApprovesFollowers,
-      discoverable: json.discoverable,
+      endpoints: {
+        following: person.following,
+        followers: person.followers,
+        inbox: person.inbox,
+        outbox: person.outbox,
+        sharedInbox: person.endpoints?.sharedInbox
+      },
 
-      publicKey: json.publicKey.publicKeyPem,
-      createdAt: new Date(json.published).getTime()
+      manuallyApprovesFollowers: person.manuallyApprovesFollowers,
+      discoverable: person.discoverable,
+
+      publicKey: person.publicKey.publicKeyPem,
+      createdAt: new Date(person.published).getTime()
     }
   }
 
   const [followers, following, posts] = await Promise.all([
-    fetch(json.followers, {
+    fetch(person.followers, {
       headers: SHARED_HEADERS
     }).then((res) =>
       res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
     ),
-    fetch(json.following, {
+    fetch(person.following, {
       headers: SHARED_HEADERS
     }).then((res) =>
       res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
     ),
-    fetch(json.outbox, {
+    fetch(person.outbox, {
       headers: SHARED_HEADERS
     }).then((res) =>
       res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
@@ -86,21 +97,29 @@ export const getPerson = async (id: string, withCollectionCount: boolean) => {
   ])
 
   return {
-    id: json.id,
-    username: json.preferredUsername,
-    icon: json.icon,
-    url: json.url,
-    name: json.name,
-    summary: json.summary,
+    id: person.id,
+    username: person.preferredUsername,
+    icon: person.icon,
+    url: person.url,
+    name: person.name,
+    summary: person.summary,
 
-    manuallyApprovesFollowers: json.manuallyApprovesFollowers,
-    discoverable: json.discoverable,
+    manuallyApprovesFollowers: person.manuallyApprovesFollowers,
+    discoverable: person.discoverable,
 
-    publicKey: json.publicKey.publicKeyPem,
+    publicKey: person.publicKey.publicKeyPem,
 
     followersCount: followers?.totalItems || 0,
     followingCount: following?.totalItems || 0,
     totalPosts: posts?.totalItems || 0,
+
+    endpoints: {
+      following: person.following,
+      followers: person.followers,
+      inbox: person.inbox,
+      outbox: person.outbox,
+      sharedInbox: person.endpoints?.sharedInbox
+    },
 
     urls: {
       followers:
@@ -114,7 +133,7 @@ export const getPerson = async (id: string, withCollectionCount: boolean) => {
       posts: typeof posts?.first !== 'string' ? posts?.first.id : posts?.first
     },
 
-    createdAt: new Date(json.published).getTime()
+    createdAt: new Date(person.published).getTime()
   }
 }
 

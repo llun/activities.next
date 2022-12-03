@@ -1,5 +1,5 @@
-import { compact } from './jsonld'
-import { MockMastodonCreateActivity } from './stub/createActivity'
+import { MockMastodonCreateActivity } from '../stub/createActivity'
+import { compact } from './index'
 
 jest.useFakeTimers().setSystemTime(new Date('2022-11-28'))
 
@@ -12,7 +12,6 @@ describe('#compact', () => {
     })
     const compactedActivity = await compact(activity)
     expect(compactedActivity).toMatchObject({
-      '@context': 'https://www.w3.org/ns/activitystreams',
       id: 'https://glasgow.social/users/llun/statuses/109417500731428509/activity',
       type: 'Create',
       actor: 'https://glasgow.social/users/llun',
@@ -59,7 +58,6 @@ describe('#compact', () => {
     })
     const compactedActivity = await compact(activity)
     expect(compactedActivity).toMatchObject({
-      '@context': 'https://www.w3.org/ns/activitystreams',
       id: 'https://glasgow.social/users/llun/statuses/109417500731428509/activity',
       type: 'Create',
       actor: 'https://glasgow.social/users/llun',
