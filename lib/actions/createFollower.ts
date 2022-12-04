@@ -10,6 +10,6 @@ export const createFollower = async ({
   targetActorId,
   actorId,
   storage
-}: CreateFollowerParams): Promise<Follow> => {
+}: CreateFollowerParams) => {
   return null
 }
