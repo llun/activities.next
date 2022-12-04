@@ -59,24 +59,26 @@ describe('#createNote', () => {
 describe('#createNoteFromUserInput', () => {
   const mockActor = MockActor({ id: 'https://llun.test/users/null' })
   it('adds status to database and returns note', async () => {
-    const note = await createNoteFromUserInput({
+    const { status, note } = await createNoteFromUserInput({
       text: 'Hello',
       currentActor: mockActor,
       storage: mockStorage
     })
+    const expectStatus = {
+      id: note.id,
+      actorId: mockActor.id,
+      type: 'Note',
+      text: `<p>Hello</p>`,
+      reply: expect.toBeString(),
+      summary: null,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${mockActor.id}/followers`],
+      createdAt: expect.toBeNumber(),
+      url: expect.toBeString()
+    }
+    expect(status).toEqual(expectStatus)
     expect(mockStorage.createStatus).toHaveBeenCalledWith({
-      status: {
-        id: note.id,
-        actorId: mockActor.id,
-        type: 'Note',
-        text: `<p>Hello</p>`,
-        reply: expect.toBeString(),
-        summary: null,
-        to: ['https://www.w3.org/ns/activitystreams#Public'],
-        cc: [`${mockActor.id}/followers`],
-        createdAt: expect.toBeNumber(),
-        url: expect.toBeString()
-      }
+      status: expectStatus
     })
     expect(note).toMatchObject({
       type: 'Note',

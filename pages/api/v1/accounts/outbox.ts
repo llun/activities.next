@@ -8,10 +8,10 @@ const handler = ApiGuard(async (req, res, context) => {
   switch (req.method) {
     case 'POST': {
       const body = req.body
-      const note = await createNoteFromUserInput({
+      const { status, note } = await createNoteFromUserInput({
         currentActor,
         text: body.message,
-        replyNoteId: body.replyStatus.id,
+        replyNoteId: body.replyStatus?.id,
         storage
       })
       const hosts = await storage.getFollowersHosts({
@@ -28,7 +28,7 @@ const handler = ApiGuard(async (req, res, context) => {
           })
         })
       )
-      return res.status(200).json({ status })
+      return res.status(200).json({ status, note })
     }
     default: {
       res.status(404).json(ERROR_404)

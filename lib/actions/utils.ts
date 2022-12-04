@@ -1,4 +1,4 @@
-import { BaseNote, Note } from '../activities/entities/note'
+import { BaseNote } from '../activities/entities/note'
 import { getConfig } from '../config'
 import { Storage } from '../storage/types'
 
@@ -11,7 +11,6 @@ interface DeliverToParams {
 export const deliverTo = async ({ note, storage }: DeliverToParams) => {
   const addresses = await Promise.all(
     [...[note.to].flat(), ...[note.cc].flat()].map(async (item) => {
-      console.log(item, isFollowerId(item))
       if (['Public', 'as:Public'].includes(item)) return item
       if (isFollowerId(item)) {
         const id = item.slice(0, item.indexOf('/followers'))

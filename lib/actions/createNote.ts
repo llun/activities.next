@@ -61,5 +61,5 @@ export const createNoteFromUserInput = async ({
     replyStatus
   })
   await storage.createStatus({ status })
-  return toObject({ status, mentions, replyStatus })
+  return { note: toObject({ status, mentions, replyStatus }), status }
 }

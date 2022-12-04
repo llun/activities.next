@@ -52,7 +52,6 @@ export const getPerson = async (id: string, withCollectionCount = false) => {
   const json = await response.json()
   const person: Person = (await compact(json)) as any
 
-  console.log(person)
   if (!withCollectionCount) {
     return {
       id: person.id,
