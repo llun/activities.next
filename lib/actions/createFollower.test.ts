@@ -10,14 +10,7 @@ const actor = MockActor({ id: 'https://llun.test/users/null' })
 
 // TODO: Replace this mock storage with in memory database? and test seed data
 const mockStorage = {
-  createFollow: jest.fn(async ({ actorId, targetActorId, stats }) => {
-    return {
-      id: crypto.randomUUID(),
-      type: 'Follow',
-      actor: actorId,
-      object: targetActorId
-    }
-  }),
+  createFollow: jest.fn(),
   getActorFromId: jest.fn(async ({ id }) => {
     if (id === 'https://llun.test/users/null') {
       return actor
@@ -45,12 +38,7 @@ describe('#createFollower', () => {
       targetActorId: actor.id,
       status: FollowStatus.Accepted
     })
-    expect(follow).toEqual({
-      id: expect.toBeString(),
-      type: 'Follow',
-      actor: 'https://another.network/users/friend',
-      object: actor.id
-    })
+    expect(follow).toEqual(request)
     expect(acceptFollow).toHaveBeenCalledWith(actor, request)
   })
 

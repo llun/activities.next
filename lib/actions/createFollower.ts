@@ -16,7 +16,7 @@ export const createFollower = async ({
   })
   if (!actor) return null
 
-  const [follow] = await Promise.all([
+  await Promise.all([
     await storage.createFollow({
       actorId: followRequest.actor,
       targetActorId: followRequest.object,
@@ -24,5 +24,5 @@ export const createFollower = async ({
     }),
     await acceptFollow(actor, followRequest)
   ])
-  return follow
+  return followRequest
 }

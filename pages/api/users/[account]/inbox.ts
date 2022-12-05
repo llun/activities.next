@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
+import { createFollower } from '../../../../lib/actions/createFollower'
 import { acceptFollow } from '../../../../lib/activities'
 import { AcceptFollow } from '../../../../lib/activities/actions/acceptFollow'
 import { FollowRequest } from '../../../../lib/activities/actions/follow'
@@ -52,23 +53,14 @@ export default activitiesGuard(
           return res.status(202).send('')
         }
         case 'Follow': {
-          const followRequest = activity as FollowRequest
-          const actor = await storage.getActorFromId({
-            id: followRequest.object
+          const follow = await createFollower({
+            followRequest: activity as FollowRequest,
+            storage
           })
-          if (!actor) {
+          if (!follow) {
             return res.status(404).json(ERROR_404)
           }
-
-          await Promise.all([
-            await storage.createFollow({
-              actorId: followRequest.actor,
-              targetActorId: followRequest.object,
-              status: FollowStatus.Accepted
-            }),
-            await acceptFollow(actor, followRequest)
-          ])
-          return res.status(202).send({ target: followRequest.object })
+          return res.status(202).send({ target: follow.object })
         }
         case 'Undo': {
           const undoRequest = activity as UndoFollow
