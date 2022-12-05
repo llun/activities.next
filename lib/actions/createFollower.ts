@@ -1,4 +1,4 @@
-import { acceptFollow } from '../activities'
+import { acceptFollow, getPerson } from '../activities'
 import { FollowRequest } from '../activities/actions/follow'
 import { FollowStatus } from '../models/follow'
 import { Storage } from '../storage/types'
@@ -16,11 +16,16 @@ export const createFollower = async ({
   })
   if (!actor) return null
 
+  const person = await getPerson(followRequest.actor)
+  if (!person) return null
+
   await Promise.all([
     await storage.createFollow({
       actorId: followRequest.actor,
       targetActorId: followRequest.object,
-      status: FollowStatus.Accepted
+      status: FollowStatus.Accepted,
+      inbox: person.endpoints.inbox,
+      sharedInbox: person.endpoints.sharedInbox
     }),
     await acceptFollow(actor, followRequest)
   ])

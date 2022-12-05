@@ -1,5 +1,3 @@
-import crypto from 'crypto'
-
 import { acceptFollow } from '../activities'
 import { FollowStatus } from '../models/follow'
 import { MockActor } from '../stub/actor'
@@ -20,7 +18,14 @@ const mockStorage = {
 } as any
 
 jest.mock('../activities', () => ({
-  acceptFollow: jest.fn()
+  acceptFollow: jest.fn(),
+  getPerson: jest
+    .fn()
+    .mockResolvedValue(
+      jest
+        .requireActual('../stub/person')
+        .MockPerson({ id: 'https://llun.test/users/null' })
+    )
 }))
 
 describe('#createFollower', () => {
@@ -36,7 +41,9 @@ describe('#createFollower', () => {
     expect(mockStorage.createFollow).toHaveBeenCalledWith({
       actorId: 'https://another.network/users/friend',
       targetActorId: actor.id,
-      status: FollowStatus.Accepted
+      status: FollowStatus.Accepted,
+      inbox: 'https://llun.test/users/null/inbox',
+      sharedInbox: 'https://llun.test/inbox'
     })
     expect(follow).toEqual(request)
     expect(acceptFollow).toHaveBeenCalledWith(actor, request)

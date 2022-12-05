@@ -24,6 +24,8 @@ export type CreateFollowParams = {
   actorId: string
   targetActorId: string
   status: FollowStatus
+  inbox: string
+  sharedInbox: string
 }
 export type GetLocalFollowersForActorIdParams = { targetActorId: string }
 export type GetFollowFromIdParams = { followId: string }
