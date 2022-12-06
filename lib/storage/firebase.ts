@@ -186,7 +186,13 @@ export class FirebaseStorage implements Storage {
     return snapshot.data().count
   }
 
-  async createFollow({ actorId, targetActorId, status }: CreateFollowParams) {
+  async createFollow({
+    actorId,
+    targetActorId,
+    status,
+    inbox,
+    sharedInbox
+  }: CreateFollowParams) {
     const currentTime = Date.now()
     const content = {
       actorId,
@@ -194,6 +200,8 @@ export class FirebaseStorage implements Storage {
       targetActorId,
       targetActorHost: new URL(targetActorId).host,
       status,
+      inbox,
+      sharedInbox,
       createdAt: currentTime,
       updatedAt: currentTime
     }

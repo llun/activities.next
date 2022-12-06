@@ -135,7 +135,13 @@ export class Sqlite3Storage implements Storage {
     return (result?.count as number) || 0
   }
 
-  async createFollow({ actorId, targetActorId, status }: CreateFollowParams) {
+  async createFollow({
+    actorId,
+    targetActorId,
+    status,
+    inbox,
+    sharedInbox
+  }: CreateFollowParams) {
     const currentTime = Date.now()
     const follow: Follow = {
       id: crypto.randomUUID(),
@@ -147,7 +153,7 @@ export class Sqlite3Storage implements Storage {
       createdAt: currentTime,
       updatedAt: currentTime
     }
-    await this.database('follows').insert(follow)
+    await this.database('follows').insert({ ...follow, inbox, sharedInbox })
     return follow
   }
 
