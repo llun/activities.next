@@ -1,10 +1,10 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
-import { GetServerSideProps, NextPage } from 'next'
-import { unstable_getServerSession } from 'next-auth'
+import { GetStaticProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import Link from 'next/link'
+import { useState } from 'react'
 
 import { getPerson, getPosts, getWebfingerSelf } from '../lib/activities'
 import { Button } from '../lib/components/Button'
@@ -15,12 +15,8 @@ import { getHostnameFromId, getUsernameFromId } from '../lib/models/actor'
 import { Status } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 import styles from './[actor].module.scss'
-import { authOptions } from './api/auth/[...nextauth]'
 
 interface Props {
-  currentServerTime: number
-  isLoggedIn: boolean
-  isFollowing: boolean
   name: string
   iconUrl?: string
   id: string
@@ -33,9 +29,6 @@ interface Props {
 }
 
 const Page: NextPage<Props> = ({
-  currentServerTime,
-  isLoggedIn,
-  isFollowing,
   name,
   id,
   url,
@@ -47,6 +40,9 @@ const Page: NextPage<Props> = ({
   createdAt
 }) => {
   const { data: session } = useSession()
+  const [currentTime] = useState<number>(Date.now())
+  const isLoggedIn = Boolean(session?.user?.email)
+
   return (
     <main>
       <Head>
@@ -87,26 +83,17 @@ const Page: NextPage<Props> = ({
             </div>
             {isLoggedIn && (
               <div className="flex-shrink-0">
-                {!isFollowing && (
-                  <form action="/api/v1/accounts/follow" method="post">
-                    <input type="hidden" name="target" value={id} />
-                    <Button type="submit">Follow</Button>
-                  </form>
-                )}
-                {isFollowing && (
-                  <form action="/api/v1/accounts/unfollow" method="post">
-                    <input type="hidden" name="target" value={id} />
-                    <Button variant="danger" type="submit">
-                      Unfollow
-                    </Button>
-                  </form>
-                )}
+                {/* TODO: Add api to check following status later */}
+                <form action="/api/v1/accounts/follow" method="post">
+                  <input type="hidden" name="target" value={id} />
+                  <Button type="submit">Follow</Button>
+                </form>
               </div>
             )}
           </div>
         </section>
         <Posts
-          currentTime={new Date(currentServerTime)}
+          currentTime={new Date(currentTime)}
           statuses={posts}
           attachments={[]}
         />
@@ -115,16 +102,13 @@ const Page: NextPage<Props> = ({
   )
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async ({
-  req,
-  res,
-  query
+type Params = {
+  actor: string
+}
+export const getStaticProps: GetStaticProps<Props, Params> = async ({
+  params
 }) => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    unstable_getServerSession(req, res, authOptions)
-  ])
-
+  const storage = await getStorage()
   if (!storage) {
     return {
       redirect: {
@@ -134,7 +118,11 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
-  const { actor } = query
+  if (!params) {
+    return { notFound: true }
+  }
+
+  const { actor } = params
   if (!actor) {
     return { notFound: true }
   }
@@ -159,45 +147,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     return { notFound: true }
   }
 
-  if (!(session?.user && session?.user?.email)) {
-    const posts = await getPosts(person.urls?.posts)
-    return {
-      props: {
-        currentServerTime: Date.now(),
-        isLoggedIn: false,
-        isFollowing: false,
-        id: person.id,
-        name: person.name,
-        iconUrl: person.icon?.url || '',
-        url: person.url,
-        totalPosts: person.totalPosts || 0,
-        followersCount: person.followersCount || 0,
-        followingCount: person.followingCount || 0,
-        posts,
-        createdAt: person.createdAt
-      }
-    }
-  }
-
-  const currentActor = await storage.getActorFromEmail({
-    email: session.user.email || ''
-  })
-
-  if (!currentActor) {
-    return { notFound: true }
-  }
-
   const posts = await getPosts(person.urls?.posts)
-  const isFollowing = await storage.isCurrentActorFollowing({
-    currentActorId: currentActor.id,
-    followingActorId: actorId
-  })
-
   return {
     props: {
-      currentServerTime: Date.now(),
-      isLoggedIn: true,
-      isFollowing,
       id: person.id,
       name: person.name,
       iconUrl: person.icon?.url || '',
@@ -207,7 +159,16 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       followingCount: person.followingCount || 0,
       posts,
       createdAt: person.createdAt
-    }
+    },
+    // Revalidate page every 6 hours
+    revalidate: 21_600
+  }
+}
+
+export async function getStaticPaths() {
+  return {
+    paths: [],
+    fallback: 'blocking'
   }
 }
 
