@@ -71,7 +71,7 @@ describe('#sendNote', () => {
 
     await sendNote({
       currentActor: actor,
-      sharedInbox: 'https://llun.dev/inbox',
+      inbox: 'https://llun.dev/inbox',
       note
     })
     const [, options] = fetchMock.mock.lastCall as any

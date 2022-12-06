@@ -14,16 +14,14 @@ const handler = ApiGuard(async (req, res, context) => {
         replyNoteId: body.replyStatus?.id,
         storage
       })
-      const hosts = await storage.getFollowersHosts({
+      const inboxes = await storage.getFollowersInbox({
         targetActorId: currentActor.id
       })
       await Promise.all(
-        hosts.map((host) => {
-          // TODO: Get this from profile
-          const sharedInbox = `https://${host}/inbox`
+        inboxes.map((inbox) => {
           return sendNote({
             currentActor,
-            sharedInbox,
+            inbox,
             note
           })
         })

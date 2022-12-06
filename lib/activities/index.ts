@@ -159,12 +159,12 @@ export const getPosts = async (id?: string) => {
 
 interface SendNoteParams {
   currentActor: Actor
-  sharedInbox: string
+  inbox: string
   note: Note
 }
 export const sendNote = async ({
   currentActor,
-  sharedInbox,
+  inbox,
   note
 }: SendNoteParams) => {
   const activity: CreateStatus = {
@@ -179,10 +179,10 @@ export const sendNote = async ({
   }
   // TODO: Add LinkedDataSignature later
   // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3
-  await fetch(sharedInbox, {
+  await fetch(inbox, {
     method: 'POST',
     headers: {
-      ...headers(currentActor, 'post', sharedInbox, activity),
+      ...headers(currentActor, 'post', inbox, activity),
       'User-Agent': USER_AGENT
     },
     body: JSON.stringify(activity)
