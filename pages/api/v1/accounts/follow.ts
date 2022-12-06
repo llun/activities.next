@@ -1,4 +1,5 @@
 import { follow } from '../../../../lib/activities'
+import { getConfig } from '../../../../lib/config'
 import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
 import {
@@ -15,7 +16,9 @@ const handler = ApiGuard(async (req, res, context) => {
       const followItem = await storage.createFollow({
         actorId: currentActor.id,
         targetActorId: target,
-        status: FollowStatus.Requested
+        status: FollowStatus.Requested,
+        inbox: `${currentActor.id}/inbox`,
+        sharedInbox: `https://${getConfig().host}/inbox`
       })
       await follow(followItem.id, currentActor, target)
       return res
