@@ -123,13 +123,13 @@ export const getPerson = async (id: string, withCollectionCount = false) => {
     urls: {
       followers:
         typeof followers?.first !== 'string'
-          ? followers?.first.id
+          ? followers?.first?.id
           : followers?.first,
       following:
         typeof following?.first !== 'string'
-          ? following?.first.id
+          ? following?.first?.id
           : following?.first,
-      posts: typeof posts?.first !== 'string' ? posts?.first.id : posts?.first
+      posts: typeof posts?.first !== 'string' ? posts?.first?.id : posts?.first
     },
 
     createdAt: new Date(person.published).getTime()
