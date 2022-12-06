@@ -37,6 +37,7 @@ import {
   GetAttachmentsParams,
   GetFollowFromIdParams,
   GetFollowersHostsParams,
+  GetFollowersInboxParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
   IsAccountExistsParams,
@@ -281,6 +282,24 @@ export class FirebaseStorage implements Storage {
       hosts.add(new URL(doc.data().actorId).host)
     )
     return Array.from(hosts)
+  }
+
+  async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {
+    const follows = collection(this.db, 'follows')
+    const followsQuery = query(
+      follows,
+      where('targetActorId', '==', targetActorId),
+      where('status', '==', FollowStatus.Accepted)
+    )
+    const snapshot = await getDocs(followsQuery)
+    return Array.from(
+      snapshot.docs.reduce((uniqueInboxes, document) => {
+        const data = document.data()
+        if (data.sharedInbox) uniqueInboxes.add(data.sharedInbox)
+        else uniqueInboxes.add(data.inbox)
+        return uniqueInboxes
+      }, new Set<string>())
+    )
   }
 
   async updateFollowStatus({ followId, status }: UpdateFollowStatusParams) {

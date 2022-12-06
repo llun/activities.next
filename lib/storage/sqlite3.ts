@@ -22,6 +22,7 @@ import {
   GetAttachmentsParams,
   GetFollowFromIdParams,
   GetFollowersHostsParams,
+  GetFollowersInboxParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
   IsAccountExistsParams,
@@ -150,6 +151,8 @@ export class Sqlite3Storage implements Storage {
       targetActorId,
       targetActorHost: new URL(targetActorId).host,
       status,
+      inbox,
+      sharedInbox,
       createdAt: currentTime,
       updatedAt: currentTime
     }
@@ -190,6 +193,19 @@ export class Sqlite3Storage implements Storage {
       .where('status', FollowStatus.Accepted)
       .distinct()
     return hosts.map((item) => item.actorHost)
+  }
+
+  async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {
+    const follows = await this.database<Follow>('follows')
+      .where('targetActorId', targetActorId)
+      .where('status', FollowStatus.Accepted)
+    return Array.from(
+      follows.reduce((inboxes, follow) => {
+        if (follow.sharedInbox) inboxes.add(follow.sharedInbox)
+        else inboxes.add(follow.inbox)
+        return inboxes
+      }, new Set<string>())
+    )
   }
 
   async updateFollowStatus({ followId, status }: UpdateFollowStatusParams) {

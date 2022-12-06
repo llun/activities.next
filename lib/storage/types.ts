@@ -34,6 +34,7 @@ export type GetAcceptedOrRequestedFollowParams = {
   targetActorId: string
 }
 export type GetFollowersHostsParams = { targetActorId: string }
+export type GetFollowersInboxParams = { targetActorId: string }
 export type UpdateFollowStatusParams = {
   followId: string
   status: FollowStatus
@@ -82,6 +83,7 @@ export interface Storage {
     params: GetAcceptedOrRequestedFollowParams
   ): Promise<Follow | undefined>
   getFollowersHosts(params: GetFollowersHostsParams): Promise<string[]>
+  getFollowersInbox(params: GetFollowersInboxParams): Promise<string[]>
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
 
   createStatus(params: CreateStatusParams): Promise<Status>

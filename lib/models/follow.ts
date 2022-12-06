@@ -15,6 +15,9 @@ export interface Follow {
 
   status: FollowStatus
 
+  inbox: string
+  sharedInbox?: string
+
   createdAt: number
   updatedAt: number
 }
