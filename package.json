@@ -13,7 +13,7 @@
     "migrate:make": "knex migrate:make -x ts"
   },
   "dependencies": {
-    "@sentry/nextjs": "^7.23.0",
+    "@sentry/nextjs": "^7.24.2",
     "@vercel/analytics": "^0.1.5",
     "better-sqlite3": "^8.0.1",
     "bootstrap": "^5.2.3",
@@ -67,7 +67,7 @@
     "jest-extended": "^3.2.0",
     "jest-fetch-mock": "^3.0.3",
     "postcss": "^8.4.19",
-    "prettier": "^2.8.0",
+    "prettier": "^2.8.1",
     "sucrase": "^3.29.0",
     "ts-jest": "^29.0.3",
     "typescript": "^4.9.3"
