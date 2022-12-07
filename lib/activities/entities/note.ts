@@ -1,3 +1,4 @@
+import { ContextEntity } from './base'
 import { Collection } from './collection'
 import { Document } from './document'
 import { Mention } from './mention'
@@ -5,7 +6,7 @@ import { PropertyValue } from './propertyValue'
 
 type Attachment = PropertyValue | Document
 
-export interface BaseNote {
+export interface BaseNote extends ContextEntity {
   id: string
   summary: null
   inReplyTo: string | null

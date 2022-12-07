@@ -8,23 +8,23 @@ const handle: NextApiHandler = async (
   req: NextApiRequest,
   res: NextApiResponse
 ) => {
-  const { account, page } = req.query
+  const { actorId, page } = req.query
   const config = getConfig()
   const storage = await getStorage()
   if (!storage) {
     return res.status(400).json(ERROR_400)
   }
 
-  const actorId = `https://${config.host}/users/${account}`
-  const id = `${actorId}/following`
+  const id = `https://${config.host}/users/${actorId}`
+  const followingId = `${id}/following`
 
   switch (req.method) {
     case 'GET': {
       if (!page) {
-        const totalItems = await storage.getActorFollowingCount({ actorId })
+        const totalItems = await storage.getActorFollowingCount({ actorId: id })
         return res.status(200).json({
           '@context': 'https://www.w3.org/ns/activitystreams',
-          id,
+          id: followingId,
           type: 'OrderedCollection',
           totalItems,
           first: `${id}?page=1`

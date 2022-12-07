@@ -19,7 +19,7 @@ export default async function handler(
   res: NextApiResponse<Data>
 ) {
   const config = getConfig()
-  const { account } = req.query
+  const { actorId } = req.query
 
   const storage = await getStorage()
   if (!storage) {
@@ -27,7 +27,7 @@ export default async function handler(
   }
 
   const actor = await storage.getActorFromUsername({
-    username: account as string
+    username: actorId as string
   })
   if (!actor) {
     return res.status(404).json(ERROR_404)
@@ -54,25 +54,25 @@ export default async function handler(
 
   const user: Person = {
     '@context': PersonContext,
-    id: `https://${config.host}/users/${account}`,
+    id: `https://${config.host}/users/${actorId}`,
     type: 'Person',
-    following: `https://${config.host}/users/${account}/following`,
-    followers: `https://${config.host}/users/${account}/followers`,
-    inbox: `https://${config.host}/users/${account}/inbox`,
-    outbox: `https://${config.host}/users/${account}/outbox`,
-    featured: `https://${config.host}/users/${account}/collections/featured`,
-    featuredTags: `https://${config.host}/users/${account}/collections/tags`,
-    preferredUsername: `${account}`,
+    following: `https://${config.host}/users/${actorId}/following`,
+    followers: `https://${config.host}/users/${actorId}/followers`,
+    inbox: `https://${config.host}/users/${actorId}/inbox`,
+    outbox: `https://${config.host}/users/${actorId}/outbox`,
+    featured: `https://${config.host}/users/${actorId}/collections/featured`,
+    featuredTags: `https://${config.host}/users/${actorId}/collections/tags`,
+    preferredUsername: `${actorId}`,
     name: actor.name || '',
     summary: actor.summary || '',
-    url: `https://${config.host}/@${account}`,
+    url: `https://${config.host}/@${actorId}`,
     manuallyApprovesFollowers: false,
     discoverable: false,
     published: getISOTimeUTC(actor.createdAt),
-    devices: `https://${config.host}/users/${account}/collections/devices`,
+    devices: `https://${config.host}/users/${actorId}/collections/devices`,
     publicKey: {
-      id: `https://${config.host}/users/${account}#main-key`,
-      owner: `https://${config.host}/users/${account}`,
+      id: `https://${config.host}/users/${actorId}#main-key`,
+      owner: `https://${config.host}/users/${actorId}`,
       publicKeyPem: actor.publicKey
     },
     tag: [],

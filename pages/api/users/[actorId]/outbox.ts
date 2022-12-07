@@ -7,7 +7,7 @@ import { getStorage } from '../../../../lib/storage'
 import { getISOTimeUTC } from '../../../../lib/time'
 
 const handle: NextApiHandler = async (req, res) => {
-  const { account, page } = req.query
+  const { actorId, page } = req.query
   const config = getConfig()
   const storage = await getStorage()
   if (!storage) {
@@ -16,30 +16,30 @@ const handle: NextApiHandler = async (req, res) => {
 
   switch (req.method) {
     case 'GET': {
-      const actorId = `https://${config.host}/users/${account}`
+      const id = `https://${config.host}/users/${actorId}`
       if (!page) {
-        const totalItems = await storage.getActorStatusesCount({ actorId })
-        const id = `${actorId}/outbox`
+        const totalItems = await storage.getActorStatusesCount({ actorId: id })
+        const inboxId = `${actorId}/outbox`
         return res.status(200).json({
           '@context': 'https://www.w3.org/ns/activitystreams',
-          id,
+          id: inboxId,
           type: 'OrderedCollection',
           totalItems,
-          first: `${id}?page=true`,
-          last: `${id}?min_id=0&page=true`
+          first: `${inboxId}?page=true`,
+          last: `${inboxId}?min_id=0&page=true`
         })
       }
 
-      const statuses = await storage.getActorStatuses({ actorId })
+      const statuses = await storage.getActorStatuses({ actorId: id })
       return res.status(200).json({
         '@context': 'https://www.w3.org/ns/activitystreams',
-        id: `${actorId}/outbox?page=true`,
+        id: `${id}/outbox?page=true`,
         type: 'OrderedCollectionPage',
-        partOf: `${actorId}/outbox`,
+        partOf: `${id}/outbox`,
         orderedItems: statuses.map((status) => ({
           id: `${status.id}/activity`,
           type: 'Create',
-          actor: actorId,
+          actor: id,
           published: getISOTimeUTC(status.createdAt),
           to: status.to,
           cc: status.cc,

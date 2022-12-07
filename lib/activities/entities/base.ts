@@ -3,5 +3,5 @@ export type Context =
   | { [key: string]: string | { '@id': string; '@type': string } }
 
 export interface ContextEntity {
-  '@context': Context | Context[]
+  '@context'?: Context | Context[]
 }

@@ -5,23 +5,23 @@ import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { getStorage } from '../../../../lib/storage'
 
 const handle: NextApiHandler = async (req, res) => {
-  const { account, page } = req.query
+  const { actorId, page } = req.query
   const config = getConfig()
   const storage = await getStorage()
   if (!storage) {
     return res.status(400).json(ERROR_400)
   }
 
-  const actorId = `https://${config.host}/users/${account}`
-  const id = `${actorId}/followers`
+  const id = `https://${config.host}/users/${actorId}`
+  const followerId = `${id}/followers`
 
   switch (req.method) {
     case 'GET': {
       if (!page) {
-        const totalItems = await storage.getActorFollowersCount({ actorId })
+        const totalItems = await storage.getActorFollowersCount({ actorId: id })
         return res.status(200).json({
           '@context': 'https://www.w3.org/ns/activitystreams',
-          id,
+          id: followerId,
           type: 'OrderedCollection',
           totalItems,
           first: `${id}?page=1`
