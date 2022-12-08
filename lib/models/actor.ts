@@ -11,6 +11,8 @@ export interface Actor {
   iconUrl?: string
   headerImageUrl?: string
 
+  appleSharedAlbumToken?: string
+
   publicKey: string
   privateKey: string
 

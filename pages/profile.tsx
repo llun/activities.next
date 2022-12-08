@@ -108,13 +108,35 @@ const Page: NextPage<Props> = ({ actor }) => {
                   className="form-control"
                   id="headerImageInput"
                   name="headerImageUrl"
-                  aria-describedby="iconHelp"
+                  aria-describedby="headerImageHelp"
                   defaultValue={actor.headerImageUrl}
                 />
-                <div id="headerImageInput" className="form-text">
+                <div id="headerImageHelp" className="form-text">
                   Image URL for profile header
                 </div>
               </div>
+              <hr />
+              <div className="mb-3">
+                <label
+                  htmlFor="appleSharedAlbumTokenInput"
+                  className="form-label"
+                >
+                  Apple Shared albums contains medias that you want to post with
+                </label>
+                <input
+                  type="text"
+                  className="form-control"
+                  id="appleSharedAlbumTokenInput"
+                  name="appleSharedAlbumToken"
+                  aria-describedby="appleSharedAlbumTokenHelp"
+                  defaultValue={actor.appleSharedAlbumToken}
+                />
+                <div id="appleSharedAlbumTokenHelp" className="form-text">
+                  Apple Shared Album tokens contains images (and videos) that
+                  you want to post with
+                </div>
+              </div>
+
               <Button type="submit" variant="primary">
                 Update
               </Button>
