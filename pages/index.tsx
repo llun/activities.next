@@ -23,15 +23,25 @@ import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
 import styles from './index.module.scss'
 
+interface Profile {
+  id: string
+  name?: string
+  summary?: string
+  iconUrl?: string
+  headerImageUrl?: string
+  appleSharedAlbumToken?: string
+  createdAt: number
+}
+
 interface Props {
   currentServerTime: number
   statuses: Status[]
   attachments: Attachment[]
-  actor: Actor
+  profile: Profile
 }
 
 const Page: NextPage<Props> = ({
-  actor,
+  profile,
   statuses,
   attachments,
   currentServerTime
@@ -98,25 +108,25 @@ const Page: NextPage<Props> = ({
       <section className="container pt-4">
         <div className="row">
           <div className="col-12 col-md-3">
-            {actor.iconUrl && (
+            {profile.iconUrl && (
               <Image
                 width={100}
                 height={100}
                 alt="Actor icon"
                 className={cn(styles.icon, 'me-4', 'mb-2', 'flex-shrink-0')}
-                src={actor.iconUrl}
+                src={profile.iconUrl}
               />
             )}
             <div>
-              <h1>{actor.name}</h1>
-              <h4>@{getUsernameFromId(actor.id)}</h4>
-              {Number.isInteger(actor.createdAt) && (
+              <h1>{profile.name}</h1>
+              <h4>@{getUsernameFromId(profile.id)}</h4>
+              {Number.isInteger(profile.createdAt) && (
                 <p>
                   Joined{' '}
                   {new Intl.DateTimeFormat('en-US', {
                     dateStyle: 'long',
                     timeStyle: 'short'
-                  }).format(new Date(actor.createdAt))}
+                  }).format(new Date(profile.createdAt))}
                 </p>
               )}
             </div>
@@ -205,8 +215,16 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     props: {
       statuses,
       attachments: statusesAttachments.flat(),
-      actor,
-      currentServerTime: Date.now()
+      currentServerTime: Date.now(),
+      profile: {
+        id: actor.id,
+        name: actor.name,
+        summary: actor.summary,
+        iconUrl: actor.iconUrl,
+        headerImageUrl: actor.headerImageUrl,
+        appleSharedAlbumToken: actor.appleSharedAlbumToken,
+        createdAt: actor.createdAt
+      }
     }
   }
 }
