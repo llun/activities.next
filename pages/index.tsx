@@ -134,14 +134,14 @@ const Page: NextPage<Props> = ({
               </div>
               <Button type="submit">Send</Button>
             </form>
-            <Posts
+            {/* <Posts
               currentTime={new Date(currentServerTime)}
               statuses={currentStatuses}
               attachments={attachments}
               showActorId
               showActions
               onReply={onReply}
-            />
+            /> */}
           </div>
         </div>
       </section>
