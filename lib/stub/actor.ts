@@ -80,8 +80,6 @@ export const MockActor = ({
 }: Params): Actor => ({
   id,
   preferredUsername: new URL(id).pathname.split('/').pop() ?? 'me',
-  manuallyApprovesFollowers: false,
-  discoverable: true,
   publicKey: MOCK_PUBLIC_KEY,
   privateKey: MOCK_PRIVATE_KEY,
   createdAt: Date.now(),
