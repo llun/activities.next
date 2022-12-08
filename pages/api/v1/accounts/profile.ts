@@ -5,8 +5,12 @@ const handler = ApiGuard(async (req, res, context) => {
   const { currentActor, storage } = context
   switch (req.method) {
     case 'POST': {
-      console.log(req.body)
-      return res.status(200).json({})
+      const updatedActor = {
+        ...currentActor,
+        ...req.body
+      }
+      await storage.updateActor({ actor: updatedActor })
+      return res.status(301).redirect('/profile')
     }
     default: {
       res.status(404).json(ERROR_404)

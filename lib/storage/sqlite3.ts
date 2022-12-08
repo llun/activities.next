@@ -111,11 +111,36 @@ export class Sqlite3Storage implements Storage {
   }
 
   async getActorFromEmail({ email }: GetActorFromEmailParams) {
-    return this.database('actors')
-      .select<Actor>('actors.*')
+    const storageActor = await this.database('actors')
+      .select<SQLActor>('actors.*')
       .leftJoin('accounts', 'actors.accountId', 'accounts.id')
       .where('accounts.email', email)
       .first()
+    if (!storageActor) return undefined
+
+    const account = await this.database<Account>('accounts')
+      .where('id', storageActor.accountId)
+      .first()
+    if (!account) return undefined
+    const settings = JSON.parse(storageActor.settings || '{}') as ActorSettings
+    const actor: Actor = {
+      id: storageActor.id,
+      preferredUsername: storageActor.preferredUsername || '',
+      name: storageActor.name || '',
+      summary: storageActor.summary || '',
+
+      account,
+
+      iconUrl: settings.iconUrl || '',
+      headerImageUrl: settings.headerImageUrl || '',
+
+      publicKey: storageActor.publicKey || '',
+      privateKey: storageActor.privateKey || '',
+
+      createdAt: storageActor.createdAt,
+      updatedAt: storageActor.updatedAt
+    }
+    return actor
   }
 
   async isCurrentActorFollowing({
@@ -132,9 +157,35 @@ export class Sqlite3Storage implements Storage {
   }
 
   async getActorFromUsername({ username }: GetActorFromUsernameParams) {
-    return this.database<Actor>('actors')
+    const storageActor = await this.database<SQLActor>('actors')
       .where('preferredUsername', username)
       .first()
+    if (!storageActor) return undefined
+
+    const account = await this.database<Account>('accounts')
+      .where('id', storageActor.accountId)
+      .first()
+    if (!account) return undefined
+
+    const settings = JSON.parse(storageActor.settings || '{}') as ActorSettings
+    const actor: Actor = {
+      id: storageActor.id,
+      preferredUsername: storageActor.preferredUsername || '',
+      name: storageActor.name || '',
+      summary: storageActor.summary || '',
+
+      account,
+
+      iconUrl: settings.iconUrl || '',
+      headerImageUrl: settings.headerImageUrl || '',
+
+      publicKey: storageActor.publicKey || '',
+      privateKey: storageActor.privateKey || '',
+
+      createdAt: storageActor.createdAt,
+      updatedAt: storageActor.updatedAt
+    }
+    return actor
   }
 
   async getActorFromId({ id }: GetActorFromIdParams) {
@@ -151,17 +202,17 @@ export class Sqlite3Storage implements Storage {
     const settings = JSON.parse(storageActor.settings || '{}') as ActorSettings
     const actor: Actor = {
       id: storageActor.id,
-      preferredUsername: storageActor.preferredUsername,
-      name: storageActor.name,
-      summary: storageActor.summary,
+      preferredUsername: storageActor.preferredUsername || '',
+      name: storageActor.name || '',
+      summary: storageActor.summary || '',
 
       account,
 
-      iconUrl: settings.iconUrl,
-      headerImageUrl: settings.headerImageUrl,
+      iconUrl: settings.iconUrl || '',
+      headerImageUrl: settings.headerImageUrl || '',
 
-      publicKey: storageActor.publicKey,
-      privateKey: storageActor.privateKey,
+      publicKey: storageActor.publicKey || '',
+      privateKey: storageActor.privateKey || '',
 
       createdAt: storageActor.createdAt,
       updatedAt: storageActor.updatedAt

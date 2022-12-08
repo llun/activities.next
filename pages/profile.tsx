@@ -54,7 +54,7 @@ const Page: NextPage<Props> = ({ actor }) => {
             </div>
           </div>
           <div className="col-12 col-md-9">
-            <form action="/api/v1/account/profile" method="post">
+            <form action="/api/v1/accounts/profile" method="post">
               <div className="mb-3">
                 <label htmlFor="nameInput" className="form-label">
                   Name
@@ -63,8 +63,9 @@ const Page: NextPage<Props> = ({ actor }) => {
                   type="text"
                   className="form-control"
                   id="nameInput"
+                  name="name"
                   aria-describedby="nameHelp"
-                  value={actor.name}
+                  defaultValue={actor.name}
                 />
                 <div id="nameHelp" className="form-text">
                   Name that you want to show in profile
@@ -77,8 +78,9 @@ const Page: NextPage<Props> = ({ actor }) => {
                 <textarea
                   rows={3}
                   className="form-control"
+                  name="summary"
                   id="summaryInput"
-                  value={actor.summary}
+                  defaultValue={actor.summary || ''}
                 />
               </div>
               <div className="mb-3">
@@ -88,9 +90,10 @@ const Page: NextPage<Props> = ({ actor }) => {
                 <input
                   type="text"
                   className="form-control"
+                  name="iconUrl"
                   id="iconInput"
                   aria-describedby="iconHelp"
-                  value={actor.iconUrl}
+                  defaultValue={actor.iconUrl}
                 />
                 <div id="iconHelp" className="form-text">
                   Image URL for profile
@@ -104,8 +107,9 @@ const Page: NextPage<Props> = ({ actor }) => {
                   type="text"
                   className="form-control"
                   id="headerImageInput"
+                  name="headerImageUrl"
                   aria-describedby="iconHelp"
-                  value={actor.headerImageUrl}
+                  defaultValue={actor.headerImageUrl}
                 />
                 <div id="headerImageInput" className="form-text">
                   Image URL for profile header
