@@ -9,16 +9,26 @@ import Image from 'next/image'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { getConfig } from '../lib/config'
-import { Actor, getUsernameFromId } from '../lib/models/actor'
+import { getUsernameFromId } from '../lib/models/actor'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
 import styles from './profile.module.scss'
 
-interface Props {
-  actor: Actor
+interface Profile {
+  id: string
+  name?: string
+  summary?: string
+  iconUrl?: string
+  headerImageUrl?: string
+  appleSharedAlbumToken?: string
+  createdAt: number
 }
 
-const Page: NextPage<Props> = ({ actor }) => {
+interface Props {
+  profile: Profile
+}
+
+const Page: NextPage<Props> = ({ profile }) => {
   const { data: session } = useSession()
 
   return (
@@ -30,25 +40,25 @@ const Page: NextPage<Props> = ({ actor }) => {
       <section className="container pt-4">
         <div className="row">
           <div className="col-12 col-md-3">
-            {actor.iconUrl && (
+            {profile.iconUrl && (
               <Image
                 width={100}
                 height={100}
                 alt="Actor icon"
                 className={cn(styles.icon, 'me-4', 'mb-2', 'flex-shrink-0')}
-                src={actor.iconUrl}
+                src={profile.iconUrl}
               />
             )}
             <div>
-              <h1>{actor.name}</h1>
-              <h4>@{getUsernameFromId(actor.id)}</h4>
-              {Number.isInteger(actor.createdAt) && (
+              <h1>{profile.name}</h1>
+              <h4>@{getUsernameFromId(profile.id)}</h4>
+              {Number.isInteger(profile.createdAt) && (
                 <p>
                   Joined{' '}
                   {new Intl.DateTimeFormat('en-US', {
                     dateStyle: 'long',
                     timeStyle: 'short'
-                  }).format(new Date(actor.createdAt))}
+                  }).format(new Date(profile.createdAt))}
                 </p>
               )}
             </div>
@@ -65,7 +75,7 @@ const Page: NextPage<Props> = ({ actor }) => {
                   id="nameInput"
                   name="name"
                   aria-describedby="nameHelp"
-                  defaultValue={actor.name}
+                  defaultValue={profile.name}
                 />
                 <div id="nameHelp" className="form-text">
                   Name that you want to show in profile
@@ -80,7 +90,7 @@ const Page: NextPage<Props> = ({ actor }) => {
                   className="form-control"
                   name="summary"
                   id="summaryInput"
-                  defaultValue={actor.summary || ''}
+                  defaultValue={profile.summary || ''}
                 />
               </div>
               <div className="mb-3">
@@ -93,7 +103,7 @@ const Page: NextPage<Props> = ({ actor }) => {
                   name="iconUrl"
                   id="iconInput"
                   aria-describedby="iconHelp"
-                  defaultValue={actor.iconUrl}
+                  defaultValue={profile.iconUrl}
                 />
                 <div id="iconHelp" className="form-text">
                   Image URL for profile
@@ -109,7 +119,7 @@ const Page: NextPage<Props> = ({ actor }) => {
                   id="headerImageInput"
                   name="headerImageUrl"
                   aria-describedby="headerImageHelp"
-                  defaultValue={actor.headerImageUrl}
+                  defaultValue={profile.headerImageUrl}
                 />
                 <div id="headerImageHelp" className="form-text">
                   Image URL for profile header
@@ -129,7 +139,7 @@ const Page: NextPage<Props> = ({ actor }) => {
                   id="appleSharedAlbumTokenInput"
                   name="appleSharedAlbumToken"
                   aria-describedby="appleSharedAlbumTokenHelp"
-                  defaultValue={actor.appleSharedAlbumToken}
+                  defaultValue={profile.appleSharedAlbumToken}
                 />
                 <div id="appleSharedAlbumTokenHelp" className="form-text">
                   Apple Shared Album tokens contains images (and videos) that
@@ -183,7 +193,15 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
 
   return {
     props: {
-      actor
+      profile: {
+        id: actor.id,
+        name: actor.name,
+        summary: actor.summary,
+        iconUrl: actor.iconUrl,
+        headerImageUrl: actor.headerImageUrl,
+        appleSharedAlbumToken: actor.appleSharedAlbumToken,
+        createdAt: actor.createdAt
+      }
     }
   }
 }
