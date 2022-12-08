@@ -132,7 +132,7 @@ const Page: NextPage<Props> = ({
             </div>
           </div>
           <div className="col-12 col-md-9">
-            <ReplyPreview status={replyStatus} onClose={onCloseReply} />
+            {/* <ReplyPreview status={replyStatus} onClose={onCloseReply} />
             <form onSubmit={onPost}>
               <div className="mb-3">
                 <textarea
@@ -143,7 +143,7 @@ const Page: NextPage<Props> = ({
                 />
               </div>
               <Button type="submit">Send</Button>
-            </form>
+            </form> */}
             {/* <Posts
               currentTime={new Date(currentServerTime)}
               statuses={currentStatuses}
@@ -218,11 +218,11 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       currentServerTime: Date.now(),
       profile: {
         id: actor.id,
-        name: actor.name,
-        summary: actor.summary,
-        iconUrl: actor.iconUrl,
-        headerImageUrl: actor.headerImageUrl,
-        appleSharedAlbumToken: actor.appleSharedAlbumToken,
+        name: actor.name || '',
+        summary: actor.summary || '',
+        iconUrl: actor.iconUrl || '',
+        headerImageUrl: actor.headerImageUrl || '',
+        appleSharedAlbumToken: actor.appleSharedAlbumToken || '',
         createdAt: actor.createdAt
       }
     }
