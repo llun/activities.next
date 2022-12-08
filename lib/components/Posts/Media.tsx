@@ -1,9 +1,6 @@
-import cn from 'classnames'
-import Image from 'next/image'
 import { FC } from 'react'
 
 import { Attachment } from '../../models/attachment'
-import styles from './Media.module.scss'
 
 interface Props {
   caption?: string
@@ -23,7 +20,7 @@ export const Media: FC<Props> = ({
   const { mediaType, url, name, id, width, height } = attachment
   if (mediaType.startsWith('image')) {
     return (
-      <Image
+      <img
         onClick={onClick}
         key={id}
         className={className}
