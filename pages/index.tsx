@@ -118,21 +118,15 @@ const Page: NextPage<Props> = ({
               />
             )}
             <div>
-              {/* <h1>{profile.name}</h1>
+              <h1>{profile.name}</h1>
               <h4>@{getUsernameFromId(profile.id)}</h4>
               {Number.isInteger(profile.createdAt) && (
-                <p>
-                  Joined{' '}
-                  {new Intl.DateTimeFormat('en-US', {
-                    dateStyle: 'long',
-                    timeStyle: 'short'
-                  }).format(new Date(profile.createdAt))}
-                </p>
-              )} */}
+                <p>Joined {profile.createdAt}</p>
+              )}
             </div>
           </div>
           <div className="col-12 col-md-9">
-            {/* <ReplyPreview status={replyStatus} onClose={onCloseReply} />
+            <ReplyPreview status={replyStatus} onClose={onCloseReply} />
             <form onSubmit={onPost}>
               <div className="mb-3">
                 <textarea
@@ -143,15 +137,15 @@ const Page: NextPage<Props> = ({
                 />
               </div>
               <Button type="submit">Send</Button>
-            </form> */}
-            {/* <Posts
+            </form>
+            <Posts
               currentTime={new Date(currentServerTime)}
               statuses={currentStatuses}
               attachments={attachments}
               showActorId
               showActions
               onReply={onReply}
-            /> */}
+            />
           </div>
         </div>
       </section>
