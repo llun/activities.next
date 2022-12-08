@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
+import format from 'date-fns/format'
 import { GetStaticProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
@@ -72,13 +73,7 @@ const Page: NextPage<Props> = ({
                 <span className="ms-2">{followersCount} Followers</span>
               </p>
               {Number.isInteger(createdAt) && (
-                <p>
-                  Joined{' '}
-                  {new Intl.DateTimeFormat('en-US', {
-                    dateStyle: 'long',
-                    timeStyle: 'short'
-                  }).format(new Date(createdAt))}
-                </p>
+                <p>Joined {format(createdAt, 'd MMM yyyy')}</p>
               )}
             </div>
             {isLoggedIn && (

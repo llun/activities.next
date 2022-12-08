@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
+import format from 'date-fns/format'
 import { GetServerSideProps, NextPage } from 'next'
 import { unstable_getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
@@ -12,11 +13,7 @@ import { Header } from '../lib/components/Header'
 import { Posts } from '../lib/components/Posts/Posts'
 import { ReplyPreview } from '../lib/components/ReplyPreview'
 import { getConfig } from '../lib/config'
-import {
-  Actor,
-  getAtWithHostFromId,
-  getUsernameFromId
-} from '../lib/models/actor'
+import { getAtWithHostFromId, getUsernameFromId } from '../lib/models/actor'
 import { Attachment } from '../lib/models/attachment'
 import { Status } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
@@ -121,7 +118,7 @@ const Page: NextPage<Props> = ({
               <h1>{profile.name}</h1>
               <h4>@{getUsernameFromId(profile.id)}</h4>
               {Number.isInteger(profile.createdAt) && (
-                <p>Joined {profile.createdAt}</p>
+                <p>Joined {format(profile.createdAt, 'd MMM yyyy')}</p>
               )}
             </div>
           </div>
