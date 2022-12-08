@@ -118,7 +118,7 @@ const Page: NextPage<Props> = ({
               />
             )}
             <div>
-              <h1>{profile.name}</h1>
+              {/* <h1>{profile.name}</h1>
               <h4>@{getUsernameFromId(profile.id)}</h4>
               {Number.isInteger(profile.createdAt) && (
                 <p>
@@ -128,7 +128,7 @@ const Page: NextPage<Props> = ({
                     timeStyle: 'short'
                   }).format(new Date(profile.createdAt))}
                 </p>
-              )}
+              )} */}
             </div>
           </div>
           <div className="col-12 col-md-9">
