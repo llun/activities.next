@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { Knex, knex } from 'knex'
 
 import { getConfig } from '../config'
+import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
@@ -29,8 +30,30 @@ import {
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
   Storage,
+  UpdateActorParams,
   UpdateFollowStatusParams
 } from './types'
+
+interface ActorSettings {
+  iconUrl?: string
+  headerImageUrl?: string
+}
+
+interface SQLActor {
+  id: string
+  preferredUsername: string
+  name?: string
+  summary?: string
+  accountId?: string
+
+  publicKey: string
+  privateKey: string
+
+  settings: string
+
+  createdAt: number
+  updatedAt: number
+}
 
 export class Sqlite3Storage implements Storage {
   database: Knex
@@ -115,7 +138,56 @@ export class Sqlite3Storage implements Storage {
   }
 
   async getActorFromId({ id }: GetActorFromIdParams) {
-    return this.database<Actor>('actors').where('id', id).first()
+    const storageActor = await this.database<SQLActor>('actors')
+      .where('id', id)
+      .first()
+    if (!storageActor) return undefined
+
+    const account = await this.database<Account>('accounts')
+      .where('id', storageActor.accountId)
+      .first()
+    if (!account) return undefined
+
+    const settings = JSON.parse(storageActor.settings || '{}') as ActorSettings
+    const actor: Actor = {
+      id: storageActor.id,
+      preferredUsername: storageActor.preferredUsername,
+      name: storageActor.name,
+      summary: storageActor.summary,
+
+      account,
+
+      iconUrl: settings.iconUrl,
+      headerImageUrl: settings.headerImageUrl,
+
+      publicKey: storageActor.publicKey,
+      privateKey: storageActor.privateKey,
+
+      createdAt: storageActor.createdAt,
+      updatedAt: storageActor.updatedAt
+    }
+    return actor
+  }
+
+  async updateActor({ actor }: UpdateActorParams) {
+    const storageActor = await this.database<SQLActor>('actors')
+      .where('id', actor.id)
+      .first()
+    if (!storageActor) return undefined
+
+    const settings: ActorSettings = {
+      iconUrl: actor.iconUrl,
+      headerImageUrl: actor.headerImageUrl
+    }
+
+    await this.database<SQLActor>('actors').update({
+      name: actor.name,
+      summary: actor.summary,
+      settings: JSON.stringify(settings),
+      updatedAt: Date.now()
+    })
+
+    return actor
   }
 
   async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {

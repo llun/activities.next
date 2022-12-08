@@ -7,10 +7,6 @@ export interface Actor {
   summary?: string
 
   account?: Account
-  following?: Actor
-
-  manuallyApprovesFollowers: boolean
-  discoverable: boolean
 
   iconUrl?: string
   headerImageUrl?: string

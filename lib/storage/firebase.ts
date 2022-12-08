@@ -12,6 +12,7 @@ import {
   limit,
   orderBy,
   query,
+  setDoc,
   updateDoc,
   where
 } from 'firebase/firestore'
@@ -44,6 +45,7 @@ import {
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
   Storage,
+  UpdateActorParams,
   UpdateFollowStatusParams
 } from './types'
 
@@ -148,6 +150,21 @@ export class FirebaseStorage implements Storage {
     if (actorsSnapshot.docs.length !== 1) return undefined
 
     return actorsSnapshot.docs[0].data() as Actor
+  }
+
+  async updateActor({ actor }: UpdateActorParams) {
+    const actors = collection(this.db, 'actors')
+    const actorsQuery = query(actors, where('id', '==', actor.id), limit(1))
+    const actorsSnapshot = await getDocs(actorsQuery)
+    if (actorsSnapshot.docs.length !== 1) return undefined
+
+    const document = actorsSnapshot.docs[0]
+    await setDoc(doc(this.db, 'actors', document.id), {
+      ...document.data(),
+      ...actor
+    })
+
+    return actor
   }
 
   async isCurrentActorFollowing({

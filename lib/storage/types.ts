@@ -18,6 +18,9 @@ export type IsCurrentActorFollowingParams = {
   currentActorId: string
   followingActorId: string
 }
+export type UpdateActorParams = {
+  actor: Actor
+}
 export type GetActorFollowingCountParams = { actorId: string }
 export type GetActorFollowersCountParams = { actorId: string }
 export type CreateFollowParams = {
@@ -68,6 +71,8 @@ export interface Storage {
     params: GetActorFromUsernameParams
   ): Promise<Actor | undefined>
   getActorFromId(params: GetActorFromIdParams): Promise<Actor | undefined>
+  updateActor(params: UpdateActorParams): Promise<Actor | undefined>
+
   isCurrentActorFollowing(
     params: IsCurrentActorFollowingParams
   ): Promise<boolean>
