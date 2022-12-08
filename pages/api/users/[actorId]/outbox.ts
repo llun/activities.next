@@ -19,7 +19,7 @@ const handle: NextApiHandler = async (req, res) => {
       const id = `https://${config.host}/users/${actorId}`
       if (!page) {
         const totalItems = await storage.getActorStatusesCount({ actorId: id })
-        const inboxId = `${actorId}/outbox`
+        const inboxId = `${id}/outbox`
         return res.status(200).json({
           '@context': 'https://www.w3.org/ns/activitystreams',
           id: inboxId,
