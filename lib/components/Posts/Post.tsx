@@ -53,9 +53,9 @@ export const Post: FC<Props> = (props) => {
     <div key={status.id} className={cn(styles.post)}>
       <div className={cn('d-flex')}>
         <div className={cn('flex-fill', 'me-1')}>{parseText(status.text)}</div>
-        <div className={cn('flex-shrink-0', styles.misc)}>
+        {/* <div className={cn('flex-shrink-0', styles.misc)}>
           {formatDistance(status.createdAt, currentTime)}
-        </div>
+        </div> */}
       </div>
       {attachments.length > 0 && (
         <div
