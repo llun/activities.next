@@ -63,7 +63,14 @@ export const PostBox: FC<Props> = ({
             name="message"
           />
         </div>
-        <Button type="submit">Send</Button>
+        <div className="d-flex justify-content-between mb-3">
+          <div>
+            <Button variant="link">
+              <i className="bi bi-image"></i>
+            </Button>
+          </div>
+          <Button type="submit">Send</Button>
+        </div>
       </form>
     </div>
   )
