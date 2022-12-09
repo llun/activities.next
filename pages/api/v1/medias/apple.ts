@@ -58,7 +58,3 @@ const handle = async (req: NextApiRequest, res: NextApiResponse) => {
 }
 
 export default handle
-
-export const config = {
-  runtime: 'experimental-edge'
-}
