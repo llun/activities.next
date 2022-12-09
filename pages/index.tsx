@@ -10,6 +10,7 @@ import { FormEvent, useRef, useState } from 'react'
 
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
+import { PostBox } from '../lib/components/PostBox'
 import { Posts } from '../lib/components/Posts/Posts'
 import { ReplyPreview } from '../lib/components/ReplyPreview'
 import { getConfig } from '../lib/config'
@@ -123,18 +124,17 @@ const Page: NextPage<Props> = ({
             </div>
           </div>
           <div className="col-12 col-md-9">
-            <ReplyPreview status={replyStatus} onClose={onCloseReply} />
-            <form onSubmit={onPost}>
-              <div className="mb-3">
-                <textarea
-                  ref={postBoxRef}
-                  className="form-control"
-                  rows={3}
-                  name="message"
-                />
-              </div>
-              <Button type="submit">Send</Button>
-            </form>
+            <PostBox
+              replyStatus={replyStatus}
+              onDiscardReply={() => setReplyStatus(undefined)}
+              onCreatePostSuccess={(status: Status) => {
+                setCurrentStatuses((previousValue) => [
+                  status,
+                  ...previousValue
+                ])
+                setReplyStatus(undefined)
+              }}
+            />
             <Posts
               currentTime={new Date(currentServerTime)}
               statuses={currentStatuses}

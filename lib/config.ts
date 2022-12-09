@@ -12,6 +12,7 @@ export interface Config {
   database: KnexBaseDatabase | FirebaseDatabase
   allowEmails: string[]
   secretPhase: string
+  allowMediaDomains?: string[]
   auth?: {
     github?: {
       id: string
