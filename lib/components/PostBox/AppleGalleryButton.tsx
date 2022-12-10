@@ -1,10 +1,14 @@
 import { FC, MouseEvent, useState } from 'react'
 
 import { getAppleSharedAlbumAssets, getAppleSharedGallery } from '../../client'
-import { Media, getMediaList } from '../../medias/apple/media'
+import { Media, getMediaList, mergeMediaAssets } from '../../medias/apple/media'
+import { VideoPosterDerivative } from '../../medias/apple/webstream'
 import { Profile } from '../../models/actor'
 import { Button } from '../Button'
 import { Modal } from '../Modal'
+import styles from './AppleGalleryButton.module.scss'
+
+type MediaLoadingState = 'idle' | 'loading' | 'loaded'
 
 interface Props {
   profile: Profile
@@ -12,6 +16,8 @@ interface Props {
 
 export const AppleGallerButton: FC<Props> = ({ profile }) => {
   const [showGallery, setShowGallery] = useState<boolean>(false)
+  const [loadingState, setMediaLoadingState] =
+    useState<MediaLoadingState>('idle')
   const [medias, setMedias] = useState<Media[]>([])
 
   if (!profile.appleSharedAlbumToken) return null
@@ -21,22 +27,27 @@ export const AppleGallerButton: FC<Props> = ({ profile }) => {
     event.stopPropagation()
     if (!profile.appleSharedAlbumToken) return
 
-    const stream = await getAppleSharedGallery({
-      albumToken: profile.appleSharedAlbumToken
-    })
-    // Fail to load Apple Stream
-    if (!stream) return
+    if (loadingState === 'idle') {
+      setMediaLoadingState('loading')
+      const stream = await getAppleSharedGallery({
+        albumToken: profile.appleSharedAlbumToken
+      })
+      // Fail to load Apple Stream
+      if (!stream) return
 
-    const mediaList = getMediaList(stream)
-    const assets = await getAppleSharedAlbumAssets({
-      albumToken: profile.appleSharedAlbumToken,
-      photoGuids: mediaList.map((item) => item.guid)
-    })
+      const medias = getMediaList(stream)
+      const assets = await getAppleSharedAlbumAssets({
+        albumToken: profile.appleSharedAlbumToken,
+        photoGuids: medias.map((item) => item.guid)
+      })
 
-    // Fail to load Apple Assets
-    if (!assets) return
+      // Fail to load Apple Assets
+      if (!assets) return
 
-    console.log(stream?.photos)
+      mergeMediaAssets(medias, assets)
+      setMedias(medias)
+      setMediaLoadingState('loaded')
+    }
 
     setShowGallery(true)
   }
@@ -47,8 +58,24 @@ export const AppleGallerButton: FC<Props> = ({ profile }) => {
         <i className="bi bi-image" />
       </Button>
       <Modal isOpen={showGallery} onRequestClose={() => setShowGallery(false)}>
-        Shows all medias from apple share gallery if available? or open a file
-        picker
+        <div className={styles.gallery}>
+          {medias.map((media) => {
+            const key =
+              media.type === 'video'
+                ? VideoPosterDerivative
+                : Object.keys(media.derivatives)[0]
+            const backgroundImage =
+              media.derivatives[key].url && `url(${media.derivatives[key].url})`
+
+            return (
+              <div
+                key={media.guid}
+                className={styles.media}
+                style={{ backgroundImage }}
+              />
+            )
+          })}
+        </div>
       </Modal>
     </>
   )
