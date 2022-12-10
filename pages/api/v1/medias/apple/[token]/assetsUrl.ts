@@ -1,11 +1,12 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 
 import { allowOrigin } from '.'
-import { getConfig } from '../../../../../../lib/config'
-import { fetchAssetsUrl } from '../../../../../../lib/medias/apple/webstream'
+import {
+  Assets,
+  fetchAssetsUrl
+} from '../../../../../../lib/medias/apple/webstream'
 
 export interface AssetsRequest {
-  token: string
   photoGuids: string[]
 }
 
@@ -24,8 +25,8 @@ const handle = async (req: NextApiRequest, res: NextApiResponse) => {
     return res.status(404).json({ error: 'Not Found' })
   }
 
-  const assetsData = response.json()
-  return res.status(200).json(assetsData)
+  const assets = (await response.json()) as Assets
+  res.status(200).json({ assets })
 }
 
 export default handle

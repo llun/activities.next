@@ -1,10 +1,5 @@
 import { Assets, Stream, VideoPosterDerivative } from './webstream'
 
-export interface AssetsRequest {
-  token: string
-  photoGuids: string[]
-}
-
 export interface Media {
   createdAt: number
   type: 'video' | 'photo'
@@ -51,27 +46,6 @@ export function getMediaList(stream: Stream): Media[] {
       guid: photo.photoGuid
     } as Media
   })
-}
-
-export async function proxyAssetsUrl(
-  token: string,
-  medias: Media[]
-): Promise<Assets | null> {
-  const url =
-    process.env.NODE_ENV === 'production'
-      ? 'https://next.llun.dev/api/apple/'
-      : 'http://localhost:3000/api/apple/'
-  const body: AssetsRequest = {
-    token,
-    photoGuids: medias.map((media) => media.guid)
-  }
-  const response = await fetch(url, {
-    body: JSON.stringify(body),
-    method: 'POST',
-    redirect: 'follow'
-  })
-  if (response.status !== 200) return null
-  return response.json()
 }
 
 export function mergeMediaAssets(medias: Media[], assets: Assets) {

@@ -3,11 +3,6 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { getConfig } from '../../../../../../lib/config'
 import { fetchStream } from '../../../../../../lib/medias/apple/webstream'
 
-export interface AssetsRequest {
-  token: string
-  photoGuids: string[]
-}
-
 export const allowOrigin = (request: NextApiRequest) => {
   if (process.env.NODE_ENV !== 'production') return '*'
 
@@ -38,7 +33,7 @@ const handle = async (req: NextApiRequest, res: NextApiResponse) => {
     return res.status(404).json({ error: 'Not Found' })
   }
 
-  return res.status(200).json(stream)
+  return res.status(200).json({ stream })
 }
 
 export default handle

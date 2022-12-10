@@ -1,3 +1,4 @@
+import { Assets, Stream } from './medias/apple/webstream'
 import { Status } from './models/status'
 
 interface CreateStatusParams {
@@ -44,5 +45,32 @@ export const getAppleSharedGallery = async ({
     return
   }
 
-  return await response.json()
+  const data = await response.json()
+  return data.stream as Stream
+}
+
+interface GetAppleSharedAlbumAssets {
+  albumToken: string
+  photoGuids: string[]
+}
+export const getAppleSharedAlbumAssets = async ({
+  albumToken,
+  photoGuids
+}: GetAppleSharedAlbumAssets) => {
+  const response = await fetch(`/api/v1/medias/apple/${albumToken}/assetsUrl`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      photoGuids
+    })
+  })
+  if (response.status !== 200) {
+    // Create or throw an error here
+    return
+  }
+
+  const data = await response.json()
+  return data.assets as Assets
 }
