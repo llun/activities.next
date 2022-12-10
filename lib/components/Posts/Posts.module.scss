@@ -25,6 +25,12 @@
   align-items: center;
 }
 
+.modalOverlay {
+  position: fixed;
+  inset: 0px;
+  background-color: rgba(var(--bs-white-rgb), 0.75);
+}
+
 .selectedMedia {
   object-fit: contain;
   max-width: 100%;

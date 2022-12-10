@@ -50,6 +50,7 @@ export const Posts: FC<Props> = ({
         </div>
       ))}
       <ReactModal
+        overlayClassName={styles.modalOverlay}
         className={cn(styles.modal)}
         isOpen={Boolean(modalMedia)}
         onRequestClose={() => setModalMedia(undefined)}
