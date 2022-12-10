@@ -31,8 +31,11 @@ export const getConfig = memoize((): Config => {
     return {
       host: process.env.ACTIVITIES_HOST || '',
       database: JSON.parse(process.env.ACTIVITIES_DATABASE || '{}'),
-      allowEmails: JSON.parse(process.env.ACTIVITIES_ALLOW_EMAILS || '[]'),
       secretPhase: process.env.ACTIVITIES_SECRET_PHASE || '',
+      allowEmails: JSON.parse(process.env.ACTIVITIES_ALLOW_EMAILS || '[]'),
+      allowMediaDomains: JSON.parse(
+        process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS || '[]'
+      ),
       auth: JSON.parse(process.env.ACTIVITIES_AUTH || '{}')
     }
   }
