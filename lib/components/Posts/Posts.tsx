@@ -1,10 +1,12 @@
 import cn from 'classnames'
 import groupBy from 'lodash/groupBy'
-import { FC } from 'react'
+import { FC, useState } from 'react'
+import ReactModal from 'react-modal'
 
 import { Attachment } from '../../models/attachment'
 import { Status } from '../../models/status'
 import { Actor } from './Actor'
+import { Media } from './Media'
 import { Post } from './Post'
 import styles from './Posts.module.scss'
 
@@ -25,6 +27,8 @@ export const Posts: FC<Props> = ({
   attachments,
   onReply
 }) => {
+  const [modalMedia, setModalMedia] = useState<Attachment>()
+
   if (statuses.length === 0) return null
 
   const attachmentsMap = groupBy(attachments, 'statusId')
@@ -39,9 +43,23 @@ export const Posts: FC<Props> = ({
             attachments={attachmentsMap[status.id]}
             showActions={showActions}
             onReply={onReply}
+            onShowAttachment={(attachment: Attachment) =>
+              setModalMedia(attachment)
+            }
           />
         </div>
       ))}
+      <ReactModal
+        className={cn(styles.modal)}
+        isOpen={Boolean(modalMedia)}
+        onRequestClose={() => setModalMedia(undefined)}
+      >
+        <Media
+          showVideoControl
+          className={cn(styles.selectedMedia)}
+          attachment={modalMedia}
+        />
+      </ReactModal>
     </section>
   )
 }

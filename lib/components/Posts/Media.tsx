@@ -5,7 +5,7 @@ import { Attachment } from '../../models/attachment'
 interface Props {
   caption?: string
   className?: string
-  attachment: Attachment
+  attachment?: Attachment
   showVideoControl?: boolean
   onClick?: () => void
 }
@@ -17,6 +17,10 @@ export const Media: FC<Props> = ({
   showVideoControl = false,
   onClick
 }) => {
+  if (!attachment) {
+    return null
+  }
+
   const { mediaType, url, name, id, width, height } = attachment
   if (mediaType.startsWith('image')) {
     return (

@@ -1,7 +1,6 @@
 import cn from 'classnames'
 import formatDistance from 'date-fns/formatDistance'
-import { FC, useState } from 'react'
-import ReactModal from 'react-modal'
+import { FC } from 'react'
 
 import { Attachment } from '../../models/attachment'
 import { Status } from '../../models/status'
@@ -16,6 +15,7 @@ interface Props {
   attachments: Attachment[]
   showActions?: boolean
   onReply?: (status: Status) => void
+  onShowAttachment: (attachment: Attachment) => void
 }
 
 export const Actions: FC<Props> = ({
@@ -47,8 +47,7 @@ export const Actions: FC<Props> = ({
 }
 
 export const Post: FC<Props> = (props) => {
-  const { status, currentTime, attachments = [] } = props
-  const [modalMedia, setModalMedia] = useState<Attachment | null>(null)
+  const { status, currentTime, attachments = [], onShowAttachment } = props
   return (
     <div key={status.id} className={cn(styles.post)}>
       <div className={cn('d-flex')}>
@@ -69,7 +68,7 @@ export const Post: FC<Props> = (props) => {
           {attachments.map((attachment) => (
             <Media
               className={styles.media}
-              onClick={() => setModalMedia(attachment)}
+              onClick={() => onShowAttachment(attachment)}
               key={attachment.id}
               attachment={attachment}
             />
@@ -77,21 +76,6 @@ export const Post: FC<Props> = (props) => {
         </div>
       )}
       <Actions {...props} />
-      {attachments.length > 0 && (
-        <ReactModal
-          className={cn(styles.modal)}
-          isOpen={Boolean(modalMedia)}
-          onRequestClose={() => setModalMedia(null)}
-        >
-          {modalMedia && (
-            <Media
-              showVideoControl
-              className={cn(styles.selectedMedia)}
-              attachment={modalMedia}
-            />
-          )}
-        </ReactModal>
-      )}
     </div>
   )
 }

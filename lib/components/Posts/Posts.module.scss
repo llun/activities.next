@@ -11,3 +11,22 @@
   padding-left: 2rem;
   list-style: none;
 }
+
+.modal {
+  overscroll-behavior: contain;
+  position: absolute;
+  inset: 2.5rem;
+  border: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+  border-radius: 4px;
+  outline: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.selectedMedia {
+  object-fit: contain;
+  max-width: 100%;
+  max-height: 100%;
+}
