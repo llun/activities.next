@@ -1,7 +1,8 @@
-import { FC, FormEvent, useRef } from 'react'
+import { FC, FormEvent, useRef, useState } from 'react'
 
 import { Status } from '../models/status'
 import { Button } from './Button'
+import { Modal } from './Modal'
 import { ReplyPreview } from './ReplyPreview'
 
 interface Props {
@@ -16,6 +17,7 @@ export const PostBox: FC<Props> = ({
   onDiscardReply
 }) => {
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
+  const [showGallery, setShowGallery] = useState<boolean>(false)
 
   const onPost = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -51,6 +53,10 @@ export const PostBox: FC<Props> = ({
     postBox.value = ''
   }
 
+  const onOpenGallery = async () => {
+    setShowGallery(true)
+  }
+
   return (
     <div>
       <ReplyPreview status={replyStatus} onClose={onCloseReply} />
@@ -65,13 +71,17 @@ export const PostBox: FC<Props> = ({
         </div>
         <div className="d-flex justify-content-between mb-3">
           <div>
-            <Button variant="link">
+            <Button variant="link" onClick={onOpenGallery}>
               <i className="bi bi-image"></i>
             </Button>
           </div>
           <Button type="submit">Send</Button>
         </div>
       </form>
+      <Modal isOpen={showGallery} onRequestClose={() => setShowGallery(false)}>
+        Shows all medias from apple share gallery if available? or open a file
+        picker
+      </Modal>
     </div>
   )
 }

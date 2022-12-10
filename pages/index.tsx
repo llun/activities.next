@@ -8,28 +8,21 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { FormEvent, useRef, useState } from 'react'
 
-import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { PostBox } from '../lib/components/PostBox'
 import { Posts } from '../lib/components/Posts/Posts'
-import { ReplyPreview } from '../lib/components/ReplyPreview'
 import { getConfig } from '../lib/config'
-import { getAtWithHostFromId, getUsernameFromId } from '../lib/models/actor'
+import {
+  Profile,
+  getAtWithHostFromId,
+  getProfileFromActor,
+  getUsernameFromId
+} from '../lib/models/actor'
 import { Attachment } from '../lib/models/attachment'
 import { Status } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
 import styles from './index.module.scss'
-
-interface Profile {
-  id: string
-  name?: string
-  summary?: string
-  iconUrl?: string
-  headerImageUrl?: string
-  appleSharedAlbumToken?: string
-  createdAt: number
-}
 
 interface Props {
   currentServerTime: number
@@ -207,15 +200,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       statuses,
       attachments: statusesAttachments.flat(),
       currentServerTime: Date.now(),
-      profile: {
-        id: actor.id,
-        name: actor.name || '',
-        summary: actor.summary || '',
-        iconUrl: actor.iconUrl || '',
-        headerImageUrl: actor.headerImageUrl || '',
-        appleSharedAlbumToken: actor.appleSharedAlbumToken || '',
-        createdAt: actor.createdAt
-      }
+      profile: getProfileFromActor(actor)
     }
   }
 }

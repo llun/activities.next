@@ -9,20 +9,14 @@ import Image from 'next/image'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { getConfig } from '../lib/config'
-import { getUsernameFromId } from '../lib/models/actor'
+import {
+  Profile,
+  getProfileFromActor,
+  getUsernameFromId
+} from '../lib/models/actor'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
 import styles from './profile.module.scss'
-
-interface Profile {
-  id: string
-  name?: string
-  summary?: string
-  iconUrl?: string
-  headerImageUrl?: string
-  appleSharedAlbumToken?: string
-  createdAt: number
-}
 
 interface Props {
   profile: Profile
@@ -193,15 +187,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
 
   return {
     props: {
-      profile: {
-        id: actor.id,
-        name: actor.name,
-        summary: actor.summary,
-        iconUrl: actor.iconUrl,
-        headerImageUrl: actor.headerImageUrl,
-        appleSharedAlbumToken: actor.appleSharedAlbumToken,
-        createdAt: actor.createdAt
-      }
+      profile: getProfileFromActor(actor)
     }
   }
 }

@@ -5,6 +5,7 @@ import ReactModal from 'react-modal'
 
 import { Attachment } from '../../models/attachment'
 import { Status } from '../../models/status'
+import { Modal } from '../Modal'
 import { Actor } from './Actor'
 import { Media } from './Media'
 import { Post } from './Post'
@@ -49,18 +50,16 @@ export const Posts: FC<Props> = ({
           />
         </div>
       ))}
-      <ReactModal
-        overlayClassName={styles.modalOverlay}
-        className={cn(styles.modal)}
+      <Modal
         isOpen={Boolean(modalMedia)}
         onRequestClose={() => setModalMedia(undefined)}
       >
         <Media
           showVideoControl
-          className={cn(styles.selectedMedia)}
+          className={cn(styles.media)}
           attachment={modalMedia}
         />
-      </ReactModal>
+      </Modal>
     </section>
   )
 }
