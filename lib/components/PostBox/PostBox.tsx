@@ -1,6 +1,7 @@
 import { FC, FormEvent, useRef } from 'react'
 
 import { createStatus } from '../../client'
+import { Media } from '../../medias/apple/media'
 import { Profile } from '../../models/actor'
 import { Status } from '../../models/status'
 import { Button } from '../Button'
@@ -59,7 +60,12 @@ export const PostBox: FC<Props> = ({
         </div>
         <div className="d-flex justify-content-between mb-3">
           <div>
-            <AppleGallerButton profile={profile} />
+            <AppleGallerButton
+              profile={profile}
+              onSelectMedia={(media: Media) => {
+                console.log(media)
+              }}
+            />
           </div>
           <Button type="submit">Send</Button>
         </div>

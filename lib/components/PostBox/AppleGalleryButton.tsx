@@ -12,9 +12,10 @@ type MediaLoadingState = 'idle' | 'loading' | 'loaded'
 
 interface Props {
   profile: Profile
+  onSelectMedia: (media: Media) => void
 }
 
-export const AppleGallerButton: FC<Props> = ({ profile }) => {
+export const AppleGallerButton: FC<Props> = ({ profile, onSelectMedia }) => {
   const [showGallery, setShowGallery] = useState<boolean>(false)
   const [loadingState, setMediaLoadingState] =
     useState<MediaLoadingState>('idle')
@@ -72,6 +73,10 @@ export const AppleGallerButton: FC<Props> = ({ profile }) => {
                 key={media.guid}
                 className={styles.media}
                 style={{ backgroundImage }}
+                onClick={() => {
+                  setShowGallery(false)
+                  onSelectMedia(media)
+                }}
               />
             )
           })}
