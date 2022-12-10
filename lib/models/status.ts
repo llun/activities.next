@@ -8,6 +8,7 @@ import { getConfig } from '../config'
 import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
 import { Actor, getAtUsernameFromId } from './actor'
+import { Attachment } from './attachment'
 
 // https://github.com/mastodon/mastodon/blob/a5394980f22e061ec7e4f6df3f3b571624f5ca7d/app/lib/activitypub/parser/status_parser.rb#L3
 export interface Status {
@@ -110,11 +111,13 @@ interface ToObjectParams {
   status: Status
   mentions?: Mention[]
   replyStatus?: Status
+  attachments?: Attachment[]
 }
 export const toObject = ({
   status,
   mentions = [],
-  replyStatus
+  replyStatus,
+  attachments = []
 }: ToObjectParams): Note => {
   return {
     id: status.id,
@@ -127,7 +130,14 @@ export const toObject = ({
     cc: status.cc,
     inReplyTo: replyStatus?.id ?? null,
     content: status.text,
-    attachment: [],
+    attachment: attachments.map((attachment) => ({
+      type: 'Document',
+      mediaType: attachment.mediaType,
+      url: attachment.url,
+      width: attachment.width,
+      height: attachment.height,
+      name: attachment.name
+    })),
     tag: [...mentions],
     replies: {
       id: status.reply,

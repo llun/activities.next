@@ -1,14 +1,22 @@
 import { Assets, Stream } from './medias/apple/webstream'
+import { PostBoxAttachment } from './models/attachment'
 import { Status } from './models/status'
 
-interface CreateStatusParams {
+export interface CreateStatusParams {
   message: string
   replyStatus?: Status
+  attachments?: PostBoxAttachment[]
 }
 export const createStatus = async ({
   message,
-  replyStatus
+  replyStatus,
+  attachments = []
 }: CreateStatusParams) => {
+  if (message.trim().length === 0 && attachments.length === 0) {
+    // Don't create any empty post
+    return
+  }
+
   const response = await fetch('/api/v1/accounts/outbox', {
     method: 'POST',
     headers: {
@@ -16,7 +24,8 @@ export const createStatus = async ({
     },
     body: JSON.stringify({
       replyStatus,
-      message
+      message,
+      attachments
     })
   })
   if (response.status !== 200) {

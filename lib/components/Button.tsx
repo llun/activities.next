@@ -6,6 +6,7 @@ interface Props {
   className?: string
   type?: 'button' | 'submit'
   outline?: boolean
+  disabled?: boolean
   variant?:
     | 'primary'
     | 'secondary'
@@ -24,6 +25,7 @@ export const Button: FC<Props> = ({
   className,
   type = 'button',
   outline,
+  disabled,
   variant = 'primary',
   onClick
 }) => {
@@ -34,6 +36,7 @@ export const Button: FC<Props> = ({
         `btn${outline ? '-outline' : ''}-${variant}`,
         className
       )}
+      disabled={disabled}
       type={type}
       onClick={onClick}
     >

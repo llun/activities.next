@@ -3,23 +3,15 @@ import { FC, FormEvent, useRef, useState } from 'react'
 import { createStatus } from '../../client'
 import { Media } from '../../medias/apple/media'
 import { Profile } from '../../models/actor'
+import {
+  AppleGalleryAttachment,
+  PostBoxAttachment
+} from '../../models/attachment'
 import { Status } from '../../models/status'
 import { Button } from '../Button'
 import { AppleGallerButton } from './AppleGalleryButton'
 import styles from './PostBox.module.scss'
 import { ReplyPreview } from './ReplyPreview'
-
-interface AppleGalleryAttachment {
-  type: 'apple'
-  guid: string
-  mediaType: string
-  url: string
-  width: number
-  height: number
-  name?: string
-}
-
-type PostAttachment = AppleGalleryAttachment
 
 interface Props {
   profile: Profile
@@ -34,7 +26,7 @@ export const PostBox: FC<Props> = ({
   onPostCreated,
   onDiscardReply
 }) => {
-  const [attachments, setAttachments] = useState<PostAttachment[]>([])
+  const [attachments, setAttachments] = useState<PostBoxAttachment[]>([])
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
 
   const onPost = async (event: FormEvent<HTMLFormElement>) => {
@@ -42,13 +34,14 @@ export const PostBox: FC<Props> = ({
     if (!postBoxRef.current) return
 
     const message = postBoxRef.current.value
-    const status = await createStatus({ message, replyStatus })
+    const status = await createStatus({ message, replyStatus, attachments })
     if (!status) {
       // Handle error
       return
     }
 
     onPostCreated(status)
+    setAttachments([])
     postBoxRef.current.value = ''
   }
 
@@ -63,7 +56,6 @@ export const PostBox: FC<Props> = ({
   const onSelectAppleMedia = (media: Media) => {
     // Video is not supported yet
     if (media.type === 'video') return
-    console.log(media)
 
     const biggestDerivatives = Object.keys(media.derivatives)
       .map((value) => parseInt(value, 10))
@@ -80,8 +72,14 @@ export const PostBox: FC<Props> = ({
       width: media.width,
       height: media.height
     }
-    console.log(attachments)
     setAttachments([...attachments, attachment])
+  }
+
+  const onRemoveAttachment = (attachmentIndex: number) => {
+    setAttachments([
+      ...attachments.slice(0, attachmentIndex),
+      ...attachments.slice(attachmentIndex + 1)
+    ])
   }
 
   return (
@@ -106,11 +104,12 @@ export const PostBox: FC<Props> = ({
           <Button type="submit">Send</Button>
         </div>
         <div className={styles.attachments}>
-          {attachments.map((item) => (
+          {attachments.map((item, index) => (
             <div
               className={styles.attachment}
               key={item.guid}
               style={{ backgroundImage: `url(${item.url})` }}
+              onClick={() => onRemoveAttachment(index)}
             />
           ))}
         </div>

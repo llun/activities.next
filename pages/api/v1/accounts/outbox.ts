@@ -1,5 +1,6 @@
 import { createNoteFromUserInput } from '../../../../lib/actions/createNote'
 import { sendNote } from '../../../../lib/activities'
+import { CreateStatusParams } from '../../../../lib/client'
 import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
 
@@ -8,10 +9,12 @@ const handler = ApiGuard(async (req, res, context) => {
   switch (req.method) {
     case 'POST': {
       const body = req.body
+      const { message, replyStatus, attachments } = body as CreateStatusParams
       const { status, note } = await createNoteFromUserInput({
         currentActor,
-        text: body.message,
-        replyNoteId: body.replyStatus?.id,
+        text: message,
+        replyNoteId: replyStatus?.id,
+        attachments,
         storage
       })
       const inboxes = await storage.getFollowersInbox({

@@ -1,5 +1,6 @@
 import { Note } from '../activities/entities/note'
 import { Actor } from '../models/actor'
+import { PostBoxAttachment } from '../models/attachment'
 import { createStatus, fromJson, toObject } from '../models/status'
 import { Storage } from '../storage/types'
 
@@ -44,12 +45,14 @@ interface CreateNoteFromUserInputParams {
   text: string
   replyNoteId?: string
   currentActor: Actor
+  attachments?: PostBoxAttachment[]
   storage: Storage
 }
 export const createNoteFromUserInput = async ({
   text,
   replyNoteId,
   currentActor,
+  attachments = [],
   storage
 }: CreateNoteFromUserInputParams) => {
   const replyStatus = replyNoteId
@@ -61,5 +64,25 @@ export const createNoteFromUserInput = async ({
     replyStatus
   })
   await storage.createStatus({ status })
-  return { note: toObject({ status, mentions, replyStatus }), status }
+  const storedAttachmens = await Promise.all(
+    attachments.map((attachment) =>
+      storage.createAttachment({
+        statusId: status.id,
+        mediaType: attachment.mediaType,
+        url: attachment.url,
+        width: attachment.width,
+        height: attachment.height,
+        name: attachment.name
+      })
+    )
+  )
+  return {
+    note: toObject({
+      status,
+      mentions,
+      replyStatus,
+      attachments: storedAttachmens
+    }),
+    status
+  }
 }
