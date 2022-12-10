@@ -1,12 +1,10 @@
 import cn from 'classnames'
 import groupBy from 'lodash/groupBy'
 import { FC, useState } from 'react'
-import ReactModal from 'react-modal'
 
 import { Attachment } from '../../models/attachment'
 import { Status } from '../../models/status'
 import { Modal } from '../Modal'
-import { Actor } from './Actor'
 import { Media } from './Media'
 import { Post } from './Post'
 import styles from './Posts.module.scss'
@@ -37,8 +35,8 @@ export const Posts: FC<Props> = ({
     <section className={cn('w-full', 'grid', 'grid-cols-1', 'mt-4')}>
       {statuses.map((status, index) => (
         <div key={`${index}-${status.id}`} className={cn(styles.block)}>
-          <Actor actorId={(showActorId && status.actorId) || ''} />
           <Post
+            showActorId={showActorId}
             currentTime={currentTime}
             status={status}
             attachments={attachmentsMap[status.id]}

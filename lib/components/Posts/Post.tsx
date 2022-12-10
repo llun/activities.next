@@ -6,10 +6,12 @@ import { Attachment } from '../../models/attachment'
 import { Status } from '../../models/status'
 import { parseText } from '../../text'
 import { Button } from '../Button'
+import { Actor } from './Actor'
 import { Media } from './Media'
 import styles from './Post.module.scss'
 
 interface Props {
+  showActorId?: boolean
   currentTime: Date
   status: Status
   attachments: Attachment[]
@@ -47,15 +49,25 @@ export const Actions: FC<Props> = ({
 }
 
 export const Post: FC<Props> = (props) => {
-  const { status, currentTime, attachments = [], onShowAttachment } = props
+  const {
+    showActorId = false,
+    status,
+    currentTime,
+    attachments = [],
+    onShowAttachment
+  } = props
   return (
     <div key={status.id} className={cn(styles.post)}>
-      <div className={cn('d-flex')}>
-        <div className={cn('flex-fill', 'me-1')}>{parseText(status.text)}</div>
+      <div className={cn('d-flex', 'mb-2')}>
+        <Actor
+          className={cn('flex-fill', 'me-2')}
+          actorId={(showActorId && status.actorId) || ''}
+        />
         <div className={cn('flex-shrink-0', styles.misc)}>
           {formatDistance(status.createdAt, currentTime)}
         </div>
       </div>
+      <div className={'me-1'}>{parseText(status.text)}</div>
       {attachments.length > 0 && (
         <div
           className={cn(styles.medias)}

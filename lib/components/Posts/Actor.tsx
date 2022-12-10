@@ -5,12 +5,13 @@ import { getHostnameFromId, getUsernameFromId } from '../../models/actor'
 
 interface Props {
   actorId?: string
+  className?: string
 }
 
-export const Actor: FC<Props> = ({ actorId }) => {
+export const Actor: FC<Props> = ({ actorId, className }) => {
   if (!actorId) return null
   return (
-    <div>
+    <div className={className}>
       <strong>@{getUsernameFromId(actorId)}</strong>
       <small>@{getHostnameFromId(actorId)}</small>
       <Link
