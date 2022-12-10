@@ -5,6 +5,7 @@ import { Media } from '../../medias/apple/media'
 import { Profile } from '../../models/actor'
 import {
   AppleGalleryAttachment,
+  Attachment,
   PostBoxAttachment
 } from '../../models/attachment'
 import { Status } from '../../models/status'
@@ -17,7 +18,7 @@ interface Props {
   profile: Profile
   replyStatus?: Status
   onDiscardReply: () => void
-  onPostCreated: (status: Status) => void
+  onPostCreated: (status: Status, attachments: Attachment[]) => void
 }
 
 export const PostBox: FC<Props> = ({
@@ -34,13 +35,18 @@ export const PostBox: FC<Props> = ({
     if (!postBoxRef.current) return
 
     const message = postBoxRef.current.value
-    const status = await createStatus({ message, replyStatus, attachments })
-    if (!status) {
+    const response = await createStatus({
+      message,
+      replyStatus,
+      attachments
+    })
+    if (!response) {
       // Handle error
       return
     }
 
-    onPostCreated(status)
+    const { status, attachments: storedAttachments } = response
+    onPostCreated(status, storedAttachments)
     setAttachments([])
     postBoxRef.current.value = ''
   }

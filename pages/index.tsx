@@ -41,6 +41,8 @@ const Page: NextPage<Props> = ({
   const [replyStatus, setReplyStatus] = useState<Status>()
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
+  const [localAttachments, setLocalAttachments] =
+    useState<Attachment[]>(attachments)
 
   const onReply = (status: Status) => {
     setReplyStatus(status)
@@ -87,9 +89,13 @@ const Page: NextPage<Props> = ({
               profile={profile}
               replyStatus={replyStatus}
               onDiscardReply={() => setReplyStatus(undefined)}
-              onPostCreated={(status: Status) => {
+              onPostCreated={(status: Status, attachments: Attachment[]) => {
                 setCurrentStatuses((previousValue) => [
                   status,
+                  ...previousValue
+                ])
+                setLocalAttachments((previousValue) => [
+                  ...attachments,
                   ...previousValue
                 ])
                 setReplyStatus(undefined)
@@ -98,7 +104,7 @@ const Page: NextPage<Props> = ({
             <Posts
               currentTime={new Date(currentServerTime)}
               statuses={currentStatuses}
-              attachments={attachments}
+              attachments={localAttachments}
               showActorId
               showActions
               onReply={onReply}

@@ -10,7 +10,11 @@ const handler = ApiGuard(async (req, res, context) => {
     case 'POST': {
       const body = req.body
       const { message, replyStatus, attachments } = body as CreateStatusParams
-      const { status, note } = await createNoteFromUserInput({
+      const {
+        status,
+        note,
+        attachments: storedAttachments
+      } = await createNoteFromUserInput({
         currentActor,
         text: message,
         replyNoteId: replyStatus?.id,
@@ -29,7 +33,9 @@ const handler = ApiGuard(async (req, res, context) => {
           })
         })
       )
-      return res.status(200).json({ status, note })
+      return res
+        .status(200)
+        .json({ status, note, attachments: storedAttachments })
     }
     default: {
       res.status(404).json(ERROR_404)

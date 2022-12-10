@@ -83,6 +83,7 @@ export const createNoteFromUserInput = async ({
       replyStatus,
       attachments: storedAttachmens
     }),
-    status
+    status,
+    attachments: storedAttachmens
   }
 }

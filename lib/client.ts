@@ -1,5 +1,5 @@
 import { Assets, Stream } from './medias/apple/webstream'
-import { PostBoxAttachment } from './models/attachment'
+import { Attachment, PostBoxAttachment } from './models/attachment'
 import { Status } from './models/status'
 
 export interface CreateStatusParams {
@@ -34,7 +34,10 @@ export const createStatus = async ({
   }
 
   const json = await response.json()
-  return json.status as Status
+  return {
+    status: json.status as Status,
+    attachments: json.attachments as Attachment[]
+  }
 }
 
 interface GetAppleSharedGalleryParams {
