@@ -1,7 +1,5 @@
 import { getConfig } from '../config'
-import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
 import { compact } from '../jsonld/index'
-import { W3ID_URL } from '../jsonld/w3id'
 import { Actor } from '../models/actor'
 import { Follow } from '../models/follow'
 import { Status, fromJson } from '../models/status'

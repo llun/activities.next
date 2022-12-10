@@ -32,10 +32,10 @@ export const getAtWithHostFromId = (actorId: string) =>
 
 export const getProfileFromActor = (actor: Actor) => ({
   id: actor.id,
-  name: actor.name,
-  summary: actor.summary,
-  iconUrl: actor.iconUrl,
-  headerImageUrl: actor.headerImageUrl,
-  appleSharedAlbumToken: actor.appleSharedAlbumToken,
+  name: actor.name || '',
+  summary: actor.summary || '',
+  iconUrl: actor.iconUrl || '',
+  headerImageUrl: actor.headerImageUrl || '',
+  appleSharedAlbumToken: actor.appleSharedAlbumToken || '',
   createdAt: actor.createdAt
 })

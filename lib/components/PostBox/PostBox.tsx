@@ -1,47 +1,39 @@
-import { FC, FormEvent, useRef, useState } from 'react'
+import { FC, FormEvent, useRef } from 'react'
 
-import { Status } from '../models/status'
-import { Button } from './Button'
-import { Modal } from './Modal'
+import { createStatus } from '../../client'
+import { Profile } from '../../models/actor'
+import { Status } from '../../models/status'
+import { Button } from '../Button'
+import { AppleGallerButton } from './AppleGalleryButton'
 import { ReplyPreview } from './ReplyPreview'
 
 interface Props {
+  profile: Profile
   replyStatus?: Status
   onDiscardReply: () => void
-  onCreatePostSuccess: (status: Status) => void
+  onPostCreated: (status: Status) => void
 }
 
 export const PostBox: FC<Props> = ({
+  profile,
   replyStatus,
-  onCreatePostSuccess,
+  onPostCreated,
   onDiscardReply
 }) => {
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
-  const [showGallery, setShowGallery] = useState<boolean>(false)
 
   const onPost = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!postBoxRef.current) return
 
     const message = postBoxRef.current.value
-    const response = await fetch('/api/v1/accounts/outbox', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        replyStatus,
-        message
-      })
-    })
-    if (response.status !== 200) {
-      // Handle error here
+    const status = await createStatus({ message, replyStatus })
+    if (!status) {
+      // Handle error
       return
     }
 
-    const json = await response.json()
-
-    onCreatePostSuccess(json.status)
+    onPostCreated(status)
     postBoxRef.current.value = ''
   }
 
@@ -51,10 +43,6 @@ export const PostBox: FC<Props> = ({
     if (!postBoxRef.current) return
     const postBox = postBoxRef.current
     postBox.value = ''
-  }
-
-  const onOpenGallery = async () => {
-    setShowGallery(true)
   }
 
   return (
@@ -71,17 +59,11 @@ export const PostBox: FC<Props> = ({
         </div>
         <div className="d-flex justify-content-between mb-3">
           <div>
-            <Button variant="link" onClick={onOpenGallery}>
-              <i className="bi bi-image"></i>
-            </Button>
+            <AppleGallerButton profile={profile} />
           </div>
           <Button type="submit">Send</Button>
         </div>
       </form>
-      <Modal isOpen={showGallery} onRequestClose={() => setShowGallery(false)}>
-        Shows all medias from apple share gallery if available? or open a file
-        picker
-      </Modal>
     </div>
   )
 }

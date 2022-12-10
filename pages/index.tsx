@@ -6,10 +6,10 @@ import { unstable_getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import Image from 'next/image'
-import { FormEvent, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { Header } from '../lib/components/Header'
-import { PostBox } from '../lib/components/PostBox'
+import { PostBox } from '../lib/components/PostBox/PostBox'
 import { Posts } from '../lib/components/Posts/Posts'
 import { getConfig } from '../lib/config'
 import {
@@ -56,40 +56,6 @@ const Page: NextPage<Props> = ({
     postBox.focus()
   }
 
-  const onCloseReply = () => {
-    setReplyStatus(undefined)
-
-    if (!postBoxRef.current) return
-    const postBox = postBoxRef.current
-    postBox.value = ''
-  }
-
-  const onPost = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!postBoxRef.current) return
-
-    const message = postBoxRef.current.value
-    const response = await fetch('/api/v1/accounts/outbox', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        replyStatus,
-        message
-      })
-    })
-    if (response.status !== 200) {
-      // Handle error here
-      return
-    }
-
-    const json = await response.json()
-    setCurrentStatuses((previousValue) => [json.status, ...previousValue])
-    setReplyStatus(undefined)
-    postBoxRef.current.value = ''
-  }
-
   return (
     <main>
       <Head>
@@ -118,9 +84,10 @@ const Page: NextPage<Props> = ({
           </div>
           <div className="col-12 col-md-9">
             <PostBox
+              profile={profile}
               replyStatus={replyStatus}
               onDiscardReply={() => setReplyStatus(undefined)}
-              onCreatePostSuccess={(status: Status) => {
+              onPostCreated={(status: Status) => {
                 setCurrentStatuses((previousValue) => [
                   status,
                   ...previousValue
