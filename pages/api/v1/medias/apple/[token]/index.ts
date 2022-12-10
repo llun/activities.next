@@ -7,9 +7,9 @@ export const allowOrigin = (request: NextApiRequest) => {
   if (process.env.NODE_ENV !== 'production') return '*'
 
   const defaultAllowOrigin = `https://${getConfig().host}`
-  if (!request.url) return defaultAllowOrigin
+  if (!request.headers.host) return defaultAllowOrigin
 
-  const requestHost = new URL(request.url).host
+  const requestHost = request.headers.host
   const allowMediaDomains = getConfig().allowMediaDomains || []
   if (!allowMediaDomains.includes(requestHost)) {
     return defaultAllowOrigin
