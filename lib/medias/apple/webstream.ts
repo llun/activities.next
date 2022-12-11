@@ -1,8 +1,8 @@
 interface Derivative {
-  fileSize: number
+  fileSize: string
   checksum: string
-  width: number
-  height: number
+  width: string
+  height: string
   state?: string
 }
 

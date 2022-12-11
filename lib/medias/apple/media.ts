@@ -22,8 +22,8 @@ export function getMediaList(stream: Stream): Media[] {
       return {
         createdAt: new Date(photo.dateCreated).getTime(),
         type: 'video',
-        width: poster.width,
-        height: poster.height,
+        width: parseInt(poster.width, 10),
+        height: parseInt(poster.height, 10),
         caption: photo.caption,
         derivatives: Object.keys(photo.derivatives).reduce((out, item) => {
           out[item] = { checksum: photo.derivatives[item].checksum }

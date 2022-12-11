@@ -72,7 +72,7 @@ export const PostBox: FC<Props> = ({
     const attachment: AppleGalleryAttachment = {
       type: 'apple',
       guid: media.guid,
-      mediaType: 'image/jpg',
+      mediaType: 'image/jpeg',
       name: media.caption,
       url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${bestDerivatives.checksum}`,
       width: media.width,
