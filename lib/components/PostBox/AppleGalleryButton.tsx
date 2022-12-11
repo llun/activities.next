@@ -59,27 +59,30 @@ export const AppleGallerButton: FC<Props> = ({ profile, onSelectMedia }) => {
         <i className="bi bi-image" />
       </Button>
       <Modal isOpen={showGallery} onRequestClose={() => setShowGallery(false)}>
-        <div className={styles.gallery}>
-          {medias.map((media) => {
-            const key =
-              media.type === 'video'
-                ? VideoPosterDerivative
-                : Object.keys(media.derivatives)[0]
-            const backgroundImage =
-              media.derivatives[key].url && `url(${media.derivatives[key].url})`
+        <div className={styles.box}>
+          <div className={styles.gallery}>
+            {medias.map((media) => {
+              const key =
+                media.type === 'video'
+                  ? VideoPosterDerivative
+                  : Object.keys(media.derivatives)[0]
+              const backgroundImage =
+                media.derivatives[key].url &&
+                `url(${media.derivatives[key].url})`
 
-            return (
-              <div
-                key={media.guid}
-                className={styles.media}
-                style={{ backgroundImage }}
-                onClick={() => {
-                  setShowGallery(false)
-                  onSelectMedia(media)
-                }}
-              />
-            )
-          })}
+              return (
+                <div
+                  key={media.guid}
+                  className={styles.media}
+                  style={{ backgroundImage }}
+                  onClick={() => {
+                    setShowGallery(false)
+                    onSelectMedia(media)
+                  }}
+                />
+              )
+            })}
+          </div>
         </div>
       </Modal>
     </>
