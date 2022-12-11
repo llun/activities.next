@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
 import { createFollower } from '../../../../lib/actions/createFollower'
-import { acceptFollow } from '../../../../lib/activities'
 import { AcceptFollow } from '../../../../lib/activities/actions/acceptFollow'
 import { FollowRequest } from '../../../../lib/activities/actions/follow'
 import { UndoFollow } from '../../../../lib/activities/actions/undoFollow'

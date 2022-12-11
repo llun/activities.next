@@ -126,8 +126,9 @@ export const toObject = ({
     published: getISOTimeUTC(status.createdAt),
     url: status.url,
     attributedTo: status.actorId,
-    to: status.to,
-    cc: status.cc,
+    // TODO: Fix cc and to in database
+    to: status.to || null,
+    cc: status.cc || null,
     inReplyTo: replyStatus?.id ?? null,
     content: status.text,
     attachment: attachments.map((attachment) => ({

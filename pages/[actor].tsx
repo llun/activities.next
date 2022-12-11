@@ -13,6 +13,7 @@ import { Header } from '../lib/components/Header'
 import { Posts } from '../lib/components/Posts/Posts'
 import { getConfig } from '../lib/config'
 import { getHostnameFromId, getUsernameFromId } from '../lib/models/actor'
+import { Attachment } from '../lib/models/attachment'
 import { Status } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 import styles from './[actor].module.scss'
@@ -25,7 +26,8 @@ interface Props {
   followersCount: number
   followingCount: number
   totalPosts: number
-  posts: Status[]
+  statuses: Status[]
+  attachments: Attachment[]
   createdAt: number
 }
 
@@ -37,7 +39,8 @@ const Page: NextPage<Props> = ({
   followersCount,
   followingCount,
   totalPosts,
-  posts,
+  statuses,
+  attachments,
   createdAt
 }) => {
   const { data: session } = useSession()
@@ -89,8 +92,8 @@ const Page: NextPage<Props> = ({
         </section>
         <Posts
           currentTime={new Date(currentTime)}
-          statuses={posts}
-          attachments={[]}
+          statuses={statuses}
+          attachments={attachments}
         />
       </section>
     </main>
@@ -143,6 +146,10 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
   }
 
   const posts = await getPosts(person.urls?.posts)
+  const statuses = posts.map((item) => item[0])
+  const attachments = posts.map((item) => item[1]).flat()
+  console.log(attachments)
+
   return {
     props: {
       id: person.id,
@@ -152,7 +159,8 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
       totalPosts: person.totalPosts || 0,
       followersCount: person.followersCount || 0,
       followingCount: person.followingCount || 0,
-      posts,
+      statuses,
+      attachments,
       createdAt: person.createdAt
     },
     // Revalidate page every 6 hours

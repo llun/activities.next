@@ -4,7 +4,7 @@ import { Document } from './document'
 import { Mention } from './mention'
 import { PropertyValue } from './propertyValue'
 
-type Attachment = PropertyValue | Document
+export type Attachment = PropertyValue | Document
 
 export interface BaseNote extends ContextEntity {
   id: string
@@ -23,4 +23,10 @@ export interface BaseNote extends ContextEntity {
 
 export interface Note extends BaseNote {
   type: 'Note'
+}
+
+export const getAttachments = (object: Note) => {
+  if (!object.attachment) return null
+  if (Array.isArray(object.attachment)) return object.attachment
+  return [object.attachment]
 }

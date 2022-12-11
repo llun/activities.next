@@ -31,20 +31,30 @@ const handle: NextApiHandler = async (req, res) => {
       }
 
       const statuses = await storage.getActorStatuses({ actorId: id })
+      const items = await Promise.all(
+        statuses.map(async (status) => {
+          const attachments = await storage.getAttachments({
+            statusId: status.id
+          })
+          return {
+            id: `${status.id}/activity`,
+            type: 'Create',
+            actor: id,
+            published: getISOTimeUTC(status.createdAt),
+            // TODO: Fix the to and cc store in database
+            to: status.to || null,
+            cc: status.cc || null,
+            object: toObject({ status, attachments })
+          }
+        })
+      )
+
       return res.status(200).json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: `${id}/outbox?page=true`,
         type: 'OrderedCollectionPage',
         partOf: `${id}/outbox`,
-        orderedItems: statuses.map((status) => ({
-          id: `${status.id}/activity`,
-          type: 'Create',
-          actor: id,
-          published: getISOTimeUTC(status.createdAt),
-          to: status.to,
-          cc: status.cc,
-          object: toObject({ status })
-        }))
+        orderedItems: items
       })
     }
     default:

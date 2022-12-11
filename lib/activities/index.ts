@@ -1,6 +1,7 @@
 import { getConfig } from '../config'
 import { compact } from '../jsonld/index'
 import { Actor } from '../models/actor'
+import { Attachment } from '../models/attachment'
 import { Follow } from '../models/follow'
 import { Status, fromJson } from '../models/status'
 import { headers } from '../signature'
@@ -8,7 +9,8 @@ import { AcceptFollow } from './actions/acceptFollow'
 import { CreateStatus } from './actions/createStatus'
 import { FollowRequest } from './actions/follow'
 import { UndoFollow } from './actions/undoFollow'
-import { Note } from './entities/note'
+import { Document } from './entities/document'
+import { Note, getAttachments } from './entities/note'
 import { OrderedCollection } from './entities/orderedCollection'
 import { OrderedCollectionPage } from './entities/orderedCollectionPage'
 import { Person } from './entities/person'
@@ -150,9 +152,24 @@ export const getPosts = async (id?: string) => {
       // Unsupported Object
       if (item.object.type !== 'Note') return null
 
-      return fromJson(item.object)
+      const status = fromJson(item.object)
+      const attachments = (getAttachments(item.object) || [])
+        .filter((item): item is Document => item.type === 'Document')
+        .map(
+          (attachment) =>
+            ({
+              statusId: status.id,
+              mediaType: attachment.mediaType,
+              height: attachment.height,
+              width: attachment.width,
+              url: attachment.url,
+              name: attachment.name
+            } as Attachment)
+        )
+
+      return [status, attachments] as [Status, Attachment[]]
     })
-    .filter((item): item is Status => item !== null)
+    .filter((item): item is [Status, Attachment[]] => item !== null)
 }
 
 interface SendNoteParams {

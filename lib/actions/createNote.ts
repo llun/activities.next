@@ -1,14 +1,8 @@
-import { Note } from '../activities/entities/note'
+import { Note, getAttachments } from '../activities/entities/note'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { createStatus, fromJson, toObject } from '../models/status'
 import { Storage } from '../storage/types'
-
-const getAttachments = (object: Note) => {
-  if (!object.attachment) return null
-  if (Array.isArray(object.attachment)) return object.attachment
-  return [object.attachment]
-}
 
 interface CreateNoteParams {
   note: Note
