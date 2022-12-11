@@ -32,6 +32,8 @@ const mockStorage = {
           status: FollowStatus.Accepted,
           targetActorId: 'https://mastodon.in.th/users/friend',
           targetActorHost: 'mastodon.in.th',
+          inbox: 'https://llun.test/users/null/inbox',
+          sharedInbox: 'https://llun.test/inbox',
           createdAt: Date.now(),
           updatedAt: Date.now()
         }
