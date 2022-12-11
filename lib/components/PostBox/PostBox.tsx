@@ -15,6 +15,7 @@ import styles from './PostBox.module.scss'
 import { ReplyPreview } from './ReplyPreview'
 
 interface Props {
+  host: string
   profile: Profile
   replyStatus?: Status
   onDiscardReply: () => void
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export const PostBox: FC<Props> = ({
+  host,
   profile,
   replyStatus,
   onPostCreated,
@@ -66,15 +68,13 @@ export const PostBox: FC<Props> = ({
     const biggestDerivatives = Object.keys(media.derivatives)
       .map((value) => parseInt(value, 10))
       .sort((n1, n2) => n2 - n1)[0]
-    const url = media.derivatives[biggestDerivatives].url
-    if (!url) return
-
+    const bestDerivatives = media.derivatives[biggestDerivatives]
     const attachment: AppleGalleryAttachment = {
       type: 'apple',
       guid: media.guid,
       mediaType: 'image/jpg',
       name: media.caption,
-      url,
+      url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${bestDerivatives.checksum}`,
       width: media.width,
       height: media.height
     }

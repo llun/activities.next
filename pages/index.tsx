@@ -25,6 +25,7 @@ import { authOptions } from './api/auth/[...nextauth]'
 import styles from './index.module.scss'
 
 interface Props {
+  host: string
   currentServerTime: number
   statuses: Status[]
   attachments: Attachment[]
@@ -32,6 +33,7 @@ interface Props {
 }
 
 const Page: NextPage<Props> = ({
+  host,
   profile,
   statuses,
   attachments,
@@ -86,6 +88,7 @@ const Page: NextPage<Props> = ({
           </div>
           <div className="col-12 col-md-9">
             <PostBox
+              host={host}
               profile={profile}
               replyStatus={replyStatus}
               onDiscardReply={() => setReplyStatus(undefined)}
@@ -170,6 +173,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
 
   return {
     props: {
+      host: config.host,
       statuses,
       attachments: statusesAttachments.flat(),
       currentServerTime: Date.now(),
