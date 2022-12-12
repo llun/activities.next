@@ -19,6 +19,7 @@ export const MockStatus = ({
     'https://earth.social/users/thai/followers',
     'https://llun.dev/users/null'
   ],
+  localRecipients: [],
   createdAt,
   reply: 'https://earth.social/users/thai/statuses/109408808043120672/replies'
 })

@@ -21,8 +21,12 @@ export interface Status {
   text: string
   summary: string | null
 
+  // Activity to and cc model
   to: string[]
   cc: string[]
+
+  // Internal recipients id
+  localRecipients: string[]
 
   reply: string
 
@@ -42,6 +46,8 @@ export const fromJson = (data: Note | Question): Status => ({
 
   to: Array.isArray(data.to) ? data.to : [data.to],
   cc: Array.isArray(data.cc) ? data.cc : [data.cc],
+
+  localRecipients: [],
 
   reply: data.replies.id,
 
@@ -100,6 +106,7 @@ export const createStatus = async ({
       cc: replyStatus
         ? [`${currentActor.id}/followers`, replyStatus.actorId]
         : [`${currentActor.id}/followers`],
+      localRecipients: [],
       reply: `${id}/replies`,
       createdAt: currentTime
     },
