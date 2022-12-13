@@ -1,8 +1,11 @@
 import { Note, getAttachments } from '../activities/entities/note'
+import { compact } from '../jsonld'
+import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { createStatus, fromJson, toObject } from '../models/status'
 import { Storage } from '../storage/types'
+import { deliverTo } from './utils'
 
 interface CreateNoteParams {
   note: Note
@@ -12,7 +15,16 @@ export const createNote = async ({
   note,
   storage
 }: CreateNoteParams): Promise<Note> => {
+  const compactNote = (await compact({
+    '@context': ACTIVITY_STREAM_URL,
+    ...note
+  })) as Note
+
   const status = fromJson(note)
+
+  // TODO: Put this in fromJson?
+  status.localRecipients = await deliverTo({ note: compactNote, storage })
+
   await storage.createStatus({ status })
 
   const attachments = getAttachments(note)
