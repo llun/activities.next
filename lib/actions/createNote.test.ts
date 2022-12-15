@@ -135,7 +135,7 @@ describe('#createNote', () => {
   })
 })
 
-describe.skip('#createNoteFromUserInput', () => {
+describe('#createNoteFromUserInput', () => {
   it('adds status to database and returns note', async () => {
     const mockActor = MockActor({ id: 'https://llun.test/users/null' })
     const { status, note } = await createNoteFromUserInput({
@@ -152,7 +152,7 @@ describe.skip('#createNoteFromUserInput', () => {
       summary: null,
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: [`${mockActor.id}/followers`],
-      localRecipients: ['as:Public'],
+      localRecipients: ['as:Public', 'https://llun.test/users/null'],
       createdAt: expect.toBeNumber(),
       updatedAt: expect.toBeNumber(),
       url: expect.toBeString()
@@ -170,7 +170,7 @@ describe.skip('#createNoteFromUserInput', () => {
     })
   })
 
-  it('adds add local followers as recipients', async () => {
+  it('adds local followers as recipients', async () => {
     const mockActor = MockActor({ id: 'https://mastodon.in.th/users/friend' })
     const { status, note } = await createNoteFromUserInput({
       text: 'Hello',
@@ -186,7 +186,11 @@ describe.skip('#createNoteFromUserInput', () => {
       summary: null,
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: [`${mockActor.id}/followers`],
-      localRecipients: ['as:Public', 'https://llun.test/users/null'],
+      localRecipients: [
+        'as:Public',
+        'https://mastodon.in.th/users/friend',
+        'https://llun.test/users/null'
+      ],
       createdAt: expect.toBeNumber(),
       updatedAt: expect.toBeNumber(),
       url: expect.toBeString()

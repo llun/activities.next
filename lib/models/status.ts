@@ -6,6 +6,7 @@ import { Note } from '../activities/entities/note'
 import { Question } from '../activities/entities/question'
 import { getConfig } from '../config'
 import '../linkify-mention'
+import { Storage } from '../storage/types'
 import { getISOTimeUTC } from '../time'
 import { Actor, getAtUsernameFromId } from './actor'
 import { Attachment } from './attachment'
@@ -57,6 +58,7 @@ interface CreateStatusParms {
   text: string
   currentActor: Actor
   replyStatus?: Status
+  storage: Storage
 }
 interface CreateStatusReturns {
   status: Status
@@ -65,7 +67,8 @@ interface CreateStatusReturns {
 export const createStatus = async ({
   currentActor,
   text,
-  replyStatus
+  replyStatus,
+  storage
 }: CreateStatusParms): Promise<CreateStatusReturns> => {
   const currentTime = Date.now()
   const postId = crypto.randomUUID()
@@ -92,6 +95,11 @@ export const createStatus = async ({
     }
   })
 
+  const followers = await storage.getLocalFollowersForActorId({
+    targetActorId: currentActor.id
+  })
+  console.log(followers)
+
   return {
     status: {
       id: `${currentActor.id}/statuses/${postId}`,
@@ -104,7 +112,11 @@ export const createStatus = async ({
       cc: replyStatus
         ? [`${currentActor.id}/followers`, replyStatus.actorId]
         : [`${currentActor.id}/followers`],
-      localRecipients: [],
+      localRecipients: [
+        'as:Public',
+        currentActor.id,
+        ...followers.map((item) => item.actorId)
+      ],
       reply: `${id}/replies`,
       createdAt: currentTime,
       updatedAt: currentTime

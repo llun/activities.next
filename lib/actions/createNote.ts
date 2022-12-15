@@ -67,7 +67,8 @@ export const createNoteFromUserInput = async ({
   const { status, mentions } = await createStatus({
     currentActor,
     text,
-    replyStatus
+    replyStatus,
+    storage
   })
   await storage.createStatus({ status })
   const storedAttachmens = await Promise.all(

@@ -1,7 +1,34 @@
+import crypto from 'crypto'
+
+import { GetLocalFollowersForActorIdParams } from '../storage/types'
 import { MockActor } from '../stub/actor'
 import { MockStatus } from '../stub/status'
 import { getISOTimeUTC } from '../time'
+import { Follow, FollowStatus } from './follow'
 import { createStatus, toObject } from './status'
+
+const mockStorage = {
+  getLocalFollowersForActorId: jest.fn(
+    async ({ targetActorId }: GetLocalFollowersForActorIdParams) => {
+      if (targetActorId === 'https://chat.llun.dev/users/user3') {
+        const follow: Follow = {
+          id: crypto.randomUUID(),
+          actorId: 'https://chat.llun.dev/users/user4',
+          actorHost: 'llun.test',
+          status: FollowStatus.Accepted,
+          targetActorId: 'https://chat.llun.dev/users/user3',
+          targetActorHost: 'mastodon.in.th',
+          inbox: 'https://chat.llun.dev/users/user4/inbox',
+          sharedInbox: 'https://chat.llun.dev/inbox',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+        return [follow]
+      }
+      return []
+    }
+  )
+} as any
 
 describe('#createStatus', () => {
   const mockActor = MockActor({})
@@ -10,7 +37,8 @@ describe('#createStatus', () => {
   it('returns plain text status from content', async () => {
     const { status } = await createStatus({
       currentActor: mockActor,
-      text: 'This is a first post'
+      text: 'This is a first post',
+      storage: mockStorage
     })
 
     expect(status.actorId).toEqual(mockActor.id)
@@ -24,7 +52,8 @@ describe('#createStatus', () => {
     const { status, mentions } = await createStatus({
       currentActor: mockActor,
       text: '@thai@earth.social Hey! how are you?',
-      replyStatus: mockStatus
+      replyStatus: mockStatus,
+      storage: mockStorage
     })
     expect(status.text).toEqual(
       '<p><span class="h-card"><a href="https://earth.social/@thai" class="u-url mention">@<span>thai</span></a></span> Hey! how are you?</p>'
@@ -36,6 +65,24 @@ describe('#createStatus', () => {
       href: 'https://earth.social/users/thai',
       name: '@thai@earth.social'
     })
+  })
+
+  it('adds localRecipients in status', async () => {
+    const mockActorWithLocaleFollowers = MockActor({
+      id: 'https://chat.llun.dev/users/user3'
+    })
+    const { status } = await createStatus({
+      currentActor: mockActorWithLocaleFollowers,
+      text: '@thai@earth.social Hey! how are you?',
+      replyStatus: mockStatus,
+      storage: mockStorage
+    })
+    expect(status.localRecipients).toContain(
+      'https://chat.llun.dev/users/user3'
+    )
+    expect(status.localRecipients).toContain(
+      'https://chat.llun.dev/users/user4'
+    )
   })
 })
 
@@ -73,7 +120,8 @@ describe('#toObject', () => {
     const actor = MockActor({})
     const { status, mentions } = await createStatus({
       currentActor: actor,
-      text: '@null@llun.dev Heyllo'
+      text: '@null@llun.dev Heyllo',
+      storage: mockStorage
     })
     const note = toObject({ status, mentions })
     expect(note).toMatchObject({
@@ -107,12 +155,14 @@ describe('#toObject', () => {
     const secondActor = MockActor({ id: 'https://chat.llun.dev/users/user2' })
     const { status: originalStatus } = await createStatus({
       currentActor: firstActor,
-      text: 'Yo'
+      text: 'Yo',
+      storage: mockStorage
     })
     const { status, mentions } = await createStatus({
       currentActor: secondActor,
       text: '@user1 Heyllo',
-      replyStatus: originalStatus
+      replyStatus: originalStatus,
+      storage: mockStorage
     })
     const note = toObject({ status, mentions, replyStatus: originalStatus })
     expect(note).toMatchObject({
