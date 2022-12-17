@@ -25,7 +25,11 @@ const mockStorage = {
   createAttachment: jest.fn(),
   getStatus: jest.fn(async ({ statusId }: GetStatusParams) => {
     if (statusId === 'https://activity.server/user/statuses/someid') {
-      return MockStatus({ text: 'test', createdAt: Date.now() })
+      return MockStatus({
+        id: 'https://activity.server/user/statuses/someid',
+        text: 'test',
+        createdAt: Date.now()
+      })
     }
     return null
   }),
@@ -215,7 +219,7 @@ describe('#createNoteFromUserInput', () => {
     })
   })
 
-  it.only('set reply to replyStatus id', async () => {
+  it('set reply to replyStatus id', async () => {
     const mockActor = MockActor({ id: 'https://mastodon.in.th/users/friend' })
     const { status, note } = await createNoteFromUserInput({
       text: 'Hello',
@@ -231,7 +235,7 @@ describe('#createNoteFromUserInput', () => {
       reply: 'https://activity.server/user/statuses/someid',
       summary: null,
       to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: [`${mockActor.id}/followers`],
+      cc: [`${mockActor.id}/followers`, 'https://earth.social/users/thai'],
       localRecipients: [
         'as:Public',
         'https://mastodon.in.th/users/friend',
@@ -251,7 +255,7 @@ describe('#createNoteFromUserInput', () => {
       attributedTo: mockActor.id,
       inReplyTo: 'https://activity.server/user/statuses/someid',
       to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: [`${mockActor.id}/followers`]
+      cc: [`${mockActor.id}/followers`, 'https://earth.social/users/thai']
     })
   })
 })
