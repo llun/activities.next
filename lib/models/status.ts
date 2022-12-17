@@ -29,7 +29,7 @@ export interface Status {
   // Internal recipients id
   localRecipients?: string[]
 
-  reply: string
+  reply: string | null
 
   createdAt: number
   updatedAt?: number
@@ -48,7 +48,7 @@ export const fromJson = (data: Note | Question): Status => ({
   to: Array.isArray(data.to) ? data.to : [data.to],
   cc: Array.isArray(data.cc) ? data.cc : [data.cc],
 
-  reply: data.replies.id,
+  reply: data.inReplyTo,
 
   createdAt: new Date(data.published).getTime(),
   updatedAt: Date.now()
@@ -98,7 +98,6 @@ export const createStatus = async ({
   const followers = await storage.getLocalFollowersForActorId({
     targetActorId: currentActor.id
   })
-  console.log(followers)
 
   return {
     status: {

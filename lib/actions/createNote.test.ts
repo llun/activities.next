@@ -148,7 +148,7 @@ describe('#createNoteFromUserInput', () => {
       actorId: mockActor.id,
       type: 'Note',
       text: `<p>Hello</p>`,
-      reply: expect.toBeString(),
+      reply: null,
       summary: null,
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: [`${mockActor.id}/followers`],
@@ -182,7 +182,7 @@ describe('#createNoteFromUserInput', () => {
       actorId: mockActor.id,
       type: 'Note',
       text: `<p>Hello</p>`,
-      reply: expect.toBeString(),
+      reply: null,
       summary: null,
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: [`${mockActor.id}/followers`],
@@ -203,6 +203,46 @@ describe('#createNoteFromUserInput', () => {
       type: 'Note',
       content: '<p>Hello</p>',
       attributedTo: mockActor.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${mockActor.id}/followers`]
+    })
+  })
+
+  it('set reply to replyStatus id', async () => {
+    const mockActor = MockActor({ id: 'https://mastodon.in.th/users/friend' })
+    const { status, note } = await createNoteFromUserInput({
+      text: 'Hello',
+      currentActor: mockActor,
+      replyNoteId: 'https://activity.server/user/statuses/someid',
+      storage: mockStorage
+    })
+    const expectStatus = {
+      id: note.id,
+      actorId: mockActor.id,
+      type: 'Note',
+      text: `<p>Hello</p>`,
+      reply: 'https://activity.server/user/statuses/someid',
+      summary: null,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${mockActor.id}/followers`],
+      localRecipients: [
+        'as:Public',
+        'https://mastodon.in.th/users/friend',
+        'https://llun.test/users/null'
+      ],
+      createdAt: expect.toBeNumber(),
+      updatedAt: expect.toBeNumber(),
+      url: expect.toBeString()
+    }
+    expect(status).toEqual(expectStatus)
+    expect(mockStorage.createStatus).toHaveBeenCalledWith({
+      status: expectStatus
+    })
+    expect(note).toMatchObject({
+      type: 'Note',
+      content: '<p>Hello</p>',
+      attributedTo: mockActor.id,
+      inReplyTo: 'https://activity.server/user/statuses/someid',
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: [`${mockActor.id}/followers`]
     })
