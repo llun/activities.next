@@ -104,12 +104,12 @@ describe('#toObject', () => {
       attachment: [],
       tag: [],
       replies: {
-        id: status.reply,
+        id: `${status.id}/replies`,
         type: 'Collection',
         first: {
           type: 'CollectionPage',
-          next: `${status.reply}?only_other_accounts=true&page=true`,
-          partOf: status.reply,
+          next: `${status.id}/replies?only_other_accounts=true&page=true`,
+          partOf: `${status.id}/replies`,
           items: []
         }
       }
@@ -138,12 +138,12 @@ describe('#toObject', () => {
       attachment: [],
       tag: mentions,
       replies: {
-        id: status.reply,
+        id: `${status.id}/replies`,
         type: 'Collection',
         first: {
           type: 'CollectionPage',
-          next: `${status.reply}?only_other_accounts=true&page=true`,
-          partOf: status.reply,
+          next: `${status.id}/replies?only_other_accounts=true&page=true`,
+          partOf: `${status.id}/replies`,
           items: []
         }
       }
@@ -179,12 +179,12 @@ describe('#toObject', () => {
       attachment: [],
       tag: mentions,
       replies: {
-        id: status.reply,
+        id: `${status.id}/replies`,
         type: 'Collection',
         first: {
           type: 'CollectionPage',
-          next: `${status.reply}?only_other_accounts=true&page=true`,
-          partOf: originalStatus.reply,
+          next: `${status.id}/replies?only_other_accounts=true&page=true`,
+          partOf: `${status.id}/replies`,
           items: []
         }
       }

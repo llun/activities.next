@@ -9,7 +9,6 @@ interface DeliverToParams {
   storage: Storage
 }
 export const deliverTo = async ({ note, storage }: DeliverToParams) => {
-  console.log([...[note.to].flat(), ...[note.cc].flat()])
   const addresses = await Promise.all(
     [...[note.to].flat(), ...[note.cc].flat()].map(async (item) => {
       if (['Public', 'as:Public'].includes(item)) return item
@@ -31,7 +30,5 @@ export const deliverTo = async ({ note, storage }: DeliverToParams) => {
       return null
     })
   )
-  console.log(addresses)
-
   return addresses.flat().filter((item): item is string => Boolean(item))
 }

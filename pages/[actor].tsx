@@ -148,7 +148,6 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
   const posts = await getPosts(person.urls?.posts)
   const statuses = posts.map((item) => item[0])
   const attachments = posts.map((item) => item[1]).flat()
-  console.log(attachments)
 
   return {
     props: {

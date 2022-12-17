@@ -4,11 +4,13 @@ import { Follow, FollowStatus } from '../models/follow'
 import { fromJson } from '../models/status'
 import {
   GetActorFromIdParams,
-  GetLocalFollowersForActorIdParams
+  GetLocalFollowersForActorIdParams,
+  GetStatusParams
 } from '../storage/types'
 import { MockActor } from '../stub/actor'
 import { MockImageDocument } from '../stub/imageDocument'
 import { MockMastodonNote } from '../stub/note'
+import { MockStatus } from '../stub/status'
 import { createNote, createNoteFromUserInput } from './createNote'
 
 jest.mock('../config', () => ({
@@ -21,7 +23,12 @@ jest.mock('../config', () => ({
 const mockStorage = {
   createStatus: jest.fn(),
   createAttachment: jest.fn(),
-  getStatus: jest.fn(),
+  getStatus: jest.fn(async ({ statusId }: GetStatusParams) => {
+    if (statusId === 'https://activity.server/user/statuses/someid') {
+      return MockStatus({ text: 'test', createdAt: Date.now() })
+    }
+    return null
+  }),
   getActorFromId: jest.fn(async ({ id }: GetActorFromIdParams) => {
     if (['https://llun.test/users/null'].includes(id)) return MockActor({ id })
   }),
@@ -120,7 +127,7 @@ describe('#createNote', () => {
       actorId: note.attributedTo,
       type: 'Note',
       text: `<p>Hello</p>`,
-      reply: expect.toBeString(),
+      reply: null,
       summary: '',
       to: note.to,
       cc: note.cc,
@@ -208,7 +215,7 @@ describe('#createNoteFromUserInput', () => {
     })
   })
 
-  it('set reply to replyStatus id', async () => {
+  it.only('set reply to replyStatus id', async () => {
     const mockActor = MockActor({ id: 'https://mastodon.in.th/users/friend' })
     const { status, note } = await createNoteFromUserInput({
       text: 'Hello',

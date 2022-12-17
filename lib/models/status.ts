@@ -73,7 +73,6 @@ export const createStatus = async ({
   const currentTime = Date.now()
   const postId = crypto.randomUUID()
   const host = getConfig().host
-  const id = `${currentActor.id}/statuses/${postId}`
   const trimText = text.trim()
 
   const mentions: Mention[] = []
@@ -116,7 +115,7 @@ export const createStatus = async ({
         currentActor.id,
         ...followers.map((item) => item.actorId)
       ],
-      reply: `${id}/replies`,
+      reply: replyStatus?.id || null,
       createdAt: currentTime,
       updatedAt: currentTime
     },
@@ -158,12 +157,12 @@ export const toObject = ({
     })),
     tag: [...mentions],
     replies: {
-      id: status.reply,
+      id: `${status.id}/replies`,
       type: 'Collection',
       first: {
         type: 'CollectionPage',
-        next: `${status.reply}?only_other_accounts=true&page=true`,
-        partOf: replyStatus ? replyStatus.reply : status.reply,
+        next: `${status.id}/replies?only_other_accounts=true&page=true`,
+        partOf: `${status.id}/replies`,
         items: []
       }
     }
