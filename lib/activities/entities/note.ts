@@ -8,7 +8,7 @@ export type Attachment = PropertyValue | Document
 
 export interface BaseNote extends ContextEntity {
   id: string
-  summary: null
+  summary: string | null
   inReplyTo: string | null
   published: string
   url: string

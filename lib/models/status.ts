@@ -48,7 +48,7 @@ export const fromJson = (data: Note | Question): Status => ({
   to: Array.isArray(data.to) ? data.to : [data.to],
   cc: Array.isArray(data.cc) ? data.cc : [data.cc],
 
-  reply: data.inReplyTo,
+  reply: data.inReplyTo || null,
 
   createdAt: new Date(data.published).getTime(),
   updatedAt: Date.now()

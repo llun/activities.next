@@ -7,18 +7,22 @@ import { getISOTimeUTC } from '../time'
 interface MockNoteParams {
   content: string
   published?: number
+  id?: string
   to?: string[]
   cc?: string[]
+  inReplyTo?: string | null
   documents?: Document[]
   conversation?: string
 
   withContext?: boolean
 }
 export const MockMastodonNote = ({
+  id = '109417500731428509',
   published = Date.now(),
   content,
   to = ['https://www.w3.org/ns/activitystreams#Public'],
   cc = [],
+  inReplyTo,
   documents,
   conversation,
 
@@ -28,33 +32,32 @@ export const MockMastodonNote = ({
     ...(withContext
       ? { '@context': 'https://www.w3.org/ns/activitystreams' }
       : null),
-    id: 'https://glasgow.social/users/llun/statuses/109417500731428509',
+    id: `https://llun.test/users/llun/statuses/${id}`,
     type: 'Note',
-    summary: null,
-    inReplyTo: null,
+    summary: '',
     published: getISOTimeUTC(published),
-    url: 'https://glasgow.social/@llun/109417500731428509',
-    attributedTo: 'https://glasgow.social/users/llun',
+    url: `https://llun.test/@llun/${id}`,
+    attributedTo: 'https://llun.test/users/llun',
     to,
     cc,
     sensitive: false,
-    atomUri: 'https://glasgow.social/users/llun/statuses/109417500731428509',
-    inReplyToAtomUri: null,
+    atomUri: `https://llun.test/users/llun/statuses/${id}`,
+    inReplyTo,
+    inReplyToAtomUri: inReplyTo,
     conversation:
       conversation ??
-      `tag:glasgow.social,${Date.now()}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
+      `tag:llun.test,${Date.now()}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
     content,
     contentMap: { en: content },
     attachment: documents,
     tag: [],
     replies: {
-      id: 'https://glasgow.social/users/llun/statuses/109417500731428509/replies',
+      id: `https://llun.test/users/llun/statuses/${id}/replies`,
       type: 'Collection',
       first: {
         type: 'CollectionPage',
-        next: 'https://glasgow.social/users/llun/statuses/109417500731428509/replies?only_other_accounts=true\u0026page=true',
-        partOf:
-          'https://glasgow.social/users/llun/statuses/109417500731428509/replies',
+        next: `https://llun.test/users/llun/statuses/${id}/replies?only_other_accounts=true\u0026page=true`,
+        partOf: `https://llun.test/users/llun/statuses/${id}/replies`,
         items: []
       }
     }

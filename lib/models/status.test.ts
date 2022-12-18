@@ -1,11 +1,14 @@
 import crypto from 'crypto'
 
+import { Note } from '../activities/entities/note'
+import { compact } from '../jsonld'
 import { GetLocalFollowersForActorIdParams } from '../storage/types'
 import { MockActor } from '../stub/actor'
+import { MockMastodonNote } from '../stub/note'
 import { MockStatus } from '../stub/status'
 import { getISOTimeUTC } from '../time'
 import { Follow, FollowStatus } from './follow'
-import { createStatus, toObject } from './status'
+import { createStatus, fromJson, toObject } from './status'
 
 const mockStorage = {
   getLocalFollowersForActorId: jest.fn(
@@ -188,6 +191,53 @@ describe('#toObject', () => {
           items: []
         }
       }
+    })
+  })
+})
+
+describe('#fromJson', () => {
+  it('returns status from json', async () => {
+    const note = MockMastodonNote({
+      content: 'Hello',
+      inReplyTo: 'https://other.network/users/test/status/1',
+      withContext: true
+    })
+    const compactedNote = (await compact(note)) as Note
+    const json = fromJson(compactedNote)
+    expect(json).toEqual({
+      id: 'https://llun.test/users/llun/statuses/109417500731428509',
+      url: 'https://llun.test/@llun/109417500731428509',
+      actorId: 'https://llun.test/users/llun',
+      type: 'Note',
+      text: 'Hello',
+      summary: '',
+      to: ['as:Public'],
+      cc: [],
+      reply: 'https://other.network/users/test/status/1',
+      createdAt: expect.toBeNumber(),
+      updatedAt: expect.toBeNumber()
+    })
+  })
+
+  it('returns null for undefined reply', async () => {
+    const note = MockMastodonNote({
+      content: 'Hello',
+      withContext: true
+    })
+    const compactedNote = (await compact(note)) as Note
+    const json = fromJson(compactedNote)
+    expect(json).toEqual({
+      id: 'https://llun.test/users/llun/statuses/109417500731428509',
+      url: 'https://llun.test/@llun/109417500731428509',
+      actorId: 'https://llun.test/users/llun',
+      type: 'Note',
+      text: 'Hello',
+      summary: '',
+      to: ['as:Public'],
+      cc: [],
+      reply: null,
+      createdAt: expect.toBeNumber(),
+      updatedAt: expect.toBeNumber()
     })
   })
 })
