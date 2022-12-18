@@ -9,7 +9,9 @@ import { getStorage } from '../../lib/storage'
 
 const ApiHandler: NextApiHandler = activitiesGuard(
   async (req, res) => {
-    const body = (await compact(JSON.parse(req.body))) as StatusActivity
+    const requestBody =
+      typeof req.body === 'string' ? JSON.parse(req.body) : req.body
+    const body = (await compact(requestBody)) as StatusActivity
     const storage = await getStorage()
     if (!storage) {
       return res.status(500).send(ERROR_500)
