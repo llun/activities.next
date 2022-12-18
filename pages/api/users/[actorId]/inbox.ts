@@ -13,7 +13,8 @@ import { getStorage } from '../../../../lib/storage'
 export default activitiesGuard(
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method === 'POST') {
-      const activity = JSON.parse(req.body)
+      const activity =
+        typeof req.body === 'string' ? JSON.parse(req.body) : req.body
       const storage = await getStorage()
       if (!storage) {
         return res.status(400).json(ERROR_400)
