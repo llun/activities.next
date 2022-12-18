@@ -1,6 +1,6 @@
 import { createNoteFromUserInput } from '../../../../lib/actions/createNote'
-import { sendNote } from '../../../../lib/activities'
-import { CreateStatusParams } from '../../../../lib/client'
+import { deleteStatus, sendNote } from '../../../../lib/activities'
+import { CreateStatusParams, DeleteStatusParams } from '../../../../lib/client'
 import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
 
@@ -36,6 +36,24 @@ const handler = ApiGuard(async (req, res, context) => {
       return res
         .status(200)
         .json({ status, note, attachments: storedAttachments })
+    }
+    case 'DELETE': {
+      const { statusId } = req.body as DeleteStatusParams
+      console.log('Delete status id', statusId)
+      await storage.deleteStatus({ statusId })
+      const inboxes = await storage.getFollowersInbox({
+        targetActorId: currentActor.id
+      })
+      await Promise.all(
+        inboxes.map((inbox) => {
+          return deleteStatus({
+            currentActor,
+            inbox,
+            statusId
+          })
+        })
+      )
+      return res.status(200).json({})
     }
     default: {
       res.status(404).json(ERROR_404)

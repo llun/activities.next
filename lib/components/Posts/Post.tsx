@@ -2,6 +2,7 @@ import cn from 'classnames'
 import formatDistance from 'date-fns/formatDistance'
 import { FC } from 'react'
 
+import { deleteStatus } from '../../client'
 import { Attachment } from '../../models/attachment'
 import { Status } from '../../models/status'
 import { parseText } from '../../text'
@@ -43,6 +44,21 @@ export const Actions: FC<Props> = ({
         }}
       >
         <i className="bi bi-arrow-left-right"></i>
+      </Button>
+      <Button
+        className={styles.action}
+        variant="link"
+        onClick={async () => {
+          const deleteConfirmation = window.confirm(
+            `Confirm delete status! ${
+              status.text.length ? `${status.text.slice(0, 20)}...` : status.id
+            }`
+          )
+          if (!deleteConfirmation) return
+          await deleteStatus({ statusId: status.id })
+        }}
+      >
+        <i className="bi bi-trash3"></i>
       </Button>
     </div>
   )

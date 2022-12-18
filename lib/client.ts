@@ -40,6 +40,27 @@ export const createStatus = async ({
   }
 }
 
+export interface DeleteStatusParams {
+  statusId: string
+}
+export const deleteStatus = async ({ statusId }: DeleteStatusParams) => {
+  const response = await fetch(`/api/v1/accounts/outbox`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      statusId
+    })
+  })
+  if (response.status !== 200) {
+    // Create or throw an error here
+    return false
+  }
+
+  return true
+}
+
 interface GetAppleSharedGalleryParams {
   albumToken: string
 }

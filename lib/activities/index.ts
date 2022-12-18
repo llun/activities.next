@@ -7,6 +7,7 @@ import { Status, fromJson } from '../models/status'
 import { headers } from '../signature'
 import { AcceptFollow } from './actions/acceptFollow'
 import { CreateStatus } from './actions/createStatus'
+import { DeleteStatus } from './actions/deleteStatus'
 import { FollowRequest } from './actions/follow'
 import { UndoFollow } from './actions/undoFollow'
 import { Document } from './entities/document'
@@ -194,6 +195,37 @@ export const sendNote = async ({
   }
   // TODO: Add LinkedDataSignature later
   // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3
+  await fetch(inbox, {
+    method: 'POST',
+    headers: {
+      ...headers(currentActor, 'post', inbox, activity),
+      'User-Agent': USER_AGENT
+    },
+    body: JSON.stringify(activity)
+  })
+}
+
+interface DeleteStatusParams {
+  currentActor: Actor
+  inbox: string
+  statusId: string
+}
+export const deleteStatus = async ({
+  currentActor,
+  inbox,
+  statusId
+}: DeleteStatusParams) => {
+  const activity: DeleteStatus = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${statusId}#delete`,
+    type: 'Delete',
+    actor: currentActor.id,
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    object: {
+      id: statusId,
+      type: 'Tombstone'
+    }
+  }
   await fetch(inbox, {
     method: 'POST',
     headers: {
