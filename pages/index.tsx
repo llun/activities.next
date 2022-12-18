@@ -60,6 +60,14 @@ const Page: NextPage<Props> = ({
     postBox.focus()
   }
 
+  const onPostDeleted = (status: Status) => {
+    const statusIndex = currentStatuses.indexOf(status)
+    setCurrentStatuses([
+      ...currentStatuses.slice(0, statusIndex),
+      ...currentStatuses.slice(statusIndex + 1)
+    ])
+  }
+
   return (
     <main>
       <Head>
@@ -111,6 +119,7 @@ const Page: NextPage<Props> = ({
               showActorId
               showActions
               onReply={onReply}
+              onPostDeleted={onPostDeleted}
             />
           </div>
         </div>

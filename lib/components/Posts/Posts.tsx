@@ -16,6 +16,7 @@ interface Props {
   statuses: Status[]
   attachments: Attachment[]
   onReply?: (status: Status) => void
+  onPostDeleted?: (status: Status) => void
 }
 
 export const Posts: FC<Props> = ({
@@ -24,7 +25,8 @@ export const Posts: FC<Props> = ({
   currentTime,
   statuses,
   attachments,
-  onReply
+  onReply,
+  onPostDeleted
 }) => {
   const [modalMedia, setModalMedia] = useState<Attachment>()
 
@@ -42,6 +44,7 @@ export const Posts: FC<Props> = ({
             attachments={attachmentsMap[status.id]}
             showActions={showActions}
             onReply={onReply}
+            onPostDeleted={onPostDeleted}
             onShowAttachment={(attachment: Attachment) =>
               setModalMedia(attachment)
             }

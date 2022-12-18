@@ -18,13 +18,15 @@ interface Props {
   attachments: Attachment[]
   showActions?: boolean
   onReply?: (status: Status) => void
+  onPostDeleted?: (status: Status) => void
   onShowAttachment: (attachment: Attachment) => void
 }
 
 export const Actions: FC<Props> = ({
   status,
   showActions = false,
-  onReply
+  onReply,
+  onPostDeleted
 }) => {
   if (!showActions) return null
   return (
@@ -56,6 +58,7 @@ export const Actions: FC<Props> = ({
           )
           if (!deleteConfirmation) return
           await deleteStatus({ statusId: status.id })
+          onPostDeleted?.(status)
         }}
       >
         <i className="bi bi-trash3"></i>
