@@ -8,36 +8,36 @@ describe('#compact', () => {
     const activity = MockMastodonCreateActivity({
       content: 'Simple Content',
       to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: ['https://glasgow.social/users/llun/followers']
+      cc: ['https://llun.test/users/llun/followers']
     })
     const compactedActivity = await compact(activity)
     expect(compactedActivity).toMatchObject({
-      id: 'https://glasgow.social/users/llun/statuses/109417500731428509/activity',
+      id: 'https://llun.test/users/llun/statuses/109417500731428509/activity',
       type: 'Create',
-      actor: 'https://glasgow.social/users/llun',
-      cc: 'https://glasgow.social/users/llun/followers',
+      actor: 'https://llun.test/users/llun',
+      cc: 'https://llun.test/users/llun/followers',
       object: {
-        id: 'https://glasgow.social/users/llun/statuses/109417500731428509',
+        id: 'https://llun.test/users/llun/statuses/109417500731428509',
         type: 'Note',
-        attributedTo: 'https://glasgow.social/users/llun',
-        cc: 'https://glasgow.social/users/llun/followers',
+        attributedTo: 'https://llun.test/users/llun',
+        cc: 'https://llun.test/users/llun/followers',
         content: 'Simple Content',
         contentMap: { en: 'Simple Content' },
         published: '2022-11-28T00:00:00Z',
         replies: {
-          id: 'https://glasgow.social/users/llun/statuses/109417500731428509/replies',
+          id: 'https://llun.test/users/llun/statuses/109417500731428509/replies',
           type: 'Collection',
           first: {
             type: 'CollectionPage',
             items: [],
-            next: 'https://glasgow.social/users/llun/statuses/109417500731428509/replies?only_other_accounts=true&page=true',
+            next: 'https://llun.test/users/llun/statuses/109417500731428509/replies?only_other_accounts=true&page=true',
             partOf:
-              'https://glasgow.social/users/llun/statuses/109417500731428509/replies'
+              'https://llun.test/users/llun/statuses/109417500731428509/replies'
           }
         },
         tag: [],
         to: 'as:Public',
-        url: 'https://glasgow.social/@llun/109417500731428509'
+        url: 'https://llun.test/@llun/109417500731428509'
       },
       published: '2022-11-28T00:00:00Z',
       to: 'as:Public'
@@ -52,44 +52,44 @@ describe('#compact', () => {
         'https://llun.dev/users/null'
       ],
       cc: [
-        'https://glasgow.social/users/llun/followers',
+        'https://llun.test/users/llun/followers',
         'https://llun.dev/users/null/followers'
       ]
     })
     const compactedActivity = await compact(activity)
     expect(compactedActivity).toMatchObject({
-      id: 'https://glasgow.social/users/llun/statuses/109417500731428509/activity',
+      id: 'https://llun.test/users/llun/statuses/109417500731428509/activity',
       type: 'Create',
-      actor: 'https://glasgow.social/users/llun',
+      actor: 'https://llun.test/users/llun',
       cc: [
-        'https://glasgow.social/users/llun/followers',
+        'https://llun.test/users/llun/followers',
         'https://llun.dev/users/null/followers'
       ],
       object: {
-        id: 'https://glasgow.social/users/llun/statuses/109417500731428509',
+        id: 'https://llun.test/users/llun/statuses/109417500731428509',
         type: 'Note',
-        attributedTo: 'https://glasgow.social/users/llun',
+        attributedTo: 'https://llun.test/users/llun',
         cc: [
-          'https://glasgow.social/users/llun/followers',
+          'https://llun.test/users/llun/followers',
           'https://llun.dev/users/null/followers'
         ],
         content: 'Simple Content',
         contentMap: { en: 'Simple Content' },
         published: '2022-11-28T00:00:00Z',
         replies: {
-          id: 'https://glasgow.social/users/llun/statuses/109417500731428509/replies',
+          id: 'https://llun.test/users/llun/statuses/109417500731428509/replies',
           type: 'Collection',
           first: {
             type: 'CollectionPage',
             items: [],
-            next: 'https://glasgow.social/users/llun/statuses/109417500731428509/replies?only_other_accounts=true&page=true',
+            next: 'https://llun.test/users/llun/statuses/109417500731428509/replies?only_other_accounts=true&page=true',
             partOf:
-              'https://glasgow.social/users/llun/statuses/109417500731428509/replies'
+              'https://llun.test/users/llun/statuses/109417500731428509/replies'
           }
         },
         tag: [],
         to: ['as:Public', 'https://llun.dev/users/null'],
-        url: 'https://glasgow.social/@llun/109417500731428509'
+        url: 'https://llun.test/@llun/109417500731428509'
       },
       published: '2022-11-28T00:00:00Z',
       to: ['as:Public', 'https://llun.dev/users/null']

@@ -33,14 +33,14 @@ export const MockMastodonCreateActivity = ({
   conversation,
   documents,
   to = ['https://www.w3.org/ns/activitystreams#Public'],
-  cc = ['https://glasgow.social/users/llun/followers'],
+  cc = ['https://llun.test/users/llun/followers'],
   published = Date.now()
 }: Params) => {
   return {
     ...CONTEXT,
-    id: 'https://glasgow.social/users/llun/statuses/109417500731428509/activity',
+    id: 'https://llun.test/users/llun/statuses/109417500731428509/activity',
     type: 'Create',
-    actor: 'https://glasgow.social/users/llun',
+    actor: 'https://llun.test/users/llun',
     published: getISOTimeUTC(published),
     to,
     cc,
