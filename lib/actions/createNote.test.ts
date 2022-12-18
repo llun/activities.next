@@ -31,6 +31,13 @@ const mockStorage = {
         createdAt: Date.now()
       })
     }
+    if (statusId === 'https://llun.test/users/llun/statuses/duplicate-status') {
+      return MockStatus({
+        id: 'https://llun.test/users/llun/statuses/duplicate-status',
+        text: 'test',
+        createdAt: Date.now()
+      })
+    }
     return null
   }),
   getActorFromId: jest.fn(async ({ id }: GetActorFromIdParams) => {
@@ -141,6 +148,32 @@ describe('#createNote', () => {
       url: expect.toBeString()
     }
     expect(mockStorage.createStatus).toHaveBeenCalledWith({
+      status: expectStatus
+    })
+  })
+
+  it('does not add duplicate note into storage', async () => {
+    const note = MockMastodonNote({
+      id: 'duplicate-status',
+      content: 'Test'
+    })
+    expect(await createNote({ storage: mockStorage, note })).toEqual(note)
+    const expectStatus = {
+      id: note.id,
+      actorId: note.attributedTo,
+      type: 'Note',
+      text: `Test`,
+      reply: null,
+      summary: '',
+      to: note.to,
+      cc: note.cc,
+      localRecipients: ['as:Public'],
+      createdAt: expect.toBeNumber(),
+      updatedAt: expect.toBeNumber(),
+      url: expect.toBeString()
+    }
+
+    expect(mockStorage.createStatus).not.toHaveBeenCalledWith({
       status: expectStatus
     })
   })

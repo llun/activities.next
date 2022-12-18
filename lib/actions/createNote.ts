@@ -15,6 +15,11 @@ export const createNote = async ({
   note,
   storage
 }: CreateNoteParams): Promise<Note> => {
+  const existingStatus = await storage.getStatus({ statusId: note.id })
+  if (existingStatus) {
+    return note
+  }
+
   const compactNote = (await compact({
     '@context': ACTIVITY_STREAM_URL,
     ...note
