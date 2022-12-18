@@ -4,6 +4,7 @@ import {
   Firestore,
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getCountFromServer,
   getDoc,
@@ -27,6 +28,7 @@ import {
   CreateAttachmentParams,
   CreateFollowParams,
   CreateStatusParams,
+  DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
   GetActorFollowersCountParams,
   GetActorFollowingCountParams,
@@ -373,6 +375,16 @@ export class FirebaseStorage implements Storage {
     )
     const snapshot = await getDocs(statusesQuery)
     return snapshot.docs.map((item) => item.data() as Status)
+  }
+
+  async deleteStatus({ statusId }: DeleteStatusParams) {
+    const statuses = collection(this.db, 'statuses')
+    const statusesQuery = query(statuses, where('id', '==', statusId), limit(1))
+    const statusesSnapshot = await getDocs(statusesQuery)
+    if (statusesSnapshot.docs.length !== 1) return
+
+    const document = statusesSnapshot.docs[0]
+    await deleteDoc(doc(this.db, 'statuses', document.id))
   }
 
   async createAttachment({

@@ -27,6 +27,16 @@ const ApiHandler: NextApiHandler = activitiesGuard(
         }
         return res.status(202).send('')
       }
+      case 'Delete': {
+        // TODO: Handle delete object type string
+        if (typeof body.object === 'string') {
+          return res.status(202).send('')
+        }
+
+        const id = body.object.id
+        await storage.deleteStatus({ statusId: id })
+        return res.status(202).send('')
+      }
       default:
         return res.status(404).send(ERROR_404)
     }

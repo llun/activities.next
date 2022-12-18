@@ -48,6 +48,7 @@ export type GetStatusParams = { statusId: string }
 export type GetStatusesParams = { actorId?: string }
 export type GetActorStatusesCountParams = { actorId: string }
 export type GetActorStatusesParams = { actorId: string }
+export type DeleteStatusParams = { statusId: string }
 export type CreateAttachmentParams = {
   statusId: string
   mediaType: string
@@ -96,6 +97,7 @@ export interface Storage {
   getStatuses(params?: GetStatusesParams): Promise<Status[]>
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
+  deleteStatus(params: DeleteStatusParams): Promise<void>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>

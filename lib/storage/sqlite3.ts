@@ -12,6 +12,7 @@ import {
   CreateAttachmentParams,
   CreateFollowParams,
   CreateStatusParams,
+  DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
   GetActorFollowersCountParams,
   GetActorFollowingCountParams,
@@ -340,6 +341,10 @@ export class Sqlite3Storage implements Storage {
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .limit(20)
+  }
+
+  async deleteStatus({ statusId }: DeleteStatusParams) {
+    await this.database<Status>('statuses').where('id', statusId).delete()
   }
 
   async createAttachment({
