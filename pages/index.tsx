@@ -163,10 +163,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
-  const [statuses, actor] = await Promise.all([
-    storage.getStatuses(),
-    storage.getActorFromEmail({ email: session.user.email })
-  ])
+  const actor = await storage.getActorFromEmail({ email: session.user.email })
   if (!actor) {
     return {
       redirect: {
@@ -176,6 +173,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
+  const statuses = await storage.getStatuses({ actorId: actor.id })
   const statusesAttachments = await Promise.all(
     statuses.map((status) => storage.getAttachments({ statusId: status.id }))
   )

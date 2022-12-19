@@ -43,6 +43,7 @@ import {
   GetFollowersInboxParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
+  GetStatusesParams,
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
@@ -347,10 +348,11 @@ export class FirebaseStorage implements Storage {
     return statusesSnapshot.docs[0].data() as Status
   }
 
-  async getStatuses() {
+  async getStatuses({ actorId }: GetStatusesParams) {
     const statuses = collection(this.db, 'statuses')
     const statusesQuery = query(
       statuses,
+      where('localRecipients', 'array-contains', actorId),
       orderBy('createdAt', 'desc'),
       limit(50)
     )
