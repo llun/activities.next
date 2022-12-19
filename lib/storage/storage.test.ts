@@ -43,7 +43,8 @@ describe('Storage', () => {
     })
     expect(await storage.isAccountExists({ email })).toBeTrue()
     expect(await storage.isUsernameExists({ username })).toBeTrue()
-    expect(await storage.getActorFromEmail({ email })).toMatchObject({
+
+    const expectedActorAfterCreated = {
       id: 'https://llun.test/users/user',
       preferredUsername: username,
       account: {
@@ -52,28 +53,31 @@ describe('Storage', () => {
       },
       publicKey,
       privateKey
-    })
-    expect(await storage.getActorFromUsername({ username })).toMatchObject({
-      id: 'https://llun.test/users/user',
-      preferredUsername: username,
-      account: {
-        id: expect.toBeString(),
-        email
-      },
-      publicKey,
-      privateKey
-    })
+    }
+    expect(await storage.getActorFromEmail({ email })).toMatchObject(
+      expectedActorAfterCreated
+    )
+    expect(await storage.getActorFromUsername({ username })).toMatchObject(
+      expectedActorAfterCreated
+    )
     expect(
       await storage.getActorFromId({ id: 'https://llun.test/users/user' })
-    ).toMatchObject({
-      id: 'https://llun.test/users/user',
-      preferredUsername: username,
-      account: {
-        id: expect.toBeString(),
-        email
-      },
-      publicKey,
-      privateKey
+    ).toMatchObject(expectedActorAfterCreated)
+
+    const currentActor = await storage.getActorFromUsername({ username })
+    if (!currentActor) fail('Current actor must not be null')
+
+    await storage.updateActor({
+      actor: {
+        ...currentActor,
+        name: 'llun',
+        summary: 'This is test actor'
+      }
+    })
+
+    expect(await storage.getActorFromUsername({ username })).toMatchObject({
+      name: 'llun',
+      summary: 'This is test actor'
     })
   })
 })
