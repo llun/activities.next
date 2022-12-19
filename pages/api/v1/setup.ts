@@ -1,9 +1,6 @@
-import crypto from 'crypto'
-import util from 'util'
-
-import { getConfig } from '../../../lib/config'
 import { ERROR_404 } from '../../../lib/errors'
 import { SetupGuard } from '../../../lib/guard'
+import { generateKeyPair } from '../../../lib/signature'
 
 const handler = SetupGuard(async (req, res, context) => {
   const { storage, email } = context
@@ -15,19 +12,7 @@ const handler = SetupGuard(async (req, res, context) => {
       }
 
       try {
-        const keyPair = await util.promisify(crypto.generateKeyPair)('rsa', {
-          modulusLength: 4096,
-          publicKeyEncoding: {
-            type: 'spki',
-            format: 'pem'
-          },
-          privateKeyEncoding: {
-            type: 'pkcs8',
-            format: 'pem',
-            cipher: 'aes-256-cbc',
-            passphrase: getConfig().secretPhase
-          }
-        })
+        const keyPair = await generateKeyPair()
         await storage.createAccount({
           email,
           username,

@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { IncomingHttpHeaders } from 'http'
 import { generate } from 'peggy'
+import util from 'util'
 
 import { getConfig } from './config'
 import { SIGNATURE_GRAMMAR } from './grammar'
@@ -103,4 +104,20 @@ export function headers(
     ...headers,
     signature: signatureHeader
   }
+}
+
+export function generateKeyPair() {
+  return util.promisify(crypto.generateKeyPair)('rsa', {
+    modulusLength: 4096,
+    publicKeyEncoding: {
+      type: 'spki',
+      format: 'pem'
+    },
+    privateKeyEncoding: {
+      type: 'pkcs8',
+      format: 'pem',
+      cipher: 'aes-256-cbc',
+      passphrase: getConfig().secretPhase
+    }
+  })
 }

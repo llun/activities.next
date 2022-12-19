@@ -3,7 +3,7 @@ import { Knex } from 'knex'
 export async function up(knex: Knex): Promise<void> {
   return knex.schema.createTable('attachments', function (table) {
     table.string('id').primary()
-    table.string('statusId').index('statusIndex')
+    table.string('statusId')
     table.string('url')
     table.string('mediaType')
     table.string('type')
@@ -11,11 +11,10 @@ export async function up(knex: Knex): Promise<void> {
     table.integer('height')
     table.text('name')
 
-    table
-      .timestamp('createdAt', { useTz: true })
-      .defaultTo(knex.fn.now())
-      .index('timeIndex')
-    table.timestamp('updatedAt', { useTz: true }).index('timeIndex')
+    table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+    table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
+
+    table.index(['statusId', 'createdAt', 'updatedAt'], 'attachmentsIndex')
   })
 }
 

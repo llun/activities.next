@@ -65,6 +65,10 @@ export class Sqlite3Storage implements Storage {
     this.database = knex(config)
   }
 
+  async migrate() {
+    await this.database.migrate.latest()
+  }
+
   async isAccountExists({ email }: IsAccountExistsParams) {
     if (!email) return false
     const result = await this.database('accounts')

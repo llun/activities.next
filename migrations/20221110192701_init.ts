@@ -4,17 +4,15 @@ export async function up(knex: Knex): Promise<void> {
   return knex.schema
     .createTable('accounts', function (table) {
       table.string('id').primary()
-      table.string('email').unique().index('emailIndex')
+      table.string('email').unique()
+      table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+      table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
-      table
-        .timestamp('createdAt', { useTz: true })
-        .defaultTo(knex.fn.now())
-        .index('timeIndex')
-      table.timestamp('updatedAt', { useTz: true }).index('timeIndex')
+      table.index(['email', 'createdAt', 'updatedAt'], 'accountsIndex')
     })
     .createTable('actors', function (table) {
       table.string('id').unique()
-      table.string('preferredUsername').unique().index('usernameIndex')
+      table.string('preferredUsername').unique()
 
       table.string('accountId')
       table.foreign('accountId').references('id').inTable('accounts')
@@ -27,17 +25,19 @@ export async function up(knex: Knex): Promise<void> {
       table.text('publicKey')
       table.text('privateKey')
 
-      table
-        .timestamp('createdAt', { useTz: true })
-        .defaultTo(knex.fn.now())
-        .index('timeIndex')
-      table.timestamp('updatedAt', { useTz: true }).index('timeIndex')
+      table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+      table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
+
+      table.index(
+        ['preferredUsername', 'createdAt', 'updatedAt'],
+        'actorsIndex'
+      )
     })
     .createTable('statuses', function (table) {
       table.string('id').primary()
       table.string('url')
 
-      table.string('actorId').index('actorIndex')
+      table.string('actorId')
 
       table.string('type')
       table.text('text')
@@ -51,14 +51,12 @@ export async function up(knex: Knex): Promise<void> {
       table.string('thread')
       table.string('conversation')
 
-      table
-        .timestamp('createdAt', { useTz: true })
-        .defaultTo(knex.fn.now())
-        .index('timeIndex')
-      table.timestamp('updatedAt', { useTz: true }).index('timeIndex')
+      table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+      table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
+      table.index(['actorId', 'createdAt', 'updatedAt'], 'statusesIndex')
     })
     .createTable('questions', function (table) {
-      table.string('statusId').index('statusIndex')
+      table.string('statusId')
 
       table.text('options')
 
@@ -66,26 +64,34 @@ export async function up(knex: Knex): Promise<void> {
 
       table.timestamp('endAt', { useTz: true }).defaultTo(knex.fn.now())
 
-      table
-        .timestamp('createdAt', { useTz: true })
-        .defaultTo(knex.fn.now())
-        .index('timeIndex')
-      table.timestamp('updatedAt', { useTz: true }).index('timeIndex')
+      table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+      table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
+
+      table.index(['statusId', 'createdAt', 'updatedAt'], 'questionsIndex')
     })
     .createTable('follows', function (table) {
       table.string('id').primary()
-      table.string('actorId').index('followStatusIndex')
-      table.string('actorHost').index('actorHostIndex')
+      table.string('actorId')
+      table.string('actorHost')
 
-      table.string('targetActorId').index('followStatusIndex')
-      table.string('targetActorHost').index('targetActorHostIndex')
-      table.string('status').index('followStatusIndex')
+      table.string('targetActorId')
+      table.string('targetActorHost')
+      table.string('status')
 
-      table
-        .timestamp('createdAt', { useTz: true })
-        .defaultTo(knex.fn.now())
-        .index('timeIndex')
-      table.timestamp('updatedAt', { useTz: true }).index('timeIndex')
+      table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+      table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
+      table.index(
+        [
+          'actorId',
+          'actorHost',
+          'targetActorId',
+          'targetActorHost',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ],
+        'followsIndex'
+      )
     })
 }
 
