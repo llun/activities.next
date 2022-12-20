@@ -1,7 +1,7 @@
 {
   "name": "mastodon",
   "version": "0.1.0",
-  "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,7 +13,7 @@
     "migrate:make": "knex migrate:make -x ts"
   },
   "dependencies": {
-    "@sentry/nextjs": "^7.27.0",
+    "@sentry/nextjs": "^7.28.0",
     "@vercel/analytics": "^0.1.6",
     "better-sqlite3": "^8.0.1",
     "bootstrap": "^5.2.3",
@@ -36,7 +36,7 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-modal": "^3.16.1",
-    "sass": "^1.57.0"
+    "sass": "^1.57.1"
   },
   "devDependencies": {
     "@swc-node/register": "^1.5.4",
@@ -51,8 +51,8 @@
     "@types/react-dom": "18.0.9",
     "@types/react-modal": "^3.13.1",
     "@types/twitter-text": "^3.1.4",
-    "@typescript-eslint/eslint-plugin": "^5.46.1",
-    "@typescript-eslint/parser": "^5.46.1",
+    "@typescript-eslint/eslint-plugin": "^5.47.0",
+    "@typescript-eslint/parser": "^5.47.0",
     "autoprefixer": "^10.4.13",
     "eslint": "^8.30.0",
     "eslint-config-next": "13.0.7",
