@@ -32,6 +32,7 @@ describe('Storage', () => {
     const email = 'user@llun.dev'
     const username = 'user'
     const id = 'https://llun.test/users/user'
+    const targetFollowId = 'https://llun.dev/users/null'
 
     expect(await storage.isAccountExists({ email })).toBeFalse()
     expect(await storage.isUsernameExists({ username })).toBeFalse()
@@ -138,5 +139,51 @@ describe('Storage', () => {
         sharedInbox: 'https://llun.dev/inbox'
       })
     ).toEqual(follow)
+
+    await storage.updateFollowStatus({
+      followId: follow.id,
+      status: FollowStatus.Rejected
+    })
+
+    expect(
+      await storage.getActorFollowersCount({ actorId: targetFollowId })
+    ).toEqual(0)
+    expect(await storage.getActorFollowingCount({ actorId: id })).toEqual(0)
+    expect(
+      await storage.getFollowersHosts({ targetActorId: targetFollowId })
+    ).toEqual([])
+    expect(
+      await storage.getFollowersInbox({ targetActorId: targetFollowId })
+    ).toEqual([])
+
+    await storage.updateFollowStatus({
+      followId: follow.id,
+      status: FollowStatus.Accepted
+    })
+
+    expect(await storage.getActorFollowersCount({ actorId: id })).toEqual(0)
+    expect(await storage.getActorFollowingCount({ actorId: id })).toEqual(1)
+    expect(
+      await storage.getFollowersHosts({ targetActorId: targetFollowId })
+    ).toEqual(['llun.test'])
+    expect(
+      await storage.getFollowersInbox({ targetActorId: targetFollowId })
+    ).toEqual(['https://llun.dev/inbox'])
+
+    await storage.createFollow({
+      actorId: targetFollowId,
+      targetActorId: id,
+      status: FollowStatus.Accepted,
+      inbox: 'https://llun.test/users/users/inbox',
+      sharedInbox: 'https://llun.test/inbox'
+    })
+    expect(await storage.getActorFollowersCount({ actorId: id })).toEqual(1)
+    expect(await storage.getActorFollowingCount({ actorId: id })).toEqual(1)
+    expect(await storage.getFollowersHosts({ targetActorId: id })).toEqual([
+      'llun.dev'
+    ])
+    expect(await storage.getFollowersInbox({ targetActorId: id })).toEqual([
+      'https://llun.test/inbox'
+    ])
   })
 })
