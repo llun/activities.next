@@ -7,7 +7,7 @@ jest.mock('../config', () => ({
   getConfig: () => ({ host: 'llun.test', secretPhase: 'secret' })
 }))
 
-describe('Storage', () => {
+describe.skip('Storage', () => {
   const storages: Storage[] = []
 
   beforeAll(async () => {
