@@ -1,3 +1,4 @@
+import { FollowStatus } from '../models/follow'
 import { generateKeyPair } from '../signature'
 import { Sqlite3Storage } from './sqlite3'
 import { Storage } from './types'
@@ -30,6 +31,7 @@ describe('Storage', () => {
     const storage = storages[0]
     const email = 'user@llun.dev'
     const username = 'user'
+    const id = 'https://llun.test/users/user'
 
     expect(await storage.isAccountExists({ email })).toBeFalse()
     expect(await storage.isUsernameExists({ username })).toBeFalse()
@@ -45,7 +47,7 @@ describe('Storage', () => {
     expect(await storage.isUsernameExists({ username })).toBeTrue()
 
     const expectedActorAfterCreated = {
-      id: 'https://llun.test/users/user',
+      id,
       preferredUsername: username,
       account: {
         id: expect.toBeString(),
@@ -60,9 +62,9 @@ describe('Storage', () => {
     expect(await storage.getActorFromUsername({ username })).toMatchObject(
       expectedActorAfterCreated
     )
-    expect(
-      await storage.getActorFromId({ id: 'https://llun.test/users/user' })
-    ).toMatchObject(expectedActorAfterCreated)
+    expect(await storage.getActorFromId({ id })).toMatchObject(
+      expectedActorAfterCreated
+    )
 
     const currentActor = await storage.getActorFromUsername({ username })
     if (!currentActor) fail('Current actor must not be null')
@@ -79,5 +81,62 @@ describe('Storage', () => {
       name: 'llun',
       summary: 'This is test actor'
     })
+
+    expect(await storage.getActorFollowersCount({ actorId: id })).toEqual(0)
+    expect(await storage.getActorFollowingCount({ actorId: id })).toEqual(0)
+    expect(await storage.getFollowersHosts({ targetActorId: id })).toEqual([])
+    expect(await storage.getFollowersInbox({ targetActorId: id })).toEqual([])
+
+    const follow = await storage.createFollow({
+      actorId: id,
+      targetActorId: 'https://llun.dev/users/null',
+      status: FollowStatus.Requested,
+      inbox: 'https://llun.dev/users/null/inbox',
+      sharedInbox: 'https://llun.dev/inbox'
+    })
+    expect(follow).toEqual({
+      actorHost: 'llun.test',
+      actorId: 'https://llun.test/users/user',
+      createdAt: expect.toBeNumber(),
+      id: expect.toBeString(),
+      inbox: 'https://llun.dev/users/null/inbox',
+      sharedInbox: 'https://llun.dev/inbox',
+      status: FollowStatus.Requested,
+      targetActorHost: 'llun.dev',
+      targetActorId: 'https://llun.dev/users/null',
+      updatedAt: expect.toBeNumber()
+    })
+
+    expect(await storage.getActorFollowersCount({ actorId: id })).toEqual(0)
+    expect(await storage.getActorFollowingCount({ actorId: id })).toEqual(0)
+    expect(await storage.getFollowersHosts({ targetActorId: id })).toEqual([])
+    expect(await storage.getFollowersInbox({ targetActorId: id })).toEqual([])
+    expect(
+      await storage.getAcceptedOrRequestedFollow({
+        actorId: id,
+        targetActorId: 'https://llun.dev/users/null'
+      })
+    ).toEqual({
+      actorHost: 'llun.test',
+      actorId: 'https://llun.test/users/user',
+      createdAt: expect.toBeNumber(),
+      id: expect.toBeString(),
+      inbox: 'https://llun.dev/users/null/inbox',
+      sharedInbox: 'https://llun.dev/inbox',
+      status: FollowStatus.Requested,
+      targetActorHost: 'llun.dev',
+      targetActorId: 'https://llun.dev/users/null',
+      updatedAt: expect.toBeNumber()
+    })
+
+    expect(
+      await storage.createFollow({
+        actorId: id,
+        targetActorId: 'https://llun.dev/users/null',
+        status: FollowStatus.Requested,
+        inbox: 'https://llun.dev/users/null/inbox',
+        sharedInbox: 'https://llun.dev/inbox'
+      })
+    ).toEqual(follow)
   })
 })

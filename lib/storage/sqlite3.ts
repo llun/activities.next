@@ -241,6 +241,14 @@ export class Sqlite3Storage implements Storage {
     inbox,
     sharedInbox
   }: CreateFollowParams) {
+    const existingFollow = await this.getAcceptedOrRequestedFollow({
+      actorId,
+      targetActorId
+    })
+    if (existingFollow) {
+      return existingFollow
+    }
+
     const currentTime = Date.now()
     const follow: Follow = {
       id: crypto.randomUUID(),
