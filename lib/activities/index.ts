@@ -195,14 +195,19 @@ export const sendNote = async ({
   }
   // TODO: Add LinkedDataSignature later
   // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3
-  await fetch(inbox, {
-    method: 'POST',
-    headers: {
-      ...headers(currentActor, 'post', inbox, activity),
-      'User-Agent': USER_AGENT
-    },
-    body: JSON.stringify(activity)
-  })
+  try {
+    await fetch(inbox, {
+      method: 'POST',
+      headers: {
+        ...headers(currentActor, 'post', inbox, activity),
+        'User-Agent': USER_AGENT
+      },
+      body: JSON.stringify(activity)
+    })
+  } catch (error: any) {
+    // Ignore fail fetch
+    console.error({ error: error.message, inbox, activity })
+  }
 }
 
 interface DeleteStatusParams {
@@ -226,14 +231,19 @@ export const deleteStatus = async ({
       type: 'Tombstone'
     }
   }
-  await fetch(inbox, {
-    method: 'POST',
-    headers: {
-      ...headers(currentActor, 'post', inbox, activity),
-      'User-Agent': USER_AGENT
-    },
-    body: JSON.stringify(activity)
-  })
+  try {
+    await fetch(inbox, {
+      method: 'POST',
+      headers: {
+        ...headers(currentActor, 'post', inbox, activity),
+        'User-Agent': USER_AGENT
+      },
+      body: JSON.stringify(activity)
+    })
+  } catch (error: any) {
+    // Ignore fail fetch
+    console.error({ error: error.message, inbox, activity })
+  }
 }
 
 export const follow = async (
