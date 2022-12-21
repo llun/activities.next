@@ -7,7 +7,19 @@ jest.mock('../config', () => ({
   getConfig: () => ({ host: 'llun.test', secretPhase: 'secret' })
 }))
 
-describe.skip('Storage', () => {
+const TEST_EMAIL = 'user@llun.dev'
+const TEST_USERNAME = 'user'
+const TEST_ID = 'https://llun.test/users/user'
+
+const TEST_EMAIL2 = 'user2@llun.dev'
+const TEST_USERNAME2 = 'user2'
+
+const TEST_EMAIL3 = 'user3@llun.dev'
+const TEST_USERNAME3 = 'user3'
+const TEST_ID3 = 'https://llun.test/users/user3'
+const TEST_FOLLOW_ID = 'https://llun.dev/users/null'
+
+describe('Storage', () => {
   const storages: Storage[] = []
 
   beforeAll(async () => {
@@ -20,6 +32,24 @@ describe.skip('Storage', () => {
     })
     await sqliteStorage.migrate()
     storages.push(sqliteStorage)
+
+    const { privateKey: privateKey1, publicKey: publicKey1 } =
+      await generateKeyPair()
+    await sqliteStorage.createAccount({
+      email: TEST_EMAIL,
+      username: TEST_USERNAME,
+      privateKey: privateKey1,
+      publicKey: publicKey1
+    })
+
+    const { privateKey: privateKey2, publicKey: publicKey2 } =
+      await generateKeyPair()
+    await sqliteStorage.createAccount({
+      email: TEST_EMAIL3,
+      username: TEST_USERNAME3,
+      privateKey: privateKey2,
+      publicKey: publicKey2
+    })
   })
 
   afterAll(async () => {
@@ -27,66 +57,104 @@ describe.skip('Storage', () => {
     await storage.database.destroy()
   })
 
-  it('runs storage story', async () => {
+  describe('accounts', () => {
+    it('returns false when account is not created yet', async () => {
+      const storage = storages[0]
+      expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeFalse()
+      expect(
+        await storage.isUsernameExists({ username: TEST_USERNAME2 })
+      ).toBeFalse()
+    })
+
+    it('creates account and actor', async () => {
+      const storage = storages[0]
+      const { privateKey, publicKey } = await generateKeyPair()
+      await storage.createAccount({
+        email: TEST_EMAIL2,
+        username: TEST_USERNAME2,
+        privateKey,
+        publicKey
+      })
+      expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
+      expect(
+        await storage.isUsernameExists({ username: TEST_USERNAME2 })
+      ).toBeTrue()
+    })
+
+    it('returns actor from getActor methods', async () => {
+      const storage = storages[0]
+      const expectedActorAfterCreated = {
+        id: TEST_ID,
+        preferredUsername: TEST_USERNAME,
+        account: {
+          id: expect.toBeString(),
+          email: TEST_EMAIL
+        },
+        publicKey: expect.toBeString(),
+        privateKey: expect.toBeString()
+      }
+      expect(
+        await storage.getActorFromEmail({ email: TEST_EMAIL })
+      ).toMatchObject(expectedActorAfterCreated)
+      expect(
+        await storage.getActorFromUsername({ username: TEST_USERNAME })
+      ).toMatchObject(expectedActorAfterCreated)
+      expect(await storage.getActorFromId({ id: TEST_ID })).toMatchObject(
+        expectedActorAfterCreated
+      )
+    })
+
+    it('updates actor information', async () => {
+      const storage = storages[0]
+      const currentActor = await storage.getActorFromUsername({
+        username: TEST_USERNAME
+      })
+      if (!currentActor) fail('Current actor must not be null')
+
+      await storage.updateActor({
+        actor: {
+          ...currentActor,
+          name: 'llun',
+          summary: 'This is test actor'
+        }
+      })
+
+      expect(
+        await storage.getActorFromUsername({ username: TEST_USERNAME })
+      ).toMatchObject({
+        name: 'llun',
+        summary: 'This is test actor'
+      })
+    })
+  })
+
+  describe('follows', () => {
+    it('returns empty followers and following', async () => {
+      const storage = storages[0]
+      expect(
+        await storage.getActorFollowersCount({ actorId: TEST_ID })
+      ).toEqual(0)
+      expect(
+        await storage.getActorFollowingCount({ actorId: TEST_ID })
+      ).toEqual(0)
+      expect(
+        await storage.getFollowersHosts({ targetActorId: TEST_ID })
+      ).toEqual([])
+      expect(
+        await storage.getFollowersInbox({ targetActorId: TEST_ID })
+      ).toEqual([])
+    })
+  })
+
+  it.skip('runs storage story', async () => {
     const storage = storages[0]
     const email = 'user@llun.dev'
     const username = 'user'
     const id = 'https://llun.test/users/user'
     const targetFollowId = 'https://llun.dev/users/null'
 
-    expect(await storage.isAccountExists({ email })).toBeFalse()
-    expect(await storage.isUsernameExists({ username })).toBeFalse()
-
-    const { privateKey, publicKey } = await generateKeyPair()
-    await storage.createAccount({
-      email,
-      username,
-      privateKey,
-      publicKey
-    })
-    expect(await storage.isAccountExists({ email })).toBeTrue()
-    expect(await storage.isUsernameExists({ username })).toBeTrue()
-
-    const expectedActorAfterCreated = {
-      id,
-      preferredUsername: username,
-      account: {
-        id: expect.toBeString(),
-        email
-      },
-      publicKey,
-      privateKey
-    }
-    expect(await storage.getActorFromEmail({ email })).toMatchObject(
-      expectedActorAfterCreated
-    )
-    expect(await storage.getActorFromUsername({ username })).toMatchObject(
-      expectedActorAfterCreated
-    )
-    expect(await storage.getActorFromId({ id })).toMatchObject(
-      expectedActorAfterCreated
-    )
-
     const currentActor = await storage.getActorFromUsername({ username })
     if (!currentActor) fail('Current actor must not be null')
-
-    await storage.updateActor({
-      actor: {
-        ...currentActor,
-        name: 'llun',
-        summary: 'This is test actor'
-      }
-    })
-
-    expect(await storage.getActorFromUsername({ username })).toMatchObject({
-      name: 'llun',
-      summary: 'This is test actor'
-    })
-
-    expect(await storage.getActorFollowersCount({ actorId: id })).toEqual(0)
-    expect(await storage.getActorFollowingCount({ actorId: id })).toEqual(0)
-    expect(await storage.getFollowersHosts({ targetActorId: id })).toEqual([])
-    expect(await storage.getFollowersInbox({ targetActorId: id })).toEqual([])
 
     const follow = await storage.createFollow({
       actorId: id,
