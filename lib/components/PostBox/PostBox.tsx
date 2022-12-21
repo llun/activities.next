@@ -2,7 +2,11 @@ import { FC, FormEvent, useRef, useState } from 'react'
 
 import { createStatus } from '../../client'
 import { Media } from '../../medias/apple/media'
-import { Profile } from '../../models/actor'
+import {
+  Profile,
+  getAtUsernameFromId,
+  getAtWithHostFromId
+} from '../../models/actor'
 import {
   AppleGalleryAttachment,
   Attachment,
@@ -88,6 +92,12 @@ export const PostBox: FC<Props> = ({
     ])
   }
 
+  const getDefaultMessage = (profile: Profile, replyStatus?: Status) => {
+    if (!replyStatus) return ''
+    if (replyStatus.actorId === profile.id) return ''
+    return `${getAtWithHostFromId(replyStatus.actorId)} `
+  }
+
   return (
     <div>
       <ReplyPreview status={replyStatus} onClose={onCloseReply} />
@@ -98,6 +108,7 @@ export const PostBox: FC<Props> = ({
             className="form-control"
             rows={3}
             name="message"
+            defaultValue={getDefaultMessage(profile, replyStatus)}
           />
         </div>
         <div className="d-flex justify-content-between mb-3">
