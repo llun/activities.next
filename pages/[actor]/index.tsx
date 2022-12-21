@@ -1,23 +1,20 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
-import format from 'date-fns/format'
 import { GetStaticProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
-import Link from 'next/link'
 import { useState } from 'react'
 
-import { getPerson, getPosts, getWebfingerSelf } from '../lib/activities'
-import { Button } from '../lib/components/Button'
-import { Header } from '../lib/components/Header'
-import { Posts } from '../lib/components/Posts/Posts'
-import { Profile } from '../lib/components/Profile'
-import { getConfig } from '../lib/config'
-import { getHostnameFromId, getUsernameFromId } from '../lib/models/actor'
-import { Attachment } from '../lib/models/attachment'
-import { Status } from '../lib/models/status'
-import { getStorage } from '../lib/storage'
-import styles from './[actor].module.scss'
+import { getPerson, getPosts, getWebfingerSelf } from '../../lib/activities'
+import { Button } from '../../lib/components/Button'
+import { Header } from '../../lib/components/Header'
+import { Posts } from '../../lib/components/Posts/Posts'
+import { Profile } from '../../lib/components/Profile'
+import { getConfig } from '../../lib/config'
+import { Attachment } from '../../lib/models/attachment'
+import { Status } from '../../lib/models/status'
+import { getStorage } from '../../lib/storage'
+import styles from './index.module.scss'
 
 interface Props {
   name: string
