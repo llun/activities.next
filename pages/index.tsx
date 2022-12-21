@@ -30,6 +30,9 @@ interface Props {
   statuses: Status[]
   attachments: Attachment[]
   profile: Profile
+  totalPosts: number
+  followersCount: number
+  followingCount: number
 }
 
 const Page: NextPage<Props> = ({
@@ -37,7 +40,10 @@ const Page: NextPage<Props> = ({
   profile,
   statuses,
   attachments,
-  currentServerTime
+  currentServerTime,
+  totalPosts,
+  followersCount,
+  followingCount
 }) => {
   const { data: session } = useSession()
   const [replyStatus, setReplyStatus] = useState<Status>()
@@ -89,6 +95,11 @@ const Page: NextPage<Props> = ({
             <div>
               <h1>{profile.name}</h1>
               <h4>@{getUsernameFromId(profile.id)}</h4>
+              <p>
+                <span>{totalPosts} Posts</span>
+                <span className="ms-2">{followingCount} Following</span>
+                <span className="ms-2">{followersCount} Followers</span>
+              </p>
               {Number.isInteger(profile.createdAt) && (
                 <p>Joined {format(profile.createdAt, 'd MMM yyyy')}</p>
               )}
@@ -173,7 +184,14 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
-  const statuses = await storage.getStatuses({ actorId: actor.id })
+  const [statuses, totalPosts, followersCount, followingCount] =
+    await Promise.all([
+      storage.getStatuses({ actorId: actor.id }),
+      storage.getActorStatusesCount({ actorId: actor.id }),
+      storage.getActorFollowingCount({ actorId: actor.id }),
+      storage.getActorFollowersCount({ actorId: actor.id })
+    ])
+
   const statusesAttachments = await Promise.all(
     statuses.map((status) => storage.getAttachments({ statusId: status.id }))
   )
@@ -184,7 +202,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       statuses,
       attachments: statusesAttachments.flat(),
       currentServerTime: Date.now(),
-      profile: getProfileFromActor(actor)
+      profile: getProfileFromActor(actor),
+      totalPosts,
+      followersCount,
+      followingCount
     }
   }
 }
