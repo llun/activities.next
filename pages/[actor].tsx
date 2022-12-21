@@ -11,6 +11,7 @@ import { getPerson, getPosts, getWebfingerSelf } from '../lib/activities'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { Posts } from '../lib/components/Posts/Posts'
+import { Profile } from '../lib/components/Profile'
 import { getConfig } from '../lib/config'
 import { getHostnameFromId, getUsernameFromId } from '../lib/models/actor'
 import { Attachment } from '../lib/models/attachment'
@@ -63,22 +64,16 @@ const Page: NextPage<Props> = ({
                 src={iconUrl}
               />
             )}
-            <div className="flex-fill">
-              <h1>{name}</h1>
-              <h4>
-                <Link href={url} target={'_blank'}>
-                  @{getUsernameFromId(id)}@{getHostnameFromId(id)}
-                </Link>
-              </h4>
-              <p>
-                <span>{totalPosts} Posts</span>
-                <span className="ms-2">{followingCount} Following</span>
-                <span className="ms-2">{followersCount} Followers</span>
-              </p>
-              {Number.isInteger(createdAt) && (
-                <p>Joined {format(createdAt, 'd MMM yyyy')}</p>
-              )}
-            </div>
+            <Profile
+              className="flex-fill"
+              name={name}
+              url={url}
+              id={id}
+              totalPosts={totalPosts}
+              followersCount={followersCount}
+              followingCount={followingCount}
+              createdAt={createdAt}
+            />
             {isLoggedIn && (
               <div className="flex-shrink-0">
                 {/* TODO: Add api to check following status later */}

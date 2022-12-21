@@ -1,6 +1,5 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
-import format from 'date-fns/format'
 import { GetServerSideProps, NextPage } from 'next'
 import { unstable_getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
@@ -11,12 +10,13 @@ import { useRef, useState } from 'react'
 import { Header } from '../lib/components/Header'
 import { PostBox } from '../lib/components/PostBox/PostBox'
 import { Posts } from '../lib/components/Posts/Posts'
+import { Profile as ProfileComponent } from '../lib/components/Profile'
 import { getConfig } from '../lib/config'
 import {
   Profile,
+  getAtUsernameFromId,
   getAtWithHostFromId,
-  getProfileFromActor,
-  getUsernameFromId
+  getProfileFromActor
 } from '../lib/models/actor'
 import { Attachment } from '../lib/models/attachment'
 import { Status } from '../lib/models/status'
@@ -92,18 +92,15 @@ const Page: NextPage<Props> = ({
                 src={profile.iconUrl}
               />
             )}
-            <div>
-              <h1>{profile.name}</h1>
-              <h4>@{getUsernameFromId(profile.id)}</h4>
-              <p>
-                <span>{totalPosts} Posts</span>
-                <span className="ms-2">{followingCount} Following</span>
-                <span className="ms-2">{followersCount} Followers</span>
-              </p>
-              {Number.isInteger(profile.createdAt) && (
-                <p>Joined {format(profile.createdAt, 'd MMM yyyy')}</p>
-              )}
-            </div>
+            <ProfileComponent
+              name={profile.name || ''}
+              url={`https://${host}/${getAtUsernameFromId(profile.id)}`}
+              id={profile.id}
+              totalPosts={totalPosts}
+              followersCount={followersCount}
+              followingCount={followingCount}
+              createdAt={profile.createdAt}
+            />
           </div>
           <div className="col-12 col-md-9">
             <PostBox
@@ -184,7 +181,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
-  const [statuses, totalPosts, followersCount, followingCount] =
+  const [statuses, totalPosts, followingCount, followersCount] =
     await Promise.all([
       storage.getStatuses({ actorId: actor.id }),
       storage.getActorStatusesCount({ actorId: actor.id }),
