@@ -12,7 +12,9 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: 18
+      - name: Install dependencies
+        run: yarn install
       - name: Test
-        run: |
-          yarn install
-          yarn test
+        run: yarn test
+      - name: Test Storage
+        run: yarn test:storage

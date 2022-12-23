@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "yarn node --experimental-vm-modules $(yarn bin jest)",
+    "test": "yarn node --experimental-vm-modules $(yarn bin jest) --testPathIgnorePatterns=\"lib/storage/storage.test.ts\"",
+    "test:storage": "jest --testPathPattern=\"lib/storage/storage.test.ts\"",
     "prettier": "prettier --write pages migrations lib",
     "migrate": "knex migrate:latest",
     "migrate:make": "knex migrate:make -x ts"
