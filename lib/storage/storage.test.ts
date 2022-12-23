@@ -24,7 +24,7 @@ describe('Storage', () => {
 
   beforeAll(async () => {
     const sqliteStorage = new Sqlite3Storage({
-      client: 'better-sqlite3',
+      client: 'sqlite3',
       useNullAsDefault: true,
       connection: {
         filename: ':memory:'
@@ -33,23 +33,24 @@ describe('Storage', () => {
     await sqliteStorage.migrate()
     storages.push(sqliteStorage)
 
-    const { privateKey: privateKey1, publicKey: publicKey1 } =
-      await generateKeyPair()
-    await sqliteStorage.createAccount({
-      email: TEST_EMAIL,
-      username: TEST_USERNAME,
-      privateKey: privateKey1,
-      publicKey: publicKey1
-    })
-
-    const { privateKey: privateKey2, publicKey: publicKey2 } =
-      await generateKeyPair()
-    await sqliteStorage.createAccount({
-      email: TEST_EMAIL3,
-      username: TEST_USERNAME3,
-      privateKey: privateKey2,
-      publicKey: publicKey2
-    })
+    for (const storage of storages) {
+      const { privateKey: privateKey1, publicKey: publicKey1 } =
+        await generateKeyPair()
+      await storage.createAccount({
+        email: TEST_EMAIL,
+        username: TEST_USERNAME,
+        privateKey: privateKey1,
+        publicKey: publicKey1
+      })
+      const { privateKey: privateKey2, publicKey: publicKey2 } =
+        await generateKeyPair()
+      await storage.createAccount({
+        email: TEST_EMAIL3,
+        username: TEST_USERNAME3,
+        privateKey: privateKey2,
+        publicKey: publicKey2
+      })
+    }
   })
 
   afterAll(async () => {
