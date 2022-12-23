@@ -4,6 +4,7 @@ import {
   Firestore,
   addDoc,
   collection,
+  connectFirestoreEmulator,
   deleteDoc,
   doc,
   getCountFromServer,
@@ -63,6 +64,10 @@ export class FirebaseStorage implements Storage {
   constructor(config: FirebaseConfig) {
     this.app = initializeApp(config)
     this.db = getFirestore(this.app)
+  }
+
+  async connectEmulator() {
+    connectFirestoreEmulator(this.db, '127.0.0.1', 8080)
   }
 
   async isAccountExists({ email }: IsAccountExistsParams) {

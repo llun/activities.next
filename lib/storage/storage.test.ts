@@ -1,5 +1,6 @@
 import { FollowStatus } from '../models/follow'
 import { generateKeyPair } from '../signature'
+import { FirebaseStorage } from './firebase'
 import { Sqlite3Storage } from './sqlite3'
 import { Storage } from './types'
 
@@ -33,6 +34,13 @@ describe('Storage', () => {
     await sqliteStorage.migrate()
     storages.push(sqliteStorage)
 
+    const firebaseStorage = new FirebaseStorage({
+      type: 'firebase',
+      projectId: 'test'
+    })
+    await firebaseStorage.connectEmulator()
+    storages.push(firebaseStorage)
+
     for (const storage of storages) {
       const { privateKey: privateKey1, publicKey: publicKey1 } =
         await generateKeyPair()
@@ -60,90 +68,97 @@ describe('Storage', () => {
 
   describe('accounts', () => {
     it('returns false when account is not created yet', async () => {
-      const storage = storages[0]
-      expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeFalse()
-      expect(
-        await storage.isUsernameExists({ username: TEST_USERNAME2 })
-      ).toBeFalse()
+      for (const storage of storages) {
+        expect(
+          await storage.isAccountExists({ email: TEST_EMAIL2 })
+        ).toBeFalse()
+        expect(
+          await storage.isUsernameExists({ username: TEST_USERNAME2 })
+        ).toBeFalse()
+      }
     })
 
     it('creates account and actor', async () => {
-      const storage = storages[0]
-      const { privateKey, publicKey } = await generateKeyPair()
-      await storage.createAccount({
-        email: TEST_EMAIL2,
-        username: TEST_USERNAME2,
-        privateKey,
-        publicKey
-      })
-      expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
-      expect(
-        await storage.isUsernameExists({ username: TEST_USERNAME2 })
-      ).toBeTrue()
+      for (const storage of storages) {
+        const { privateKey, publicKey } = await generateKeyPair()
+        await storage.createAccount({
+          email: TEST_EMAIL2,
+          username: TEST_USERNAME2,
+          privateKey,
+          publicKey
+        })
+        expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
+        expect(
+          await storage.isUsernameExists({ username: TEST_USERNAME2 })
+        ).toBeTrue()
+      }
     })
 
     it('returns actor from getActor methods', async () => {
-      const storage = storages[0]
-      const expectedActorAfterCreated = {
-        id: TEST_ID,
-        preferredUsername: TEST_USERNAME,
-        account: {
-          id: expect.toBeString(),
-          email: TEST_EMAIL
-        },
-        publicKey: expect.toBeString(),
-        privateKey: expect.toBeString()
+      for (const storage of storages) {
+        const expectedActorAfterCreated = {
+          id: TEST_ID,
+          preferredUsername: TEST_USERNAME,
+          account: {
+            id: expect.toBeString(),
+            email: TEST_EMAIL
+          },
+          publicKey: expect.toBeString(),
+          privateKey: expect.toBeString()
+        }
+        expect(
+          await storage.getActorFromEmail({ email: TEST_EMAIL })
+        ).toMatchObject(expectedActorAfterCreated)
+        expect(
+          await storage.getActorFromUsername({ username: TEST_USERNAME })
+        ).toMatchObject(expectedActorAfterCreated)
+        expect(await storage.getActorFromId({ id: TEST_ID })).toMatchObject(
+          expectedActorAfterCreated
+        )
       }
-      expect(
-        await storage.getActorFromEmail({ email: TEST_EMAIL })
-      ).toMatchObject(expectedActorAfterCreated)
-      expect(
-        await storage.getActorFromUsername({ username: TEST_USERNAME })
-      ).toMatchObject(expectedActorAfterCreated)
-      expect(await storage.getActorFromId({ id: TEST_ID })).toMatchObject(
-        expectedActorAfterCreated
-      )
     })
 
     it('updates actor information', async () => {
-      const storage = storages[0]
-      const currentActor = await storage.getActorFromUsername({
-        username: TEST_USERNAME
-      })
-      if (!currentActor) fail('Current actor must not be null')
+      for (const storage of storages) {
+        const currentActor = await storage.getActorFromUsername({
+          username: TEST_USERNAME
+        })
+        if (!currentActor) fail('Current actor must not be null')
 
-      await storage.updateActor({
-        actor: {
-          ...currentActor,
+        await storage.updateActor({
+          actor: {
+            ...currentActor,
+            name: 'llun',
+            summary: 'This is test actor'
+          }
+        })
+
+        expect(
+          await storage.getActorFromUsername({ username: TEST_USERNAME })
+        ).toMatchObject({
           name: 'llun',
           summary: 'This is test actor'
-        }
-      })
-
-      expect(
-        await storage.getActorFromUsername({ username: TEST_USERNAME })
-      ).toMatchObject({
-        name: 'llun',
-        summary: 'This is test actor'
-      })
+        })
+      }
     })
   })
 
   describe('follows', () => {
     it('returns empty followers and following', async () => {
-      const storage = storages[0]
-      expect(
-        await storage.getActorFollowersCount({ actorId: TEST_ID })
-      ).toEqual(0)
-      expect(
-        await storage.getActorFollowingCount({ actorId: TEST_ID })
-      ).toEqual(0)
-      expect(
-        await storage.getFollowersHosts({ targetActorId: TEST_ID })
-      ).toEqual([])
-      expect(
-        await storage.getFollowersInbox({ targetActorId: TEST_ID })
-      ).toEqual([])
+      for (const storage of storages) {
+        expect(
+          await storage.getActorFollowersCount({ actorId: TEST_ID })
+        ).toEqual(0)
+        expect(
+          await storage.getActorFollowingCount({ actorId: TEST_ID })
+        ).toEqual(0)
+        expect(
+          await storage.getFollowersHosts({ targetActorId: TEST_ID })
+        ).toEqual([])
+        expect(
+          await storage.getFollowersInbox({ targetActorId: TEST_ID })
+        ).toEqual([])
+      }
     })
   })
 
