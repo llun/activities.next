@@ -34,12 +34,12 @@ describe('Storage', () => {
     await sqliteStorage.migrate()
     storages.push(sqliteStorage)
 
-    const firebaseStorage = new FirebaseStorage({
-      type: 'firebase',
-      projectId: 'test'
-    })
-    await firebaseStorage.connectEmulator()
-    storages.push(firebaseStorage)
+    // const firebaseStorage = new FirebaseStorage({
+    //   type: 'firebase',
+    //   projectId: 'test'
+    // })
+    // await firebaseStorage.connectEmulator()
+    // storages.push(firebaseStorage)
 
     for (const storage of storages) {
       const { privateKey: privateKey1, publicKey: publicKey1 } =

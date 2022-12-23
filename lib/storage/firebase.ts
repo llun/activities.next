@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore'
 
 import { getConfig } from '../config'
+import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
@@ -31,6 +32,7 @@ import {
   CreateStatusParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
+  GetAccountFromIdParams,
   GetActorFollowersCountParams,
   GetActorFollowingCountParams,
   GetActorFromEmailParams,
@@ -68,6 +70,10 @@ export class FirebaseStorage implements Storage {
 
   async connectEmulator() {
     connectFirestoreEmulator(this.db, '127.0.0.1', 8080)
+  }
+
+  async destroy() {
+    console.log('Destroy connection')
   }
 
   async isAccountExists({ email }: IsAccountExistsParams) {
@@ -119,6 +125,19 @@ export class FirebaseStorage implements Storage {
     return accountRef.id
   }
 
+  async getAccountFromId({ id }: GetAccountFromIdParams) {
+    const accountRef = doc(this.db, 'accounts', id)
+    const docSnap = await getDoc(accountRef)
+    if (!docSnap.exists()) {
+      return undefined
+    }
+
+    return {
+      ...docSnap.data(),
+      id
+    } as Account
+  }
+
   async getActorFromEmail({ email }: GetActorFromEmailParams) {
     const accounts = collection(this.db, 'accounts')
     const accountQuery = query(accounts, where('email', '==', email), limit(1))
@@ -135,7 +154,11 @@ export class FirebaseStorage implements Storage {
     const actorsSnapshot = await getDocs(actorsQuery)
     if (actorsSnapshot.docs.length !== 1) return undefined
 
-    return actorsSnapshot.docs[0].data() as Actor
+    const data = actorsSnapshot.docs[0].data()
+    const account = await this.getAccountFromId({ id: data.accountId })
+    if (!account) return undefined
+
+    return { ...data, account } as Actor
   }
 
   async getActorFromUsername({ username }: GetActorFromUsernameParams) {
@@ -148,7 +171,11 @@ export class FirebaseStorage implements Storage {
     const actorsSnapshot = await getDocs(actorsQuery)
     if (actorsSnapshot.docs.length !== 1) return undefined
 
-    return actorsSnapshot.docs[0].data() as Actor
+    const data = actorsSnapshot.docs[0].data()
+    const account = await this.getAccountFromId({ id: data.accountId })
+    if (!account) return undefined
+
+    return { ...data, account } as Actor
   }
 
   async getActorFromId({ id }: GetActorFromIdParams) {
@@ -157,7 +184,11 @@ export class FirebaseStorage implements Storage {
     const actorsSnapshot = await getDocs(actorsQuery)
     if (actorsSnapshot.docs.length !== 1) return undefined
 
-    return actorsSnapshot.docs[0].data() as Actor
+    const data = actorsSnapshot.docs[0].data()
+    const account = await this.getAccountFromId({ id: data.accountId })
+    if (!account) return undefined
+
+    return { ...data, account } as Actor
   }
 
   async updateActor({ actor }: UpdateActorParams) {

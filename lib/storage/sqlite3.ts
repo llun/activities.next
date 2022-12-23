@@ -14,6 +14,7 @@ import {
   CreateStatusParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
+  GetAccountFromIdParams,
   GetActorFollowersCountParams,
   GetActorFollowingCountParams,
   GetActorFromEmailParams,
@@ -47,7 +48,7 @@ interface SQLActor {
   preferredUsername: string
   name?: string
   summary?: string
-  accountId?: string
+  accountId: string
 
   publicKey: string
   privateKey: string
@@ -67,6 +68,10 @@ export class Sqlite3Storage implements Storage {
 
   async migrate() {
     await this.database.migrate.latest()
+  }
+
+  async destroy() {
+    await this.database.destroy()
   }
 
   async isAccountExists({ email }: IsAccountExistsParams) {
@@ -117,6 +122,10 @@ export class Sqlite3Storage implements Storage {
     return accountId
   }
 
+  async getAccountFromId({ id }: GetAccountFromIdParams) {
+    return this.database<Account>('accounts').where('id', id).first()
+  }
+
   private getActor(sqlActor: SQLActor, account: Account) {
     const settings = JSON.parse(sqlActor.settings || '{}') as ActorSettings
     const actor: Actor = {
@@ -148,9 +157,7 @@ export class Sqlite3Storage implements Storage {
       .first()
     if (!storageActor) return undefined
 
-    const account = await this.database<Account>('accounts')
-      .where('id', storageActor.accountId)
-      .first()
+    const account = await this.getAccountFromId({ id: storageActor.accountId })
     if (!account) return undefined
     return this.getActor(storageActor, account)
   }
@@ -174,9 +181,7 @@ export class Sqlite3Storage implements Storage {
       .first()
     if (!storageActor) return undefined
 
-    const account = await this.database<Account>('accounts')
-      .where('id', storageActor.accountId)
-      .first()
+    const account = await this.getAccountFromId({ id: storageActor.accountId })
     if (!account) return undefined
     return this.getActor(storageActor, account)
   }
@@ -187,9 +192,7 @@ export class Sqlite3Storage implements Storage {
       .first()
     if (!storageActor) return undefined
 
-    const account = await this.database<Account>('accounts')
-      .where('id', storageActor.accountId)
-      .first()
+    const account = await this.getAccountFromId({ id: storageActor.accountId })
     if (!account) return undefined
     return this.getActor(storageActor, account)
   }

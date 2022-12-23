@@ -1,3 +1,4 @@
+import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
@@ -11,6 +12,8 @@ export type CreateAccountParams = {
   privateKey: string
   publicKey: string
 }
+export type GetAccountFromIdParams = { id: string }
+
 export type GetActorFromEmailParams = { email: string }
 export type GetActorFromUsernameParams = { username: string }
 export type GetActorFromIdParams = { id: string }
@@ -65,6 +68,7 @@ export interface Storage {
   isUsernameExists(params: IsUsernameExistsParams): Promise<boolean>
 
   createAccount(params: CreateAccountParams): Promise<string>
+  getAccountFromId(params: GetAccountFromIdParams): Promise<Account | undefined>
 
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | undefined>
   getActorFromUsername(
@@ -100,4 +104,6 @@ export interface Storage {
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
+
+  destroy(): Promise<void>
 }
