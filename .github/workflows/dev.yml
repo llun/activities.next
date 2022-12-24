@@ -18,5 +18,4 @@ jobs:
         run: yarn test
       - name: Test Storage
         run: |
-          yarn start:firestore &
-          yarn test:storage
+          yarn firebase emulators:exec --only firestore --project test 'yarn test:storage'

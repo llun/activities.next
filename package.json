@@ -8,8 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "yarn node --experimental-vm-modules $(yarn bin jest) --testPathIgnorePatterns=\"lib/storage/storage.test.ts\"",
-    "test:storage": "jest --testPathPattern=\"lib/storage/storage.test.ts\" --testTimeout=30000",
-    "start:firestore": "firebase emulators:start --only firestore --project test --project test",
+    "test:storage": "jest --testPathPattern=\"lib/storage/storage.test.ts\"",
+    "start:firestore": "firebase emulators:start --only firestore --project test",
     "prettier": "prettier --write pages migrations lib",
     "migrate": "knex migrate:latest",
     "migrate:make": "knex migrate:make -x ts"
