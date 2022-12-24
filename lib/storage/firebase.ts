@@ -1,3 +1,4 @@
+import { terminate } from '@firebase/firestore'
 import crypto from 'crypto'
 import { FirebaseApp, FirebaseOptions, initializeApp } from 'firebase/app'
 import {
@@ -73,7 +74,13 @@ export class FirebaseStorage implements Storage {
   }
 
   async destroy() {
-    console.log('Destroy connection')
+    await fetch(
+      'http://127.0.0.1:8080/emulator/v1/projects/test/databases/(default)/documents',
+      {
+        method: 'DELETE'
+      }
+    )
+    await terminate(this.db)
   }
 
   async isAccountExists({ email }: IsAccountExistsParams) {

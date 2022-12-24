@@ -1,5 +1,4 @@
 import { FollowStatus } from '../models/follow'
-import { generateKeyPair } from '../signature'
 import { FirebaseStorage } from './firebase'
 import { Sqlite3Storage } from './sqlite3'
 import { Storage } from './types'
@@ -61,35 +60,31 @@ describe('Storage', () => {
   })
 
   afterAll(async () => {
-    const storage = testTable[0][1] as Sqlite3Storage
-    await storage.database.destroy()
+    for (const item of testTable) {
+      const storage = item[1]
+      await storage.destroy()
+    }
   })
 
   describe.each(testTable)(`%s`, (name, storage) => {
     beforeAll(async () => {
-      const { privateKey: privateKey1, publicKey: publicKey1 } =
-        await generateKeyPair()
       await storage.createAccount({
         email: TEST_EMAIL,
         username: TEST_USERNAME,
-        privateKey: privateKey1,
-        publicKey: publicKey1
+        privateKey: 'privateKey1',
+        publicKey: 'publicKey1'
       })
-      const { privateKey: privateKey3, publicKey: publicKey3 } =
-        await generateKeyPair()
       await storage.createAccount({
         email: TEST_EMAIL3,
         username: TEST_USERNAME3,
-        privateKey: privateKey3,
-        publicKey: publicKey3
+        privateKey: 'privateKey3',
+        publicKey: 'publicKey3'
       })
-      const { privateKey: privateKey4, publicKey: publicKey4 } =
-        await generateKeyPair()
       await storage.createAccount({
         email: TEST_EMAIL4,
         username: TEST_USERNAME4,
-        privateKey: privateKey4,
-        publicKey: publicKey4
+        privateKey: 'privateKey4',
+        publicKey: 'publicKey4'
       })
     })
 
@@ -104,12 +99,11 @@ describe('Storage', () => {
       })
 
       it('creates account and actor', async () => {
-        const { privateKey, publicKey } = await generateKeyPair()
         await storage.createAccount({
           email: TEST_EMAIL2,
           username: TEST_USERNAME2,
-          privateKey,
-          publicKey
+          privateKey: 'privateKey2',
+          publicKey: 'publicKey2'
         })
         expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
         expect(
