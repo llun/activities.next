@@ -40,15 +40,15 @@ describe('Storage', () => {
           filename: ':memory:'
         }
       })
-    ]
+    ],
     // Enable this when run start:firestore emulator and clear the database manually
-    // [
-    //   'firestore',
-    //   new FirebaseStorage({
-    //     type: 'firebase',
-    //     projectId: 'test'
-    //   })
-    // ]
+    [
+      'firestore',
+      new FirebaseStorage({
+        type: 'firebase',
+        projectId: 'test'
+      })
+    ]
   ]
 
   beforeAll(async () => {
@@ -58,9 +58,15 @@ describe('Storage', () => {
     const firestoreItem = testTable.find((value) => value[0] === 'firestore')
     if (firestoreItem)
       await (firestoreItem[1] as FirebaseStorage).connectEmulator()
+  })
 
-    for (const table of testTable) {
-      const [, storage] = table
+  afterAll(async () => {
+    const storage = testTable[0][1] as Sqlite3Storage
+    await storage.database.destroy()
+  })
+
+  describe.each(testTable)(`%s`, (name, storage) => {
+    beforeAll(async () => {
       const { privateKey: privateKey1, publicKey: publicKey1 } =
         await generateKeyPair()
       await storage.createAccount({
@@ -85,15 +91,8 @@ describe('Storage', () => {
         privateKey: privateKey4,
         publicKey: publicKey4
       })
-    }
-  })
+    })
 
-  afterAll(async () => {
-    const storage = testTable[0][1] as Sqlite3Storage
-    await storage.database.destroy()
-  })
-
-  describe.each(testTable)(`%s`, (name, storage) => {
     describe('accounts', () => {
       it('returns false when account is not created yet', async () => {
         expect(
@@ -269,12 +268,12 @@ describe('Storage', () => {
           followId: secondFollow.id,
           status: FollowStatus.Accepted
         })
-        expect(
+        const secondFollowAfterUpdated =
           await storage.getAcceptedOrRequestedFollow({
             actorId: TEST_ID3,
             targetActorId
           })
-        ).toEqual({
+        expect(secondFollowAfterUpdated).toEqual({
           actorHost: 'llun.test',
           actorId: TEST_ID3,
           createdAt: expect.toBeNumber(),
@@ -286,6 +285,9 @@ describe('Storage', () => {
           targetActorId,
           updatedAt: expect.toBeNumber()
         })
+        expect(secondFollowAfterUpdated?.updatedAt).not.toEqual(
+          secondFollow.updatedAt
+        )
 
         expect(
           await storage.getActorFollowingCount({ actorId: TEST_ID3 })
@@ -321,6 +323,12 @@ describe('Storage', () => {
         expect(
           await storage.getFollowersInbox({ targetActorId: TEST_ID4 })
         ).toEqual([sharedInbox])
+      })
+    })
+
+    describe.skip('statuses', () => {
+      it('creates a new status', async () => {
+        await storage.createStatus({})
       })
     })
   })

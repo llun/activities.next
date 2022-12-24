@@ -374,7 +374,8 @@ export class FirebaseStorage implements Storage {
 
     const follwRef = doc(this.db, 'follows', follow.id)
     await updateDoc(follwRef, {
-      status
+      status,
+      updatedAt: Date.now()
     })
   }
 
