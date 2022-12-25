@@ -232,6 +232,9 @@ describe('Storage', () => {
           })
         ).toBeUndefined()
 
+        // Make sure that second follow time is not the same as first follow
+        await new Promise((resolve) => setTimeout(resolve, 10))
+
         const secondFollow = await storage.createFollow({
           actorId: TEST_ID3,
           targetActorId,
@@ -347,9 +350,40 @@ describe('Storage', () => {
           to: ['https://www.w3.org/ns/activitystreams#Public'],
           cc: [],
           localRecipients: ['as:Public'],
+          attachments: [],
           reply: '',
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
+        })
+      })
+
+      it('returns attachments with status', async () => {
+        const postId = 'post-2'
+        const id = `${TEST_ID}/statuses/${postId}`
+
+        const status = await storage.createStatus({
+          id,
+          url: id,
+          actorId: TEST_ID,
+          type: 'Note',
+
+          text: 'Test Status',
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          localRecipients: ['as:Public']
+        })
+        const attachment = await storage.createAttachment({
+          statusId: status.id,
+          mediaType: 'image/png',
+          url: 'https://via.placeholder.com/150',
+          width: 150,
+          height: 150
+        })
+
+        const persistedStatus = await storage.getStatus({ statusId: status.id })
+        expect(persistedStatus).toEqual({
+          ...status,
+          attachments: [attachment]
         })
       })
     })

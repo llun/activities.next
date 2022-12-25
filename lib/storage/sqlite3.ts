@@ -341,16 +341,59 @@ export class Sqlite3Storage implements Storage {
     const statusCreatedAt = createdAt || currentTime
     const statusUpdatedAt = currentTime
 
-    await this.database<Status>('statuses').insert({
-      id,
-      url,
-      actorId,
-      type,
-      text,
-      summary,
-      reply,
-      createdAt: statusCreatedAt,
-      updatedAt: statusUpdatedAt
+    await this.database.transaction(async (trx) => {
+      await trx<Status>('statuses').insert({
+        id,
+        url,
+        actorId,
+        type,
+        text,
+        summary,
+        reply,
+        createdAt: statusCreatedAt,
+        updatedAt: statusUpdatedAt
+      })
+      await Promise.all(
+        to.map((actorId) =>
+          trx('recipients').insert({
+            id: crypto.randomUUID(),
+            statusId: id,
+            actorId,
+            type: 'to',
+
+            createdAt: statusUpdatedAt,
+            updatedAt: statusUpdatedAt
+          })
+        )
+      )
+
+      await Promise.all(
+        cc.map((actorId) =>
+          trx('recipients').insert({
+            id: crypto.randomUUID(),
+            statusId: id,
+            actorId,
+            type: 'cc',
+
+            createdAt: statusUpdatedAt,
+            updatedAt: statusUpdatedAt
+          })
+        )
+      )
+
+      await Promise.all(
+        localRecipients.map((actorId) =>
+          trx('recipients').insert({
+            id: crypto.randomUUID(),
+            statusId: id,
+            actorId,
+            type: 'local',
+
+            createdAt: statusUpdatedAt,
+            updatedAt: statusUpdatedAt
+          })
+        )
+      )
     })
 
     return {
@@ -363,6 +406,7 @@ export class Sqlite3Storage implements Storage {
       reply,
       to,
       cc,
+      attachments: [],
       localRecipients,
       createdAt: statusCreatedAt,
       updatedAt: statusUpdatedAt
@@ -370,7 +414,40 @@ export class Sqlite3Storage implements Storage {
   }
 
   async getStatus({ statusId }: GetStatusParams) {
-    return this.database<Status>('statuses').where('id', statusId).first()
+    const status = await this.database<Status>('statuses')
+      .where('id', statusId)
+      .first()
+    if (!status) return undefined
+
+    const [attachments, to, cc, local] = await Promise.all([
+      this.getAttachments({ statusId: status.id }),
+      this.database('recipients')
+        .where('statusId', status.id)
+        .andWhere('type', 'to'),
+      this.database('recipients')
+        .where('statusId', status.id)
+        .andWhere('type', 'cc'),
+      this.database('recipients')
+        .where('statusId', status.id)
+        .andWhere('type', 'local')
+    ])
+
+    const persistedStatus: Status = {
+      id: status.id,
+      url: status.url,
+      to: to.map((item) => item.actorId),
+      cc: cc.map((item) => item.actorId),
+      localRecipients: local.map((item) => item.actorId),
+      actorId: status.actorId,
+      type: status.type,
+      text: status.text,
+      summary: status.summary,
+      reply: status.reply,
+      attachments,
+      createdAt: status.createdAt,
+      updatedAt: status.updatedAt
+    }
+    return persistedStatus
   }
 
   async getStatuses({ actorId }: GetStatusesParams) {
@@ -405,7 +482,7 @@ export class Sqlite3Storage implements Storage {
     url,
     width,
     height,
-    name
+    name = ''
   }: CreateAttachmentParams): Promise<Attachment> {
     const attachment: Attachment = {
       id: crypto.randomUUID(),

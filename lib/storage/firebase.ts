@@ -415,7 +415,7 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     }
     await addDoc(collection(this.db, 'statuses'), status)
-    return status
+    return { ...status, attachments: [] }
   }
 
   async getStatus({ statusId }: GetStatusParams) {
@@ -424,7 +424,26 @@ export class FirebaseStorage implements Storage {
     const statusesSnapshot = await getDocs(statusesQuery)
     if (statusesSnapshot.docs.length !== 1) return undefined
 
-    return statusesSnapshot.docs[0].data() as Status
+    const data = statusesSnapshot.docs[0].data()
+    const attachments = await this.getAttachments({ statusId })
+
+    const persistedStatus: Status = {
+      id: data.id,
+      url: data.url,
+      to: data.to,
+      cc: data.cc,
+      localRecipients: data.localRecipients,
+      actorId: data.actorId,
+      type: data.type,
+      text: data.text,
+      summary: data.summary,
+      reply: data.reply,
+      attachments,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt
+    }
+
+    return persistedStatus
   }
 
   async getStatuses({ actorId }: GetStatusesParams) {
@@ -474,7 +493,7 @@ export class FirebaseStorage implements Storage {
     url,
     width,
     height,
-    name
+    name = ''
   }: CreateAttachmentParams): Promise<Attachment> {
     const attachment: Attachment = {
       id: crypto.randomUUID(),
