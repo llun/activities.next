@@ -116,6 +116,7 @@ export const createNoteFromUserInput = async ({
       })
     )
   )
+  status.attachments = storedAttachmens || []
   return {
     note: toObject({
       status,
