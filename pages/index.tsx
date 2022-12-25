@@ -28,7 +28,6 @@ interface Props {
   host: string
   currentServerTime: number
   statuses: Status[]
-  attachments: Attachment[]
   profile: Profile
   totalPosts: number
   followersCount: number
@@ -39,7 +38,6 @@ const Page: NextPage<Props> = ({
   host,
   profile,
   statuses,
-  attachments,
   currentServerTime,
   totalPosts,
   followersCount,
@@ -49,8 +47,6 @@ const Page: NextPage<Props> = ({
   const [replyStatus, setReplyStatus] = useState<Status>()
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
-  const [localAttachments, setLocalAttachments] =
-    useState<Attachment[]>(attachments)
 
   const onReply = (status: Status) => {
     setReplyStatus(status)
@@ -108,13 +104,9 @@ const Page: NextPage<Props> = ({
               profile={profile}
               replyStatus={replyStatus}
               onDiscardReply={() => setReplyStatus(undefined)}
-              onPostCreated={(status: Status, attachments: Attachment[]) => {
+              onPostCreated={(status: Status) => {
                 setCurrentStatuses((previousValue) => [
                   status,
-                  ...previousValue
-                ])
-                setLocalAttachments((previousValue) => [
-                  ...attachments,
                   ...previousValue
                 ])
                 setReplyStatus(undefined)
@@ -123,7 +115,6 @@ const Page: NextPage<Props> = ({
             <Posts
               currentTime={new Date(currentServerTime)}
               statuses={currentStatuses}
-              attachments={localAttachments}
               showActorId
               showActions
               onReply={onReply}
@@ -189,15 +180,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       storage.getActorFollowersCount({ actorId: actor.id })
     ])
 
-  const statusesAttachments = await Promise.all(
-    statuses.map((status) => storage.getAttachments({ statusId: status.id }))
-  )
-
   return {
     props: {
       host: config.host,
       statuses,
-      attachments: statusesAttachments.flat(),
       currentServerTime: Date.now(),
       profile: getProfileFromActor(actor),
       totalPosts,

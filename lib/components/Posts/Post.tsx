@@ -15,7 +15,6 @@ interface Props {
   showActorId?: boolean
   currentTime: Date
   status: Status
-  attachments: Attachment[]
   showActions?: boolean
   onReply?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
@@ -68,13 +67,7 @@ export const Actions: FC<Props> = ({
 }
 
 export const Post: FC<Props> = (props) => {
-  const {
-    showActorId = false,
-    status,
-    currentTime,
-    attachments = [],
-    onShowAttachment
-  } = props
+  const { showActorId = false, status, currentTime, onShowAttachment } = props
   return (
     <div key={status.id} className={cn(styles.post)}>
       <div className={cn('d-flex', 'mb-2')}>
@@ -87,16 +80,16 @@ export const Post: FC<Props> = (props) => {
         </div>
       </div>
       <div className={'me-1'}>{parseText(status.text)}</div>
-      {attachments.length > 0 && (
+      {status.attachments && status.attachments.length > 0 && (
         <div
           className={cn(styles.medias)}
           style={{
             gridTemplateColumns: `repeat(${
-              attachments.length > 1 ? 2 : 1
+              status.attachments.length > 1 ? 2 : 1
             }, 1fr)`
           }}
         >
-          {attachments.map((attachment) => (
+          {status.attachments.map((attachment) => (
             <Media
               className={styles.media}
               onClick={() => onShowAttachment(attachment)}

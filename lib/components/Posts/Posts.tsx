@@ -14,7 +14,6 @@ interface Props {
   showActions?: boolean
   currentTime: Date
   statuses: Status[]
-  attachments: Attachment[]
   onReply?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
 }
@@ -24,7 +23,6 @@ export const Posts: FC<Props> = ({
   showActions = false,
   currentTime,
   statuses,
-  attachments,
   onReply,
   onPostDeleted
 }) => {
@@ -32,7 +30,6 @@ export const Posts: FC<Props> = ({
 
   if (statuses.length === 0) return null
 
-  const attachmentsMap = groupBy(attachments, 'statusId')
   return (
     <section className={cn('w-full', 'grid', 'grid-cols-1', 'mt-4')}>
       {statuses.map((status, index) => (
@@ -41,7 +38,6 @@ export const Posts: FC<Props> = ({
             showActorId={showActorId}
             currentTime={currentTime}
             status={status}
-            attachments={attachmentsMap[status.id]}
             showActions={showActions}
             onReply={onReply}
             onPostDeleted={onPostDeleted}
