@@ -27,9 +27,10 @@ const TEST_USERNAME4 = 'user4'
 const TEST_ID4 = 'https://llun.test/users/user4'
 
 // Get statuses test user
-const TEST_EMAIL5 = 'user5@llun.dev'
-const TEST_USERNAME5 = 'user5'
 const TEST_ID5 = 'https://llun.test/users/user5'
+
+// Get Actor statuses test user
+const TEST_ID6 = 'https://llun.test/users/user6'
 
 type TestStorage = [string, Storage]
 
@@ -421,6 +422,51 @@ describe('Storage', () => {
           const expectedStatus = await storage.getStatus({ statusId })
           expect(statuses[index]).toEqual(expectedStatus)
         }
+      })
+
+      it('returns actor statuses', async () => {
+        for (let i = 1; i <= 3; i++) {
+          const statusId = `${TEST_ID6}/statuses/post-${i}`
+          await storage.createStatus({
+            id: statusId,
+            url: statusId,
+            actorId: TEST_ID6,
+            type: 'Note',
+
+            text: `Status ${i + 1}`,
+            to: ['https://www.w3.org/ns/activitystreams#Public', TEST_ID6],
+            cc: [],
+            localRecipients: ['as:Public', TEST_ID6]
+          })
+          await new Promise((resolve) => setTimeout(resolve, 10))
+        }
+        expect(
+          await storage.getActorStatusesCount({ actorId: TEST_ID6 })
+        ).toEqual(3)
+
+        const statuses = await storage.getStatuses({ actorId: TEST_ID6 })
+        for (let i = 0; i < statuses.length; i++) {
+          const status = await storage.getStatus({
+            statusId: `${TEST_ID6}/statuses/post-${3 - i}`
+          })
+          expect(statuses[i]).toEqual(status)
+        }
+
+        await storage.deleteStatus({ statusId: `${TEST_ID6}/statuses/post-2` })
+        expect(
+          await storage.getActorStatusesCount({ actorId: TEST_ID6 })
+        ).toEqual(2)
+
+        const statusesAfterDelete = await storage.getStatuses({
+          actorId: TEST_ID6
+        })
+        expect(statusesAfterDelete.length).toEqual(2)
+        expect(statusesAfterDelete[0]).toEqual(
+          await storage.getStatus({ statusId: `${TEST_ID6}/statuses/post-3` })
+        )
+        expect(statusesAfterDelete[1]).toEqual(
+          await storage.getStatus({ statusId: `${TEST_ID6}/statuses/post-1` })
+        )
       })
     })
   })
