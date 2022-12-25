@@ -320,9 +320,37 @@ describe('Storage', () => {
       })
     })
 
-    describe.skip('statuses', () => {
+    describe('statuses', () => {
       it('creates a new status', async () => {
-        await storage.createStatus({})
+        const postId = 'post-1'
+        const id = `${TEST_ID}/statuses/${postId}`
+
+        const status = await storage.createStatus({
+          id,
+          url: id,
+          actorId: TEST_ID,
+          type: 'Note',
+
+          text: 'Test Status',
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          localRecipients: ['as:Public']
+        })
+        expect(status).toEqual({
+          id,
+          url: id,
+          actorId: TEST_ID,
+          type: 'Note',
+
+          text: 'Test Status',
+          summary: '',
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          localRecipients: ['as:Public'],
+          reply: '',
+          createdAt: expect.toBeNumber(),
+          updatedAt: expect.toBeNumber()
+        })
       })
     })
   })
