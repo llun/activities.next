@@ -444,7 +444,7 @@ describe('Storage', () => {
           await storage.getActorStatusesCount({ actorId: TEST_ID6 })
         ).toEqual(3)
 
-        const statuses = await storage.getStatuses({ actorId: TEST_ID6 })
+        const statuses = await storage.getActorStatuses({ actorId: TEST_ID6 })
         for (let i = 0; i < statuses.length; i++) {
           const status = await storage.getStatus({
             statusId: `${TEST_ID6}/statuses/post-${3 - i}`
@@ -457,7 +457,7 @@ describe('Storage', () => {
           await storage.getActorStatusesCount({ actorId: TEST_ID6 })
         ).toEqual(2)
 
-        const statusesAfterDelete = await storage.getStatuses({
+        const statusesAfterDelete = await storage.getActorStatuses({
           actorId: TEST_ID6
         })
         expect(statusesAfterDelete.length).toEqual(2)

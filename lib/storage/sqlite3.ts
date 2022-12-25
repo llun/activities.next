@@ -480,15 +480,8 @@ export class Sqlite3Storage implements Storage {
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .limit(20)
-
     return Promise.all(
-      statuses.map(async (item) => {
-        const attachments = await this.getAttachments({ statusId: item.id })
-        return {
-          ...item,
-          attachments
-        }
-      })
+      statuses.map((item) => this.getStatusWithAttachmentsFromData(item))
     )
   }
 
