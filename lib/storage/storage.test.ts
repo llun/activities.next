@@ -360,6 +360,9 @@ describe('Storage', () => {
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
+        expect(
+          await storage.getActorStatusesCount({ actorId: TEST_ID })
+        ).toEqual(1)
       })
 
       it('returns attachments with status', async () => {
@@ -407,6 +410,7 @@ describe('Storage', () => {
             cc: [],
             localRecipients: ['as:Public', TEST_ID5]
           })
+          await new Promise((resolve) => setTimeout(resolve, 10))
         }
         const statuses = await storage.getStatuses({ actorId: TEST_ID5 })
         expect(statuses.length).toEqual(30)
