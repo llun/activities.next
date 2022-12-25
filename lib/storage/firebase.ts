@@ -453,7 +453,7 @@ export class FirebaseStorage implements Storage {
       statuses,
       where('localRecipients', 'array-contains', actorId),
       orderBy('createdAt', 'desc'),
-      limit(50)
+      limit(30)
     )
     const statusesSnapshot = await getDocs(statusesQuery)
     return Promise.all(

@@ -413,49 +413,52 @@ export class Sqlite3Storage implements Storage {
     }
   }
 
+  async getStatusWithAttachmentsFromData(data: any): Promise<Status> {
+    const [attachments, to, cc, local] = await Promise.all([
+      this.getAttachments({ statusId: data.id }),
+      this.database('recipients')
+        .where('statusId', data.id)
+        .andWhere('type', 'to'),
+      this.database('recipients')
+        .where('statusId', data.id)
+        .andWhere('type', 'cc'),
+      this.database('recipients')
+        .where('statusId', data.id)
+        .andWhere('type', 'local')
+    ])
+
+    return {
+      id: data.id,
+      url: data.url,
+      to: to.map((item) => item.actorId),
+      cc: cc.map((item) => item.actorId),
+      localRecipients: local.map((item) => item.actorId),
+      actorId: data.actorId,
+      type: data.type,
+      text: data.text,
+      summary: data.summary,
+      reply: data.reply,
+      attachments,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt
+    }
+  }
+
   async getStatus({ statusId }: GetStatusParams) {
     const status = await this.database<Status>('statuses')
       .where('id', statusId)
       .first()
     if (!status) return undefined
-
-    const [attachments, to, cc, local] = await Promise.all([
-      this.getAttachments({ statusId: status.id }),
-      this.database('recipients')
-        .where('statusId', status.id)
-        .andWhere('type', 'to'),
-      this.database('recipients')
-        .where('statusId', status.id)
-        .andWhere('type', 'cc'),
-      this.database('recipients')
-        .where('statusId', status.id)
-        .andWhere('type', 'local')
-    ])
-
-    const persistedStatus: Status = {
-      id: status.id,
-      url: status.url,
-      to: to.map((item) => item.actorId),
-      cc: cc.map((item) => item.actorId),
-      localRecipients: local.map((item) => item.actorId),
-      actorId: status.actorId,
-      type: status.type,
-      text: status.text,
-      summary: status.summary,
-      reply: status.reply,
-      attachments,
-      createdAt: status.createdAt,
-      updatedAt: status.updatedAt
-    }
-    return persistedStatus
+    return this.getStatusWithAttachmentsFromData(status)
   }
 
   async getStatuses({ actorId }: GetStatusesParams) {
+    const postsPerPage = 30
     const local = await this.database('recipients')
       .where('type', 'local')
       .andWhere('actorId', actorId)
       .orderBy('createdAt', 'desc')
-      .limit(20)
+      .limit(postsPerPage)
 
     const statuses = await this.database<Status>('statuses')
       .whereIn(
@@ -463,16 +466,10 @@ export class Sqlite3Storage implements Storage {
         local.map((item) => item.statusId)
       )
       .orderBy('createdAt', 'desc')
-      .limit(20)
+      .limit(postsPerPage)
 
     return Promise.all(
-      statuses.map(async (item) => {
-        const attachments = await this.getAttachments({ statusId: item.id })
-        return {
-          ...item,
-          attachments
-        }
-      })
+      statuses.map(async (item) => this.getStatusWithAttachmentsFromData(item))
     )
   }
 
