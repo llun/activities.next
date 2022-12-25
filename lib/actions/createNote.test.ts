@@ -70,13 +70,21 @@ jest.useFakeTimers().setSystemTime(new Date('2022-11-28'))
 describe('#createNote', () => {
   it('adds not into storage and returns note', async () => {
     const note = MockMastodonNote({ content: '<p>Hello</p>' })
-    expect(await createNote({ storage: mockStorage, note })).toEqual(note)
-    const expectStatus = {
-      ...fromJson(note),
-      localRecipients: ['as:Public']
-    }
+    expect(await createNote({ storage: mockStorage, note })).toEqual({
+      ...note
+    })
     expect(mockStorage.createStatus).toHaveBeenCalledWith({
-      status: expectStatus
+      id: note.id,
+      url: note.url,
+      actorId: note.attributedTo,
+      type: note.type,
+      text: note.content,
+      summary: note.summary,
+      reply: '',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      localRecipients: ['as:Public'],
+      createdAt: expect.toBeNumber()
     })
   })
 
@@ -92,13 +100,18 @@ describe('#createNote', () => {
       ]
     })
     expect(await createNote({ storage: mockStorage, note })).toEqual(note)
-
-    const expectStatus = {
-      ...fromJson(note),
-      localRecipients: ['as:Public']
-    }
     expect(mockStorage.createStatus).toHaveBeenCalledWith({
-      status: expectStatus
+      id: note.id,
+      url: note.url,
+      actorId: note.attributedTo,
+      type: note.type,
+      text: note.content,
+      summary: note.summary,
+      reply: '',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      localRecipients: ['as:Public'],
+      createdAt: expect.toBeNumber()
     })
     expect(mockStorage.createAttachment).toHaveBeenCalledTimes(2)
     expect(mockStorage.createAttachment).toHaveBeenCalledWith({
@@ -132,23 +145,18 @@ describe('#createNote', () => {
       cc: ['https://mastodon.in.th/users/friend/followers']
     })
     expect(await createNote({ storage: mockStorage, note })).toEqual(note)
-
-    const expectStatus = {
+    expect(mockStorage.createStatus).toHaveBeenCalledWith({
       id: note.id,
       actorId: note.attributedTo,
       type: 'Note',
       text: `<p>Hello</p>`,
-      reply: null,
+      reply: '',
       summary: '',
-      to: note.to,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: note.cc,
       localRecipients: ['as:Public', 'https://llun.test/users/null'],
       createdAt: expect.toBeNumber(),
-      updatedAt: expect.toBeNumber(),
       url: expect.toBeString()
-    }
-    expect(mockStorage.createStatus).toHaveBeenCalledWith({
-      status: expectStatus
     })
   })
 
@@ -158,23 +166,18 @@ describe('#createNote', () => {
       content: 'Test'
     })
     expect(await createNote({ storage: mockStorage, note })).toEqual(note)
-    const expectStatus = {
+    expect(mockStorage.createStatus).not.toHaveBeenCalledWith({
       id: note.id,
       actorId: note.attributedTo,
       type: 'Note',
-      text: `Test`,
-      reply: null,
+      text: 'Test',
+      reply: '',
       summary: '',
-      to: note.to,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: note.cc,
       localRecipients: ['as:Public'],
       createdAt: expect.toBeNumber(),
-      updatedAt: expect.toBeNumber(),
       url: expect.toBeString()
-    }
-
-    expect(mockStorage.createStatus).not.toHaveBeenCalledWith({
-      status: expectStatus
     })
   })
 })
@@ -187,23 +190,18 @@ describe('#createNoteFromUserInput', () => {
       currentActor: mockActor,
       storage: mockStorage
     })
-    const expectStatus = {
+    expect(mockStorage.createStatus).toHaveBeenCalledWith({
       id: note.id,
       actorId: mockActor.id,
       type: 'Note',
-      text: `<p>Hello</p>`,
-      reply: null,
-      summary: null,
+      text: status.text,
+      reply: '',
+      summary: '',
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: [`${mockActor.id}/followers`],
       localRecipients: ['as:Public', 'https://llun.test/users/null'],
       createdAt: expect.toBeNumber(),
-      updatedAt: expect.toBeNumber(),
       url: expect.toBeString()
-    }
-    expect(status).toEqual(expectStatus)
-    expect(mockStorage.createStatus).toHaveBeenCalledWith({
-      status: expectStatus
     })
     expect(note).toMatchObject({
       type: 'Note',
@@ -221,13 +219,13 @@ describe('#createNoteFromUserInput', () => {
       currentActor: mockActor,
       storage: mockStorage
     })
-    const expectStatus = {
+    expect(mockStorage.createStatus).toHaveBeenCalledWith({
       id: note.id,
       actorId: mockActor.id,
       type: 'Note',
-      text: `<p>Hello</p>`,
-      reply: null,
-      summary: null,
+      text: status.text,
+      reply: '',
+      summary: '',
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: [`${mockActor.id}/followers`],
       localRecipients: [
@@ -236,12 +234,7 @@ describe('#createNoteFromUserInput', () => {
         'https://llun.test/users/null'
       ],
       createdAt: expect.toBeNumber(),
-      updatedAt: expect.toBeNumber(),
       url: expect.toBeString()
-    }
-    expect(status).toEqual(expectStatus)
-    expect(mockStorage.createStatus).toHaveBeenCalledWith({
-      status: expectStatus
     })
     expect(note).toMatchObject({
       type: 'Note',
@@ -260,13 +253,13 @@ describe('#createNoteFromUserInput', () => {
       replyNoteId: 'https://activity.server/user/statuses/someid',
       storage: mockStorage
     })
-    const expectStatus = {
+    expect(mockStorage.createStatus).toHaveBeenCalledWith({
       id: note.id,
       actorId: mockActor.id,
       type: 'Note',
-      text: `<p>Hello</p>`,
+      text: status.text,
       reply: 'https://activity.server/user/statuses/someid',
-      summary: null,
+      summary: '',
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: [`${mockActor.id}/followers`, 'https://earth.social/users/thai'],
       localRecipients: [
@@ -275,12 +268,7 @@ describe('#createNoteFromUserInput', () => {
         'https://llun.test/users/null'
       ],
       createdAt: expect.toBeNumber(),
-      updatedAt: expect.toBeNumber(),
       url: expect.toBeString()
-    }
-    expect(status).toEqual(expectStatus)
-    expect(mockStorage.createStatus).toHaveBeenCalledWith({
-      status: expectStatus
     })
     expect(note).toMatchObject({
       type: 'Note',

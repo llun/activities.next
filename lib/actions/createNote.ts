@@ -35,12 +35,9 @@ export const createNote = async ({
     text: compactNote.content,
     summary: compactNote.summary || '',
 
-    to: Array.isArray(compactNote.to)
-      ? compactNote.to
-      : [compactNote.to].filter((item) => item),
-    cc: Array.isArray(compactNote.cc)
-      ? compactNote.cc
-      : [compactNote.cc].filter((item) => item),
+    // Preserve URL here?
+    to: Array.isArray(note.to) ? note.to : [note.to].filter((item) => item),
+    cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter((item) => item),
     localRecipients: await deliverTo({ note: compactNote, storage }),
 
     reply: compactNote.inReplyTo || '',
