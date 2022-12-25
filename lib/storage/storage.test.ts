@@ -204,6 +204,12 @@ describe('Storage', () => {
           targetActorId,
           updatedAt: expect.toBeNumber()
         })
+        expect(
+          await storage.isCurrentActorFollowing({
+            currentActorId: TEST_ID3,
+            followingActorId: targetActorId
+          })
+        ).toBeFalse()
 
         expect(
           await storage.getAcceptedOrRequestedFollow({
@@ -232,6 +238,12 @@ describe('Storage', () => {
           status: FollowStatus.Rejected
         })
         expect(
+          await storage.isCurrentActorFollowing({
+            currentActorId: TEST_ID3,
+            followingActorId: targetActorId
+          })
+        ).toBeFalse()
+        expect(
           await storage.getAcceptedOrRequestedFollow({
             actorId: TEST_ID3,
             targetActorId
@@ -249,6 +261,9 @@ describe('Storage', () => {
           sharedInbox
         })
         expect(secondFollow.id).not.toEqual(follow.id)
+        expect(
+          await storage.getFollowFromId({ followId: secondFollow.id })
+        ).toEqual(secondFollow)
         expect(
           await storage.getAcceptedOrRequestedFollow({
             actorId: TEST_ID3,
@@ -291,6 +306,12 @@ describe('Storage', () => {
         expect(secondFollowAfterUpdated?.updatedAt).not.toEqual(
           secondFollow.updatedAt
         )
+        expect(
+          await storage.isCurrentActorFollowing({
+            currentActorId: TEST_ID3,
+            followingActorId: targetActorId
+          })
+        ).toBeTrue()
 
         expect(
           await storage.getActorFollowingCount({ actorId: TEST_ID3 })
@@ -326,6 +347,24 @@ describe('Storage', () => {
         expect(
           await storage.getFollowersInbox({ targetActorId: TEST_ID4 })
         ).toEqual([sharedInbox])
+
+        const follows = await storage.getLocalFollowersForActorId({
+          targetActorId: TEST_ID4
+        })
+        expect(follows.length).toEqual(0)
+
+        await storage.createFollow({
+          actorId: TEST_ID3,
+          targetActorId: TEST_ID4,
+          status: FollowStatus.Accepted,
+          inbox: `${TEST_ID3}/inbox`,
+          sharedInbox: 'https://llun.test/inbox'
+        })
+        const followsAfterLocalFollow =
+          await storage.getLocalFollowersForActorId({
+            targetActorId: TEST_ID4
+          })
+        expect(followsAfterLocalFollow.length).toEqual(1)
       })
     })
 
