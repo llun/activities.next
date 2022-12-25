@@ -25,12 +25,27 @@ export const createNote = async ({
     ...note
   })) as Note
 
-  const status = fromJson(note)
+  await storage.createStatus({
+    id: compactNote.id,
+    url: compactNote.url || compactNote.id,
 
-  // TODO: Put this in fromJson?
-  status.localRecipients = await deliverTo({ note: compactNote, storage })
+    actorId: compactNote.attributedTo,
 
-  await storage.createStatus({ status })
+    type: compactNote.type,
+    text: compactNote.content,
+    summary: compactNote.summary || '',
+
+    to: Array.isArray(compactNote.to)
+      ? compactNote.to
+      : [compactNote.to].filter((item) => item),
+    cc: Array.isArray(compactNote.cc)
+      ? compactNote.cc
+      : [compactNote.cc].filter((item) => item),
+    localRecipients: await deliverTo({ note: compactNote, storage }),
+
+    reply: compactNote.inReplyTo || '',
+    createdAt: new Date(compactNote.published).getTime()
+  })
 
   const attachments = getAttachments(note)
   if (attachments) {
@@ -39,7 +54,7 @@ export const createNote = async ({
         if (attachment.type !== 'Document') return
 
         await storage.createAttachment({
-          statusId: status.id,
+          statusId: compactNote.id,
           mediaType: attachment.mediaType,
           height: attachment.height,
           width: attachment.width,
@@ -75,7 +90,23 @@ export const createNoteFromUserInput = async ({
     replyStatus,
     storage
   })
-  await storage.createStatus({ status })
+  await storage.createStatus({
+    id: status.id,
+    url: status.url,
+
+    actorId: status.actorId,
+
+    type: status.type,
+    text: status.text,
+    summary: status.summary || '',
+
+    to: status.to,
+    cc: status.cc,
+    localRecipients: status.localRecipients,
+
+    reply: status.reply || '',
+    createdAt: status.createdAt
+  })
   const storedAttachmens = await Promise.all(
     attachments.map((attachment) =>
       storage.createAttachment({

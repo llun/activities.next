@@ -11,6 +11,8 @@ import { getISOTimeUTC } from '../time'
 import { Actor, getAtUsernameFromId } from './actor'
 import { Attachment } from './attachment'
 
+export type ActivityType = 'Note' | 'Question'
+
 // https://github.com/mastodon/mastodon/blob/a5394980f22e061ec7e4f6df3f3b571624f5ca7d/app/lib/activitypub/parser/status_parser.rb#L3
 export interface Status {
   id: string
@@ -18,7 +20,7 @@ export interface Status {
 
   actorId: string
 
-  type: 'Note' | 'Question'
+  type: ActivityType
   text: string
   summary: string | null
 

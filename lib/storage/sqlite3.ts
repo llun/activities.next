@@ -324,13 +324,49 @@ export class Sqlite3Storage implements Storage {
     })
   }
 
-  async createStatus({ status }: CreateStatusParams) {
-    const { to, cc, localRecipients, ...rest } = status
-    await this.database.transaction(async (trx) => {
-      await trx('statuses').insert(rest)
+  async createStatus({
+    id,
+    url,
+    actorId,
+    type,
+    text,
+    summary = '',
+    to,
+    cc,
+    localRecipients = [],
+    reply = '',
+    createdAt
+  }: CreateStatusParams) {
+    const currentTime = Date.now()
+    const statusCreatedAt = createdAt || currentTime
+    const statusUpdatedAt = currentTime
+
+    await this.database<Status>('statuses').insert({
+      id,
+      url,
+      actorId,
+      type,
+      text,
+      summary,
+      reply,
+      createdAt: statusCreatedAt,
+      updatedAt: statusUpdatedAt
     })
 
-    return { ...status, to, cc }
+    return {
+      id,
+      url,
+      actorId,
+      type,
+      text,
+      summary,
+      reply,
+      to,
+      cc,
+      localRecipients,
+      createdAt: statusCreatedAt,
+      updatedAt: statusUpdatedAt
+    }
   }
 
   async getStatus({ statusId }: GetStatusParams) {

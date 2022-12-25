@@ -386,7 +386,34 @@ export class FirebaseStorage implements Storage {
     })
   }
 
-  async createStatus({ status }: CreateStatusParams) {
+  async createStatus({
+    id,
+    url,
+    actorId,
+    type,
+    text,
+    summary = '',
+    to,
+    cc,
+    localRecipients = [],
+    reply = '',
+    createdAt
+  }: CreateStatusParams) {
+    const currentTime = Date.now()
+    const status = {
+      id,
+      url,
+      actorId,
+      type,
+      text,
+      summary,
+      to,
+      cc,
+      localRecipients,
+      reply,
+      createdAt: createdAt || currentTime,
+      updatedAt: currentTime
+    }
     await addDoc(collection(this.db, 'statuses'), status)
     return status
   }
