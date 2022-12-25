@@ -451,10 +451,29 @@ export class Sqlite3Storage implements Storage {
   }
 
   async getStatuses({ actorId }: GetStatusesParams) {
-    return this.database<Status>('statuses')
-      .select('*')
+    const local = await this.database('recipients')
+      .where('type', 'local')
+      .andWhere('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .limit(20)
+
+    const statuses = await this.database<Status>('statuses')
+      .whereIn(
+        'id',
+        local.map((item) => item.statusId)
+      )
+      .orderBy('createdAt', 'desc')
+      .limit(20)
+
+    return Promise.all(
+      statuses.map(async (item) => {
+        const attachments = await this.getAttachments({ statusId: item.id })
+        return {
+          ...item,
+          attachments
+        }
+      })
+    )
   }
 
   async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
@@ -466,10 +485,20 @@ export class Sqlite3Storage implements Storage {
   }
 
   async getActorStatuses({ actorId }: GetActorStatusesParams) {
-    return this.database<Status>('statuses')
+    const statuses = await this.database<Status>('statuses')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .limit(20)
+
+    return Promise.all(
+      statuses.map(async (item) => {
+        const attachments = await this.getAttachments({ statusId: item.id })
+        return {
+          ...item,
+          attachments
+        }
+      })
+    )
   }
 
   async deleteStatus({ statusId }: DeleteStatusParams) {

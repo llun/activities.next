@@ -418,16 +418,9 @@ export class FirebaseStorage implements Storage {
     return { ...status, attachments: [] }
   }
 
-  async getStatus({ statusId }: GetStatusParams) {
-    const statuses = collection(this.db, 'statuses')
-    const statusesQuery = query(statuses, where('id', '==', statusId), limit(1))
-    const statusesSnapshot = await getDocs(statusesQuery)
-    if (statusesSnapshot.docs.length !== 1) return undefined
-
-    const data = statusesSnapshot.docs[0].data()
-    const attachments = await this.getAttachments({ statusId })
-
-    const persistedStatus: Status = {
+  async getStatusFromData(data: any): Promise<Status> {
+    const attachments = await this.getAttachments({ statusId: data.id })
+    return {
       id: data.id,
       url: data.url,
       to: data.to,
@@ -442,8 +435,16 @@ export class FirebaseStorage implements Storage {
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
     }
+  }
 
-    return persistedStatus
+  async getStatus({ statusId }: GetStatusParams) {
+    const statuses = collection(this.db, 'statuses')
+    const statusesQuery = query(statuses, where('id', '==', statusId), limit(1))
+    const statusesSnapshot = await getDocs(statusesQuery)
+    if (statusesSnapshot.docs.length !== 1) return undefined
+
+    const data = statusesSnapshot.docs[0].data()
+    return this.getStatusFromData(data)
   }
 
   async getStatuses({ actorId }: GetStatusesParams) {
@@ -455,7 +456,12 @@ export class FirebaseStorage implements Storage {
       limit(50)
     )
     const statusesSnapshot = await getDocs(statusesQuery)
-    return statusesSnapshot.docs.map((item) => item.data() as Status)
+    return Promise.all(
+      statusesSnapshot.docs.map((item) => {
+        const data = item.data()
+        return this.getStatusFromData(data)
+      })
+    )
   }
 
   async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
@@ -474,7 +480,12 @@ export class FirebaseStorage implements Storage {
       limit(20)
     )
     const snapshot = await getDocs(statusesQuery)
-    return snapshot.docs.map((item) => item.data() as Status)
+    return Promise.all(
+      snapshot.docs.map((item) => {
+        const data = item.data()
+        return this.getStatusFromData(data)
+      })
+    )
   }
 
   async deleteStatus({ statusId }: DeleteStatusParams) {
