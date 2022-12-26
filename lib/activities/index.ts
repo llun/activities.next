@@ -3,7 +3,7 @@ import { compact } from '../jsonld/index'
 import { Actor } from '../models/actor'
 import { Attachment } from '../models/attachment'
 import { Follow } from '../models/follow'
-import { Status, fromJson } from '../models/status'
+import { Status } from '../models/status'
 import { headers } from '../signature'
 import { AcceptFollow } from './actions/acceptFollow'
 import { CreateStatus } from './actions/createStatus'
@@ -153,7 +153,7 @@ export const getPosts = async (id?: string) => {
       // Unsupported Object
       if (item.object.type !== 'Note') return null
 
-      const status = fromJson(item.object)
+      const status = Status.fromNote(item.object)
       const attachments = (getAttachments(item.object) || [])
         .filter((item): item is Document => item.type === 'Document')
         .map(

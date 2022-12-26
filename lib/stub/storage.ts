@@ -1,10 +1,11 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { FollowStatus } from '../models/follow'
+import { Sqlite3Storage } from '../storage/sqlite3'
 import { Storage } from '../storage/types'
 import { seedActor1 } from './seed/actor1'
 import { seedActor2 } from './seed/actor2'
 
-export const getSeedStorage = async (storage: Storage) => {
+export const seedStorage = async (storage: Storage) => {
   await storage.createAccount(seedActor1)
   await storage.createAccount(seedActor2)
 
@@ -54,5 +55,17 @@ export const getSeedStorage = async (storage: Storage) => {
     cc: [],
     text: 'This is Actor1 post',
     type: 'Note'
+  })
+
+  // Actor2 status
+  await storage.createStatus({
+    id: `${actor2.id}/statuses/post-2`,
+    url: `${actor2.id}/statuses/post-2`,
+    actorId: actor2.id,
+    to: [ACTIVITY_STREAM_PUBLIC, actor1.id],
+    cc: [`${actor2.id}/followers`],
+    text: '@test1@llun.test This is Actor1 post',
+    type: 'Note',
+    reply: `${actor1.id}/statuses/post-1`
   })
 }
