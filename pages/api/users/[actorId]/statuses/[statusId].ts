@@ -4,7 +4,6 @@ import { Note } from '../../../../../lib/activities/entities/note'
 import { getConfig } from '../../../../../lib/config'
 import { ERROR_404, ERROR_500 } from '../../../../../lib/errors'
 import { ACTIVITY_STREAM_URL } from '../../../../../lib/jsonld/activitystream'
-import { toObject } from '../../../../../lib/models/status'
 import { getStorage } from '../../../../../lib/storage'
 
 type Data =
@@ -30,7 +29,11 @@ export default async function handler(
     return res.status(404).json(ERROR_404)
   }
 
-  const note = toObject({ status })
+  const note = status.toObject()
+  if (!note) {
+    return res.status(404).json(ERROR_404)
+  }
+
   res.status(200).json({
     '@context': ACTIVITY_STREAM_URL,
     ...note

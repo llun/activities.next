@@ -2,7 +2,6 @@ import type { NextApiHandler } from 'next'
 
 import { getConfig } from '../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
-import { toObject } from '../../../../lib/models/status'
 import { getStorage } from '../../../../lib/storage'
 import { getISOTimeUTC } from '../../../../lib/time'
 
@@ -33,9 +32,6 @@ const handle: NextApiHandler = async (req, res) => {
       const statuses = await storage.getActorStatuses({ actorId: id })
       const items = await Promise.all(
         statuses.map(async (status) => {
-          const attachments = await storage.getAttachments({
-            statusId: status.id
-          })
           return {
             id: `${status.id}/activity`,
             type: 'Create',
@@ -44,7 +40,7 @@ const handle: NextApiHandler = async (req, res) => {
             // TODO: Fix the to and cc store in database
             to: status.to || null,
             cc: status.cc || null,
-            object: toObject({ status, attachments })
+            object: status.toObject()
           }
         })
       )
