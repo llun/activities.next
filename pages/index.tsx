@@ -47,7 +47,7 @@ const Page: NextPage<Props> = ({
   const [currentStatuses, setCurrentStatuses] = useState<StatusData[]>(statuses)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
 
-  const onReply = (status: Status) => {
+  const onReply = (status: StatusData) => {
     setReplyStatus(status)
     window.scrollTo({ top: 0 })
 

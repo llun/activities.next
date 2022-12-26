@@ -2,7 +2,7 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
-import { ActivityType, Status } from '../models/status'
+import { Status, StatusType } from '../models/status'
 
 export type IsAccountExistsParams = { email?: string }
 export type IsUsernameExistsParams = { username: string }
@@ -49,7 +49,7 @@ export type CreateStatusParams = {
   id: string
   url: string
   actorId: string
-  type: ActivityType
+  type: StatusType
 
   text: string
   summary?: string
