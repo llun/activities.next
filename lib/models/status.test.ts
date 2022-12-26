@@ -38,8 +38,8 @@ describe('Status', () => {
       const compactedNote = (await compact(note)) as Note
       const status = Status.fromNote(compactedNote)
       expect(status).toEqual({
-        id: 'https://llun.test/users/llun/statuses/109417500731428509',
-        url: 'https://llun.test/@llun/109417500731428509',
+        id: note.id,
+        url: note.url,
         actorId: 'https://llun.test/users/llun',
         type: 'Note',
         text: 'Hello',
@@ -54,7 +54,7 @@ describe('Status', () => {
       })
     })
 
-    it('returns null for undefined reply', async () => {
+    it('returns empty string for undefined reply', async () => {
       const note = MockMastodonNote({
         content: 'Hello',
         withContext: true
@@ -62,8 +62,8 @@ describe('Status', () => {
       const compactedNote = (await compact(note)) as Note
       const json = Status.fromNote(compactedNote)
       expect(json).toEqual({
-        id: 'https://llun.test/users/llun/statuses/109417500731428509',
-        url: 'https://llun.test/@llun/109417500731428509',
+        id: note.id,
+        url: note.url,
         actorId: 'https://llun.test/users/llun',
         type: 'Note',
         text: 'Hello',
