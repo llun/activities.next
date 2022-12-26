@@ -17,7 +17,7 @@ interface MockNoteParams {
   withContext?: boolean
 }
 export const MockMastodonNote = ({
-  id = '109417500731428509',
+  id = crypto.randomUUID(),
   published = Date.now(),
   content,
   to = ['https://www.w3.org/ns/activitystreams#Public'],
