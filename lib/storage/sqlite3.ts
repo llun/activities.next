@@ -457,6 +457,7 @@ export class Sqlite3Storage implements Storage {
     const local = await this.database('recipients')
       .where('type', 'local')
       .andWhere('actorId', actorId)
+      .distinct('statusId')
       .orderBy('createdAt', 'desc')
       .limit(postsPerPage)
     const statuses = (
