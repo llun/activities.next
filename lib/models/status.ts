@@ -7,6 +7,23 @@ import { getISOTimeUTC } from '../time'
 import { Attachment } from './attachment'
 
 export type StatusType = 'Note' | 'Question'
+export type StatusData = {
+  id: string
+  url: string
+  actorId: string
+  type: StatusType
+  text: string
+  summary: string
+  to: string[]
+  cc: string[]
+
+  localRecipients: string[]
+  reply: string
+  attachments: Attachment[]
+
+  createdAt: number
+  updatedAt: number
+}
 
 export class Status {
   readonly id: string
@@ -29,23 +46,7 @@ export class Status {
   readonly createdAt: number
   readonly updatedAt: number
 
-  constructor(params: {
-    id: string
-    url: string
-    actorId: string
-    type: StatusType
-    text: string
-    summary: string
-    to: string[]
-    cc: string[]
-
-    localRecipients: string[]
-    reply: string
-    attachments: Attachment[]
-
-    createdAt: number
-    updatedAt: number
-  }) {
+  constructor(params: StatusData) {
     this.id = params.id
     this.url = params.url
     this.actorId = params.actorId
@@ -153,6 +154,24 @@ export class Status {
       default: {
         return undefined
       }
+    }
+  }
+
+  toJson(): StatusData {
+    return {
+      id: this.id,
+      url: this.url,
+      actorId: this.actorId,
+      type: this.type,
+      text: this.text,
+      summary: this.summary,
+      to: this.to,
+      cc: this.cc,
+      localRecipients: this.localRecipients,
+      reply: this.reply,
+      attachments: this.attachments,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt
     }
   }
 }

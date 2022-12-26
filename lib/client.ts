@@ -1,10 +1,10 @@
 import { Assets, Stream } from './medias/apple/webstream'
 import { Attachment, PostBoxAttachment } from './models/attachment'
-import { Status } from './models/status'
+import { StatusData } from './models/status'
 
 export interface CreateStatusParams {
   message: string
-  replyStatus?: Status
+  replyStatus?: StatusData
   attachments?: PostBoxAttachment[]
 }
 export const createStatus = async ({
@@ -35,7 +35,7 @@ export const createStatus = async ({
 
   const json = await response.json()
   return {
-    status: json.status as Status,
+    status: json.status as StatusData,
     attachments: json.attachments as Attachment[]
   }
 }

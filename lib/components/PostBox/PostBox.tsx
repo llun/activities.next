@@ -2,17 +2,13 @@ import { FC, FormEvent, useRef, useState } from 'react'
 
 import { createStatus } from '../../client'
 import { Media } from '../../medias/apple/media'
-import {
-  Profile,
-  getAtUsernameFromId,
-  getAtWithHostFromId
-} from '../../models/actor'
+import { Profile, getAtWithHostFromId } from '../../models/actor'
 import {
   AppleGalleryAttachment,
   Attachment,
   PostBoxAttachment
 } from '../../models/attachment'
-import { Status } from '../../models/status'
+import { StatusData } from '../../models/status'
 import { Button } from '../Button'
 import { AppleGallerButton } from './AppleGalleryButton'
 import styles from './PostBox.module.scss'
@@ -21,9 +17,9 @@ import { ReplyPreview } from './ReplyPreview'
 interface Props {
   host: string
   profile: Profile
-  replyStatus?: Status
+  replyStatus?: StatusData
   onDiscardReply: () => void
-  onPostCreated: (status: Status, attachments: Attachment[]) => void
+  onPostCreated: (status: StatusData, attachments: Attachment[]) => void
 }
 
 export const PostBox: FC<Props> = ({
@@ -92,7 +88,7 @@ export const PostBox: FC<Props> = ({
     ])
   }
 
-  const getDefaultMessage = (profile: Profile, replyStatus?: Status) => {
+  const getDefaultMessage = (profile: Profile, replyStatus?: StatusData) => {
     if (!replyStatus) return ''
     if (replyStatus.actorId === profile.id) return ''
     return `${getAtWithHostFromId(replyStatus.actorId)} `

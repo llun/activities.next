@@ -1,9 +1,8 @@
 import cn from 'classnames'
-import groupBy from 'lodash/groupBy'
 import { FC, useState } from 'react'
 
 import { Attachment } from '../../models/attachment'
-import { Status } from '../../models/status'
+import { StatusData } from '../../models/status'
 import { Modal } from '../Modal'
 import { Media } from './Media'
 import { Post } from './Post'
@@ -13,9 +12,9 @@ interface Props {
   showActorId?: boolean
   showActions?: boolean
   currentTime: Date
-  statuses: Status[]
-  onReply?: (status: Status) => void
-  onPostDeleted?: (status: Status) => void
+  statuses: StatusData[]
+  onReply?: (status: StatusData) => void
+  onPostDeleted?: (status: StatusData) => void
 }
 
 export const Posts: FC<Props> = ({

@@ -4,7 +4,7 @@ import { FC } from 'react'
 
 import { deleteStatus } from '../../client'
 import { Attachment } from '../../models/attachment'
-import { Status } from '../../models/status'
+import { StatusData } from '../../models/status'
 import { parseText } from '../../text'
 import { Button } from '../Button'
 import { Actor } from './Actor'
@@ -14,10 +14,10 @@ import styles from './Post.module.scss'
 interface Props {
   showActorId?: boolean
   currentTime: Date
-  status: Status
+  status: StatusData
   showActions?: boolean
-  onReply?: (status: Status) => void
-  onPostDeleted?: (status: Status) => void
+  onReply?: (status: StatusData) => void
+  onPostDeleted?: (status: StatusData) => void
   onShowAttachment: (attachment: Attachment) => void
 }
 

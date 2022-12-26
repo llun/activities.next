@@ -108,6 +108,7 @@ export const createNoteFromUserInput = async ({
     to: [ACTIVITY_STREAM_PUBLIC, ...(replyStatus ? [replyStatus.actorId] : [])],
     cc: [`${currentActor.id}/followers`],
     localRecipients: [
+      'as:Public',
       currentActor.id,
       ...followers.map((item) => item.actorId)
     ],

@@ -18,8 +18,7 @@ import {
   getAtWithHostFromId,
   getProfileFromActor
 } from '../lib/models/actor'
-import { Attachment } from '../lib/models/attachment'
-import { Status } from '../lib/models/status'
+import { Status, StatusData } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
 import styles from './index.module.scss'
@@ -27,7 +26,7 @@ import styles from './index.module.scss'
 interface Props {
   host: string
   currentServerTime: number
-  statuses: Status[]
+  statuses: StatusData[]
   profile: Profile
   totalPosts: number
   followersCount: number
@@ -44,8 +43,8 @@ const Page: NextPage<Props> = ({
   followingCount
 }) => {
   const { data: session } = useSession()
-  const [replyStatus, setReplyStatus] = useState<Status>()
-  const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
+  const [replyStatus, setReplyStatus] = useState<StatusData>()
+  const [currentStatuses, setCurrentStatuses] = useState<StatusData[]>(statuses)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
 
   const onReply = (status: Status) => {
@@ -62,7 +61,7 @@ const Page: NextPage<Props> = ({
     postBox.focus()
   }
 
-  const onPostDeleted = (status: Status) => {
+  const onPostDeleted = (status: StatusData) => {
     const statusIndex = currentStatuses.indexOf(status)
     setCurrentStatuses([
       ...currentStatuses.slice(0, statusIndex),
@@ -104,7 +103,7 @@ const Page: NextPage<Props> = ({
               profile={profile}
               replyStatus={replyStatus}
               onDiscardReply={() => setReplyStatus(undefined)}
-              onPostCreated={(status: Status) => {
+              onPostCreated={(status: StatusData) => {
                 setCurrentStatuses((previousValue) => [
                   status,
                   ...previousValue
@@ -183,7 +182,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   return {
     props: {
       host: config.host,
-      statuses,
+      statuses: statuses.map((item) => item.toJson()),
       currentServerTime: Date.now(),
       profile: getProfileFromActor(actor),
       totalPosts,

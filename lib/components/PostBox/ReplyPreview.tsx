@@ -1,14 +1,14 @@
 import cn from 'classnames'
 import { FC } from 'react'
 
-import { Status } from '../../models/status'
+import { StatusData } from '../../models/status'
 import { parseText } from '../../text'
 import { CloseButton } from '../CloseButton'
 import { Actor } from '../Posts/Actor'
 import styles from './ReplyPreview.module.scss'
 
 interface Props {
-  status?: Status
+  status?: StatusData
   onClose?: () => void
 }
 

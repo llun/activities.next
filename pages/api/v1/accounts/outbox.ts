@@ -24,6 +24,9 @@ const handler = ApiGuard(async (req, res, context) => {
       const inboxes = await storage.getFollowersInbox({
         targetActorId: currentActor.id
       })
+      if (!note) {
+        return res.status(500).json({ error: 'invalid note' })
+      }
       await Promise.all(
         inboxes.map((inbox) => {
           return sendNote({
@@ -35,7 +38,11 @@ const handler = ApiGuard(async (req, res, context) => {
       )
       return res
         .status(200)
-        .json({ status, note, attachments: storedAttachments })
+        .json({
+          status: status?.toJson(),
+          note,
+          attachments: storedAttachments
+        })
     }
     case 'DELETE': {
       const { statusId } = req.body as DeleteStatusParams
