@@ -1,9 +1,8 @@
 import * as jsonld from 'jsonld'
 
-import { Status, toObject } from '../../models/status'
+import { Status } from '../../models/status'
 import { getISOTimeUTC } from '../../time'
 import { ContextEntity } from '../entities/base'
-import { Mention } from '../entities/mention'
 import { Note } from '../entities/note'
 import { Question } from '../entities/question'
 import { Signature } from '../types'
@@ -20,10 +19,8 @@ export interface CreateStatus extends BaseActivity, ContextEntity {
 
 interface CompactParams {
   status: Status
-  mentions?: Mention[]
-  replyStatus?: Status
 }
-export const compact = ({ status, mentions, replyStatus }: CompactParams) => {
+export const compact = ({ status }: CompactParams) => {
   const published = getISOTimeUTC(status.createdAt)
   const context = { '@context': 'https://www.w3.org/ns/activitystreams' }
   const document = {
@@ -34,7 +31,7 @@ export const compact = ({ status, mentions, replyStatus }: CompactParams) => {
     published,
     to: status.to,
     cc: status.cc,
-    object: toObject({ status, mentions, replyStatus })
+    object: status.toObject
   }
   return jsonld.compact(document, context)
 }
