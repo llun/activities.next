@@ -396,7 +396,7 @@ export class Sqlite3Storage implements Storage {
       )
     })
 
-    return {
+    return new Status({
       id,
       url,
       actorId,
@@ -410,7 +410,7 @@ export class Sqlite3Storage implements Storage {
       localRecipients,
       createdAt: statusCreatedAt,
       updatedAt: statusUpdatedAt
-    }
+    })
   }
 
   async getStatusWithAttachmentsFromData(data: any): Promise<Status> {
@@ -427,7 +427,7 @@ export class Sqlite3Storage implements Storage {
         .andWhere('type', 'local')
     ])
 
-    return {
+    return new Status({
       id: data.id,
       url: data.url,
       to: to.map((item) => item.actorId),
@@ -441,7 +441,7 @@ export class Sqlite3Storage implements Storage {
       attachments,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
-    }
+    })
   }
 
   async getStatus({ statusId }: GetStatusParams) {

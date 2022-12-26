@@ -415,12 +415,15 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     }
     await addDoc(collection(this.db, 'statuses'), status)
-    return { ...status, attachments: [] }
+    return new Status({
+      ...status,
+      attachments: []
+    })
   }
 
   async getStatusFromData(data: any): Promise<Status> {
     const attachments = await this.getAttachments({ statusId: data.id })
-    return {
+    return new Status({
       id: data.id,
       url: data.url,
       to: data.to,
@@ -434,7 +437,7 @@ export class FirebaseStorage implements Storage {
       attachments,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
-    }
+    })
   }
 
   async getStatus({ statusId }: GetStatusParams) {
