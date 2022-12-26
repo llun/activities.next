@@ -17,7 +17,7 @@ describe('#compact', () => {
       actor: 'https://llun.test/users/llun',
       cc: 'https://llun.test/users/llun/followers',
       object: {
-        id: 'https://llun.test/users/llun/statuses/109417500731428509',
+        id: activity.object.id,
         type: 'Note',
         attributedTo: 'https://llun.test/users/llun',
         cc: 'https://llun.test/users/llun/followers',
@@ -25,19 +25,18 @@ describe('#compact', () => {
         contentMap: { en: 'Simple Content' },
         published: '2022-11-28T00:00:00Z',
         replies: {
-          id: 'https://llun.test/users/llun/statuses/109417500731428509/replies',
+          id: `${activity.object.id}/replies`,
           type: 'Collection',
           first: {
             type: 'CollectionPage',
             items: [],
-            next: 'https://llun.test/users/llun/statuses/109417500731428509/replies?only_other_accounts=true&page=true',
-            partOf:
-              'https://llun.test/users/llun/statuses/109417500731428509/replies'
+            next: `${activity.object.id}/replies?only_other_accounts=true&page=true`,
+            partOf: `${activity.object.id}/replies`
           }
         },
         tag: [],
         to: 'as:Public',
-        url: 'https://llun.test/@llun/109417500731428509'
+        url: activity.object.url
       },
       published: '2022-11-28T00:00:00Z',
       to: 'as:Public'
@@ -66,7 +65,7 @@ describe('#compact', () => {
         'https://llun.dev/users/null/followers'
       ],
       object: {
-        id: 'https://llun.test/users/llun/statuses/109417500731428509',
+        id: activity.object.id,
         type: 'Note',
         attributedTo: 'https://llun.test/users/llun',
         cc: [
@@ -77,19 +76,18 @@ describe('#compact', () => {
         contentMap: { en: 'Simple Content' },
         published: '2022-11-28T00:00:00Z',
         replies: {
-          id: 'https://llun.test/users/llun/statuses/109417500731428509/replies',
+          id: `${activity.object.id}/replies`,
           type: 'Collection',
           first: {
             type: 'CollectionPage',
             items: [],
-            next: 'https://llun.test/users/llun/statuses/109417500731428509/replies?only_other_accounts=true&page=true',
-            partOf:
-              'https://llun.test/users/llun/statuses/109417500731428509/replies'
+            next: `${activity.object.id}/replies?only_other_accounts=true&page=true`,
+            partOf: `${activity.object.id}/replies`
           }
         },
         tag: [],
         to: ['as:Public', 'https://llun.dev/users/null'],
-        url: 'https://llun.test/@llun/109417500731428509'
+        url: activity.object.url
       },
       published: '2022-11-28T00:00:00Z',
       to: ['as:Public', 'https://llun.dev/users/null']
