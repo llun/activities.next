@@ -1,9 +1,15 @@
+import crypto from 'crypto'
+
 import { Note, getAttachments } from '../activities/entities/note'
+import { getConfig } from '../config'
 import { compact } from '../jsonld'
-import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
-import { Actor } from '../models/actor'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_URL
+} from '../jsonld/activitystream'
+import { Actor, getAtUsernameFromId } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
-import { createStatus, fromJson, toObject } from '../models/status'
+import { Status } from '../models/status'
 import { Storage } from '../storage/types'
 import { deliverTo } from './utils'
 
@@ -81,33 +87,37 @@ export const createNoteFromUserInput = async ({
   const replyStatus = replyNoteId
     ? await storage.getStatus({ statusId: replyNoteId })
     : undefined
-  const { status, mentions } = await createStatus({
-    currentActor,
-    text,
-    replyStatus,
-    storage
+
+  const postId = crypto.randomUUID()
+  const host = getConfig().host
+  const followers = await storage.getLocalFollowersForActorId({
+    targetActorId: currentActor.id
   })
+  const statusId = `${currentActor.id}/statuses/${postId}`
+
   await storage.createStatus({
-    id: status.id,
-    url: status.url,
+    id: statusId,
+    url: `https://${host}/${getAtUsernameFromId(currentActor.id)}/${postId}`,
 
-    actorId: status.actorId,
+    actorId: currentActor.id,
 
-    type: status.type,
-    text: status.text,
-    summary: status.summary || '',
+    type: 'Note',
+    text: Status.linkify(text),
+    summary: '',
 
-    to: status.to,
-    cc: status.cc,
-    localRecipients: status.localRecipients,
+    to: [ACTIVITY_STREAM_PUBLIC, ...(replyStatus ? [replyStatus.actorId] : [])],
+    cc: [`${currentActor.id}/followers`],
+    localRecipients: [
+      currentActor.id,
+      ...followers.map((item) => item.actorId)
+    ],
 
-    reply: status.reply || '',
-    createdAt: status.createdAt
+    reply: replyStatus?.id || ''
   })
   const storedAttachmens = await Promise.all(
     attachments.map((attachment) =>
       storage.createAttachment({
-        statusId: status.id,
+        statusId,
         mediaType: attachment.mediaType,
         url: attachment.url,
         width: attachment.width,
@@ -116,14 +126,9 @@ export const createNoteFromUserInput = async ({
       })
     )
   )
-  status.attachments = storedAttachmens || []
+  const status = await storage.getStatus({ statusId })
   return {
-    note: toObject({
-      status,
-      mentions,
-      replyStatus,
-      attachments: storedAttachmens
-    }),
+    note: status?.toObject(),
     status,
     attachments: storedAttachmens
   }
