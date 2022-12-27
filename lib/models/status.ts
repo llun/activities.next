@@ -7,7 +7,7 @@ import { getISOTimeUTC } from '../time'
 import { Attachment } from './attachment'
 
 export type StatusType = 'Note' | 'Question'
-export type StatusData = {
+export interface StatusData {
   id: string
   url: string
   actorId: string

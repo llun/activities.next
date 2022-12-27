@@ -24,7 +24,7 @@ import { deliverTo } from '.'
 import { getConfig } from '../config'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
-import { Attachment } from '../models/attachment'
+import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
 import { Status } from '../models/status'
 import {
@@ -509,7 +509,7 @@ export class FirebaseStorage implements Storage {
     height,
     name = ''
   }: CreateAttachmentParams): Promise<Attachment> {
-    const attachment: Attachment = {
+    const data: AttachmentData = {
       id: crypto.randomUUID(),
       statusId,
       type: 'Document',
@@ -522,8 +522,8 @@ export class FirebaseStorage implements Storage {
       createdAt: Date.now(),
       updatedAt: Date.now()
     }
-    await addDoc(collection(this.db, 'attachments'), attachment)
-    return attachment
+    await addDoc(collection(this.db, 'attachments'), data)
+    return new Attachment(data)
   }
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
@@ -533,6 +533,8 @@ export class FirebaseStorage implements Storage {
       where('statusId', '==', statusId)
     )
     const snapshot = await getDocs(attachmentsQuery)
-    return snapshot.docs.map((item) => item.data() as Attachment)
+    return snapshot.docs.map(
+      (item) => new Attachment(item.data() as AttachmentData)
+    )
   }
 }

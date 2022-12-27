@@ -5,7 +5,7 @@ import { deliverTo } from '.'
 import { getConfig } from '../config'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
-import { Attachment } from '../models/attachment'
+import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
 import { Status } from '../models/status'
 import {
@@ -494,7 +494,7 @@ export class Sqlite3Storage implements Storage {
     height,
     name = ''
   }: CreateAttachmentParams): Promise<Attachment> {
-    const attachment: Attachment = {
+    const data: AttachmentData = {
       id: crypto.randomUUID(),
       statusId,
       type: 'Document',
@@ -506,11 +506,15 @@ export class Sqlite3Storage implements Storage {
       createdAt: Date.now(),
       updatedAt: Date.now()
     }
-    await this.database('attachments').insert(attachment)
-    return attachment
+    await this.database('attachments').insert(data)
+    return new Attachment(data)
   }
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
-    return this.database<Attachment>('attachments').where('statusId', statusId)
+    const data = await this.database<AttachmentData>('attachments').where(
+      'statusId',
+      statusId
+    )
+    return data.map((item) => new Attachment(item))
   }
 }
