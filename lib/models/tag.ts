@@ -26,7 +26,7 @@ export class Tag {
     } as Mention
   }
 
-  toJson() {
+  toJson(): TagData {
     return this.data
   }
 }

@@ -1,11 +1,11 @@
 import { FC } from 'react'
 
-import { Attachment } from '../../models/attachment'
+import { AttachmentData } from '../../models/attachment'
 
 interface Props {
   caption?: string
   className?: string
-  attachment?: Attachment
+  attachment?: AttachmentData
   showVideoControl?: boolean
   onClick?: () => void
 }

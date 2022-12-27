@@ -11,8 +11,7 @@ import { Header } from '../../lib/components/Header'
 import { Posts } from '../../lib/components/Posts/Posts'
 import { Profile } from '../../lib/components/Profile'
 import { getConfig } from '../../lib/config'
-import { Attachment } from '../../lib/models/attachment'
-import { Status } from '../../lib/models/status'
+import { StatusData } from '../../lib/models/status'
 import { getStorage } from '../../lib/storage'
 import styles from './index.module.scss'
 
@@ -24,8 +23,7 @@ interface Props {
   followersCount: number
   followingCount: number
   totalPosts: number
-  statuses: Status[]
-  attachments: Attachment[]
+  statuses: StatusData[]
   createdAt: number
 }
 
@@ -132,10 +130,7 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
     return { notFound: true }
   }
 
-  const posts = await getPosts(person.urls?.posts)
-  const statuses = posts.map((item) => item[0])
-  const attachments = posts.map((item) => item[1]).flat()
-
+  const statuses = await getPosts(person.urls?.posts)
   return {
     props: {
       id: person.id,
@@ -146,7 +141,6 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
       followersCount: person.followersCount || 0,
       followingCount: person.followingCount || 0,
       statuses,
-      attachments,
       createdAt: person.createdAt
     },
     // Revalidate page every 10 minutes

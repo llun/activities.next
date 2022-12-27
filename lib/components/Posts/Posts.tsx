@@ -1,7 +1,7 @@
 import cn from 'classnames'
 import { FC, useState } from 'react'
 
-import { Attachment } from '../../models/attachment'
+import { AttachmentData } from '../../models/attachment'
 import { StatusData } from '../../models/status'
 import { Modal } from '../Modal'
 import { Media } from './Media'
@@ -25,7 +25,7 @@ export const Posts: FC<Props> = ({
   onReply,
   onPostDeleted
 }) => {
-  const [modalMedia, setModalMedia] = useState<Attachment>()
+  const [modalMedia, setModalMedia] = useState<AttachmentData>()
 
   if (statuses.length === 0) return null
 
@@ -40,7 +40,7 @@ export const Posts: FC<Props> = ({
             showActions={showActions}
             onReply={onReply}
             onPostDeleted={onPostDeleted}
-            onShowAttachment={(attachment: Attachment) =>
+            onShowAttachment={(attachment: AttachmentData) =>
               setModalMedia(attachment)
             }
           />

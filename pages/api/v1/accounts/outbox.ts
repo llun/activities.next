@@ -36,7 +36,7 @@ const handler = ApiGuard(async (req, res, context) => {
       return res.status(200).json({
         status: status?.toJson(),
         note: status.toObject(),
-        attachments: status.attachments
+        attachments: status.data.attachments
       })
     }
     case 'DELETE': {

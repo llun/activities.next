@@ -21,17 +21,17 @@ interface CompactParams {
   status: Status
 }
 export const compact = ({ status }: CompactParams) => {
-  const published = getISOTimeUTC(status.createdAt)
+  const published = getISOTimeUTC(status.data.createdAt)
   const context = { '@context': 'https://www.w3.org/ns/activitystreams' }
   const document = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${status.id}/activity`,
+    id: `${status.data.id}/activity`,
     type: 'Create',
-    actor: status.actorId,
+    actor: status.data.actorId,
     published,
-    to: status.to,
-    cc: status.cc,
-    object: status.toObject
+    to: status.data.to,
+    cc: status.data.cc,
+    object: status.toObject()
   }
   return jsonld.compact(document, context)
 }

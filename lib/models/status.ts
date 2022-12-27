@@ -4,8 +4,8 @@ import * as linkify from 'linkifyjs'
 import { Note } from '../activities/entities/note'
 import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
-import { Attachment } from './attachment'
-import { Tag } from './tag'
+import { Attachment, AttachmentData } from './attachment'
+import { Tag, TagData } from './tag'
 
 export type StatusType = 'Note' | 'Question'
 export interface StatusData {
@@ -19,8 +19,8 @@ export interface StatusData {
   cc: string[]
 
   reply: string
-  attachments: Attachment[]
-  tags: Tag[]
+  attachments: AttachmentData[]
+  tags: TagData[]
 
   createdAt: number
   updatedAt: number
@@ -101,8 +101,10 @@ export class Status {
       cc: data.cc,
       inReplyTo: this.data.reply || null,
       content: data.text,
-      attachment: data.attachments.map((attachment) => attachment.toObject()),
-      tag: data.tags.map((tag) => tag.toObject()),
+      attachment: data.attachments.map((attachment) =>
+        new Attachment(attachment).toObject()
+      ),
+      tag: data.tags.map((tag) => new Tag(tag).toObject()),
       replies: {
         id: `${data.id}/replies`,
         type: 'Collection',
@@ -116,12 +118,7 @@ export class Status {
     } as Note
   }
 
-  toJson() {
-    const data = this.data
-    return {
-      ...data,
-      tags: data.tags.map((tag) => tag.toJson()),
-      attachments: data.attachments.map((item) => item.toJson())
-    }
+  toJson(): StatusData {
+    return this.data
   }
 }

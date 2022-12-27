@@ -3,7 +3,7 @@ import formatDistance from 'date-fns/formatDistance'
 import { FC } from 'react'
 
 import { deleteStatus } from '../../client'
-import { Attachment } from '../../models/attachment'
+import { AttachmentData } from '../../models/attachment'
 import { StatusData } from '../../models/status'
 import { parseText } from '../../text'
 import { Button } from '../Button'
@@ -18,7 +18,7 @@ interface Props {
   showActions?: boolean
   onReply?: (status: StatusData) => void
   onPostDeleted?: (status: StatusData) => void
-  onShowAttachment: (attachment: Attachment) => void
+  onShowAttachment: (attachment: AttachmentData) => void
 }
 
 export const Actions: FC<Props> = ({

@@ -443,8 +443,8 @@ export class FirebaseStorage implements Storage {
       text: data.text,
       summary: data.summary,
       reply: data.reply,
-      attachments,
-      tags,
+      attachments: attachments.map((attachment) => attachment.toJson()),
+      tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
     })

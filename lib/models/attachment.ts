@@ -43,7 +43,7 @@ export class Attachment {
     }
   }
 
-  toJson() {
+  toJson(): AttachmentData {
     return this.data
   }
 }

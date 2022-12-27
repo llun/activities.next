@@ -33,13 +33,13 @@ const handle: NextApiHandler = async (req, res) => {
       const items = await Promise.all(
         statuses.map(async (status) => {
           return {
-            id: `${status.id}/activity`,
+            id: `${status.data.id}/activity`,
             type: 'Create',
             actor: id,
-            published: getISOTimeUTC(status.createdAt),
+            published: getISOTimeUTC(status.data.createdAt),
             // TODO: Fix the to and cc store in database
-            to: status.to || null,
-            cc: status.cc || null,
+            to: status.data.to || null,
+            cc: status.data.cc || null,
             object: status.toObject()
           }
         })
