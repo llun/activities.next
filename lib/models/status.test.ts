@@ -136,7 +136,7 @@ describe('Status', () => {
         attributedTo: status?.actorId,
         to: status?.to,
         cc: status?.cc,
-        content: status?.text,
+        content: status?.linkfyText(),
         attachment: [],
         tag: status?.getMentions(),
         replies: {

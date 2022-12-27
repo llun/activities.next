@@ -97,7 +97,7 @@ export const createNoteFromUserInput = async ({
     actorId: currentActor.id,
 
     type: 'Note',
-    text: Status.linkify(text),
+    text,
     summary: '',
 
     to: [ACTIVITY_STREAM_PUBLIC, ...(replyStatus ? [replyStatus.actorId] : [])],

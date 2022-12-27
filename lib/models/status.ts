@@ -82,8 +82,8 @@ export class Status {
     })
   }
 
-  static linkify(text: string) {
-    return linkifyStr(text.trim(), {
+  linkfyText() {
+    return linkifyStr(this.text.trim(), {
       rel: 'nofollow noopener noreferrer',
       target: '_blank',
       truncate: 42,
@@ -122,7 +122,7 @@ export class Status {
       to: this.to,
       cc: this.cc,
       inReplyTo: this?.reply || null,
-      content: this.text,
+      content: this.linkfyText(),
       attachment: this.attachments.map((attachment) => ({
         type: 'Document',
         mediaType: attachment.mediaType,

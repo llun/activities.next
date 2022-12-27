@@ -61,7 +61,7 @@ describe('Create note action', () => {
 
     it('add status and attachments with status id into storage', async () => {
       const note = MockMastodonNote({
-        content: '<p>Hello</p>',
+        content: 'Hello',
         documents: [
           MockImageDocument({ url: 'https://llun.dev/images/test1.jpg' }),
           MockImageDocument({
@@ -134,6 +134,31 @@ describe('Create note action', () => {
       expect(status).toMatchObject({
         reply: `${actor2?.id}/statuses/post-2`,
         to: expect.toContainValue(actor2?.id)
+      })
+    })
+
+    it('linkfy text in note only', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const status = await createNoteFromUserInput({
+        text: '@test2@llun.test Hello',
+        currentActor: actor1,
+        storage
+      })
+      expect(status).toMatchObject({
+        actorId: actor1.id,
+        text: '@test2@llun.test Hello',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${actor1.id}/followers`]
+      })
+
+      const note = status?.toObject()
+      expect(note?.content).toEqual(status?.linkfyText())
+      expect(note?.tag).toHaveLength(1)
+      expect(note?.tag).toContainValue({
+        type: 'Mention',
+        href: 'https://llun.test/users/test2',
+        name: '@test2@llun.test'
       })
     })
   })
