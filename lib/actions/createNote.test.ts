@@ -1,7 +1,6 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { Sqlite3Storage } from '../storage/sqlite3'
-import { MockActor } from '../stub/actor'
 import { MockImageDocument } from '../stub/imageDocument'
 import { MockMastodonNote } from '../stub/note'
 import { seedActor1 } from '../stub/seed/actor1'
