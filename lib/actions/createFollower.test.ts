@@ -1,21 +1,10 @@
 import { acceptFollow } from '../activities'
-import { FollowStatus } from '../models/follow'
-import { MockActor } from '../stub/actor'
+import { Actor } from '../models/actor'
+import { Sqlite3Storage } from '../storage/sqlite3'
 import { MockFollowRequest } from '../stub/followRequest'
+import { seedActor1 } from '../stub/seed/actor1'
+import { seedStorage } from '../stub/storage'
 import { createFollower } from './createFollower'
-
-const actor = MockActor({ id: 'https://llun.test/users/null' })
-
-// TODO: Replace this mock storage with in memory database? and test seed data
-const mockStorage = {
-  createFollow: jest.fn(),
-  getActorFromId: jest.fn(async ({ id }) => {
-    if (id === 'https://llun.test/users/null') {
-      return actor
-    }
-    return null
-  })
-} as any
 
 jest.mock('../activities', () => ({
   acceptFollow: jest.fn(),
@@ -29,21 +18,38 @@ jest.mock('../activities', () => ({
 }))
 
 describe('#createFollower', () => {
+  const storage = new Sqlite3Storage({
+    client: 'sqlite3',
+    useNullAsDefault: true,
+    connection: {
+      filename: ':memory:'
+    }
+  })
+  let actor: Actor | undefined
+
+  beforeAll(async () => {
+    await storage.migrate()
+    await seedStorage(storage)
+    actor = await storage.getActorFromUsername({
+      username: seedActor1.username
+    })
+  })
+
+  afterAll(async () => {
+    if (!storage) return
+    await storage.destroy()
+  })
+
   it('creates follower in database and send accept follow back', async () => {
+    if (!actor) fail('Actor is required')
+
     const request = MockFollowRequest({
       actorId: 'https://another.network/users/friend',
-      targetActorId: 'https://llun.test/users/null'
+      targetActorId: actor.id
     })
     const follow = await createFollower({
-      storage: mockStorage,
+      storage,
       followRequest: request
-    })
-    expect(mockStorage.createFollow).toHaveBeenCalledWith({
-      actorId: 'https://another.network/users/friend',
-      targetActorId: actor.id,
-      status: FollowStatus.Accepted,
-      inbox: 'https://llun.test/users/null/inbox',
-      sharedInbox: 'https://llun.test/inbox'
     })
     expect(follow).toEqual(request)
     expect(acceptFollow).toHaveBeenCalledWith(actor, request)
@@ -55,7 +61,7 @@ describe('#createFollower', () => {
       targetActorId: 'https://llun.test/users/notexist'
     })
     const follow = await createFollower({
-      storage: mockStorage,
+      storage,
       followRequest: request
     })
     expect(follow).toBeNull()
