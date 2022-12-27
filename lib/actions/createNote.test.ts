@@ -75,7 +75,7 @@ describe('Create note action', () => {
       const status = await storage.getStatus({ statusId: note.id })
 
       expect(status?.data.attachments.length).toEqual(2)
-      expect(status?.data.attachments[0].data).toMatchObject({
+      expect(status?.data.attachments[0]).toMatchObject({
         statusId: note.id,
         mediaType: 'image/jpeg',
         name: '',
@@ -83,7 +83,7 @@ describe('Create note action', () => {
         width: 2000,
         height: 1500
       })
-      expect(status?.data.attachments[1].data).toMatchObject({
+      expect(status?.data.attachments[1]).toMatchObject({
         statusId: note.id,
         mediaType: 'image/jpeg',
         url: 'https://llun.dev/images/test2.jpg',
