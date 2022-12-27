@@ -37,7 +37,7 @@ describe('Status', () => {
       })
       const compactedNote = (await compact(note)) as Note
       const status = Status.fromNote(compactedNote)
-      expect(status).toEqual({
+      expect(status.data).toEqual({
         id: note.id,
         url: note.url,
         actorId: 'https://llun.test/users/llun',
@@ -47,6 +47,7 @@ describe('Status', () => {
         to: ['as:Public'],
         cc: [],
         attachments: [],
+        tags: [],
         reply: 'https://other.network/users/test/status/1',
         createdAt: expect.toBeNumber(),
         updatedAt: expect.toBeNumber()
@@ -59,8 +60,8 @@ describe('Status', () => {
         withContext: true
       })
       const compactedNote = (await compact(note)) as Note
-      const json = Status.fromNote(compactedNote)
-      expect(json).toEqual({
+      const status = Status.fromNote(compactedNote)
+      expect(status.data).toEqual({
         id: note.id,
         url: note.url,
         actorId: 'https://llun.test/users/llun',
@@ -70,6 +71,7 @@ describe('Status', () => {
         to: ['as:Public'],
         cc: [],
         attachments: [],
+        tags: [],
         reply: '',
         createdAt: expect.toBeNumber(),
         updatedAt: expect.toBeNumber()
