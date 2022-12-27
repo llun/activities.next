@@ -444,7 +444,9 @@ describe('Storage', () => {
 
         const persistedStatus = await storage.getStatus({ statusId: id })
         expect(persistedStatus?.data.attachments).toHaveLength(1)
-        expect(persistedStatus?.data.attachments[0]).toMatchObject(attachment)
+        expect(persistedStatus?.data.attachments[0]).toMatchObject(
+          attachment.data
+        )
       })
 
       it('returns tags with status', async () => {
@@ -467,7 +469,7 @@ describe('Storage', () => {
         })
         const persistedStatus = await storage.getStatus({ statusId: id })
         expect(persistedStatus?.data.tags).toHaveLength(1)
-        expect(persistedStatus?.data.tags[0]).toMatchObject(tag)
+        expect(persistedStatus?.data.tags[0]).toMatchObject(tag.data)
       })
 
       it('returns all statuses', async () => {
