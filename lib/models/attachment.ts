@@ -42,4 +42,8 @@ export class Attachment {
       name: data.name
     }
   }
+
+  toJson() {
+    return this.data
+  }
 }

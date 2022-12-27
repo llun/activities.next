@@ -25,4 +25,8 @@ export class Tag {
       href: data.value
     } as Mention
   }
+
+  toJson() {
+    return this.data
+  }
 }

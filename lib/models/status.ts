@@ -116,7 +116,12 @@ export class Status {
     } as Note
   }
 
-  toJson(): StatusData {
-    return this.data
+  toJson() {
+    const data = this.data
+    return {
+      ...data,
+      tags: data.tags.map((tag) => tag.toJson()),
+      attachments: data.attachments.map((item) => item.toJson())
+    }
   }
 }
