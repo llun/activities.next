@@ -26,7 +26,7 @@ export interface Note extends BaseNote {
 }
 
 export const getAttachments = (object: Note) => {
-  if (!object.attachment) return null
+  if (!object.attachment) return []
   if (Array.isArray(object.attachment)) return object.attachment
   return [object.attachment]
 }

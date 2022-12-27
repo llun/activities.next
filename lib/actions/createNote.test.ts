@@ -138,7 +138,7 @@ describe('Create note action', () => {
       })
     })
 
-    it.only('linkfy text in note only', async () => {
+    it('linkfy text in note only', async () => {
       if (!actor1) fail('Actor1 is required')
 
       const text = '@test2@llun.test Hello'

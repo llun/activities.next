@@ -130,29 +130,11 @@ describe('Status', () => {
         statusId
       })
       const note = status?.toObject()
-      expect(note).toMatchObject({
-        id: statusId,
-        type: 'Note',
-        summary: null,
-        inReplyTo: `${actor1?.id}/statuses/post-1`,
-        published: getISOTimeUTC(status?.data.createdAt ?? 0),
-        url: status?.data.url,
-        attributedTo: status?.data.actorId,
-        to: status?.data.to,
-        cc: status?.data.cc,
-        content: status?.linkfyText(),
-        attachment: [],
-        tag: status?.getMentions(),
-        replies: {
-          id: `${status?.data.id}/replies`,
-          type: 'Collection',
-          first: {
-            type: 'CollectionPage',
-            next: `${status?.data.id}/replies?only_other_accounts=true&page=true`,
-            partOf: `${status?.data.id}/replies`,
-            items: []
-          }
-        }
+      expect(note?.tag).toHaveLength(1)
+      expect(note?.tag).toContainValue({
+        type: 'Mention',
+        name: '@test',
+        href: 'https://llun.test/@test1'
       })
     })
   })

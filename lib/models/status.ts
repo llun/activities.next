@@ -79,6 +79,7 @@ export class Status {
       .filter((item) => item.type === 'mention')
       .map((item) => [item.value, item.value.slice(1).split('@')].flat())
       .map(([value, user, host]) => {
+        // TODO: Get href from profile
         return {
           type: 'Mention',
           href: `https://${host}/users/${user}`,

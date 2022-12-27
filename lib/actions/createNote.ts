@@ -49,22 +49,27 @@ export const createNote = async ({
   })
 
   const attachments = getAttachments(note)
-  if (attachments) {
-    await Promise.all([
-      attachments.map(async (attachment) => {
-        if (attachment.type !== 'Document') return
+  await Promise.all([
+    ...attachments.map(async (attachment) => {
+      if (attachment.type !== 'Document') return
 
-        await storage.createAttachment({
-          statusId: compactNote.id,
-          mediaType: attachment.mediaType,
-          height: attachment.height,
-          width: attachment.width,
-          name: attachment.name || '',
-          url: attachment.url
-        })
+      await storage.createAttachment({
+        statusId: compactNote.id,
+        mediaType: attachment.mediaType,
+        height: attachment.height,
+        width: attachment.width,
+        name: attachment.name || '',
+        url: attachment.url
       })
-    ])
-  }
+    }),
+    ...note.tag.map((item) =>
+      storage.createTag({
+        statusId: compactNote.id,
+        name: item.name,
+        value: item.href
+      })
+    )
+  ])
   return note
 }
 
@@ -109,8 +114,10 @@ export const createNoteFromUserInput = async ({
 
     reply: replyStatus?.data.id || ''
   })
-  await Promise.all(
-    attachments.map((attachment) =>
+
+  const mentions = Status.getMentions(text)
+  await Promise.all([
+    ...attachments.map((attachment) =>
       storage.createAttachment({
         statusId,
         mediaType: attachment.mediaType,
@@ -119,7 +126,14 @@ export const createNoteFromUserInput = async ({
         height: attachment.height,
         name: attachment.name
       })
+    ),
+    ...mentions.map((mention) =>
+      storage.createTag({
+        statusId,
+        name: mention.name,
+        value: mention.href
+      })
     )
-  )
+  ])
   return storage.getStatus({ statusId })
 }
