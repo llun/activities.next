@@ -117,44 +117,37 @@ export class Status {
   }
 
   toObject() {
-    switch (this.type) {
-      case 'Note': {
-        return {
-          id: this.id,
-          type: 'Note',
-          summary: this.summary || null,
-          published: getISOTimeUTC(this.createdAt),
-          url: this.url,
-          attributedTo: this.actorId,
-          to: this.to,
-          cc: this.cc,
-          inReplyTo: this?.reply || null,
-          content: this.text,
-          attachment: this.attachments.map((attachment) => ({
-            type: 'Document',
-            mediaType: attachment.mediaType,
-            url: attachment.url,
-            width: attachment.width,
-            height: attachment.height,
-            name: attachment.name
-          })),
-          tag: [...this.getMentions()],
-          replies: {
-            id: `${this.id}/replies`,
-            type: 'Collection',
-            first: {
-              type: 'CollectionPage',
-              next: `${this.id}/replies?only_other_accounts=true&page=true`,
-              partOf: `${this.id}/replies`,
-              items: []
-            }
-          }
-        } as Note
+    return {
+      id: this.id,
+      type: this.type,
+      summary: this.summary || null,
+      published: getISOTimeUTC(this.createdAt),
+      url: this.url,
+      attributedTo: this.actorId,
+      to: this.to,
+      cc: this.cc,
+      inReplyTo: this?.reply || null,
+      content: this.text,
+      attachment: this.attachments.map((attachment) => ({
+        type: 'Document',
+        mediaType: attachment.mediaType,
+        url: attachment.url,
+        width: attachment.width,
+        height: attachment.height,
+        name: attachment.name
+      })),
+      tag: [...this.getMentions()],
+      replies: {
+        id: `${this.id}/replies`,
+        type: 'Collection',
+        first: {
+          type: 'CollectionPage',
+          next: `${this.id}/replies?only_other_accounts=true&page=true`,
+          partOf: `${this.id}/replies`,
+          items: []
+        }
       }
-      default: {
-        return undefined
-      }
-    }
+    } as Note
   }
 
   toJson(): StatusData {

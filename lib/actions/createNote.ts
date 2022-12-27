@@ -115,7 +115,7 @@ export const createNoteFromUserInput = async ({
 
     reply: replyStatus?.id || ''
   })
-  const storedAttachmens = await Promise.all(
+  await Promise.all(
     attachments.map((attachment) =>
       storage.createAttachment({
         statusId,
@@ -127,10 +127,5 @@ export const createNoteFromUserInput = async ({
       })
     )
   )
-  const status = await storage.getStatus({ statusId })
-  return {
-    note: status?.toObject(),
-    status,
-    attachments: storedAttachmens
-  }
+  return storage.getStatus({ statusId })
 }

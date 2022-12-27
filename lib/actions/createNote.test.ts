@@ -51,7 +51,6 @@ describe('Create note action', () => {
       const status = await storage.getStatus({ statusId: note.id })
 
       expect(status).toBeDefined()
-      console.log(status)
       expect(status?.id).toEqual(note.id)
       expect(status?.text).toEqual(note.content)
       expect(status?.actorId).toEqual(note.attributedTo)
@@ -125,7 +124,7 @@ describe('Create note action', () => {
     it('adds status to database and returns note', async () => {
       if (!actor1) fail('Actor1 is required')
 
-      const { status, note } = await createNoteFromUserInput({
+      const status = await createNoteFromUserInput({
         text: 'Hello',
         currentActor: actor1,
         storage
@@ -137,80 +136,20 @@ describe('Create note action', () => {
         cc: [`${actor1.id}/followers`],
         localRecipients: ['as:Public', actor1.id]
       })
-      expect(note).toMatchObject({
-        type: 'Note',
-        content: 'Hello',
-        attributedTo: actor1.id,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [`${actor1.id}/followers`]
-      })
     })
 
-    it.skip('adds local followers as recipients', async () => {
-      const mockActor = MockActor({ id: 'https://mastodon.in.th/users/friend' })
-      const { status, note } = await createNoteFromUserInput({
-        text: 'Hello',
-        currentActor: mockActor,
-        storage
-      })
-      expect(mockStorage.createStatus).toHaveBeenCalledWith({
-        id: note.id,
-        actorId: mockActor.id,
-        type: 'Note',
-        text: status.text,
-        reply: '',
-        summary: '',
-        to: ['https://www.w3.org/ns/activitystreams#Public'],
-        cc: [`${mockActor.id}/followers`],
-        localRecipients: [
-          'as:Public',
-          'https://mastodon.in.th/users/friend',
-          'https://llun.test/users/null'
-        ],
-        createdAt: expect.toBeNumber(),
-        url: expect.toBeString()
-      })
-      expect(note).toMatchObject({
-        type: 'Note',
-        content: '<p>Hello</p>',
-        attributedTo: mockActor.id,
-        to: ['https://www.w3.org/ns/activitystreams#Public'],
-        cc: [`${mockActor.id}/followers`]
-      })
-    })
+    it('set reply to replyStatus id', async () => {
+      if (!actor1) fail('Actor1 is required')
 
-    it.skip('set reply to replyStatus id', async () => {
-      const mockActor = MockActor({ id: 'https://mastodon.in.th/users/friend' })
-      const { status, note } = await createNoteFromUserInput({
+      const status = await createNoteFromUserInput({
         text: 'Hello',
-        currentActor: mockActor,
-        replyNoteId: 'https://activity.server/user/statuses/someid',
+        currentActor: actor1,
+        replyNoteId: `${actor2?.id}/statuses/post-2`,
         storage
       })
-      expect(mockStorage.createStatus).toHaveBeenCalledWith({
-        id: note.id,
-        actorId: mockActor.id,
-        type: 'Note',
-        text: status.text,
-        reply: 'https://activity.server/user/statuses/someid',
-        summary: '',
-        to: ['https://www.w3.org/ns/activitystreams#Public'],
-        cc: [`${mockActor.id}/followers`, 'https://earth.social/users/thai'],
-        localRecipients: [
-          'as:Public',
-          'https://mastodon.in.th/users/friend',
-          'https://llun.test/users/null'
-        ],
-        createdAt: expect.toBeNumber(),
-        url: expect.toBeString()
-      })
-      expect(note).toMatchObject({
-        type: 'Note',
-        content: '<p>Hello</p>',
-        attributedTo: mockActor.id,
-        inReplyTo: 'https://activity.server/user/statuses/someid',
-        to: ['https://www.w3.org/ns/activitystreams#Public'],
-        cc: [`${mockActor.id}/followers`, 'https://earth.social/users/thai']
+      expect(status).toMatchObject({
+        reply: `${actor2?.id}/statuses/post-2`,
+        to: expect.toContainValue(actor2?.id)
       })
     })
   })

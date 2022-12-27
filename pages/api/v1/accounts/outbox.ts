@@ -10,39 +10,34 @@ const handler = ApiGuard(async (req, res, context) => {
     case 'POST': {
       const body = req.body
       const { message, replyStatus, attachments } = body as CreateStatusParams
-      const {
-        status,
-        note,
-        attachments: storedAttachments
-      } = await createNoteFromUserInput({
+      const status = await createNoteFromUserInput({
         currentActor,
         text: message,
         replyNoteId: replyStatus?.id,
         attachments,
         storage
       })
+      if (!status) {
+        return res.status(500).json({ error: 'Fail to create note' })
+      }
+
       const inboxes = await storage.getFollowersInbox({
         targetActorId: currentActor.id
       })
-      if (!note) {
-        return res.status(500).json({ error: 'invalid note' })
-      }
       await Promise.all(
         inboxes.map((inbox) => {
           return sendNote({
             currentActor,
             inbox,
-            note
+            note: status.toObject()
           })
         })
       )
-      return res
-        .status(200)
-        .json({
-          status: status?.toJson(),
-          note,
-          attachments: storedAttachments
-        })
+      return res.status(200).json({
+        status: status?.toJson(),
+        note: status.toObject(),
+        attachments: status.attachments
+      })
     }
     case 'DELETE': {
       const { statusId } = req.body as DeleteStatusParams

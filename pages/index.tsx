@@ -18,7 +18,7 @@ import {
   getAtWithHostFromId,
   getProfileFromActor
 } from '../lib/models/actor'
-import { Status, StatusData } from '../lib/models/status'
+import { StatusData } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
 import styles from './index.module.scss'
