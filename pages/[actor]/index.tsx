@@ -38,7 +38,6 @@ const Page: NextPage<Props> = ({
   followingCount,
   totalPosts,
   statuses,
-  attachments,
   createdAt
 }) => {
   const { data: session } = useSession()
@@ -150,8 +149,8 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
       attachments,
       createdAt: person.createdAt
     },
-    // Revalidate page every 6 hours
-    revalidate: 21_600
+    // Revalidate page every 10 minutes
+    revalidate: 600
   }
 }
 
