@@ -3,6 +3,7 @@ import { Actor } from '../models/actor'
 import { Attachment } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
 import { Status, StatusType } from '../models/status'
+import { Tag } from '../models/tag'
 
 export type IsAccountExistsParams = { email?: string }
 export type IsUsernameExistsParams = { username: string }
@@ -66,6 +67,7 @@ export type GetStatusesParams = { actorId: string }
 export type GetActorStatusesCountParams = { actorId: string }
 export type GetActorStatusesParams = { actorId: string }
 export type DeleteStatusParams = { statusId: string }
+
 export type CreateAttachmentParams = {
   statusId: string
   mediaType: string
@@ -75,6 +77,15 @@ export type CreateAttachmentParams = {
   name?: string
 }
 export type GetAttachmentsParams = {
+  statusId: string
+}
+
+export type CreateTagParams = {
+  statusId: string
+  name: string
+  value?: string
+}
+export type GetTagsParams = {
   statusId: string
 }
 
@@ -119,6 +130,9 @@ export interface Storage {
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
+
+  createTag(params: CreateTagParams): Promise<Tag>
+  getTags(params: GetTagsParams): Promise<Tag[]>
 
   destroy(): Promise<void>
 }

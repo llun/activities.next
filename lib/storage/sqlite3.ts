@@ -8,11 +8,13 @@ import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
 import { Status } from '../models/status'
+import { Tag, TagData } from '../models/tag'
 import {
   CreateAccountParams,
   CreateAttachmentParams,
   CreateFollowParams,
   CreateStatusParams,
+  CreateTagParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
   GetAccountFromIdParams,
@@ -30,6 +32,7 @@ import {
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
   GetStatusesParams,
+  GetTagsParams,
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
@@ -408,6 +411,7 @@ export class Sqlite3Storage implements Storage {
       to,
       cc,
       attachments: [],
+      tags: [],
       createdAt: statusCreatedAt,
       updatedAt: statusUpdatedAt
     })
@@ -435,6 +439,7 @@ export class Sqlite3Storage implements Storage {
       summary: data.summary,
       reply: data.reply,
       attachments,
+      tags: [],
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
     })
@@ -494,6 +499,7 @@ export class Sqlite3Storage implements Storage {
     height,
     name = ''
   }: CreateAttachmentParams): Promise<Attachment> {
+    const currentTime = Date.now()
     const data: AttachmentData = {
       id: crypto.randomUUID(),
       statusId,
@@ -503,8 +509,8 @@ export class Sqlite3Storage implements Storage {
       width,
       height,
       name,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      createdAt: currentTime,
+      updatedAt: currentTime
     }
     await this.database('attachments').insert(data)
     return new Attachment(data)
@@ -516,5 +522,29 @@ export class Sqlite3Storage implements Storage {
       statusId
     )
     return data.map((item) => new Attachment(item))
+  }
+
+  async createTag({ statusId, name, value }: CreateTagParams): Promise<Tag> {
+    const currentTime = Date.now()
+
+    const data: TagData = {
+      id: crypto.randomUUID(),
+      statusId,
+      type: 'mention',
+      name,
+      value: value || '',
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
+    await this.database('tags').insert(data)
+    return new Tag(data)
+  }
+
+  async getTags({ statusId }: GetTagsParams) {
+    const data = await this.database<TagData>('tags').where(
+      'statusId',
+      statusId
+    )
+    return data.map((item) => new Tag(item))
   }
 }

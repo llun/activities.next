@@ -1,5 +1,6 @@
 export interface TagData {
   id: string
+  statusId: string
   type: 'mention'
   name: string
   value: string

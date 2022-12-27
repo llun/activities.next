@@ -5,6 +5,7 @@ import { Note } from '../activities/entities/note'
 import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
 import { Attachment } from './attachment'
+import { Tag } from './tag'
 
 export type StatusType = 'Note' | 'Question'
 export interface StatusData {
@@ -19,6 +20,7 @@ export interface StatusData {
 
   reply: string
   attachments: Attachment[]
+  tags: Tag[]
 
   createdAt: number
   updatedAt: number
@@ -49,6 +51,7 @@ export class Status {
       reply: note.inReplyTo || '',
 
       attachments: [],
+      tags: [],
 
       createdAt: new Date(note.published).getTime(),
       updatedAt: Date.now()

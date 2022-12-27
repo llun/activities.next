@@ -27,11 +27,13 @@ import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
 import { Status } from '../models/status'
+import { Tag, TagData } from '../models/tag'
 import {
   CreateAccountParams,
   CreateAttachmentParams,
   CreateFollowParams,
   CreateStatusParams,
+  CreateTagParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
   GetAccountFromIdParams,
@@ -49,6 +51,7 @@ import {
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
   GetStatusesParams,
+  GetTagsParams,
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
@@ -410,15 +413,18 @@ export class FirebaseStorage implements Storage {
       summary,
       to,
       cc,
-      localRecipients: local,
       reply,
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
     } as any
-    await addDoc(collection(this.db, 'statuses'), status)
+    await addDoc(collection(this.db, 'statuses'), {
+      ...status,
+      localRecipients: local
+    })
     return new Status({
       ...status,
-      attachments: []
+      attachments: [],
+      tags: []
     })
   }
 
@@ -435,6 +441,7 @@ export class FirebaseStorage implements Storage {
       summary: data.summary,
       reply: data.reply,
       attachments,
+      tags: [],
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
     })
@@ -509,6 +516,7 @@ export class FirebaseStorage implements Storage {
     height,
     name = ''
   }: CreateAttachmentParams): Promise<Attachment> {
+    const currentTime = Date.now()
     const data: AttachmentData = {
       id: crypto.randomUUID(),
       statusId,
@@ -519,8 +527,8 @@ export class FirebaseStorage implements Storage {
       height,
       name,
 
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      createdAt: currentTime,
+      updatedAt: currentTime
     }
     await addDoc(collection(this.db, 'attachments'), data)
     return new Attachment(data)
@@ -536,5 +544,27 @@ export class FirebaseStorage implements Storage {
     return snapshot.docs.map(
       (item) => new Attachment(item.data() as AttachmentData)
     )
+  }
+
+  async createTag({ statusId, name, value }: CreateTagParams): Promise<Tag> {
+    const currentTime = Date.now()
+    const data: TagData = {
+      id: crypto.randomUUID(),
+      statusId,
+      type: 'mention',
+      name,
+      value: value || '',
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
+    await addDoc(collection(this.db, 'tags'), data)
+    return new Tag(data)
+  }
+
+  async getTags({ statusId }: GetTagsParams) {
+    const tags = collection(this.db, 'tags')
+    const tagsQuery = query(tags, where('statusId', '==', statusId))
+    const snapshot = await getDocs(tagsQuery)
+    return snapshot.docs.map((item) => new Tag(item.data() as TagData))
   }
 }

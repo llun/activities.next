@@ -399,7 +399,7 @@ describe('Storage', () => {
           to: ['https://www.w3.org/ns/activitystreams#Public'],
           cc: []
         })
-        expect(status).toEqual({
+        expect(status.data).toEqual({
           id,
           url: id,
           actorId: TEST_ID,
@@ -410,6 +410,7 @@ describe('Storage', () => {
           to: ['https://www.w3.org/ns/activitystreams#Public'],
           cc: [],
           attachments: [],
+          tags: [],
           reply: '',
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
@@ -423,7 +424,7 @@ describe('Storage', () => {
         const postId = 'post-2'
         const id = `${TEST_ID}/statuses/${postId}`
 
-        const status = await storage.createStatus({
+        await storage.createStatus({
           id,
           url: id,
           actorId: TEST_ID,
@@ -434,18 +435,39 @@ describe('Storage', () => {
           cc: []
         })
         const attachment = await storage.createAttachment({
-          statusId: status.id,
+          statusId: id,
           mediaType: 'image/png',
           url: 'https://via.placeholder.com/150',
           width: 150,
           height: 150
         })
 
-        const persistedStatus = await storage.getStatus({ statusId: status.id })
-        expect(persistedStatus).toEqual({
-          ...status,
-          attachments: [attachment]
+        const persistedStatus = await storage.getStatus({ statusId: id })
+        expect(persistedStatus?.data.attachments).toHaveLength(1)
+        expect(persistedStatus?.data.attachments[0]).toMatchObject(attachment)
+      })
+
+      it('returns tags with status', async () => {
+        const postId = 'post-3'
+        const id = `${TEST_ID}/statuses/${postId}`
+        await storage.createStatus({
+          id,
+          url: id,
+          actorId: TEST_ID,
+          type: 'Note',
+
+          text: '@<a href="https://llun.test/@test2">test2</a> Test mentions',
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: []
         })
+        const tag = await storage.createTag({
+          statusId: id,
+          name: '@test2@llun.test',
+          value: 'https://llun.test/@test2'
+        })
+        const persistedStatus = await storage.getStatus({ statusId: id })
+        expect(persistedStatus?.data.tags).toHaveLength(1)
+        expect(persistedStatus?.data.tags[0]).toMatchObject(tag)
       })
 
       it('returns all statuses', async () => {
