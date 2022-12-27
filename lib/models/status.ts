@@ -58,8 +58,8 @@ export class Status {
     })
   }
 
-  linkfyText() {
-    return linkifyStr(this.data.text.trim(), {
+  static linkfyText(text: string) {
+    return linkifyStr(text.trim(), {
       rel: 'nofollow noopener noreferrer',
       target: '_blank',
       truncate: 42,
@@ -73,9 +73,9 @@ export class Status {
     })
   }
 
-  getMentions() {
+  static getMentions(text: string) {
     return linkify
-      .find(this.data.text)
+      .find(text)
       .filter((item) => item.type === 'mention')
       .map((item) => [item.value, item.value.slice(1).split('@')].flat())
       .map(([value, user, host]) => {
@@ -99,9 +99,9 @@ export class Status {
       to: data.to,
       cc: data.cc,
       inReplyTo: this.data.reply || null,
-      content: this.linkfyText(),
+      content: data.text,
       attachment: data.attachments.map((attachment) => attachment.toObject()),
-      tag: [...this.getMentions()],
+      tag: data.tags.map((tag) => tag.toObject()),
       replies: {
         id: `${data.id}/replies`,
         type: 'Collection',

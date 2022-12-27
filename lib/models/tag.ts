@@ -1,3 +1,5 @@
+import { Mention } from '../activities/entities/mention'
+
 export interface TagData {
   id: string
   statusId: string
@@ -18,9 +20,9 @@ export class Tag {
   toObject() {
     const data = this.data
     return {
-      type: data.type,
+      type: 'Mention',
       name: data.name,
-      value: data.value
-    }
+      href: data.value
+    } as Mention
   }
 }

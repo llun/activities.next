@@ -1,5 +1,6 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
+import { Status } from '../models/status'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { MockImageDocument } from '../stub/imageDocument'
 import { MockMastodonNote } from '../stub/note'
@@ -50,13 +51,13 @@ describe('Create note action', () => {
       const status = await storage.getStatus({ statusId: note.id })
 
       expect(status).toBeDefined()
-      expect(status?.id).toEqual(note.id)
-      expect(status?.text).toEqual(note.content)
-      expect(status?.actorId).toEqual(note.attributedTo)
-      expect(status?.to).toEqual(note.to)
-      expect(status?.cc).toEqual(note.cc)
-      expect(status?.type).toEqual('Note')
-      expect(status?.createdAt).toEqual(new Date(note.published).getTime())
+      expect(status?.data.id).toEqual(note.id)
+      expect(status?.data.text).toEqual(note.content)
+      expect(status?.data.actorId).toEqual(note.attributedTo)
+      expect(status?.data.to).toEqual(note.to)
+      expect(status?.data.cc).toEqual(note.cc)
+      expect(status?.data.type).toEqual('Note')
+      expect(status?.data.createdAt).toEqual(new Date(note.published).getTime())
     })
 
     it('add status and attachments with status id into storage', async () => {
@@ -73,8 +74,8 @@ describe('Create note action', () => {
       expect(await createNote({ storage, note })).toEqual(note)
       const status = await storage.getStatus({ statusId: note.id })
 
-      expect(status?.attachments.length).toEqual(2)
-      expect(status?.attachments[0]).toMatchObject({
+      expect(status?.data.attachments.length).toEqual(2)
+      expect(status?.data.attachments[0].data).toMatchObject({
         statusId: note.id,
         mediaType: 'image/jpeg',
         name: '',
@@ -82,7 +83,7 @@ describe('Create note action', () => {
         width: 2000,
         height: 1500
       })
-      expect(status?.attachments[1]).toMatchObject({
+      expect(status?.data.attachments[1].data).toMatchObject({
         statusId: note.id,
         mediaType: 'image/jpeg',
         url: 'https://llun.dev/images/test2.jpg',
@@ -114,7 +115,7 @@ describe('Create note action', () => {
         currentActor: actor1,
         storage
       })
-      expect(status).toMatchObject({
+      expect(status?.data).toMatchObject({
         actorId: actor1.id,
         text: 'Hello',
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -131,29 +132,30 @@ describe('Create note action', () => {
         replyNoteId: `${actor2?.id}/statuses/post-2`,
         storage
       })
-      expect(status).toMatchObject({
+      expect(status?.data).toMatchObject({
         reply: `${actor2?.id}/statuses/post-2`,
         to: expect.toContainValue(actor2?.id)
       })
     })
 
-    it('linkfy text in note only', async () => {
+    it.only('linkfy text in note only', async () => {
       if (!actor1) fail('Actor1 is required')
 
+      const text = '@test2@llun.test Hello'
       const status = await createNoteFromUserInput({
-        text: '@test2@llun.test Hello',
+        text,
         currentActor: actor1,
         storage
       })
-      expect(status).toMatchObject({
+      expect(status?.data).toMatchObject({
         actorId: actor1.id,
-        text: '@test2@llun.test Hello',
+        text: Status.linkfyText(text),
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [`${actor1.id}/followers`]
       })
 
       const note = status?.toObject()
-      expect(note?.content).toEqual(status?.linkfyText())
+      expect(note?.content).toEqual(Status.linkfyText(text))
       expect(note?.tag).toHaveLength(1)
       expect(note?.tag).toContainValue({
         type: 'Mention',

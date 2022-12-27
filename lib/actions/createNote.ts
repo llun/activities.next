@@ -97,13 +97,17 @@ export const createNoteFromUserInput = async ({
     actorId: currentActor.id,
 
     type: 'Note',
-    text,
+    text: Status.linkfyText(text),
     summary: '',
 
-    to: [ACTIVITY_STREAM_PUBLIC, ...(replyStatus ? [replyStatus.actorId] : [])],
+    to: [
+      ACTIVITY_STREAM_PUBLIC,
+      ...(replyStatus ? [replyStatus?.data.actorId] : [])
+    ],
+    // TODO: Get this from actor profile
     cc: [`${currentActor.id}/followers`],
 
-    reply: replyStatus?.id || ''
+    reply: replyStatus?.data.id || ''
   })
   await Promise.all(
     attachments.map((attachment) =>
