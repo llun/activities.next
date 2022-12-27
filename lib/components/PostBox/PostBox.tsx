@@ -1,4 +1,4 @@
-import { FC, FormEvent, useRef, useState } from 'react'
+import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import { createStatus } from '../../client'
 import { Media } from '../../medias/apple/media'
@@ -89,10 +89,21 @@ export const PostBox: FC<Props> = ({
   }
 
   const getDefaultMessage = (profile: Profile, replyStatus?: StatusData) => {
+    console.log('Default message =>', profile.id, replyStatus?.actorId)
     if (!replyStatus) return ''
     if (replyStatus.actorId === profile.id) return ''
     return `${getAtWithHostFromId(replyStatus.actorId)} `
   }
+
+  useEffect(() => {
+    if (!replyStatus) return
+    if (!postBoxRef.current) return
+
+    const postBox = postBoxRef.current
+    postBox.selectionStart = postBox.value.length
+    postBox.selectionEnd = postBox.value.length
+    postBox.focus()
+  }, [replyStatus])
 
   return (
     <div>

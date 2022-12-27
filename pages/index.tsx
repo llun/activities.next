@@ -45,20 +45,10 @@ const Page: NextPage<Props> = ({
   const { data: session } = useSession()
   const [replyStatus, setReplyStatus] = useState<StatusData>()
   const [currentStatuses, setCurrentStatuses] = useState<StatusData[]>(statuses)
-  const postBoxRef = useRef<HTMLTextAreaElement>(null)
 
   const onReply = (status: StatusData) => {
     setReplyStatus(status)
     window.scrollTo({ top: 0 })
-
-    if (!postBoxRef.current) return
-    const postBox = postBoxRef.current
-
-    const replyText = `${getAtWithHostFromId(status.actorId)} `
-    postBox.value = replyText
-    postBox.selectionStart = replyText.length
-    postBox.selectionEnd = replyText.length
-    postBox.focus()
   }
 
   const onPostDeleted = (status: StatusData) => {
