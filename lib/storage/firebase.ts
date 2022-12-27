@@ -429,7 +429,10 @@ export class FirebaseStorage implements Storage {
   }
 
   async getStatusFromData(data: any): Promise<Status> {
-    const attachments = await this.getAttachments({ statusId: data.id })
+    const [attachments, tags] = await Promise.all([
+      this.getAttachments({ statusId: data.id }),
+      this.getTags({ statusId: data.id })
+    ])
     return new Status({
       id: data.id,
       url: data.url,
@@ -441,7 +444,7 @@ export class FirebaseStorage implements Storage {
       summary: data.summary,
       reply: data.reply,
       attachments,
-      tags: [],
+      tags,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
     })

@@ -418,8 +418,9 @@ export class Sqlite3Storage implements Storage {
   }
 
   async getStatusWithAttachmentsFromData(data: any): Promise<Status> {
-    const [attachments, to, cc] = await Promise.all([
+    const [attachments, tags, to, cc] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
+      this.getTags({ statusId: data.id }),
       this.database('recipients')
         .where('statusId', data.id)
         .andWhere('type', 'to'),
@@ -439,7 +440,7 @@ export class Sqlite3Storage implements Storage {
       summary: data.summary,
       reply: data.reply,
       attachments,
-      tags: [],
+      tags,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
     })
