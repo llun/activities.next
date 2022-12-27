@@ -57,8 +57,6 @@ export type CreateStatusParams = {
   to: string[]
   cc: string[]
 
-  localRecipients?: string[]
-
   reply?: string
 
   createdAt?: number

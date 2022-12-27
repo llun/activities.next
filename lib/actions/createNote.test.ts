@@ -92,20 +92,6 @@ describe('Create note action', () => {
       })
     })
 
-    it('add add local followers in recipients', async () => {
-      const note = MockMastodonNote({
-        content: '<p>Hello</p>',
-        cc: ['https://llun.dev/users/test2/followers']
-      })
-      expect(await createNote({ storage, note })).toEqual(note)
-      const status = await storage.getStatus({ statusId: note.id })
-      expect(status?.localRecipients).toContainValues([
-        'as:Public',
-        actor1?.id,
-        actor2?.id
-      ])
-    })
-
     it('does not add duplicate note into storage', async () => {
       const note = MockMastodonNote({
         id: `${actor1?.id}/statuses/post-1`,
@@ -132,8 +118,7 @@ describe('Create note action', () => {
         actorId: actor1.id,
         text: 'Hello',
         to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [`${actor1.id}/followers`],
-        localRecipients: ['as:Public', actor1.id]
+        cc: [`${actor1.id}/followers`]
       })
     })
 

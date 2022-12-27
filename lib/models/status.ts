@@ -17,7 +17,6 @@ export type StatusData = {
   to: string[]
   cc: string[]
 
-  localRecipients: string[]
   reply: string
   attachments: Attachment[]
 
@@ -37,8 +36,6 @@ export class Status {
   readonly to: string[]
   readonly cc: string[]
 
-  readonly localRecipients: string[]
-
   readonly reply: string
 
   readonly attachments: Attachment[]
@@ -56,7 +53,6 @@ export class Status {
     this.to = params.to
     this.cc = params.cc
     this.reply = params.reply
-    this.localRecipients = params.localRecipients
     this.attachments = params.attachments
     this.createdAt = params.createdAt
     this.updatedAt = params.createdAt
@@ -76,7 +72,6 @@ export class Status {
 
       to: Array.isArray(note.to) ? note.to : [note.to],
       cc: Array.isArray(note.cc) ? note.cc : [note.cc],
-      localRecipients: [],
 
       reply: note.inReplyTo || '',
 
@@ -160,7 +155,6 @@ export class Status {
       summary: this.summary,
       to: this.to,
       cc: this.cc,
-      localRecipients: this.localRecipients,
       reply: this.reply,
       attachments: this.attachments,
       createdAt: this.createdAt,

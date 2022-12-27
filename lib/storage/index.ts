@@ -1,6 +1,5 @@
 import memoize from 'lodash/memoize'
 
-import { BaseNote } from '../activities/entities/note'
 import { getConfig } from '../config'
 import { FirebaseStorage } from './firebase'
 import { Sqlite3Storage } from './sqlite3'
@@ -21,12 +20,14 @@ export const getStorage = memoize(async (): Promise<Storage | null> => {
 export const isFollowerId = (id: string) => id.endsWith('/followers')
 
 interface DeliverToParams {
-  note: BaseNote
+  from: string
+  to: string[]
+  cc: string[]
   storage: Storage
 }
-export const deliverTo = async ({ note, storage }: DeliverToParams) => {
+export const deliverTo = async ({ from, to, cc, storage }: DeliverToParams) => {
   const addresses = await Promise.all(
-    [...[note.to].flat(), ...[note.cc].flat()].map(async (item) => {
+    [from, ...[to].flat(), ...[cc].flat()].map(async (item) => {
       if (['Public', 'as:Public'].includes(item)) return item
       if (isFollowerId(item)) {
         const id = item.slice(0, item.indexOf('/followers'))

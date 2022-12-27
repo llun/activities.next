@@ -11,7 +11,6 @@ import { Actor, getAtUsernameFromId } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { Status } from '../models/status'
 import { Storage } from '../storage/types'
-import { deliverTo } from './utils'
 
 interface CreateNoteParams {
   note: Note
@@ -44,7 +43,6 @@ export const createNote = async ({
     // Preserve URL here?
     to: Array.isArray(note.to) ? note.to : [note.to].filter((item) => item),
     cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter((item) => item),
-    localRecipients: await deliverTo({ note: compactNote, storage }),
 
     reply: compactNote.inReplyTo || '',
     createdAt: new Date(compactNote.published).getTime()
@@ -90,9 +88,6 @@ export const createNoteFromUserInput = async ({
 
   const postId = crypto.randomUUID()
   const host = getConfig().host
-  const followers = await storage.getLocalFollowersForActorId({
-    targetActorId: currentActor.id
-  })
   const statusId = `${currentActor.id}/statuses/${postId}`
 
   await storage.createStatus({
@@ -107,11 +102,6 @@ export const createNoteFromUserInput = async ({
 
     to: [ACTIVITY_STREAM_PUBLIC, ...(replyStatus ? [replyStatus.actorId] : [])],
     cc: [`${currentActor.id}/followers`],
-    localRecipients: [
-      'as:Public',
-      currentActor.id,
-      ...followers.map((item) => item.actorId)
-    ],
 
     reply: replyStatus?.id || ''
   })

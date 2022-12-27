@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { Knex, knex } from 'knex'
 
+import { deliverTo } from '.'
 import { getConfig } from '../config'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
@@ -333,7 +334,6 @@ export class Sqlite3Storage implements Storage {
     summary = '',
     to,
     cc,
-    localRecipients = [],
     reply = '',
     createdAt
   }: CreateStatusParams) {
@@ -341,8 +341,9 @@ export class Sqlite3Storage implements Storage {
     const statusCreatedAt = createdAt || currentTime
     const statusUpdatedAt = currentTime
 
+    const local = await deliverTo({ from: actorId, to, cc, storage: this })
     await this.database.transaction(async (trx) => {
-      await trx<Status>('statuses').insert({
+      await trx('statuses').insert({
         id,
         url,
         actorId,
@@ -382,7 +383,7 @@ export class Sqlite3Storage implements Storage {
       )
 
       await Promise.all(
-        localRecipients.map((actorId) =>
+        local.map((actorId) =>
           trx('recipients').insert({
             id: crypto.randomUUID(),
             statusId: id,
@@ -407,24 +408,20 @@ export class Sqlite3Storage implements Storage {
       to,
       cc,
       attachments: [],
-      localRecipients,
       createdAt: statusCreatedAt,
       updatedAt: statusUpdatedAt
     })
   }
 
   async getStatusWithAttachmentsFromData(data: any): Promise<Status> {
-    const [attachments, to, cc, local] = await Promise.all([
+    const [attachments, to, cc] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
       this.database('recipients')
         .where('statusId', data.id)
         .andWhere('type', 'to'),
       this.database('recipients')
         .where('statusId', data.id)
-        .andWhere('type', 'cc'),
-      this.database('recipients')
-        .where('statusId', data.id)
-        .andWhere('type', 'local')
+        .andWhere('type', 'cc')
     ])
 
     return new Status({
@@ -432,7 +429,6 @@ export class Sqlite3Storage implements Storage {
       url: data.url,
       to: to.map((item) => item.actorId),
       cc: cc.map((item) => item.actorId),
-      localRecipients: local.map((item) => item.actorId),
       actorId: data.actorId,
       type: data.type,
       text: data.text,

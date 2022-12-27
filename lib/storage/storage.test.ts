@@ -27,9 +27,13 @@ const TEST_USERNAME4 = 'user4'
 const TEST_ID4 = 'https://llun.test/users/user4'
 
 // Get statuses test user
+const TEST_EMAIL5 = 'user5@llun.dev'
+const TEST_USERNAME5 = 'user5'
 const TEST_ID5 = 'https://llun.test/users/user5'
 
 // Get Actor statuses test user
+const TEST_EMAIL6 = 'user6@llun.dev'
+const TEST_USERNAME6 = 'user6'
 const TEST_ID6 = 'https://llun.test/users/user6'
 
 type TestStorage = [string, Storage]
@@ -91,6 +95,18 @@ describe('Storage', () => {
         username: TEST_USERNAME4,
         privateKey: 'privateKey4',
         publicKey: 'publicKey4'
+      })
+      await storage.createAccount({
+        email: TEST_EMAIL5,
+        username: TEST_USERNAME5,
+        privateKey: 'privateKey5',
+        publicKey: 'publicKey5'
+      })
+      await storage.createAccount({
+        email: TEST_EMAIL6,
+        username: TEST_USERNAME6,
+        privateKey: 'privateKey6',
+        publicKey: 'publicKey6'
       })
     })
 
@@ -381,8 +397,7 @@ describe('Storage', () => {
 
           text: 'Test Status',
           to: ['https://www.w3.org/ns/activitystreams#Public'],
-          cc: [],
-          localRecipients: ['as:Public']
+          cc: []
         })
         expect(status).toEqual({
           id,
@@ -394,7 +409,6 @@ describe('Storage', () => {
           summary: '',
           to: ['https://www.w3.org/ns/activitystreams#Public'],
           cc: [],
-          localRecipients: ['as:Public'],
           attachments: [],
           reply: '',
           createdAt: expect.toBeNumber(),
@@ -417,8 +431,7 @@ describe('Storage', () => {
 
           text: 'Test Status',
           to: ['https://www.w3.org/ns/activitystreams#Public'],
-          cc: [],
-          localRecipients: ['as:Public']
+          cc: []
         })
         const attachment = await storage.createAttachment({
           statusId: status.id,
@@ -436,9 +449,9 @@ describe('Storage', () => {
       })
 
       it('returns all statuses', async () => {
-        const sender = 'https://llun.dev/null'
+        const sender = 'https://llun.dev/users/null'
         for (let i = 0; i < 50; i++) {
-          const statusId = `https://llun.dev/null/statuses/post-${i + 1}`
+          const statusId = `https://llun.dev/users/null/statuses/post-${i + 1}`
           await storage.createStatus({
             id: statusId,
             url: statusId,
@@ -447,19 +460,18 @@ describe('Storage', () => {
 
             text: `Status ${i + 1}`,
             to: ['https://www.w3.org/ns/activitystreams#Public', TEST_ID5],
-            cc: [],
-            localRecipients: ['as:Public', TEST_ID5]
+            cc: []
           })
           await new Promise((resolve) => setTimeout(resolve, 10))
         }
         const statuses = await storage.getStatuses({ actorId: TEST_ID5 })
         expect(statuses.length).toEqual(30)
         for (const index in statuses) {
-          const statusId = `https://llun.dev/null/statuses/post-${
+          const statusId = `https://llun.dev/users/null/statuses/post-${
             50 - parseInt(index, 10)
           }`
           const expectedStatus = await storage.getStatus({ statusId })
-          expect(statuses[index]).toEqual(expectedStatus)
+          expect(statuses[index].toJson()).toEqual(expectedStatus?.toJson())
         }
       })
 
@@ -474,8 +486,7 @@ describe('Storage', () => {
 
             text: `Status ${i + 1}`,
             to: ['https://www.w3.org/ns/activitystreams#Public', TEST_ID6],
-            cc: [],
-            localRecipients: ['as:Public', TEST_ID6]
+            cc: []
           })
           await new Promise((resolve) => setTimeout(resolve, 10))
         }

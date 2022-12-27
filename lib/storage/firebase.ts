@@ -20,6 +20,7 @@ import {
   where
 } from 'firebase/firestore'
 
+import { deliverTo } from '.'
 import { getConfig } from '../config'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
@@ -395,11 +396,11 @@ export class FirebaseStorage implements Storage {
     summary = '',
     to,
     cc,
-    localRecipients = [],
     reply = '',
     createdAt
   }: CreateStatusParams) {
     const currentTime = Date.now()
+    const local = await deliverTo({ from: actorId, to, cc, storage: this })
     const status = {
       id,
       url,
@@ -409,11 +410,11 @@ export class FirebaseStorage implements Storage {
       summary,
       to,
       cc,
-      localRecipients,
+      localRecipients: local,
       reply,
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
-    }
+    } as any
     await addDoc(collection(this.db, 'statuses'), status)
     return new Status({
       ...status,
@@ -428,7 +429,6 @@ export class FirebaseStorage implements Storage {
       url: data.url,
       to: data.to,
       cc: data.cc,
-      localRecipients: data.localRecipients,
       actorId: data.actorId,
       type: data.type,
       text: data.text,
