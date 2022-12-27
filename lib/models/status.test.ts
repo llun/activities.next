@@ -91,30 +91,31 @@ describe('Status', () => {
     })
 
     it('converts status to Note object', async () => {
+      const statusId = `${actor1?.id}/statuses/post-1`
       const status = await storage.getStatus({
-        statusId: `${actor1?.id}/statuses/post-1`
+        statusId
       })
       const note = status?.toObject()
       expect(note).toEqual({
-        id: status?.id,
+        id: statusId,
         type: 'Note',
         summary: null,
         inReplyTo: null,
-        published: getISOTimeUTC(status?.createdAt ?? 0),
-        url: status?.url,
-        attributedTo: status?.actorId,
-        to: status?.to,
-        cc: status?.cc,
-        content: status?.text,
+        published: getISOTimeUTC(status?.data.createdAt ?? 0),
+        url: status?.data.url,
+        attributedTo: status?.data.actorId,
+        to: status?.data.to,
+        cc: status?.data.cc,
+        content: status?.data.text,
         attachment: [],
         tag: [],
         replies: {
-          id: `${status?.id}/replies`,
+          id: `${status?.data.id}/replies`,
           type: 'Collection',
           first: {
             type: 'CollectionPage',
-            next: `${status?.id}/replies?only_other_accounts=true&page=true`,
-            partOf: `${status?.id}/replies`,
+            next: `${status?.data.id}/replies?only_other_accounts=true&page=true`,
+            partOf: `${status?.data.id}/replies`,
             items: []
           }
         }
@@ -122,30 +123,31 @@ describe('Status', () => {
     })
 
     it('add mentions into Note object', async () => {
+      const statusId = `${actor2?.id}/statuses/post-2`
       const status = await storage.getStatus({
-        statusId: `${actor2?.id}/statuses/post-2`
+        statusId
       })
       const note = status?.toObject()
       expect(note).toMatchObject({
-        id: status?.id,
+        id: statusId,
         type: 'Note',
         summary: null,
         inReplyTo: `${actor1?.id}/statuses/post-1`,
-        published: getISOTimeUTC(status?.createdAt ?? 0),
-        url: status?.url,
-        attributedTo: status?.actorId,
-        to: status?.to,
-        cc: status?.cc,
+        published: getISOTimeUTC(status?.data.createdAt ?? 0),
+        url: status?.data.url,
+        attributedTo: status?.data.actorId,
+        to: status?.data.to,
+        cc: status?.data.cc,
         content: status?.linkfyText(),
         attachment: [],
         tag: status?.getMentions(),
         replies: {
-          id: `${status?.id}/replies`,
+          id: `${status?.data.id}/replies`,
           type: 'Collection',
           first: {
             type: 'CollectionPage',
-            next: `${status?.id}/replies?only_other_accounts=true&page=true`,
-            partOf: `${status?.id}/replies`,
+            next: `${status?.data.id}/replies?only_other_accounts=true&page=true`,
+            partOf: `${status?.data.id}/replies`,
             items: []
           }
         }

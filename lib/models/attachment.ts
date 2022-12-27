@@ -25,38 +25,21 @@ export interface AttachmentData {
 }
 
 export class Attachment {
-  readonly id: string
-  readonly statusId: string
-  readonly mediaType: string
-  readonly url: string
-  readonly width: number
-  readonly height: number
-  readonly name: string
-
-  readonly createdAt: number
-  readonly updatedAt: number
+  readonly data: AttachmentData
 
   constructor(params: AttachmentData) {
-    this.id = params.id
-    this.statusId = params.id
-    this.mediaType = params.mediaType
-    this.url = params.url
-    this.width = params.width
-    this.height = params.height
-    this.name = params.name || ''
-
-    this.createdAt = params.createdAt
-    this.updatedAt = params.updatedAt
+    this.data = params
   }
 
   toObject() {
+    const data = this.data
     return {
       type: 'Document',
-      mediaType: this.mediaType,
-      url: this.url,
-      width: this.width,
-      height: this.height,
-      name: this.name
+      mediaType: data.mediaType,
+      url: data.url,
+      width: data.width,
+      height: data.height,
+      name: data.name
     }
   }
 }

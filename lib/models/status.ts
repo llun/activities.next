@@ -25,37 +25,10 @@ export interface StatusData {
 }
 
 export class Status {
-  readonly id: string
-  readonly url: string
-  readonly actorId: string
-  readonly type: StatusType
-
-  readonly text: string
-  readonly summary: string
-
-  readonly to: string[]
-  readonly cc: string[]
-
-  readonly reply: string
-
-  readonly attachments: Attachment[]
-
-  readonly createdAt: number
-  readonly updatedAt: number
+  readonly data: StatusData
 
   constructor(params: StatusData) {
-    this.id = params.id
-    this.url = params.url
-    this.actorId = params.actorId
-    this.type = params.type
-    this.text = params.text
-    this.summary = params.summary
-    this.to = params.to
-    this.cc = params.cc
-    this.reply = params.reply
-    this.attachments = params.attachments
-    this.createdAt = params.createdAt
-    this.updatedAt = params.createdAt
+    this.data = params
   }
 
   static fromNote(note: Note) {
@@ -83,7 +56,7 @@ export class Status {
   }
 
   linkfyText() {
-    return linkifyStr(this.text.trim(), {
+    return linkifyStr(this.data.text.trim(), {
       rel: 'nofollow noopener noreferrer',
       target: '_blank',
       truncate: 42,
@@ -99,7 +72,7 @@ export class Status {
 
   getMentions() {
     return linkify
-      .find(this.text)
+      .find(this.data.text)
       .filter((item) => item.type === 'mention')
       .map((item) => [item.value, item.value.slice(1).split('@')].flat())
       .map(([value, user, host]) => {
@@ -112,33 +85,27 @@ export class Status {
   }
 
   toObject() {
+    const data = this.data
     return {
-      id: this.id,
-      type: this.type,
-      summary: this.summary || null,
-      published: getISOTimeUTC(this.createdAt),
-      url: this.url,
-      attributedTo: this.actorId,
-      to: this.to,
-      cc: this.cc,
-      inReplyTo: this?.reply || null,
+      id: data.id,
+      type: data.type,
+      summary: data.summary || null,
+      published: getISOTimeUTC(data.createdAt),
+      url: data.url,
+      attributedTo: data.actorId,
+      to: data.to,
+      cc: data.cc,
+      inReplyTo: this.data.reply || null,
       content: this.linkfyText(),
-      attachment: this.attachments.map((attachment) => ({
-        type: 'Document',
-        mediaType: attachment.mediaType,
-        url: attachment.url,
-        width: attachment.width,
-        height: attachment.height,
-        name: attachment.name
-      })),
+      attachment: data.attachments.map((attachment) => attachment.toObject()),
       tag: [...this.getMentions()],
       replies: {
-        id: `${this.id}/replies`,
+        id: `${data.id}/replies`,
         type: 'Collection',
         first: {
           type: 'CollectionPage',
-          next: `${this.id}/replies?only_other_accounts=true&page=true`,
-          partOf: `${this.id}/replies`,
+          next: `${data.id}/replies?only_other_accounts=true&page=true`,
+          partOf: `${data.id}/replies`,
           items: []
         }
       }
@@ -146,19 +113,6 @@ export class Status {
   }
 
   toJson(): StatusData {
-    return {
-      id: this.id,
-      url: this.url,
-      actorId: this.actorId,
-      type: this.type,
-      text: this.text,
-      summary: this.summary,
-      to: this.to,
-      cc: this.cc,
-      reply: this.reply,
-      attachments: this.attachments,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt
-    }
+    return this.data
   }
 }
