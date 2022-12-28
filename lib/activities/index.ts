@@ -139,6 +139,17 @@ export const getPerson = async (id: string, withCollectionCount = false) => {
   }
 }
 
+export const getPersonFromHandle = async (
+  account: string,
+  withCollectionCount = false
+) => {
+  const id = await getWebfingerSelf(account.slice(1))
+  if (!id) return null
+
+  const person = await getPerson(id, withCollectionCount)
+  console.log(person)
+}
+
 export const getPosts = async (id?: string) => {
   if (!id) return []
 
