@@ -72,9 +72,6 @@ export const getPerson = async (id: string, withCollectionCount = false) => {
         sharedInbox: person.endpoints?.sharedInbox
       },
 
-      manuallyApprovesFollowers: person.manuallyApprovesFollowers,
-      discoverable: person.discoverable,
-
       publicKey: person.publicKey.publicKeyPem,
       createdAt: new Date(person.published).getTime()
     }
@@ -105,9 +102,6 @@ export const getPerson = async (id: string, withCollectionCount = false) => {
     url: person.url,
     name: person.name,
     summary: person.summary,
-
-    manuallyApprovesFollowers: person.manuallyApprovesFollowers,
-    discoverable: person.discoverable,
 
     publicKey: person.publicKey.publicKeyPem,
 
@@ -146,8 +140,7 @@ export const getPersonFromHandle = async (
   const id = await getWebfingerSelf(account.slice(1))
   if (!id) return null
 
-  const person = await getPerson(id, withCollectionCount)
-  console.log(person)
+  return getPerson(id, withCollectionCount)
 }
 
 export const getPosts = async (id?: string) => {
