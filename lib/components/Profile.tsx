@@ -2,7 +2,7 @@ import format from 'date-fns/format'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { getAtWithHostFromId } from '../models/actor'
+import { getAtUsernameFromId } from '../models/actor'
 
 interface Props {
   className?: string
@@ -29,13 +29,17 @@ export const Profile: FC<Props> = ({
     <h1>{name}</h1>
     <h4>
       <Link href={url} target={'_blank'}>
-        {getAtWithHostFromId(id)}
+        {getAtUsernameFromId(id)}
       </Link>
     </h4>
     <p>
-      <span>{totalPosts} Posts</span>
-      <span className="ms-2">{followingCount} Following</span>
-      <span className="ms-2">{followersCount} Followers</span>
+      <span className="d-inline-block text-nowrap">{totalPosts} Posts</span>
+      <span className="d-inline-block ms-2 text-nowrap">
+        {followingCount} Following
+      </span>
+      <span className="d-inline-block ms-2 text-nowrap">
+        {followersCount} Followers
+      </span>
     </p>
     {Number.isInteger(createdAt) && (
       <p>Joined {format(createdAt, 'd MMM yyyy')}</p>
