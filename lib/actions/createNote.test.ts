@@ -117,7 +117,7 @@ describe('Create note action', () => {
       })
       expect(status?.data).toMatchObject({
         actorId: actor1.id,
-        text: 'Hello',
+        text: '<p>Hello</p>',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [`${actor1.id}/followers`]
       })
@@ -138,10 +138,14 @@ describe('Create note action', () => {
       })
     })
 
-    it('linkfy text in note only', async () => {
+    it('linkfy and paragraph status text', async () => {
       if (!actor1) fail('Actor1 is required')
 
-      const text = '@test2@llun.test Hello'
+      const text = `
+@test2@llun.test Hello, test2
+
+How are you?
+`
       const status = await createNoteFromUserInput({
         text,
         currentActor: actor1,
@@ -149,13 +153,15 @@ describe('Create note action', () => {
       })
       expect(status?.data).toMatchObject({
         actorId: actor1.id,
-        text: Status.linkfyText(text),
+        text: Status.paragraphText(Status.linkfyText(text)),
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [`${actor1.id}/followers`]
       })
 
       const note = status?.toObject()
-      expect(note?.content).toEqual(Status.linkfyText(text))
+      expect(note?.content).toEqual(
+        Status.paragraphText(Status.linkfyText(text))
+      )
       expect(note?.tag).toHaveLength(1)
       expect(note?.tag).toContainValue({
         type: 'Mention',

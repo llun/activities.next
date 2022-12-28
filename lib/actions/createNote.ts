@@ -102,7 +102,7 @@ export const createNoteFromUserInput = async ({
     actorId: currentActor.id,
 
     type: 'Note',
-    text: Status.linkfyText(text),
+    text: Status.paragraphText(Status.linkfyText(text)),
     summary: '',
 
     to: [
