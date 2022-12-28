@@ -25,4 +25,25 @@ export const mockRequests = (fetchMock: FetchMock) => {
       body: 'Not Found'
     }
   })
+  fetchMock.mockIf(/^https:\/\/somewhere.test/, async (req) => {
+    const url = new URL(req.url)
+    if (url.pathname === '/.well-known/webfinger') {
+      const account =
+        url.searchParams.get('resource')?.slice('acct:'.length) || ''
+      return {
+        status: 200,
+        body: JSON.stringify(MockWebfinger({ account }))
+      }
+    }
+    if (url.pathname.startsWith('/actors')) {
+      return {
+        status: 200,
+        body: JSON.stringify(MockActivityPubPerson({ id: req.url }))
+      }
+    }
+    return {
+      status: 404,
+      body: 'Not Found'
+    }
+  })
 }

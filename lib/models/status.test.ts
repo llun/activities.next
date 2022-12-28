@@ -168,14 +168,13 @@ describe('Status', () => {
 
     it('returns Mentions from text', () => {
       const mentions = Status.getMentions(
-        '@llun@llun.test @test1@llun.test Test mentions'
+        '@llun@somewhere.test @test1@llun.test Test mentions'
       )
       expect(mentions).toHaveLength(2)
       expect(mentions[0]).toEqual({
         type: 'Mention',
-        // TODO: Fix href later
-        href: `https://llun.test/users/llun`,
-        name: '@llun@llun.test'
+        href: `https://somewhere.test/actors/llun`,
+        name: '@llun@somewhere.test'
       })
       expect(mentions[1]).toEqual({
         type: 'Mention',
