@@ -1,13 +1,18 @@
+import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { Status } from '../models/status'
 import { Sqlite3Storage } from '../storage/sqlite3'
+import { mockRequests } from '../stub/activities'
 import { MockImageDocument } from '../stub/imageDocument'
 import { MockMastodonNote } from '../stub/note'
 import { seedActor1 } from '../stub/seed/actor1'
 import { seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
 import { createNote, createNoteFromUserInput } from './createNote'
+
+enableFetchMocks()
 
 jest.mock('../config', () => ({
   __esModule: true,
@@ -41,6 +46,11 @@ describe('Create note action', () => {
   afterAll(async () => {
     if (!storage) return
     await storage.destroy()
+  })
+
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    mockRequests(fetchMock)
   })
 
   describe('#createNote', () => {

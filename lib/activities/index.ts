@@ -30,20 +30,26 @@ export const getWebfingerSelf = async (account: string) => {
   const [user, domain] = account.split('@')
   if (!user || !domain) return null
 
-  const response = await fetch(
-    `https://${domain}/.well-known/webfinger?resource=acct:${account}`,
-    {
-      headers: {
-        Accept: 'application/json'
+  try {
+    const response = await fetch(
+      `https://${domain}/.well-known/webfinger?resource=acct:${account}`,
+      {
+        headers: {
+          Accept: 'application/json'
+        }
       }
-    }
-  )
-  if (response.status !== 200) return null
+    )
+    if (response.status !== 200) return null
 
-  const json = (await response.json()) as WebFinger
-  const item = json.links.find((item) => item.rel === 'self')
-  if (!item || !('href' in item)) return null
-  return item.href
+    const json = (await response.json()) as WebFinger
+    const item = json.links.find((item) => item.rel === 'self')
+    if (!item || !('href' in item)) return null
+    return item.href
+  } catch (error: any) {
+    console.log(error.message)
+    console.log(error.stack)
+    return null
+  }
 }
 
 export const getPerson = async (id: string, withCollectionCount = false) => {
@@ -137,7 +143,8 @@ export const getPersonFromHandle = async (
   account: string,
   withCollectionCount = false
 ) => {
-  const id = await getWebfingerSelf(account.slice(1))
+  const accountWithoutAt = account.startsWith('@') ? account.slice(1) : account
+  const id = await getWebfingerSelf(accountWithoutAt)
   if (!id) return null
 
   return getPerson(id, withCollectionCount)

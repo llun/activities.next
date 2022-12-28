@@ -1,6 +1,7 @@
 import linkifyStr from 'linkify-string'
 import * as linkify from 'linkifyjs'
 
+import { getPersonFromHandle } from '../activities'
 import { Mention } from '../activities/entities/mention'
 import { Note } from '../activities/entities/note'
 import '../linkify-mention'
@@ -82,19 +83,21 @@ export class Status {
       .join('\n')
   }
 
-  static getMentions(text: string): Mention[] {
-    return linkify
-      .find(text)
-      .filter((item) => item.type === 'mention')
-      .map((item) => [item.value, item.value.slice(1).split('@')].flat())
-      .map(([value, user, host]) => {
-        // TODO: Get href from profile
-        return {
-          type: 'Mention',
-          href: `https://${host}/users/${user}`,
-          name: value
-        }
-      })
+  static async getMentions(text: string): Promise<Mention[]> {
+    return Promise.all(
+      linkify
+        .find(text)
+        .filter((item) => item.type === 'mention')
+        .map((item) => [item.value, item.value.slice(1).split('@')].flat())
+        .map(async ([value, user, host]) => {
+          const person = await getPersonFromHandle(`${user}@${host}`)
+          return {
+            type: 'Mention',
+            href: person?.id ?? `https://${host}/users/${user}`,
+            name: value
+          }
+        })
+    )
   }
 
   toObject() {

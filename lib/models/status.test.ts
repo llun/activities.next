@@ -12,6 +12,8 @@ import { getISOTimeUTC } from '../time'
 import { Actor } from './actor'
 import { Status } from './status'
 
+enableFetchMocks()
+
 jest.mock('../config', () => {
   const originalModule = jest.requireActual('../config')
   const { MOCK_SECRET_PHASES } = jest.requireActual('../stub/actor')
@@ -28,8 +30,6 @@ jest.mock('../config', () => {
   }
 })
 
-enableFetchMocks()
-
 describe('Status', () => {
   const storage = new Sqlite3Storage({
     client: 'sqlite3',
@@ -42,12 +42,16 @@ describe('Status', () => {
   beforeAll(async () => {
     await storage.migrate()
     await seedStorage(storage)
-    mockRequests(fetchMock)
   })
 
   afterAll(async () => {
     if (!storage) return
     await storage.destroy()
+  })
+
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    mockRequests(fetchMock)
   })
 
   describe('#fromNote', () => {
@@ -162,12 +166,12 @@ describe('Status', () => {
   })
 
   describe('#getMentions', () => {
-    it('returns empty array for text with no mentions', () => {
-      expect(Status.getMentions('Text without mentions')).toEqual([])
+    it('returns empty array for text with no mentions', async () => {
+      expect(await Status.getMentions('Text without mentions')).toEqual([])
     })
 
-    it('returns Mentions from text', () => {
-      const mentions = Status.getMentions(
+    it('returns Mentions from text', async () => {
+      const mentions = await Status.getMentions(
         '@llun@somewhere.test @test1@llun.test Test mentions'
       )
       expect(mentions).toHaveLength(2)
