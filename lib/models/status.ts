@@ -1,6 +1,7 @@
 import linkifyStr from 'linkify-string'
 import * as linkify from 'linkifyjs'
 
+import { Mention } from '../activities/entities/mention'
 import { Note } from '../activities/entities/note'
 import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
@@ -73,7 +74,15 @@ export class Status {
     })
   }
 
-  static getMentions(text: string) {
+  static paragraphText(text: string) {
+    return text
+      .trim()
+      .split('\n')
+      .map((line) => (line.length > 0 ? `<p>${line}</p>` : '<br />'))
+      .join('\n')
+  }
+
+  static getMentions(text: string): Mention[] {
     return linkify
       .find(text)
       .filter((item) => item.type === 'mention')

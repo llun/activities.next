@@ -89,7 +89,6 @@ export const PostBox: FC<Props> = ({
   }
 
   const getDefaultMessage = (profile: Profile, replyStatus?: StatusData) => {
-    console.log('Default message =>', profile.id, replyStatus?.actorId)
     if (!replyStatus) return ''
     if (replyStatus.actorId === profile.id) return ''
     return `${getAtWithHostFromId(replyStatus.actorId)} `
