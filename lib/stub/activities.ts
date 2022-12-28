@@ -1,0 +1,28 @@
+import { FetchMock } from 'jest-fetch-mock'
+
+import { MockActivityPubPerson } from './person'
+import { MockWebfinger } from './webfinger'
+
+export const mockRequests = (fetchMock: FetchMock) => {
+  fetchMock.mockIf(/^https:\/\/llun.test/, async (req) => {
+    const url = new URL(req.url)
+    if (url.pathname === '/.well-known/webfinger') {
+      const account =
+        url.searchParams.get('resource')?.slice('acct:'.length) || ''
+      return {
+        status: 200,
+        body: JSON.stringify(MockWebfinger({ account }))
+      }
+    }
+    if (url.pathname.startsWith('/users')) {
+      return {
+        status: 200,
+        body: JSON.stringify(MockActivityPubPerson({ id: req.url }))
+      }
+    }
+    return {
+      status: 404,
+      body: 'Not Found'
+    }
+  })
+}

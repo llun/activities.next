@@ -30,3 +30,9 @@ export const getAttachments = (object: Note) => {
   if (Array.isArray(object.attachment)) return object.attachment
   return [object.attachment]
 }
+
+export const getTags = (object: Note) => {
+  if (!object.tag) return []
+  if (Array.isArray(object.tag)) return object.tag
+  return [object.tag]
+}

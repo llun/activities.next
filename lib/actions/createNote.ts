@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 
-import { Note, getAttachments } from '../activities/entities/note'
+import { Note, getAttachments, getTags } from '../activities/entities/note'
 import { getConfig } from '../config'
 import { compact } from '../jsonld'
 import {
@@ -49,6 +49,7 @@ export const createNote = async ({
   })
 
   const attachments = getAttachments(note)
+  const tags = getTags(note)
   await Promise.all([
     ...attachments.map(async (attachment) => {
       if (attachment.type !== 'Document') return
@@ -62,7 +63,7 @@ export const createNote = async ({
         url: attachment.url
       })
     }),
-    ...note.tag.map((item) =>
+    ...tags.map((item) =>
       storage.createTag({
         statusId: compactNote.id,
         name: item.name,

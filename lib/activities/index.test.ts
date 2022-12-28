@@ -1,9 +1,10 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getPersonFromHandle, getWebfingerSelf, sendNote } from '.'
+import { mockRequests } from '../stub/activities'
 import { MockActor } from '../stub/actor'
 import { MockMastodonNote } from '../stub/note'
-import { MockActivityPubPerson, MockPerson } from '../stub/person'
+import { MockPerson } from '../stub/person'
 import { MockWebfinger } from '../stub/webfinger'
 import { CreateStatus } from './actions/createStatus'
 
@@ -57,29 +58,7 @@ describe('#getWebfingerSelf', () => {
 describe('#getPersonFromHandle', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
-
-    // https://${domain}/.well-known/webfinger
-    fetchMock.mockIf(/^https:\/\/llun.test/, async (req) => {
-      const url = new URL(req.url)
-      if (url.pathname === '/.well-known/webfinger') {
-        const account =
-          url.searchParams.get('resource')?.slice('acct:'.length) || ''
-        return {
-          status: 200,
-          body: JSON.stringify(MockWebfinger({ account }))
-        }
-      }
-      if (url.pathname === '/users/test1') {
-        return {
-          status: 200,
-          body: JSON.stringify(MockActivityPubPerson({ id: req.url }))
-        }
-      }
-      return {
-        status: 404,
-        body: 'Not Found'
-      }
-    })
+    mockRequests(fetchMock)
   })
 
   it('get url from webFinger and getPerson info from user id', async () => {

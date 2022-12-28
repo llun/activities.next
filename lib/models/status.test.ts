@@ -1,6 +1,9 @@
+import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
 import { Sqlite3Storage } from '../storage/sqlite3'
+import { mockRequests } from '../stub/activities'
 import { MockMastodonNote } from '../stub/note'
 import { seedActor1 } from '../stub/seed/actor1'
 import { seedActor2 } from '../stub/seed/actor2'
@@ -8,6 +11,24 @@ import { seedStorage } from '../stub/storage'
 import { getISOTimeUTC } from '../time'
 import { Actor } from './actor'
 import { Status } from './status'
+
+jest.mock('../config', () => {
+  const originalModule = jest.requireActual('../config')
+  const { MOCK_SECRET_PHASES } = jest.requireActual('../stub/actor')
+  return {
+    __esModule: true,
+    ...originalModule,
+    getConfig: jest.fn().mockReturnValue({
+      host: 'llun.test',
+      database: {},
+      allowEmails: [],
+      secretPhase: MOCK_SECRET_PHASES,
+      auth: {}
+    })
+  }
+})
+
+enableFetchMocks()
 
 describe('Status', () => {
   const storage = new Sqlite3Storage({
@@ -21,6 +42,7 @@ describe('Status', () => {
   beforeAll(async () => {
     await storage.migrate()
     await seedStorage(storage)
+    mockRequests(fetchMock)
   })
 
   afterAll(async () => {
