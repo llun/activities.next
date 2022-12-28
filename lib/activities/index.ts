@@ -1,4 +1,8 @@
 import { getConfig } from '../config'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_URL
+} from '../jsonld/activitystream'
 import { compact } from '../jsonld/index'
 import { Actor } from '../models/actor'
 import { Follow } from '../models/follow'
@@ -167,7 +171,7 @@ export const sendNote = async ({
   note
 }: SendNoteParams) => {
   const activity: CreateStatus = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': ACTIVITY_STREAM_PUBLIC,
     id: `${note.id}/activity`,
     type: 'Create',
     actor: note.attributedTo,
@@ -204,11 +208,11 @@ export const deleteStatus = async ({
   statusId
 }: DeleteStatusParams) => {
   const activity: DeleteStatus = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': ACTIVITY_STREAM_URL,
     id: `${statusId}#delete`,
     type: 'Delete',
     actor: currentActor.id,
-    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    to: [ACTIVITY_STREAM_PUBLIC],
     object: {
       id: statusId,
       type: 'Tombstone'
@@ -236,7 +240,7 @@ export const follow = async (
 ) => {
   const config = getConfig()
   const content: FollowRequest = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': ACTIVITY_STREAM_URL,
     id: `https://${config.host}/${id}`,
     type: 'Follow',
     actor: currentActor.id,
@@ -256,7 +260,7 @@ export const follow = async (
 export const unfollow = async (currentActor: Actor, follow: Follow) => {
   const config = getConfig()
   const unfollowRequest: UndoFollow = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': ACTIVITY_STREAM_URL,
     id: `https://${config.host}/${currentActor.id}#follows/${follow.id}/undo`,
     type: 'Undo',
     actor: currentActor.id,
@@ -288,7 +292,7 @@ export const acceptFollow = async (
   followRequest: FollowRequest
 ) => {
   const acceptFollowRequest: AcceptFollow = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': ACTIVITY_STREAM_URL,
     id: `${currentActor.id}#accepts/followers`,
     type: 'Accept',
     actor: currentActor.id,
