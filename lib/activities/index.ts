@@ -182,7 +182,7 @@ export const sendNote = async ({
   note
 }: SendNoteParams) => {
   const activity: CreateStatus = {
-    '@context': ACTIVITY_STREAM_PUBLIC,
+    '@context': ACTIVITY_STREAM_URL,
     id: `${note.id}/activity`,
     type: 'Create',
     actor: note.attributedTo,
