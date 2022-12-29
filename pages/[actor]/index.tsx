@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import { useState } from 'react'
 
-import { getPerson, getPosts, getWebfingerSelf } from '../../lib/activities'
+import { getPersonFromHandle, getPosts } from '../../lib/activities'
 import { Button } from '../../lib/components/Button'
 import { Header } from '../../lib/components/Header'
 import { Posts } from '../../lib/components/Posts/Posts'
@@ -91,27 +91,11 @@ type Params = {
 export const getStaticProps: GetStaticProps<Props, Params> = async ({
   params
 }) => {
-  const storage = await getStorage()
-  if (!storage) {
-    return {
-      redirect: {
-        destination: '/signin',
-        permanent: false
-      }
-    }
-  }
-
-  if (!params) {
-    return { notFound: true }
-  }
-
-  const { actor } = params
-  if (!actor) {
-    return { notFound: true }
-  }
-
+  const actor = params?.actor
   const parts = (actor as string).split('@').slice(1)
-  if (parts.length < 1 || parts.length > 2) {
+
+  const storage = await getStorage()
+  if (!storage || !actor || parts.length < 1 || parts.length > 2) {
     return { notFound: true }
   }
 
@@ -120,12 +104,7 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
   }
 
   const [account, domain] = parts
-  const actorId = await getWebfingerSelf(`${account}@${domain}`)
-  if (!actorId) {
-    return { notFound: true }
-  }
-
-  const person = await getPerson(actorId, true)
+  const person = await getPersonFromHandle(`${account}@${domain}`, true)
   if (!person) {
     return { notFound: true }
   }
