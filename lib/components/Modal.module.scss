@@ -8,6 +8,12 @@
   display: flex;
   justify-content: center;
   align-items: center;
+
+  img {
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+  }
 }
 
 .modalOverlay {
