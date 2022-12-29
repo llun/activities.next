@@ -76,7 +76,9 @@ export const Post: FC<Props> = (props) => {
           actorId={(showActorId && status.actorId) || ''}
         />
         <div className={cn('flex-shrink-0', styles.misc)}>
-          {formatDistance(status.createdAt, currentTime)}
+          <a href={status.url} target="_blank" rel="noreferrer">
+            {formatDistance(status.createdAt, currentTime)}
+          </a>
         </div>
       </div>
       <div className={'me-1'}>{parseText(status.text)}</div>
