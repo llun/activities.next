@@ -5,7 +5,7 @@ import { unstable_getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import Image from 'next/image'
-import { useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Header } from '../lib/components/Header'
 import { PostBox } from '../lib/components/PostBox/PostBox'
@@ -15,7 +15,6 @@ import { getConfig } from '../lib/config'
 import {
   Profile,
   getAtUsernameFromId,
-  getAtWithHostFromId,
   getProfileFromActor
 } from '../lib/models/actor'
 import { StatusData } from '../lib/models/status'
@@ -45,6 +44,7 @@ const Page: NextPage<Props> = ({
   const { data: session } = useSession()
   const [replyStatus, setReplyStatus] = useState<StatusData>()
   const [currentStatuses, setCurrentStatuses] = useState<StatusData[]>(statuses)
+  const [currentTime, setCurrentTime] = useState<number>(currentServerTime)
 
   const onReply = (status: StatusData) => {
     setReplyStatus(status)
@@ -58,6 +58,10 @@ const Page: NextPage<Props> = ({
       ...currentStatuses.slice(statusIndex + 1)
     ])
   }
+
+  useEffect(() => {
+    setCurrentTime(Date.now())
+  }, [currentStatuses])
 
   return (
     <main>
@@ -102,7 +106,7 @@ const Page: NextPage<Props> = ({
               }}
             />
             <Posts
-              currentTime={new Date(currentServerTime)}
+              currentTime={new Date(currentTime)}
               statuses={currentStatuses}
               showActorId
               showActions
