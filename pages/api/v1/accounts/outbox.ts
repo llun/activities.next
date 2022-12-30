@@ -6,6 +6,7 @@ import { ApiGuard } from '../../../../lib/guard'
 
 const handler = ApiGuard(async (req, res, context) => {
   const { currentActor, storage } = context
+  console.log('request to ', req.method, req.url)
   switch (req.method) {
     case 'POST': {
       const body = req.body
