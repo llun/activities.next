@@ -142,8 +142,14 @@ describe('Status', () => {
         replies: {
           id: `${status?.data.id}/replies`,
           type: 'Collection',
-          totalItems: 0,
-          items: []
+          totalItems: 1,
+          items: [
+            (
+              await storage.getStatus({
+                statusId: 'https://llun.test/users/test2/statuses/post-2'
+              })
+            )?.toObject()
+          ]
         }
       })
     })
