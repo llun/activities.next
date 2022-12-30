@@ -482,7 +482,7 @@ describe('Storage', () => {
         }
       })
 
-      it.only('returns all statuses without reply', async () => {
+      it('returns all statuses without reply', async () => {
         const otherServerUser1 = 'https://other.server/u/user1'
         const otherServerUser1Status = (i: number) =>
           `${otherServerUser1}/s/${i}`
@@ -578,9 +578,7 @@ describe('Storage', () => {
           actorId: TEST_ID8
         })
 
-        console.log(statuses.filter((item) => !!item.data.reply).length)
-
-        expect(statuses.length).toEqual(7)
+        expect(statuses.length).toEqual(16)
         for (const reply of statuses.map((status) => status.data.reply)) {
           expect(reply).toEqual('')
         }

@@ -458,11 +458,14 @@ export class Sqlite3Storage implements Storage {
   async getStatuses({ actorId }: GetStatusesParams) {
     const postsPerPage = 30
     const local = await this.database('recipients')
-      .where('type', 'local')
-      .andWhere('actorId', actorId)
+      .leftJoin('statuses', 'recipients.statusId', 'statuses.id')
+      .where('recipients.type', 'local')
+      .andWhere('recipients.actorId', actorId)
+      .andWhere('statuses.reply', '')
       .distinct('statusId')
-      .orderBy('createdAt', 'desc')
+      .orderBy('recipients.createdAt', 'desc')
       .limit(postsPerPage)
+
     const statuses = (
       await Promise.all(
         local.map((item) => this.getStatus({ statusId: item.statusId }))
