@@ -433,11 +433,11 @@ export class FirebaseStorage implements Storage {
     data: any,
     withReplies: boolean
   ): Promise<Status> {
-    const [attachments, tags, replies] = await Promise.all([
+    const [attachments, tags] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
-      this.getTags({ statusId: data.id }),
-      this.getReplies(data.id)
+      this.getTags({ statusId: data.id })
     ])
+    const replies = withReplies ? await this.getReplies(data.id) : []
     return new Status({
       id: data.id,
       url: data.url,
@@ -479,7 +479,7 @@ export class FirebaseStorage implements Storage {
     return Promise.all(
       statusesSnapshot.docs.map((item) => {
         const data = item.data()
-        return this.getStatusFromData(data)
+        return this.getStatusFromData(data, false)
       })
     )
   }
@@ -504,7 +504,7 @@ export class FirebaseStorage implements Storage {
     return Promise.all(
       snapshot.docs.map((item) => {
         const data = item.data()
-        return this.getStatusFromData(data)
+        return this.getStatusFromData(data, false)
       })
     )
   }
