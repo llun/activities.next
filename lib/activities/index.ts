@@ -194,7 +194,6 @@ export const sendNote = async ({
   // TODO: Add LinkedDataSignature later
   // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3
   try {
-    console.log('Send to', inbox)
     await fetch(inbox, {
       method: 'POST',
       headers: {

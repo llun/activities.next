@@ -195,7 +195,11 @@ describe('Status', () => {
   describe('#paragraphText', () => {
     it('returns single paragraph for single line text', () => {
       expect(Status.paragraphText('This is single line text')).toEqual(
-        '<p>This is single line text</p>'
+        `
+<p>
+This is single line text
+</p>
+`.trim()
       )
     })
 
@@ -209,8 +213,11 @@ This is second line text
         )
       ).toEqual(
         `
-<p>This is first line text</p>
-<p>This is second line text</p>
+<p>
+This is first line text
+<br />
+This is second line text
+</p>
 `.trim()
       )
     })
@@ -226,9 +233,66 @@ This is second line text
         )
       ).toEqual(
         `
-<p>This is first line text</p>
+<p>
+This is first line text
+</p>
+<p>
+This is second line text
+</p>
+`.trim()
+      )
+    })
+
+    it('adds br when text has multple empty line in between', () => {
+      expect(
+        Status.paragraphText(
+          `
+This is first line text
+
+
+This is second line text
+This is third line text
+`.trim()
+        )
+      ).toEqual(
+        `
+<p>
+This is first line text
+</p>
 <br />
-<p>This is second line text</p>
+<p>
+This is second line text
+<br />
+This is third line text
+</p>
+`.trim()
+      )
+    })
+
+    it('adds multiple br when text has multple empty line in between', () => {
+      expect(
+        Status.paragraphText(
+          `
+This is first line text
+
+
+
+This is second line text
+This is third line text
+`.trim()
+        )
+      ).toEqual(
+        `
+<p>
+This is first line text
+</p>
+<br />
+<br />
+<p>
+This is second line text
+<br />
+This is third line text
+</p>
 `.trim()
       )
     })
@@ -242,15 +306,24 @@ This is first line text
 
 This is second line text
 This is third line text
+
+This is fourth line text
 `.trim()
         )
       ).toEqual(
         `
-<p>This is first line text</p>
+<p>
+This is first line text
+</p>
 <br />
+<p>
+This is second line text
 <br />
-<p>This is second line text</p>
-<p>This is third line text</p>
+This is third line text
+</p>
+<p>
+This is fourth line text
+</p>
 `.trim()
       )
     })

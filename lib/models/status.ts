@@ -3,7 +3,7 @@ import * as linkify from 'linkifyjs'
 
 import { getPersonFromHandle } from '../activities'
 import { Mention } from '../activities/entities/mention'
-import { BaseNote, Note } from '../activities/entities/note'
+import { Note } from '../activities/entities/note'
 import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
 import { Attachment, AttachmentData } from './attachment'
@@ -79,11 +79,60 @@ export class Status {
   }
 
   static paragraphText(text: string) {
-    return text
-      .trim()
-      .split('\n')
-      .map((line) => (line.length > 0 ? `<p>${line}</p>` : '<br />'))
-      .join('\n')
+    const texts = text.trim().split('\n')
+    const groups: string[][] = []
+    for (const text of texts) {
+      let lastGroup: string[] = groups[groups.length - 1]
+      if (!lastGroup) {
+        lastGroup = []
+        groups.push(lastGroup)
+      }
+
+      const lastItem = lastGroup[lastGroup.length - 1]
+      if (lastItem === undefined) {
+        lastGroup.push(text)
+        continue
+      }
+
+      if (text.length > 0) {
+        if (lastItem.length > 0) {
+          lastGroup.push(text)
+          continue
+        }
+
+        lastGroup = []
+        groups.push(lastGroup)
+        lastGroup.push(text)
+        continue
+      }
+
+      if (lastItem.length === 0) {
+        lastGroup.push(text)
+        continue
+      }
+
+      lastGroup = []
+      groups.push(lastGroup)
+      lastGroup.push(text)
+    }
+
+    const messages = groups
+      .map((group) => {
+        const item = group[group.length - 1]
+        if (item.length === 0 && group.length === 1) {
+          return ''
+        }
+        if (item.length === 0 && group.length > 1) {
+          return group
+            .slice(1)
+            .map(() => '<br />')
+            .join('\n')
+        }
+        return `<p>\n${group.join('\n<br />\n')}\n</p>`
+      })
+      .filter((item) => item.length > 0)
+
+    return messages.join('\n')
   }
 
   static async getMentions(text: string): Promise<Mention[]> {
