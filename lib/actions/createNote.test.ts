@@ -127,7 +127,11 @@ describe('Create note action', () => {
       })
       expect(status?.data).toMatchObject({
         actorId: actor1.id,
-        text: '<p>Hello</p>',
+        text: `
+<p>
+Hello
+</p>
+`.trim(),
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [`${actor1.id}/followers`]
       })
