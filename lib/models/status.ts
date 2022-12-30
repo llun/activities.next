@@ -128,7 +128,7 @@ export class Status {
             .map(() => '<br />')
             .join('\n')
         }
-        return `<p>\n${group.join('\n<br />\n')}\n</p>`
+        return `<p>${group.join('<br />')}</p>`
       })
       .filter((item) => item.length > 0)
 
