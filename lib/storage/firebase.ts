@@ -424,7 +424,8 @@ export class FirebaseStorage implements Storage {
     return new Status({
       ...status,
       attachments: [],
-      tags: []
+      tags: [],
+      replies: []
     })
   }
 
@@ -443,6 +444,7 @@ export class FirebaseStorage implements Storage {
       text: data.text,
       summary: data.summary,
       reply: data.reply,
+      replies: [],
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,

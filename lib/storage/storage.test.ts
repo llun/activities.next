@@ -35,6 +35,9 @@ const TEST_ID7 = 'https://llun.test/users/user7'
 // Statuses with replies test user
 const TEST_ID8 = 'https://llun.test/users/user8'
 
+// Status with reply list
+const TEST_ID9 = 'https://llun.test/users/user9'
+
 type TestStorage = [string, Storage]
 
 describe('Storage', () => {
@@ -395,6 +398,7 @@ describe('Storage', () => {
           attachments: [],
           tags: [],
           reply: '',
+          replies: [],
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })

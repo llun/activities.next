@@ -21,6 +21,8 @@ export interface StatusData {
   cc: string[]
 
   reply: string
+  replies: StatusData[]
+
   attachments: AttachmentData[]
   tags: TagData[]
 
@@ -51,6 +53,7 @@ export class Status {
       cc: Array.isArray(note.cc) ? note.cc : [note.cc],
 
       reply: note.inReplyTo || '',
+      replies: [],
 
       attachments: [],
       tags: [],
