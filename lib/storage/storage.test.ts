@@ -1,3 +1,4 @@
+import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { FollowStatus } from '../models/follow'
 import { FirebaseStorage } from './firebase'
 import { Sqlite3Storage } from './sqlite3'
@@ -28,8 +29,11 @@ const TEST_ID5 = 'https://llun.test/users/user5'
 // Get Actor statuses test user
 const TEST_ID6 = 'https://llun.test/users/user6'
 
-// Get Actor statuses with replies test user
+// Actor statuses with replies test user
 const TEST_ID7 = 'https://llun.test/users/user7'
+
+// Statuses with replies test user
+const TEST_ID8 = 'https://llun.test/users/user8'
 
 type TestStorage = [string, Storage]
 
@@ -79,7 +83,7 @@ describe('Storage', () => {
         privateKey: 'privateKey1',
         publicKey: 'publicKey1'
       })
-      for (let i = 3; i <= 7; i++) {
+      for (let i = 3; i <= 8; i++) {
         await storage.createAccount({
           email: `user${i}@llun.dev`,
           username: `user${i}`,
@@ -375,7 +379,7 @@ describe('Storage', () => {
           type: 'Note',
 
           text: 'Test Status',
-          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
         })
         expect(status.data).toEqual({
@@ -386,7 +390,7 @@ describe('Storage', () => {
 
           text: 'Test Status',
           summary: '',
-          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           attachments: [],
           tags: [],
@@ -410,7 +414,7 @@ describe('Storage', () => {
           type: 'Note',
 
           text: 'Test Status',
-          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
         })
         const attachment = await storage.createAttachment({
@@ -438,7 +442,7 @@ describe('Storage', () => {
           type: 'Note',
 
           text: '@<a href="https://llun.test/@test2">test2</a> Test mentions',
-          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
         })
         const tag = await storage.createTag({
@@ -462,7 +466,7 @@ describe('Storage', () => {
             type: 'Note',
 
             text: `Status ${i + 1}`,
-            to: ['https://www.w3.org/ns/activitystreams#Public', TEST_ID5],
+            to: [ACTIVITY_STREAM_PUBLIC, TEST_ID5],
             cc: []
           })
           await new Promise((resolve) => setTimeout(resolve, 10))
@@ -478,6 +482,110 @@ describe('Storage', () => {
         }
       })
 
+      it.only('returns all statuses without reply', async () => {
+        const otherServerUser1 = 'https://other.server/u/user1'
+        const otherServerUser1Status = (i: number) =>
+          `${otherServerUser1}/s/${i}`
+        const otherServerUser2 = 'https://other.mars/u/test2'
+        const otherServerUser2Status = (i: number) =>
+          `${otherServerUser2}/s/${i}`
+
+        // Mock status for reply
+        const mainStatusForReplyId = `${TEST_ID}/statuses/post-for-reply2`
+        await storage.createStatus({
+          id: mainStatusForReplyId,
+          url: mainStatusForReplyId,
+          actorId: TEST_ID,
+          type: 'Note',
+
+          text: 'This is status for reply',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+
+        await storage.createFollow({
+          actorId: TEST_ID8,
+          targetActorId: 'https://other.server/u/user1',
+          status: FollowStatus.Accepted,
+          inbox: 'https://other.server/u/user1/inbox',
+          sharedInbox: 'https://other.server/u/user1/inbox'
+        })
+        await storage.createFollow({
+          actorId: TEST_ID8,
+          targetActorId: 'https://other.mars/u/test2',
+          status: FollowStatus.Accepted,
+          inbox: 'https://other.mars/u/test2/inbox',
+          sharedInbox: 'https://other.mars/shared/inbox'
+        })
+
+        for (let i = 1; i <= 20; i++) {
+          const statusId = `${TEST_ID8}/statuses/post-${i}`
+          await storage.createStatus({
+            id: statusId,
+            url: statusId,
+            actorId: TEST_ID8,
+            type: 'Note',
+            ...(i % 3 === 0 ? { reply: mainStatusForReplyId } : undefined),
+
+            text: `Status ${i}`,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: []
+          })
+
+          if (i % 11 === 0) {
+            await storage.createStatus({
+              id: otherServerUser1Status(i),
+              url: otherServerUser1Status(i),
+              actorId: otherServerUser1,
+              type: 'Note',
+              text: `Other server user1 status ${i}`,
+              to: [ACTIVITY_STREAM_PUBLIC],
+              cc: [`${otherServerUser1}/followers`]
+            })
+          }
+
+          if (i % 17 === 0) {
+            await storage.createStatus({
+              id: otherServerUser2Status(i),
+              url: otherServerUser2Status(i),
+              actorId: otherServerUser2,
+              type: 'Note',
+              text: `Other server user2 status ${i}`,
+              to: [ACTIVITY_STREAM_PUBLIC],
+              cc: [`${otherServerUser2}/followers`]
+            })
+          }
+
+          if (i % 19 === 0) {
+            await storage.createStatus({
+              id: otherServerUser2Status(i),
+              url: otherServerUser2Status(i),
+              actorId: otherServerUser2,
+              type: 'Note',
+              text: `Other server user2 status ${i} reply`,
+              to: [ACTIVITY_STREAM_PUBLIC, otherServerUser1],
+              cc: [`${otherServerUser2}/followers`],
+              reply: otherServerUser1Status(11)
+            })
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 1))
+        }
+        expect(
+          await storage.getActorStatusesCount({ actorId: TEST_ID8 })
+        ).toEqual(20)
+        const statuses = await storage.getStatuses({
+          actorId: TEST_ID8
+        })
+
+        console.log(statuses.filter((item) => !!item.data.reply).length)
+
+        expect(statuses.length).toEqual(7)
+        for (const reply of statuses.map((status) => status.data.reply)) {
+          expect(reply).toEqual('')
+        }
+      })
+
       it('returns actor statuses', async () => {
         for (let i = 1; i <= 3; i++) {
           const statusId = `${TEST_ID6}/statuses/post-${i}`
@@ -488,7 +596,7 @@ describe('Storage', () => {
             type: 'Note',
 
             text: `Status ${i}`,
-            to: ['https://www.w3.org/ns/activitystreams#Public', TEST_ID6],
+            to: [ACTIVITY_STREAM_PUBLIC, TEST_ID6],
             cc: []
           })
           await new Promise((resolve) => setTimeout(resolve, 1))
@@ -532,7 +640,7 @@ describe('Storage', () => {
           type: 'Note',
 
           text: 'This is status for reply',
-          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
         })
 
@@ -546,7 +654,7 @@ describe('Storage', () => {
             ...(i % 3 === 0 ? { reply: mainStatusForReplyId } : undefined),
 
             text: `Status ${i}`,
-            to: ['https://www.w3.org/ns/activitystreams#Public', TEST_ID6],
+            to: [ACTIVITY_STREAM_PUBLIC],
             cc: []
           })
           await new Promise((resolve) => setTimeout(resolve, 1))
