@@ -15,6 +15,7 @@ interface Props {
   showActorId?: boolean
   currentTime: Date
   status: StatusData
+  showDeleteAction?: boolean
   showActions?: boolean
   onReply?: (status: StatusData) => void
   onPostDeleted?: (status: StatusData) => void
@@ -23,6 +24,7 @@ interface Props {
 
 export const Actions: FC<Props> = ({
   status,
+  showDeleteAction = false,
   showActions = false,
   onReply,
   onPostDeleted
@@ -46,22 +48,26 @@ export const Actions: FC<Props> = ({
       >
         <i className="bi bi-arrow-left-right"></i>
       </Button>
-      <Button
-        className={styles.action}
-        variant="link"
-        onClick={async () => {
-          const deleteConfirmation = window.confirm(
-            `Confirm delete status! ${
-              status.text.length ? `${status.text.slice(0, 20)}...` : status.id
-            }`
-          )
-          if (!deleteConfirmation) return
-          await deleteStatus({ statusId: status.id })
-          onPostDeleted?.(status)
-        }}
-      >
-        <i className="bi bi-trash3"></i>
-      </Button>
+      {showDeleteAction && (
+        <Button
+          className={styles.action}
+          variant="link"
+          onClick={async () => {
+            const deleteConfirmation = window.confirm(
+              `Confirm delete status! ${
+                status.text.length
+                  ? `${status.text.slice(0, 20)}...`
+                  : status.id
+              }`
+            )
+            if (!deleteConfirmation) return
+            await deleteStatus({ statusId: status.id })
+            onPostDeleted?.(status)
+          }}
+        >
+          <i className="bi bi-trash3"></i>
+        </Button>
+      )}
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { Post } from './Post'
 import styles from './Posts.module.scss'
 
 interface Props {
+  currentActorId?: string
   showActorId?: boolean
   showActions?: boolean
   currentTime: Date
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export const Posts: FC<Props> = ({
+  currentActorId = '',
   showActorId = false,
   showActions = false,
   currentTime,
@@ -38,6 +40,7 @@ export const Posts: FC<Props> = ({
             currentTime={currentTime}
             status={status}
             showActions={showActions}
+            showDeleteAction={currentActorId === status.actorId}
             onReply={onReply}
             onPostDeleted={onPostDeleted}
             onShowAttachment={(attachment: AttachmentData) =>
