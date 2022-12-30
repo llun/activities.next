@@ -429,10 +429,14 @@ export class FirebaseStorage implements Storage {
     })
   }
 
-  async getStatusFromData(data: any): Promise<Status> {
-    const [attachments, tags] = await Promise.all([
+  private async getStatusFromData(
+    data: any,
+    withReplies: boolean
+  ): Promise<Status> {
+    const [attachments, tags, replies] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
-      this.getTags({ statusId: data.id })
+      this.getTags({ statusId: data.id }),
+      this.getReplies(data.id)
     ])
     return new Status({
       id: data.id,
@@ -444,7 +448,7 @@ export class FirebaseStorage implements Storage {
       text: data.text,
       summary: data.summary,
       reply: data.reply,
-      replies: [],
+      replies,
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
@@ -459,7 +463,7 @@ export class FirebaseStorage implements Storage {
     if (statusesSnapshot.docs.length !== 1) return undefined
 
     const data = statusesSnapshot.docs[0].data()
-    return this.getStatusFromData(data)
+    return this.getStatusFromData(data, true)
   }
 
   async getStatuses({ actorId }: GetStatusesParams) {
@@ -573,5 +577,22 @@ export class FirebaseStorage implements Storage {
     const tagsQuery = query(tags, where('statusId', '==', statusId))
     const snapshot = await getDocs(tagsQuery)
     return snapshot.docs.map((item) => new Tag(item.data() as TagData))
+  }
+
+  private async getReplies(statusId: string) {
+    const statuses = collection(this.db, 'statuses')
+    const statusesQuery = query(
+      statuses,
+      where('reply', '==', statusId),
+      orderBy('createdAt', 'desc')
+    )
+    const statusesSnapshot = await getDocs(statusesQuery)
+    return Promise.all(
+      statusesSnapshot.docs.map(async (item) => {
+        const data = item.data()
+        const status = await this.getStatusFromData(data, false)
+        return status.toJson()
+      })
+    )
   }
 }

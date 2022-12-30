@@ -693,6 +693,7 @@ describe('Storage', () => {
           url: reply1Id,
           actorId: reply1ActorId,
           type: 'Note',
+          reply: statusWithRepliesId,
 
           text: '@test9 This is first reply',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -706,6 +707,7 @@ describe('Storage', () => {
           url: reply2Id,
           actorId: reply2ActorId,
           type: 'Note',
+          reply: statusWithRepliesId,
 
           text: '@test9 This is second reply',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -715,6 +717,7 @@ describe('Storage', () => {
         const status = await storage.getStatus({
           statusId: statusWithRepliesId
         })
+
         expect(status?.toJson().replies).toHaveLength(2)
         expect(status?.toJson().replies).toContainAllValues([
           reply1.toJson(),

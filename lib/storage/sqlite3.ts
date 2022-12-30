@@ -343,7 +343,6 @@ export class Sqlite3Storage implements Storage {
     const currentTime = Date.now()
     const statusCreatedAt = createdAt || currentTime
     const statusUpdatedAt = currentTime
-    console.log(reply, id)
 
     const local = await deliverTo({ from: actorId, to, cc, storage: this })
     await this.database.transaction(async (trx) => {
@@ -420,7 +419,7 @@ export class Sqlite3Storage implements Storage {
   }
 
   async getStatusWithAttachmentsFromData(data: any): Promise<Status> {
-    const [attachments, tags, to, cc] = await Promise.all([
+    const [attachments, tags, to, cc, replies] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
       this.getTags({ statusId: data.id }),
       this.database('recipients')
@@ -428,7 +427,11 @@ export class Sqlite3Storage implements Storage {
         .andWhere('type', 'to'),
       this.database('recipients')
         .where('statusId', data.id)
-        .andWhere('type', 'cc')
+        .andWhere('type', 'cc'),
+      this.database('statuses')
+        .select('id')
+        .where('reply', data.id)
+        .orderBy('createdAt', 'desc')
     ])
 
     return new Status({
@@ -441,7 +444,13 @@ export class Sqlite3Storage implements Storage {
       text: data.text,
       summary: data.summary,
       reply: data.reply,
-      replies: [],
+      replies: (
+        await Promise.all(
+          replies.map((item) => this.getStatus({ statusId: item.id }))
+        )
+      )
+        .filter((item): item is Status => Boolean(item))
+        .map((item) => item.data),
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
