@@ -723,6 +723,19 @@ describe('Storage', () => {
           reply1.toJson(),
           reply2.toJson()
         ])
+
+        const note = status?.toObject()
+
+        if (!note) fail('Note must be exist')
+        if (!('totalItems' in note.replies)) {
+          fail('Replies must have totalItems')
+        }
+
+        expect(note?.replies.totalItems).toEqual(2)
+        expect(note?.replies.items).toContainAllValues([
+          (await storage.getStatus({ statusId: reply1Id }))?.toObject(),
+          (await storage.getStatus({ statusId: reply2Id }))?.toObject()
+        ])
       })
     })
   })

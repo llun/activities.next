@@ -3,7 +3,7 @@ import * as linkify from 'linkifyjs'
 
 import { getPersonFromHandle } from '../activities'
 import { Mention } from '../activities/entities/mention'
-import { Note } from '../activities/entities/note'
+import { BaseNote, Note } from '../activities/entities/note'
 import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
 import { Attachment, AttachmentData } from './attachment'
@@ -103,7 +103,7 @@ export class Status {
     )
   }
 
-  toObject() {
+  toObject(): Note {
     const data = this.data
     return {
       id: data.id,
@@ -123,8 +123,11 @@ export class Status {
       replies: {
         id: `${data.id}/replies`,
         type: 'Collection',
-        totalItems: 0,
-        items: []
+        totalItems: this.data.replies.length,
+        items: this.data.replies.map((reply) => {
+          const status = new Status(reply)
+          return status.toObject()
+        })
       }
     } as Note
   }
