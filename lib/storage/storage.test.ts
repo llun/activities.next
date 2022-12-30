@@ -672,6 +672,55 @@ describe('Storage', () => {
           expect(reply).toEqual('')
         }
       })
+
+      it('returns status with replies', async () => {
+        const statusWithRepliesId = `${TEST_ID9}/s/post-with-replies`
+        await storage.createStatus({
+          id: statusWithRepliesId,
+          url: statusWithRepliesId,
+          actorId: TEST_ID9,
+          type: 'Note',
+
+          text: 'This is status for reply',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+
+        const reply1ActorId = 'https://someone.else/u/user1'
+        const reply1Id = `${reply1ActorId}/s/post-1`
+        const reply1 = await storage.createStatus({
+          id: reply1Id,
+          url: reply1Id,
+          actorId: reply1ActorId,
+          type: 'Note',
+
+          text: '@test9 This is first reply',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [TEST_ID9]
+        })
+
+        const reply2ActorId = 'https://someone.else/u/user2'
+        const reply2Id = `${reply2ActorId}/s/post-1`
+        const reply2 = await storage.createStatus({
+          id: reply2Id,
+          url: reply2Id,
+          actorId: reply2ActorId,
+          type: 'Note',
+
+          text: '@test9 This is second reply',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [TEST_ID9]
+        })
+
+        const status = await storage.getStatus({
+          statusId: statusWithRepliesId
+        })
+        expect(status?.toJson().replies).toHaveLength(2)
+        expect(status?.toJson().replies).toContainAllValues([
+          reply1.toJson(),
+          reply2.toJson()
+        ])
+      })
     })
   })
 })
