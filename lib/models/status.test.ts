@@ -75,6 +75,7 @@ describe('Status', () => {
         attachments: [],
         tags: [],
         reply: 'https://other.network/users/test/status/1',
+        replies: [],
         createdAt: expect.toBeNumber(),
         updatedAt: expect.toBeNumber()
       })
@@ -99,6 +100,7 @@ describe('Status', () => {
         attachments: [],
         tags: [],
         reply: '',
+        replies: [],
         createdAt: expect.toBeNumber(),
         updatedAt: expect.toBeNumber()
       })
@@ -140,12 +142,8 @@ describe('Status', () => {
         replies: {
           id: `${status?.data.id}/replies`,
           type: 'Collection',
-          first: {
-            type: 'CollectionPage',
-            next: `${status?.data.id}/replies?only_other_accounts=true&page=true`,
-            partOf: `${status?.data.id}/replies`,
-            items: []
-          }
+          totalItems: 0,
+          items: []
         }
       })
     })

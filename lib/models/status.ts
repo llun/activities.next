@@ -123,12 +123,8 @@ export class Status {
       replies: {
         id: `${data.id}/replies`,
         type: 'Collection',
-        first: {
-          type: 'CollectionPage',
-          next: `${data.id}/replies?only_other_accounts=true&page=true`,
-          partOf: `${data.id}/replies`,
-          items: []
-        }
+        totalItems: 0,
+        items: []
       }
     } as Note
   }
