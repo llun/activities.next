@@ -17,24 +17,19 @@ const TEST_EMAIL2 = 'user2@llun.dev'
 const TEST_USERNAME2 = 'user2'
 
 // User that follow other without any followers
-const TEST_EMAIL3 = 'user3@llun.dev'
-const TEST_USERNAME3 = 'user3'
 const TEST_ID3 = 'https://llun.test/users/user3'
 
 // User that get someone follow them
-const TEST_EMAIL4 = 'user4@llun.dev'
-const TEST_USERNAME4 = 'user4'
 const TEST_ID4 = 'https://llun.test/users/user4'
 
 // Get statuses test user
-const TEST_EMAIL5 = 'user5@llun.dev'
-const TEST_USERNAME5 = 'user5'
 const TEST_ID5 = 'https://llun.test/users/user5'
 
 // Get Actor statuses test user
-const TEST_EMAIL6 = 'user6@llun.dev'
-const TEST_USERNAME6 = 'user6'
 const TEST_ID6 = 'https://llun.test/users/user6'
+
+// Get Actor statuses with replies test user
+const TEST_ID7 = 'https://llun.test/users/user7'
 
 type TestStorage = [string, Storage]
 
@@ -84,30 +79,14 @@ describe('Storage', () => {
         privateKey: 'privateKey1',
         publicKey: 'publicKey1'
       })
-      await storage.createAccount({
-        email: TEST_EMAIL3,
-        username: TEST_USERNAME3,
-        privateKey: 'privateKey3',
-        publicKey: 'publicKey3'
-      })
-      await storage.createAccount({
-        email: TEST_EMAIL4,
-        username: TEST_USERNAME4,
-        privateKey: 'privateKey4',
-        publicKey: 'publicKey4'
-      })
-      await storage.createAccount({
-        email: TEST_EMAIL5,
-        username: TEST_USERNAME5,
-        privateKey: 'privateKey5',
-        publicKey: 'publicKey5'
-      })
-      await storage.createAccount({
-        email: TEST_EMAIL6,
-        username: TEST_USERNAME6,
-        privateKey: 'privateKey6',
-        publicKey: 'publicKey6'
-      })
+      for (let i = 3; i <= 7; i++) {
+        await storage.createAccount({
+          email: `user${i}@llun.dev`,
+          username: `user${i}`,
+          privateKey: `privateKey${i}`,
+          publicKey: `publicKey${i}`
+        })
+      }
     })
 
     describe('accounts', () => {
@@ -508,11 +487,11 @@ describe('Storage', () => {
             actorId: TEST_ID6,
             type: 'Note',
 
-            text: `Status ${i + 1}`,
+            text: `Status ${i}`,
             to: ['https://www.w3.org/ns/activitystreams#Public', TEST_ID6],
             cc: []
           })
-          await new Promise((resolve) => setTimeout(resolve, 10))
+          await new Promise((resolve) => setTimeout(resolve, 1))
         }
         expect(
           await storage.getActorStatusesCount({ actorId: TEST_ID6 })
@@ -541,6 +520,47 @@ describe('Storage', () => {
         expect(statusesAfterDelete[1]).toEqual(
           await storage.getStatus({ statusId: `${TEST_ID6}/statuses/post-1` })
         )
+      })
+
+      it('returns actor statuses without replies', async () => {
+        // Mock status for reply
+        const mainStatusForReplyId = `${TEST_ID}/statuses/post-for-reply`
+        await storage.createStatus({
+          id: mainStatusForReplyId,
+          url: mainStatusForReplyId,
+          actorId: TEST_ID,
+          type: 'Note',
+
+          text: 'This is status for reply',
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: []
+        })
+
+        for (let i = 1; i <= 20; i++) {
+          const statusId = `${TEST_ID7}/statuses/post-${i}`
+          await storage.createStatus({
+            id: statusId,
+            url: statusId,
+            actorId: TEST_ID7,
+            type: 'Note',
+            ...(i % 3 === 0 ? { reply: mainStatusForReplyId } : undefined),
+
+            text: `Status ${i}`,
+            to: ['https://www.w3.org/ns/activitystreams#Public', TEST_ID6],
+            cc: []
+          })
+          await new Promise((resolve) => setTimeout(resolve, 1))
+        }
+        expect(
+          await storage.getActorStatusesCount({ actorId: TEST_ID7 })
+        ).toEqual(20)
+        const statuses = await storage.getActorStatuses({
+          actorId: TEST_ID7
+        })
+        expect(statuses.length).toEqual(14)
+        for (const reply of statuses.map((status) => status.data.reply)) {
+          expect(reply).toEqual('')
+        }
       })
     })
   })

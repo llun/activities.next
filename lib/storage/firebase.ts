@@ -489,6 +489,7 @@ export class FirebaseStorage implements Storage {
     const statusesQuery = query(
       statuses,
       where('actorId', '==', actorId),
+      where('reply', '==', ''),
       orderBy('createdAt', 'desc'),
       limit(20)
     )

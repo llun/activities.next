@@ -343,6 +343,7 @@ export class Sqlite3Storage implements Storage {
     const currentTime = Date.now()
     const statusCreatedAt = createdAt || currentTime
     const statusUpdatedAt = currentTime
+    console.log(reply, id)
 
     const local = await deliverTo({ from: actorId, to, cc, storage: this })
     await this.database.transaction(async (trx) => {
@@ -479,8 +480,9 @@ export class Sqlite3Storage implements Storage {
   }
 
   async getActorStatuses({ actorId }: GetActorStatusesParams) {
-    const statuses = await this.database<Status>('statuses')
+    const statuses = await this.database('statuses')
       .where('actorId', actorId)
+      .andWhere('reply', '')
       .orderBy('createdAt', 'desc')
       .limit(20)
     return Promise.all(
