@@ -1,7 +1,9 @@
 import linkifyStr from 'linkify-string'
 import * as linkify from 'linkifyjs'
 
+import { announce } from '../actions/announce'
 import { getPersonFromHandle } from '../activities'
+import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Mention } from '../activities/entities/mention'
 import { Note } from '../activities/entities/note'
 import '../linkify-mention'
@@ -9,12 +11,17 @@ import { getISOTimeUTC } from '../time'
 import { Attachment, AttachmentData } from './attachment'
 import { Tag, TagData } from './tag'
 
-export type StatusType = 'Note' | 'Question'
+export enum StatusType {
+  Note = 'Note',
+  Announce = 'Announce'
+}
+
 export interface StatusData {
   id: string
   url: string
   actorId: string
   type: StatusType
+
   text: string
   summary: string
   to: string[]
@@ -44,7 +51,7 @@ export class Status {
 
       actorId: note.attributedTo,
 
-      type: 'Note',
+      type: StatusType.Note,
 
       text: note.content,
       summary: note.summary || '',
@@ -59,6 +66,32 @@ export class Status {
       tags: [],
 
       createdAt: new Date(note.published).getTime(),
+      updatedAt: Date.now()
+    })
+  }
+
+  static fromAnnoucne(announce: AnnounceStatus) {
+    return new Status({
+      id: announce.id,
+      url: announce.id,
+
+      actorId: announce.actor,
+
+      type: StatusType.Announce,
+
+      text: announce.object,
+      summary: '',
+
+      to: Array.isArray(announce.to) ? announce.to : [announce.to],
+      cc: Array.isArray(announce.cc) ? announce.cc : [announce.cc],
+
+      reply: '',
+      replies: [],
+
+      attachments: [],
+      tags: [],
+
+      createdAt: new Date(announce.published).getTime(),
       updatedAt: Date.now()
     })
   }

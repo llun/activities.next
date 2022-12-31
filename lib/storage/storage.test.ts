@@ -1,5 +1,6 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { FollowStatus } from '../models/follow'
+import { StatusType } from '../models/status'
 import { FirebaseStorage } from './firebase'
 import { Sqlite3Storage } from './sqlite3'
 import { Storage } from './types'
@@ -379,7 +380,7 @@ describe('Storage', () => {
           id,
           url: id,
           actorId: TEST_ID,
-          type: 'Note',
+          type: StatusType.Note,
 
           text: 'Test Status',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -389,7 +390,7 @@ describe('Storage', () => {
           id,
           url: id,
           actorId: TEST_ID,
-          type: 'Note',
+          type: StatusType.Note,
 
           text: 'Test Status',
           summary: '',
@@ -415,7 +416,7 @@ describe('Storage', () => {
           id,
           url: id,
           actorId: TEST_ID,
-          type: 'Note',
+          type: StatusType.Note,
 
           text: 'Test Status',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -443,7 +444,7 @@ describe('Storage', () => {
           id,
           url: id,
           actorId: TEST_ID,
-          type: 'Note',
+          type: StatusType.Note,
 
           text: '@<a href="https://llun.test/@test2">test2</a> Test mentions',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -467,7 +468,7 @@ describe('Storage', () => {
             id: statusId,
             url: statusId,
             actorId: sender,
-            type: 'Note',
+            type: StatusType.Note,
 
             text: `Status ${i + 1}`,
             to: [ACTIVITY_STREAM_PUBLIC, TEST_ID5],
@@ -500,7 +501,7 @@ describe('Storage', () => {
           id: mainStatusForReplyId,
           url: mainStatusForReplyId,
           actorId: TEST_ID,
-          type: 'Note',
+          type: StatusType.Note,
 
           text: 'This is status for reply',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -528,7 +529,7 @@ describe('Storage', () => {
             id: statusId,
             url: statusId,
             actorId: TEST_ID8,
-            type: 'Note',
+            type: StatusType.Note,
             ...(i % 3 === 0 ? { reply: mainStatusForReplyId } : undefined),
 
             text: `Status ${i}`,
@@ -541,7 +542,7 @@ describe('Storage', () => {
               id: otherServerUser1Status(i),
               url: otherServerUser1Status(i),
               actorId: otherServerUser1,
-              type: 'Note',
+              type: StatusType.Note,
               text: `Other server user1 status ${i}`,
               to: [ACTIVITY_STREAM_PUBLIC],
               cc: [`${otherServerUser1}/followers`]
@@ -553,7 +554,7 @@ describe('Storage', () => {
               id: otherServerUser2Status(i),
               url: otherServerUser2Status(i),
               actorId: otherServerUser2,
-              type: 'Note',
+              type: StatusType.Note,
               text: `Other server user2 status ${i}`,
               to: [ACTIVITY_STREAM_PUBLIC],
               cc: [`${otherServerUser2}/followers`]
@@ -565,7 +566,7 @@ describe('Storage', () => {
               id: otherServerUser2Status(i),
               url: otherServerUser2Status(i),
               actorId: otherServerUser2,
-              type: 'Note',
+              type: StatusType.Note,
               text: `Other server user2 status ${i} reply`,
               to: [ACTIVITY_STREAM_PUBLIC, otherServerUser1],
               cc: [`${otherServerUser2}/followers`],
@@ -595,7 +596,7 @@ describe('Storage', () => {
             id: statusId,
             url: statusId,
             actorId: TEST_ID6,
-            type: 'Note',
+            type: StatusType.Note,
 
             text: `Status ${i}`,
             to: [ACTIVITY_STREAM_PUBLIC, TEST_ID6],
@@ -639,7 +640,7 @@ describe('Storage', () => {
           id: mainStatusForReplyId,
           url: mainStatusForReplyId,
           actorId: TEST_ID,
-          type: 'Note',
+          type: StatusType.Note,
 
           text: 'This is status for reply',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -652,7 +653,7 @@ describe('Storage', () => {
             id: statusId,
             url: statusId,
             actorId: TEST_ID7,
-            type: 'Note',
+            type: StatusType.Note,
             ...(i % 3 === 0 ? { reply: mainStatusForReplyId } : undefined),
 
             text: `Status ${i}`,
@@ -679,7 +680,7 @@ describe('Storage', () => {
           id: statusWithRepliesId,
           url: statusWithRepliesId,
           actorId: TEST_ID9,
-          type: 'Note',
+          type: StatusType.Note,
 
           text: 'This is status for reply',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -692,7 +693,7 @@ describe('Storage', () => {
           id: reply1Id,
           url: reply1Id,
           actorId: reply1ActorId,
-          type: 'Note',
+          type: StatusType.Note,
           reply: statusWithRepliesId,
 
           text: '@test9 This is first reply',
@@ -706,7 +707,7 @@ describe('Storage', () => {
           id: reply2Id,
           url: reply2Id,
           actorId: reply2ActorId,
-          type: 'Note',
+          type: StatusType.Note,
           reply: statusWithRepliesId,
 
           text: '@test9 This is second reply',

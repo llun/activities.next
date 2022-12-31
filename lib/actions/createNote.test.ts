@@ -2,7 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
-import { Status } from '../models/status'
+import { Status, StatusType } from '../models/status'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { MockImageDocument } from '../stub/imageDocument'
@@ -66,7 +66,7 @@ describe('Create note action', () => {
       expect(status?.data.actorId).toEqual(note.attributedTo)
       expect(status?.data.to).toEqual(note.to)
       expect(status?.data.cc).toEqual(note.cc)
-      expect(status?.data.type).toEqual('Note')
+      expect(status?.data.type).toEqual(StatusType.Note)
       expect(status?.data.createdAt).toEqual(new Date(note.published).getTime())
     })
 

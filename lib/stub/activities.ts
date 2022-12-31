@@ -30,7 +30,9 @@ export const mockRequests = (fetchMock: FetchMock) => {
         status: 200,
         body: JSON.stringify(
           MockMastodonNote({
-            content: 'This is status'
+            id: req.url,
+            content: 'This is status',
+            withContext: true
           })
         )
       }

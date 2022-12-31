@@ -2,6 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
+import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { MockMastodonNote } from '../stub/note'
@@ -10,7 +11,7 @@ import { seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
 import { getISOTimeUTC } from '../time'
 import { Actor } from './actor'
-import { Status } from './status'
+import { Status, StatusType } from './status'
 
 enableFetchMocks()
 
@@ -67,10 +68,10 @@ describe('Status', () => {
         id: note.id,
         url: note.url,
         actorId: 'https://llun.test/users/llun',
-        type: 'Note',
+        type: StatusType.Note,
         text: 'Hello',
         summary: '',
-        to: ['as:Public'],
+        to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         attachments: [],
         tags: [],
@@ -92,10 +93,10 @@ describe('Status', () => {
         id: note.id,
         url: note.url,
         actorId: 'https://llun.test/users/llun',
-        type: 'Note',
+        type: StatusType.Note,
         text: 'Hello',
         summary: '',
-        to: ['as:Public'],
+        to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         attachments: [],
         tags: [],
@@ -120,53 +121,57 @@ describe('Status', () => {
       })
     })
 
-    it('converts status to Note object', async () => {
-      const statusId = `${actor1?.id}/statuses/post-1`
-      const status = await storage.getStatus({
-        statusId
+    describe('Note', () => {
+      it('converts status to Note object', async () => {
+        const statusId = `${actor1?.id}/statuses/post-1`
+        const status = await storage.getStatus({
+          statusId
+        })
+        const note = status?.toObject()
+        expect(note).toEqual({
+          id: statusId,
+          type: StatusType.Note,
+          summary: null,
+          inReplyTo: null,
+          published: getISOTimeUTC(status?.data.createdAt ?? 0),
+          url: status?.data.url,
+          attributedTo: status?.data.actorId,
+          to: status?.data.to,
+          cc: status?.data.cc,
+          content: status?.data.text,
+          attachment: [],
+          tag: [],
+          replies: {
+            id: `${status?.data.id}/replies`,
+            type: 'Collection',
+            totalItems: 1,
+            items: [
+              (
+                await storage.getStatus({
+                  statusId: 'https://llun.test/users/test2/statuses/post-2'
+                })
+              )?.toObject()
+            ]
+          }
+        })
       })
-      const note = status?.toObject()
-      expect(note).toEqual({
-        id: statusId,
-        type: 'Note',
-        summary: null,
-        inReplyTo: null,
-        published: getISOTimeUTC(status?.data.createdAt ?? 0),
-        url: status?.data.url,
-        attributedTo: status?.data.actorId,
-        to: status?.data.to,
-        cc: status?.data.cc,
-        content: status?.data.text,
-        attachment: [],
-        tag: [],
-        replies: {
-          id: `${status?.data.id}/replies`,
-          type: 'Collection',
-          totalItems: 1,
-          items: [
-            (
-              await storage.getStatus({
-                statusId: 'https://llun.test/users/test2/statuses/post-2'
-              })
-            )?.toObject()
-          ]
-        }
+
+      it('add mentions into Note object', async () => {
+        const statusId = `${actor2?.id}/statuses/post-2`
+        const status = await storage.getStatus({
+          statusId
+        })
+        const note = status?.toObject()
+        expect(note?.tag).toHaveLength(1)
+        expect(note?.tag).toContainValue({
+          type: 'Mention',
+          name: '@test',
+          href: 'https://llun.test/@test1'
+        })
       })
     })
 
-    it('add mentions into Note object', async () => {
-      const statusId = `${actor2?.id}/statuses/post-2`
-      const status = await storage.getStatus({
-        statusId
-      })
-      const note = status?.toObject()
-      expect(note?.tag).toHaveLength(1)
-      expect(note?.tag).toContainValue({
-        type: 'Mention',
-        name: '@test',
-        href: 'https://llun.test/@test1'
-      })
-    })
+    describe('Announce', () => {})
   })
 
   describe('#getMentions', () => {

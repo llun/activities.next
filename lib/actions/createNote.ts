@@ -9,7 +9,7 @@ import {
 } from '../jsonld/activitystream'
 import { Actor, getAtUsernameFromId } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
-import { Status } from '../models/status'
+import { Status, StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 
 interface CreateNoteParams {
@@ -36,11 +36,10 @@ export const createNote = async ({
 
     actorId: compactNote.attributedTo,
 
-    type: compactNote.type,
+    type: compactNote.type as StatusType,
     text: compactNote.content,
     summary: compactNote.summary || '',
 
-    // Preserve URL here?
     to: Array.isArray(note.to) ? note.to : [note.to].filter((item) => item),
     cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter((item) => item),
 
@@ -102,7 +101,7 @@ export const createNoteFromUserInput = async ({
 
     actorId: currentActor.id,
 
-    type: 'Note',
+    type: StatusType.Note,
     text: Status.paragraphText(Status.linkfyText(text)),
     summary: '',
 
