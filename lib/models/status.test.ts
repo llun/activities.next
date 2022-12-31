@@ -71,7 +71,7 @@ describe('Status', () => {
         type: StatusType.Note,
         text: 'Hello',
         summary: '',
-        to: [ACTIVITY_STREAM_PUBLIC],
+        to: ['as:Public'],
         cc: [],
         attachments: [],
         tags: [],
@@ -96,7 +96,7 @@ describe('Status', () => {
         type: StatusType.Note,
         text: 'Hello',
         summary: '',
-        to: [ACTIVITY_STREAM_PUBLIC],
+        to: ['as:Public'],
         cc: [],
         attachments: [],
         tags: [],
@@ -171,7 +171,35 @@ describe('Status', () => {
       })
     })
 
-    describe('Announce', () => {})
+    describe('Announce', () => {
+      it('converts status to Announce object', async () => {
+        const statusId = `${actor2?.id}/statuses/post-3`
+        const status = await storage.getStatus({
+          statusId
+        })
+        const note = status?.toObject()
+        expect(note).toEqual({
+          id: statusId,
+          type: StatusType.Announce,
+          summary: null,
+          inReplyTo: null,
+          published: getISOTimeUTC(status?.data.createdAt ?? 0),
+          url: status?.data.url,
+          attributedTo: status?.data.actorId,
+          to: status?.data.to,
+          cc: status?.data.cc,
+          content: status?.data.text,
+          attachment: [],
+          tag: [],
+          replies: {
+            id: `${status?.data.id}/replies`,
+            type: 'Collection',
+            totalItems: 0,
+            items: []
+          }
+        })
+      })
+    })
   })
 
   describe('#getMentions', () => {

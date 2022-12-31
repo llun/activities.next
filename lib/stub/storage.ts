@@ -74,15 +74,14 @@ export const seedStorage = async (storage: Storage) => {
     value: 'https://llun.test/@test1'
   })
 
-  // Actor1 announce
+  // Actor2 announce
   await storage.createStatus({
-    id: `${actor2.id}/statuses/post-2`,
-    url: `${actor2.id}/statuses/post-2`,
+    id: `${actor2.id}/statuses/post-3`,
+    url: `${actor2.id}/statuses/post-3`,
     actorId: actor2.id,
-    to: [ACTIVITY_STREAM_PUBLIC, actor1.id],
+    to: [ACTIVITY_STREAM_PUBLIC],
     cc: [`${actor2.id}/followers`],
-    text: Status.linkfyText('@test1@llun.test This is Actor1 post'),
-    type: StatusType.Note,
-    reply: `${actor1.id}/statuses/post-1`
+    text: `${actor2.id}/statuses/post-2`,
+    type: StatusType.Announce
   })
 }

@@ -1,7 +1,6 @@
 import linkifyStr from 'linkify-string'
 import * as linkify from 'linkifyjs'
 
-import { announce } from '../actions/announce'
 import { getPersonFromHandle } from '../activities'
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Mention } from '../activities/entities/mention'
