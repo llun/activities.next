@@ -17,7 +17,11 @@ const customJestConfig = {
   automock: false,
   resetMocks: false,
   setupFilesAfterEnv: ['jest-extended/all'],
-  setupFiles: ['<rootDir>/jest.setup.js']
+  setupFiles: ['<rootDir>/jest.setup.js'],
+  transform: {
+    '\\.(js|jsx|ts|tsx)$': ['@sucrase/jest-plugin', { jsxRuntime: 'automatic' }]
+  },
+  verbose: true
 }
 
 /** @type {import('ts-jest').JestConfigWithTsJest} */
