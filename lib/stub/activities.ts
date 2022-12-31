@@ -1,5 +1,6 @@
 import { FetchMock } from 'jest-fetch-mock'
 
+import { MockMastodonNote } from './note'
 import { MockActivityPubPerson } from './person'
 import { MockWebfinger } from './webfinger'
 
@@ -24,6 +25,17 @@ export const mockRequests = (fetchMock: FetchMock) => {
         )
       }
     }
+    if (url.pathname.startsWith('/statuses')) {
+      return {
+        status: 200,
+        body: JSON.stringify(
+          MockMastodonNote({
+            content: 'This is status'
+          })
+        )
+      }
+    }
+
     if (
       url.pathname.startsWith('/actors') ||
       url.pathname.startsWith('/users')

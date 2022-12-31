@@ -2,12 +2,21 @@ import crypto from 'crypto'
 
 import { Document } from '../activities/entities/document'
 import { Note } from '../activities/entities/note'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_URL
+} from '../jsonld/activitystream'
 import { getISOTimeUTC } from '../time'
+
+export const stubNoteId = (id = crypto.randomBytes(8).toString('hex')) =>
+  `https://llun.test/users/llun/statuses/${id}`
 
 interface MockNoteParams {
   content: string
   published?: number
   id?: string
+  url?: string
+  from?: string
   to?: string[]
   cc?: string[]
   inReplyTo?: string | null
@@ -17,10 +26,11 @@ interface MockNoteParams {
   withContext?: boolean
 }
 export const MockMastodonNote = ({
-  id = crypto.randomUUID(),
+  id = stubNoteId(),
   published = Date.now(),
   content,
-  to = ['https://www.w3.org/ns/activitystreams#Public'],
+  from = 'https://llun.test/users/llun',
+  to = [ACTIVITY_STREAM_PUBLIC],
   cc = [],
   inReplyTo,
   documents,
@@ -29,19 +39,17 @@ export const MockMastodonNote = ({
   withContext
 }: MockNoteParams) =>
   ({
-    ...(withContext
-      ? { '@context': 'https://www.w3.org/ns/activitystreams' }
-      : null),
-    id: `https://llun.test/users/llun/statuses/${id}`,
+    ...(withContext ? { '@context': ACTIVITY_STREAM_URL } : null),
+    id,
     type: 'Note',
     summary: '',
     published: getISOTimeUTC(published),
-    url: `https://llun.test/@llun/${id}`,
-    attributedTo: 'https://llun.test/users/llun',
+    url: id,
+    attributedTo: from,
     to,
     cc,
     sensitive: false,
-    atomUri: `https://llun.test/users/llun/statuses/${id}`,
+    atomUri: id,
     inReplyTo,
     inReplyToAtomUri: inReplyTo,
     conversation:
@@ -52,12 +60,12 @@ export const MockMastodonNote = ({
     attachment: documents,
     tag: [],
     replies: {
-      id: `https://llun.test/users/llun/statuses/${id}/replies`,
+      id: `${id}/replies`,
       type: 'Collection',
       first: {
         type: 'CollectionPage',
-        next: `https://llun.test/users/llun/statuses/${id}/replies?only_other_accounts=true\u0026page=true`,
-        partOf: `https://llun.test/users/llun/statuses/${id}/replies`,
+        next: `${id}/replies?only_other_accounts=true\u0026page=true`,
+        partOf: `${id}/replies`,
         items: []
       }
     }

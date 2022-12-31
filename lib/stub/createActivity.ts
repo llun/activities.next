@@ -36,15 +36,17 @@ export const MockMastodonCreateActivity = ({
   cc = ['https://llun.test/users/llun/followers'],
   published = Date.now()
 }: Params) => {
+  const id = 'https://llun.test/users/llun/statuses/109417500731428509'
   return {
     ...CONTEXT,
-    id: 'https://llun.test/users/llun/statuses/109417500731428509/activity',
+    id: `${id}/activity`,
     type: 'Create',
     actor: 'https://llun.test/users/llun',
     published: getISOTimeUTC(published),
     to,
     cc,
     object: MockMastodonNote({
+      id,
       content,
       conversation,
       documents,
