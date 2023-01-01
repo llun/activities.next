@@ -21,14 +21,12 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     statusId: compactedBoostedStatus.id
   })
   if (!existingStatus) {
-    console.log(compactedBoostedStatus.id)
-    await storage.createStatus({
+    await storage.createNote({
       id: compactedBoostedStatus.id,
       url: compactedBoostedStatus.url || compactedBoostedStatus.id,
 
       actorId: compactedBoostedStatus.attributedTo,
 
-      type: compactedBoostedStatus.type as StatusType,
       text: compactedBoostedStatus.content,
       summary: compactedBoostedStatus.summary || '',
 
