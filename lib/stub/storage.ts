@@ -1,6 +1,6 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { FollowStatus } from '../models/follow'
-import { Status, StatusType } from '../models/status'
+import { Status } from '../models/status'
 import { Storage } from '../storage/types'
 import { seedActor1 } from './seed/actor1'
 import { seedActor2 } from './seed/actor2'
