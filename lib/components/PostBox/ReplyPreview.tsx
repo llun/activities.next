@@ -1,7 +1,7 @@
 import cn from 'classnames'
 import { FC } from 'react'
 
-import { StatusData } from '../../models/status'
+import { StatusData, StatusType } from '../../models/status'
 import { parseText } from '../../text'
 import { CloseButton } from '../CloseButton'
 import { Actor } from '../Posts/Actor'
@@ -10,6 +10,17 @@ import styles from './ReplyPreview.module.scss'
 interface Props {
   status?: StatusData
   onClose?: () => void
+}
+
+const getText = (statusData: StatusData) => {
+  switch (statusData.type) {
+    case StatusType.Note:
+      return statusData.text
+    case StatusType.Announce:
+      return statusData.originalStatus.text
+    default:
+      return ''
+  }
 }
 
 export const ReplyPreview: FC<Props> = ({ status, onClose }) => {
@@ -27,7 +38,7 @@ export const ReplyPreview: FC<Props> = ({ status, onClose }) => {
     >
       <div>
         <Actor actorId={status.actorId || ''} />
-        {parseText(status.text)}
+        {parseText(getText(status))}
       </div>
       <CloseButton className={cn(styles.close)} onClick={() => onClose?.()} />
     </section>

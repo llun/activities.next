@@ -169,23 +169,6 @@ export class Status {
     return messages.join('\n')
   }
 
-  static async getMentions(text: string): Promise<Mention[]> {
-    return Promise.all(
-      linkify
-        .find(text)
-        .filter((item) => item.type === 'mention')
-        .map((item) => [item.value, item.value.slice(1).split('@')].flat())
-        .map(async ([value, user, host]) => {
-          const person = await getPersonFromHandle(`${user}@${host}`)
-          return {
-            type: 'Mention',
-            href: person?.id ?? `https://${host}/users/${user}`,
-            name: value
-          }
-        })
-    )
-  }
-
   toObject(): Note {
     const data =
       this.data.type === StatusType.Note ? this.data : this.data.originalStatus

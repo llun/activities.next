@@ -127,6 +127,9 @@ describe('Status', () => {
           statusId
         })
         const note = status?.toObject()
+        if (status?.data.type !== StatusType.Note) {
+          fail('Status type must be Note')
+        }
         expect(note).toEqual({
           id: statusId,
           type: StatusType.Note,
@@ -184,29 +187,6 @@ describe('Status', () => {
         })
         const note3 = status3?.toObject()
         expect(note3).toEqual(note2)
-      })
-    })
-  })
-
-  describe('#getMentions', () => {
-    it('returns empty array for text with no mentions', async () => {
-      expect(await Status.getMentions('Text without mentions')).toEqual([])
-    })
-
-    it('returns Mentions from text', async () => {
-      const mentions = await Status.getMentions(
-        '@llun@somewhere.test @test1@llun.test Test mentions'
-      )
-      expect(mentions).toHaveLength(2)
-      expect(mentions[0]).toEqual({
-        type: 'Mention',
-        href: `https://somewhere.test/actors/llun`,
-        name: '@llun@somewhere.test'
-      })
-      expect(mentions[1]).toEqual({
-        type: 'Mention',
-        href: `https://llun.test/users/test1`,
-        name: '@test1@llun.test'
       })
     })
   })

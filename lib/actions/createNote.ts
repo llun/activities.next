@@ -1,5 +1,8 @@
 import crypto from 'crypto'
+import * as linkify from 'linkifyjs'
 
+import { getPersonFromHandle } from '../activities'
+import { Mention } from '../activities/entities/mention'
 import { Note, getAttachments, getTags } from '../activities/entities/note'
 import { getConfig } from '../config'
 import { compact } from '../jsonld'
@@ -75,6 +78,23 @@ export const createNote = async ({
   return note
 }
 
+export const getMentions = async (text: string): Promise<Mention[]> => {
+  return Promise.all(
+    linkify
+      .find(text)
+      .filter((item) => item.type === 'mention')
+      .map((item) => [item.value, item.value.slice(1).split('@')].flat())
+      .map(async ([value, user, host]) => {
+        const person = await getPersonFromHandle(`${user}@${host}`)
+        return {
+          type: 'Mention',
+          href: person?.id ?? `https://${host}/users/${user}`,
+          name: value
+        }
+      })
+  )
+}
+
 interface CreateNoteFromUserInputParams {
   text: string
   replyNoteId?: string
@@ -116,7 +136,7 @@ export const createNoteFromUserInput = async ({
     reply: replyStatus?.data.id || ''
   })
 
-  const mentions = await Status.getMentions(text)
+  const mentions = await getMentions(text)
   await Promise.all([
     ...attachments.map((attachment) =>
       storage.createAttachment({

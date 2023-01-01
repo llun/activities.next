@@ -10,7 +10,7 @@ import { MockMastodonNote } from '../stub/note'
 import { seedActor1 } from '../stub/seed/actor1'
 import { seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
-import { createNote, createNoteFromUserInput } from './createNote'
+import { createNote, createNoteFromUserInput, getMentions } from './createNote'
 
 enableFetchMocks()
 
@@ -181,6 +181,29 @@ How are you?
         type: 'Mention',
         href: 'https://llun.test/users/test2',
         name: '@test2@llun.test'
+      })
+    })
+  })
+
+  describe('#getMentions', () => {
+    it('returns empty array for text with no mentions', async () => {
+      expect(await getMentions('Text without mentions')).toEqual([])
+    })
+
+    it('returns Mentions from text', async () => {
+      const mentions = await getMentions(
+        '@llun@somewhere.test @test1@llun.test Test mentions'
+      )
+      expect(mentions).toHaveLength(2)
+      expect(mentions[0]).toEqual({
+        type: 'Mention',
+        href: `https://somewhere.test/actors/llun`,
+        name: '@llun@somewhere.test'
+      })
+      expect(mentions[1]).toEqual({
+        type: 'Mention',
+        href: `https://llun.test/users/test1`,
+        name: '@test1@llun.test'
       })
     })
   })

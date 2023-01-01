@@ -4,7 +4,7 @@ import { FC } from 'react'
 
 import { deleteStatus } from '../../client'
 import { AttachmentData } from '../../models/attachment'
-import { StatusData } from '../../models/status'
+import { StatusData, StatusType } from '../../models/status'
 import { parseText } from '../../text'
 import { Button } from '../Button'
 import { Actor } from './Actor'
@@ -30,6 +30,8 @@ export const Actions: FC<Props> = ({
   onPostDeleted
 }) => {
   if (!showActions) return null
+  // TODO: Return different actions for announce
+  if (status.type === StatusType.Announce) return null
   return (
     <div className={cn(styles.actions)}>
       <Button
@@ -72,32 +74,42 @@ export const Actions: FC<Props> = ({
   )
 }
 
+const getActualStatus = (status: StatusData) => {
+  switch (status.type) {
+    case StatusType.Announce:
+      return status.originalStatus
+    default:
+      return status
+  }
+}
+
 export const Post: FC<Props> = (props) => {
   const { showActorId = false, status, currentTime, onShowAttachment } = props
+  const actualStatus = getActualStatus(status)
   return (
     <div key={status.id} className={cn(styles.post)}>
       <div className={cn('d-flex', 'mb-2')}>
         <Actor
           className={cn('flex-fill', 'me-2')}
-          actorId={(showActorId && status.actorId) || ''}
+          actorId={(showActorId && actualStatus.actorId) || ''}
         />
         <div className={cn('flex-shrink-0', styles.misc)}>
-          <a href={status.url} target="_blank" rel="noreferrer">
-            {formatDistance(status.createdAt, currentTime)}
+          <a href={actualStatus.url} target="_blank" rel="noreferrer">
+            {formatDistance(actualStatus.createdAt, currentTime)}
           </a>
         </div>
       </div>
-      <div className={'me-1'}>{parseText(status.text)}</div>
-      {status.attachments && status.attachments.length > 0 && (
+      <div className={'me-1'}>{parseText(actualStatus.text)}</div>
+      {actualStatus.attachments && actualStatus.attachments.length > 0 && (
         <div
           className={cn(styles.medias)}
           style={{
             gridTemplateColumns: `repeat(${
-              status.attachments.length > 1 ? 2 : 1
+              actualStatus.attachments.length > 1 ? 2 : 1
             }, 1fr)`
           }}
         >
-          {status.attachments.map((attachment) => (
+          {actualStatus.attachments.map((attachment) => (
             <Media
               className={styles.media}
               onClick={() => onShowAttachment(attachment)}
