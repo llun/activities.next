@@ -19,7 +19,7 @@ interface CreateNoteParams {
 export const createNote = async ({
   note,
   storage
-}: CreateNoteParams): Promise<Note> => {
+}: CreateNoteParams): Promise<Note | null> => {
   const existingStatus = await storage.getStatus({ statusId: note.id })
   if (existingStatus) {
     return note
@@ -29,14 +29,16 @@ export const createNote = async ({
     '@context': ACTIVITY_STREAM_URL,
     ...note
   })) as Note
+  if (compactNote.type !== StatusType.Note) {
+    return null
+  }
 
-  await storage.createStatus({
+  await storage.createNote({
     id: compactNote.id,
     url: compactNote.url || compactNote.id,
 
     actorId: compactNote.attributedTo,
 
-    type: compactNote.type as StatusType,
     text: compactNote.content,
     summary: compactNote.summary || '',
 
@@ -95,13 +97,12 @@ export const createNoteFromUserInput = async ({
   const host = getConfig().host
   const statusId = `${currentActor.id}/statuses/${postId}`
 
-  await storage.createStatus({
+  await storage.createNote({
     id: statusId,
     url: `https://${host}/${getAtUsernameFromId(currentActor.id)}/${postId}`,
 
     actorId: currentActor.id,
 
-    type: StatusType.Note,
     text: Status.paragraphText(Status.linkfyText(text)),
     summary: '',
 

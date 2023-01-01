@@ -59,7 +59,9 @@ describe('Create note action', () => {
       expect(await createNote({ storage, note })).toEqual(note)
 
       const status = await storage.getStatus({ statusId: note.id })
-
+      if (status?.data.type !== StatusType.Note) {
+        fail('Stauts type must be note')
+      }
       expect(status).toBeDefined()
       expect(status?.data.id).toEqual(note.id)
       expect(status?.data.text).toEqual(note.content)
@@ -83,7 +85,9 @@ describe('Create note action', () => {
       })
       expect(await createNote({ storage, note })).toEqual(note)
       const status = await storage.getStatus({ statusId: note.id })
-
+      if (status?.data.type !== StatusType.Note) {
+        fail('Stauts type must be note')
+      }
       expect(status?.data.attachments.length).toEqual(2)
       expect(status?.data.attachments[0]).toMatchObject({
         statusId: note.id,
