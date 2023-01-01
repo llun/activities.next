@@ -46,12 +46,10 @@ export type UpdateFollowStatusParams = {
   followId: string
   status: FollowStatus
 }
-export type CreateStatusParams = {
+export type CreateNoteParams = {
   id: string
-  url: string
   actorId: string
-  type: StatusType
-
+  url: string
   text: string
   summary?: string
 
@@ -59,6 +57,18 @@ export type CreateStatusParams = {
   cc: string[]
 
   reply?: string
+
+  createdAt?: number
+}
+export type CreateAnnounceParams = {
+  id: string
+
+  actorId: string
+
+  to: string[]
+  cc: string[]
+
+  originalStatusId: string
 
   createdAt?: number
 }
@@ -121,7 +131,8 @@ export interface Storage {
   getFollowersInbox(params: GetFollowersInboxParams): Promise<string[]>
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
 
-  createStatus(params: CreateStatusParams): Promise<Status>
+  createNote(params: CreateNoteParams): Promise<Status>
+  createAnnounce(params: CreateAnnounceParams): Promise<Status>
   getStatus(params: GetStatusParams): Promise<Status | undefined>
   getStatuses(params: GetStatusesParams): Promise<Status[]>
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>

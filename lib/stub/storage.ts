@@ -47,25 +47,23 @@ export const seedStorage = async (storage: Storage) => {
   })
 
   // Actor1 status
-  await storage.createStatus({
+  await storage.createNote({
     id: `${actor1.id}/statuses/post-1`,
     url: `${actor1.id}/statuses/post-1`,
     actorId: actor1.id,
     to: [ACTIVITY_STREAM_PUBLIC],
     cc: [],
-    text: 'This is Actor1 post',
-    type: StatusType.Note
+    text: 'This is Actor1 post'
   })
 
   // Actor2 status
-  const post2 = await storage.createStatus({
+  const post2 = await storage.createNote({
     id: `${actor2.id}/statuses/post-2`,
     url: `${actor2.id}/statuses/post-2`,
     actorId: actor2.id,
     to: [ACTIVITY_STREAM_PUBLIC, actor1.id],
     cc: [`${actor2.id}/followers`],
     text: Status.linkfyText('@test1@llun.test This is Actor1 post'),
-    type: StatusType.Note,
     reply: `${actor1.id}/statuses/post-1`
   })
   await storage.createTag({
@@ -75,13 +73,11 @@ export const seedStorage = async (storage: Storage) => {
   })
 
   // Actor2 announce
-  await storage.createStatus({
+  await storage.createAnnounce({
     id: `${actor2.id}/statuses/post-3`,
-    url: `${actor2.id}/statuses/post-3`,
     actorId: actor2.id,
     to: [ACTIVITY_STREAM_PUBLIC],
     cc: [`${actor2.id}/followers`],
-    text: `${actor2.id}/statuses/post-2`,
-    type: StatusType.Announce
+    originalStatusId: `${actor2.id}/statuses/post-2`
   })
 }

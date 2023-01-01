@@ -376,11 +376,10 @@ describe('Storage', () => {
         const postId = 'post-1'
         const id = `${TEST_ID}/statuses/${postId}`
 
-        const status = await storage.createStatus({
+        const status = await storage.createNote({
           id,
           url: id,
           actorId: TEST_ID,
-          type: StatusType.Note,
 
           text: 'Test Status',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -412,11 +411,10 @@ describe('Storage', () => {
         const postId = 'post-2'
         const id = `${TEST_ID}/statuses/${postId}`
 
-        await storage.createStatus({
+        await storage.createNote({
           id,
           url: id,
           actorId: TEST_ID,
-          type: StatusType.Note,
 
           text: 'Test Status',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -431,6 +429,9 @@ describe('Storage', () => {
         })
 
         const persistedStatus = await storage.getStatus({ statusId: id })
+        if (persistedStatus?.data.type !== StatusType.Note) {
+          fail('status type must be Note')
+        }
         expect(persistedStatus?.data.attachments).toHaveLength(1)
         expect(persistedStatus?.data.attachments[0]).toMatchObject(
           attachment.data
@@ -440,11 +441,10 @@ describe('Storage', () => {
       it('returns tags with status', async () => {
         const postId = 'post-3'
         const id = `${TEST_ID}/statuses/${postId}`
-        await storage.createStatus({
+        await storage.createNote({
           id,
           url: id,
           actorId: TEST_ID,
-          type: StatusType.Note,
 
           text: '@<a href="https://llun.test/@test2">test2</a> Test mentions',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -456,6 +456,9 @@ describe('Storage', () => {
           value: 'https://llun.test/@test2'
         })
         const persistedStatus = await storage.getStatus({ statusId: id })
+        if (persistedStatus?.data.type !== StatusType.Note) {
+          fail('status type must be Note')
+        }
         expect(persistedStatus?.data.tags).toHaveLength(1)
         expect(persistedStatus?.data.tags[0]).toMatchObject(tag.data)
       })
@@ -464,11 +467,10 @@ describe('Storage', () => {
         const sender = 'https://llun.dev/users/null'
         for (let i = 0; i < 50; i++) {
           const statusId = `https://llun.dev/users/null/statuses/post-${i + 1}`
-          await storage.createStatus({
+          await storage.createNote({
             id: statusId,
             url: statusId,
             actorId: sender,
-            type: StatusType.Note,
 
             text: `Status ${i + 1}`,
             to: [ACTIVITY_STREAM_PUBLIC, TEST_ID5],
@@ -497,11 +499,10 @@ describe('Storage', () => {
 
         // Mock status for reply
         const mainStatusForReplyId = `${TEST_ID}/statuses/post-for-reply2`
-        await storage.createStatus({
+        await storage.createNote({
           id: mainStatusForReplyId,
           url: mainStatusForReplyId,
           actorId: TEST_ID,
-          type: StatusType.Note,
 
           text: 'This is status for reply',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -525,11 +526,10 @@ describe('Storage', () => {
 
         for (let i = 1; i <= 20; i++) {
           const statusId = `${TEST_ID8}/statuses/post-${i}`
-          await storage.createStatus({
+          await storage.createNote({
             id: statusId,
             url: statusId,
             actorId: TEST_ID8,
-            type: StatusType.Note,
             ...(i % 3 === 0 ? { reply: mainStatusForReplyId } : undefined),
 
             text: `Status ${i}`,
@@ -538,11 +538,11 @@ describe('Storage', () => {
           })
 
           if (i % 11 === 0) {
-            await storage.createStatus({
+            await storage.createNote({
               id: otherServerUser1Status(i),
               url: otherServerUser1Status(i),
               actorId: otherServerUser1,
-              type: StatusType.Note,
+
               text: `Other server user1 status ${i}`,
               to: [ACTIVITY_STREAM_PUBLIC],
               cc: [`${otherServerUser1}/followers`]
@@ -550,11 +550,11 @@ describe('Storage', () => {
           }
 
           if (i % 17 === 0) {
-            await storage.createStatus({
+            await storage.createNote({
               id: otherServerUser2Status(i),
               url: otherServerUser2Status(i),
               actorId: otherServerUser2,
-              type: StatusType.Note,
+
               text: `Other server user2 status ${i}`,
               to: [ACTIVITY_STREAM_PUBLIC],
               cc: [`${otherServerUser2}/followers`]
@@ -562,11 +562,11 @@ describe('Storage', () => {
           }
 
           if (i % 19 === 0) {
-            await storage.createStatus({
+            await storage.createNote({
               id: otherServerUser2Status(i),
               url: otherServerUser2Status(i),
               actorId: otherServerUser2,
-              type: StatusType.Note,
+
               text: `Other server user2 status ${i} reply`,
               to: [ACTIVITY_STREAM_PUBLIC, otherServerUser1],
               cc: [`${otherServerUser2}/followers`],
@@ -584,19 +584,21 @@ describe('Storage', () => {
         })
 
         expect(statuses.length).toEqual(16)
-        for (const reply of statuses.map((status) => status.data.reply)) {
-          expect(reply).toEqual('')
+        for (const status of statuses) {
+          if (status.data.type !== StatusType.Note) {
+            fail('Status type must be Note')
+          }
+          expect(status.data.reply).toEqual('')
         }
       })
 
       it('returns actor statuses', async () => {
         for (let i = 1; i <= 3; i++) {
           const statusId = `${TEST_ID6}/statuses/post-${i}`
-          await storage.createStatus({
+          await storage.createNote({
             id: statusId,
             url: statusId,
             actorId: TEST_ID6,
-            type: StatusType.Note,
 
             text: `Status ${i}`,
             to: [ACTIVITY_STREAM_PUBLIC, TEST_ID6],
@@ -636,11 +638,10 @@ describe('Storage', () => {
       it('returns actor statuses without replies', async () => {
         // Mock status for reply
         const mainStatusForReplyId = `${TEST_ID}/statuses/post-for-reply`
-        await storage.createStatus({
+        await storage.createNote({
           id: mainStatusForReplyId,
           url: mainStatusForReplyId,
           actorId: TEST_ID,
-          type: StatusType.Note,
 
           text: 'This is status for reply',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -649,11 +650,10 @@ describe('Storage', () => {
 
         for (let i = 1; i <= 20; i++) {
           const statusId = `${TEST_ID7}/statuses/post-${i}`
-          await storage.createStatus({
+          await storage.createNote({
             id: statusId,
             url: statusId,
             actorId: TEST_ID7,
-            type: StatusType.Note,
             ...(i % 3 === 0 ? { reply: mainStatusForReplyId } : undefined),
 
             text: `Status ${i}`,
@@ -669,18 +669,20 @@ describe('Storage', () => {
           actorId: TEST_ID7
         })
         expect(statuses.length).toEqual(14)
-        for (const reply of statuses.map((status) => status.data.reply)) {
-          expect(reply).toEqual('')
+        for (const status of statuses) {
+          if (status.data.type !== StatusType.Note) {
+            fail('Status type must be note')
+          }
+          expect(status.data.reply).toEqual('')
         }
       })
 
       it('returns status with replies', async () => {
         const statusWithRepliesId = `${TEST_ID9}/s/post-with-replies`
-        await storage.createStatus({
+        await storage.createNote({
           id: statusWithRepliesId,
           url: statusWithRepliesId,
           actorId: TEST_ID9,
-          type: StatusType.Note,
 
           text: 'This is status for reply',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -689,11 +691,10 @@ describe('Storage', () => {
 
         const reply1ActorId = 'https://someone.else/u/user1'
         const reply1Id = `${reply1ActorId}/s/post-1`
-        const reply1 = await storage.createStatus({
+        const reply1 = await storage.createNote({
           id: reply1Id,
           url: reply1Id,
           actorId: reply1ActorId,
-          type: StatusType.Note,
           reply: statusWithRepliesId,
 
           text: '@test9 This is first reply',
@@ -703,11 +704,10 @@ describe('Storage', () => {
 
         const reply2ActorId = 'https://someone.else/u/user2'
         const reply2Id = `${reply2ActorId}/s/post-1`
-        const reply2 = await storage.createStatus({
+        const reply2 = await storage.createNote({
           id: reply2Id,
           url: reply2Id,
           actorId: reply2ActorId,
-          type: StatusType.Note,
           reply: statusWithRepliesId,
 
           text: '@test9 This is second reply',
@@ -718,11 +718,13 @@ describe('Storage', () => {
         const status = await storage.getStatus({
           statusId: statusWithRepliesId
         })
-
-        expect(status?.toJson().replies).toHaveLength(2)
-        expect(status?.toJson().replies).toContainAllValues([
-          reply1.toJson(),
-          reply2.toJson()
+        if (status?.data.type !== StatusType.Note) {
+          fail('Status type must be Note')
+        }
+        expect(status?.data.replies).toHaveLength(2)
+        expect(status?.data.replies).toContainAllValues([
+          reply1.data,
+          reply2.data
         ])
 
         const note = status?.toObject()

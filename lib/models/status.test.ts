@@ -2,7 +2,6 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
-import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { MockMastodonNote } from '../stub/note'
@@ -173,31 +172,18 @@ describe('Status', () => {
 
     describe('Announce', () => {
       it('converts status to Announce object', async () => {
-        const statusId = `${actor2?.id}/statuses/post-3`
-        const status = await storage.getStatus({
-          statusId
+        const status2Id = `${actor2?.id}/statuses/post-2`
+        const status2 = await storage.getStatus({
+          statusId: status2Id
         })
-        const note = status?.toObject()
-        expect(note).toEqual({
-          id: statusId,
-          type: StatusType.Announce,
-          summary: null,
-          inReplyTo: null,
-          published: getISOTimeUTC(status?.data.createdAt ?? 0),
-          url: status?.data.url,
-          attributedTo: status?.data.actorId,
-          to: status?.data.to,
-          cc: status?.data.cc,
-          content: status?.data.text,
-          attachment: [],
-          tag: [],
-          replies: {
-            id: `${status?.data.id}/replies`,
-            type: 'Collection',
-            totalItems: 0,
-            items: []
-          }
+        const note2 = status2?.toObject()
+
+        const status3Id = `${actor2?.id}/statuses/post-3`
+        const status3 = await storage.getStatus({
+          statusId: status3Id
         })
+        const note3 = status3?.toObject()
+        expect(note3).toEqual(note2)
       })
     })
   })

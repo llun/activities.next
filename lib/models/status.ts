@@ -15,26 +15,36 @@ export enum StatusType {
   Announce = 'Announce'
 }
 
-export interface StatusData {
+interface StatusBase {
   id: string
-  url: string
   actorId: string
-  type: StatusType
 
-  text: string
-  summary: string
   to: string[]
   cc: string[]
-
-  reply: string
-  replies: StatusData[]
-
-  attachments: AttachmentData[]
-  tags: TagData[]
 
   createdAt: number
   updatedAt: number
 }
+
+export interface StatusNote extends StatusBase {
+  type: StatusType.Note
+  url: string
+  text: string
+  summary: string
+  reply: string
+  replies: StatusNote[]
+
+  attachments: AttachmentData[]
+  tags: TagData[]
+}
+
+export interface StatusAnnounce extends StatusBase {
+  type: StatusType.Announce
+
+  originalStatus: StatusNote
+}
+
+export type StatusData = StatusNote | StatusAnnounce
 
 export class Status {
   readonly data: StatusData
@@ -69,26 +79,18 @@ export class Status {
     })
   }
 
-  static fromAnnoucne(announce: AnnounceStatus) {
+  static fromAnnoucne(announce: AnnounceStatus, originalStatus: StatusNote) {
     return new Status({
       id: announce.id,
-      url: announce.id,
 
       actorId: announce.actor,
 
       type: StatusType.Announce,
 
-      text: announce.object,
-      summary: '',
-
       to: Array.isArray(announce.to) ? announce.to : [announce.to],
       cc: Array.isArray(announce.cc) ? announce.cc : [announce.cc],
 
-      reply: '',
-      replies: [],
-
-      attachments: [],
-      tags: [],
+      originalStatus,
 
       createdAt: new Date(announce.published).getTime(),
       updatedAt: Date.now()
@@ -185,7 +187,9 @@ export class Status {
   }
 
   toObject(): Note {
-    const data = this.data
+    const data =
+      this.data.type === StatusType.Note ? this.data : this.data.originalStatus
+
     return {
       id: data.id,
       type: data.type,
@@ -195,7 +199,7 @@ export class Status {
       attributedTo: data.actorId,
       to: data.to,
       cc: data.cc,
-      inReplyTo: this.data.reply || null,
+      inReplyTo: data.reply || null,
       content: data.text,
       attachment: data.attachments.map((attachment) =>
         new Attachment(attachment).toObject()
@@ -204,8 +208,8 @@ export class Status {
       replies: {
         id: `${data.id}/replies`,
         type: 'Collection',
-        totalItems: this.data.replies.length,
-        items: this.data.replies.map((reply) => {
+        totalItems: data.replies.length,
+        items: data.replies.map((reply) => {
           const status = new Status(reply)
           return status.toObject()
         })

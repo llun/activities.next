@@ -26,13 +26,19 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
-import { Status } from '../models/status'
+import {
+  Status,
+  StatusAnnounce,
+  StatusNote,
+  StatusType
+} from '../models/status'
 import { Tag, TagData } from '../models/tag'
 import {
   CreateAccountParams,
+  CreateAnnounceParams,
   CreateAttachmentParams,
   CreateFollowParams,
-  CreateStatusParams,
+  CreateNoteParams,
   CreateTagParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
@@ -390,25 +396,24 @@ export class FirebaseStorage implements Storage {
     })
   }
 
-  async createStatus({
+  async createNote({
     id,
     url,
     actorId,
-    type,
     text,
     summary = '',
     to,
     cc,
     reply = '',
     createdAt
-  }: CreateStatusParams) {
+  }: CreateNoteParams) {
     const currentTime = Date.now()
     const local = await deliverTo({ from: actorId, to, cc, storage: this })
     const status = {
       id,
       url,
       actorId,
-      type,
+      type: StatusType.Note,
       text,
       summary,
       to,
@@ -427,6 +432,39 @@ export class FirebaseStorage implements Storage {
       tags: [],
       replies: []
     })
+  }
+
+  async createAnnounce({
+    id,
+    actorId,
+    to,
+    cc,
+    originalStatusId,
+    createdAt
+  }: CreateAnnounceParams): Promise<Status> {
+    const currentTime = Date.now()
+    const local = await deliverTo({ from: actorId, to, cc, storage: this })
+    const status = {
+      id,
+      actorId,
+      type: StatusType.Announce,
+      to,
+      cc,
+      originalStatusId,
+      createdAt: createdAt || currentTime,
+      updatedAt: currentTime
+    } as any
+    await addDoc(collection(this.db, 'statuses'), {
+      ...status,
+      localRecipients: local
+    })
+
+    const originalStatus = await this.getStatus({ statusId: originalStatusId })
+    const announceData: StatusAnnounce = {
+      ...status,
+      originalStatus: originalStatus?.data
+    }
+    return new Status(announceData)
   }
 
   private async getStatusFromData(
@@ -587,12 +625,14 @@ export class FirebaseStorage implements Storage {
       orderBy('createdAt', 'desc')
     )
     const statusesSnapshot = await getDocs(statusesQuery)
-    return Promise.all(
+    const replies = await Promise.all(
       statusesSnapshot.docs.map(async (item) => {
         const data = item.data()
         const status = await this.getStatusFromData(data, false)
-        return status.toJson()
+        if (status.data.type !== StatusType.Note) return null
+        return status.data
       })
     )
+    return replies.filter((item): item is StatusNote => Boolean(item))
   }
 }

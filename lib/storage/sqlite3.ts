@@ -7,13 +7,19 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
-import { Status } from '../models/status'
+import {
+  Status,
+  StatusAnnounce,
+  StatusNote,
+  StatusType
+} from '../models/status'
 import { Tag, TagData } from '../models/tag'
 import {
   CreateAccountParams,
+  CreateAnnounceParams,
   CreateAttachmentParams,
   CreateFollowParams,
-  CreateStatusParams,
+  CreateNoteParams,
   CreateTagParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
@@ -328,18 +334,17 @@ export class Sqlite3Storage implements Storage {
     })
   }
 
-  async createStatus({
+  async createNote({
     id,
     url,
     actorId,
-    type,
     text,
     summary = '',
     to,
     cc,
     reply = '',
     createdAt
-  }: CreateStatusParams) {
+  }: CreateNoteParams) {
     const currentTime = Date.now()
     const statusCreatedAt = createdAt || currentTime
     const statusUpdatedAt = currentTime
@@ -348,11 +353,13 @@ export class Sqlite3Storage implements Storage {
     await this.database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
-        url,
         actorId,
-        type,
-        text,
-        summary,
+        type: StatusType.Note,
+        content: JSON.stringify({
+          url,
+          text,
+          summary
+        }),
         reply,
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
@@ -404,7 +411,7 @@ export class Sqlite3Storage implements Storage {
       id,
       url,
       actorId,
-      type,
+      type: StatusType.Note,
       text,
       summary,
       reply,
@@ -418,39 +425,147 @@ export class Sqlite3Storage implements Storage {
     })
   }
 
+  async createAnnounce({
+    id,
+    actorId,
+    to,
+    cc,
+    originalStatusId,
+    createdAt
+  }: CreateAnnounceParams) {
+    const currentTime = Date.now()
+    const statusCreatedAt = createdAt || currentTime
+    const statusUpdatedAt = currentTime
+
+    const local = await deliverTo({ from: actorId, to, cc, storage: this })
+    await this.database.transaction(async (trx) => {
+      await trx('statuses').insert({
+        id,
+        actorId,
+        type: StatusType.Announce,
+        content: originalStatusId,
+        createdAt: statusCreatedAt,
+        updatedAt: statusUpdatedAt
+      })
+      await Promise.all(
+        to.map((actorId) =>
+          trx('recipients').insert({
+            id: crypto.randomUUID(),
+            statusId: id,
+            actorId,
+            type: 'to',
+
+            createdAt: statusUpdatedAt,
+            updatedAt: statusUpdatedAt
+          })
+        )
+      )
+
+      await Promise.all(
+        cc.map((actorId) =>
+          trx('recipients').insert({
+            id: crypto.randomUUID(),
+            statusId: id,
+            actorId,
+            type: 'cc',
+
+            createdAt: statusUpdatedAt,
+            updatedAt: statusUpdatedAt
+          })
+        )
+      )
+
+      await Promise.all(
+        local.map((actorId) =>
+          trx('recipients').insert({
+            id: crypto.randomUUID(),
+            statusId: id,
+            actorId,
+            type: 'local',
+
+            createdAt: statusUpdatedAt,
+            updatedAt: statusUpdatedAt
+          })
+        )
+      )
+    })
+
+    const originalStatus = await this.getStatus({ statusId: originalStatusId })
+    const announceData: StatusAnnounce = {
+      id,
+      actorId,
+      to,
+      cc,
+      type: StatusType.Announce,
+      originalStatus: originalStatus?.data as StatusNote,
+
+      createdAt: statusUpdatedAt,
+      updatedAt: statusUpdatedAt
+    }
+
+    return new Status(announceData)
+  }
+
   async getStatusWithAttachmentsFromData(data: any): Promise<Status> {
-    const [attachments, tags, to, cc, replies] = await Promise.all([
-      this.getAttachments({ statusId: data.id }),
-      this.getTags({ statusId: data.id }),
+    const [to, cc] = await Promise.all([
       this.database('recipients')
         .where('statusId', data.id)
         .andWhere('type', 'to'),
       this.database('recipients')
         .where('statusId', data.id)
-        .andWhere('type', 'cc'),
+        .andWhere('type', 'cc')
+    ])
+
+    if (data.type === StatusType.Announce) {
+      const originalStatusId = data.content
+      const originalStatus = await this.getStatus({
+        statusId: originalStatusId
+      })
+      const announceData: StatusAnnounce = {
+        id: data.id,
+        actorId: data.actorId,
+        type: StatusType.Announce,
+        to: to.map((item) => item.actorId),
+        cc: cc.map((item) => item.actorId),
+        originalStatus: originalStatus?.data as StatusNote,
+
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt
+      }
+
+      return new Status(announceData)
+    }
+
+    const [attachments, tags, replies] = await Promise.all([
+      this.getAttachments({ statusId: data.id }),
+      this.getTags({ statusId: data.id }),
       this.database('statuses')
         .select('id')
         .where('reply', data.id)
         .orderBy('createdAt', 'desc')
     ])
 
+    const repliesNote = (
+      await Promise.all(
+        replies.map((item) => this.getStatus({ statusId: item.id }))
+      )
+    )
+      .map((item) => (item?.data.type === StatusType.Note ? item.data : null))
+      .filter((item): item is StatusNote => Boolean(item))
+
+    const content = JSON.parse(data.content)
+
     return new Status({
       id: data.id,
-      url: data.url,
+      url: content.url,
       to: to.map((item) => item.actorId),
       cc: cc.map((item) => item.actorId),
       actorId: data.actorId,
-      type: data.type,
-      text: data.text,
-      summary: data.summary,
+      type: StatusType.Note,
+      text: content.text,
+      summary: content.summary,
       reply: data.reply,
-      replies: (
-        await Promise.all(
-          replies.map((item) => this.getStatus({ statusId: item.id }))
-        )
-      )
-        .filter((item): item is Status => Boolean(item))
-        .map((item) => item.data),
+      replies: repliesNote,
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
@@ -459,9 +574,7 @@ export class Sqlite3Storage implements Storage {
   }
 
   async getStatus({ statusId }: GetStatusParams) {
-    const status = await this.database<Status>('statuses')
-      .where('id', statusId)
-      .first()
+    const status = await this.database('statuses').where('id', statusId).first()
     if (!status) return undefined
     return this.getStatusWithAttachmentsFromData(status)
   }
