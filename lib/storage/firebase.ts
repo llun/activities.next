@@ -396,6 +396,16 @@ export class FirebaseStorage implements Storage {
     })
   }
 
+  private getActorIdTypeIndex(
+    actorId: string,
+    type: StatusType,
+    reply?: string
+  ) {
+    if (type === StatusType.Announce) return `${actorId}-announce`
+    if (reply) return `${actorId}-reply`
+    return `${actorId}-note`
+  }
+
   async createNote({
     id,
     url,
@@ -409,10 +419,16 @@ export class FirebaseStorage implements Storage {
   }: CreateNoteParams) {
     const currentTime = Date.now()
     const local = await deliverTo({ from: actorId, to, cc, storage: this })
+
     const status = {
       id,
       url,
       actorId,
+      actorIdTypeIndex: this.getActorIdTypeIndex(
+        actorId,
+        StatusType.Note,
+        reply
+      ),
       type: StatusType.Note,
       text,
       summary,
@@ -447,6 +463,7 @@ export class FirebaseStorage implements Storage {
     const status = {
       id,
       actorId,
+      actorIdTypeIndex: this.getActorIdTypeIndex(actorId, StatusType.Announce),
       type: StatusType.Announce,
       to,
       cc,
