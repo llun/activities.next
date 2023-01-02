@@ -520,7 +520,7 @@ export class FirebaseStorage implements Storage {
     const statusesQuery = query(
       statuses,
       where('localRecipients', 'array-contains', actorId),
-      where('reply', '==', ''),
+      where('localActorForReply', 'in', ['', actorId]),
       orderBy('createdAt', 'desc'),
       limit(30)
     )
