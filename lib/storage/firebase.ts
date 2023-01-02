@@ -398,7 +398,7 @@ export class FirebaseStorage implements Storage {
 
   static getLocalActorFromReply(reply?: string) {
     if (!reply) return ''
-    if (!reply.startsWith(`https://${getConfig().host}`)) return ''
+    if (!reply.startsWith(`https://${getConfig().host}`)) return 'external'
     return reply.slice(0, reply.indexOf('/statuses'))
   }
 
