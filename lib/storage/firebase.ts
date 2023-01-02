@@ -402,7 +402,10 @@ export class FirebaseStorage implements Storage {
     reply?: string
   ) {
     if (type === StatusType.Announce) return `announce,${actorId}`
-    if (reply) return `reply,${actorId}`
+    if (reply && reply.startsWith(`https://${getConfig().host}`)) {
+      const replyToActorId = reply.slice(0, reply.indexOf('/statuses'))
+      return `reply,${replyToActorId}`
+    }
     return `note,${actorId}`
   }
 
