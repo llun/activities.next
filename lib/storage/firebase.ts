@@ -396,17 +396,10 @@ export class FirebaseStorage implements Storage {
     })
   }
 
-  static getActorIdTypeIndex(
-    actorId: string,
-    type: StatusType,
-    reply?: string
-  ) {
-    if (type === StatusType.Announce) return `announce,${actorId}`
-    if (reply && reply.startsWith(`https://${getConfig().host}`)) {
-      const replyToActorId = reply.slice(0, reply.indexOf('/statuses'))
-      return `reply,${replyToActorId}`
-    }
-    return `note,${actorId}`
+  static getLocalActorFromReply(reply?: string) {
+    if (!reply) return ''
+    if (!reply.startsWith(`https://${getConfig().host}`)) return ''
+    return reply.slice(0, reply.indexOf('/statuses'))
   }
 
   async createNote({
@@ -439,11 +432,7 @@ export class FirebaseStorage implements Storage {
     await addDoc(collection(this.db, 'statuses'), {
       ...status,
       localRecipients: local,
-      actorIdTypeIndex: FirebaseStorage.getActorIdTypeIndex(
-        actorId,
-        StatusType.Note,
-        reply
-      )
+      localActorForReply: FirebaseStorage.getLocalActorFromReply(reply)
     })
     return new Status({
       ...status,
@@ -475,10 +464,6 @@ export class FirebaseStorage implements Storage {
     } as any
     await addDoc(collection(this.db, 'statuses'), {
       ...status,
-      actorIdTypeIndex: FirebaseStorage.getActorIdTypeIndex(
-        actorId,
-        StatusType.Announce
-      ),
       localRecipients: local
     })
 
