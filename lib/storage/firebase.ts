@@ -424,11 +424,6 @@ export class FirebaseStorage implements Storage {
       id,
       url,
       actorId,
-      actorIdTypeIndex: this.getActorIdTypeIndex(
-        actorId,
-        StatusType.Note,
-        reply
-      ),
       type: StatusType.Note,
       text,
       summary,
@@ -440,7 +435,12 @@ export class FirebaseStorage implements Storage {
     } as any
     await addDoc(collection(this.db, 'statuses'), {
       ...status,
-      localRecipients: local
+      localRecipients: local,
+      actorIdTypeIndex: this.getActorIdTypeIndex(
+        actorId,
+        StatusType.Note,
+        reply
+      )
     })
     return new Status({
       ...status,
@@ -463,7 +463,6 @@ export class FirebaseStorage implements Storage {
     const status = {
       id,
       actorId,
-      actorIdTypeIndex: this.getActorIdTypeIndex(actorId, StatusType.Announce),
       type: StatusType.Announce,
       to,
       cc,
@@ -473,6 +472,7 @@ export class FirebaseStorage implements Storage {
     } as any
     await addDoc(collection(this.db, 'statuses'), {
       ...status,
+      actorIdTypeIndex: this.getActorIdTypeIndex(actorId, StatusType.Announce),
       localRecipients: local
     })
 
