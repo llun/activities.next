@@ -47,5 +47,7 @@ export const deliverTo = async ({ from, to, cc, storage }: DeliverToParams) => {
       return null
     })
   )
-  return addresses.flat().filter((item): item is string => Boolean(item))
+  return Array.from(
+    new Set(addresses.flat().filter((item): item is string => Boolean(item)))
+  )
 }
