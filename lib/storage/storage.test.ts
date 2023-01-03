@@ -499,7 +499,7 @@ describe('Storage', () => {
 
         // Mock status for reply
         const mainStatusForReplyId = `${TEST_ID}/statuses/post-for-reply2`
-        await storage.createNote({
+        const mainStatusForReply = await storage.createNote({
           id: mainStatusForReplyId,
           url: mainStatusForReplyId,
           actorId: TEST_ID,
@@ -583,13 +583,13 @@ describe('Storage', () => {
           actorId: TEST_ID8
         })
 
-        expect(statuses.length).toEqual(16)
-        for (const status of statuses) {
-          if (status.data.type !== StatusType.Note) {
-            fail('Status type must be Note')
-          }
-          expect(status.data.reply).toEqual('')
-        }
+        const otherServerStatus2 = await storage.getStatus({
+          statusId: otherServerUser2Status(19)
+        })
+        expect(statuses).not.toContainValues([
+          mainStatusForReply.toJson(),
+          otherServerStatus2?.toJson()
+        ])
       })
 
       it('returns actor statuses', async () => {
