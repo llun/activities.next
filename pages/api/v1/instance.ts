@@ -72,14 +72,14 @@ export default function handler(
   res: NextApiResponse<Data>
 ) {
   res.status(200).json({
-    uri: 'chat.llun.in.th',
+    uri: 'llun.dev',
     title: 'Personal llun Mastodon',
     short_description: '',
     description: 'Experiment personal mastodon service with Next.js',
     email: '-',
     version: '1.0.0',
     urls: {
-      streaming_api: 'wss://chat.llun.in.th'
+      streaming_api: 'wss://llun.dev/streaming'
     },
     stats: {
       user_count: 1,
@@ -147,7 +147,7 @@ export default function handler(
       group: false,
       created_at: '2019-02-18T00:00:00.000Z',
       note: '',
-      url: 'https://chat.mastodon.in.th/@llun',
+      url: 'https://llun.dev/@null',
       avatar: '',
       avatar_static: '',
       header: '',
