@@ -435,7 +435,7 @@ export class FirebaseStorage implements Storage {
     await addDoc(collection(this.db, 'statuses'), {
       ...status,
       localRecipients: local,
-      localActorForReply: FirebaseStorage.getLocalActorFromReply(reply)
+      localActorForReply: FirebaseStorage.getLocalActorFromReply(actorId, reply)
     })
     return new Status({
       ...status,
