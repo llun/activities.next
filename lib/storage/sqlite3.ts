@@ -619,7 +619,14 @@ export class Sqlite3Storage implements Storage {
   }
 
   async deleteStatus({ statusId }: DeleteStatusParams) {
-    await this.database<Status>('statuses').where('id', statusId).delete()
+    await this.database.transaction(async (trx) => {
+      await Promise.all([
+        trx('statuses').where('id', statusId).delete(),
+        trx('recipients').where('statusId', statusId).delete(),
+        trx('tags').where('statusId', statusId).delete(),
+        trx('attachments').where('statusId', statusId).delete()
+      ])
+    })
   }
 
   async createAttachment({
