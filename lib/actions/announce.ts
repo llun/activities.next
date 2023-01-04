@@ -1,7 +1,6 @@
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
-import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 
 interface AnnounceParams {
@@ -9,8 +8,8 @@ interface AnnounceParams {
   storage: Storage
 }
 export const announce = async ({ status, storage }: AnnounceParams) => {
-  const compactedStatus = await compact(status)
-  const { object } = compactedStatus as AnnounceStatus
+  const compactedStatus = (await compact(status)) as AnnounceStatus
+  const { object } = compactedStatus
 
   const response = await fetch(object)
   if (response.status !== 200) return
@@ -42,6 +41,15 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     })
   }
 
-  console.log(compactedBoostedStatus)
-  console.log(compactedStatus)
+  await storage.createAnnounce({
+    id: compactedStatus.id,
+    actorId: compactedStatus.actor,
+    to: Array.isArray(status.to)
+      ? status.to
+      : [status.to].filter((item) => item),
+    cc: Array.isArray(status.cc)
+      ? status.cc
+      : [status.cc].filter((item) => item),
+    originalStatusId: compactedBoostedStatus.id
+  })
 }

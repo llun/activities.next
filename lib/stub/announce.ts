@@ -28,7 +28,7 @@ export const MockAnnounceStatus = ({
 
   return {
     '@context': ACTIVITY_STREAM_URL,
-    id: `${actorId}/statuses/${statusId}/activity`,
+    id: `${statusId}/activity`,
     type: 'Announce',
     actor: actorId,
     published: getISOTimeUTC(published),

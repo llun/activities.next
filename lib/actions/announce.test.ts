@@ -1,5 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { StatusType } from '../models/status'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { MockAnnounceStatus } from '../stub/announce'
@@ -42,20 +43,30 @@ describe('Announce action', () => {
 
   describe('#announce', () => {
     it('loads announce status and save it locally', async () => {
+      const statusId = stubNoteId()
       const announceStatusId = 'https://somewhere.test/statuses/announce-status'
       await announce({
         status: MockAnnounceStatus({
           actorId: 'https://llun.test/users/test1',
-          statusId: stubNoteId(),
+          statusId,
           announceStatusId
         }),
         storage
       })
 
-      const status = await storage.getStatus({ statusId: announceStatusId })
+      const status = await storage.getStatus({
+        statusId: `${statusId}/activity`
+      })
       expect(status).toBeDefined()
 
-      console.log(status)
+      const boostedStatus = await storage.getStatus({
+        statusId: announceStatusId
+      })
+      const statusData = status?.toJson()
+      if (statusData?.type !== StatusType.Announce) {
+        fail('Status type must be announce')
+      }
+      expect(statusData.originalStatus).toEqual(boostedStatus?.toJson())
     })
   })
 })
