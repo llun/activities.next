@@ -1,10 +1,12 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { MockAnnounceStatus } from '../stub/announce'
 import { stubNoteId } from '../stub/note'
+import { seedActor1 } from '../stub/seed/actor1'
 import { seedStorage } from '../stub/storage'
 import { announce } from './announce'
 
@@ -25,10 +27,13 @@ describe('Announce action', () => {
       filename: ':memory:'
     }
   })
+  let actor1: Actor | undefined
 
   beforeAll(async () => {
     await storage.migrate()
     await seedStorage(storage)
+
+    actor1 = await storage.getActorFromEmail({ email: seedActor1.email })
   })
 
   afterAll(async () => {
@@ -67,6 +72,20 @@ describe('Announce action', () => {
         fail('Status type must be announce')
       }
       expect(statusData.originalStatus).toEqual(boostedStatus?.toJson())
+    })
+
+    it('does not load and create status that already exists', async () => {
+      const statusId = stubNoteId()
+      const announceStatusId = `${actor1?.id}/statuses/post-1`
+      await announce({
+        status: MockAnnounceStatus({
+          actorId: 'https://llun.test/users/test1',
+          statusId,
+          announceStatusId
+        }),
+        storage
+      })
+      expect(fetchMock).not.toHaveBeenCalledWith(announceStatusId)
     })
   })
 })

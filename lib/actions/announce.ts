@@ -11,15 +11,15 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
   const compactedStatus = (await compact(status)) as AnnounceStatus
   const { object } = compactedStatus
 
-  const response = await fetch(object)
-  if (response.status !== 200) return
-
-  const boostedStatus = await response.json()
-  const compactedBoostedStatus = (await compact(boostedStatus)) as Note
   const existingStatus = await storage.getStatus({
-    statusId: compactedBoostedStatus.id
+    statusId: object
   })
   if (!existingStatus) {
+    const response = await fetch(object)
+    if (response.status !== 200) return
+
+    const boostedStatus = await response.json()
+    const compactedBoostedStatus = (await compact(boostedStatus)) as Note
     await storage.createNote({
       id: compactedBoostedStatus.id,
       url: compactedBoostedStatus.url || compactedBoostedStatus.id,
@@ -50,6 +50,6 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     cc: Array.isArray(status.cc)
       ? status.cc
       : [status.cc].filter((item) => item),
-    originalStatusId: compactedBoostedStatus.id
+    originalStatusId: object
   })
 }
