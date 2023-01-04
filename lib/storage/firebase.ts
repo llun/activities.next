@@ -484,6 +484,26 @@ export class FirebaseStorage implements Storage {
     data: any,
     withReplies: boolean
   ): Promise<Status> {
+    if (data.type === StatusType.Announce) {
+      const originalStatus = await this.getStatus({
+        statusId: data.originalStatusId
+      })
+
+      return new Status({
+        id: data.id,
+        actorId: data.actorId,
+        type: data.type,
+
+        to: data.to,
+        cc: data.cc,
+
+        originalStatus: originalStatus?.data as StatusNote,
+
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt
+      })
+    }
+
     const [attachments, tags] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
       this.getTags({ statusId: data.id })
