@@ -1,5 +1,6 @@
 import type { NextApiHandler } from 'next'
 
+import { announce } from '../../lib/actions/announce'
 import { createNote } from '../../lib/actions/createNote'
 import { StatusActivity } from '../../lib/activities/actions/status'
 import { ERROR_404, ERROR_500 } from '../../lib/errors'
@@ -22,6 +23,20 @@ const ApiHandler: NextApiHandler = activitiesGuard(
         switch (body.object.type) {
           case 'Note': {
             await createNote({ storage, note: body.object })
+            break
+          }
+        }
+        return res.status(202).send('')
+      }
+      case 'Announce': {
+        await announce({ storage, status: body })
+        return res.status(202).send('')
+      }
+      case 'Undo': {
+        switch (body.object.type) {
+          case 'Announce': {
+            const statusId = body.object.id
+            await storage.deleteStatus({ statusId })
             break
           }
         }
