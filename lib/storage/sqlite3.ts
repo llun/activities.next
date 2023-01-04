@@ -443,6 +443,7 @@ export class Sqlite3Storage implements Storage {
         id,
         actorId,
         type: StatusType.Announce,
+        reply: '',
         content: originalStatusId,
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
@@ -581,7 +582,7 @@ export class Sqlite3Storage implements Storage {
 
   async getStatuses({ actorId }: GetStatusesParams) {
     const postsPerPage = 30
-    const local = await this.database('recipients')
+    const query = this.database('recipients')
       .leftJoin('statuses', 'recipients.statusId', 'statuses.id')
       .where('recipients.type', 'local')
       .andWhere('recipients.actorId', actorId)
@@ -590,7 +591,7 @@ export class Sqlite3Storage implements Storage {
       .distinct('statusId')
       .orderBy('recipients.createdAt', 'desc')
       .limit(postsPerPage)
-
+    const local = await query
     const statuses = (
       await Promise.all(
         local.map((item) => this.getStatus({ statusId: item.statusId }))
