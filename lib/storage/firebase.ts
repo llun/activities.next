@@ -462,6 +462,8 @@ export class FirebaseStorage implements Storage {
       to,
       cc,
       originalStatusId,
+      localRecipients: local,
+      localActorForReply: FirebaseStorage.getLocalActorFromReply(actorId, ''),
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
     } as any
