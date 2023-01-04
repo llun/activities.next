@@ -83,11 +83,26 @@ const getActualStatus = (status: StatusData) => {
   }
 }
 
+interface BoostStatusProps {
+  status: StatusData
+}
+const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
+  if (status.type !== StatusType.Announce) return null
+  return (
+    <div className="d-flex mb-1">
+      <i className="bi bi-repeat me-2"></i>
+      <span className="me-2">Boost by</span>
+      <Actor actorId={status.actorId} />
+    </div>
+  )
+}
+
 export const Post: FC<Props> = (props) => {
   const { showActorId = false, status, currentTime, onShowAttachment } = props
   const actualStatus = getActualStatus(status)
   return (
     <div key={status.id} className={cn(styles.post)}>
+      <BoostStatus status={status} />
       <div className={cn('d-flex', 'mb-2')}>
         <Actor
           className={cn('flex-fill', 'me-2')}

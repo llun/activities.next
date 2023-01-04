@@ -1,9 +1,6 @@
 import linkifyStr from 'linkify-string'
-import * as linkify from 'linkifyjs'
 
-import { getPersonFromHandle } from '../activities'
 import { AnnounceStatus } from '../activities/actions/announceStatus'
-import { Mention } from '../activities/entities/mention'
 import { Note } from '../activities/entities/note'
 import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
