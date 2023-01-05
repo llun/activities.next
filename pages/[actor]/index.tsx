@@ -3,9 +3,10 @@ import cn from 'classnames'
 import { GetStaticProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
-import { useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 
 import { getPersonFromHandle, getPosts } from '../../lib/activities'
+import { isFollowing } from '../../lib/client'
 import { Button } from '../../lib/components/Button'
 import { Header } from '../../lib/components/Header'
 import { Posts } from '../../lib/components/Posts/Posts'
@@ -14,6 +15,41 @@ import { getConfig } from '../../lib/config'
 import { StatusData } from '../../lib/models/status'
 import { getStorage } from '../../lib/storage'
 import styles from './index.module.scss'
+
+interface FollowActionProps {
+  targetActorId: string
+  isLoggedIn: boolean
+  followingStatus?: boolean
+}
+const FollowAction: FC<FollowActionProps> = ({
+  targetActorId,
+  isLoggedIn,
+  followingStatus
+}) => {
+  if (!isLoggedIn) return null
+  if (followingStatus === undefined) return null
+
+  if (followingStatus === false) {
+    return (
+      <div className="flex-shrink-0">
+        <form action="/api/v1/accounts/follow" method="post">
+          <input type="hidden" name="target" value={targetActorId} />
+          <Button type="submit">Follow</Button>
+        </form>
+      </div>
+    )
+  }
+  return (
+    <div className="flex-shrink-0">
+      <form action="/api/v1/accounts/unfollow" method="post">
+        <input type="hidden" name="target" value={targetActorId} />
+        <Button variant="danger" type="submit">
+          Unfollow
+        </Button>
+      </form>
+    </div>
+  )
+}
 
 interface Props {
   name: string
@@ -40,7 +76,12 @@ const Page: NextPage<Props> = ({
 }) => {
   const { data: session } = useSession()
   const [currentTime] = useState<number>(Date.now())
+  const [followingStatus, setFollowingStatus] = useState<boolean | undefined>()
   const isLoggedIn = Boolean(session?.user?.email)
+
+  useEffect(() => {
+    isFollowing({ targetActorId: id }).then(setFollowingStatus)
+  }, [id])
 
   return (
     <main>
@@ -68,15 +109,11 @@ const Page: NextPage<Props> = ({
               followingCount={followingCount}
               createdAt={createdAt}
             />
-            {isLoggedIn && (
-              <div className="flex-shrink-0">
-                {/* TODO: Add api to check following status later */}
-                <form action="/api/v1/accounts/follow" method="post">
-                  <input type="hidden" name="target" value={id} />
-                  <Button type="submit">Follow</Button>
-                </form>
-              </div>
-            )}
+            <FollowAction
+              targetActorId={id}
+              isLoggedIn={isLoggedIn}
+              followingStatus={followingStatus}
+            />
           </div>
         </section>
         <Posts currentTime={new Date(currentTime)} statuses={statuses} />

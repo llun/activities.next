@@ -11,6 +11,18 @@ import { FollowStatus } from '../../../../lib/models/follow'
 const handler = ApiGuard(async (req, res, context) => {
   const { storage, currentActor } = context
   switch (req.method) {
+    case 'GET': {
+      const { targetActorId } = req.query
+      if (!targetActorId) {
+        return res.status(404).json(ERROR_404)
+      }
+
+      const follow = await storage.getAcceptedOrRequestedFollow({
+        actorId: currentActor.id,
+        targetActorId: targetActorId as string
+      })
+      return res.status(200).json({ follow })
+    }
     case 'POST': {
       const { target } = req.body
       const followItem = await storage.createFollow({

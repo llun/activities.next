@@ -1,5 +1,6 @@
 import { Assets, Stream } from './medias/apple/webstream'
 import { Attachment, PostBoxAttachment } from './models/attachment'
+import { Follow, FollowStatus } from './models/follow'
 import { StatusData } from './models/status'
 
 export interface CreateStatusParams {
@@ -82,14 +83,14 @@ export const getAppleSharedGallery = async ({
   return data.stream as Stream
 }
 
-interface GetAppleSharedAlbumAssets {
+interface GetAppleSharedAlbumAssetsParams {
   albumToken: string
   photoGuids: string[]
 }
 export const getAppleSharedAlbumAssets = async ({
   albumToken,
   photoGuids
-}: GetAppleSharedAlbumAssets) => {
+}: GetAppleSharedAlbumAssetsParams) => {
   const response = await fetch(`/api/v1/medias/apple/${albumToken}/assetsUrl`, {
     method: 'POST',
     headers: {
@@ -106,4 +107,25 @@ export const getAppleSharedAlbumAssets = async ({
 
   const data = await response.json()
   return data.assets as Assets
+}
+
+interface IsFollowingParams {
+  targetActorId: string
+}
+export const isFollowing = async ({ targetActorId }: IsFollowingParams) => {
+  const searchParams = new URLSearchParams({ targetActorId })
+  const response = await fetch(`/api/v1/accounts/follow?${searchParams}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    return false
+  }
+
+  const data = await response.json()
+  if (!data.follow) return false
+  const follow = data.follow as Follow
+  return follow.status === FollowStatus.Accepted
 }
