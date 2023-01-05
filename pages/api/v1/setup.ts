@@ -7,7 +7,7 @@ const handler = SetupGuard(async (req, res, context) => {
   switch (req.method) {
     case 'POST': {
       const { username, domain } = req.body
-      if (await storage.isUsernameExists({ username })) {
+      if (await storage.isUsernameExists({ username, domain })) {
         return res.status(302).redirect('/setup?error=HANDLE_ALREADY_EXISTS')
       }
 
