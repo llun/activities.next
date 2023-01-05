@@ -1,10 +1,6 @@
-import { unfollow } from '../../../../lib/activities'
+import { getPublicProfile, unfollow } from '../../../../lib/activities'
 import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
-import {
-  getHostnameFromId,
-  getUsernameFromId
-} from '../../../../lib/models/actor'
 import { FollowStatus } from '../../../../lib/models/follow'
 
 const handler = ApiGuard(async (req, res, context) => {
@@ -27,9 +23,12 @@ const handler = ApiGuard(async (req, res, context) => {
           status: FollowStatus.Undo
         })
       ])
-      return res
-        .status(302)
-        .redirect(`/@${getUsernameFromId(target)}@${getHostnameFromId(target)}`)
+      const profile = await getPublicProfile({ id: target })
+      if (!profile) {
+        return res.redirect(302, '/')
+      }
+
+      return res.redirect(302, `/@${profile.username}@${profile.domain}`)
     }
     default: {
       return res.status(404).json(ERROR_404)
