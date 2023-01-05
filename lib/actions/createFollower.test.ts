@@ -8,7 +8,7 @@ import { createFollower } from './createFollower'
 
 jest.mock('../activities', () => ({
   acceptFollow: jest.fn(),
-  getPerson: jest
+  getPublicProfile: jest
     .fn()
     .mockResolvedValue(
       jest

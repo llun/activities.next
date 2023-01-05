@@ -23,7 +23,6 @@ export const MockPerson = ({ id, createdAt = Date.now() }: Params) => {
       sharedInbox: `https://${new URL(id).hostname}/inbox`
     },
 
-    publicKey: 'public key',
     createdAt
   }
 }

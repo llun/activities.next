@@ -107,7 +107,10 @@ describe('Storage', () => {
           await storage.isAccountExists({ email: TEST_EMAIL2 })
         ).toBeFalse()
         expect(
-          await storage.isUsernameExists({ username: TEST_USERNAME2 })
+          await storage.isUsernameExists({
+            username: TEST_USERNAME2,
+            domain: TEST_DOMAIN
+          })
         ).toBeFalse()
       })
 
@@ -121,7 +124,10 @@ describe('Storage', () => {
         })
         expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
         expect(
-          await storage.isUsernameExists({ username: TEST_USERNAME2 })
+          await storage.isUsernameExists({
+            username: TEST_USERNAME2,
+            domain: TEST_DOMAIN
+          })
         ).toBeTrue()
       })
 

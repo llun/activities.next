@@ -102,11 +102,16 @@ export class FirebaseStorage implements Storage {
     return snapshot.data().count === 1
   }
 
-  async isUsernameExists({ username }: IsUsernameExistsParams) {
+  async isUsernameExists({ username, domain }: IsUsernameExistsParams) {
     if (!username) return true
+    if (!domain) return true
 
     const accounts = collection(this.db, 'actors')
-    const query_ = query(accounts, where('username', '==', username))
+    const query_ = query(
+      accounts,
+      where('username', '==', username),
+      where('domain', '==', domain)
+    )
     const snapshot = await getCountFromServer(query_)
     return snapshot.data().count === 1
   }

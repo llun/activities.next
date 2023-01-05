@@ -6,7 +6,7 @@ import { Status } from '../models/status'
 import { Tag } from '../models/tag'
 
 export type IsAccountExistsParams = { email?: string }
-export type IsUsernameExistsParams = { username: string }
+export type IsUsernameExistsParams = { username: string; domain: string }
 export type CreateAccountParams = {
   email: string
   username: string

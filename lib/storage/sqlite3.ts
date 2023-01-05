@@ -94,9 +94,10 @@ export class Sqlite3Storage implements Storage {
     return Boolean(result?.count && result?.count > 0)
   }
 
-  async isUsernameExists({ username }: IsUsernameExistsParams) {
+  async isUsernameExists({ username, domain }: IsUsernameExistsParams) {
     const response = await this.database('actors')
       .where('username', username)
+      .andWhere('domain', domain)
       .count('id as count')
       .first()
     return Boolean(response?.count && response?.count > 0)

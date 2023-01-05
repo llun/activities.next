@@ -35,6 +35,21 @@ const Page: NextPage = () => {
               Username name that will show before domain.
             </div>
           </div>
+          <div className="mb-3">
+            <label htmlFor="domain" className="form-label">
+              Domain
+            </label>
+            <input
+              type="text"
+              className="form-control"
+              id="domain"
+              name="domain"
+              aria-describedby="domainHelp"
+            />
+            <div id="domainHelp" className="form-text">
+              Domain name for the actor
+            </div>
+          </div>
           <Button type="submit">Submit</Button>
         </form>
       </section>

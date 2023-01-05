@@ -6,7 +6,7 @@ const handler = SetupGuard(async (req, res, context) => {
   const { storage, email } = context
   switch (req.method) {
     case 'POST': {
-      const username = req.body.username as string
+      const { username, domain } = req.body
       if (await storage.isUsernameExists({ username })) {
         return res.status(302).redirect('/setup?error=HANDLE_ALREADY_EXISTS')
       }
@@ -16,6 +16,7 @@ const handler = SetupGuard(async (req, res, context) => {
         await storage.createAccount({
           email,
           username,
+          domain,
           privateKey: keyPair.privateKey,
           publicKey: keyPair.publicKey
         })
