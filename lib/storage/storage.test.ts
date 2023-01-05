@@ -9,6 +9,8 @@ jest.mock('../config', () => ({
   getConfig: () => ({ host: 'llun.test', secretPhase: 'secret' })
 }))
 
+const TEST_DOMAIN = 'llun.test'
+
 // For testing existing user
 const TEST_EMAIL = 'user@llun.dev'
 const TEST_USERNAME = 'user'
@@ -84,6 +86,7 @@ describe('Storage', () => {
       await storage.createAccount({
         email: TEST_EMAIL,
         username: TEST_USERNAME,
+        domain: TEST_DOMAIN,
         privateKey: 'privateKey1',
         publicKey: 'publicKey1'
       })
@@ -91,6 +94,7 @@ describe('Storage', () => {
         await storage.createAccount({
           email: `user${i}@llun.dev`,
           username: `user${i}`,
+          domain: TEST_DOMAIN,
           privateKey: `privateKey${i}`,
           publicKey: `publicKey${i}`
         })
@@ -111,6 +115,7 @@ describe('Storage', () => {
         await storage.createAccount({
           email: TEST_EMAIL2,
           username: TEST_USERNAME2,
+          domain: TEST_DOMAIN,
           privateKey: 'privateKey2',
           publicKey: 'publicKey2'
         })
@@ -123,7 +128,8 @@ describe('Storage', () => {
       it('returns actor from getActor methods', async () => {
         const expectedActorAfterCreated = {
           id: TEST_ID,
-          preferredUsername: TEST_USERNAME,
+          username: TEST_USERNAME,
+          domain: TEST_DOMAIN,
           account: {
             id: expect.toBeString(),
             email: TEST_EMAIL

@@ -1,6 +1,7 @@
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
+import { StatusNote } from '../models/status'
 import { Storage } from '../storage/types'
 
 interface AnnounceParams {
@@ -53,3 +54,12 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     originalStatusId: object
   })
 }
+
+interface UserAnnounceParams {
+  status: StatusNote
+  storage: Storage
+}
+export const userAnnounce = async ({
+  status,
+  storage
+}: UserAnnounceParams) => {}

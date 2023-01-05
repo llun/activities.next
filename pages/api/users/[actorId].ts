@@ -61,7 +61,7 @@ export default async function handler(
     followers: `https://${config.host}/users/${actorId}/followers`,
     inbox: `https://${config.host}/users/${actorId}/inbox`,
     outbox: `https://${config.host}/users/${actorId}/outbox`,
-    preferredUsername: `${actorId}`,
+    preferredUsername: actor.username,
     name: actor.name || '',
     summary: actor.summary || '',
     url: `https://${config.host}/@${actorId}`,

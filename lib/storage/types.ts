@@ -2,7 +2,7 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
-import { Status, StatusType } from '../models/status'
+import { Status } from '../models/status'
 import { Tag } from '../models/tag'
 
 export type IsAccountExistsParams = { email?: string }
@@ -10,6 +10,7 @@ export type IsUsernameExistsParams = { username: string }
 export type CreateAccountParams = {
   email: string
   username: string
+  domain: string
   privateKey: string
   publicKey: string
 }

@@ -2,6 +2,8 @@ import { Account } from './account'
 
 export interface Profile {
   id: string
+  username: string
+  domain: string
   name?: string
   summary?: string
   iconUrl?: string
@@ -11,9 +13,6 @@ export interface Profile {
 }
 
 export interface Actor extends Profile {
-  id: string
-  preferredUsername: string
-
   account?: Account
 
   publicKey: string

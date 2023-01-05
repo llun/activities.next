@@ -55,7 +55,8 @@ interface ActorSettings {
 
 interface SQLActor {
   id: string
-  preferredUsername: string
+  username: string
+  domain: string
   name?: string
   summary?: string
   accountId: string
@@ -95,7 +96,7 @@ export class Sqlite3Storage implements Storage {
 
   async isUsernameExists({ username }: IsUsernameExistsParams) {
     const response = await this.database('actors')
-      .where('preferredUsername', username)
+      .where('username', username)
       .count('id as count')
       .first()
     return Boolean(response?.count && response?.count > 0)
@@ -104,6 +105,7 @@ export class Sqlite3Storage implements Storage {
   async createAccount({
     email,
     username,
+    domain,
     privateKey,
     publicKey
   }: CreateAccountParams) {
@@ -121,7 +123,8 @@ export class Sqlite3Storage implements Storage {
       await trx('actors').insert({
         id: actorId,
         accountId,
-        preferredUsername: username,
+        username,
+        domain,
         publicKey,
         privateKey,
         createdAt: currentTime,
@@ -140,7 +143,8 @@ export class Sqlite3Storage implements Storage {
     const settings = JSON.parse(sqlActor.settings || '{}') as ActorSettings
     const actor: Actor = {
       id: sqlActor.id,
-      preferredUsername: sqlActor.preferredUsername || '',
+      username: sqlActor.username,
+      domain: sqlActor.domain,
       name: sqlActor.name || '',
       summary: sqlActor.summary || '',
 
@@ -187,7 +191,7 @@ export class Sqlite3Storage implements Storage {
 
   async getActorFromUsername({ username }: GetActorFromUsernameParams) {
     const storageActor = await this.database<SQLActor>('actors')
-      .where('preferredUsername', username)
+      .where('username', username)
       .first()
     if (!storageActor) return undefined
 

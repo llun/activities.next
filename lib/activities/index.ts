@@ -65,10 +65,10 @@ export const getPerson = async (id: string, withCollectionCount = false) => {
     return {
       id: person.id,
       username: person.preferredUsername,
-      icon: person.icon,
+      icon: person.icon || null,
       url: person.url,
-      name: person.name,
-      summary: person.summary,
+      name: person.name || '',
+      summary: person.summary || '',
 
       endpoints: {
         following: person.following,
@@ -104,10 +104,10 @@ export const getPerson = async (id: string, withCollectionCount = false) => {
   return {
     id: person.id,
     username: person.preferredUsername,
-    icon: person.icon,
+    icon: person.icon || null,
     url: person.url,
-    name: person.name,
-    summary: person.summary,
+    name: person.name || '',
+    summary: person.summary || '',
 
     publicKey: person.publicKey.publicKeyPem,
 

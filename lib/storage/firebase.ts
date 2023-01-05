@@ -106,7 +106,7 @@ export class FirebaseStorage implements Storage {
     if (!username) return true
 
     const accounts = collection(this.db, 'actors')
-    const query_ = query(accounts, where('preferredUsername', '==', username))
+    const query_ = query(accounts, where('username', '==', username))
     const snapshot = await getCountFromServer(query_)
     return snapshot.data().count === 1
   }
@@ -114,6 +114,7 @@ export class FirebaseStorage implements Storage {
   async createAccount({
     email,
     username,
+    domain,
     privateKey,
     publicKey
   }: CreateAccountParams) {
@@ -132,7 +133,8 @@ export class FirebaseStorage implements Storage {
     await addDoc(collection(this.db, 'actors'), {
       id: actorId,
       accountId: accountRef.id,
-      preferredUsername: username,
+      username,
+      domain,
       publicKey,
       privateKey,
       createdAt: currentTime,
@@ -182,7 +184,7 @@ export class FirebaseStorage implements Storage {
     const actors = collection(this.db, 'actors')
     const actorsQuery = query(
       actors,
-      where('preferredUsername', '==', username),
+      where('username', '==', username),
       limit(1)
     )
     const actorsSnapshot = await getDocs(actorsQuery)

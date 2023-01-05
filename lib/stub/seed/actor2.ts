@@ -1,6 +1,7 @@
 export const seedActor2 = {
   email: 'test2@llun.test',
   username: 'test2',
+  domain: 'llun.test',
   publicKey:
     '-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA4uyawzyH8AtRd8RKDrV1\na3xYCdivROWDGmrqD1Wr54MDzzJek6mwOhvZfTh9i8MWpEq0H9yBzGyYE5rxmrXE\n71SKFwR5c2joaJZmeqSHwTsXdwCc8p4QLC0tHkT1B1ouXlGWmH5sKhUQ7mqwwb6Y\n4gQ1ktCMF2P5OfvQ1qJHyLCS1rODKWvmvvXASuTmFmGMKcyy1B72nGM1Mt7IgesE\nC66Dsas9+ryYdVB4Sx3qQ9lD7KqMrhhPL8+8xYC4Jf2gEjOsUxTqwfo2DzbstE53\nhk+q87OHMRspIYXr+d365AWaa8T1QjtPnvaWRNWF2jtJogj++7CA30wfVHxHSJCw\nqXC1sicLhevCrnefx9ESJ5aIWGN8JdCoVHtpXyg5E5xLjj6o5v5x5d3Ib8Dei3D2\nIl9kx/UPIRkWudwLIXrO975dXL9NkSks6iFmgH0wTDlS//56qMhgfR4/f7POB26O\nDDDc99qYSJB74aYQsbAD+4bMLdzMp6so+txrL6RUDHiAqYl2tOsRk4CgeIeLWj8X\n5nfbW6bxAV5EjyCtcRWeTumC2SEHqtKT/2hFABiircbdjkzImWmEEiH94ExCxi42\nwSJN+ojy+INPhu/kmKu34wT2QfI/Ix/kYK4+Jf6Oy4XMhT+G/wO6i5AN1kV16Fk+\nwbZjwBA6luDUCkE+xmwrimMCAwEAAQ==\n-----END PUBLIC KEY-----\n',
   privateKey:
