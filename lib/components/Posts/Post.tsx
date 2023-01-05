@@ -2,7 +2,7 @@ import cn from 'classnames'
 import formatDistance from 'date-fns/formatDistance'
 import { FC } from 'react'
 
-import { deleteStatus } from '../../client'
+import { deleteStatus, repostStatus } from '../../client'
 import { AttachmentData } from '../../models/attachment'
 import { StatusData, StatusType } from '../../models/status'
 import { parseText } from '../../text'
@@ -19,6 +19,7 @@ interface Props {
   showActions?: boolean
   onReply?: (status: StatusData) => void
   onPostDeleted?: (status: StatusData) => void
+  onPostReposted?: (status: StatusData) => void
   onShowAttachment: (attachment: AttachmentData) => void
 }
 
@@ -27,7 +28,8 @@ export const Actions: FC<Props> = ({
   showDeleteAction = false,
   showActions = false,
   onReply,
-  onPostDeleted
+  onPostDeleted,
+  onPostReposted
 }) => {
   if (!showActions) return null
   // TODO: Return different actions for announce
@@ -44,11 +46,12 @@ export const Actions: FC<Props> = ({
       <Button
         className={styles.action}
         variant="link"
-        onClick={() => {
-          console.log('Repost')
+        onClick={async () => {
+          await repostStatus({ statusId: status.id })
+          onPostReposted?.(status)
         }}
       >
-        <i className="bi bi-arrow-left-right"></i>
+        <i className="bi bi bi-repeat"></i>
       </Button>
       {showDeleteAction && (
         <Button

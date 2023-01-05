@@ -1,6 +1,7 @@
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
+import { Actor } from '../models/actor'
 import { StatusNote } from '../models/status'
 import { Storage } from '../storage/types'
 
@@ -56,10 +57,10 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
 }
 
 interface UserAnnounceParams {
-  status: StatusNote
+  currentActor: Actor
+  statusId: string
   storage: Storage
 }
-export const userAnnounce = async ({
-  status,
-  storage
-}: UserAnnounceParams) => {}
+export const userAnnounce = async ({ statusId }: UserAnnounceParams) => {
+  console.log(statusId)
+}

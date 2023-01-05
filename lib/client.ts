@@ -62,6 +62,19 @@ export const deleteStatus = async ({ statusId }: DeleteStatusParams) => {
   return true
 }
 
+export interface RepostStatusParams {
+  statusId: string
+}
+export const repostStatus = async ({ statusId }: RepostStatusParams) => {
+  await fetch('/api/v1/accounts/repost', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ statusId })
+  })
+}
+
 interface GetAppleSharedGalleryParams {
   albumToken: string
 }
