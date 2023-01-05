@@ -84,7 +84,8 @@ const Page: NextPage<Props> = ({
             <ProfileComponent
               name={profile.name || ''}
               url={`https://${host}/${getAtUsernameFromId(profile.id)}`}
-              id={profile.id}
+              username={profile.username}
+              domain={profile.domain}
               totalPosts={totalPosts}
               followersCount={followersCount}
               followingCount={followingCount}

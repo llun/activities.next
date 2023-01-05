@@ -2,12 +2,11 @@ import format from 'date-fns/format'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { getAtUsernameFromId } from '../models/actor'
-
 interface Props {
   className?: string
-  id: string
   name: string
+  username: string
+  domain: string
   url: string
   totalPosts: number
   followingCount: number
@@ -17,7 +16,8 @@ interface Props {
 
 export const Profile: FC<Props> = ({
   className,
-  id,
+  username,
+  domain,
   name,
   url,
   totalPosts,
@@ -29,7 +29,7 @@ export const Profile: FC<Props> = ({
     <h1>{name}</h1>
     <h4>
       <Link href={url} target={'_blank'}>
-        {getAtUsernameFromId(id)}
+        {username}@{domain}
       </Link>
     </h4>
     <p>

@@ -13,6 +13,7 @@ import { CreateStatus } from './actions/createStatus'
 import { DeleteStatus } from './actions/deleteStatus'
 import { FollowRequest } from './actions/follow'
 import { UndoFollow } from './actions/undoFollow'
+import { Image } from './entities/image'
 import { Note } from './entities/note'
 import { OrderedCollection } from './entities/orderedCollection'
 import { OrderedCollectionPage } from './entities/orderedCollectionPage'
@@ -52,7 +53,48 @@ export const getWebfingerSelf = async (account: string) => {
   }
 }
 
-export const getPerson = async (id: string, withCollectionCount = false) => {
+export interface PublicProfile {
+  id: string
+  username: string
+  domain: string
+  icon?: Image
+  url: string
+  name: string
+  summary: string
+
+  endpoints: {
+    following: string
+    followers: string
+    inbox: string
+    outbox: string
+    sharedInbox: string
+  }
+
+  urls?: {
+    followers?: string
+    following?: string
+    posts?: string
+  }
+
+  publicKey?: string
+
+  followersCount: number
+  followingCount: number
+  totalPosts: number
+
+  createdAt: number
+}
+
+interface GetPublicProfileParams {
+  id: string
+  withCollectionCount?: boolean
+  withPublicKey?: boolean
+}
+export const getPublicProfile = async ({
+  id,
+  withCollectionCount = false,
+  withPublicKey = false
+}: GetPublicProfileParams): Promise<PublicProfile | null> => {
   const response = await fetch(id, {
     headers: SHARED_HEADERS
   })
@@ -65,10 +107,17 @@ export const getPerson = async (id: string, withCollectionCount = false) => {
     return {
       id: person.id,
       username: person.preferredUsername,
-      icon: person.icon || null,
+      domain: new URL(person.id).hostname,
+      ...(person.icon ? { icon: person.icon } : null),
       url: person.url,
       name: person.name || '',
       summary: person.summary || '',
+
+      followersCount: 0,
+      followingCount: 0,
+      totalPosts: 0,
+
+      ...(withPublicKey ? { publicKey: person.publicKey.publicKeyPem } : null),
 
       endpoints: {
         following: person.following,
@@ -78,7 +127,6 @@ export const getPerson = async (id: string, withCollectionCount = false) => {
         sharedInbox: person.endpoints?.sharedInbox
       },
 
-      publicKey: person.publicKey.publicKeyPem,
       createdAt: new Date(person.published).getTime()
     }
   }
@@ -104,12 +152,13 @@ export const getPerson = async (id: string, withCollectionCount = false) => {
   return {
     id: person.id,
     username: person.preferredUsername,
-    icon: person.icon || null,
+    domain: new URL(person.id).hostname,
+    ...(person.icon ? { icon: person.icon } : null),
     url: person.url,
     name: person.name || '',
     summary: person.summary || '',
 
-    publicKey: person.publicKey.publicKeyPem,
+    ...(withPublicKey ? { publicKey: person.publicKey.publicKeyPem } : null),
 
     followersCount: followers?.totalItems || 0,
     followingCount: following?.totalItems || 0,
@@ -147,7 +196,7 @@ export const getPersonFromHandle = async (
   const id = await getWebfingerSelf(accountWithoutAt)
   if (!id) return null
 
-  return getPerson(id, withCollectionCount)
+  return getPublicProfile({ id, withCollectionCount })
 }
 
 export const getPosts = async (id?: string) => {

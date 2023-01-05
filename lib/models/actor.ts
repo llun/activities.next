@@ -32,6 +32,8 @@ export const getAtWithHostFromId = (actorId: string) =>
 export const getProfileFromActor = (actor: Actor) => ({
   id: actor.id,
   name: actor.name || '',
+  username: actor.username,
+  domain: actor.domain,
   summary: actor.summary || '',
   iconUrl: actor.iconUrl || '',
   headerImageUrl: actor.headerImageUrl || '',

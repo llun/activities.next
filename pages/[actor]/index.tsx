@@ -3,11 +3,15 @@ import cn from 'classnames'
 import { GetStaticProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
-import { FC, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { getPersonFromHandle, getPosts } from '../../lib/activities'
+import {
+  PublicProfile,
+  getPersonFromHandle,
+  getPosts
+} from '../../lib/activities'
 import { isFollowing } from '../../lib/client'
-import { Button } from '../../lib/components/Button'
+import { FollowAction } from '../../lib/components/FollowAction'
 import { Header } from '../../lib/components/Header'
 import { Posts } from '../../lib/components/Posts/Posts'
 import { Profile } from '../../lib/components/Profile'
@@ -16,72 +20,20 @@ import { StatusData } from '../../lib/models/status'
 import { getStorage } from '../../lib/storage'
 import styles from './index.module.scss'
 
-interface FollowActionProps {
-  targetActorId: string
-  isLoggedIn: boolean
-  followingStatus?: boolean
-}
-const FollowAction: FC<FollowActionProps> = ({
-  targetActorId,
-  isLoggedIn,
-  followingStatus
-}) => {
-  if (!isLoggedIn) return null
-  if (followingStatus === undefined) return null
-
-  if (followingStatus === false) {
-    return (
-      <div className="flex-shrink-0">
-        <form action="/api/v1/accounts/follow" method="post">
-          <input type="hidden" name="target" value={targetActorId} />
-          <Button type="submit">Follow</Button>
-        </form>
-      </div>
-    )
-  }
-  return (
-    <div className="flex-shrink-0">
-      <form action="/api/v1/accounts/unfollow" method="post">
-        <input type="hidden" name="target" value={targetActorId} />
-        <Button variant="danger" type="submit">
-          Unfollow
-        </Button>
-      </form>
-    </div>
-  )
-}
-
 interface Props {
-  name: string
-  iconUrl?: string
-  id: string
-  url: string
-  followersCount: number
-  followingCount: number
-  totalPosts: number
+  person: PublicProfile
   statuses: StatusData[]
-  createdAt: number
 }
 
-const Page: NextPage<Props> = ({
-  name,
-  id,
-  url,
-  iconUrl,
-  followersCount,
-  followingCount,
-  totalPosts,
-  statuses,
-  createdAt
-}) => {
+const Page: NextPage<Props> = ({ person, statuses }) => {
   const { data: session } = useSession()
   const [currentTime] = useState<number>(Date.now())
   const [followingStatus, setFollowingStatus] = useState<boolean | undefined>()
   const isLoggedIn = Boolean(session?.user?.email)
 
   useEffect(() => {
-    isFollowing({ targetActorId: id }).then(setFollowingStatus)
-  }, [id])
+    isFollowing({ targetActorId: person.id }).then(setFollowingStatus)
+  }, [person])
 
   return (
     <main>
@@ -92,25 +44,26 @@ const Page: NextPage<Props> = ({
       <section className="container pt-4">
         <section className="card">
           <div className="card-body d-flex flex-column flex-sm-row">
-            {iconUrl && (
+            {person.icon?.url && (
               <img
                 alt="Actor icon"
                 className={cn(styles.icon, 'me-4', 'mb-2', 'flex-shrink-0')}
-                src={iconUrl}
+                src={person.icon?.url}
               />
             )}
             <Profile
               className="flex-fill"
-              name={name}
-              url={url}
-              id={id}
-              totalPosts={totalPosts}
-              followersCount={followersCount}
-              followingCount={followingCount}
-              createdAt={createdAt}
+              name={person.name}
+              url={person.url}
+              username={person.username}
+              domain={person.domain}
+              totalPosts={person.totalPosts}
+              followersCount={person.followersCount}
+              followingCount={person.followingCount}
+              createdAt={person.createdAt}
             />
             <FollowAction
-              targetActorId={id}
+              targetActorId={person.id}
               isLoggedIn={isLoggedIn}
               followingStatus={followingStatus}
             />
@@ -140,8 +93,8 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
     parts.push(getConfig().host)
   }
 
-  const [account, domain] = parts
-  const person = await getPersonFromHandle(`${account}@${domain}`, true)
+  const [username, domain] = parts
+  const person = await getPersonFromHandle(`${username}@${domain}`, true)
   if (!person) {
     return { notFound: true }
   }
@@ -149,15 +102,8 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
   const statuses = await getPosts(person.urls?.posts)
   return {
     props: {
-      id: person.id,
-      name: person.name,
-      iconUrl: person.icon?.url || '',
-      url: person.url,
-      totalPosts: person.totalPosts || 0,
-      followersCount: person.followersCount || 0,
-      followingCount: person.followingCount || 0,
-      statuses,
-      createdAt: person.createdAt
+      person,
+      statuses
     },
     // Revalidate page every 10 minutes
     revalidate: 600

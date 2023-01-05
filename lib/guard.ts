@@ -3,7 +3,7 @@ import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
 import { Session, unstable_getServerSession } from 'next-auth'
 
 import { authOptions } from '../pages/api/auth/[...nextauth]'
-import { getPerson } from './activities'
+import { getPublicProfile } from './activities'
 import { ERROR_400 } from './errors'
 import { Actor } from './models/actor'
 import { parse, verify } from './signature'
@@ -37,7 +37,11 @@ export function activitiesGuard<T>(
       return res.status(400).send(ERROR_400)
     }
 
-    const sender = await getPerson(signatureParts.keyId, false)
+    const sender = await getPublicProfile({
+      id: signatureParts.keyId,
+      withCollectionCount: false,
+      withPublicKey: true
+    })
     if (!sender) {
       console.error('-> 400 Person not found')
       return res.status(400).send(ERROR_400)
@@ -52,7 +56,7 @@ export function activitiesGuard<T>(
       !verify(
         `${req.method?.toLowerCase()} ${requestUrl.pathname}`,
         req.headers,
-        sender.publicKey
+        sender.publicKey || ''
       )
     ) {
       console.error('-> 400 Invalid Signature')

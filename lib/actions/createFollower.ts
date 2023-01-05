@@ -1,4 +1,4 @@
-import { acceptFollow, getPerson } from '../activities'
+import { acceptFollow, getPublicProfile } from '../activities'
 import { FollowRequest } from '../activities/actions/follow'
 import { FollowStatus } from '../models/follow'
 import { Storage } from '../storage/types'
@@ -16,7 +16,7 @@ export const createFollower = async ({
   })
   if (!actor) return null
 
-  const person = await getPerson(followRequest.actor)
+  const person = await getPublicProfile({ id: followRequest.actor })
   if (!person) return null
 
   await Promise.all([

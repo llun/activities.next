@@ -3,9 +3,11 @@ import cn from 'classnames'
 import { GetStaticProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
+import { useEffect, useState } from 'react'
 
-import { getPerson, getWebfingerSelf } from '../../lib/activities'
-import { Button } from '../../lib/components/Button'
+import { PublicProfile, getPersonFromHandle } from '../../lib/activities'
+import { isFollowing } from '../../lib/client'
+import { FollowAction } from '../../lib/components/FollowAction'
 import { Header } from '../../lib/components/Header'
 import { Profile } from '../../lib/components/Profile'
 import { getConfig } from '../../lib/config'
@@ -13,28 +15,16 @@ import { getStorage } from '../../lib/storage'
 import styles from './index.module.scss'
 
 interface Props {
-  name: string
-  iconUrl?: string
-  id: string
-  url: string
-  followersCount: number
-  followingCount: number
-  totalPosts: number
-  createdAt: number
+  person: PublicProfile
 }
 
-const Page: NextPage<Props> = ({
-  name,
-  id,
-  url,
-  iconUrl,
-  followersCount,
-  followingCount,
-  totalPosts,
-  createdAt
-}) => {
+const Page: NextPage<Props> = ({ person }) => {
   const { data: session } = useSession()
+  const [followingStatus, setFollowingStatus] = useState<boolean | undefined>()
   const isLoggedIn = Boolean(session?.user?.email)
+  useEffect(() => {
+    isFollowing({ targetActorId: person.id }).then(setFollowingStatus)
+  }, [person])
 
   return (
     <main>
@@ -45,32 +35,29 @@ const Page: NextPage<Props> = ({
       <section className="container pt-4">
         <section className="card">
           <div className="card-body d-flex flex-column flex-sm-row">
-            {iconUrl && (
+            {person.icon?.url && (
               <img
                 alt="Actor icon"
                 className={cn(styles.icon, 'me-4', 'mb-2', 'flex-shrink-0')}
-                src={iconUrl}
+                src={person.icon?.url}
               />
             )}
             <Profile
               className="flex-fill"
-              name={name}
-              url={url}
-              id={id}
-              totalPosts={totalPosts}
-              followersCount={followersCount}
-              followingCount={followingCount}
-              createdAt={createdAt}
+              name={person.name}
+              url={person.url}
+              username={person.username}
+              domain={person.domain}
+              totalPosts={person.totalPosts}
+              followersCount={person.followersCount}
+              followingCount={person.followingCount}
+              createdAt={person.createdAt}
             />
-            {isLoggedIn && (
-              <div className="flex-shrink-0">
-                {/* TODO: Add api to check following status later */}
-                <form action="/api/v1/accounts/follow" method="post">
-                  <input type="hidden" name="target" value={id} />
-                  <Button type="submit">Follow</Button>
-                </form>
-              </div>
-            )}
+            <FollowAction
+              targetActorId={person.id}
+              isLoggedIn={isLoggedIn}
+              followingStatus={followingStatus}
+            />
           </div>
         </section>
       </section>
@@ -113,26 +100,14 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
   }
 
   const [account, domain] = parts
-  const actorId = await getWebfingerSelf(`${account}@${domain}`)
-  if (!actorId) {
-    return { notFound: true }
-  }
-
-  const person = await getPerson(actorId, true)
+  const person = await getPersonFromHandle(`${account}@${domain}`)
   if (!person) {
     return { notFound: true }
   }
 
   return {
     props: {
-      id: person.id,
-      name: person.name,
-      iconUrl: person.icon?.url || '',
-      url: person.url,
-      totalPosts: person.totalPosts || 0,
-      followersCount: person.followersCount || 0,
-      followingCount: person.followingCount || 0,
-      createdAt: person.createdAt
+      person
     },
     // Revalidate page every 6 hours
     revalidate: 21_600
