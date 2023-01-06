@@ -35,6 +35,7 @@ import {
 import { Tag, TagData } from '../models/tag'
 import {
   CreateAccountParams,
+  CreateActorParams,
   CreateAnnounceParams,
   CreateAttachmentParams,
   CreateFollowParams,
@@ -160,6 +161,40 @@ export class FirebaseStorage implements Storage {
       ...docSnap.data(),
       id
     } as Account
+  }
+
+  async createActor({
+    actorId,
+    accountId,
+
+    username,
+    domain,
+    name,
+    summary,
+    iconUrl,
+    headerImageUrl,
+
+    publicKey,
+    privateKey,
+
+    createdAt
+  }: CreateActorParams) {
+    const currentTime = Date.now()
+    await addDoc(collection(this.db, 'actors'), {
+      id: actorId,
+      accountId,
+      username,
+      name,
+      summary,
+      iconUrl,
+      headerImageUrl,
+      domain,
+      publicKey,
+      privateKey,
+      createdAt,
+      updatedAt: currentTime
+    })
+    return this.getActorFromId({ id: actorId })
   }
 
   async getActorFromEmail({ email }: GetActorFromEmailParams) {

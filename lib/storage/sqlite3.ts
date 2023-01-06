@@ -16,6 +16,7 @@ import {
 import { Tag, TagData } from '../models/tag'
 import {
   CreateAccountParams,
+  CreateActorParams,
   CreateAnnounceParams,
   CreateAttachmentParams,
   CreateFollowParams,
@@ -138,6 +139,44 @@ export class Sqlite3Storage implements Storage {
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
     return this.database<Account>('accounts').where('id', id).first()
+  }
+
+  async createActor({
+    actorId,
+    accountId,
+
+    username,
+    domain,
+    name,
+    summary,
+    iconUrl,
+    headerImageUrl,
+
+    publicKey,
+    privateKey,
+
+    createdAt
+  }: CreateActorParams) {
+    const currentTime = Date.now()
+
+    const settings: ActorSettings = {
+      iconUrl,
+      headerImageUrl
+    }
+    await this.database('actors').insert({
+      id: actorId,
+      accountId,
+      username,
+      domain,
+      name,
+      summary,
+      settings: JSON.stringify(settings),
+      publicKey,
+      privateKey,
+      createdAt,
+      updatedAt: currentTime
+    })
+    return this.getActorFromId({ id: actorId })
   }
 
   private getActor(sqlActor: SQLActor, account: Account) {

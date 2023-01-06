@@ -16,6 +16,22 @@ export type CreateAccountParams = {
 }
 export type GetAccountFromIdParams = { id: string }
 
+export type CreateActorParams = {
+  actorId: string
+  accountId?: string
+
+  username: string
+  domain: string
+  name?: string
+  summary?: string
+  iconUrl?: string
+  headerImageUrl?: string
+
+  publicKey: string
+  privateKey?: string
+
+  createdAt: number
+}
 export type GetActorFromEmailParams = { email: string }
 export type GetActorFromUsernameParams = { username: string }
 export type GetActorFromIdParams = { id: string }
@@ -107,6 +123,7 @@ export interface Storage {
   createAccount(params: CreateAccountParams): Promise<string>
   getAccountFromId(params: GetAccountFromIdParams): Promise<Account | undefined>
 
+  createActor(params: CreateActorParams): Promise<Actor | undefined>
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | undefined>
   getActorFromUsername(
     params: GetActorFromUsernameParams
