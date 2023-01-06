@@ -94,6 +94,10 @@ export function headers(
     digest,
     'content-type': contentType
   }
+  if (!currentActor.privateKey) {
+    return headers
+  }
+
   const signature = sign(
     `(request-target): ${method} ${url.pathname}`,
     headers,
