@@ -111,9 +111,8 @@ export class Sqlite3Storage implements Storage {
     privateKey,
     publicKey
   }: CreateAccountParams) {
-    const config = getConfig()
     const accountId = crypto.randomUUID()
-    const actorId = `https://${config.host}/users/${username}`
+    const actorId = `https://${domain}/users/${username}`
     const currentTime = Date.now()
     await this.database.transaction(async (trx) => {
       await trx('accounts').insert({
@@ -143,7 +142,6 @@ export class Sqlite3Storage implements Storage {
 
   async createActor({
     actorId,
-    accountId,
 
     username,
     domain,
@@ -165,7 +163,6 @@ export class Sqlite3Storage implements Storage {
     }
     await this.database('actors').insert({
       id: actorId,
-      accountId,
       username,
       domain,
       name,
@@ -179,7 +176,7 @@ export class Sqlite3Storage implements Storage {
     return this.getActorFromId({ id: actorId })
   }
 
-  private getActor(sqlActor: SQLActor, account: Account) {
+  private getActor(sqlActor: SQLActor, account?: Account) {
     const settings = JSON.parse(sqlActor.settings || '{}') as ActorSettings
     const actor: Actor = {
       id: sqlActor.id,
@@ -245,6 +242,10 @@ export class Sqlite3Storage implements Storage {
       .where('id', id)
       .first()
     if (!storageActor) return undefined
+
+    if (!storageActor.accountId) {
+      return this.getActor(storageActor)
+    }
 
     const account = await this.getAccountFromId({ id: storageActor.accountId })
     if (!account) return undefined

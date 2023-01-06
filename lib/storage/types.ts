@@ -18,7 +18,6 @@ export type GetAccountFromIdParams = { id: string }
 
 export type CreateActorParams = {
   actorId: string
-  accountId?: string
 
   username: string
   domain: string

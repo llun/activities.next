@@ -124,8 +124,7 @@ export class FirebaseStorage implements Storage {
     privateKey,
     publicKey
   }: CreateAccountParams) {
-    const config = getConfig()
-    const actorId = `https://${config.host}/users/${username}`
+    const actorId = `https://${domain}/users/${username}`
     if (await this.isAccountExists({ email })) {
       throw new Error('Account already exists')
     }
@@ -165,24 +164,22 @@ export class FirebaseStorage implements Storage {
 
   async createActor({
     actorId,
-    accountId,
 
     username,
     domain,
-    name,
-    summary,
-    iconUrl,
-    headerImageUrl,
+    name = '',
+    summary = '',
+    iconUrl = '',
+    headerImageUrl = '',
 
     publicKey,
-    privateKey,
+    privateKey = '',
 
     createdAt
   }: CreateActorParams) {
     const currentTime = Date.now()
     await addDoc(collection(this.db, 'actors'), {
       id: actorId,
-      accountId,
       username,
       name,
       summary,
@@ -244,6 +241,10 @@ export class FirebaseStorage implements Storage {
     if (actorsSnapshot.docs.length !== 1) return undefined
 
     const data = actorsSnapshot.docs[0].data()
+    if (!data.accountId) {
+      return data as Actor
+    }
+
     const account = await this.getAccountFromId({ id: data.accountId })
     if (!account) return undefined
 

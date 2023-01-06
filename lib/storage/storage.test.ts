@@ -41,6 +41,11 @@ const TEST_ID8 = 'https://llun.test/users/user8'
 // Status with reply list
 const TEST_ID9 = 'https://llun.test/users/user9'
 
+// Actor creation
+const TEST_ID10 = 'https://llun.test/users/user10'
+const TEST_USERNAME10 = 'random10'
+const TEST_DOMAIN10 = 'llun.random'
+
 type TestStorage = [string, Storage]
 
 describe('Storage', () => {
@@ -174,6 +179,23 @@ describe('Storage', () => {
           name: 'llun',
           summary: 'This is test actor'
         })
+      })
+    })
+
+    describe('actors', () => {
+      it('creates actor without account in storage', async () => {
+        await storage.createActor({
+          actorId: TEST_ID10,
+          username: TEST_USERNAME10,
+          domain: TEST_DOMAIN10,
+          publicKey: 'publicKey',
+          createdAt: Date.now()
+        })
+        const actor = await storage.getActorFromId({ id: TEST_ID10 })
+        expect(actor).toBeDefined()
+        expect(actor?.username).toEqual(TEST_USERNAME10)
+        expect(actor?.domain).toEqual(TEST_DOMAIN10)
+        expect(actor?.privateKey).toEqual('')
       })
     })
 
