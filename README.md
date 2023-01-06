@@ -6,19 +6,19 @@ alpha stage and has only few features supported.
 
 ## Plan features and progress
 
-- [x] User authenticate with Github (via NextAuth.js)
-- [x] Note, both receive and send
-- [x] Reply
-- [x] Image attachment via Apple Shared Album
-- 🚧 Boost/Repost
-- 🚧 Storage adapter, current supports are SQL via Knex.js (Tested with SQLite locally) and Firebase
-- [] Account setup with username and password
-- [] Image storage via Object Storage(S3, GCS, etc)
-- [] Like
-- [] Streaming
-- [] OAuth Bearer
-- [] Mastodon API compatible and clients supports
-- [] GPS Activity e.g. Bicycle ride, Running etc
+[x] User authenticate with Github (via NextAuth.js)
+[x] Note, both receive and send
+[x] Reply
+[x] Image attachment via Apple Shared Album
+🚧 Boost/Repost
+🚧 Storage adapter, current supports are SQL via Knex.js (Tested with SQLite locally) and Firebase
+[ ] Account setup with username and password
+[ ] Image storage via Object Storage(S3, GCS, etc)
+[ ] Like
+[ ] Streaming
+[ ] OAuth Bearer
+[ ] Mastodon API compatible and clients supports
+[ ] GPS Activity e.g. Bicycle ride, Running etc
 
 ## Running locally
 
