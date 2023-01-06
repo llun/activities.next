@@ -16,9 +16,8 @@ export interface Actor extends Profile {
   account?: Account
 
   publicKey: string
-  privateKey: string
+  privateKey?: string
 
-  createdAt: number
   updatedAt: number
 }
 

@@ -4,6 +4,7 @@ import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Note } from '../activities/entities/note'
 import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
+import { Actor } from './actor'
 import { Attachment, AttachmentData } from './attachment'
 import { Tag, TagData } from './tag'
 
@@ -15,6 +16,7 @@ export enum StatusType {
 interface StatusBase {
   id: string
   actorId: string
+  actor?: Actor
 
   to: string[]
   cc: string[]

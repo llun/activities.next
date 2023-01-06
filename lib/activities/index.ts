@@ -1,3 +1,4 @@
+import { userAnnounce } from '../actions/announce'
 import { getConfig } from '../config'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -197,6 +198,27 @@ export const getPersonFromHandle = async (
   if (!id) return null
 
   return getPublicProfile({ id, withCollectionCount })
+}
+
+interface GetActorFromIdParams {
+  id: string
+}
+export const getActorFromId = async ({ id }: GetActorFromIdParams) => {
+  const publicProfile = await getPublicProfile({ id, withPublicKey: true })
+  if (!publicProfile) return null
+
+  const actor: Actor = {
+    id: publicProfile.id,
+    username: publicProfile.username,
+    domain: publicProfile.domain,
+    name: publicProfile.name,
+    summary: publicProfile.summary,
+    iconUrl: publicProfile.icon?.url,
+    publicKey: publicProfile.publicKey || '',
+    createdAt: publicProfile.createdAt,
+    updatedAt: publicProfile.createdAt
+  }
+  return actor
 }
 
 export const getPosts = async (id?: string) => {
