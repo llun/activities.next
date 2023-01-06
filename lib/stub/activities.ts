@@ -11,6 +11,12 @@ export const mockRequests = (fetchMock: FetchMock) => {
       const account =
         url.searchParams.get('resource')?.slice('acct:'.length) || ''
       const username = account.split('@').shift()
+      if (username === 'notexist') {
+        return {
+          status: 404
+        }
+      }
+
       const userUrl =
         url.hostname === 'somewhere.test'
           ? `https://${url.hostname}/actors/${username}`

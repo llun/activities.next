@@ -78,21 +78,31 @@ export const createNote = async ({
   return note
 }
 
-export const getMentions = async (text: string): Promise<Mention[]> => {
-  return Promise.all(
+export const getMentions = async (
+  text: string,
+  currentActor: Actor
+): Promise<Mention[]> => {
+  const mentions = await Promise.all(
     linkify
       .find(text)
       .filter((item) => item.type === 'mention')
       .map((item) => [item.value, item.value.slice(1).split('@')].flat())
       .map(async ([value, user, host]) => {
-        const person = await getPersonFromHandle(`${user}@${host}`)
-        return {
-          type: 'Mention',
-          href: person?.id ?? `https://${host}/users/${user}`,
-          name: value
+        try {
+          const userHost = host ?? currentActor.domain
+          const person = await getPersonFromHandle(`${user}@${userHost}`)
+          if (!person) return null
+          return {
+            type: 'Mention',
+            href: person?.id ?? `https://${host}/users/${user}`,
+            name: value
+          }
+        } catch {
+          return null
         }
       })
   )
+  return mentions.filter((item): item is Mention => item !== null)
 }
 
 interface CreateNoteFromUserInputParams {
@@ -136,7 +146,7 @@ export const createNoteFromUserInput = async ({
     reply: replyStatus?.data.id || ''
   })
 
-  const mentions = await getMentions(text)
+  const mentions = await getMentions(text, currentActor)
   await Promise.all([
     ...attachments.map((attachment) =>
       storage.createAttachment({

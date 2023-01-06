@@ -187,12 +187,15 @@ How are you?
 
   describe('#getMentions', () => {
     it('returns empty array for text with no mentions', async () => {
-      expect(await getMentions('Text without mentions')).toEqual([])
+      if (!actor1) fail('Actor1 is required')
+      expect(await getMentions('Text without mentions', actor1)).toEqual([])
     })
 
     it('returns Mentions from text', async () => {
+      if (!actor1) fail('Actor1 is required')
       const mentions = await getMentions(
-        '@llun@somewhere.test @test1@llun.test Test mentions'
+        '@llun@somewhere.test @test1@llun.test Test mentions',
+        actor1
       )
       expect(mentions).toHaveLength(2)
       expect(mentions[0]).toEqual({
@@ -205,6 +208,22 @@ How are you?
         href: `https://llun.test/users/test1`,
         name: '@test1@llun.test'
       })
+    })
+
+    it('returns mention with hostname the same as actor when mention without hostname', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const mentions = await getMentions('@test2 Hello', actor1)
+      expect(mentions[0]).toEqual({
+        type: 'Mention',
+        href: actor2?.id,
+        name: `@test2`
+      })
+    })
+
+    it('returns no mentions if it cannot fetch user', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const mentions = await getMentions('@notexist@else Hello', actor1)
+      expect(mentions).toHaveLength(0)
     })
   })
 })
