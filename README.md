@@ -13,6 +13,8 @@ alpha stage and has only few features supported.
 - [ ] 🚧 Boost/Repost
 - [ ] 🚧 Storage adapter, current supports are SQL via Knex.js (Tested with SQLite locally) and Firebase
 - [ ] Account setup with username and password
+- [ ] Add actor under the same account (for different handle and type e.g. for @ride@llun.dev)
+- [ ] Support different domain for different actor
 - [ ] Image storage via Object Storage(S3, GCS, etc)
 - [ ] Like
 - [ ] Streaming
