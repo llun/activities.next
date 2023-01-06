@@ -109,6 +109,7 @@ export const Post: FC<Props> = (props) => {
       <div className={cn('d-flex', 'mb-2')}>
         <Actor
           className={cn('flex-fill', 'me-2')}
+          actor={status.actor}
           actorId={(showActorId && actualStatus.actorId) || ''}
         />
         <div className={cn('flex-shrink-0', styles.misc)}>

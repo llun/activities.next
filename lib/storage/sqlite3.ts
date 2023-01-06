@@ -416,6 +416,7 @@ export class Sqlite3Storage implements Storage {
       id,
       url,
       actorId,
+      actor: null,
       type: StatusType.Note,
       text,
       summary,
@@ -500,6 +501,7 @@ export class Sqlite3Storage implements Storage {
     const announceData: StatusAnnounce = {
       id,
       actorId,
+      actor: null,
       to,
       cc,
       type: StatusType.Announce,
@@ -530,6 +532,7 @@ export class Sqlite3Storage implements Storage {
       const announceData: StatusAnnounce = {
         id: data.id,
         actorId: data.actorId,
+        actor: null,
         type: StatusType.Announce,
         to: to.map((item) => item.actorId),
         cc: cc.map((item) => item.actorId),
@@ -567,6 +570,7 @@ export class Sqlite3Storage implements Storage {
       to: to.map((item) => item.actorId),
       cc: cc.map((item) => item.actorId),
       actorId: data.actorId,
+      actor: null,
       type: StatusType.Note,
       text: content.text,
       summary: content.summary,

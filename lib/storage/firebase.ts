@@ -446,6 +446,7 @@ export class FirebaseStorage implements Storage {
     })
     return new Status({
       ...status,
+      actor: null,
       attachments: [],
       tags: [],
       replies: []
@@ -499,6 +500,7 @@ export class FirebaseStorage implements Storage {
       return new Status({
         id: data.id,
         actorId: data.actorId,
+        actor: null,
         type: data.type,
 
         to: data.to,
@@ -522,6 +524,7 @@ export class FirebaseStorage implements Storage {
       to: data.to,
       cc: data.cc,
       actorId: data.actorId,
+      actor: null,
       type: data.type,
       text: data.text,
       summary: data.summary,

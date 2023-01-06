@@ -213,7 +213,7 @@ export const getActorFromId = async ({ id }: GetActorFromIdParams) => {
     domain: publicProfile.domain,
     name: publicProfile.name,
     summary: publicProfile.summary,
-    iconUrl: publicProfile.icon?.url,
+    iconUrl: publicProfile.icon?.url || '',
     publicKey: publicProfile.publicKey || '',
     createdAt: publicProfile.createdAt,
     updatedAt: publicProfile.createdAt

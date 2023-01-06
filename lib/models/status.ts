@@ -16,7 +16,7 @@ export enum StatusType {
 interface StatusBase {
   id: string
   actorId: string
-  actor?: Actor
+  actor: Actor | null
 
   to: string[]
   cc: string[]
@@ -58,6 +58,7 @@ export class Status {
       url: note.url || note.id,
 
       actorId: note.attributedTo,
+      actor: null,
 
       type: StatusType.Note,
 
@@ -83,6 +84,7 @@ export class Status {
       id: announce.id,
 
       actorId: announce.actor,
+      actor: null,
 
       type: StatusType.Announce,
 

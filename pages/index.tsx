@@ -7,6 +7,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 
+import { getActorFromId } from '../lib/activities'
 import { Header } from '../lib/components/Header'
 import { PostBox } from '../lib/components/PostBox/PostBox'
 import { Posts } from '../lib/components/Posts/Posts'
@@ -174,6 +175,14 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       storage.getActorFollowingCount({ actorId: actor.id }),
       storage.getActorFollowersCount({ actorId: actor.id })
     ])
+
+  // TODO: Move this to model?
+  await Promise.all(
+    statuses.map(async (status) => {
+      const actor = await getActorFromId({ id: status.data.actorId })
+      status.data.actor = actor
+    })
+  )
 
   return {
     props: {
