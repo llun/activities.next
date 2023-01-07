@@ -6,16 +6,17 @@ import { getStorage } from '../../../../lib/storage'
 import { getISOTimeUTC } from '../../../../lib/time'
 
 const handle: NextApiHandler = async (req, res) => {
-  const { actorId, page } = req.query
+  const { username, page } = req.query
   const config = getConfig()
   const storage = await getStorage()
   if (!storage) {
     return res.status(400).json(ERROR_400)
   }
 
+  // TODO: User request domain, instead of host from config
   switch (req.method) {
     case 'GET': {
-      const id = `https://${config.host}/users/${actorId}`
+      const id = `https://${config.host}/users/${username}`
       if (!page) {
         const totalItems = await storage.getActorStatusesCount({ actorId: id })
         const inboxId = `${id}/outbox`

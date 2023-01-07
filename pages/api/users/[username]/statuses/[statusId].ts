@@ -22,8 +22,8 @@ export default async function handler(
     return res.status(500).json(ERROR_500)
   }
 
-  const { actorId, statusId } = req.query
-  const id = `https://${config.host}/users/${actorId}/statuses/${statusId}`
+  const { username, statusId } = req.query
+  const id = `https://${config.host}/users/${username}/statuses/${statusId}`
   const status = await storage.getStatus({ statusId: id })
   if (!status) {
     return res.status(404).json(ERROR_404)

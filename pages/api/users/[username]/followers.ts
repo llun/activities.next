@@ -5,14 +5,14 @@ import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { getStorage } from '../../../../lib/storage'
 
 const handle: NextApiHandler = async (req, res) => {
-  const { actorId, page } = req.query
+  const { username, page } = req.query
   const config = getConfig()
   const storage = await getStorage()
   if (!storage) {
     return res.status(400).json(ERROR_400)
   }
 
-  const id = `https://${config.host}/users/${actorId}`
+  const id = `https://${config.host}/users/${username}`
   const followerId = `${id}/followers`
 
   switch (req.method) {

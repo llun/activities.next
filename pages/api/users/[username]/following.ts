@@ -8,14 +8,14 @@ const handle: NextApiHandler = async (
   req: NextApiRequest,
   res: NextApiResponse
 ) => {
-  const { actorId, page } = req.query
+  const { username, page } = req.query
   const config = getConfig()
   const storage = await getStorage()
   if (!storage) {
     return res.status(400).json(ERROR_400)
   }
 
-  const id = `https://${config.host}/users/${actorId}`
+  const id = `https://${config.host}/users/${username}`
   const followingId = `${id}/following`
 
   switch (req.method) {

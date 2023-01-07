@@ -2,7 +2,6 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 
 import { Image } from '../../../lib/activities/entities/image'
 import { Person } from '../../../lib/activities/entities/person'
-import { getConfig } from '../../../lib/config'
 import { ERROR_404, ERROR_500 } from '../../../lib/errors'
 import { ACTIVITY_STREAM_URL } from '../../../lib/jsonld/activitystream'
 import { W3ID_URL } from '../../../lib/jsonld/w3id'
@@ -19,8 +18,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<Data>
 ) {
-  const config = getConfig()
-  const { actorId } = req.query
+  const { username } = req.query
 
   const storage = await getStorage()
   if (!storage) {
@@ -28,7 +26,7 @@ export default async function handler(
   }
 
   const actor = await storage.getActorFromUsername({
-    username: actorId as string
+    username: username as string
   })
   if (!actor) {
     return res.status(404).json(ERROR_404)
@@ -55,24 +53,24 @@ export default async function handler(
 
   const user: Person = {
     '@context': [ACTIVITY_STREAM_URL, W3ID_URL],
-    id: `https://${config.host}/users/${actorId}`,
+    id: `https://${actor.domain}/users/${actor.id}`,
     type: 'Person',
-    following: `https://${config.host}/users/${actorId}/following`,
-    followers: `https://${config.host}/users/${actorId}/followers`,
-    inbox: `https://${config.host}/users/${actorId}/inbox`,
-    outbox: `https://${config.host}/users/${actorId}/outbox`,
+    following: `https://${actor.domain}/users/${actor.username}/following`,
+    followers: `https://${actor.domain}/users/${actor.username}/followers`,
+    inbox: `https://${actor.domain}/users/${actor.username}/inbox`,
+    outbox: `https://${actor.domain}/users/${actor.username}/outbox`,
     preferredUsername: actor.username,
     name: actor.name || '',
     summary: actor.summary || '',
-    url: `https://${config.host}/@${actorId}`,
+    url: `https://${actor.domain}/@${actor.username}`,
     published: getISOTimeUTC(actor.createdAt),
     publicKey: {
-      id: `https://${config.host}/users/${actorId}#main-key`,
-      owner: `https://${config.host}/users/${actorId}`,
+      id: `https://${actor.domain}/users/${actor.id}#main-key`,
+      owner: `https://${actor.domain}/users/${actor.id}`,
       publicKeyPem: actor.publicKey
     },
     endpoints: {
-      sharedInbox: `https://${config.host}/inbox`
+      sharedInbox: `https://${actor.domain}/inbox`
     },
     ...icon,
     ...headerImage
