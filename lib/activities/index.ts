@@ -5,7 +5,7 @@ import {
   ACTIVITY_STREAM_URL
 } from '../jsonld/activitystream'
 import { compact } from '../jsonld/index'
-import { Actor } from '../models/actor'
+import { Actor, Profile } from '../models/actor'
 import { Follow } from '../models/follow'
 import { Status, StatusData } from '../models/status'
 import { headers } from '../signature'
@@ -203,20 +203,20 @@ export const getPersonFromHandle = async (
 interface GetActorFromIdParams {
   id: string
 }
-export const getActorFromId = async ({ id }: GetActorFromIdParams) => {
+export const getActorProfileFromPublicProfile = async ({
+  id
+}: GetActorFromIdParams) => {
   const publicProfile = await getPublicProfile({ id, withPublicKey: true })
   if (!publicProfile) return null
 
-  const actor: Actor = {
+  const actor: Profile = {
     id: publicProfile.id,
     username: publicProfile.username,
     domain: publicProfile.domain,
     name: publicProfile.name,
     summary: publicProfile.summary,
     iconUrl: publicProfile.icon?.url || '',
-    publicKey: publicProfile.publicKey || '',
-    createdAt: publicProfile.createdAt,
-    updatedAt: publicProfile.createdAt
+    createdAt: publicProfile.createdAt
   }
   return actor
 }

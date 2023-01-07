@@ -66,6 +66,27 @@ export class Actor {
     return this.data.privateKey || ''
   }
 
+  static getMentionFromId(actorId: string, withDomain = false): string {
+    // This method assume that all actor id has a username in the end,
+    // however this might not be true especially for Misskey.io that use
+    // random id in the actor id instead of username.
+    const id = actorId.split('/').pop()
+    if (!withDomain) {
+      return `@${id}`
+    }
+
+    const url = new URL(actorId)
+    return `@${id}@${url.hostname}`
+  }
+
+  static getMentionFromProfile(profile: Profile, withDomain = false): string {
+    if (!withDomain) {
+      return `@${profile.username}`
+    }
+
+    return `@${profile.username}@${profile.domain}`
+  }
+
   getMention(withDomain = false): string {
     if (!withDomain) {
       return `@${this.username}`

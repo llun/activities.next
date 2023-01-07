@@ -2,7 +2,7 @@ import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import { createStatus } from '../../client'
 import { Media } from '../../medias/apple/media'
-import { Profile, getAtWithHostFromId } from '../../models/actor'
+import { Actor, Profile } from '../../models/actor'
 import {
   AppleGalleryAttachment,
   Attachment,
@@ -88,10 +88,27 @@ export const PostBox: FC<Props> = ({
     ])
   }
 
+  /**
+   * Handle default message in Postbox
+   *
+   * - If there is no reply, always return empty string
+   * - If there is reply, but the reply is current actor, don't append current
+   *   actor handle name.
+   * - If there is reply, return reply status actor handle name with domain*
+   *
+   * TODO: Instead of using reply actor, it should be reply mention names
+   *
+   * @param profile current actor profile
+   * @param replyStatus status that user want to reply to
+   * @returns default message that user will use to send out the status
+   */
   const getDefaultMessage = (profile: Profile, replyStatus?: StatusData) => {
     if (!replyStatus) return ''
     if (replyStatus.actorId === profile.id) return ''
-    return `${getAtWithHostFromId(replyStatus.actorId)} `
+    if (replyStatus.actor) {
+      return `${Actor.getMentionFromProfile(replyStatus.actor)} `
+    }
+    return `${Actor.getMentionFromId(replyStatus.actorId)} `
   }
 
   useEffect(() => {
