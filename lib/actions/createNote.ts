@@ -4,13 +4,12 @@ import * as linkify from 'linkifyjs'
 import { getPersonFromHandle } from '../activities'
 import { Mention } from '../activities/entities/mention'
 import { Note, getAttachments, getTags } from '../activities/entities/note'
-import { getConfig } from '../config'
 import { compact } from '../jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
 } from '../jsonld/activitystream'
-import { Actor, getAtUsernameFromId } from '../models/actor'
+import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { Status, StatusType } from '../models/status'
 import { Storage } from '../storage/types'
@@ -124,12 +123,13 @@ export const createNoteFromUserInput = async ({
     : undefined
 
   const postId = crypto.randomUUID()
-  const host = getConfig().host
   const statusId = `${currentActor.id}/statuses/${postId}`
 
   await storage.createNote({
     id: statusId,
-    url: `https://${host}/${getAtUsernameFromId(currentActor.id)}/${postId}`,
+    url: `https://${
+      currentActor.domain
+    }/${currentActor.getMention()}/${postId}`,
 
     actorId: currentActor.id,
 
