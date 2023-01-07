@@ -1,6 +1,6 @@
 import { Account } from './account'
 
-export interface Profile {
+export interface ActorProfile {
   id: string
   username: string
   domain: string
@@ -12,7 +12,7 @@ export interface Profile {
   createdAt: number
 }
 
-export type ActorData = Profile & {
+export type ActorData = ActorProfile & {
   privateKey?: string
   publicKey: string
   account?: Account
@@ -66,6 +66,15 @@ export class Actor {
     return this.data.privateKey || ''
   }
 
+  get createdAt(): number {
+    return this.data.createdAt
+  }
+
+  static getMentionHostnameFromId(actorId: string) {
+    const url = new URL(actorId)
+    return `@${url.hostname}`
+  }
+
   static getMentionFromId(actorId: string, withDomain = false): string {
     // This method assume that all actor id has a username in the end,
     // however this might not be true especially for Misskey.io that use
@@ -75,11 +84,13 @@ export class Actor {
       return `@${id}`
     }
 
-    const url = new URL(actorId)
-    return `@${id}@${url.hostname}`
+    return `@${id}@${Actor.getMentionHostnameFromId(actorId)}`
   }
 
-  static getMentionFromProfile(profile: Profile, withDomain = false): string {
+  static getMentionFromProfile(
+    profile: ActorProfile,
+    withDomain = false
+  ): string {
     if (!withDomain) {
       return `@${profile.username}`
     }
@@ -95,7 +106,7 @@ export class Actor {
     return `@${this.username}@${this.domain}`
   }
 
-  toProfile(): Profile {
+  toProfile(): ActorProfile {
     return {
       id: this.data.id,
       username: this.data.username,
@@ -114,7 +125,7 @@ export class Actor {
     }
   }
 
-  toJson(): Profile {
+  toJson(): ActorProfile {
     return this.toProfile()
   }
 }

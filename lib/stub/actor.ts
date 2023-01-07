@@ -77,12 +77,13 @@ interface Params {
 }
 export const MockActor = ({
   id = 'https://chat.llun.dev/users/me'
-}: Params): Actor => ({
-  id,
-  username: new URL(id).pathname.split('/').pop() ?? 'me',
-  domain: 'chat.llun.dev',
-  publicKey: MOCK_PUBLIC_KEY,
-  privateKey: MOCK_PRIVATE_KEY,
-  createdAt: Date.now(),
-  updatedAt: Date.now()
-})
+}: Params): Actor =>
+  new Actor({
+    id,
+    username: new URL(id).pathname.split('/').pop() ?? 'me',
+    domain: 'chat.llun.dev',
+    publicKey: MOCK_PUBLIC_KEY,
+    privateKey: MOCK_PRIVATE_KEY,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  })

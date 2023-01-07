@@ -1,11 +1,10 @@
-import { userAnnounce } from '../actions/announce'
 import { getConfig } from '../config'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
 } from '../jsonld/activitystream'
 import { compact } from '../jsonld/index'
-import { Actor, Profile } from '../models/actor'
+import { Actor, ActorProfile } from '../models/actor'
 import { Follow } from '../models/follow'
 import { Status, StatusData } from '../models/status'
 import { headers } from '../signature'
@@ -209,7 +208,7 @@ export const getActorProfileFromPublicProfile = async ({
   const publicProfile = await getPublicProfile({ id, withPublicKey: true })
   if (!publicProfile) return null
 
-  const actor: Profile = {
+  const actor: ActorProfile = {
     id: publicProfile.id,
     username: publicProfile.username,
     domain: publicProfile.domain,

@@ -3,7 +3,7 @@ import { FC, MouseEvent, useState } from 'react'
 import { getAppleSharedAlbumAssets, getAppleSharedGallery } from '../../client'
 import { Media, getMediaList, mergeMediaAssets } from '../../medias/apple/media'
 import { VideoPosterDerivative } from '../../medias/apple/webstream'
-import { Profile } from '../../models/actor'
+import { ActorProfile } from '../../models/actor'
 import { Button } from '../Button'
 import { Modal } from '../Modal'
 import styles from './AppleGalleryButton.module.scss'
@@ -11,7 +11,7 @@ import styles from './AppleGalleryButton.module.scss'
 type MediaLoadingState = 'idle' | 'loading' | 'loaded'
 
 interface Props {
-  profile: Profile
+  profile: ActorProfile
   onSelectMedia: (media: Media) => void
 }
 

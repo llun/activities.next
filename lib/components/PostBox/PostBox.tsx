@@ -2,7 +2,7 @@ import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import { createStatus } from '../../client'
 import { Media } from '../../medias/apple/media'
-import { Actor, Profile } from '../../models/actor'
+import { Actor, ActorProfile } from '../../models/actor'
 import {
   AppleGalleryAttachment,
   Attachment,
@@ -16,7 +16,7 @@ import { ReplyPreview } from './ReplyPreview'
 
 interface Props {
   host: string
-  profile: Profile
+  profile: ActorProfile
   replyStatus?: StatusData
   onDiscardReply: () => void
   onPostCreated: (status: StatusData, attachments: Attachment[]) => void
@@ -102,7 +102,10 @@ export const PostBox: FC<Props> = ({
    * @param replyStatus status that user want to reply to
    * @returns default message that user will use to send out the status
    */
-  const getDefaultMessage = (profile: Profile, replyStatus?: StatusData) => {
+  const getDefaultMessage = (
+    profile: ActorProfile,
+    replyStatus?: StatusData
+  ) => {
     if (!replyStatus) return ''
     if (replyStatus.actorId === profile.id) return ''
     if (replyStatus.actor) {

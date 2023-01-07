@@ -1,15 +1,11 @@
 import Link from 'next/link'
 import { FC } from 'react'
 
-import {
-  Actor as ActorModel,
-  getHostnameFromId,
-  getUsernameFromId
-} from '../../models/actor'
+import { Actor as ActorModel, ActorProfile } from '../../models/actor'
 
 interface Props {
   actorId?: string
-  actor?: ActorModel | null
+  actor?: ActorProfile | null
   className?: string
 }
 
@@ -19,7 +15,10 @@ export const Actor: FC<Props> = ({ actor, actorId, className }) => {
       <div className={className}>
         <strong>@{actor.username}</strong>
         <small>@{actor.domain}</small>
-        <Link className="ms-2" href={`/@${actor.username}@${actor.domain}`}>
+        <Link
+          className="ms-2"
+          href={`/${ActorModel.getMentionFromProfile(actor, true)}`}
+        >
           <i className="bi bi-person-badge"></i>
         </Link>
       </div>
@@ -29,11 +28,11 @@ export const Actor: FC<Props> = ({ actor, actorId, className }) => {
   if (actorId) {
     return (
       <div className={className}>
-        <strong>@{getUsernameFromId(actorId)}</strong>
-        <small>@{getHostnameFromId(actorId)}</small>
+        <strong>@{ActorModel.getMentionFromId(actorId, false)}</strong>
+        <small>@{ActorModel.getMentionHostnameFromId(actorId)}</small>
         <Link
           className="ms-2"
-          href={`/@${getUsernameFromId(actorId)}@${getHostnameFromId(actorId)}`}
+          href={`/@${ActorModel.getMentionFromId(actorId, true)}`}
         >
           <i className="bi bi-person-badge"></i>
         </Link>
