@@ -28,8 +28,8 @@ export const Actor: FC<Props> = ({ actor, actorId, className }) => {
   if (actorId) {
     return (
       <div className={className}>
-        <strong>@{ActorModel.getMentionFromId(actorId, false)}</strong>
-        <small>@{ActorModel.getMentionHostnameFromId(actorId)}</small>
+        <strong>{ActorModel.getMentionFromId(actorId, false)}</strong>
+        <small>{ActorModel.getMentionHostnameFromId(actorId)}</small>
         <Link
           className="ms-2"
           href={`/@${ActorModel.getMentionFromId(actorId, true)}`}
