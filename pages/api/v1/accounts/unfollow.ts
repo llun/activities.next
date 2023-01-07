@@ -23,7 +23,7 @@ const handler = ApiGuard(async (req, res, context) => {
           status: FollowStatus.Undo
         })
       ])
-      const profile = await getPublicProfile({ id: target })
+      const profile = await getPublicProfile({ actorId: target })
       if (!profile) {
         return res.redirect(302, '/')
       }

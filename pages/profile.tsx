@@ -9,17 +9,13 @@ import Image from 'next/image'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { getConfig } from '../lib/config'
-import {
-  Profile,
-  getProfileFromActor,
-  getUsernameFromId
-} from '../lib/models/actor'
+import { Actor, ActorProfile } from '../lib/models/actor'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
 import styles from './profile.module.scss'
 
 interface Props {
-  profile: Profile
+  profile: ActorProfile
 }
 
 const Page: NextPage<Props> = ({ profile }) => {
@@ -45,7 +41,7 @@ const Page: NextPage<Props> = ({ profile }) => {
             )}
             <div>
               <h1>{profile.name}</h1>
-              <h4>@{getUsernameFromId(profile.id)}</h4>
+              <h4>{Actor.getMentionFromProfile(profile)}</h4>
               {Number.isInteger(profile.createdAt) && (
                 <p>
                   Joined{' '}
@@ -187,7 +183,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
 
   return {
     props: {
-      profile: getProfileFromActor(actor)
+      profile: actor.toProfile()
     }
   }
 }

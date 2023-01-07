@@ -29,7 +29,7 @@ const handler = ApiGuard(async (req, res, context) => {
         sharedInbox: `https://${getConfig().host}/inbox`
       })
       await follow(followItem.id, currentActor, target)
-      const profile = await getPublicProfile({ id: target })
+      const profile = await getPublicProfile({ actorId: target })
       if (!profile) {
         return res.redirect(302, '/')
       }
