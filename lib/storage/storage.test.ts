@@ -149,14 +149,15 @@ describe('Storage', () => {
           privateKey: expect.toBeString()
         }
         expect(
-          await storage.getActorFromEmail({ email: TEST_EMAIL })
+          (await storage.getActorFromEmail({ email: TEST_EMAIL }))?.data
         ).toMatchObject(expectedActorAfterCreated)
         expect(
-          await storage.getActorFromUsername({ username: TEST_USERNAME })
+          (await storage.getActorFromUsername({ username: TEST_USERNAME }))
+            ?.data
         ).toMatchObject(expectedActorAfterCreated)
-        expect(await storage.getActorFromId({ id: TEST_ID })).toMatchObject(
-          expectedActorAfterCreated
-        )
+        expect(
+          (await storage.getActorFromId({ id: TEST_ID }))?.data
+        ).toMatchObject(expectedActorAfterCreated)
       })
 
       it('updates actor information', async () => {

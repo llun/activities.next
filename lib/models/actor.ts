@@ -20,7 +20,7 @@ export type ActorData = Profile & {
 }
 
 export class Actor {
-  private data: ActorData
+  readonly data: ActorData
 
   constructor(data: ActorData) {
     this.data = data
@@ -59,11 +59,11 @@ export class Actor {
   }
 
   get publicKey(): string {
-    return this.publicKey
+    return this.data.publicKey
   }
 
   get privateKey(): string {
-    return this.privateKey
+    return this.data.privateKey || ''
   }
 
   getMention(withDomain = false): string {
