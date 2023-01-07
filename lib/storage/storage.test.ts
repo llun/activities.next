@@ -399,7 +399,7 @@ describe('Storage', () => {
     })
 
     describe('statuses', () => {
-      it.only('creates a new status', async () => {
+      it('creates a new status', async () => {
         const postId = 'post-1'
         const id = `${TEST_ID}/statuses/${postId}`
 
@@ -416,7 +416,8 @@ describe('Storage', () => {
         expect(status.data).toEqual({
           id,
           url: id,
-          actor,
+          actorId: actor?.id,
+          actor: actor?.toProfile(),
           type: StatusType.Note,
 
           text: 'Test Status',
