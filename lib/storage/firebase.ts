@@ -265,19 +265,30 @@ export class FirebaseStorage implements Storage {
     return this.getActorFromDataAndAccount(data, account)
   }
 
-  async updateActor({ actor }: UpdateActorParams) {
+  async updateActor({
+    actorId,
+    name,
+    summary,
+    iconUrl,
+    headerImageUrl,
+    appleSharedAlbumToken
+  }: UpdateActorParams) {
     const actors = collection(this.db, 'actors')
-    const actorsQuery = query(actors, where('id', '==', actor.id), limit(1))
+    const actorsQuery = query(actors, where('id', '==', actorId), limit(1))
     const actorsSnapshot = await getDocs(actorsQuery)
     if (actorsSnapshot.docs.length !== 1) return undefined
 
     const document = actorsSnapshot.docs[0]
     await setDoc(doc(this.db, 'actors', document.id), {
       ...document.data(),
-      ...actor
+      ...(iconUrl ? { iconUrl } : null),
+      ...(headerImageUrl ? { headerImageUrl } : null),
+      ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null),
+      ...(name ? { name } : null),
+      ...(summary ? { summary } : null)
     })
 
-    return actor
+    return this.getActorFromId({ id: actorId })
   }
 
   async isCurrentActorFollowing({
@@ -494,9 +505,11 @@ export class FirebaseStorage implements Storage {
       localRecipients: local,
       localActorForReply: FirebaseStorage.getLocalActorFromReply(actorId, reply)
     })
+
+    const actor = await this.getActorFromId({ id: actorId })
     return new Status({
       ...status,
-      actor: null,
+      actor: actor?.toProfile() || null,
       attachments: [],
       tags: [],
       replies: []

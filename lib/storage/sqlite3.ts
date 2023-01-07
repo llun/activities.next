@@ -248,26 +248,32 @@ export class Sqlite3Storage implements Storage {
     return this.getActor(storageActor, account)
   }
 
-  async updateActor({ actor }: UpdateActorParams) {
+  async updateActor({
+    actorId,
+    name,
+    summary,
+    iconUrl,
+    headerImageUrl,
+    appleSharedAlbumToken
+  }: UpdateActorParams) {
     const storageActor = await this.database<SQLActor>('actors')
-      .where('id', actor.id)
+      .where('id', actorId)
       .first()
     if (!storageActor) return undefined
 
     const settings: ActorSettings = {
-      iconUrl: actor.iconUrl,
-      headerImageUrl: actor.headerImageUrl,
-      appleSharedAlbumToken: actor.appleSharedAlbumToken
+      ...(iconUrl ? { iconUrl } : null),
+      ...(headerImageUrl ? { headerImageUrl } : null),
+      ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null)
     }
 
     await this.database<SQLActor>('actors').update({
-      name: actor.name,
-      summary: actor.summary,
+      ...(name ? { name } : null),
+      ...(summary ? { summary } : null),
       settings: JSON.stringify(settings),
       updatedAt: Date.now()
     })
-
-    return actor
+    return this.getActorFromId({ id: actorId })
   }
 
   async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
@@ -448,11 +454,12 @@ export class Sqlite3Storage implements Storage {
       )
     })
 
+    const actor = await this.getActorFromId({ id: actorId })
     return new Status({
       id,
       url,
       actorId,
-      actor: null,
+      actor: actor?.toProfile() || null,
       type: StatusType.Note,
       text,
       summary,
@@ -533,11 +540,14 @@ export class Sqlite3Storage implements Storage {
       )
     })
 
-    const originalStatus = await this.getStatus({ statusId: originalStatusId })
+    const [originalStatus, actor] = await Promise.all([
+      this.getStatus({ statusId: originalStatusId }),
+      this.getActorFromId({ id: actorId })
+    ])
     const announceData: StatusAnnounce = {
       id,
       actorId,
-      actor: null,
+      actor: actor?.toProfile() || null,
       to,
       cc,
       type: StatusType.Announce,
@@ -562,13 +572,15 @@ export class Sqlite3Storage implements Storage {
 
     if (data.type === StatusType.Announce) {
       const originalStatusId = data.content
-      const originalStatus = await this.getStatus({
-        statusId: originalStatusId
-      })
+      const [actor, originalStatus] = await Promise.all([
+        this.getActorFromId({ id: data.actorId }),
+        this.getStatus({ statusId: originalStatusId })
+      ])
+
       const announceData: StatusAnnounce = {
         id: data.id,
         actorId: data.actorId,
-        actor: null,
+        actor: actor?.toProfile() || null,
         type: StatusType.Announce,
         to: to.map((item) => item.actorId),
         cc: cc.map((item) => item.actorId),
@@ -581,13 +593,14 @@ export class Sqlite3Storage implements Storage {
       return new Status(announceData)
     }
 
-    const [attachments, tags, replies] = await Promise.all([
+    const [attachments, tags, replies, actor] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
       this.getTags({ statusId: data.id }),
       this.database('statuses')
         .select('id')
         .where('reply', data.id)
-        .orderBy('createdAt', 'desc')
+        .orderBy('createdAt', 'desc'),
+      this.getActorFromId({ id: data.actorId })
     ])
 
     const repliesNote = (
@@ -606,7 +619,7 @@ export class Sqlite3Storage implements Storage {
       to: to.map((item) => item.actorId),
       cc: cc.map((item) => item.actorId),
       actorId: data.actorId,
-      actor: null,
+      actor: actor?.toProfile() || null,
       type: StatusType.Note,
       text: content.text,
       summary: content.summary,

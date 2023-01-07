@@ -160,17 +160,10 @@ describe('Storage', () => {
       })
 
       it('updates actor information', async () => {
-        const currentActor = await storage.getActorFromUsername({
-          username: TEST_USERNAME
-        })
-        if (!currentActor) fail('Current actor must not be null')
-
         await storage.updateActor({
-          actor: {
-            ...currentActor,
-            name: 'llun',
-            summary: 'This is test actor'
-          }
+          actorId: TEST_ID,
+          name: 'llun',
+          summary: 'This is test actor'
         })
 
         expect(

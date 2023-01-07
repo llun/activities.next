@@ -12,7 +12,7 @@ export interface Profile {
   createdAt: number
 }
 
-type ActorData = Profile & {
+export type ActorData = Profile & {
   privateKey?: string
   publicKey: string
   account?: Account

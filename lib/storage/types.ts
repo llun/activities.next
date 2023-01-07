@@ -39,7 +39,13 @@ export type IsCurrentActorFollowingParams = {
   followingActorId: string
 }
 export type UpdateActorParams = {
-  actor: Actor
+  actorId: string
+
+  name?: string
+  summary?: string
+  iconUrl?: string
+  headerImageUrl?: string
+  appleSharedAlbumToken?: string
 }
 export type GetActorFollowingCountParams = { actorId: string }
 export type GetActorFollowersCountParams = { actorId: string }
