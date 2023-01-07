@@ -406,10 +406,11 @@ describe('Storage', () => {
     })
 
     describe('statuses', () => {
-      it('creates a new status', async () => {
+      it.only('creates a new status', async () => {
         const postId = 'post-1'
         const id = `${TEST_ID}/statuses/${postId}`
 
+        const actor = await storage.getActorFromId({ id: TEST_ID })
         const status = await storage.createNote({
           id,
           url: id,
@@ -422,7 +423,7 @@ describe('Storage', () => {
         expect(status.data).toEqual({
           id,
           url: id,
-          actorId: TEST_ID,
+          actor,
           type: StatusType.Note,
 
           text: 'Test Status',

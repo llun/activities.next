@@ -178,26 +178,25 @@ export class Sqlite3Storage implements Storage {
 
   private getActor(sqlActor: SQLActor, account?: Account) {
     const settings = JSON.parse(sqlActor.settings || '{}') as ActorSettings
-    const actor: Actor = {
+    return new Actor({
       id: sqlActor.id,
       username: sqlActor.username,
       domain: sqlActor.domain,
-      name: sqlActor.name || '',
-      summary: sqlActor.summary || '',
-
-      account,
-
-      iconUrl: settings.iconUrl || '',
-      headerImageUrl: settings.headerImageUrl || '',
-      appleSharedAlbumToken: settings.appleSharedAlbumToken || '',
-
-      publicKey: sqlActor.publicKey || '',
-      privateKey: sqlActor.privateKey || '',
-
+      ...(sqlActor.name ? { name: sqlActor.name } : null),
+      ...(sqlActor.summary ? { summary: sqlActor.summary } : null),
+      ...(settings.iconUrl ? { iconUrl: settings.iconUrl } : null),
+      ...(settings.headerImageUrl
+        ? { headerImageUrl: settings.headerImageUrl }
+        : null),
+      ...(settings.appleSharedAlbumToken
+        ? { appleSharedAlbumToken: settings.appleSharedAlbumToken }
+        : null),
+      publicKey: sqlActor.publicKey,
+      ...(sqlActor.privateKey ? { privateKey: sqlActor.privateKey } : null),
+      ...(account ? { account } : null),
       createdAt: sqlActor.createdAt,
       updatedAt: sqlActor.updatedAt
-    }
-    return actor
+    })
   }
 
   async getActorFromEmail({ email }: GetActorFromEmailParams) {
@@ -209,7 +208,6 @@ export class Sqlite3Storage implements Storage {
     if (!storageActor) return undefined
 
     const account = await this.getAccountFromId({ id: storageActor.accountId })
-    if (!account) return undefined
     return this.getActor(storageActor, account)
   }
 
@@ -233,7 +231,6 @@ export class Sqlite3Storage implements Storage {
     if (!storageActor) return undefined
 
     const account = await this.getAccountFromId({ id: storageActor.accountId })
-    if (!account) return undefined
     return this.getActor(storageActor, account)
   }
 
@@ -248,7 +245,6 @@ export class Sqlite3Storage implements Storage {
     }
 
     const account = await this.getAccountFromId({ id: storageActor.accountId })
-    if (!account) return undefined
     return this.getActor(storageActor, account)
   }
 

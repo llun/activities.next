@@ -194,6 +194,26 @@ export class FirebaseStorage implements Storage {
     return this.getActorFromId({ id: actorId })
   }
 
+  private getActorFromDataAndAccount(data: any, account?: Account): Actor {
+    return new Actor({
+      id: data.id,
+      username: data.username,
+      domain: data.domain,
+      ...(data.name ? { name: data.name } : null),
+      ...(data.summary ? { summary: data.summary } : null),
+      ...(data.iconUrl ? { iconUrl: data.iconUrl } : null),
+      ...(data.headerImageUrl ? { headerImageUrl: data.headerImageUrl } : null),
+      ...(data.appleSharedAlbumToken
+        ? { appleSharedAlbumToken: data.appleSharedAlbumToken }
+        : null),
+      publicKey: data.publicKey,
+      ...(data.privateKey ? { privateKey: data.privateKey } : null),
+      ...(account ? { account } : null),
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt
+    })
+  }
+
   async getActorFromEmail({ email }: GetActorFromEmailParams) {
     const accounts = collection(this.db, 'accounts')
     const accountQuery = query(accounts, where('email', '==', email), limit(1))
@@ -212,9 +232,7 @@ export class FirebaseStorage implements Storage {
 
     const data = actorsSnapshot.docs[0].data()
     const account = await this.getAccountFromId({ id: data.accountId })
-    if (!account) return undefined
-
-    return { ...data, account } as Actor
+    return this.getActorFromDataAndAccount(data, account)
   }
 
   async getActorFromUsername({ username }: GetActorFromUsernameParams) {
@@ -229,9 +247,7 @@ export class FirebaseStorage implements Storage {
 
     const data = actorsSnapshot.docs[0].data()
     const account = await this.getAccountFromId({ id: data.accountId })
-    if (!account) return undefined
-
-    return { ...data, account } as Actor
+    return this.getActorFromDataAndAccount(data, account)
   }
 
   async getActorFromId({ id }: GetActorFromIdParams) {
@@ -246,9 +262,7 @@ export class FirebaseStorage implements Storage {
     }
 
     const account = await this.getAccountFromId({ id: data.accountId })
-    if (!account) return undefined
-
-    return { ...data, account } as Actor
+    return this.getActorFromDataAndAccount(data, account)
   }
 
   async updateActor({ actor }: UpdateActorParams) {

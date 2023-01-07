@@ -12,30 +12,88 @@ export interface Profile {
   createdAt: number
 }
 
-export interface Actor extends Profile {
-  account?: Account
-
-  publicKey: string
+type ActorData = Profile & {
   privateKey?: string
-
-  updatedAt: number
+  publicKey: string
+  account?: Account
+  updatedAt?: number
 }
 
-export const getUsernameFromId = (actorId: string) => actorId.split('/').pop()
-export const getHostnameFromId = (actorId: string) => new URL(actorId).hostname
-export const getAtUsernameFromId = (actorId: string) =>
-  `@${getUsernameFromId(actorId)}`
-export const getAtWithHostFromId = (actorId: string) =>
-  `${getAtUsernameFromId(actorId)}@${getHostnameFromId(actorId)}`
+export class Actor {
+  private data: ActorData
 
-export const getProfileFromActor = (actor: Actor) => ({
-  id: actor.id,
-  name: actor.name || '',
-  username: actor.username,
-  domain: actor.domain,
-  summary: actor.summary || '',
-  iconUrl: actor.iconUrl || '',
-  headerImageUrl: actor.headerImageUrl || '',
-  appleSharedAlbumToken: actor.appleSharedAlbumToken || '',
-  createdAt: actor.createdAt
-})
+  constructor(data: ActorData) {
+    this.data = data
+  }
+
+  get id(): string {
+    return this.data.id
+  }
+
+  get name(): string {
+    return this.data.name || ''
+  }
+
+  get summary(): string {
+    return this.data.summary || ''
+  }
+
+  get username(): string {
+    return this.data.username
+  }
+
+  get domain(): string {
+    return this.data.domain
+  }
+
+  get iconUrl(): string {
+    return this.data.iconUrl || ''
+  }
+
+  get headerImageUrl(): string {
+    return this.data.headerImageUrl || ''
+  }
+
+  get appleSharedAlbumToken(): string {
+    return this.data.appleSharedAlbumToken || ''
+  }
+
+  get publicKey(): string {
+    return this.publicKey
+  }
+
+  get privateKey(): string {
+    return this.privateKey
+  }
+
+  getMention(withDomain = false): string {
+    if (!withDomain) {
+      return `@${this.username}`
+    }
+
+    return `@${this.username}@${this.domain}`
+  }
+
+  toProfile(): Profile {
+    return {
+      id: this.data.id,
+      username: this.data.username,
+      domain: this.data.domain,
+      ...(this.data.name ? { name: this.data.name } : null),
+      ...(this.data.domain ? { domain: this.data.domain } : null),
+      ...(this.data.summary ? { summary: this.data.summary } : null),
+      ...(this.data.iconUrl ? { iconUrl: this.data.iconUrl } : null),
+      ...(this.data.headerImageUrl
+        ? { headerImageUrl: this.data.headerImageUrl }
+        : null),
+      ...(this.data.appleSharedAlbumToken
+        ? { appleSharedAlbumToken: this.data.appleSharedAlbumToken }
+        : null),
+      createdAt: this.data.createdAt
+    }
+  }
+
+  toJson(): Profile {
+    return this.toProfile()
+  }
+}
