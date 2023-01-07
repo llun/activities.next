@@ -86,16 +86,16 @@ export interface PublicProfile {
 }
 
 interface GetPublicProfileParams {
-  id: string
+  actorId: string
   withCollectionCount?: boolean
   withPublicKey?: boolean
 }
 export const getPublicProfile = async ({
-  id,
+  actorId,
   withCollectionCount = false,
   withPublicKey = false
 }: GetPublicProfileParams): Promise<PublicProfile | null> => {
-  const response = await fetch(id, {
+  const response = await fetch(actorId, {
     headers: SHARED_HEADERS
   })
   if (response.status !== 200) return null
@@ -193,19 +193,19 @@ export const getPersonFromHandle = async (
   withCollectionCount = false
 ) => {
   const accountWithoutAt = account.startsWith('@') ? account.slice(1) : account
-  const id = await getWebfingerSelf(accountWithoutAt)
-  if (!id) return null
+  const actorId = await getWebfingerSelf(accountWithoutAt)
+  if (!actorId) return null
 
-  return getPublicProfile({ id, withCollectionCount })
+  return getPublicProfile({ actorId, withCollectionCount })
 }
 
 interface GetActorFromIdParams {
-  id: string
+  actorId: string
 }
 export const getActorProfileFromPublicProfile = async ({
-  id
+  actorId
 }: GetActorFromIdParams) => {
-  const publicProfile = await getPublicProfile({ id, withPublicKey: true })
+  const publicProfile = await getPublicProfile({ actorId, withPublicKey: true })
   if (!publicProfile) return null
 
   const actor: ActorProfile = {

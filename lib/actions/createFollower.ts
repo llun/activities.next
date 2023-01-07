@@ -16,7 +16,7 @@ export const createFollower = async ({
   })
   if (!actor) return null
 
-  const person = await getPublicProfile({ id: followRequest.actor })
+  const person = await getPublicProfile({ actorId: followRequest.actor })
   if (!person) return null
 
   await Promise.all([

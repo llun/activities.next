@@ -110,7 +110,7 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
   }
 
   const person = await getPublicProfile({
-    id: actorId,
+    actorId,
     withCollectionCount: true
   })
   if (!person) {

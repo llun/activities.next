@@ -38,7 +38,7 @@ export function activitiesGuard<T>(
     }
 
     const sender = await getPublicProfile({
-      id: signatureParts.keyId,
+      actorId: signatureParts.keyId,
       withCollectionCount: false,
       withPublicKey: true
     })

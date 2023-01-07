@@ -7,17 +7,13 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 
-import { getActorFromId } from '../lib/activities'
+import { getActorProfileFromPublicProfile } from '../lib/activities'
 import { Header } from '../lib/components/Header'
 import { PostBox } from '../lib/components/PostBox/PostBox'
 import { Posts } from '../lib/components/Posts/Posts'
 import { Profile as ProfileComponent } from '../lib/components/Profile'
 import { getConfig } from '../lib/config'
-import {
-  Profile,
-  getAtUsernameFromId,
-  getProfileFromActor
-} from '../lib/models/actor'
+import { Actor, ActorProfile } from '../lib/models/actor'
 import { StatusData } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
@@ -27,7 +23,7 @@ interface Props {
   host: string
   currentServerTime: number
   statuses: StatusData[]
-  profile: Profile
+  profile: ActorProfile
   totalPosts: number
   followersCount: number
   followingCount: number
@@ -84,7 +80,7 @@ const Page: NextPage<Props> = ({
             )}
             <ProfileComponent
               name={profile.name || ''}
-              url={`https://${host}/${getAtUsernameFromId(profile.id)}`}
+              url={`https://${host}/${Actor.getMentionFromProfile(profile)}`}
               username={profile.username}
               domain={profile.domain}
               totalPosts={totalPosts}
@@ -179,7 +175,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   // TODO: Move this to model?
   await Promise.all(
     statuses.map(async (status) => {
-      const actor = await getActorFromId({ id: status.data.actorId })
+      const actor = await getActorProfileFromPublicProfile({
+        actorId: status.data.actorId
+      })
       status.data.actor = actor
     })
   )
@@ -189,7 +187,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       host: config.host,
       statuses: statuses.map((item) => item.toJson()),
       currentServerTime: Date.now(),
-      profile: getProfileFromActor(actor),
+      profile: actor.toProfile(),
       totalPosts,
       followersCount,
       followingCount
