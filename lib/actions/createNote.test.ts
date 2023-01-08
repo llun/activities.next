@@ -15,6 +15,9 @@ import { createNote, createNoteFromUserInput, getMentions } from './createNote'
 enableFetchMocks()
 jest.mock('../config')
 
+// Actor id for testing pulling actor information when create status
+const FRIEND_ACTOR_ID = 'https://somewhere.test/actors/friend'
+
 describe('Create note action', () => {
   const storage = new Sqlite3Storage({
     client: 'sqlite3',
@@ -111,6 +114,16 @@ describe('Create note action', () => {
         statusId: `${actor1?.id}/statuses/post-1`
       })
       expect(status).not.toEqual('Test duplicate')
+    })
+
+    it('get public profile and add non-exist actor to storage', async () => {
+      const note = MockMastodonNote({
+        from: FRIEND_ACTOR_ID,
+        content: '<p>Hello</p>'
+      })
+      expect(await createNote({ storage, note })).toEqual(note)
+      const actor = await storage.getActorFromId({ id: FRIEND_ACTOR_ID })
+      expect(actor).toBeDefined()
     })
   })
 
