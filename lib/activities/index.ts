@@ -95,15 +95,63 @@ export const getPublicProfile = async ({
   withCollectionCount = false,
   withPublicKey = false
 }: GetPublicProfileParams): Promise<PublicProfile | null> => {
-  const response = await fetch(actorId, {
-    headers: SHARED_HEADERS
-  })
-  if (response.status !== 200) return null
+  try {
+    const response = await fetch(actorId, {
+      headers: SHARED_HEADERS
+    })
+    if (response.status !== 200) return null
 
-  const json = await response.json()
-  const person: Person = (await compact(json)) as any
+    const json = await response.json()
+    const person: Person = (await compact(json)) as any
 
-  if (!withCollectionCount) {
+    if (!withCollectionCount) {
+      return {
+        id: person.id,
+        username: person.preferredUsername,
+        domain: new URL(person.id).hostname,
+        ...(person.icon ? { icon: person.icon } : null),
+        url: person.url,
+        name: person.name || '',
+        summary: person.summary || '',
+
+        followersCount: 0,
+        followingCount: 0,
+        totalPosts: 0,
+
+        ...(withPublicKey
+          ? { publicKey: person.publicKey.publicKeyPem }
+          : null),
+
+        endpoints: {
+          following: person.following,
+          followers: person.followers,
+          inbox: person.inbox,
+          outbox: person.outbox,
+          sharedInbox: person.endpoints?.sharedInbox
+        },
+
+        createdAt: new Date(person.published).getTime()
+      }
+    }
+
+    const [followers, following, posts] = await Promise.all([
+      fetch(person.followers, {
+        headers: SHARED_HEADERS
+      }).then((res) =>
+        res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
+      ),
+      fetch(person.following, {
+        headers: SHARED_HEADERS
+      }).then((res) =>
+        res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
+      ),
+      fetch(person.outbox, {
+        headers: SHARED_HEADERS
+      }).then((res) =>
+        res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
+      )
+    ])
+
     return {
       id: person.id,
       username: person.preferredUsername,
@@ -113,11 +161,11 @@ export const getPublicProfile = async ({
       name: person.name || '',
       summary: person.summary || '',
 
-      followersCount: 0,
-      followingCount: 0,
-      totalPosts: 0,
-
       ...(withPublicKey ? { publicKey: person.publicKey.publicKeyPem } : null),
+
+      followersCount: followers?.totalItems || 0,
+      followingCount: following?.totalItems || 0,
+      totalPosts: posts?.totalItems || 0,
 
       endpoints: {
         following: person.following,
@@ -127,64 +175,23 @@ export const getPublicProfile = async ({
         sharedInbox: person.endpoints?.sharedInbox
       },
 
+      urls: {
+        followers:
+          typeof followers?.first !== 'string'
+            ? followers?.first?.id
+            : followers?.first,
+        following:
+          typeof following?.first !== 'string'
+            ? following?.first?.id
+            : following?.first,
+        posts:
+          typeof posts?.first !== 'string' ? posts?.first?.id : posts?.first
+      },
+
       createdAt: new Date(person.published).getTime()
     }
-  }
-
-  const [followers, following, posts] = await Promise.all([
-    fetch(person.followers, {
-      headers: SHARED_HEADERS
-    }).then((res) =>
-      res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
-    ),
-    fetch(person.following, {
-      headers: SHARED_HEADERS
-    }).then((res) =>
-      res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
-    ),
-    fetch(person.outbox, {
-      headers: SHARED_HEADERS
-    }).then((res) =>
-      res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
-    )
-  ])
-
-  return {
-    id: person.id,
-    username: person.preferredUsername,
-    domain: new URL(person.id).hostname,
-    ...(person.icon ? { icon: person.icon } : null),
-    url: person.url,
-    name: person.name || '',
-    summary: person.summary || '',
-
-    ...(withPublicKey ? { publicKey: person.publicKey.publicKeyPem } : null),
-
-    followersCount: followers?.totalItems || 0,
-    followingCount: following?.totalItems || 0,
-    totalPosts: posts?.totalItems || 0,
-
-    endpoints: {
-      following: person.following,
-      followers: person.followers,
-      inbox: person.inbox,
-      outbox: person.outbox,
-      sharedInbox: person.endpoints?.sharedInbox
-    },
-
-    urls: {
-      followers:
-        typeof followers?.first !== 'string'
-          ? followers?.first?.id
-          : followers?.first,
-      following:
-        typeof following?.first !== 'string'
-          ? following?.first?.id
-          : following?.first,
-      posts: typeof posts?.first !== 'string' ? posts?.first?.id : posts?.first
-    },
-
-    createdAt: new Date(person.published).getTime()
+  } catch {
+    return null
   }
 }
 
