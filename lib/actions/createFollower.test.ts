@@ -7,19 +7,7 @@ import { seedActor1 } from '../stub/seed/actor1'
 import { seedStorage } from '../stub/storage'
 import { createFollower } from './createFollower'
 
-jest.mock('../activities', () => {
-  const { testUserId } = jest.requireActual('../stub/const')
-  return {
-    acceptFollow: jest.fn(),
-    getPublicProfile: jest
-      .fn()
-      .mockResolvedValue(
-        jest
-          .requireActual('../stub/person')
-          .MockPerson({ id: testUserId('null') })
-      )
-  }
-})
+jest.mock('../activities')
 
 describe('#createFollower', () => {
   const storage = new Sqlite3Storage({
