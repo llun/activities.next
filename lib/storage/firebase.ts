@@ -72,8 +72,8 @@ export interface FirebaseConfig extends FirebaseOptions {
 }
 
 export class FirebaseStorage implements Storage {
-  app: FirebaseApp
-  db: Firestore
+  readonly app: FirebaseApp
+  readonly db: Firestore
 
   constructor(config: FirebaseConfig) {
     this.app = initializeApp(config)

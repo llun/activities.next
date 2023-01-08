@@ -82,6 +82,7 @@ export const MockActor = ({
     id,
     username: new URL(id).pathname.split('/').pop() ?? 'me',
     domain: 'chat.llun.dev',
+    followersUrl: `${id}/followers`,
     publicKey: MOCK_PUBLIC_KEY,
     privateKey: MOCK_PRIVATE_KEY,
     createdAt: Date.now(),
