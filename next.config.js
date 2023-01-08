@@ -55,7 +55,7 @@ const sentryWebpackPluginOptions = {
 }
 
 module.exports =
-  process.env === 'production'
+  process.env.NODE_ENV === 'production'
     ? withSentryConfig(
         {
           ...nextConfig,
