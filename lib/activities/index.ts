@@ -85,7 +85,7 @@ export interface PublicProfile {
   createdAt: number
 }
 
-interface GetPublicProfileParams {
+export interface GetPublicProfileParams {
   actorId: string
   withCollectionCount?: boolean
   withPublicKey?: boolean
