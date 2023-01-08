@@ -2,7 +2,6 @@ import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
 import { Actor } from '../models/actor'
-import { StatusNote } from '../models/status'
 import { Storage } from '../storage/types'
 
 interface AnnounceParams {

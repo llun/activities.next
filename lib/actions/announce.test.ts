@@ -82,5 +82,27 @@ describe('Announce action', () => {
       })
       expect(fetchMock).not.toHaveBeenCalledWith(announceStatusId)
     })
+
+    it('record actor for actor that is not exist locally', async () => {
+      const friendId = 'https://somewhere.test/actors/friend'
+      const statusId = stubNoteId()
+      const announceStatusId = 'https://somewhere.test/statuses/announce-status'
+      await announce({
+        status: MockAnnounceStatus({
+          actorId: friendId,
+          statusId,
+          announceStatusId
+        }),
+        storage
+      })
+      const actor = await storage.getActorFromId({ id: friendId })
+      expect(actor).toBeDefined()
+      expect(actor).toMatchObject({
+        id: friendId,
+        username: 'friend',
+        domain: 'somewhere.test',
+        createdAt: expect.toBeNumber()
+      })
+    })
   })
 })
