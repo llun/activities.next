@@ -13,6 +13,7 @@ import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { Status, StatusType } from '../models/status'
 import { Storage } from '../storage/types'
+import { recordActorIfNeeded } from './utils'
 
 interface CreateNoteParams {
   note: Note
@@ -35,43 +36,24 @@ export const createNote = async ({
     return null
   }
 
-  const existingActor = await storage.getActorFromId({
-    id: compactNote.attributedTo
-  })
-  if (!existingActor) {
-    const profile = await getPublicProfile({
+  await Promise.all([
+    recordActorIfNeeded({ actorId: compactNote.attributedTo, storage }),
+    storage.createNote({
+      id: compactNote.id,
+      url: compactNote.url || compactNote.id,
+
       actorId: compactNote.attributedTo,
-      withPublicKey: true
+
+      text: compactNote.content,
+      summary: compactNote.summary || '',
+
+      to: Array.isArray(note.to) ? note.to : [note.to].filter((item) => item),
+      cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter((item) => item),
+
+      reply: compactNote.inReplyTo || '',
+      createdAt: new Date(compactNote.published).getTime()
     })
-    // Don't create a note if profile is not exist
-    if (!profile) {
-      return null
-    }
-    await storage.createActor({
-      actorId: profile.id,
-      username: profile.username,
-      domain: profile.domain,
-      followersUrl: profile.endpoints.followers,
-      publicKey: profile.publicKey || '',
-      createdAt: profile.createdAt
-    })
-  }
-
-  await storage.createNote({
-    id: compactNote.id,
-    url: compactNote.url || compactNote.id,
-
-    actorId: compactNote.attributedTo,
-
-    text: compactNote.content,
-    summary: compactNote.summary || '',
-
-    to: Array.isArray(note.to) ? note.to : [note.to].filter((item) => item),
-    cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter((item) => item),
-
-    reply: compactNote.inReplyTo || '',
-    createdAt: new Date(compactNote.published).getTime()
-  })
+  ])
 
   const attachments = getAttachments(note)
   const tags = getTags(note)

@@ -31,12 +31,32 @@ export const mockRequests = (fetchMock: FetchMock) => {
         )
       }
     }
-    if (url.pathname.startsWith('/statuses')) {
+
+    // llun.test domain
+    if (url.pathname.includes('/statuses')) {
+      const from = req.url.slice(0, req.url.indexOf('/statuses'))
       return {
         status: 200,
         body: JSON.stringify(
           MockMastodonNote({
             id: req.url,
+            from,
+            content: 'This is status',
+            withContext: true
+          })
+        )
+      }
+    }
+
+    // somewhere.test domain
+    if (url.pathname.startsWith('/s')) {
+      const [, username] = url.pathname.slice(1).split('/')
+      return {
+        status: 200,
+        body: JSON.stringify(
+          MockMastodonNote({
+            id: req.url,
+            from: `https://${url.hostname}/actors/${username}`,
             content: 'This is status',
             withContext: true
           })

@@ -85,8 +85,10 @@ describe('Announce action', () => {
 
     it('record actor for actor that is not exist locally', async () => {
       const friendId = 'https://somewhere.test/actors/friend'
+      const friend2Id = 'https://somewhere.test/actors/friend2'
       const statusId = stubNoteId()
-      const announceStatusId = 'https://somewhere.test/statuses/announce-status'
+      const announceStatusId =
+        'https://somewhere.test/s/friend2/announce-status'
       await announce({
         status: MockAnnounceStatus({
           actorId: friendId,
@@ -100,6 +102,17 @@ describe('Announce action', () => {
       expect(actor).toMatchObject({
         id: friendId,
         username: 'friend',
+        domain: 'somewhere.test',
+        createdAt: expect.toBeNumber()
+      })
+
+      const originalStatusActor = await storage.getActorFromId({
+        id: friend2Id
+      })
+      expect(originalStatusActor).toBeDefined()
+      expect(originalStatusActor).toMatchObject({
+        id: friend2Id,
+        username: 'friend2',
         domain: 'somewhere.test',
         createdAt: expect.toBeNumber()
       })

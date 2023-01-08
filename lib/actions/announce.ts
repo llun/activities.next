@@ -3,6 +3,7 @@ import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
+import { recordActorIfNeeded } from './utils'
 
 interface AnnounceParams {
   status: AnnounceStatus
@@ -21,38 +22,48 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
 
     const boostedStatus = await response.json()
     const compactedBoostedStatus = (await compact(boostedStatus)) as Note
-    await storage.createNote({
-      id: compactedBoostedStatus.id,
-      url: compactedBoostedStatus.url || compactedBoostedStatus.id,
 
-      actorId: compactedBoostedStatus.attributedTo,
+    await Promise.all([
+      recordActorIfNeeded({
+        actorId: compactedBoostedStatus.attributedTo,
+        storage
+      }),
+      storage.createNote({
+        id: compactedBoostedStatus.id,
+        url: compactedBoostedStatus.url || compactedBoostedStatus.id,
 
-      text: compactedBoostedStatus.content,
-      summary: compactedBoostedStatus.summary || '',
+        actorId: compactedBoostedStatus.attributedTo,
 
-      to: Array.isArray(boostedStatus.to)
-        ? boostedStatus.to
-        : [boostedStatus.to].filter((item) => item),
-      cc: Array.isArray(boostedStatus.cc)
-        ? boostedStatus.cc
-        : [boostedStatus.cc].filter((item) => item),
+        text: compactedBoostedStatus.content,
+        summary: compactedBoostedStatus.summary || '',
 
-      reply: compactedBoostedStatus.inReplyTo || '',
-      createdAt: new Date(compactedBoostedStatus.published).getTime()
-    })
+        to: Array.isArray(boostedStatus.to)
+          ? boostedStatus.to
+          : [boostedStatus.to].filter((item) => item),
+        cc: Array.isArray(boostedStatus.cc)
+          ? boostedStatus.cc
+          : [boostedStatus.cc].filter((item) => item),
+
+        reply: compactedBoostedStatus.inReplyTo || '',
+        createdAt: new Date(compactedBoostedStatus.published).getTime()
+      })
+    ])
   }
 
-  await storage.createAnnounce({
-    id: compactedStatus.id,
-    actorId: compactedStatus.actor,
-    to: Array.isArray(status.to)
-      ? status.to
-      : [status.to].filter((item) => item),
-    cc: Array.isArray(status.cc)
-      ? status.cc
-      : [status.cc].filter((item) => item),
-    originalStatusId: object
-  })
+  await Promise.all([
+    recordActorIfNeeded({ actorId: compactedStatus.actor, storage }),
+    storage.createAnnounce({
+      id: compactedStatus.id,
+      actorId: compactedStatus.actor,
+      to: Array.isArray(status.to)
+        ? status.to
+        : [status.to].filter((item) => item),
+      cc: Array.isArray(status.cc)
+        ? status.cc
+        : [status.cc].filter((item) => item),
+      originalStatusId: object
+    })
+  ])
 }
 
 interface UserAnnounceParams {
