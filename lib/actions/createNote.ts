@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import * as linkify from 'linkifyjs'
 
-import { getPersonFromHandle } from '../activities'
+import { getPersonFromHandle, getPublicProfile } from '../activities'
 import { Mention } from '../activities/entities/mention'
 import { Note, getAttachments, getTags } from '../activities/entities/note'
 import { compact } from '../jsonld'
@@ -33,6 +33,28 @@ export const createNote = async ({
   })) as Note
   if (compactNote.type !== StatusType.Note) {
     return null
+  }
+
+  const existingActor = await storage.getActorFromId({
+    id: compactNote.attributedTo
+  })
+  if (!existingActor) {
+    const profile = await getPublicProfile({
+      actorId: compactNote.attributedTo,
+      withPublicKey: true
+    })
+    // Don't create a note if profile is not exist
+    if (!profile) {
+      return null
+    }
+    await storage.createActor({
+      actorId: profile.id,
+      username: profile.username,
+      domain: profile.domain,
+      followersUrl: profile.endpoints.followers,
+      publicKey: profile.publicKey || '',
+      createdAt: profile.createdAt
+    })
   }
 
   await storage.createNote({

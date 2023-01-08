@@ -124,6 +124,12 @@ describe('Create note action', () => {
       expect(await createNote({ storage, note })).toEqual(note)
       const actor = await storage.getActorFromId({ id: FRIEND_ACTOR_ID })
       expect(actor).toBeDefined()
+      expect(actor).toMatchObject({
+        id: FRIEND_ACTOR_ID,
+        username: 'friend',
+        domain: 'somewhere.test',
+        createdAt: expect.toBeNumber()
+      })
     })
   })
 

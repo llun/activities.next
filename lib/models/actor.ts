@@ -13,6 +13,7 @@ export interface ActorProfile {
 }
 
 export type ActorData = ActorProfile & {
+  followersUrl: string
   privateKey?: string
   publicKey: string
   account?: Account
@@ -64,6 +65,10 @@ export class Actor {
 
   get privateKey(): string {
     return this.data.privateKey || ''
+  }
+
+  get followersUrl(): string {
+    return this.data.followersUrl || ''
   }
 
   get createdAt(): number {
