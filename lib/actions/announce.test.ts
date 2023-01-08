@@ -6,18 +6,21 @@ import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { MockAnnounceStatus } from '../stub/announce'
 import { stubNoteId } from '../stub/note'
-import { seedActor1 } from '../stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
 import { seedStorage } from '../stub/storage'
 import { announce } from './announce'
 
 enableFetchMocks()
 
-jest.mock('../config', () => ({
-  __esModule: true,
-  getConfig: jest.fn().mockReturnValue({
-    host: 'llun.test'
-  })
-}))
+jest.mock('../config', () => {
+  const { TEST_DOMAIN } = jest.requireActual('../stub/const')
+  return {
+    __esModule: true,
+    getConfig: jest.fn().mockReturnValue({
+      host: TEST_DOMAIN
+    })
+  }
+})
 
 describe('Announce action', () => {
   const storage = new Sqlite3Storage({
@@ -52,7 +55,7 @@ describe('Announce action', () => {
       const announceStatusId = 'https://somewhere.test/statuses/announce-status'
       await announce({
         status: MockAnnounceStatus({
-          actorId: 'https://llun.test/users/test1',
+          actorId: ACTOR1_ID,
           statusId,
           announceStatusId
         }),
@@ -79,7 +82,7 @@ describe('Announce action', () => {
       const announceStatusId = `${actor1?.id}/statuses/post-1`
       await announce({
         status: MockAnnounceStatus({
-          actorId: 'https://llun.test/users/test1',
+          actorId: ACTOR1_ID,
           statusId,
           announceStatusId
         }),

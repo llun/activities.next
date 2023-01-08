@@ -1,4 +1,5 @@
 import { MockMastodonCreateActivity } from '../stub/createActivity'
+import { ACTOR1_ID } from '../stub/seed/actor1'
 import { compact } from './index'
 
 jest.useFakeTimers().setSystemTime(new Date('2022-11-28'))
@@ -8,19 +9,19 @@ describe('#compact', () => {
     const activity = MockMastodonCreateActivity({
       content: 'Simple Content',
       to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: ['https://llun.test/users/llun/followers']
+      cc: [`${ACTOR1_ID}/followers`]
     })
     const compactedActivity = await compact(activity)
     expect(compactedActivity).toMatchObject({
-      id: 'https://llun.test/users/llun/statuses/109417500731428509/activity',
+      id: `${ACTOR1_ID}/statuses/109417500731428509/activity`,
       type: 'Create',
-      actor: 'https://llun.test/users/llun',
-      cc: 'https://llun.test/users/llun/followers',
+      actor: ACTOR1_ID,
+      cc: `${ACTOR1_ID}/followers`,
       object: {
         id: activity.object.id,
         type: 'Note',
-        attributedTo: 'https://llun.test/users/llun',
-        cc: 'https://llun.test/users/llun/followers',
+        attributedTo: ACTOR1_ID,
+        cc: `${ACTOR1_ID}/followers`,
         content: 'Simple Content',
         contentMap: { en: 'Simple Content' },
         published: '2022-11-28T00:00:00Z',
@@ -50,28 +51,19 @@ describe('#compact', () => {
         'https://www.w3.org/ns/activitystreams#Public',
         'https://llun.dev/users/null'
       ],
-      cc: [
-        'https://llun.test/users/llun/followers',
-        'https://llun.dev/users/null/followers'
-      ]
+      cc: [`${ACTOR1_ID}/followers`, 'https://llun.dev/users/null/followers']
     })
     const compactedActivity = await compact(activity)
     expect(compactedActivity).toMatchObject({
-      id: 'https://llun.test/users/llun/statuses/109417500731428509/activity',
+      id: `${ACTOR1_ID}/statuses/109417500731428509/activity`,
       type: 'Create',
-      actor: 'https://llun.test/users/llun',
-      cc: [
-        'https://llun.test/users/llun/followers',
-        'https://llun.dev/users/null/followers'
-      ],
+      actor: ACTOR1_ID,
+      cc: [`${ACTOR1_ID}/followers`, 'https://llun.dev/users/null/followers'],
       object: {
         id: activity.object.id,
         type: 'Note',
-        attributedTo: 'https://llun.test/users/llun',
-        cc: [
-          'https://llun.test/users/llun/followers',
-          'https://llun.dev/users/null/followers'
-        ],
+        attributedTo: ACTOR1_ID,
+        cc: [`${ACTOR1_ID}/followers`, 'https://llun.dev/users/null/followers'],
         content: 'Simple Content',
         contentMap: { en: 'Simple Content' },
         published: '2022-11-28T00:00:00Z',

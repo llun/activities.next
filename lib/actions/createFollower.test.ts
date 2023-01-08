@@ -1,21 +1,25 @@
 import { acceptFollow } from '../activities'
 import { Actor } from '../models/actor'
 import { Sqlite3Storage } from '../storage/sqlite3'
+import { testUserId } from '../stub/const'
 import { MockFollowRequest } from '../stub/followRequest'
 import { seedActor1 } from '../stub/seed/actor1'
 import { seedStorage } from '../stub/storage'
 import { createFollower } from './createFollower'
 
-jest.mock('../activities', () => ({
-  acceptFollow: jest.fn(),
-  getPublicProfile: jest
-    .fn()
-    .mockResolvedValue(
-      jest
-        .requireActual('../stub/person')
-        .MockPerson({ id: 'https://llun.test/users/null' })
-    )
-}))
+jest.mock('../activities', () => {
+  const { testUserId } = jest.requireActual('../stub/const')
+  return {
+    acceptFollow: jest.fn(),
+    getPublicProfile: jest
+      .fn()
+      .mockResolvedValue(
+        jest
+          .requireActual('../stub/person')
+          .MockPerson({ id: testUserId('null') })
+      )
+  }
+})
 
 describe('#createFollower', () => {
   const storage = new Sqlite3Storage({
@@ -58,7 +62,7 @@ describe('#createFollower', () => {
   it(`returns null and don't do anything`, async () => {
     const request = MockFollowRequest({
       actorId: 'https://another.network/users/friend',
-      targetActorId: 'https://llun.test/users/notexist'
+      targetActorId: testUserId('notexist')
     })
     const follow = await createFollower({
       storage,

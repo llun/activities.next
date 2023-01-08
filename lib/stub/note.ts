@@ -7,9 +7,11 @@ import {
   ACTIVITY_STREAM_URL
 } from '../jsonld/activitystream'
 import { getISOTimeUTC } from '../time'
+import { TEST_DOMAIN } from './const'
+import { ACTOR1_ID, seedActor1 } from './seed/actor1'
 
 export const stubNoteId = (id = crypto.randomBytes(8).toString('hex')) =>
-  `https://llun.test/users/llun/statuses/${id}`
+  `https://${TEST_DOMAIN}/users/${seedActor1.username}/statuses/${id}`
 
 interface MockNoteParams {
   content: string
@@ -29,7 +31,7 @@ export const MockMastodonNote = ({
   id = stubNoteId(),
   published = Date.now(),
   content,
-  from = 'https://llun.test/users/llun',
+  from = ACTOR1_ID,
   to = [ACTIVITY_STREAM_PUBLIC],
   cc = [],
   inReplyTo,
@@ -54,7 +56,7 @@ export const MockMastodonNote = ({
     inReplyToAtomUri: inReplyTo,
     conversation:
       conversation ??
-      `tag:llun.test,${Date.now()}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
+      `tag:${TEST_DOMAIN},${Date.now()}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
     content,
     contentMap: { en: content },
     attachment: documents,

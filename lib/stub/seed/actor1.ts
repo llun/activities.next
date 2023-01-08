@@ -1,3 +1,5 @@
+export const ACTOR1_ID = 'https://llun.test/users/test1'
+
 export const seedActor1 = {
   email: 'test1@llun.test',
   username: 'test1',

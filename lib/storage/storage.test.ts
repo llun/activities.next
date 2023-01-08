@@ -1,15 +1,20 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { FollowStatus } from '../models/follow'
 import { StatusType } from '../models/status'
+import { TEST_DOMAIN } from '../stub/const'
 import { FirebaseStorage } from './firebase'
 import { Sqlite3Storage } from './sqlite3'
 import { Storage } from './types'
 
-jest.mock('../config', () => ({
-  getConfig: () => ({ host: 'llun.test', secretPhase: 'secret' })
-}))
-
-const TEST_DOMAIN = 'llun.test'
+jest.mock('../config', () => {
+  const { TEST_DOMAIN } = jest.requireActual('../stub/const')
+  return {
+    __esModule: true,
+    getConfig: jest
+      .fn()
+      .mockReturnValue({ host: TEST_DOMAIN, secretPhase: 'secret' })
+  }
+})
 
 // For testing existing user
 const TEST_EMAIL = 'user@llun.dev'

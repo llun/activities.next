@@ -7,19 +7,22 @@ import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { MockImageDocument } from '../stub/imageDocument'
 import { MockMastodonNote } from '../stub/note'
-import { seedActor1 } from '../stub/seed/actor1'
-import { seedActor2 } from '../stub/seed/actor2'
+import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
 import { createNote, createNoteFromUserInput, getMentions } from './createNote'
 
 enableFetchMocks()
 
-jest.mock('../config', () => ({
-  __esModule: true,
-  getConfig: jest.fn().mockReturnValue({
-    host: 'llun.test'
-  })
-}))
+jest.mock('../config', () => {
+  const { TEST_DOMAIN } = jest.requireActual('../stub/const')
+  return {
+    __esModule: true,
+    getConfig: jest.fn().mockReturnValue({
+      host: TEST_DOMAIN
+    })
+  }
+})
 
 describe('Create note action', () => {
   const storage = new Sqlite3Storage({
@@ -179,7 +182,7 @@ How are you?
       expect(note?.tag).toHaveLength(1)
       expect(note?.tag).toContainValue({
         type: 'Mention',
-        href: 'https://llun.test/users/test2',
+        href: ACTOR2_ID,
         name: '@test2@llun.test'
       })
     })
@@ -205,7 +208,7 @@ How are you?
       })
       expect(mentions[1]).toEqual({
         type: 'Mention',
-        href: `https://llun.test/users/test1`,
+        href: ACTOR1_ID,
         name: '@test1@llun.test'
       })
     })

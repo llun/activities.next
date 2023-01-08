@@ -5,8 +5,8 @@ import { compact } from '../jsonld'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { MockMastodonNote } from '../stub/note'
-import { seedActor1 } from '../stub/seed/actor1'
-import { seedActor2 } from '../stub/seed/actor2'
+import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
 import { getISOTimeUTC } from '../time'
 import { Actor } from './actor'
@@ -14,14 +14,16 @@ import { Status, StatusType } from './status'
 
 enableFetchMocks()
 
+// TODO: Move this mock to stub?
 jest.mock('../config', () => {
   const originalModule = jest.requireActual('../config')
   const { MOCK_SECRET_PHASES } = jest.requireActual('../stub/actor')
+  const { TEST_DOMAIN } = jest.requireActual('../stub/const')
   return {
     __esModule: true,
     ...originalModule,
     getConfig: jest.fn().mockReturnValue({
-      host: 'llun.test',
+      host: TEST_DOMAIN,
       database: {},
       allowEmails: [],
       secretPhase: MOCK_SECRET_PHASES,
@@ -66,7 +68,7 @@ describe('Status', () => {
       expect(status.data).toEqual({
         id: note.id,
         url: note.url,
-        actorId: 'https://llun.test/users/llun',
+        actorId: ACTOR1_ID,
         actor: null,
         type: StatusType.Note,
         text: 'Hello',
@@ -92,7 +94,7 @@ describe('Status', () => {
       expect(status.data).toEqual({
         id: note.id,
         url: note.url,
-        actorId: 'https://llun.test/users/llun',
+        actorId: ACTOR1_ID,
         actor: null,
         type: StatusType.Note,
         text: 'Hello',
@@ -152,7 +154,7 @@ describe('Status', () => {
             items: [
               (
                 await storage.getStatus({
-                  statusId: 'https://llun.test/users/test2/statuses/post-2'
+                  statusId: `${ACTOR2_ID}/statuses/post-2`
                 })
               )?.toObject()
             ]

@@ -5,17 +5,19 @@ import { mockRequests } from '../stub/activities'
 import { MockActor } from '../stub/actor'
 import { MockMastodonNote } from '../stub/note'
 import { MockPerson } from '../stub/person'
+import { ACTOR1_ID } from '../stub/seed/actor1'
 import { MockWebfinger } from '../stub/webfinger'
 import { CreateStatus } from './actions/createStatus'
 
 jest.mock('../config', () => {
   const originalModule = jest.requireActual('../config')
   const { MOCK_SECRET_PHASES } = jest.requireActual('../stub/actor')
+  const { TEST_DOMAIN } = jest.requireActual('../stub/const')
   return {
     __esModule: true,
     ...originalModule,
     getConfig: jest.fn().mockReturnValue({
-      host: 'llun.test',
+      host: TEST_DOMAIN,
       database: {},
       allowEmails: [],
       secretPhase: MOCK_SECRET_PHASES,
@@ -63,12 +65,12 @@ describe('#getPersonFromHandle', () => {
 
   it('get url from webFinger and getPerson info from user id', async () => {
     const person = await getPersonFromHandle('@test1@llun.test')
-    expect(person).toMatchObject(
-      MockPerson({
-        id: 'https://llun.test/users/test1',
-        createdAt: expect.toBeNumber()
-      })
-    )
+    expect(person).toMatchObject({
+      ...MockPerson({
+        id: ACTOR1_ID
+      }),
+      createdAt: expect.toBeNumber()
+    })
   })
 })
 
