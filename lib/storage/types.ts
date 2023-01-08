@@ -26,6 +26,8 @@ export type CreateActorParams = {
   iconUrl?: string
   headerImageUrl?: string
 
+  followersUrl: string
+
   publicKey: string
   privateKey?: string
 

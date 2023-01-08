@@ -52,6 +52,7 @@ interface ActorSettings {
   iconUrl?: string
   headerImageUrl?: string
   appleSharedAlbumToken?: string
+  followersUrl: string
 }
 
 interface SQLActor {
@@ -114,6 +115,11 @@ export class Sqlite3Storage implements Storage {
     const accountId = crypto.randomUUID()
     const actorId = `https://${domain}/users/${username}`
     const currentTime = Date.now()
+
+    const actorSettings: ActorSettings = {
+      followersUrl: `${actorId}/followers`
+    }
+
     await this.database.transaction(async (trx) => {
       await trx('accounts').insert({
         id: accountId,
@@ -126,6 +132,7 @@ export class Sqlite3Storage implements Storage {
         accountId,
         username,
         domain,
+        settings: JSON.stringify(actorSettings),
         publicKey,
         privateKey,
         createdAt: currentTime,
@@ -149,6 +156,7 @@ export class Sqlite3Storage implements Storage {
     summary,
     iconUrl,
     headerImageUrl,
+    followersUrl,
 
     publicKey,
     privateKey,
@@ -159,7 +167,8 @@ export class Sqlite3Storage implements Storage {
 
     const settings: ActorSettings = {
       iconUrl,
-      headerImageUrl
+      headerImageUrl,
+      followersUrl
     }
     await this.database('actors').insert({
       id: actorId,
@@ -191,6 +200,7 @@ export class Sqlite3Storage implements Storage {
       ...(settings.appleSharedAlbumToken
         ? { appleSharedAlbumToken: settings.appleSharedAlbumToken }
         : null),
+      followersUrl: settings.followersUrl,
       publicKey: sqlActor.publicKey,
       ...(sqlActor.privateKey ? { privateKey: sqlActor.privateKey } : null),
       ...(account ? { account } : null),
@@ -262,6 +272,7 @@ export class Sqlite3Storage implements Storage {
     if (!storageActor) return undefined
 
     const settings: ActorSettings = {
+      ...JSON.parse(storageActor.settings),
       ...(iconUrl ? { iconUrl } : null),
       ...(headerImageUrl ? { headerImageUrl } : null),
       ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null)

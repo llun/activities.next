@@ -142,6 +142,7 @@ describe('Storage', () => {
             id: expect.toBeString(),
             email: TEST_EMAIL
           },
+          followersUrl: `${TEST_ID}/followers`,
           publicKey: expect.toBeString(),
           privateKey: expect.toBeString()
         }
@@ -179,6 +180,7 @@ describe('Storage', () => {
           actorId: TEST_ID10,
           username: TEST_USERNAME10,
           domain: TEST_DOMAIN10,
+          followersUrl: `${TEST_ID10}/followers`,
           publicKey: 'publicKey',
           createdAt: Date.now()
         })
@@ -186,6 +188,7 @@ describe('Storage', () => {
         expect(actor).toBeDefined()
         expect(actor?.username).toEqual(TEST_USERNAME10)
         expect(actor?.domain).toEqual(TEST_DOMAIN10)
+        expect(actor?.followersUrl).toEqual(`${TEST_ID10}/followers`)
         expect(actor?.privateKey).toEqual('')
       })
     })
