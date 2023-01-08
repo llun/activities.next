@@ -235,6 +235,10 @@ export class FirebaseStorage implements Storage {
     if (actorsSnapshot.docs.length !== 1) return undefined
 
     const data = actorsSnapshot.docs[0].data()
+    if (!data.accountId) {
+      return this.getActorFromDataAndAccount(data)
+    }
+
     const account = await this.getAccountFromId({ id: data.accountId })
     return this.getActorFromDataAndAccount(data, account)
   }
@@ -250,6 +254,10 @@ export class FirebaseStorage implements Storage {
     if (actorsSnapshot.docs.length !== 1) return undefined
 
     const data = actorsSnapshot.docs[0].data()
+    if (!data.accountId) {
+      return this.getActorFromDataAndAccount(data)
+    }
+
     const account = await this.getAccountFromId({ id: data.accountId })
     return this.getActorFromDataAndAccount(data, account)
   }
@@ -262,7 +270,7 @@ export class FirebaseStorage implements Storage {
 
     const data = actorsSnapshot.docs[0].data()
     if (!data.accountId) {
-      return data as Actor
+      return this.getActorFromDataAndAccount(data)
     }
 
     const account = await this.getAccountFromId({ id: data.accountId })
