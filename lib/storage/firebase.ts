@@ -560,14 +560,19 @@ export class FirebaseStorage implements Storage {
     withReplies: boolean
   ): Promise<Status> {
     if (data.type === StatusType.Announce) {
-      const originalStatus = await this.getStatus({
-        statusId: data.originalStatusId
-      })
+      const [originalStatus, actor] = await Promise.all([
+        this.getStatus({
+          statusId: data.originalStatusId
+        }),
+        this.getActorFromId({
+          id: data.actorId
+        })
+      ])
 
       return new Status({
         id: data.id,
         actorId: data.actorId,
-        actor: null,
+        actor: actor?.toProfile() ?? null,
         type: data.type,
 
         to: data.to,
@@ -580,9 +585,10 @@ export class FirebaseStorage implements Storage {
       })
     }
 
-    const [attachments, tags] = await Promise.all([
+    const [attachments, tags, actor] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
-      this.getTags({ statusId: data.id })
+      this.getTags({ statusId: data.id }),
+      this.getActorFromId({ id: data.actorId })
     ])
     const replies = withReplies ? await this.getReplies(data.id) : []
     return new Status({
@@ -591,7 +597,7 @@ export class FirebaseStorage implements Storage {
       to: data.to,
       cc: data.cc,
       actorId: data.actorId,
-      actor: null,
+      actor: actor?.toProfile() ?? null,
       type: data.type,
       text: data.text,
       summary: data.summary,

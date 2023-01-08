@@ -172,16 +172,6 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       storage.getActorFollowersCount({ actorId: actor.id })
     ])
 
-  // TODO: Move this to model?
-  await Promise.all(
-    statuses.map(async (status) => {
-      const actor = await getActorProfileFromPublicProfile({
-        actorId: status.data.actorId
-      })
-      status.data.actor = actor
-    })
-  )
-
   return {
     props: {
       host: config.host,

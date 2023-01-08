@@ -519,7 +519,7 @@ describe('Storage', () => {
         }
       })
 
-      it('returns all statuses without reply', async () => {
+      it('returns all statuses without other people reply', async () => {
         const otherServerUser1 = 'https://other.server/u/user1'
         const otherServerUser1Status = (i: number) =>
           `${otherServerUser1}/s/${i}`
@@ -612,6 +612,20 @@ describe('Storage', () => {
         const statuses = await storage.getStatuses({
           actorId: TEST_ID8
         })
+
+        for (const status of statuses) {
+          if (status.data.actorId.startsWith('https://llun.test/users')) {
+            const actor = await storage.getActorFromId({
+              id: status.data.actorId
+            })
+            if (!actor) {
+              fail('Actor must be defined')
+            }
+            expect(status.data.actor).toMatchObject(actor.toProfile())
+          } else {
+            expect(status.data.actor).toBeNull()
+          }
+        }
 
         const otherServerStatus2 = await storage.getStatus({
           statusId: otherServerUser2Status(19)
