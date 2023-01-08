@@ -9,24 +9,8 @@ import { ACTOR1_ID } from '../stub/seed/actor1'
 import { MockWebfinger } from '../stub/webfinger'
 import { CreateStatus } from './actions/createStatus'
 
-jest.mock('../config', () => {
-  const originalModule = jest.requireActual('../config')
-  const { MOCK_SECRET_PHASES } = jest.requireActual('../stub/actor')
-  const { TEST_DOMAIN } = jest.requireActual('../stub/const')
-  return {
-    __esModule: true,
-    ...originalModule,
-    getConfig: jest.fn().mockReturnValue({
-      host: TEST_DOMAIN,
-      database: {},
-      allowEmails: [],
-      secretPhase: MOCK_SECRET_PHASES,
-      auth: {}
-    })
-  }
-})
-
 enableFetchMocks()
+jest.mock('../config')
 
 describe('#getWebfingerSelf', () => {
   beforeEach(() => {

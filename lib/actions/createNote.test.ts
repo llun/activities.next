@@ -13,16 +13,7 @@ import { seedStorage } from '../stub/storage'
 import { createNote, createNoteFromUserInput, getMentions } from './createNote'
 
 enableFetchMocks()
-
-jest.mock('../config', () => {
-  const { TEST_DOMAIN } = jest.requireActual('../stub/const')
-  return {
-    __esModule: true,
-    getConfig: jest.fn().mockReturnValue({
-      host: TEST_DOMAIN
-    })
-  }
-})
+jest.mock('../config')
 
 describe('Create note action', () => {
   const storage = new Sqlite3Storage({

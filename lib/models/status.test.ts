@@ -13,24 +13,7 @@ import { Actor } from './actor'
 import { Status, StatusType } from './status'
 
 enableFetchMocks()
-
-// TODO: Move this mock to stub?
-jest.mock('../config', () => {
-  const originalModule = jest.requireActual('../config')
-  const { MOCK_SECRET_PHASES } = jest.requireActual('../stub/actor')
-  const { TEST_DOMAIN } = jest.requireActual('../stub/const')
-  return {
-    __esModule: true,
-    ...originalModule,
-    getConfig: jest.fn().mockReturnValue({
-      host: TEST_DOMAIN,
-      database: {},
-      allowEmails: [],
-      secretPhase: MOCK_SECRET_PHASES,
-      auth: {}
-    })
-  }
-})
+jest.mock('../config')
 
 describe('Status', () => {
   const storage = new Sqlite3Storage({

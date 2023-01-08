@@ -4,15 +4,7 @@ import { seedActor1 } from '../stub/seed/actor1'
 import { seedStorage } from '../stub/storage'
 import { Sqlite3Storage } from './sqlite3'
 
-jest.mock('../config', () => {
-  const { TEST_DOMAIN } = jest.requireActual('../stub/const')
-  return {
-    __esModule: true,
-    getConfig: jest.fn().mockReturnValue({
-      host: TEST_DOMAIN
-    })
-  }
-})
+jest.mock('../config')
 
 describe('#isFollowerId', () => {
   it('returns true when id ends with followers', () => {
