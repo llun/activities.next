@@ -6,9 +6,11 @@ import {
 import { compact } from '../jsonld/index'
 import { Actor, ActorProfile } from '../models/actor'
 import { Follow } from '../models/follow'
-import { Status, StatusData } from '../models/status'
+import { Status, StatusData, StatusType } from '../models/status'
 import { headers } from '../signature'
+import { getISOTimeUTC } from '../time'
 import { AcceptFollow } from './actions/acceptFollow'
+import { AnnounceStatus } from './actions/announceStatus'
 import { CreateStatus } from './actions/createStatus'
 import { DeleteStatus } from './actions/deleteStatus'
 import { FollowRequest } from './actions/follow'
@@ -53,6 +55,7 @@ export const getWebfingerSelf = async (account: string) => {
   }
 }
 
+// TODO: Remove PublicProfile and use Profile in model
 export interface PublicProfile {
   id: string
   username: string
@@ -295,7 +298,57 @@ export const sendNote = async ({
     })
   } catch (error: any) {
     // Ignore fail fetch
-    console.error({ error: error.message, inbox, activity })
+    console.error({
+      error: error.message,
+      inbox,
+      status: activity.id,
+      type: 'note'
+    })
+  }
+}
+
+interface SendAnnounceParams {
+  currentActor: Actor
+  inbox: string
+  status: Status
+}
+export const sendAnnounce = async ({
+  currentActor,
+  inbox,
+  status
+}: SendAnnounceParams) => {
+  if (status.data.type !== StatusType.Announce) {
+    return null
+  }
+
+  const activity: AnnounceStatus = {
+    '@context': ACTIVITY_STREAM_URL,
+    id: `${status.id}/activity`,
+    type: 'Announce',
+    actor: status.actorId,
+    published: getISOTimeUTC(status.createdAt),
+    to: status.to,
+    cc: status.cc,
+    object: status.data.originalStatus.id
+  }
+
+  try {
+    await fetch(inbox, {
+      method: 'POST',
+      headers: {
+        ...headers(currentActor, 'post', inbox, activity),
+        'User-Agent': USER_AGENT
+      },
+      body: JSON.stringify(activity)
+    })
+  } catch (error: any) {
+    // Ignore fail fetch
+    console.error({
+      error: error.message,
+      inbox,
+      status: status.id,
+      type: 'announce'
+    })
   }
 }
 

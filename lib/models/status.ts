@@ -56,6 +56,34 @@ export class Status {
     return this.data.id
   }
 
+  get actorId() {
+    return this.data.actorId
+  }
+
+  get actor() {
+    return this.data.actor
+  }
+
+  get type() {
+    return this.data.type
+  }
+
+  get to() {
+    return this.data.to
+  }
+
+  get cc() {
+    return this.data.cc
+  }
+
+  get createdAt() {
+    return this.data.createdAt
+  }
+
+  get updatedAt() {
+    return this.data.updatedAt
+  }
+
   static fromNote(note: Note) {
     return new Status({
       id: note.id,
