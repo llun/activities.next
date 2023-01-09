@@ -81,31 +81,44 @@ export const createNote = async ({
   return note
 }
 
-export const getMentions = async (
-  text: string,
+interface GetMentionsParams {
+  text: string
   currentActor: Actor
-): Promise<Mention[]> => {
-  const mentions = await Promise.all(
-    linkify
-      .find(text)
-      .filter((item) => item.type === 'mention')
-      .map((item) => [item.value, item.value.slice(1).split('@')].flat())
-      .map(async ([value, user, host]) => {
-        try {
-          const userHost = host ?? currentActor.domain
-          const person = await getPersonFromHandle(`${user}@${userHost}`)
-          if (!person) return null
-          return {
-            type: 'Mention',
-            href: person?.id ?? `https://${host}/users/${user}`,
-            name: value
+  replyStatus?: Status
+}
+export const getMentions = async ({
+  text,
+  currentActor
+}: GetMentionsParams): Promise<Mention[]> => {
+  const mentions = (
+    await Promise.all(
+      linkify
+        .find(text)
+        .filter((item) => item.type === 'mention')
+        .map((item) => [item.value, item.value.slice(1).split('@')].flat())
+        .map(async ([value, user, host]) => {
+          try {
+            const userHost = host ?? currentActor.domain
+            const person = await getPersonFromHandle(`${user}@${userHost}`)
+            if (!person) return null
+            return {
+              type: 'Mention',
+              href: person?.id ?? `https://${host}/users/${user}`,
+              name: value
+            } as Mention
+          } catch {
+            return null
           }
-        } catch {
-          return null
-        }
-      })
+        })
+    )
   )
-  return mentions.filter((item): item is Mention => item !== null)
+    .filter((item): item is Mention => item !== null)
+    .reduce((out, item) => {
+      out[item.name] = item
+      return out
+    }, {} as { [key: string]: Mention })
+
+  return Object.values(mentions)
 }
 
 interface CreateNoteFromUserInputParams {
@@ -150,7 +163,7 @@ export const createNoteFromUserInput = async ({
     reply: replyStatus?.data.id || ''
   })
 
-  const mentions = await getMentions(text, currentActor)
+  const mentions = await getMentions({ text, currentActor })
   await Promise.all([
     ...attachments.map((attachment) =>
       storage.createAttachment({
