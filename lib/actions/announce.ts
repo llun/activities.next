@@ -1,3 +1,4 @@
+import { getStatus } from '../activities'
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
@@ -17,10 +18,9 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     statusId: object
   })
   if (!existingStatus) {
-    const response = await fetch(object)
-    if (response.status !== 200) return
+    const boostedStatus = await getStatus({ statusId: object })
+    if (!boostedStatus) return
 
-    const boostedStatus = await response.json()
     const compactedBoostedStatus = (await compact(boostedStatus)) as Note
 
     await Promise.all([

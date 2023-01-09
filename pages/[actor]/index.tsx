@@ -7,8 +7,8 @@ import { useEffect, useState } from 'react'
 
 import {
   PublicProfile,
-  getPersonFromHandle,
-  getPosts
+  getActorPosts,
+  getPersonFromHandle
 } from '../../lib/activities'
 import { isFollowing } from '../../lib/client'
 import { FollowAction } from '../../lib/components/FollowAction'
@@ -99,7 +99,7 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
     return { notFound: true }
   }
 
-  const statuses = await getPosts(person.urls?.posts)
+  const statuses = await getActorPosts({ postsUrl: person.urls?.posts })
   return {
     props: {
       person,

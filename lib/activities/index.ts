@@ -227,10 +227,13 @@ export const getActorProfileFromPublicProfile = async ({
   return actor
 }
 
-export const getPosts = async (id?: string) => {
-  if (!id) return []
+interface GetActorPostsParams {
+  postsUrl?: string
+}
+export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
+  if (!postsUrl) return []
 
-  const response = await fetch(id, {
+  const response = await fetch(postsUrl, {
     headers: SHARED_HEADERS
   })
   if (response.status !== 200) return []
@@ -246,6 +249,17 @@ export const getPosts = async (id?: string) => {
       return Status.fromNote(item.object).toJson()
     })
     .filter((item): item is StatusData => item !== null)
+}
+
+interface GetStatusParams {
+  statusId: string
+}
+export const getStatus = async ({ statusId }: GetStatusParams) => {
+  const response = await fetch(statusId, {
+    headers: SHARED_HEADERS
+  })
+  if (response.status !== 200) return null
+  return response.json()
 }
 
 interface SendNoteParams {
