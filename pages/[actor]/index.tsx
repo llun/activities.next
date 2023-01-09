@@ -32,8 +32,10 @@ const Page: NextPage<Props> = ({ person, statuses }) => {
   const isLoggedIn = Boolean(session?.user?.email)
 
   useEffect(() => {
-    isFollowing({ targetActorId: person.id }).then(setFollowingStatus)
-  }, [person])
+    if (isLoggedIn) {
+      isFollowing({ targetActorId: person.id }).then(setFollowingStatus)
+    }
+  }, [person, isLoggedIn])
 
   return (
     <main>
