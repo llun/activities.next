@@ -108,10 +108,11 @@ export const PostBox: FC<Props> = ({
   ) => {
     if (!replyStatus) return ''
     if (replyStatus.actorId === profile.id) return ''
+
     if (replyStatus.actor) {
-      return `${Actor.getMentionFromProfile(replyStatus.actor)} `
+      return `${Actor.getMentionFromProfile(replyStatus.actor, true)} `
     }
-    return `${Actor.getMentionFromId(replyStatus.actorId)} `
+    return `${Actor.getMentionFromId(replyStatus.actorId, true)} `
   }
 
   useEffect(() => {
@@ -119,10 +120,11 @@ export const PostBox: FC<Props> = ({
     if (!postBoxRef.current) return
 
     const postBox = postBoxRef.current
+    postBox.value = getDefaultMessage(profile, replyStatus)
     postBox.selectionStart = postBox.value.length
     postBox.selectionEnd = postBox.value.length
     postBox.focus()
-  }, [replyStatus])
+  }, [profile, replyStatus])
 
   return (
     <div>
