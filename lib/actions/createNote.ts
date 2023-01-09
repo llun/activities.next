@@ -88,37 +88,50 @@ interface GetMentionsParams {
 }
 export const getMentions = async ({
   text,
-  currentActor
+  currentActor,
+  replyStatus
 }: GetMentionsParams): Promise<Mention[]> => {
-  const mentions = (
-    await Promise.all(
-      linkify
-        .find(text)
-        .filter((item) => item.type === 'mention')
-        .map((item) => [item.value, item.value.slice(1).split('@')].flat())
-        .map(async ([value, user, host]) => {
-          try {
-            const userHost = host ?? currentActor.domain
-            const person = await getPersonFromHandle(`${user}@${userHost}`)
-            if (!person) return null
-            return {
-              type: 'Mention',
-              href: person?.id ?? `https://${host}/users/${user}`,
-              name: value
-            } as Mention
-          } catch {
-            return null
-          }
-        })
-    )
+  const mentions = await Promise.all(
+    linkify
+      .find(text)
+      .filter((item) => item.type === 'mention')
+      .map((item) => [item.value, item.value.slice(1).split('@')].flat())
+      .map(async ([value, user, host]) => {
+        try {
+          const userHost = host ?? currentActor.domain
+          const person = await getPersonFromHandle(`${user}@${userHost}`)
+          if (!person) return null
+          return {
+            type: 'Mention',
+            href: person?.id ?? `https://${host}/users/${user}`,
+            name: value
+          } as Mention
+        } catch {
+          return null
+        }
+      })
   )
+
+  if (replyStatus) {
+    const name = replyStatus.actor
+      ? Actor.getMentionFromProfile(replyStatus.actor, true)
+      : Actor.getMentionFromId(replyStatus.actorId, true)
+
+    mentions.push({
+      type: 'Mention',
+      href: replyStatus.actorId,
+      name
+    })
+  }
+
+  const mentionsMap = mentions
     .filter((item): item is Mention => item !== null)
     .reduce((out, item) => {
       out[item.name] = item
       return out
     }, {} as { [key: string]: Mention })
 
-  return Object.values(mentions)
+  return Object.values(mentionsMap)
 }
 
 interface CreateNoteFromUserInputParams {
