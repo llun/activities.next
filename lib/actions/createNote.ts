@@ -176,7 +176,7 @@ export const createNoteFromUserInput = async ({
     reply: replyStatus?.data.id || ''
   })
 
-  const mentions = await getMentions({ text, currentActor })
+  const mentions = await getMentions({ text, currentActor, replyStatus })
   await Promise.all([
     ...attachments.map((attachment) =>
       storage.createAttachment({
