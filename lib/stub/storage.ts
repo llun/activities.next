@@ -29,6 +29,15 @@ export const seedStorage = async (storage: Storage) => {
     status: FollowStatus.Accepted
   })
 
+  // Actor1 followers
+  await storage.createFollow({
+    actorId: 'https://somewhere.test/actors/friend',
+    targetActorId: actor1.id,
+    inbox: 'https://somewhere.test/inbox/friend',
+    sharedInbox: 'https://somewhere.test/inbox',
+    status: FollowStatus.Accepted
+  })
+
   // Actor2 following
   await storage.createFollow({
     actorId: actor2.id,

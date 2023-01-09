@@ -32,6 +32,13 @@ export const mockRequests = (fetchMock: FetchMock) => {
       }
     }
 
+    if (url.pathname.includes('/inbox')) {
+      return {
+        status: 202,
+        body: ''
+      }
+    }
+
     // llun.test domain
     if (url.pathname.includes('/statuses')) {
       const from = req.url.slice(0, req.url.indexOf('/statuses'))

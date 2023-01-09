@@ -52,6 +52,10 @@ export class Status {
     this.data = params
   }
 
+  get id() {
+    return this.data.id
+  }
+
   static fromNote(note: Note) {
     return new Status({
       id: note.id,

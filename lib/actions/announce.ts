@@ -1,7 +1,10 @@
+import crypto from 'crypto'
+
 import { getStatus } from '../activities'
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
+import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
 import { recordActorIfNeeded } from './utils'
@@ -71,6 +74,20 @@ interface UserAnnounceParams {
   statusId: string
   storage: Storage
 }
-export const userAnnounce = async ({ statusId }: UserAnnounceParams) => {
-  console.log(statusId)
+export const userAnnounce = async ({
+  currentActor,
+  statusId,
+  storage
+}: UserAnnounceParams) => {
+  const originalStatus = await storage.getStatus({ statusId })
+  if (!originalStatus) return null
+
+  const id = `${currentActor.id}/statuses/${crypto.randomUUID()}`
+  return storage.createAnnounce({
+    id,
+    actorId: currentActor.id,
+    to: [ACTIVITY_STREAM_PUBLIC],
+    cc: [currentActor.id, currentActor.followersUrl],
+    originalStatusId: originalStatus.id
+  })
 }

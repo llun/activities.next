@@ -8,7 +8,7 @@ import { MockAnnounceStatus } from '../stub/announce'
 import { stubNoteId } from '../stub/note'
 import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
 import { seedStorage } from '../stub/storage'
-import { announce } from './announce'
+import { announce, userAnnounce } from './announce'
 
 enableFetchMocks()
 
@@ -115,6 +115,27 @@ describe('Announce action', () => {
         username: 'friend2',
         domain: 'somewhere.test',
         createdAt: expect.toBeNumber()
+      })
+    })
+  })
+
+  describe('#userAnnounce', () => {
+    it('create announce status and send to followers inbox', async () => {
+      if (!actor1) {
+        fail('Actor1 is required')
+      }
+      const status = await userAnnounce({
+        currentActor: actor1,
+        statusId: `${actor1.id}/statuses/post-1`,
+        storage
+      })
+
+      const originalStatus = await storage.getStatus({
+        statusId: `${actor1.id}/statuses/post-1`
+      })
+      expect(status?.data).toMatchObject({
+        type: StatusType.Announce,
+        originalStatus: originalStatus?.data
       })
     })
   })
