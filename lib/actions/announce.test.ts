@@ -1,5 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Sqlite3Storage } from '../storage/sqlite3'
@@ -120,7 +121,7 @@ describe('Announce action', () => {
   })
 
   describe('#userAnnounce', () => {
-    it.skip('create announce status and send to followers inbox', async () => {
+    it('create announce status and send to followers inbox', async () => {
       if (!actor1) {
         fail('Actor1 is required')
       }
@@ -138,7 +139,17 @@ describe('Announce action', () => {
         originalStatus: originalStatus?.data
       })
 
-      console.log(fetchMock.mock.calls)
+      const lastCall = fetchMock.mock.lastCall
+      const body = JSON.parse(lastCall?.[1]?.body as string)
+      expect(lastCall?.[0]).toEqual('https://somewhere.test/inbox')
+      expect(body).toMatchObject({
+        id: `${status?.id}/activity`,
+        type: 'Announce',
+        actor: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [actor1.id, actor1.followersUrl],
+        object: 'https://llun.test/users/test1/statuses/post-1'
+      })
     })
   })
 })
