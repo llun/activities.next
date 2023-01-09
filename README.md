@@ -10,14 +10,16 @@ alpha stage and has only few features supported.
 - [x] Note, both receive and send
 - [x] Reply
 - [x] Image attachment via Apple Shared Album
-- [ ] 🚧 Boost/Repost
+- [x] Boost/Repost
+- [ ] 🚧 Undo Boost/Repost
+- [ ] 🚧 Like
 - [ ] 🚧 Storage adapter, current supports are SQL via Knex.js (Tested with SQLite locally) and Firebase
 - [ ] Account setup with username and password
 - [ ] Add actor under the same account (for different handle and type e.g. for `@ride@llun.dev`)
 - [ ] Support different domain for different actor
 - [ ] Image storage via Object Storage(S3, GCS, etc)
-- [ ] Like
 - [ ] Streaming
+- [ ] Timeline (Home Timeline, Personal Timeline, etc. https://misskey-hub.net/en/docs/features/timeline.html)
 - [ ] OAuth Bearer
 - [ ] Mastodon API compatible and clients supports
 - [ ] GPS Activity e.g. Bicycle ride, Running etc
