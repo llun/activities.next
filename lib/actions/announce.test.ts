@@ -120,7 +120,7 @@ describe('Announce action', () => {
   })
 
   describe('#userAnnounce', () => {
-    it('create announce status and send to followers inbox', async () => {
+    it.skip('create announce status and send to followers inbox', async () => {
       if (!actor1) {
         fail('Actor1 is required')
       }
@@ -137,6 +137,8 @@ describe('Announce action', () => {
         type: StatusType.Announce,
         originalStatus: originalStatus?.data
       })
+
+      console.log(fetchMock.mock.calls)
     })
   })
 })

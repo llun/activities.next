@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 
-import { getStatus } from '../activities'
+import { getStatus, sendAnnounce } from '../activities'
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
@@ -83,11 +83,24 @@ export const userAnnounce = async ({
   if (!originalStatus) return null
 
   const id = `${currentActor.id}/statuses/${crypto.randomUUID()}`
-  return storage.createAnnounce({
+  const status = await storage.createAnnounce({
     id,
     actorId: currentActor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
     cc: [currentActor.id, currentActor.followersUrl],
     originalStatusId: originalStatus.id
   })
+  const inboxes = await storage.getFollowersInbox({
+    targetActorId: currentActor.id
+  })
+  await Promise.all(
+    inboxes.map((inbox) => {
+      return sendAnnounce({
+        currentActor,
+        inbox,
+        status
+      })
+    })
+  )
+  return status
 }
