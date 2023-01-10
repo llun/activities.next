@@ -611,6 +611,7 @@ export class FirebaseStorage implements Storage {
       summary: data.summary,
       reply: data.reply,
       replies,
+      boostedByStatusesId: [],
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,

@@ -480,6 +480,7 @@ export class Sqlite3Storage implements Storage {
       attachments: [],
       tags: [],
       replies: [],
+      boostedByStatusesId: [],
       createdAt: statusCreatedAt,
       updatedAt: statusUpdatedAt
     })
@@ -636,6 +637,7 @@ export class Sqlite3Storage implements Storage {
       summary: content.summary,
       reply: data.reply,
       replies: repliesNote,
+      boostedByStatusesId: [],
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,

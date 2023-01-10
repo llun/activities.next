@@ -33,7 +33,7 @@ export interface StatusNote extends StatusBase {
   reply: string
   replies: StatusNote[]
 
-  boostedStatusId?: string
+  boostedByStatusesId: string[]
 
   attachments: AttachmentData[]
   tags: TagData[]
@@ -107,6 +107,8 @@ export class Status {
 
       attachments: [],
       tags: [],
+
+      boostedByStatusesId: [],
 
       createdAt: new Date(note.published).getTime(),
       updatedAt: Date.now()

@@ -789,7 +789,35 @@ describe('Storage', () => {
         ])
       })
 
-      // it('returns status with boost status id', async () => {})
+      it.only('returns status with boost status id', async () => {
+        const firstPostId = `${TEST_ID11}/posts/1`
+        await storage.createNote({
+          id: firstPostId,
+          url: firstPostId,
+          actorId: TEST_ID11,
+
+          text: 'This is status for boost',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        const secondPostId = `${TEST_ID9}/posts/2`
+        await storage.createAnnounce({
+          id: secondPostId,
+          actorId: TEST_ID9,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: firstPostId
+        })
+        const originalStatus = await storage.getStatus({
+          statusId: firstPostId
+        })
+        if (originalStatus?.data.type !== StatusType.Note) {
+          fail('Status type must be Note')
+        }
+        expect(originalStatus?.data.boostedByStatusesId).toContainValue(
+          secondPostId
+        )
+      })
     })
   })
 })
