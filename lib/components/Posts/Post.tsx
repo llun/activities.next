@@ -2,16 +2,15 @@ import cn from 'classnames'
 import formatDistance from 'date-fns/formatDistance'
 import { FC } from 'react'
 
-import { deleteStatus, repostStatus } from '../../client'
 import { AttachmentData } from '../../models/attachment'
 import { StatusData, StatusType } from '../../models/status'
 import { parseText } from '../../text'
-import { Button } from '../Button'
+import { Actions } from './Actions'
 import { Actor } from './Actor'
 import { Media } from './Media'
 import styles from './Post.module.scss'
 
-interface Props {
+export interface PostProps {
   showActorId?: boolean
   currentTime: Date
   status: StatusData
@@ -21,60 +20,6 @@ interface Props {
   onPostDeleted?: (status: StatusData) => void
   onPostReposted?: (status: StatusData) => void
   onShowAttachment: (attachment: AttachmentData) => void
-}
-
-export const Actions: FC<Props> = ({
-  status,
-  showDeleteAction = false,
-  showActions = false,
-  onReply,
-  onPostDeleted,
-  onPostReposted
-}) => {
-  if (!showActions) return null
-  // TODO: Return different actions for announce
-  if (status.type === StatusType.Announce) return null
-  return (
-    <div className={cn(styles.actions)}>
-      <Button
-        className={styles.action}
-        variant="link"
-        onClick={() => onReply?.(status)}
-      >
-        <i className="bi bi-reply"></i>
-      </Button>
-      <Button
-        className={styles.action}
-        variant="link"
-        onClick={async () => {
-          await repostStatus({ statusId: status.id })
-          onPostReposted?.(status)
-        }}
-      >
-        <i className="bi bi bi-repeat"></i>
-      </Button>
-      {showDeleteAction && (
-        <Button
-          className={styles.action}
-          variant="link"
-          onClick={async () => {
-            const deleteConfirmation = window.confirm(
-              `Confirm delete status! ${
-                status.text.length
-                  ? `${status.text.slice(0, 20)}...`
-                  : status.id
-              }`
-            )
-            if (!deleteConfirmation) return
-            await deleteStatus({ statusId: status.id })
-            onPostDeleted?.(status)
-          }}
-        >
-          <i className="bi bi-trash3"></i>
-        </Button>
-      )}
-    </div>
-  )
 }
 
 const getActualStatus = (status: StatusData) => {
@@ -100,7 +45,7 @@ const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   )
 }
 
-export const Post: FC<Props> = (props) => {
+export const Post: FC<PostProps> = (props) => {
   const { showActorId = false, status, currentTime, onShowAttachment } = props
   const actualStatus = getActualStatus(status)
   return (
