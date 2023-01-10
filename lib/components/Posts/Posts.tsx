@@ -39,6 +39,7 @@ export const Posts: FC<Props> = ({
           <Post
             showActorId={showActorId}
             currentTime={currentTime}
+            currentActor={currentActor}
             status={status}
             showActions={showActions}
             showDeleteAction={currentActor?.id === status.actorId}

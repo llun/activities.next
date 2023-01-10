@@ -4,9 +4,9 @@ import { deleteStatus, repostStatus } from '../../client'
 import { StatusType } from '../../models/status'
 import { Button } from '../Button'
 import { PostProps } from './Post'
-import styles from './Post.module.scss'
 
 export const Actions: FC<PostProps> = ({
+  currentActor,
   status,
   showDeleteAction = false,
   showActions = false,
@@ -15,19 +15,22 @@ export const Actions: FC<PostProps> = ({
   onPostReposted
 }) => {
   if (!showActions) return null
-  // TODO: Return different actions for announce
-  if (status.type === StatusType.Announce) return null
+  if (!currentActor) return null
+  if (status.type === StatusType.Announce) {
+    return (
+      <div>
+        <Button variant="link" onClick={() => onReply?.(status.originalStatus)}>
+          <i className="bi bi-reply"></i>
+        </Button>
+      </div>
+    )
+  }
   return (
     <div>
-      <Button
-        className={styles.action}
-        variant="link"
-        onClick={() => onReply?.(status)}
-      >
+      <Button variant="link" onClick={() => onReply?.(status)}>
         <i className="bi bi-reply"></i>
       </Button>
       <Button
-        className={styles.action}
         variant="link"
         onClick={async () => {
           await repostStatus({ statusId: status.id })
@@ -38,7 +41,6 @@ export const Actions: FC<PostProps> = ({
       </Button>
       {showDeleteAction && (
         <Button
-          className={styles.action}
           variant="link"
           onClick={async () => {
             const deleteConfirmation = window.confirm(
