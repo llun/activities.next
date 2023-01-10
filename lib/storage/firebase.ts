@@ -523,6 +523,7 @@ export class FirebaseStorage implements Storage {
       ...status,
       actor: actor?.toProfile() || null,
       attachments: [],
+      boostedByStatusesId: [],
       tags: [],
       replies: []
     })
@@ -563,6 +564,19 @@ export class FirebaseStorage implements Storage {
     return new Status(announceData)
   }
 
+  private async getBoostedByStatuses(statusId: string) {
+    const statuses = collection(this.db, 'statuses')
+    const statusesQuery = query(
+      statuses,
+      where('originalStatusId', '==', statusId)
+    )
+    const statusesSnapshot = await getDocs(statusesQuery)
+    return statusesSnapshot.docs.map((doc) => {
+      const data = doc.data()
+      return data.id
+    })
+  }
+
   private async getStatusFromData(
     data: any,
     withReplies: boolean
@@ -593,10 +607,11 @@ export class FirebaseStorage implements Storage {
       })
     }
 
-    const [attachments, tags, actor] = await Promise.all([
+    const [attachments, tags, actor, boostedByStatusesId] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
       this.getTags({ statusId: data.id }),
-      this.getActorFromId({ id: data.actorId })
+      this.getActorFromId({ id: data.actorId }),
+      this.getBoostedByStatuses(data.id)
     ])
     const replies = withReplies ? await this.getReplies(data.id) : []
     return new Status({
@@ -611,7 +626,7 @@ export class FirebaseStorage implements Storage {
       summary: data.summary,
       reply: data.reply,
       replies,
-      boostedByStatusesId: [],
+      boostedByStatusesId,
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,

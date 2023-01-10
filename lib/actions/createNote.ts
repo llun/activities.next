@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import * as linkify from 'linkifyjs'
 
-import { getPersonFromHandle, getPublicProfile } from '../activities'
+import { getPersonFromHandle } from '../activities'
 import { Mention } from '../activities/entities/mention'
 import { Note, getAttachments, getTags } from '../activities/entities/note'
 import { compact } from '../jsonld'

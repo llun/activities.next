@@ -404,7 +404,7 @@ describe('Storage', () => {
     })
 
     describe('statuses', () => {
-      it('creates a new status', async () => {
+      it('creates a new note', async () => {
         const postId = 'post-1'
         const id = `${TEST_ID}/statuses/${postId}`
 
@@ -430,6 +430,7 @@ describe('Storage', () => {
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           attachments: [],
+          boostedByStatusesId: [],
           tags: [],
           reply: '',
           replies: [],
@@ -789,7 +790,7 @@ describe('Storage', () => {
         ])
       })
 
-      it.only('returns status with boost status id', async () => {
+      it('returns status with boost status id', async () => {
         const firstPostId = `${TEST_ID11}/posts/1`
         await storage.createNote({
           id: firstPostId,

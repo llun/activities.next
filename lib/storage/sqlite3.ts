@@ -605,15 +605,20 @@ export class Sqlite3Storage implements Storage {
       return new Status(announceData)
     }
 
-    const [attachments, tags, replies, actor] = await Promise.all([
-      this.getAttachments({ statusId: data.id }),
-      this.getTags({ statusId: data.id }),
-      this.database('statuses')
-        .select('id')
-        .where('reply', data.id)
-        .orderBy('createdAt', 'desc'),
-      this.getActorFromId({ id: data.actorId })
-    ])
+    const [attachments, tags, replies, actor, boostedByStatusesId] =
+      await Promise.all([
+        this.getAttachments({ statusId: data.id }),
+        this.getTags({ statusId: data.id }),
+        this.database('statuses')
+          .select('id')
+          .where('reply', data.id)
+          .orderBy('createdAt', 'desc'),
+        this.getActorFromId({ id: data.actorId }),
+        this.database('statuses')
+          .select('id')
+          .where('type', StatusType.Announce)
+          .andWhere('content', data.id)
+      ])
 
     const repliesNote = (
       await Promise.all(
@@ -637,7 +642,7 @@ export class Sqlite3Storage implements Storage {
       summary: content.summary,
       reply: data.reply,
       replies: repliesNote,
-      boostedByStatusesId: [],
+      boostedByStatusesId: boostedByStatusesId.map((item) => item.id),
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
