@@ -7,83 +7,97 @@ import { MockWebfinger } from './webfinger'
 export const mockRequests = (fetchMock: FetchMock) => {
   fetchMock.mockResponse(async (req) => {
     const url = new URL(req.url)
-    if (url.pathname === '/.well-known/webfinger') {
-      const account =
-        url.searchParams.get('resource')?.slice('acct:'.length) || ''
-      const username = account.split('@').shift()
-      if (username === 'notexist') {
+    if (req.method === 'GET') {
+      if (url.pathname === '/.well-known/webfinger') {
+        const account =
+          url.searchParams.get('resource')?.slice('acct:'.length) || ''
+        const username = account.split('@').shift()
+        if (username === 'notexist') {
+          return {
+            status: 404
+          }
+        }
+
+        const userUrl =
+          url.hostname === 'somewhere.test'
+            ? `https://${url.hostname}/actors/${username}`
+            : `https://${url.hostname}/users/${username}`
         return {
-          status: 404
+          status: 200,
+          body: JSON.stringify(
+            MockWebfinger({
+              account,
+              userUrl
+            })
+          )
         }
       }
 
-      const userUrl =
-        url.hostname === 'somewhere.test'
-          ? `https://${url.hostname}/actors/${username}`
-          : `https://${url.hostname}/users/${username}`
+      if (url.pathname.includes('/inbox')) {
+        return {
+          status: 202,
+          body: ''
+        }
+      }
+
+      // llun.test domain
+      if (url.pathname.includes('/statuses')) {
+        const from = req.url.slice(0, req.url.indexOf('/statuses'))
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockMastodonNote({
+              id: req.url,
+              from,
+              content: 'This is status',
+              withContext: true
+            })
+          )
+        }
+      }
+
+      // somewhere.test domain
+      if (url.pathname.startsWith('/s')) {
+        const [, username] = url.pathname.slice(1).split('/')
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockMastodonNote({
+              id: req.url,
+              from: `https://${url.hostname}/actors/${username}`,
+              content: 'This is status',
+              withContext: true
+            })
+          )
+        }
+      }
+
+      if (
+        url.pathname.startsWith('/actors') ||
+        url.pathname.startsWith('/users')
+      ) {
+        return {
+          status: 200,
+          body: JSON.stringify(MockActivityPubPerson({ id: req.url }))
+        }
+      }
+
       return {
-        status: 200,
-        body: JSON.stringify(
-          MockWebfinger({
-            account,
-            userUrl
-          })
-        )
+        status: 404,
+        body: 'Not Found'
       }
     }
 
-    if (url.pathname.includes('/inbox')) {
-      return {
-        status: 202,
-        body: ''
-      }
-    }
-
-    // llun.test domain
-    if (url.pathname.includes('/statuses')) {
-      const from = req.url.slice(0, req.url.indexOf('/statuses'))
-      return {
-        status: 200,
-        body: JSON.stringify(
-          MockMastodonNote({
-            id: req.url,
-            from,
-            content: 'This is status',
-            withContext: true
-          })
-        )
-      }
-    }
-
-    // somewhere.test domain
-    if (url.pathname.startsWith('/s')) {
-      const [, username] = url.pathname.slice(1).split('/')
-      return {
-        status: 200,
-        body: JSON.stringify(
-          MockMastodonNote({
-            id: req.url,
-            from: `https://${url.hostname}/actors/${username}`,
-            content: 'This is status',
-            withContext: true
-          })
-        )
-      }
-    }
-
-    if (
-      url.pathname.startsWith('/actors') ||
-      url.pathname.startsWith('/users')
-    ) {
-      return {
-        status: 200,
-        body: JSON.stringify(MockActivityPubPerson({ id: req.url }))
+    if (req.method === 'POST') {
+      if (url.pathname === '/inbox') {
+        return {
+          status: 200
+        }
       }
     }
 
     return {
-      status: 404,
-      body: 'Not Found'
+      status: 404
     }
   })
 }

@@ -393,18 +393,21 @@ export const follow = async (
   currentActor: Actor,
   targetActorId: string
 ) => {
-  const config = getConfig()
   const content: FollowRequest = {
     '@context': ACTIVITY_STREAM_URL,
-    id: `https://${config.host}/${id}`,
+    id: `https://${currentActor.domain}/${id}`,
     type: 'Follow',
     actor: currentActor.id,
     object: targetActorId
   }
-  const response = await fetch(`${targetActorId}/inbox`, {
+  const publicProfile = await getPublicProfile({ actorId: targetActorId })
+  const targetInbox = publicProfile?.endpoints.inbox
+  if (!targetInbox) return false
+
+  const response = await fetch(targetInbox, {
     method: 'POST',
     headers: {
-      ...headers(currentActor, 'post', `${targetActorId}/inbox`, content),
+      ...headers(currentActor, 'post', targetInbox, content),
       'User-Agent': USER_AGENT
     },
     body: JSON.stringify(content)

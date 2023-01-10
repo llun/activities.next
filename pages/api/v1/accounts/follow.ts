@@ -1,5 +1,4 @@
 import { follow, getPublicProfile } from '../../../../lib/activities'
-import { getConfig } from '../../../../lib/config'
 import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
 import { FollowStatus } from '../../../../lib/models/follow'
@@ -26,7 +25,7 @@ const handler = ApiGuard(async (req, res, context) => {
         targetActorId: target,
         status: FollowStatus.Requested,
         inbox: `${currentActor.id}/inbox`,
-        sharedInbox: `https://${getConfig().host}/inbox`
+        sharedInbox: `https://${currentActor.domain}/inbox`
       })
       await follow(followItem.id, currentActor, target)
       const profile = await getPublicProfile({ actorId: target })
