@@ -1,5 +1,5 @@
 import cn from 'classnames'
-import { FC } from 'react'
+import { FC, useState } from 'react'
 
 import { deleteStatus, repostStatus } from '../../client'
 import { StatusType } from '../../models/status'
@@ -15,6 +15,8 @@ export const Actions: FC<PostProps> = ({
   onPostDeleted,
   onPostReposted
 }) => {
+  const [isReposting, setIsReposting] = useState<boolean>(false)
+
   if (!showActions) return null
   if (!currentActor) return null
   if (status.type === StatusType.Announce) {
@@ -41,12 +43,16 @@ export const Actions: FC<PostProps> = ({
         variant="link"
         className={cn({ 'text-danger': isReposted })}
         onClick={async () => {
+          if (isReposting) return
+
           if (isReposted) {
             // TODO: Undo reposted
             return
           }
+          setIsReposting(true)
           await repostStatus({ statusId: status.id })
           onPostReposted?.(status)
+          setIsReposting(false)
         }}
       >
         <i className="bi bi bi-repeat"></i>
