@@ -33,6 +33,8 @@ export interface StatusNote extends StatusBase {
   reply: string
   replies: StatusNote[]
 
+  boostedStatusId?: string
+
   attachments: AttachmentData[]
   tags: TagData[]
 }

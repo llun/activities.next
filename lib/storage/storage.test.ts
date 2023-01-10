@@ -43,6 +43,9 @@ const TEST_ID10 = 'https://llun.test/users/user10'
 const TEST_USERNAME10 = 'random10'
 const TEST_DOMAIN10 = 'llun.random'
 
+// Status with boost
+const TEST_ID11 = 'https://llun.test/users/user11'
+
 type TestStorage = [string, Storage]
 
 describe('Storage', () => {
@@ -92,13 +95,14 @@ describe('Storage', () => {
         privateKey: 'privateKey1',
         publicKey: 'publicKey1'
       })
-      for (let i = 3; i <= 8; i++) {
+      const idWithAccounts = [3, 4, 5, 6, 7, 8, 11]
+      for (const id of idWithAccounts) {
         await storage.createAccount({
-          email: `user${i}@llun.dev`,
-          username: `user${i}`,
+          email: `user${id}@llun.dev`,
+          username: `user${id}`,
           domain: TEST_DOMAIN,
-          privateKey: `privateKey${i}`,
-          publicKey: `publicKey${i}`
+          privateKey: `privateKey${id}`,
+          publicKey: `publicKey${id}`
         })
       }
     })
@@ -784,6 +788,8 @@ describe('Storage', () => {
           (await storage.getStatus({ statusId: reply2Id }))?.toObject()
         ])
       })
+
+      // it('returns status with boost status id', async () => {})
     })
   })
 })
