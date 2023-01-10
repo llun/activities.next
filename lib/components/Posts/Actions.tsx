@@ -1,3 +1,4 @@
+import cn from 'classnames'
 import { FC } from 'react'
 
 import { deleteStatus, repostStatus } from '../../client'
@@ -25,6 +26,12 @@ export const Actions: FC<PostProps> = ({
       </div>
     )
   }
+
+  const isReposted =
+    status.boostedByStatusesId.filter((item) =>
+      item.includes(currentActor.domain)
+    ).length > 0
+
   return (
     <div>
       <Button variant="link" onClick={() => onReply?.(status)}>
@@ -32,7 +39,12 @@ export const Actions: FC<PostProps> = ({
       </Button>
       <Button
         variant="link"
+        className={cn({ 'text-danger': isReposted })}
         onClick={async () => {
+          if (isReposted) {
+            // TODO: Undo reposted
+            return
+          }
           await repostStatus({ statusId: status.id })
           onPostReposted?.(status)
         }}
