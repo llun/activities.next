@@ -2,6 +2,7 @@ import cn from 'classnames'
 import formatDistance from 'date-fns/formatDistance'
 import { FC } from 'react'
 
+import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
 import { StatusData, StatusType } from '../../models/status'
 import { parseText } from '../../text'
@@ -11,6 +12,7 @@ import { Media } from './Media'
 import styles from './Post.module.scss'
 
 export interface PostProps {
+  currentActor?: ActorProfile
   showActorId?: boolean
   currentTime: Date
   status: StatusData

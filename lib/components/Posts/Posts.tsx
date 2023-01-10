@@ -1,6 +1,7 @@
 import cn from 'classnames'
 import { FC, useState } from 'react'
 
+import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
 import { StatusData } from '../../models/status'
 import { Modal } from '../Modal'
@@ -9,7 +10,7 @@ import { Post } from './Post'
 import styles from './Posts.module.scss'
 
 interface Props {
-  currentActorId?: string
+  currentActor?: ActorProfile
   showActorId?: boolean
   showActions?: boolean
   currentTime: Date
@@ -19,7 +20,7 @@ interface Props {
 }
 
 export const Posts: FC<Props> = ({
-  currentActorId = '',
+  currentActor,
   showActorId = false,
   showActions = false,
   currentTime,
@@ -40,7 +41,7 @@ export const Posts: FC<Props> = ({
             currentTime={currentTime}
             status={status}
             showActions={showActions}
-            showDeleteAction={currentActorId === status.actorId}
+            showDeleteAction={currentActor?.id === status.actorId}
             onReply={onReply}
             onPostDeleted={onPostDeleted}
             onShowAttachment={(attachment: AttachmentData) =>
