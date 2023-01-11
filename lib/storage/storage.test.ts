@@ -779,6 +779,7 @@ describe('Storage', () => {
         const note = status?.toObject()
 
         if (!note) fail('Note must be exist')
+        if (!note.replies) fail('Note must have replies')
         if (!('totalItems' in note.replies)) {
           fail('Replies must have totalItems')
         }

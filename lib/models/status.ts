@@ -1,7 +1,7 @@
 import linkifyStr from 'linkify-string'
 
 import { AnnounceStatus } from '../activities/actions/announceStatus'
-import { Note } from '../activities/entities/note'
+import { Note, getContent, getSummary } from '../activities/entities/note'
 import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
 import { ActorProfile } from './actor'
@@ -96,8 +96,8 @@ export class Status {
 
       type: StatusType.Note,
 
-      text: note.content,
-      summary: note.summary || '',
+      text: getContent(note),
+      summary: getSummary(note),
 
       to: Array.isArray(note.to) ? note.to : [note.to],
       cc: Array.isArray(note.cc) ? note.cc : [note.cc],
