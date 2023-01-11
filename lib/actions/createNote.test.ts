@@ -162,7 +162,7 @@ describe('Create note action', () => {
       })
       expect(status?.data).toMatchObject({
         reply: `${actor2?.id}/statuses/post-2`,
-        to: expect.toContainValue(actor2?.id)
+        cc: expect.toContainValue(actor2?.id)
       })
     })
 
@@ -183,7 +183,7 @@ How are you?
         actorId: actor1.id,
         text: Status.paragraphText(Status.linkfyText(text)),
         to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [`${actor1.id}/followers`]
+        cc: [`${actor1.id}/followers`, ACTOR2_ID]
       })
 
       const note = status?.toObject()
@@ -195,6 +195,47 @@ How are you?
         type: 'Mention',
         href: ACTOR2_ID,
         name: '@test2@llun.test'
+      })
+    })
+
+    it('cc multiple ids when replies multiple people', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const text = `
+@test2@llun.test @test3@somewhere.test Hello, people
+
+How are you?
+`
+      const status = await createNoteFromUserInput({
+        text,
+        currentActor: actor1,
+        storage
+      })
+      expect(status?.data).toMatchObject({
+        actorId: actor1.id,
+        text: Status.paragraphText(Status.linkfyText(text)),
+        to: [ACTIVITY_STREAM_PUBLIC]
+      })
+      expect(status?.data.cc).toContainAllValues([
+        `${actor1.id}/followers`,
+        'https://somewhere.test/actors/test3',
+        ACTOR2_ID
+      ])
+
+      const note = status?.toObject()
+      expect(note?.content).toEqual(
+        Status.paragraphText(Status.linkfyText(text))
+      )
+      expect(note?.tag).toHaveLength(2)
+      expect(note?.tag).toContainValue({
+        type: 'Mention',
+        href: ACTOR2_ID,
+        name: '@test2@llun.test'
+      })
+      expect(note?.tag).toContainValue({
+        type: 'Mention',
+        href: 'https://somewhere.test/actors/test3',
+        name: '@test3@somewhere.test'
       })
     })
   })
