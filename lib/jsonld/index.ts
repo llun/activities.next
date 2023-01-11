@@ -1,6 +1,7 @@
 import * as jsonld from 'jsonld'
 
 import { ACTIVITY_STREAM_CONTEXT, ACTIVITY_STREAM_URL } from './activitystream'
+import { LITEPUB_CONTEXT, LITEPUB_URL } from './litepub'
 import { W3ID_CONTEXT, W3ID_URL } from './w3id'
 
 const customJsonLD = jsonld as any
@@ -22,6 +23,13 @@ export const compact = async (document: any) => {
           return {
             contextUrl: null,
             document: W3ID_CONTEXT,
+            documentUrl: url
+          }
+        }
+        case LITEPUB_URL: {
+          return {
+            contextUrl: null,
+            document: LITEPUB_CONTEXT,
             documentUrl: url
           }
         }

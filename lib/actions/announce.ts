@@ -2,7 +2,7 @@ import crypto from 'crypto'
 
 import { getStatus, sendAnnounce } from '../activities'
 import { AnnounceStatus } from '../activities/actions/announceStatus'
-import { Note } from '../activities/entities/note'
+import { Note, getContent, getSummary } from '../activities/entities/note'
 import { compact } from '../jsonld'
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
@@ -25,6 +25,8 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     if (!boostedStatus) return
 
     const compactedBoostedStatus = (await compact(boostedStatus)) as Note
+    const boostedContent = getContent(compactedBoostedStatus)
+    const boostedSummary = getSummary(compactedBoostedStatus)
 
     await Promise.all([
       recordActorIfNeeded({
@@ -37,8 +39,8 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
 
         actorId: compactedBoostedStatus.attributedTo,
 
-        text: compactedBoostedStatus.content,
-        summary: compactedBoostedStatus.summary || '',
+        text: boostedContent,
+        summary: boostedSummary,
 
         to: Array.isArray(boostedStatus.to)
           ? boostedStatus.to

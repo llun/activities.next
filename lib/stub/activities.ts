@@ -1,6 +1,6 @@
 import { FetchMock } from 'jest-fetch-mock'
 
-import { MockMastodonNote } from './note'
+import { MockLitepubNote, MockMastodonNote } from './note'
 import { MockActivityPubPerson } from './person'
 import { MockWebfinger } from './webfinger'
 
@@ -56,7 +56,23 @@ export const mockRequests = (fetchMock: FetchMock) => {
         }
       }
 
-      // somewhere.test domain
+      // somewhere.test domain e.g. https://somewhere.test/actors/{username}/lp/{status-id}
+      if (url.pathname.includes('/lp/')) {
+        const from = req.url.slice(0, req.url.indexOf('/lp/'))
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockLitepubNote({
+              id: req.url,
+              from,
+              content: 'This is litepub status',
+              withContext: true
+            })
+          )
+        }
+      }
+
+      // somewhere.test domain e.g. https://somewhere.test/s/{username}/{status-id}
       if (url.pathname.startsWith('/s')) {
         const [, username] = url.pathname.slice(1).split('/')
         return {

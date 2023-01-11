@@ -70,6 +70,33 @@ describe('Announce action', () => {
       expect(statusData.originalStatus).toEqual(boostedStatus?.toJson())
     })
 
+    it('record content from content map if content is undefined', async () => {
+      const statusId = stubNoteId()
+      const announceStatusId =
+        'https://somewhere.test/actors/test1/lp/litepub-status'
+      await announce({
+        status: MockAnnounceStatus({
+          actorId: ACTOR1_ID,
+          statusId,
+          announceStatusId
+        }),
+        storage
+      })
+      const status = await storage.getStatus({
+        statusId: `${statusId}/activity`
+      })
+      expect(status).toBeDefined()
+
+      const boostedStatus = await storage.getStatus({
+        statusId: announceStatusId
+      })
+      expect(boostedStatus).toBeDefined()
+      if (boostedStatus?.data.type !== StatusType.Note) {
+        fail('Boost status must be note')
+      }
+      expect(boostedStatus.data.text).toEqual('This is litepub status')
+    })
+
     it('does not load and create status that already exists', async () => {
       const statusId = stubNoteId()
       const announceStatusId = `${actor1?.id}/statuses/post-1`
