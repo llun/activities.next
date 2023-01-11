@@ -6,7 +6,7 @@ import { Status, StatusType } from '../models/status'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { MockImageDocument } from '../stub/imageDocument'
-import { MockMastodonNote } from '../stub/note'
+import { MockLitepubNote, MockMastodonNote } from '../stub/note'
 import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
@@ -61,7 +61,25 @@ describe('Create note action', () => {
       }
       expect(status).toBeDefined()
       expect(status?.data.id).toEqual(note.id)
-      expect(status?.data.text).toEqual(note.content)
+      expect(status?.data.text).toEqual('<p>Hello</p>')
+      expect(status?.data.actorId).toEqual(note.attributedTo)
+      expect(status?.data.to).toEqual(note.to)
+      expect(status?.data.cc).toEqual(note.cc)
+      expect(status?.data.type).toEqual(StatusType.Note)
+      expect(status?.data.createdAt).toEqual(new Date(note.published).getTime())
+    })
+
+    it('adds litepub note into storage and returns note', async () => {
+      const note = MockLitepubNote({ content: '<p>Hello</p>' })
+      expect(await createNote({ storage, note })).toEqual(note)
+
+      const status = await storage.getStatus({ statusId: note.id })
+      if (status?.data.type !== StatusType.Note) {
+        fail('Stauts type must be note')
+      }
+      expect(status).toBeDefined()
+      expect(status?.data.id).toEqual(note.id)
+      expect(status?.data.text).toEqual('<p>Hello</p>')
       expect(status?.data.actorId).toEqual(note.attributedTo)
       expect(status?.data.to).toEqual(note.to)
       expect(status?.data.cc).toEqual(note.cc)

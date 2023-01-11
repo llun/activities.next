@@ -14,7 +14,7 @@ export interface BaseNote extends ContextEntity {
   }
   inReplyTo: string | null
   published: string
-  url: string
+  url?: string
   attributedTo: string
   to: string | string[]
   cc: string | string[]
@@ -24,7 +24,7 @@ export interface BaseNote extends ContextEntity {
   }
   attachment: Attachment | Attachment[]
   tag: Mention[]
-  replies: Collection
+  replies?: Collection
 }
 
 export interface Note extends BaseNote {

@@ -85,37 +85,38 @@ export const MockLitepubNote = ({
   conversation,
 
   withContext
-}: MockNoteParams) => ({
-  ...(withContext
-    ? {
-        '@context': [
-          'https://www.w3.org/ns/activitystreams',
-          'https://miraiverse.xyz/schemas/litepub-0.1.jsonld',
-          { '@language': 'und' }
-        ]
-      }
-    : null),
-  actor: from,
-  attachment: documents,
-  attributedTo: from,
-  cc,
-  content,
-  context:
-    conversation ??
-    'tag:mtd.bashell.com,2023-01-10:objectId=43759:objectType=Conversation',
-  conversation:
-    conversation ??
-    'tag:mtd.bashell.com,2023-01-10:objectId=43759:objectType=Conversation',
-  id,
-  inReplyTo,
-  published: getISOTimeUTC(published),
-  sensitive: null,
-  source: {
+}: MockNoteParams) =>
+  ({
+    ...(withContext
+      ? {
+          '@context': [
+            'https://www.w3.org/ns/activitystreams',
+            'https://miraiverse.xyz/schemas/litepub-0.1.jsonld',
+            { '@language': 'und' }
+          ]
+        }
+      : null),
+    actor: from,
+    attachment: documents,
+    attributedTo: from,
+    cc,
     content,
-    mediaType: 'text/plain'
-  },
-  summary: '',
-  tag: [],
-  to,
-  type: 'Note'
-})
+    context:
+      conversation ??
+      'tag:mtd.bashell.com,2023-01-10:objectId=43759:objectType=Conversation',
+    conversation:
+      conversation ??
+      'tag:mtd.bashell.com,2023-01-10:objectId=43759:objectType=Conversation',
+    id,
+    inReplyTo,
+    published: getISOTimeUTC(published),
+    sensitive: null,
+    source: {
+      content,
+      mediaType: 'text/plain'
+    },
+    summary: '',
+    tag: [],
+    to,
+    type: 'Note'
+  } as Note)

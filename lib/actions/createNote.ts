@@ -3,7 +3,13 @@ import * as linkify from 'linkifyjs'
 
 import { getPersonFromHandle } from '../activities'
 import { Mention } from '../activities/entities/mention'
-import { Note, getAttachments, getTags } from '../activities/entities/note'
+import {
+  Note,
+  getAttachments,
+  getContent,
+  getSummary,
+  getTags
+} from '../activities/entities/note'
 import { compact } from '../jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -36,6 +42,9 @@ export const createNote = async ({
     return null
   }
 
+  const text = getContent(compactNote)
+  const summary = getSummary(compactNote)
+
   await Promise.all([
     recordActorIfNeeded({ actorId: compactNote.attributedTo, storage }),
     storage.createNote({
@@ -44,8 +53,8 @@ export const createNote = async ({
 
       actorId: compactNote.attributedTo,
 
-      text: compactNote.content,
-      summary: compactNote.summary || '',
+      text,
+      summary,
 
       to: Array.isArray(note.to) ? note.to : [note.to].filter((item) => item),
       cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter((item) => item),
