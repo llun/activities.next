@@ -8,7 +8,7 @@ import {
   Attachment,
   PostBoxAttachment
 } from '../../models/attachment'
-import { StatusData } from '../../models/status'
+import { StatusData, StatusNote, StatusType } from '../../models/status'
 import { Button } from '../Button'
 import { AppleGallerButton } from './AppleGalleryButton'
 import styles from './PostBox.module.scss'
@@ -100,19 +100,32 @@ export const PostBox: FC<Props> = ({
    *
    * @param profile current actor profile
    * @param replyStatus status that user want to reply to
-   * @returns default message that user will use to send out the status
+   * @returns default message that user will use to send out the status with start and end selection
    */
   const getDefaultMessage = (
     profile: ActorProfile,
-    replyStatus?: StatusData
-  ) => {
-    if (!replyStatus) return ''
-    if (replyStatus.actorId === profile.id) return ''
+    replyStatus?: StatusNote
+  ): [string, number, number] | null => {
+    if (!replyStatus) return null
+    if (replyStatus.actorId === profile.id) return null
 
-    if (replyStatus.actor) {
-      return `${Actor.getMentionFromProfile(replyStatus.actor, true)} `
+    const message = replyStatus.actor
+      ? `${Actor.getMentionFromProfile(replyStatus.actor, true)} `
+      : `${Actor.getMentionFromId(replyStatus.actorId, true)} `
+    const others = replyStatus.tags
+      .filter((item) => item.type === 'mention')
+      .map((item) => item.name)
+      .join(' ')
+
+    if (others.length > 0) {
+      return [
+        `${message} ${others} `,
+        message.length + 1,
+        message.length + others.length + 1
+      ]
     }
-    return `${Actor.getMentionFromId(replyStatus.actorId, true)} `
+
+    return [message, message.length, message.length]
   }
 
   useEffect(() => {
@@ -120,9 +133,21 @@ export const PostBox: FC<Props> = ({
     if (!postBoxRef.current) return
 
     const postBox = postBoxRef.current
-    postBox.value = getDefaultMessage(profile, replyStatus)
-    postBox.selectionStart = postBox.value.length
-    postBox.selectionEnd = postBox.value.length
+    if (replyStatus.type !== StatusType.Note) {
+      postBox.focus()
+      return
+    }
+
+    const defaultMessage = getDefaultMessage(profile, replyStatus)
+    if (!defaultMessage) {
+      postBox.focus()
+      return
+    }
+
+    const [value, start, end] = defaultMessage
+    postBox.value = value
+    postBox.selectionStart = start
+    postBox.selectionEnd = end
     postBox.focus()
   }, [profile, replyStatus])
 
@@ -136,7 +161,6 @@ export const PostBox: FC<Props> = ({
             className="form-control"
             rows={3}
             name="message"
-            defaultValue={getDefaultMessage(profile, replyStatus)}
           />
         </div>
         <div className="d-flex justify-content-between mb-3">
