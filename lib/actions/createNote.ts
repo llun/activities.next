@@ -154,6 +154,7 @@ export const createNoteFromUserInput = async ({
 
   const postId = crypto.randomUUID()
   const statusId = `${currentActor.id}/statuses/${postId}`
+  const mentions = await getMentions({ text, currentActor, replyStatus })
 
   await storage.createNote({
     id: statusId,
@@ -166,17 +167,12 @@ export const createNoteFromUserInput = async ({
     text: Status.paragraphText(Status.linkfyText(text)),
     summary: '',
 
-    to: [
-      ACTIVITY_STREAM_PUBLIC,
-      ...(replyStatus ? [replyStatus?.data.actorId] : [])
-    ],
-    // TODO: Get this from actor profile
-    cc: [`${currentActor.id}/followers`],
+    to: [ACTIVITY_STREAM_PUBLIC],
+    cc: [currentActor.followersUrl, ...mentions.map((item) => item.href)],
 
     reply: replyStatus?.data.id || ''
   })
 
-  const mentions = await getMentions({ text, currentActor, replyStatus })
   await Promise.all([
     ...attachments.map((attachment) =>
       storage.createAttachment({
