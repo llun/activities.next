@@ -2,7 +2,9 @@ import crypto from 'crypto'
 
 import { AcceptFollow } from '../activities/actions/acceptFollow'
 import { FollowRequest } from '../activities/actions/follow'
+import { RejectFollow } from '../activities/actions/rejectFollow'
 import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
+import { FollowStatus } from '../models/follow'
 
 interface FollowRequestParams {
   withContext?: boolean
@@ -25,21 +27,23 @@ export const MockFollowRequest = ({
   }
 }
 
-interface AcceptFollowRequestParams {
+interface FollowRequestResponseParams {
   actorId: string
   targetActorId: string
   followId?: string
+  followResponseStatus: 'Accept' | 'Reject'
 }
-export const MockAcceptFollowRequest = ({
+export const MockFollowRequestResponse = ({
   actorId,
   targetActorId,
+  followResponseStatus,
   followId = `https://llun.test/${crypto.randomUUID()}`
-}: AcceptFollowRequestParams): AcceptFollow => {
+}: FollowRequestResponseParams): AcceptFollow | RejectFollow => {
   return {
     '@context': ACTIVITY_STREAM_URL,
     id: `${targetActorId}/request`,
     actor: targetActorId,
-    type: 'Accept',
+    type: followResponseStatus,
     object: MockFollowRequest({
       withContext: false,
       targetActorId,

@@ -1,13 +1,13 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { AcceptFollow } from '../activities/actions/acceptFollow'
+import { RejectFollow } from '../activities/actions/rejectFollow'
 import { FollowStatus } from '../models/follow'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { MockFollowRequestResponse } from '../stub/followRequest'
 import { ACTOR1_ID } from '../stub/seed/actor1'
 import { seedStorage } from '../stub/storage'
-import { acceptFollowRequest } from './acceptFollowRequest'
+import { rejectFollowRequest } from './rejectFollowRequest'
 
 enableFetchMocks()
 
@@ -37,8 +37,8 @@ describe('Accept follow action', () => {
     mockRequests(fetchMock)
   })
 
-  describe('#acceptFollow', () => {
-    it('update follow status to Accepted and return follow', async () => {
+  describe('#rejectFollow', () => {
+    it('update follow status to Rejected and return follow', async () => {
       const targetActorId = 'https://somewhere.test/actors/request-following'
       const followRequest = await storage.getAcceptedOrRequestedFollow({
         actorId: ACTOR1_ID,
@@ -49,16 +49,16 @@ describe('Accept follow action', () => {
       const activity = MockFollowRequestResponse({
         actorId: ACTOR1_ID,
         targetActorId,
-        followResponseStatus: 'Accept',
+        followResponseStatus: 'Reject',
         followId: `https://llun.test/${followRequest?.id}`
-      }) as AcceptFollow
-      const updatedRequest = await acceptFollowRequest({ activity, storage })
+      }) as RejectFollow
+      const updatedRequest = await rejectFollowRequest({ activity, storage })
       expect(updatedRequest).toBeTruthy()
 
       const acceptedRequest = await storage.getFollowFromId({
         followId: followRequest.id
       })
-      expect(acceptedRequest?.status).toEqual(FollowStatus.Accepted)
+      expect(acceptedRequest?.status).toEqual(FollowStatus.Rejected)
     })
 
     it('returns null when follow request is not found', async () => {
@@ -67,10 +67,10 @@ describe('Accept follow action', () => {
       const activity = MockFollowRequestResponse({
         actorId: ACTOR1_ID,
         targetActorId,
-        followResponseStatus: 'Accept',
+        followResponseStatus: 'Reject',
         followId: `https://llun.test/random-id`
-      }) as AcceptFollow
-      const updatedRequest = await acceptFollowRequest({ activity, storage })
+      }) as RejectFollow
+      const updatedRequest = await rejectFollowRequest({ activity, storage })
       expect(updatedRequest).toBeNull()
     })
   })

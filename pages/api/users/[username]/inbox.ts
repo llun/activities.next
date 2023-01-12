@@ -2,10 +2,9 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 
 import { acceptFollowRequest } from '../../../../lib/actions/acceptFollowRequest'
 import { createFollower } from '../../../../lib/actions/createFollower'
-import { AcceptFollow } from '../../../../lib/activities/actions/acceptFollow'
+import { rejectFollowRequest } from '../../../../lib/actions/rejectFollowRequest'
 import { FollowRequest } from '../../../../lib/activities/actions/follow'
 import { UndoFollow } from '../../../../lib/activities/actions/undoFollow'
-import { getConfig } from '../../../../lib/config'
 import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { activitiesGuard } from '../../../../lib/guard'
 import { FollowStatus } from '../../../../lib/models/follow'
@@ -30,18 +29,10 @@ export default activitiesGuard(
           return res.status(202).send('')
         }
         case 'Reject': {
-          const rejectFollow = activity as AcceptFollow
-          const followId = rejectFollow.object.id.substring(
-            `https://${getConfig().host}/`.length
-          )
-          const follow = await storage.getFollowFromId({ followId })
+          const follow = await rejectFollowRequest({ activity, storage })
           if (!follow) {
             return res.status(404).json(ERROR_404)
           }
-          await storage.updateFollowStatus({
-            followId,
-            status: FollowStatus.Rejected
-          })
           return res.status(202).send('')
         }
         case 'Follow': {
