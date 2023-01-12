@@ -28,6 +28,13 @@ export const seedStorage = async (storage: Storage) => {
     sharedInbox: 'https://llun.test/inbox',
     status: FollowStatus.Accepted
   })
+  await storage.createFollow({
+    actorId: actor1.id,
+    targetActorId: 'https://somewhere.test/actors/request-following',
+    inbox: `${actor1.id}/indbox`,
+    sharedInbox: 'https://llun.test/inbox',
+    status: FollowStatus.Requested
+  })
 
   // Actor1 followers
   await storage.createFollow({
