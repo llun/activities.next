@@ -2,7 +2,7 @@ import crypto from 'crypto'
 
 import { getStatus, sendAnnounce } from '../activities'
 import { AnnounceStatus } from '../activities/actions/announceStatus'
-import { Note, getContent, getSummary } from '../activities/entities/note'
+import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
