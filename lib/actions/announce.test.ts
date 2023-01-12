@@ -2,7 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
-import { StatusType } from '../models/status'
+import { Status, StatusType } from '../models/status'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { MockAnnounceStatus } from '../stub/announce'
@@ -68,6 +68,27 @@ describe('Announce action', () => {
         fail('Status type must be announce')
       }
       expect(statusData.originalStatus).toEqual(boostedStatus?.toJson())
+    })
+
+    it('loads announce with attachments and save both locally', async () => {
+      const statusId = stubNoteId()
+      const announceStatusId =
+        'https://somewhere.test/statuses/announce-status-attachments'
+      await announce({
+        status: MockAnnounceStatus({
+          actorId: ACTOR1_ID,
+          statusId,
+          announceStatusId
+        }),
+        storage
+      })
+      const boostedStatus = await storage.getStatus({
+        statusId: announceStatusId
+      })
+      if (boostedStatus?.data.type !== StatusType.Note) {
+        fail('Status type must be note')
+      }
+      expect(boostedStatus?.data.attachments).toHaveLength(2)
     })
 
     it('record content from content map if content is undefined', async () => {
