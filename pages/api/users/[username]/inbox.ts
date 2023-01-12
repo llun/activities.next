@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
+import { acceptFollowRequest } from '../../../../lib/actions/acceptFollowRequest'
 import { createFollower } from '../../../../lib/actions/createFollower'
 import { AcceptFollow } from '../../../../lib/activities/actions/acceptFollow'
 import { FollowRequest } from '../../../../lib/activities/actions/follow'
@@ -22,19 +23,10 @@ export default activitiesGuard(
 
       switch (activity.type) {
         case 'Accept': {
-          const acceptFollow = activity as AcceptFollow
-          const followId = acceptFollow.object.id.substring(
-            `https://${getConfig().host}/`.length
-          )
-          const follow = await storage.getFollowFromId({ followId })
+          const follow = await acceptFollowRequest({ activity, storage })
           if (!follow) {
             return res.status(404).json(ERROR_404)
           }
-          // TODO: Pull outbox after accepted
-          await storage.updateFollowStatus({
-            followId,
-            status: FollowStatus.Accepted
-          })
           return res.status(202).send('')
         }
         case 'Reject': {
