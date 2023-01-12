@@ -49,7 +49,7 @@ describe('Accept follow action', () => {
       const activity = MockAcceptFollowRequest({
         actorId: ACTOR1_ID,
         targetActorId,
-        followId: `${ACTOR1_ID}/${followRequest?.id}`
+        followId: `https://llun.test/${followRequest?.id}`
       })
       const updatedRequest = await acceptFollowRequest({ activity, storage })
       expect(updatedRequest).toBeTruthy()
@@ -58,6 +58,18 @@ describe('Accept follow action', () => {
         followId: followRequest.id
       })
       expect(acceptedRequest?.status).toEqual(FollowStatus.Accepted)
+    })
+
+    it('returns null when follow request is not found', async () => {
+      const targetActorId =
+        'https://somewhere.test/actors/not-request-following'
+      const activity = MockAcceptFollowRequest({
+        actorId: ACTOR1_ID,
+        targetActorId,
+        followId: `https://llun.test/random-id`
+      })
+      const updatedRequest = await acceptFollowRequest({ activity, storage })
+      expect(updatedRequest).toBeNull()
     })
   })
 })
