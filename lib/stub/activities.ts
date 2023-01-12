@@ -1,5 +1,6 @@
 import { FetchMock } from 'jest-fetch-mock'
 
+import { MockImageDocument } from './imageDocument'
 import { MockLitepubNote, MockMastodonNote } from './note'
 import { MockActivityPubPerson } from './person'
 import { MockWebfinger } from './webfinger'
@@ -43,6 +44,30 @@ export const mockRequests = (fetchMock: FetchMock) => {
       // llun.test domain
       if (url.pathname.includes('/statuses')) {
         const from = req.url.slice(0, req.url.indexOf('/statuses'))
+
+        if (url.pathname.endsWith('-attachments')) {
+          return {
+            status: 200,
+            body: JSON.stringify(
+              MockMastodonNote({
+                id: req.url,
+                from,
+                content: 'This is status with attachments',
+                withContext: true,
+                documents: [
+                  MockImageDocument({
+                    url: 'https://llun.test/images/test1.jpg'
+                  }),
+                  MockImageDocument({
+                    url: 'https://llun.test/images/test2.jpg',
+                    name: 'Second image'
+                  })
+                ]
+              })
+            )
+          }
+        }
+
         return {
           status: 200,
           body: JSON.stringify(
