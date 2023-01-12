@@ -7,6 +7,7 @@ import { compact } from '../jsonld'
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
+import { createNote } from './createNote'
 import { recordActorIfNeeded } from './utils'
 
 interface AnnounceParams {
@@ -24,35 +25,7 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     const boostedStatus = await getStatus({ statusId: object })
     if (!boostedStatus) return
 
-    const compactedBoostedStatus = (await compact(boostedStatus)) as Note
-    const boostedContent = getContent(compactedBoostedStatus)
-    const boostedSummary = getSummary(compactedBoostedStatus)
-
-    await Promise.all([
-      recordActorIfNeeded({
-        actorId: compactedBoostedStatus.attributedTo,
-        storage
-      }),
-      storage.createNote({
-        id: compactedBoostedStatus.id,
-        url: compactedBoostedStatus.url || compactedBoostedStatus.id,
-
-        actorId: compactedBoostedStatus.attributedTo,
-
-        text: boostedContent,
-        summary: boostedSummary,
-
-        to: Array.isArray(boostedStatus.to)
-          ? boostedStatus.to
-          : [boostedStatus.to].filter((item) => item),
-        cc: Array.isArray(boostedStatus.cc)
-          ? boostedStatus.cc
-          : [boostedStatus.cc].filter((item) => item),
-
-        reply: compactedBoostedStatus.inReplyTo || '',
-        createdAt: new Date(compactedBoostedStatus.published).getTime()
-      })
-    ])
+    await createNote({ note: boostedStatus as Note, storage })
   }
 
   await Promise.all([
