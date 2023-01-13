@@ -74,15 +74,19 @@ ytyBqBUq8tTv95/hISUu1hG8XEfzc1+JIbBfXte4WQ2yXBU8eDHptTVtq6XSdzVZ
 
 interface Params {
   id?: string
+  sharedInboxUrl?: string
 }
 export const MockActor = ({
-  id = 'https://chat.llun.dev/users/me'
+  id = 'https://chat.llun.dev/users/me',
+  sharedInboxUrl = 'https://chat.llun.dev/inbox'
 }: Params): Actor =>
   new Actor({
     id,
     username: new URL(id).pathname.split('/').pop() ?? 'me',
     domain: 'chat.llun.dev',
     followersUrl: `${id}/followers`,
+    inboxUrl: `${id}/inbox`,
+    sharedInboxUrl,
     publicKey: MOCK_PUBLIC_KEY,
     privateKey: MOCK_PRIVATE_KEY,
     createdAt: Date.now(),
