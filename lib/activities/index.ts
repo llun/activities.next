@@ -130,7 +130,7 @@ export const getPublicProfile = async ({
           followers: person.followers,
           inbox: person.inbox,
           outbox: person.outbox,
-          sharedInbox: person.endpoints?.sharedInbox
+          sharedInbox: person.endpoints?.sharedInbox ?? person.inbox
         },
 
         createdAt: new Date(person.published).getTime()
@@ -447,6 +447,7 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
 
 export const acceptFollow = async (
   currentActor: Actor,
+  followingInbox: string,
   followRequest: FollowRequest
 ) => {
   const acceptFollowRequest: AcceptFollow = {
@@ -461,18 +462,18 @@ export const acceptFollow = async (
       object: followRequest.object
     }
   }
-  const response = await fetch(`${followRequest.actor}/inbox`, {
+  console.log(acceptFollowRequest)
+  const response = await fetch(followingInbox, {
     method: 'POST',
     headers: {
-      ...headers(
-        currentActor,
-        'post',
-        `${followRequest.actor}/inbox`,
-        acceptFollowRequest
-      ),
+      ...headers(currentActor, 'post', followingInbox, acceptFollowRequest),
       'User-Agent': USER_AGENT
     },
     body: JSON.stringify(acceptFollowRequest)
+  })
+  console.log('accepted', response.status, followingInbox, {
+    ...headers(currentActor, 'post', followingInbox, acceptFollowRequest),
+    'User-Agent': USER_AGENT
   })
   return response.status === 202
 }

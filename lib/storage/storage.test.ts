@@ -8,6 +8,8 @@ import { Storage } from './types'
 
 jest.mock('../config')
 
+const TEST_SHARED_INBOX = 'https://llun.test/inbox'
+
 // For testing existing user
 const TEST_EMAIL = 'user@llun.dev'
 const TEST_USERNAME = 'user'
@@ -185,6 +187,8 @@ describe('Storage', () => {
           username: TEST_USERNAME10,
           domain: TEST_DOMAIN10,
           followersUrl: `${TEST_ID10}/followers`,
+          inboxUrl: `${TEST_ID10}/inbox`,
+          sharedInboxUrl: TEST_SHARED_INBOX,
           publicKey: 'publicKey',
           createdAt: Date.now()
         })

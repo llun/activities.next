@@ -2,6 +2,7 @@ import { acceptFollow, getPublicProfile } from '../activities'
 import { FollowRequest } from '../activities/actions/follow'
 import { FollowStatus } from '../models/follow'
 import { Storage } from '../storage/types'
+import { recordActorIfNeeded } from './utils'
 
 interface CreateFollowerParams {
   followRequest: FollowRequest
@@ -11,23 +12,35 @@ export const createFollower = async ({
   followRequest,
   storage
 }: CreateFollowerParams) => {
-  const actor = await storage.getActorFromId({
+  const targetActor = await storage.getActorFromId({
     id: followRequest.object
   })
-  if (!actor) return null
+  if (!targetActor) return null
 
-  const person = await getPublicProfile({ actorId: followRequest.actor })
+  const person = await getPublicProfile({
+    actorId: followRequest.actor,
+    withPublicKey: true
+  })
   if (!person) return null
 
+  const followerActor = await recordActorIfNeeded({
+    actorId: followRequest.actor,
+    storage
+  })
+  if (!followerActor) {
+    return null
+  }
+
   await Promise.all([
-    await storage.createFollow({
-      actorId: followRequest.actor,
-      targetActorId: followRequest.object,
+    storage.createFollow({
+      actorId: followerActor.id,
+      targetActorId: targetActor.id,
       status: FollowStatus.Accepted,
-      inbox: person.endpoints.inbox,
-      sharedInbox: person.endpoints.sharedInbox
+      inbox: followerActor.inboxUrl,
+      sharedInbox: followerActor.sharedInboxUrl
     }),
-    await acceptFollow(actor, followRequest)
+    acceptFollow(targetActor, followerActor.inboxUrl, followRequest)
   ])
+
   return followRequest
 }

@@ -173,6 +173,8 @@ export class FirebaseStorage implements Storage {
     iconUrl = '',
     headerImageUrl = '',
     followersUrl,
+    inboxUrl,
+    sharedInboxUrl,
 
     publicKey,
     privateKey = '',
@@ -188,6 +190,8 @@ export class FirebaseStorage implements Storage {
       iconUrl,
       headerImageUrl,
       followersUrl,
+      inboxUrl,
+      sharedInboxUrl,
       domain,
       publicKey,
       privateKey,
@@ -203,6 +207,8 @@ export class FirebaseStorage implements Storage {
       username: data.username,
       domain: data.domain,
       followersUrl: data.followersUrl,
+      inboxUrl: data.inboxUrl,
+      sharedInboxUrl: data.sharedInboxUrl,
       ...(data.name ? { name: data.name } : null),
       ...(data.summary ? { summary: data.summary } : null),
       ...(data.iconUrl ? { iconUrl: data.iconUrl } : null),
@@ -290,6 +296,7 @@ export class FirebaseStorage implements Storage {
     const actorsSnapshot = await getDocs(actorsQuery)
     if (actorsSnapshot.docs.length !== 1) return undefined
 
+    const currentTime = Date.now()
     const document = actorsSnapshot.docs[0]
     await setDoc(doc(this.db, 'actors', document.id), {
       ...document.data(),
@@ -297,7 +304,8 @@ export class FirebaseStorage implements Storage {
       ...(headerImageUrl ? { headerImageUrl } : null),
       ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null),
       ...(name ? { name } : null),
-      ...(summary ? { summary } : null)
+      ...(summary ? { summary } : null),
+      updatedAt: currentTime
     })
 
     return this.getActorFromId({ id: actorId })

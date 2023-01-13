@@ -44,7 +44,16 @@ describe('#createFollower', () => {
       followRequest: request
     })
     expect(follow).toEqual(request)
-    expect(acceptFollow).toHaveBeenCalledWith(actor, request)
+
+    const followingActor = await storage.getActorFromId({
+      id: 'https://another.network/users/friend'
+    })
+    expect(followingActor).toBeDefined()
+    expect(acceptFollow).toHaveBeenCalledWith(
+      actor,
+      'https://another.network/users/friend/inbox',
+      request
+    )
   })
 
   it(`returns null and don't do anything`, async () => {

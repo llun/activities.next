@@ -53,6 +53,8 @@ interface ActorSettings {
   headerImageUrl?: string
   appleSharedAlbumToken?: string
   followersUrl: string
+  inboxUrl: string
+  sharedInboxUrl: string
 }
 
 interface SQLActor {
@@ -117,7 +119,9 @@ export class Sqlite3Storage implements Storage {
     const currentTime = Date.now()
 
     const actorSettings: ActorSettings = {
-      followersUrl: `${actorId}/followers`
+      followersUrl: `${actorId}/followers`,
+      inboxUrl: `${actorId}/inbox`,
+      sharedInboxUrl: `https://${domain}/inbox`
     }
 
     await this.database.transaction(async (trx) => {
@@ -157,6 +161,8 @@ export class Sqlite3Storage implements Storage {
     iconUrl,
     headerImageUrl,
     followersUrl,
+    inboxUrl,
+    sharedInboxUrl,
 
     publicKey,
     privateKey,
@@ -168,7 +174,9 @@ export class Sqlite3Storage implements Storage {
     const settings: ActorSettings = {
       iconUrl,
       headerImageUrl,
-      followersUrl
+      followersUrl,
+      inboxUrl,
+      sharedInboxUrl
     }
     await this.database('actors').insert({
       id: actorId,
@@ -201,6 +209,8 @@ export class Sqlite3Storage implements Storage {
         ? { appleSharedAlbumToken: settings.appleSharedAlbumToken }
         : null),
       followersUrl: settings.followersUrl,
+      inboxUrl: settings.inboxUrl,
+      sharedInboxUrl: settings.sharedInboxUrl,
       publicKey: sqlActor.publicKey,
       ...(sqlActor.privateKey ? { privateKey: sqlActor.privateKey } : null),
       ...(account ? { account } : null),

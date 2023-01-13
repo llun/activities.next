@@ -26,6 +26,8 @@ export type CreateActorParams = {
   iconUrl?: string
   headerImageUrl?: string
 
+  inboxUrl: string
+  sharedInboxUrl: string
   followersUrl: string
 
   publicKey: string
@@ -48,6 +50,12 @@ export type UpdateActorParams = {
   iconUrl?: string
   headerImageUrl?: string
   appleSharedAlbumToken?: string
+
+  publicKey?: string
+
+  followersUrl?: string
+  inboxUrl?: string
+  sharedInboxUrl?: string
 }
 export type GetActorFollowingCountParams = { actorId: string }
 export type GetActorFollowersCountParams = { actorId: string }
