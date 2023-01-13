@@ -117,8 +117,8 @@ export type CreateAttachmentParams = {
   statusId: string
   mediaType: string
   url: string
-  width: number
-  height: number
+  width?: number
+  height?: number
   name?: string
 }
 export type GetAttachmentsParams = {

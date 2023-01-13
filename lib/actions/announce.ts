@@ -28,6 +28,10 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     await createNote({ note: boostedStatus as Note, storage })
   }
 
+  const existingAnnounce = await storage.getStatus({
+    statusId: compactedStatus.id
+  })
+  if (existingAnnounce) return
   await Promise.all([
     recordActorIfNeeded({ actorId: compactedStatus.actor, storage }),
     storage.createAnnounce({

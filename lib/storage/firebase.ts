@@ -744,8 +744,8 @@ export class FirebaseStorage implements Storage {
       type: 'Document',
       mediaType,
       url,
-      width,
-      height,
+      ...(width ? { width } : null),
+      ...(height ? { height } : null),
       name,
 
       createdAt: currentTime,

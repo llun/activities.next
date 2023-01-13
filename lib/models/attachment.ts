@@ -16,8 +16,8 @@ export interface AttachmentData {
   type: 'Document'
   mediaType: string
   url: string
-  width: number
-  height: number
+  width?: number
+  height?: number
   name: string
 
   createdAt: number
@@ -37,8 +37,8 @@ export class Attachment {
       type: 'Document',
       mediaType: data.mediaType,
       url: data.url,
-      width: data.width,
-      height: data.height,
+      ...(data.width ? { width: data.width } : null),
+      ...(data.height ? { height: data.height } : null),
       name: data.name
     }
   }
