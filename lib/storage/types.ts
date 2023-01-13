@@ -57,6 +57,9 @@ export type UpdateActorParams = {
   inboxUrl?: string
   sharedInboxUrl?: string
 }
+export type DeleteActorParams = {
+  actorId: string
+}
 export type GetActorFollowingCountParams = { actorId: string }
 export type GetActorFollowersCountParams = { actorId: string }
 export type CreateFollowParams = {
@@ -145,6 +148,7 @@ export interface Storage {
   ): Promise<Actor | undefined>
   getActorFromId(params: GetActorFromIdParams): Promise<Actor | undefined>
   updateActor(params: UpdateActorParams): Promise<Actor | undefined>
+  deleteActor(params: DeleteActorParams): Promise<void>
 
   isCurrentActorFollowing(
     params: IsCurrentActorFollowingParams

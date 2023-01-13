@@ -41,6 +41,7 @@ import {
   CreateFollowParams,
   CreateNoteParams,
   CreateTagParams,
+  DeleteActorParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
   GetAccountFromIdParams,
@@ -318,6 +319,16 @@ export class FirebaseStorage implements Storage {
     })
 
     return this.getActorFromId({ id: actorId })
+  }
+
+  async deleteActor({ actorId }: DeleteActorParams): Promise<void> {
+    const actors = collection(this.db, 'actors')
+    const actorsQuery = query(actors, where('id', '==', actorId), limit(1))
+    const actorsSnapshot = await getDocs(actorsQuery)
+    if (actorsSnapshot.docs.length !== 1) return
+
+    const document = actorsSnapshot.docs[0]
+    await deleteDoc(doc(this.db, 'actors', document.id))
   }
 
   async isCurrentActorFollowing({

@@ -22,6 +22,7 @@ import {
   CreateFollowParams,
   CreateNoteParams,
   CreateTagParams,
+  DeleteActorParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
   GetAccountFromIdParams,
@@ -303,6 +304,10 @@ export class Sqlite3Storage implements Storage {
       updatedAt: Date.now()
     })
     return this.getActorFromId({ id: actorId })
+  }
+
+  async deleteActor({ actorId }: DeleteActorParams) {
+    await this.database('actors').where('id', actorId).delete()
   }
 
   async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
