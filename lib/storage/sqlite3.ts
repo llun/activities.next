@@ -277,6 +277,8 @@ export class Sqlite3Storage implements Storage {
     headerImageUrl,
     appleSharedAlbumToken,
 
+    publicKey,
+
     followersUrl,
     inboxUrl,
     sharedInboxUrl
@@ -300,6 +302,9 @@ export class Sqlite3Storage implements Storage {
     await this.database<SQLActor>('actors').update({
       ...(name ? { name } : null),
       ...(summary ? { summary } : null),
+
+      ...(publicKey ? { publicKey } : null),
+
       settings: JSON.stringify(settings),
       updatedAt: Date.now()
     })

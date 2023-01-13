@@ -23,7 +23,7 @@ export const recordActorIfNeeded = async ({
     })
     if (!profile) return undefined
     return storage.createActor({
-      actorId: profile.id,
+      actorId,
       username: profile.username,
       domain: profile.domain,
       followersUrl: profile.endpoints.followers,
@@ -43,7 +43,7 @@ export const recordActorIfNeeded = async ({
     })
     if (!profile) return undefined
     return storage.updateActor({
-      actorId: profile.id,
+      actorId,
       followersUrl: profile.endpoints.followers,
       inboxUrl: profile.endpoints.inbox,
       sharedInboxUrl: profile.endpoints.sharedInbox,

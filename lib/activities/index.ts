@@ -462,7 +462,7 @@ export const acceptFollow = async (
       object: followRequest.object
     }
   }
-  console.log(acceptFollowRequest)
+
   const response = await fetch(followingInbox, {
     method: 'POST',
     headers: {
@@ -470,10 +470,6 @@ export const acceptFollow = async (
       'User-Agent': USER_AGENT
     },
     body: JSON.stringify(acceptFollowRequest)
-  })
-  console.log('accepted', response.status, followingInbox, {
-    ...headers(currentActor, 'post', followingInbox, acceptFollowRequest),
-    'User-Agent': USER_AGENT
   })
   return response.status === 202
 }

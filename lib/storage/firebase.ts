@@ -292,6 +292,8 @@ export class FirebaseStorage implements Storage {
     headerImageUrl,
     appleSharedAlbumToken,
 
+    publicKey,
+
     followersUrl,
     inboxUrl,
     sharedInboxUrl
@@ -310,6 +312,8 @@ export class FirebaseStorage implements Storage {
       ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null),
       ...(name ? { name } : null),
       ...(summary ? { summary } : null),
+
+      ...(publicKey ? { publicKey } : null),
 
       ...(followersUrl ? { followersUrl } : null),
       ...(inboxUrl ? { inboxUrl } : null),
