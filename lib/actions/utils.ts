@@ -12,6 +12,10 @@ export const recordActorIfNeeded = async ({
   const existingActor = await storage.getActorFromId({
     id: actorId
   })
+  // Don't update local actor
+  if (existingActor?.privateKey) {
+    return existingActor
+  }
   if (!existingActor) {
     const profile = await getPublicProfile({
       actorId,

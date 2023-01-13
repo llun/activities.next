@@ -274,7 +274,11 @@ export class Sqlite3Storage implements Storage {
     summary,
     iconUrl,
     headerImageUrl,
-    appleSharedAlbumToken
+    appleSharedAlbumToken,
+
+    followersUrl,
+    inboxUrl,
+    sharedInboxUrl
   }: UpdateActorParams) {
     const storageActor = await this.database<SQLActor>('actors')
       .where('id', actorId)
@@ -285,7 +289,11 @@ export class Sqlite3Storage implements Storage {
       ...JSON.parse(storageActor.settings),
       ...(iconUrl ? { iconUrl } : null),
       ...(headerImageUrl ? { headerImageUrl } : null),
-      ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null)
+      ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null),
+
+      ...(followersUrl ? { followersUrl } : null),
+      ...(inboxUrl ? { inboxUrl } : null),
+      ...(sharedInboxUrl ? { sharedInboxUrl } : null)
     }
 
     await this.database<SQLActor>('actors').update({

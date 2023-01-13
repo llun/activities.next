@@ -289,7 +289,11 @@ export class FirebaseStorage implements Storage {
     summary,
     iconUrl,
     headerImageUrl,
-    appleSharedAlbumToken
+    appleSharedAlbumToken,
+
+    followersUrl,
+    inboxUrl,
+    sharedInboxUrl
   }: UpdateActorParams) {
     const actors = collection(this.db, 'actors')
     const actorsQuery = query(actors, where('id', '==', actorId), limit(1))
@@ -305,6 +309,11 @@ export class FirebaseStorage implements Storage {
       ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null),
       ...(name ? { name } : null),
       ...(summary ? { summary } : null),
+
+      ...(followersUrl ? { followersUrl } : null),
+      ...(inboxUrl ? { inboxUrl } : null),
+      ...(sharedInboxUrl ? { sharedInboxUrl } : null),
+
       updatedAt: currentTime
     })
 
