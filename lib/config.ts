@@ -1,11 +1,11 @@
-import { FirebaseOptions } from 'firebase/app'
+import { Settings as FirestoreSetting } from '@google-cloud/firestore'
 import fs from 'fs'
 import type { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 import path from 'path'
 
 type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' }
-type FirebaseDatabase = FirebaseOptions & { type: 'firebase' }
+type FirebaseDatabase = FirestoreSetting & { type: 'firebase' }
 
 export interface Config {
   host: string
