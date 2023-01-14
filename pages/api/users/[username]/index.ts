@@ -53,7 +53,7 @@ export default async function handler(
 
   const user: Person = {
     '@context': [ACTIVITY_STREAM_URL, W3ID_URL],
-    id: `https://${actor.domain}/users/${actor.id}`,
+    id: actor.id,
     type: 'Person',
     following: `https://${actor.domain}/users/${actor.username}/following`,
     followers: `https://${actor.domain}/users/${actor.username}/followers`,
@@ -65,8 +65,8 @@ export default async function handler(
     url: `https://${actor.domain}/@${actor.username}`,
     published: getISOTimeUTC(actor.createdAt),
     publicKey: {
-      id: `https://${actor.domain}/users/${actor.id}#main-key`,
-      owner: `https://${actor.domain}/users/${actor.id}`,
+      id: `${actor.id}#main-key`,
+      owner: actor.id,
       publicKeyPem: actor.publicKey
     },
     endpoints: {
