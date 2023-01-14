@@ -287,11 +287,11 @@ This is fourth line text
     })
   })
 
-  describe.only('#linkifyText', () => {
+  describe('#linkifyText', () => {
     it('links mention with user url', async () => {
       const message = await Status.linkfyText('@test1@somewhere.test')
       expect(message).toEqual(
-        '<span class="h-card"><a href="https://somewhere.test/actors/test1" class="u-url mention">@<span>test1</span></a></span>'
+        '<span class="h-card"><a href="https://somewhere.test/actors/test1" target="_blank" class="u-url mention">@<span>test1</span></a></span>'
       )
     })
 
@@ -300,7 +300,7 @@ This is fourth line text
         'With multiple mentions @test1@somewhere.test and @test2@llun.test tags'
       )
       expect(message).toEqual(
-        'With multiple mentions <span class="h-card"><a href="https://somewhere.test/actors/test1" class="u-url mention">@<span>test1</span></a></span> and <span class="h-card"><a href="https://llun.test/@test2" class="u-url mention">@<span>test2</span></a></span> tags'
+        'With multiple mentions <span class="h-card"><a href="https://somewhere.test/actors/test1" target="_blank" class="u-url mention">@<span>test1</span></a></span> and <span class="h-card"><a href="https://llun.test/@test2" target="_blank" class="u-url mention">@<span>test2</span></a></span> tags'
       )
     })
 
@@ -309,7 +309,7 @@ This is fourth line text
         'Test linkify string https://www.llun.me/posts/dev/2023-01-07-my-wrong-assumptions-with-activity-pub/ with url'
       )
       expect(message).toEqual(
-        'Test linkify string <a href="https://www.llun.me/posts/dev/2023-01-07-my-wrong-assumptions-with-activity-pub/" target="_blank" rel="nofollow noopener noreferrer">llun.me/posts/dev/2023-01-07-m…</a> with url'
+        'Test linkify string <a href="https://www.llun.me/posts/dev/2023-01-07-my-wrong-assumptions-with-activity-pub/" target="_blank" rel="nofollow noopener noreferrer">llun.me/posts/dev/2023-01-07-my-…</a> with url'
       )
     })
   })

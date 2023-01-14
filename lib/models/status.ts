@@ -136,7 +136,20 @@ export class Status {
   }
 
   private static mentionBody(url = '', username = '') {
-    return `<span class="h-card"><a href="${url}" class="u-url mention">@<span>${username}</span></a></span>`
+    return `<span class="h-card"><a href="${url}" target="_blank" class="u-url mention">@<span>${username}</span></a></span>`
+  }
+
+  private static linkBody(url = '') {
+    const limit = 25
+    const link = new URL(url)
+    const hostname = link.host.startsWith('www.')
+      ? link.host.slice(4)
+      : link.host
+    const pathname =
+      link.pathname.length > limit
+        ? `${link.pathname.slice(0, limit)}…`
+        : link.pathname
+    return `<a href="${url}" target="_blank" rel="nofollow noopener noreferrer">${hostname}${pathname}</a>`
   }
 
   static async linkfyText(text: string, mock?: boolean) {
@@ -156,6 +169,9 @@ export class Status {
           }
           const profile = await getPublicProfileFromHandle(item.v)
           return Status.mentionBody(profile?.url, profile?.username)
+        }
+        if (item.t === 'url') {
+          return this.linkBody(item.v)
         }
         return item.v
       })
