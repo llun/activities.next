@@ -1,6 +1,6 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
+import { linkifyText } from '../link'
 import { FollowStatus } from '../models/follow'
-import { Status } from '../models/status'
 import { Storage } from '../storage/types'
 import { seedActor1 } from './seed/actor1'
 import { seedActor2 } from './seed/actor2'
@@ -79,7 +79,7 @@ export const seedStorage = async (storage: Storage) => {
     actorId: actor2.id,
     to: [ACTIVITY_STREAM_PUBLIC, actor1.id],
     cc: [`${actor2.id}/followers`],
-    text: await Status.linkfyText('@test1@llun.test This is Actor1 post', true),
+    text: await linkifyText('@test1@llun.test This is Actor1 post', true),
     reply: `${actor1.id}/statuses/post-1`
   })
   await storage.createTag({

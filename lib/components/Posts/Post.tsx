@@ -5,7 +5,7 @@ import { FC } from 'react'
 import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
 import { StatusData, StatusType } from '../../models/status'
-import { parseText } from '../../text'
+import { cleanClassName } from '../text'
 import { Actions } from './Actions'
 import { Actor } from './Actor'
 import { Media } from './Media'
@@ -65,7 +65,7 @@ export const Post: FC<PostProps> = (props) => {
           </a>
         </div>
       </div>
-      <div className={'me-1'}>{parseText(actualStatus.text)}</div>
+      <div className={'me-1'}>{cleanClassName(actualStatus.text)}</div>
       {actualStatus.attachments && actualStatus.attachments.length > 0 && (
         <div
           className={cn(styles.medias)}

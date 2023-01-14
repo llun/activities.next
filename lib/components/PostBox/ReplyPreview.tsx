@@ -2,9 +2,9 @@ import cn from 'classnames'
 import { FC } from 'react'
 
 import { StatusData, StatusType } from '../../models/status'
-import { parseText } from '../../text'
 import { CloseButton } from '../CloseButton'
 import { Actor } from '../Posts/Actor'
+import { cleanClassName } from '../text'
 import styles from './ReplyPreview.module.scss'
 
 interface Props {
@@ -38,7 +38,7 @@ export const ReplyPreview: FC<Props> = ({ status, onClose }) => {
     >
       <div>
         <Actor actorId={status.actorId || ''} />
-        {parseText(getText(status))}
+        {cleanClassName(getText(status))}
       </div>
       <CloseButton className={cn(styles.close)} onClick={() => onClose?.()} />
     </section>

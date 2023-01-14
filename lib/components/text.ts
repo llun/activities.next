@@ -2,7 +2,7 @@ import parse from 'html-react-parser'
 
 import styles from './text.module.scss'
 
-export const parseText = (text: string) =>
+export const cleanClassName = (text: string) =>
   parse(text, {
     replace: (domNode: any) => {
       if (domNode.name === 'span') {

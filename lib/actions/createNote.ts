@@ -1,12 +1,6 @@
 import crypto from 'crypto'
-import * as linkify from 'linkifyjs'
 
-import {
-  getPublicProfile,
-  getPublicProfileFromHandle,
-  sendNote
-} from '../activities'
-import { Mention } from '../activities/entities/mention'
+import { getPublicProfile, sendNote } from '../activities'
 import {
   Note,
   getAttachments,
@@ -19,9 +13,10 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
 } from '../jsonld/activitystream'
+import { getMentions, linkifyText, paragraphText } from '../link'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
-import { Status, StatusType } from '../models/status'
+import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { recordActorIfNeeded } from './utils'
 
@@ -94,59 +89,6 @@ export const createNote = async ({
   return note
 }
 
-interface GetMentionsParams {
-  text: string
-  currentActor: Actor
-  replyStatus?: Status
-}
-export const getMentions = async ({
-  text,
-  currentActor,
-  replyStatus
-}: GetMentionsParams): Promise<Mention[]> => {
-  const mentions = await Promise.all(
-    linkify
-      .find(text)
-      .filter((item) => item.type === 'mention')
-      .map((item) => [item.value, item.value.slice(1).split('@')].flat())
-      .map(async ([value, user, host]) => {
-        try {
-          const userHost = host ?? currentActor.domain
-          const person = await getPublicProfileFromHandle(`${user}@${userHost}`)
-          if (!person) return null
-          return {
-            type: 'Mention',
-            href: person?.id ?? `https://${host}/users/${user}`,
-            name: value
-          } as Mention
-        } catch {
-          return null
-        }
-      })
-  )
-
-  if (replyStatus) {
-    const name = replyStatus.actor
-      ? Actor.getMentionFromProfile(replyStatus.actor, true)
-      : Actor.getMentionFromId(replyStatus.actorId, true)
-
-    mentions.push({
-      type: 'Mention',
-      href: replyStatus.actorId,
-      name
-    })
-  }
-
-  const mentionsMap = mentions
-    .filter((item): item is Mention => item !== null)
-    .reduce((out, item) => {
-      out[item.name] = item
-      return out
-    }, {} as { [key: string]: Mention })
-
-  return Object.values(mentionsMap)
-}
-
 interface CreateNoteFromUserInputParams {
   text: string
   replyNoteId?: string
@@ -177,7 +119,7 @@ export const createNoteFromUserInput = async ({
 
     actorId: currentActor.id,
 
-    text: Status.paragraphText(await Status.linkfyText(text)),
+    text: paragraphText(await linkifyText(text)),
     summary: '',
 
     to: [ACTIVITY_STREAM_PUBLIC],
