@@ -100,7 +100,7 @@ export class Actor {
       return `@${id}`
     }
 
-    return `@${id}@${Actor.getMentionHostnameFromId(actorId)}`
+    return `@${id}${Actor.getMentionHostnameFromId(actorId)}`
   }
 
   static getMentionFromProfile(
