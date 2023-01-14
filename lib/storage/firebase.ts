@@ -381,11 +381,10 @@ export class FirebaseStorage implements Storage {
   async getLocalFollowersForActorId({
     targetActorId
   }: GetLocalFollowersForActorIdParams) {
-    const url = new URL(targetActorId)
     const follows = this.db.collection('follows')
     const snapshot = await follows
       .where('targetActorId', '==', targetActorId)
-      .where('actorHost', '==', url.hostname)
+      .where('actorHost', '==', getConfig().host)
       .where('status', '==', FollowStatus.Accepted)
       .get()
     return snapshot.docs.map((doc) => doc.data() as Follow)
