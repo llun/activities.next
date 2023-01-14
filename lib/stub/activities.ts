@@ -113,13 +113,19 @@ export const mockRequests = (fetchMock: FetchMock) => {
         }
       }
 
-      if (
-        url.pathname.startsWith('/actors') ||
-        url.pathname.startsWith('/users')
-      ) {
+      // Mock Person API
+      if (url.pathname.startsWith('/users')) {
         return {
           status: 200,
           body: JSON.stringify(MockActivityPubPerson({ id: req.url }))
+        }
+      }
+      if (url.pathname.startsWith('/actors')) {
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubPerson({ id: req.url, url: req.url })
+          )
         }
       }
 

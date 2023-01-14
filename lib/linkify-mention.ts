@@ -81,8 +81,4 @@ export const mention: Plugin = ({ scanner, parser }) => {
   MentionDivider.tt(HYPHEN, Mention)
 }
 
-let registered = false
-if (!registered) {
-  registered = true
-  registerPlugin('mention', mention)
-}
+registerPlugin('mention', mention)

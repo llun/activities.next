@@ -1,5 +1,6 @@
-import linkifyStr from 'linkify-string'
+import * as linkify from 'linkifyjs'
 
+import { getPublicProfileFromHandle } from '../activities'
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Note, getContent, getSummary } from '../activities/entities/note'
 import '../linkify-mention'
@@ -134,19 +135,32 @@ export class Status {
     })
   }
 
-  static linkfyText(text: string) {
-    return linkifyStr(text.trim(), {
-      rel: 'nofollow noopener noreferrer',
-      target: '_blank',
-      truncate: 42,
-      render: {
-        mention: ({ attributes, content }) => {
-          const { href } = attributes
-          const [user] = content.slice(1).split('@')
-          return `<span class="h-card"><a href="https:${href}" class="u-url mention">@<span>${user}</span></a></span>`
+  private static mentionBody(url = '', username = '') {
+    return `<span class="h-card"><a href="${url}" class="u-url mention">@<span>${username}</span></a></span>`
+  }
+
+  static async linkfyText(text: string, mock?: boolean) {
+    const tokens = linkify.tokenize(text)
+    const texts = await Promise.all(
+      tokens.map(async (item) => {
+        if (item.t === 'mention') {
+          if (mock) {
+            const mention = this.toString()
+            const fragments = mention.slice(1).split('@')
+            if (fragments.length === 2) {
+              const [user, domain] = fragments
+              return Status.mentionBody(`https://${domain}/@${user}`, user)
+            }
+
+            return Status.mentionBody(`/@${fragments[0]}`, fragments[0])
+          }
+          const profile = await getPublicProfileFromHandle(item.v)
+          return Status.mentionBody(profile?.url, profile?.username)
         }
-      }
-    })
+        return item.v
+      })
+    )
+    return texts.join('')
   }
 
   static paragraphText(text: string) {

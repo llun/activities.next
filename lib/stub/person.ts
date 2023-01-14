@@ -5,15 +5,16 @@ import { getISOTimeUTC } from '../time'
 
 interface Params {
   id: string
+  url?: string
   createdAt?: number
 }
-export const MockPerson = ({ id, createdAt = Date.now() }: Params) => {
-  const url = new URL(id)
-  const username = url.pathname.split('/').pop()
+export const MockPerson = ({ id, url, createdAt = Date.now() }: Params) => {
+  const userUrl = new URL(id)
+  const username = userUrl.pathname.split('/').pop()
   return {
     id,
     username,
-    url: `https://${url.host}/@${username}`,
+    url: url ?? `https://${userUrl.host}/@${username}`,
 
     endpoints: {
       following: `${id}/following`,
@@ -29,10 +30,11 @@ export const MockPerson = ({ id, createdAt = Date.now() }: Params) => {
 
 export const MockActivityPubPerson = ({
   id,
+  url,
   createdAt = Date.now()
 }: Params): Person => {
-  const url = new URL(id)
-  const username = url.pathname.split('/').pop()
+  const userUrl = new URL(id)
+  const username = userUrl.pathname.split('/').pop()
 
   if (id.startsWith('https://no.shared.inbox')) {
     return {
@@ -46,7 +48,7 @@ export const MockActivityPubPerson = ({
       preferredUsername: username || '',
       name: '',
       summary: '',
-      url: `https://${url.host}/@${username}`,
+      url: url ?? `https://${userUrl.host}/@${username}`,
       published: getISOTimeUTC(createdAt),
       publicKey: {
         id: `${id}#main-key`,
@@ -67,13 +69,13 @@ export const MockActivityPubPerson = ({
     preferredUsername: username || '',
     name: '',
     summary: '',
-    url: `https://${url.host}/@${username}`,
+    url: url ?? `https://${userUrl.host}/@${username}`,
     published: getISOTimeUTC(createdAt),
     publicKey: {
       id: `${id}#main-key`,
       owner: id,
       publicKeyPem: 'public key'
     },
-    endpoints: { sharedInbox: `https://${url.host}/inbox` }
+    endpoints: { sharedInbox: `https://${userUrl.host}/inbox` }
   }
 }

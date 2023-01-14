@@ -1,4 +1,4 @@
-import fetchMock, { FetchMock, enableFetchMocks } from 'jest-fetch-mock'
+import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
@@ -217,14 +217,14 @@ How are you?
       })
       expect(status?.data).toMatchObject({
         actorId: actor1.id,
-        text: Status.paragraphText(Status.linkfyText(text)),
+        text: Status.paragraphText(await Status.linkfyText(text)),
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [`${actor1.id}/followers`, ACTOR2_ID]
       })
 
       const note = status?.toObject()
       expect(note?.content).toEqual(
-        Status.paragraphText(Status.linkfyText(text))
+        Status.paragraphText(await Status.linkfyText(text))
       )
       expect(note?.tag).toHaveLength(1)
       expect(note?.tag).toContainValue({
@@ -258,7 +258,7 @@ How are you?
       })
       expect(status?.data).toMatchObject({
         actorId: actor1.id,
-        text: Status.paragraphText(Status.linkfyText(text)),
+        text: Status.paragraphText(await Status.linkfyText(text)),
         to: [ACTIVITY_STREAM_PUBLIC]
       })
       expect(status?.data.cc).toContainAllValues([
@@ -269,7 +269,7 @@ How are you?
 
       const note = status?.toObject()
       expect(note?.content).toEqual(
-        Status.paragraphText(Status.linkfyText(text))
+        Status.paragraphText(await Status.linkfyText(text))
       )
       expect(note?.tag).toHaveLength(2)
       expect(note?.tag).toContainValue({
