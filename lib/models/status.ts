@@ -1,6 +1,5 @@
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Note, getContent, getSummary } from '../activities/entities/note'
-import '../linkify-mention'
 import { getISOTimeUTC } from '../time'
 import { ActorProfile } from './actor'
 import { Attachment, AttachmentData } from './attachment'

@@ -29,7 +29,6 @@
     "json5": "^2.2.3",
     "jsonld": "^8.1.0",
     "knex": "^2.4.0",
-    "linkify-string": "^4.1.0",
     "linkifyjs": "^4.1.0",
     "lodash": "^4.17.21",
     "next": "13.1.2",
