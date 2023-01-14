@@ -297,11 +297,11 @@ How are you?
         type: 'Create',
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [
+        cc: expect.toContainAllValues([
           actor1.followersUrl,
           ACTOR2_ID,
           'https://somewhere.test/actors/test3'
-        ],
+        ]),
         object: status?.toObject()
       })
     })

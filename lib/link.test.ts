@@ -7,6 +7,11 @@ import { seedActor2 } from './stub/seed/actor2'
 import { seedStorage } from './stub/storage'
 
 describe('#linkifyText', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    mockRequests(fetchMock)
+  })
+
   it('links mention with user url', async () => {
     const message = await linkifyText('@test1@somewhere.test')
     expect(message).toEqual(
