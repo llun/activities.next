@@ -14,3 +14,7 @@ export interface WebFinger {
   aliases: string[]
   links: Link[]
 }
+
+export interface Error {
+  error: string
+}

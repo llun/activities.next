@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 
 import { Image } from '../../../../lib/activities/entities/image'
 import { Person } from '../../../../lib/activities/entities/person'
+import { getConfig } from '../../../../lib/config'
 import { ERROR_404, ERROR_500 } from '../../../../lib/errors'
 import { ACTIVITY_STREAM_URL } from '../../../../lib/jsonld/activitystream'
 import { W3ID_URL } from '../../../../lib/jsonld/w3id'
@@ -26,7 +27,8 @@ export default async function handler(
   }
 
   const actor = await storage.getActorFromUsername({
-    username: username as string
+    username: username as string,
+    domain: req.headers.host || getConfig().host
   })
   if (!actor) {
     return res.status(404).json(ERROR_404)

@@ -1,24 +1,5 @@
-import { terminate } from '@firebase/firestore'
+import { Firestore as ServerFirestore, Settings } from '@google-cloud/firestore'
 import crypto from 'crypto'
-import { FirebaseApp, FirebaseOptions, initializeApp } from 'firebase/app'
-import {
-  Firestore,
-  addDoc,
-  collection,
-  connectFirestoreEmulator,
-  deleteDoc,
-  doc,
-  getCountFromServer,
-  getDoc,
-  getDocs,
-  getFirestore,
-  limit,
-  orderBy,
-  query,
-  setDoc,
-  updateDoc,
-  where
-} from 'firebase/firestore'
 
 import { deliverTo } from '.'
 import { getConfig } from '../config'
@@ -54,7 +35,6 @@ import {
   GetActorStatusesParams,
   GetAttachmentsParams,
   GetFollowFromIdParams,
-  GetFollowersHostsParams,
   GetFollowersInboxParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
@@ -68,21 +48,15 @@ import {
   UpdateFollowStatusParams
 } from './types'
 
-export interface FirebaseConfig extends FirebaseOptions {
+export interface FirebaseConfig extends Settings {
   type: 'firebase'
 }
 
 export class FirebaseStorage implements Storage {
-  readonly app: FirebaseApp
-  readonly db: Firestore
+  readonly db: ServerFirestore
 
   constructor(config: FirebaseConfig) {
-    this.app = initializeApp(config)
-    this.db = getFirestore(this.app)
-  }
-
-  async connectEmulator() {
-    connectFirestoreEmulator(this.db, '127.0.0.1', 8080)
+    this.db = new ServerFirestore(config)
   }
 
   async destroy() {
@@ -92,29 +66,22 @@ export class FirebaseStorage implements Storage {
         method: 'DELETE'
       }
     )
-    await terminate(this.db)
+    await this.db.terminate()
   }
 
   async isAccountExists({ email }: IsAccountExistsParams) {
-    if (!email) return true
-
-    const accounts = collection(this.db, 'accounts')
-    const query_ = query(accounts, where('email', '==', email))
-    const snapshot = await getCountFromServer(query_)
+    const accounts = this.db.collection('accounts')
+    const snapshot = await accounts.where('email', '==', email).count().get()
     return snapshot.data().count === 1
   }
 
   async isUsernameExists({ username, domain }: IsUsernameExistsParams) {
-    if (!username) return true
-    if (!domain) return true
-
-    const accounts = collection(this.db, 'actors')
-    const query_ = query(
-      accounts,
-      where('username', '==', username),
-      where('domain', '==', domain)
-    )
-    const snapshot = await getCountFromServer(query_)
+    const accounts = this.db.collection('actors')
+    const snapshot = await accounts
+      .where('username', '==', username)
+      .where('domain', '==', domain)
+      .count()
+      .get()
     return snapshot.data().count === 1
   }
 
@@ -131,12 +98,16 @@ export class FirebaseStorage implements Storage {
     }
 
     const currentTime = Date.now()
-    const accountRef = await addDoc(collection(this.db, 'accounts'), {
+
+    const accounts = this.db.collection('accounts')
+    const accountRef = await accounts.add({
       email,
       createdAt: currentTime,
       updatedAt: currentTime
     })
-    await addDoc(collection(this.db, 'actors'), {
+
+    const actors = this.db.collection('actors')
+    await actors.add({
       id: actorId,
       accountId: accountRef.id,
       username,
@@ -152,14 +123,12 @@ export class FirebaseStorage implements Storage {
   }
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
-    const accountRef = doc(this.db, 'accounts', id)
-    const docSnap = await getDoc(accountRef)
-    if (!docSnap.exists()) {
-      return undefined
-    }
+    const accounts = this.db.collection('accounts')
+    const snapshot = await accounts.doc(id).get()
+    if (!snapshot) return
 
     return {
-      ...docSnap.data(),
+      ...snapshot.data(),
       id
     } as Account
   }
@@ -183,7 +152,8 @@ export class FirebaseStorage implements Storage {
     createdAt
   }: CreateActorParams) {
     const currentTime = Date.now()
-    await addDoc(collection(this.db, 'actors'), {
+    const actors = this.db.collection('actors')
+    await actors.add({
       id: actorId,
       username,
       name,
@@ -226,41 +196,40 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorFromEmail({ email }: GetActorFromEmailParams) {
-    const accounts = collection(this.db, 'accounts')
-    const accountQuery = query(accounts, where('email', '==', email), limit(1))
-    const accountsSnapshot = await getDocs(accountQuery)
-    if (accountsSnapshot.docs.length !== 1) return undefined
+    const accounts = this.db.collection('accounts')
+    const accountsSnapshot = await accounts
+      .where('email', '==', email)
+      .limit(1)
+      .get()
+    if (accountsSnapshot.docs.length !== 1) return
 
     const accountId = accountsSnapshot.docs[0].id
-    const actors = collection(this.db, 'actors')
-    const actorsQuery = query(
-      actors,
-      where('accountId', '==', accountId),
-      limit(1)
-    )
-    const actorsSnapshot = await getDocs(actorsQuery)
-    if (actorsSnapshot.docs.length !== 1) return undefined
+    const actors = this.db.collection('actors')
+    const actorsSnapshot = await actors
+      .where('accountId', '==', accountId)
+      .limit(1)
+      .get()
+    if (actorsSnapshot.docs.length !== 1) return
 
     const data = actorsSnapshot.docs[0].data()
-    if (!data.accountId) {
-      return this.getActorFromDataAndAccount(data)
-    }
+    const account = {
+      ...accountsSnapshot.docs[0].data(),
+      id: accountId
+    } as Account
 
-    const account = await this.getAccountFromId({ id: data.accountId })
     return this.getActorFromDataAndAccount(data, account)
   }
 
-  async getActorFromUsername({ username }: GetActorFromUsernameParams) {
-    const actors = collection(this.db, 'actors')
-    const actorsQuery = query(
-      actors,
-      where('username', '==', username),
-      limit(1)
-    )
-    const actorsSnapshot = await getDocs(actorsQuery)
-    if (actorsSnapshot.docs.length !== 1) return undefined
+  async getActorFromUsername({ username, domain }: GetActorFromUsernameParams) {
+    const actors = this.db.collection('actors')
+    const snapshot = await actors
+      .where('username', '==', username)
+      .where('domain', '==', domain)
+      .limit(1)
+      .get()
+    if (snapshot.docs.length !== 1) return undefined
 
-    const data = actorsSnapshot.docs[0].data()
+    const data = snapshot.docs[0].data()
     if (!data.accountId) {
       return this.getActorFromDataAndAccount(data)
     }
@@ -270,12 +239,11 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorFromId({ id }: GetActorFromIdParams) {
-    const actors = collection(this.db, 'actors')
-    const actorsQuery = query(actors, where('id', '==', id), limit(1))
-    const actorsSnapshot = await getDocs(actorsQuery)
-    if (actorsSnapshot.docs.length !== 1) return undefined
+    const actors = this.db.collection('actors')
+    const snapshot = await actors.where('id', '==', id).limit(1).get()
+    if (snapshot.docs.length !== 1) return
 
-    const data = actorsSnapshot.docs[0].data()
+    const data = snapshot.docs[0].data()
     if (!data.accountId) {
       return this.getActorFromDataAndAccount(data)
     }
@@ -298,77 +266,66 @@ export class FirebaseStorage implements Storage {
     inboxUrl,
     sharedInboxUrl
   }: UpdateActorParams) {
-    const actors = collection(this.db, 'actors')
-    const actorsQuery = query(actors, where('id', '==', actorId), limit(1))
-    const actorsSnapshot = await getDocs(actorsQuery)
-    if (actorsSnapshot.docs.length !== 1) return undefined
+    const actors = this.db.collection('actors')
+    const snapshot = await actors.where('id', '==', actorId).limit(1).get()
+    if (snapshot.docs.length !== 1) return undefined
 
     const currentTime = Date.now()
-    const document = actorsSnapshot.docs[0]
-    await setDoc(doc(this.db, 'actors', document.id), {
-      ...document.data(),
+    await actors.doc(snapshot.docs[0].id).update({
+      ...snapshot.docs[0].data(),
       ...(iconUrl ? { iconUrl } : null),
       ...(headerImageUrl ? { headerImageUrl } : null),
       ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null),
       ...(name ? { name } : null),
       ...(summary ? { summary } : null),
-
       ...(publicKey ? { publicKey } : null),
-
       ...(followersUrl ? { followersUrl } : null),
       ...(inboxUrl ? { inboxUrl } : null),
       ...(sharedInboxUrl ? { sharedInboxUrl } : null),
-
       updatedAt: currentTime
     })
-
     return this.getActorFromId({ id: actorId })
   }
 
   async deleteActor({ actorId }: DeleteActorParams): Promise<void> {
-    const actors = collection(this.db, 'actors')
-    const actorsQuery = query(actors, where('id', '==', actorId), limit(1))
-    const actorsSnapshot = await getDocs(actorsQuery)
-    if (actorsSnapshot.docs.length !== 1) return
+    const actors = this.db.collection('actors')
+    const snapshot = await actors.where('id', '==', actorId).limit(1).get()
 
-    const document = actorsSnapshot.docs[0]
-    await deleteDoc(doc(this.db, 'actors', document.id))
+    if (snapshot.docs.length !== 1) return
+    await actors.doc(snapshot.docs[0].id).delete()
   }
 
   async isCurrentActorFollowing({
     currentActorId,
     followingActorId
   }: IsCurrentActorFollowingParams) {
-    const follows = collection(this.db, 'follows')
-    const followsQuery = query(
-      follows,
-      where('actorId', '==', currentActorId),
-      where('targetActorId', '==', followingActorId),
-      where('status', '==', FollowStatus.Accepted)
-    )
-    const snapshot = await getCountFromServer(followsQuery)
+    const follows = this.db.collection('follows')
+    const snapshot = await follows
+      .where('actorId', '==', currentActorId)
+      .where('targetActorId', '==', followingActorId)
+      .where('status', '==', FollowStatus.Accepted)
+      .count()
+      .get()
     return snapshot.data().count > 0
   }
 
   async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
-    const follows = collection(this.db, 'follows')
-    const followsQuery = query(
-      follows,
-      where('actorId', '==', actorId),
-      where('status', '==', FollowStatus.Accepted)
-    )
-    const snapshot = await getCountFromServer(followsQuery)
+    const follows = this.db.collection('follows')
+    const snapshot = await follows
+      .where('actorId', '==', actorId)
+      .where('status', '==', FollowStatus.Accepted)
+      .count()
+      .get()
     return snapshot.data().count
   }
 
   async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
-    const follows = collection(this.db, 'follows')
-    const followsQuery = query(
-      follows,
-      where('targetActorId', '==', actorId),
-      where('status', '==', FollowStatus.Accepted)
-    )
-    const snapshot = await getCountFromServer(followsQuery)
+    const follows = this.db.collection('follows')
+    const snapshot = await follows
+      .where('targetActorId', '==', actorId)
+      .where('status', '==', FollowStatus.Accepted)
+      .count()
+      .get()
     return snapshot.data().count
   }
 
@@ -399,92 +356,70 @@ export class FirebaseStorage implements Storage {
       createdAt: currentTime,
       updatedAt: currentTime
     }
-    const followRef = await addDoc(collection(this.db, 'follows'), content)
+    const follows = this.db.collection('follows')
+    const ref = await follows.add(content)
     return {
-      id: followRef.id,
+      id: ref.id,
       ...content
     }
   }
 
   async getFollowFromId({ followId }: GetFollowFromIdParams) {
-    const docRef = doc(this.db, 'follows', followId)
-    const docSnap = await getDoc(docRef)
+    const follows = this.db.collection('follows')
+    const snapshot = await follows.doc(followId).get()
+    if (!snapshot) return
 
-    if (!docSnap.exists()) {
-      return undefined
-    }
-
-    const followData = docSnap.data()
+    const data = snapshot.data()
     return {
       id: followId,
-      actorHost: new URL(followData.actorId).host,
-      targetActorHost: new URL(followData.targetActorId).host,
-      ...followData
+      actorHost: new URL(data?.actorId).host,
+      targetActorHost: new URL(data?.targetActorId).host,
+      ...data
     } as Follow
   }
 
   async getLocalFollowersForActorId({
     targetActorId
   }: GetLocalFollowersForActorIdParams) {
-    const follows = collection(this.db, 'follows')
-    const followsQuery = query(
-      follows,
-      where('targetActorId', '==', targetActorId),
-      where('actorHost', '==', getConfig().host),
-      where('status', '==', FollowStatus.Accepted)
-    )
-    const followsSnapshot = await getDocs(followsQuery)
-    return followsSnapshot.docs.map((doc) => doc.data() as Follow)
+    const url = new URL(targetActorId)
+    const follows = this.db.collection('follows')
+    const snapshot = await follows
+      .where('targetActorId', '==', targetActorId)
+      .where('actorHost', '==', url.hostname)
+      .where('status', '==', FollowStatus.Accepted)
+      .get()
+    return snapshot.docs.map((doc) => doc.data() as Follow)
   }
 
   async getAcceptedOrRequestedFollow({
     actorId,
     targetActorId
   }: GetAcceptedOrRequestedFollowParams) {
-    const follows = collection(this.db, 'follows')
-    const followsQuery = query(
-      follows,
-      where('actorId', '==', actorId),
-      where('targetActorId', '==', targetActorId),
-      where('status', 'in', [FollowStatus.Accepted, FollowStatus.Requested]),
-      orderBy('createdAt', 'desc'),
-      limit(1)
-    )
-    const followsSnapshot = await getDocs(followsQuery)
-    if (followsSnapshot.docs.length !== 1) return undefined
-
-    const followData = followsSnapshot.docs[0].data()
+    const follows = this.db.collection('follows')
+    const snapshot = await follows
+      .where('actorId', '==', actorId)
+      .where('targetActorId', '==', targetActorId)
+      .where('status', 'in', [FollowStatus.Accepted, FollowStatus.Requested])
+      .orderBy('createdAt', 'desc')
+      .limit(1)
+      .get()
+    if (snapshot.docs.length !== 1) return
+    const document = snapshot.docs[0]
+    const data = document.data()
     return {
-      id: followsSnapshot.docs[0].id,
-      actorHost: new URL(followData.actorId).host,
-      targetActorHost: new URL(followData.targetActorId).host,
-      ...followData
+      ...data,
+      id: document.id,
+      actorHost: new URL(data.actorId).host,
+      targetActorHost: new URL(data.targetActorId).host
     } as Follow
   }
 
-  async getFollowersHosts({ targetActorId }: GetFollowersHostsParams) {
-    const follows = collection(this.db, 'follows')
-    const followsQuery = query(
-      follows,
-      where('targetActorId', '==', targetActorId),
-      where('status', '==', FollowStatus.Accepted)
-    )
-    const followsSnapshot = await getDocs(followsQuery)
-    const hosts: Set<string> = new Set()
-    followsSnapshot.forEach((doc) =>
-      hosts.add(new URL(doc.data().actorId).host)
-    )
-    return Array.from(hosts)
-  }
-
   async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {
-    const follows = collection(this.db, 'follows')
-    const followsQuery = query(
-      follows,
-      where('targetActorId', '==', targetActorId),
-      where('status', '==', FollowStatus.Accepted)
-    )
-    const snapshot = await getDocs(followsQuery)
+    const follows = this.db.collection('follows')
+    const snapshot = await follows
+      .where('targetActorId', '==', targetActorId)
+      .where('status', '==', FollowStatus.Accepted)
+      .get()
     return Array.from(
       snapshot.docs.reduce((uniqueInboxes, document) => {
         const data = document.data()
@@ -497,12 +432,10 @@ export class FirebaseStorage implements Storage {
 
   async updateFollowStatus({ followId, status }: UpdateFollowStatusParams) {
     const follow = await this.getFollowFromId({ followId })
-    if (!follow) {
-      return
-    }
+    if (!follow) return
 
-    const follwRef = doc(this.db, 'follows', follow.id)
-    await updateDoc(follwRef, {
+    const ref = this.db.collection('follows').doc(follow.id)
+    await ref.update({
       status,
       updatedAt: Date.now()
     })
@@ -543,8 +476,9 @@ export class FirebaseStorage implements Storage {
       reply,
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
-    } as any
-    await addDoc(collection(this.db, 'statuses'), {
+    } as StatusNote
+    const statuses = this.db.collection('statuses')
+    await statuses.add({
       ...status,
       localRecipients: local,
       localActorForReply: FirebaseStorage.getLocalActorFromReply(actorId, reply)
@@ -583,10 +517,9 @@ export class FirebaseStorage implements Storage {
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
     } as any
-    await addDoc(collection(this.db, 'statuses'), {
-      ...status,
-      localRecipients: local
-    })
+
+    const statuses = this.db.collection('statuses')
+    await statuses.add(status)
 
     const originalStatus = await this.getStatus({ statusId: originalStatusId })
     const announceData: StatusAnnounce = {
@@ -597,13 +530,11 @@ export class FirebaseStorage implements Storage {
   }
 
   private async getBoostedByStatuses(statusId: string) {
-    const statuses = collection(this.db, 'statuses')
-    const statusesQuery = query(
-      statuses,
-      where('originalStatusId', '==', statusId)
-    )
-    const statusesSnapshot = await getDocs(statusesQuery)
-    return statusesSnapshot.docs.map((doc) => {
+    const statuses = this.db.collection('statuses')
+    const snapshot = await statuses
+      .where('originalStatusId', '==', statusId)
+      .get()
+    return snapshot.docs.map((doc) => {
       const data = doc.data()
       return data.id
     })
@@ -667,27 +598,23 @@ export class FirebaseStorage implements Storage {
   }
 
   async getStatus({ statusId }: GetStatusParams) {
-    const statuses = collection(this.db, 'statuses')
-    const statusesQuery = query(statuses, where('id', '==', statusId), limit(1))
-    const statusesSnapshot = await getDocs(statusesQuery)
-    if (statusesSnapshot.docs.length !== 1) return undefined
-
-    const data = statusesSnapshot.docs[0].data()
+    const statuses = this.db.collection('statuses')
+    const snapshot = await statuses.where('id', '==', statusId).limit(1).get()
+    if (snapshot.docs.length !== 1) return
+    const data = snapshot.docs[0].data()
     return this.getStatusFromData(data, true)
   }
 
   async getStatuses({ actorId }: GetStatusesParams) {
-    const statuses = collection(this.db, 'statuses')
-    const statusesQuery = query(
-      statuses,
-      where('localRecipients', 'array-contains', actorId),
-      where('localActorForReply', 'in', ['', actorId]),
-      orderBy('createdAt', 'desc'),
-      limit(30)
-    )
-    const statusesSnapshot = await getDocs(statusesQuery)
+    const statuses = this.db.collection('statuses')
+    const snapshot = await statuses
+      .where('localRecipients', 'array-contains', actorId)
+      .where('localActorForReply', 'in', ['', actorId])
+      .orderBy('createdAt', 'desc')
+      .limit(30)
+      .get()
     return Promise.all(
-      statusesSnapshot.docs.map((item) => {
+      snapshot.docs.map((item) => {
         const data = item.data()
         return this.getStatusFromData(data, false)
       })
@@ -695,22 +622,22 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
-    const statuses = collection(this.db, 'statuses')
-    const statusesQuery = query(statuses, where('actorId', '==', actorId))
-    const snapshot = await getCountFromServer(statusesQuery)
+    const statuses = this.db.collection('statuses')
+    const snapshot = await statuses
+      .where('actorId', '==', actorId)
+      .count()
+      .get()
     return snapshot.data().count
   }
 
   async getActorStatuses({ actorId }: GetActorStatusesParams) {
-    const statuses = collection(this.db, 'statuses')
-    const statusesQuery = query(
-      statuses,
-      where('actorId', '==', actorId),
-      where('reply', '==', ''),
-      orderBy('createdAt', 'desc'),
-      limit(20)
-    )
-    const snapshot = await getDocs(statusesQuery)
+    const statuses = this.db.collection('statuses')
+    const snapshot = await statuses
+      .where('actorId', '==', actorId)
+      .where('reply', '==', '')
+      .orderBy('createdAt', 'desc')
+      .limit(20)
+      .get()
     return Promise.all(
       snapshot.docs.map((item) => {
         const data = item.data()
@@ -720,13 +647,12 @@ export class FirebaseStorage implements Storage {
   }
 
   async deleteStatus({ statusId }: DeleteStatusParams) {
-    const statuses = collection(this.db, 'statuses')
-    const statusesQuery = query(statuses, where('id', '==', statusId), limit(1))
-    const statusesSnapshot = await getDocs(statusesQuery)
-    if (statusesSnapshot.docs.length !== 1) return
+    const statuses = this.db.collection('statuses')
+    const snapshot = await statuses.where('id', '==', statusId).limit(1).get()
+    if (snapshot.docs.length !== 1) return
 
-    const document = statusesSnapshot.docs[0]
-    await deleteDoc(doc(this.db, 'statuses', document.id))
+    const document = snapshot.docs[0]
+    await statuses.doc(document.id).delete()
   }
 
   async createAttachment({
@@ -751,17 +677,14 @@ export class FirebaseStorage implements Storage {
       createdAt: currentTime,
       updatedAt: currentTime
     }
-    await addDoc(collection(this.db, 'attachments'), data)
+    const attachments = this.db.collection('attachments')
+    await attachments.add(data)
     return new Attachment(data)
   }
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
-    const attachments = collection(this.db, 'attachments')
-    const attachmentsQuery = query(
-      attachments,
-      where('statusId', '==', statusId)
-    )
-    const snapshot = await getDocs(attachmentsQuery)
+    const attachments = this.db.collection('attachments')
+    const snapshot = await attachments.where('statusId', '==', statusId).get()
     return snapshot.docs.map(
       (item) => new Attachment(item.data() as AttachmentData)
     )
@@ -778,27 +701,25 @@ export class FirebaseStorage implements Storage {
       createdAt: currentTime,
       updatedAt: currentTime
     }
-    await addDoc(collection(this.db, 'tags'), data)
+    const tags = this.db.collection('tags')
+    await tags.add(data)
     return new Tag(data)
   }
 
   async getTags({ statusId }: GetTagsParams) {
-    const tags = collection(this.db, 'tags')
-    const tagsQuery = query(tags, where('statusId', '==', statusId))
-    const snapshot = await getDocs(tagsQuery)
+    const tags = this.db.collection('tags')
+    const snapshot = await tags.where('statusId', '==', statusId).get()
     return snapshot.docs.map((item) => new Tag(item.data() as TagData))
   }
 
   private async getReplies(statusId: string) {
-    const statuses = collection(this.db, 'statuses')
-    const statusesQuery = query(
-      statuses,
-      where('reply', '==', statusId),
-      orderBy('createdAt', 'desc')
-    )
-    const statusesSnapshot = await getDocs(statusesQuery)
+    const statuses = this.db.collection('statuses')
+    const snapshot = await statuses
+      .where('reply', '==', statusId)
+      .orderBy('createdAt', 'desc')
+      .get()
     const replies = await Promise.all(
-      statusesSnapshot.docs.map(async (item) => {
+      snapshot.docs.map(async (item) => {
         const data = item.data()
         const status = await this.getStatusFromData(data, false)
         if (status.data.type !== StatusType.Note) return null

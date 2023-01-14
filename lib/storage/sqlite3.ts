@@ -35,7 +35,6 @@ import {
   GetActorStatusesParams,
   GetAttachmentsParams,
   GetFollowFromIdParams,
-  GetFollowersHostsParams,
   GetFollowersInboxParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
@@ -91,7 +90,6 @@ export class Sqlite3Storage implements Storage {
   }
 
   async isAccountExists({ email }: IsAccountExistsParams) {
-    if (!email) return false
     const result = await this.database('accounts')
       .where('email', email)
       .count('id as count')
@@ -245,9 +243,10 @@ export class Sqlite3Storage implements Storage {
     return Boolean(result?.count && result?.count > 0)
   }
 
-  async getActorFromUsername({ username }: GetActorFromUsernameParams) {
+  async getActorFromUsername({ username, domain }: GetActorFromUsernameParams) {
     const storageActor = await this.database<SQLActor>('actors')
       .where('username', username)
+      .andWhere('domain', domain)
       .first()
     if (!storageActor) return undefined
 
@@ -372,9 +371,10 @@ export class Sqlite3Storage implements Storage {
   async getLocalFollowersForActorId({
     targetActorId
   }: GetLocalFollowersForActorIdParams) {
+    const url = new URL(targetActorId)
     return this.database<Follow>('follows')
       .where('targetActorId', targetActorId)
-      .where('actorHost', getConfig().host)
+      .where('actorHost', url.hostname)
       .whereIn('status', [FollowStatus.Accepted])
       .orderBy('createdAt', 'desc')
   }
@@ -389,15 +389,6 @@ export class Sqlite3Storage implements Storage {
       .whereIn('status', [FollowStatus.Accepted, FollowStatus.Requested])
       .orderBy('createdAt', 'desc')
       .first()
-  }
-
-  async getFollowersHosts({ targetActorId }: GetFollowersHostsParams) {
-    const hosts = await this.database<Follow>('follows')
-      .select('actorHost')
-      .where('targetActorId', targetActorId)
-      .where('status', FollowStatus.Accepted)
-      .distinct()
-    return hosts.map((item) => item.actorHost)
   }
 
   async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {

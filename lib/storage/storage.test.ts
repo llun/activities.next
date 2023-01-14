@@ -67,7 +67,9 @@ describe('Storage', () => {
       'firestore',
       new FirebaseStorage({
         type: 'firebase',
-        projectId: 'test'
+        projectId: 'test',
+        host: 'localhost:8080',
+        ssl: false
       })
     ]
   ]
@@ -75,10 +77,6 @@ describe('Storage', () => {
   beforeAll(async () => {
     const sqlItem = testTable.find((value) => value[0] === 'sqlite')
     if (sqlItem) await (sqlItem[1] as Sqlite3Storage).migrate()
-
-    const firestoreItem = testTable.find((value) => value[0] === 'firestore')
-    if (firestoreItem)
-      await (firestoreItem[1] as FirebaseStorage).connectEmulator()
   })
 
   afterAll(async () => {
@@ -156,8 +154,12 @@ describe('Storage', () => {
           (await storage.getActorFromEmail({ email: TEST_EMAIL }))?.data
         ).toMatchObject(expectedActorAfterCreated)
         expect(
-          (await storage.getActorFromUsername({ username: TEST_USERNAME }))
-            ?.data
+          (
+            await storage.getActorFromUsername({
+              username: TEST_USERNAME,
+              domain: TEST_DOMAIN
+            })
+          )?.data
         ).toMatchObject(expectedActorAfterCreated)
         expect(
           (await storage.getActorFromId({ id: TEST_ID }))?.data
@@ -172,7 +174,10 @@ describe('Storage', () => {
         })
 
         expect(
-          await storage.getActorFromUsername({ username: TEST_USERNAME })
+          await storage.getActorFromUsername({
+            username: TEST_USERNAME,
+            domain: TEST_DOMAIN
+          })
         ).toMatchObject({
           name: 'llun',
           summary: 'This is test actor'
@@ -209,9 +214,6 @@ describe('Storage', () => {
         expect(
           await storage.getActorFollowingCount({ actorId: TEST_ID })
         ).toEqual(0)
-        expect(
-          await storage.getFollowersHosts({ targetActorId: TEST_ID })
-        ).toEqual([])
         expect(
           await storage.getFollowersInbox({ targetActorId: TEST_ID })
         ).toEqual([])
@@ -356,9 +358,6 @@ describe('Storage', () => {
           await storage.getActorFollowingCount({ actorId: TEST_ID3 })
         ).toEqual(1)
 
-        expect(await storage.getFollowersHosts({ targetActorId })).toEqual([
-          'llun.test'
-        ])
         expect(await storage.getFollowersInbox({ targetActorId })).toEqual([
           sharedInbox
         ])
@@ -380,9 +379,6 @@ describe('Storage', () => {
           await storage.getActorFollowersCount({ actorId: TEST_ID4 })
         ).toEqual(1)
 
-        expect(
-          await storage.getFollowersHosts({ targetActorId: TEST_ID4 })
-        ).toEqual(['llun.dev'])
         expect(
           await storage.getFollowersInbox({ targetActorId: TEST_ID4 })
         ).toEqual([sharedInbox])

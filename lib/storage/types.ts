@@ -5,7 +5,7 @@ import { Follow, FollowStatus } from '../models/follow'
 import { Status } from '../models/status'
 import { Tag } from '../models/tag'
 
-export type IsAccountExistsParams = { email?: string }
+export type IsAccountExistsParams = { email: string }
 export type IsUsernameExistsParams = { username: string; domain: string }
 export type CreateAccountParams = {
   email: string
@@ -36,7 +36,7 @@ export type CreateActorParams = {
   createdAt: number
 }
 export type GetActorFromEmailParams = { email: string }
-export type GetActorFromUsernameParams = { username: string }
+export type GetActorFromUsernameParams = { username: string; domain: string }
 export type GetActorFromIdParams = { id: string }
 export type IsCurrentActorFollowingParams = {
   currentActorId: string
@@ -75,7 +75,6 @@ export type GetAcceptedOrRequestedFollowParams = {
   actorId: string
   targetActorId: string
 }
-export type GetFollowersHostsParams = { targetActorId: string }
 export type GetFollowersInboxParams = { targetActorId: string }
 export type UpdateFollowStatusParams = {
   followId: string
@@ -164,7 +163,6 @@ export interface Storage {
   getAcceptedOrRequestedFollow(
     params: GetAcceptedOrRequestedFollowParams
   ): Promise<Follow | undefined>
-  getFollowersHosts(params: GetFollowersHostsParams): Promise<string[]>
   getFollowersInbox(params: GetFollowersInboxParams): Promise<string[]>
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
 

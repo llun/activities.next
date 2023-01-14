@@ -160,10 +160,12 @@ describe('#getMentions', () => {
     await storage.migrate()
     await seedStorage(storage)
     actor1 = await storage.getActorFromUsername({
-      username: seedActor1.username
+      username: seedActor1.username,
+      domain: seedActor1.domain
     })
     actor2 = await storage.getActorFromUsername({
-      username: seedActor2.username
+      username: seedActor2.username,
+      domain: seedActor2.domain
     })
   })
 

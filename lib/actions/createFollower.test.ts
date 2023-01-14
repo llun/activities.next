@@ -23,7 +23,8 @@ describe('#createFollower', () => {
     await storage.migrate()
     await seedStorage(storage)
     actor = await storage.getActorFromUsername({
-      username: seedActor1.username
+      username: seedActor1.username,
+      domain: seedActor1.domain
     })
   })
 

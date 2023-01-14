@@ -30,7 +30,8 @@ describe('#deliverTo', () => {
     await storage.migrate()
     await seedStorage(storage)
     actor1 = await storage.getActorFromUsername({
-      username: seedActor1.username
+      username: seedActor1.username,
+      domain: seedActor1.domain
     })
   })
 
