@@ -1,4 +1,4 @@
-import { Firestore as ServerFirestore, Settings } from '@google-cloud/firestore'
+import { Firestore, Settings } from '@google-cloud/firestore'
 import crypto from 'crypto'
 
 import { deliverTo } from '.'
@@ -53,10 +53,10 @@ export interface FirebaseConfig extends Settings {
 }
 
 export class FirebaseStorage implements Storage {
-  readonly db: ServerFirestore
+  readonly db: Firestore
 
   constructor(config: FirebaseConfig) {
-    this.db = new ServerFirestore(config)
+    this.db = new Firestore(config)
   }
 
   async destroy() {
