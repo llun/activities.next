@@ -1,8 +1,8 @@
 import * as linkify from 'linkifyjs'
 
-import '../linkify-mention'
 import { getPublicProfileFromHandle } from './activities'
 import { Mention } from './activities/entities/mention'
+import './linkify-mention'
 import { Actor } from './models/actor'
 import { Status } from './models/status'
 
