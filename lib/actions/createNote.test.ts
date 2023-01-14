@@ -325,7 +325,6 @@ How are you?
         storage
       })
 
-      console.log(fetchMock.mock.calls)
       const matchObject = {
         id: `${status?.id}/activity`,
         type: 'Create',

@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import * as linkify from 'linkifyjs'
 
-import { getPersonFromHandle, sendNote } from '../activities'
+import { getPersonFromHandle, getPublicProfile, sendNote } from '../activities'
 import { Mention } from '../activities/entities/mention'
 import {
   Note,
@@ -205,9 +205,29 @@ export const createNoteFromUserInput = async ({
   const status = await storage.getStatus({ statusId })
   if (!status) return null
 
-  const inboxes = await storage.getFollowersInbox({
+  const currentActorUrl = new URL(currentActor.id)
+  const remoteActorsInbox = (
+    await Promise.all(
+      mentions
+        .filter((item) => !item.href.startsWith(currentActorUrl.origin))
+        .map((item) => item.href)
+        .map(async (id) => {
+          const actor = await storage.getActorFromId({ id })
+          if (actor) return actor.sharedInboxUrl || actor.inboxUrl
+
+          const profile = await getPublicProfile({ actorId: id })
+          if (profile)
+            return profile.endpoints.sharedInbox || profile.endpoints.inbox
+          return null
+        })
+    )
+  ).filter((item): item is string => item !== null)
+
+  const followersInbox = await storage.getFollowersInbox({
     targetActorId: currentActor.id
   })
+
+  const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
   await Promise.all(
     inboxes.map((inbox) => {
       return sendNote({
