@@ -198,7 +198,7 @@ export const getPublicProfile = async ({
   }
 }
 
-export const getPersonFromHandle = async (
+export const getPublicProfileFromHandle = async (
   account: string,
   withCollectionCount = false
 ) => {

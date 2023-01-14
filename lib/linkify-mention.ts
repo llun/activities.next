@@ -39,7 +39,7 @@ const MentionToken = createTokenClass('mention', {
       return `//${domain}/@${user}`
     }
 
-    return '/' + this.toString().slice(1)
+    return '/' + fragments[0]
   }
 })
 

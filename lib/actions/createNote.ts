@@ -1,7 +1,11 @@
 import crypto from 'crypto'
 import * as linkify from 'linkifyjs'
 
-import { getPersonFromHandle, getPublicProfile, sendNote } from '../activities'
+import {
+  getPublicProfile,
+  getPublicProfileFromHandle,
+  sendNote
+} from '../activities'
 import { Mention } from '../activities/entities/mention'
 import {
   Note,
@@ -108,7 +112,7 @@ export const getMentions = async ({
       .map(async ([value, user, host]) => {
         try {
           const userHost = host ?? currentActor.domain
-          const person = await getPersonFromHandle(`${user}@${userHost}`)
+          const person = await getPublicProfileFromHandle(`${user}@${userHost}`)
           if (!person) return null
           return {
             type: 'Mention',

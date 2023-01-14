@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import { useEffect, useState } from 'react'
 
-import { PublicProfile, getPersonFromHandle } from '../../lib/activities'
+import { PublicProfile, getPublicProfileFromHandle } from '../../lib/activities'
 import { isFollowing } from '../../lib/client'
 import { FollowAction } from '../../lib/components/FollowAction'
 import { Header } from '../../lib/components/Header'
@@ -100,7 +100,7 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
   }
 
   const [account, domain] = parts
-  const person = await getPersonFromHandle(`${account}@${domain}`)
+  const person = await getPublicProfileFromHandle(`${account}@${domain}`)
   if (!person) {
     return { notFound: true }
   }

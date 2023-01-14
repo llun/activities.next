@@ -1,6 +1,11 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { follow, getPersonFromHandle, getWebfingerSelf, sendNote } from '.'
+import {
+  follow,
+  getPublicProfileFromHandle,
+  getWebfingerSelf,
+  sendNote
+} from '.'
 import { Actor } from '../models/actor'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
@@ -53,9 +58,9 @@ describe('activities', () => {
     })
   })
 
-  describe('#getPersonFromHandle', () => {
+  describe('#getPublicProfileFromHandle', () => {
     it('get url from webFinger and getPerson info from user id', async () => {
-      const person = await getPersonFromHandle('@test1@llun.test')
+      const person = await getPublicProfileFromHandle('@test1@llun.test')
       expect(person).toMatchObject({
         ...MockPerson({
           id: ACTOR1_ID
