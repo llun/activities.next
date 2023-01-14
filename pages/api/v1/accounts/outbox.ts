@@ -22,19 +22,6 @@ const handler = ApiGuard(async (req, res, context) => {
         return res.status(500).json({ error: 'Fail to create note' })
       }
 
-      const inboxes = await storage.getFollowersInbox({
-        targetActorId: currentActor.id
-      })
-      await Promise.all(
-        inboxes.map((inbox) => {
-          return sendNote({
-            currentActor,
-            inbox,
-            note: status.toObject()
-          })
-        })
-      )
-
       return res.status(200).json({
         status: status?.toJson(),
         note: status.toObject(),

@@ -1,10 +1,10 @@
-import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+import fetchMock, { FetchMock, enableFetchMocks } from 'jest-fetch-mock'
 
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { Status, StatusType } from '../models/status'
 import { Sqlite3Storage } from '../storage/sqlite3'
-import { mockRequests } from '../stub/activities'
+import { expectCall, mockRequests } from '../stub/activities'
 import { MockImageDocument } from '../stub/imageDocument'
 import { MockLitepubNote, MockMastodonNote } from '../stub/note'
 import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
@@ -167,6 +167,15 @@ describe('Create note action', () => {
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [`${actor1.id}/followers`]
       })
+
+      expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
+        id: `${status?.id}/activity`,
+        type: 'Create',
+        actor: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [actor1.followersUrl],
+        object: status?.toObject()
+      })
     })
 
     it('set reply to replyStatus id', async () => {
@@ -181,6 +190,15 @@ describe('Create note action', () => {
       expect(status?.data).toMatchObject({
         reply: `${actor2?.id}/statuses/post-2`,
         cc: expect.toContainValue(actor2?.id)
+      })
+
+      expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
+        id: `${status?.id}/activity`,
+        type: 'Create',
+        actor: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [actor1.followersUrl, ACTOR2_ID],
+        object: status?.toObject()
       })
     })
 
@@ -213,6 +231,15 @@ How are you?
         type: 'Mention',
         href: ACTOR2_ID,
         name: '@test2@llun.test'
+      })
+
+      expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
+        id: `${status?.id}/activity`,
+        type: 'Create',
+        actor: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [actor1.followersUrl, ACTOR2_ID],
+        object: status?.toObject()
       })
     })
 
@@ -255,6 +282,72 @@ How are you?
         href: 'https://somewhere.test/actors/test3',
         name: '@test3@somewhere.test'
       })
+
+      const followersInboxCall = fetchMock.mock.calls.find(
+        (call) => call[0] === 'https://somewhere.test/inbox'
+      )
+      if (!followersInboxCall) {
+        fail('Follower inbox call must be exist')
+      }
+
+      const request = followersInboxCall[1]
+      const body = JSON.parse(request?.body as string)
+
+      expect(followersInboxCall[0]).toEqual('https://somewhere.test/inbox')
+      expect(followersInboxCall[1]?.method).toEqual('POST')
+      expect(body).toMatchObject({
+        id: `${status?.id}/activity`,
+        type: 'Create',
+        actor: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [
+          actor1.followersUrl,
+          ACTOR2_ID,
+          'https://somewhere.test/actors/test3'
+        ],
+        object: status?.toObject()
+      })
+    })
+
+    it('send to everyone inboxes', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const text = `
+@test2@llun.test @test3@somewhere.test @test4@no.shared.inbox @test5@somewhere.test
+
+Hello, people
+
+How are you?
+`
+      const status = await createNoteFromUserInput({
+        text,
+        currentActor: actor1,
+        storage
+      })
+
+      console.log(fetchMock.mock.calls)
+      const matchObject = {
+        id: `${status?.id}/activity`,
+        type: 'Create',
+        actor: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: expect.toContainAllValues([
+          actor1.followersUrl,
+          ACTOR2_ID,
+          'https://somewhere.test/actors/test3',
+          'https://no.shared.inbox/users/test4',
+          'https://somewhere.test/actors/test5'
+        ]),
+        object: status?.toObject()
+      }
+
+      expectCall(
+        fetchMock,
+        'https://no.shared.inbox/users/test4/inbox',
+        'POST',
+        matchObject
+      )
+      expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', matchObject)
     })
   })
 

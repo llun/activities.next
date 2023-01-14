@@ -18,8 +18,8 @@ export interface Person extends ContextEntity {
     owner: string
     publicKeyPem: string
   }
-  endpoints: {
-    sharedInbox: string
+  endpoints?: {
+    sharedInbox?: string
   }
   icon?: Image
   image?: Image

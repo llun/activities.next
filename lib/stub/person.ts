@@ -33,6 +33,29 @@ export const MockActivityPubPerson = ({
 }: Params): Person => {
   const url = new URL(id)
   const username = url.pathname.split('/').pop()
+
+  if (id.startsWith('https://no.shared.inbox')) {
+    return {
+      '@context': [ACTIVITY_STREAM_URL, W3ID_URL],
+      id,
+      type: 'Person',
+      following: `${id}/following`,
+      followers: `${id}/followers`,
+      inbox: `${id}/inbox`,
+      outbox: `${id}/outbox`,
+      preferredUsername: username || '',
+      name: '',
+      summary: '',
+      url: `https://${url.host}/@${username}`,
+      published: getISOTimeUTC(createdAt),
+      publicKey: {
+        id: `${id}#main-key`,
+        owner: id,
+        publicKeyPem: 'public key'
+      }
+    }
+  }
+
   return {
     '@context': [ACTIVITY_STREAM_URL, W3ID_URL],
     id,

@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import * as linkify from 'linkifyjs'
 
-import { getPersonFromHandle } from '../activities'
+import { getPersonFromHandle, sendNote } from '../activities'
 import { Mention } from '../activities/entities/mention'
 import {
   Note,
@@ -201,5 +201,22 @@ export const createNoteFromUserInput = async ({
       })
     )
   ])
-  return storage.getStatus({ statusId })
+
+  const status = await storage.getStatus({ statusId })
+  if (!status) return null
+
+  const inboxes = await storage.getFollowersInbox({
+    targetActorId: currentActor.id
+  })
+  await Promise.all(
+    inboxes.map((inbox) => {
+      return sendNote({
+        currentActor,
+        inbox,
+        note: status.toObject()
+      })
+    })
+  )
+
+  return status
 }

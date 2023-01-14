@@ -175,7 +175,7 @@ export const getPublicProfile = async ({
         followers: person.followers,
         inbox: person.inbox,
         outbox: person.outbox,
-        sharedInbox: person.endpoints?.sharedInbox
+        sharedInbox: person.endpoints?.sharedInbox ?? person.outbox
       },
 
       urls: {

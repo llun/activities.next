@@ -142,3 +142,20 @@ export const mockRequests = (fetchMock: FetchMock) => {
     }
   })
 }
+
+export const expectCall = (
+  fetchMock: FetchMock,
+  url: string,
+  method: string,
+  body: any
+) => {
+  const call = fetchMock.mock.calls.find((call) => call[0] === url)
+  if (!call) fail(`${url} request must exist`)
+
+  const request = call[1]
+  const parsedBody = JSON.parse(request?.body as string)
+
+  expect(call[0]).toEqual(url)
+  expect(call[1]?.method).toEqual(method)
+  expect(parsedBody).toMatchObject(body)
+}
