@@ -2,7 +2,6 @@ import { Firestore, Settings } from '@google-cloud/firestore'
 import crypto from 'crypto'
 
 import { deliverTo } from '.'
-import { getConfig } from '../config'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
@@ -463,12 +462,22 @@ export class FirebaseStorage implements Storage {
     })
   }
 
-  static getLocalActorFromReply(actorId?: string, reply?: string) {
-    const host = `https://${getConfig().host}`
-    if (actorId?.startsWith(host)) return actorId
+  private async getLocalActorFromReply(actorId?: string, reply?: string) {
+    if (actorId) {
+      const actor = await this.getActorFromId({ id: actorId })
+      if (actor?.privateKey) return actorId
+    }
 
     if (!reply) return ''
-    if (!reply.startsWith(host)) return 'external'
+
+    const localActors = await this.db
+      .collection('actors')
+      .where('privateKey', '!=', '')
+      .get()
+    const domains = localActors.docs.map((doc) => doc.data().domain)
+    const url = new URL(reply)
+
+    if (!domains.includes(url.hostname)) return 'external'
     return reply.slice(0, reply.indexOf('/statuses'))
   }
 
@@ -503,7 +512,7 @@ export class FirebaseStorage implements Storage {
     await statuses.add({
       ...status,
       localRecipients: local,
-      localActorForReply: FirebaseStorage.getLocalActorFromReply(actorId, reply)
+      localActorForReply: await this.getLocalActorFromReply(actorId, reply)
     })
 
     const actor = await this.getActorFromId({ id: actorId })
@@ -535,7 +544,7 @@ export class FirebaseStorage implements Storage {
       cc,
       originalStatusId,
       localRecipients: local,
-      localActorForReply: FirebaseStorage.getLocalActorFromReply(actorId, ''),
+      localActorForReply: await this.getLocalActorFromReply(actorId, ''),
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
     } as any
