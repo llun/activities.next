@@ -1,3 +1,4 @@
+import zipObject from 'lodash/zipObject'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function middleware(request: NextRequest) {
@@ -13,8 +14,12 @@ export async function middleware(request: NextRequest) {
     method: request.method.toUpperCase(),
     pathname: request.nextUrl.pathname,
     host: request.nextUrl.host,
+    headers: zipObject(
+      Array.from(request.headers.keys()),
+      Array.from(request.headers.values())
+    ),
     ...(text ? { content: text } : null)
   })
-  console.log(request.headers)
+
   if (request.method !== 'GET') console.log(text)
 }
