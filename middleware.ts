@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
   const text = request.method !== 'GET' ? await request.text() : null
   console.log({
     time: Date.now(),
-    method: request.method.toUpperCase,
+    method: request.method.toUpperCase(),
     pathname: request.nextUrl.pathname,
     host: request.nextUrl.host,
     headers: request.headers,
