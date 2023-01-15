@@ -2,7 +2,6 @@ import crypto from 'crypto'
 import { Knex, knex } from 'knex'
 
 import { deliverTo } from '.'
-import { getConfig } from '../config'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
@@ -371,9 +370,25 @@ export class Sqlite3Storage implements Storage {
   async getLocalFollowersForActorId({
     targetActorId
   }: GetLocalFollowersForActorIdParams) {
+    const actor = await this.getActorFromId({ id: targetActorId })
+    // External actor, all followers are internal
+    if (!actor?.privateKey) {
+      return this.database<Follow>('follows')
+        .where('targetActorId', targetActorId)
+        .whereIn('status', [FollowStatus.Accepted])
+        .orderBy('createdAt', 'desc')
+    }
+
+    const domains = (
+      await this.database('actors')
+        .whereNotNull('privateKey')
+        .select('domain')
+        .distinct()
+    ).map((item) => item.domain)
+
     return this.database<Follow>('follows')
       .where('targetActorId', targetActorId)
-      .where('actorHost', getConfig().host)
+      .whereIn('actorHost', domains)
       .whereIn('status', [FollowStatus.Accepted])
       .orderBy('createdAt', 'desc')
   }

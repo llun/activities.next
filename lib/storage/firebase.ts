@@ -1,6 +1,5 @@
 import { Firestore, Settings } from '@google-cloud/firestore'
 import crypto from 'crypto'
-import util from 'util'
 
 import { deliverTo } from '.'
 import { getConfig } from '../config'
@@ -385,12 +384,32 @@ export class FirebaseStorage implements Storage {
   async getLocalFollowersForActorId({
     targetActorId
   }: GetLocalFollowersForActorIdParams) {
+    const actor = await this.getActorFromId({ id: targetActorId })
+    // External actor, all followers are internal
+    if (!actor?.privateKey) {
+      const follows = this.db.collection('follows')
+      const snapshot = await follows
+        .where('targetActorId', '==', targetActorId)
+        .where('status', '==', FollowStatus.Accepted)
+        .get()
+
+      return snapshot.docs.map((doc) => doc.data() as Follow)
+    }
+
+    // Internal actor, returns only local followers
+    const localActors = await this.db
+      .collection('actors')
+      .where('privateKey', '!=', '')
+      .get()
+    const domains = localActors.docs.map((doc) => doc.data().domain)
+
     const follows = this.db.collection('follows')
     const snapshot = await follows
       .where('targetActorId', '==', targetActorId)
-      .where('actorHost', '==', getConfig().host)
       .where('status', '==', FollowStatus.Accepted)
+      .where('actorHost', 'in', domains)
       .get()
+
     return snapshot.docs.map((doc) => doc.data() as Follow)
   }
 
