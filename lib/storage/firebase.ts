@@ -57,6 +57,9 @@ export class FirebaseStorage implements Storage {
   readonly db: Firestore
 
   constructor(config: FirebaseConfig) {
+    if (process.env.FIREBASE_PRIVATE_KEY && config.credentials) {
+      config.credentials.private_key = process.env.FIREBASE_PRIVATE_KEY
+    }
     console.log('firebase config')
     console.log(util.inspect(config, false, null, false))
     this.db = new Firestore(config)
