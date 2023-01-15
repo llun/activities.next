@@ -13,8 +13,8 @@ export async function middleware(request: NextRequest) {
     method: request.method.toUpperCase(),
     pathname: request.nextUrl.pathname,
     host: request.nextUrl.host,
-    headers: JSON.parse(JSON.stringify(request.headers)),
     ...(text ? { content: text } : null)
   })
+  console.log(request.headers)
   if (request.method !== 'GET') console.log(text)
 }
