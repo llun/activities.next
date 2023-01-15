@@ -28,7 +28,7 @@ export default async function handler(
 
   const actor = await storage.getActorFromUsername({
     username: username as string,
-    domain: req.headers.host || getConfig().host
+    domain: getConfig().host
   })
   if (!actor) {
     return res.status(404).json(ERROR_404)
