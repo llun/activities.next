@@ -1,5 +1,6 @@
 import { Firestore, Settings } from '@google-cloud/firestore'
 import crypto from 'crypto'
+import util from 'util'
 
 import { deliverTo } from '.'
 import { getConfig } from '../config'
@@ -56,6 +57,8 @@ export class FirebaseStorage implements Storage {
   readonly db: Firestore
 
   constructor(config: FirebaseConfig) {
+    console.log('firebase config')
+    console.log(util.inspect(config, false, null, false))
     this.db = new Firestore(config)
   }
 
