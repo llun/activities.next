@@ -7,15 +7,14 @@ export async function middleware(request: NextRequest) {
     )
   }
 
-  console.log(
-    `${new Intl.DateTimeFormat('en-US', {
-      dateStyle: 'short',
-      timeStyle: 'short'
-    }).format(new Date())} ${request.method.toUpperCase()} ${
-      request.nextUrl.pathname
-    }`
-  )
-  if (request.method !== 'GET') {
-    console.log(await request.text())
-  }
+  const text = request.method !== 'GET' ? await request.text() : null
+  console.log({
+    time: Date.now(),
+    method: request.method.toUpperCase,
+    pathname: request.nextUrl.pathname,
+    host: request.nextUrl.host,
+    headers: request.headers,
+    ...(text ? { content: text } : null)
+  })
+  if (request.method !== 'GET') console.log(text)
 }
