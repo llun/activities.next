@@ -2,7 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
 import { Error, WebFinger } from '../../../lib/activities/types'
-import { ERROR_404 } from '../../../lib/errors'
+import { ERROR_404 } from '../../../lib/responses'
 import { getStorage } from '../../../lib/storage'
 
 export default async function handler(

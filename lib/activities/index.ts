@@ -6,7 +6,12 @@ import {
 import { compact } from '../jsonld/index'
 import { Actor, ActorProfile } from '../models/actor'
 import { Follow } from '../models/follow'
-import { Status, StatusData, StatusType } from '../models/status'
+import {
+  Status,
+  StatusAnnounce,
+  StatusData,
+  StatusType
+} from '../models/status'
 import { headers } from '../signature'
 import { getISOTimeUTC } from '../time'
 import { AcceptFollow } from './actions/acceptFollow'
@@ -15,6 +20,7 @@ import { CreateStatus } from './actions/createStatus'
 import { DeleteStatus } from './actions/deleteStatus'
 import { FollowRequest } from './actions/follow'
 import { UndoFollow } from './actions/undoFollow'
+import { UndoStatus } from './actions/undoStatus'
 import { Image } from './entities/image'
 import { Note } from './entities/note'
 import { OrderedCollection } from './entities/orderedCollection'
@@ -371,6 +377,47 @@ export const deleteStatus = async ({
     object: {
       id: statusId,
       type: 'Tombstone'
+    }
+  }
+  try {
+    await fetch(inbox, {
+      method: 'POST',
+      headers: {
+        ...headers(currentActor, 'post', inbox, activity),
+        'User-Agent': USER_AGENT
+      },
+      body: JSON.stringify(activity)
+    })
+  } catch (error: any) {
+    // Ignore fail fetch
+    console.error({ error: error.message, inbox, activity })
+  }
+}
+
+interface UndoAnnounceParams {
+  currentActor: Actor
+  inbox: string
+  announce: StatusAnnounce
+}
+export const undoAnnounce = async ({
+  currentActor,
+  inbox,
+  announce
+}: UndoAnnounceParams) => {
+  const activity: UndoStatus = {
+    '@context': ACTIVITY_STREAM_URL,
+    id: `${announce.id}#undo`,
+    type: 'Undo',
+    actor: currentActor.id,
+    to: [ACTIVITY_STREAM_PUBLIC],
+    object: {
+      id: announce.id,
+      type: 'Announce',
+      actor: currentActor.id,
+      published: getISOTimeUTC(announce.createdAt),
+      to: announce.to,
+      cc: announce.cc,
+      object: announce.originalStatus.id
     }
   }
   try {

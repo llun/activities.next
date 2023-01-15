@@ -1,5 +1,5 @@
-import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
+import { ERROR_404 } from '../../../../lib/responses'
 
 const handler = ApiGuard(async (req, res, context) => {
   const { currentActor, storage } = context

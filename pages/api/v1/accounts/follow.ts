@@ -1,7 +1,7 @@
 import { follow, getPublicProfile } from '../../../../lib/activities'
-import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
 import { FollowStatus } from '../../../../lib/models/follow'
+import { ERROR_404 } from '../../../../lib/responses'
 
 const handler = ApiGuard(async (req, res, context) => {
   const { storage, currentActor } = context

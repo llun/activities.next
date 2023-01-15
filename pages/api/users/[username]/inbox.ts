@@ -5,9 +5,9 @@ import { createFollower } from '../../../../lib/actions/createFollower'
 import { rejectFollowRequest } from '../../../../lib/actions/rejectFollowRequest'
 import { FollowRequest } from '../../../../lib/activities/actions/follow'
 import { UndoFollow } from '../../../../lib/activities/actions/undoFollow'
-import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { activitiesGuard } from '../../../../lib/guard'
 import { FollowStatus } from '../../../../lib/models/follow'
+import { ERROR_400, ERROR_404 } from '../../../../lib/responses'
 import { getStorage } from '../../../../lib/storage'
 
 export default activitiesGuard(

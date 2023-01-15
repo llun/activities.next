@@ -1,5 +1,5 @@
-import { ERROR_404 } from '../../../lib/errors'
 import { SetupGuard } from '../../../lib/guard'
+import { ERROR_404 } from '../../../lib/responses'
 import { generateKeyPair } from '../../../lib/signature'
 
 const handler = SetupGuard(async (req, res, context) => {

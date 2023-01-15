@@ -3,9 +3,9 @@ import type { NextApiHandler } from 'next'
 import { announce } from '../../lib/actions/announce'
 import { createNote } from '../../lib/actions/createNote'
 import { StatusActivity } from '../../lib/activities/actions/status'
-import { ERROR_404, ERROR_500 } from '../../lib/errors'
 import { activitiesGuard } from '../../lib/guard'
 import { compact } from '../../lib/jsonld'
+import { ERROR_404, ERROR_500 } from '../../lib/responses'
 import { getStorage } from '../../lib/storage'
 
 const ApiHandler: NextApiHandler = activitiesGuard(

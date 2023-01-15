@@ -1,7 +1,7 @@
 import type { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
 
 import { getConfig } from '../../../../lib/config'
-import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
+import { ERROR_400, ERROR_404 } from '../../../../lib/responses'
 import { getStorage } from '../../../../lib/storage'
 
 const handle: NextApiHandler = async (

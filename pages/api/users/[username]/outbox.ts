@@ -1,7 +1,7 @@
 import type { NextApiHandler } from 'next'
 
 import { getConfig } from '../../../../lib/config'
-import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
+import { ERROR_400, ERROR_404 } from '../../../../lib/responses'
 import { getStorage } from '../../../../lib/storage'
 import { getISOTimeUTC } from '../../../../lib/time'
 
