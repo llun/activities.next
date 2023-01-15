@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
-import { Link } from '../../../lib/activities/types'
-import { getConfig } from '../../../lib/config'
+import { Link } from '../../../../lib/activities/types'
+import { getConfig } from '../../../../lib/config'
 
 type Data = {
   links: Link[]
@@ -16,7 +16,7 @@ export default async function handler(
     links: [
       {
         rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-        href: `https://${config.host}/nodeinfo`
+        href: `https://${config.host}/.well-known/nodeinfo/2.0`
       }
     ]
   })
