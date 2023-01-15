@@ -27,18 +27,21 @@ export default async function handler(
   if (!actor?.privateKey) res.status(404).json(ERROR_404)
 
   res.status(200).json({
-    subject: `acct:${account}@${domain}`,
-    aliases: [`https://${domain}/@${account}`, `https://${domain}/users/llun`],
+    subject: `acct:${username}@${domain}`,
+    aliases: [
+      `https://${domain}/@${username}`,
+      `https://${domain}/users/${username}`
+    ],
     links: [
       {
         rel: 'http://webfinger.net/rel/profile-page',
         type: 'text/html',
-        href: `https://${domain}/@${account}`
+        href: `https://${domain}/@${username}`
       },
       {
         rel: 'self',
         type: 'application/activity+json',
-        href: `https://${domain}/users/${account}`
+        href: `https://${domain}/users/${username}`
       }
     ]
   })
