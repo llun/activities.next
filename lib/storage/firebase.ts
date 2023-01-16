@@ -1,5 +1,6 @@
 import { Firestore, Settings } from '@google-cloud/firestore'
 import crypto from 'crypto'
+import fs from 'fs'
 
 import { deliverTo } from '.'
 import { Account } from '../models/account'
@@ -574,7 +575,7 @@ export class FirebaseStorage implements Storage {
   private async getStatusFromData(
     data: any,
     withReplies: boolean
-  ): Promise<Status> {
+  ): Promise<Status | undefined> {
     if (data.type === StatusType.Announce) {
       const [originalStatus, actor] = await Promise.all([
         this.getStatus({
@@ -584,6 +585,7 @@ export class FirebaseStorage implements Storage {
           id: data.actorId
         })
       ])
+      if (!originalStatus) return
 
       return new Status({
         id: data.id,
@@ -644,12 +646,13 @@ export class FirebaseStorage implements Storage {
       .orderBy('createdAt', 'desc')
       .limit(30)
       .get()
-    return Promise.all(
+    const items = await Promise.all(
       snapshot.docs.map((item) => {
         const data = item.data()
         return this.getStatusFromData(data, false)
       })
     )
+    return items.filter((status): status is Status => Boolean(status))
   }
 
   async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
@@ -669,12 +672,13 @@ export class FirebaseStorage implements Storage {
       .orderBy('createdAt', 'desc')
       .limit(20)
       .get()
-    return Promise.all(
+    const items = await Promise.all(
       snapshot.docs.map((item) => {
         const data = item.data()
         return this.getStatusFromData(data, false)
       })
     )
+    return items.filter((item): item is Status => Boolean(item))
   }
 
   async deleteStatus({ statusId }: DeleteStatusParams) {
@@ -753,6 +757,7 @@ export class FirebaseStorage implements Storage {
       snapshot.docs.map(async (item) => {
         const data = item.data()
         const status = await this.getStatusFromData(data, false)
+        if (!status) return null
         if (status.data.type !== StatusType.Note) return null
         return status.data
       })
