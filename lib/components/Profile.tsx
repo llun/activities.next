@@ -8,9 +8,9 @@ interface Props {
   username: string
   domain: string
   url: string
-  totalPosts: number
-  followingCount: number
-  followersCount: number
+  totalPosts?: number
+  followingCount?: number
+  followersCount?: number
   createdAt: number
 }
 
@@ -32,15 +32,17 @@ export const Profile: FC<Props> = ({
         {username}@{domain}
       </Link>
     </h4>
-    <p>
-      <span className="d-inline-block text-nowrap">{totalPosts} Posts</span>
-      <span className="d-inline-block ms-2 text-nowrap">
-        {followingCount} Following
-      </span>
-      <span className="d-inline-block ms-2 text-nowrap">
-        {followersCount} Followers
-      </span>
-    </p>
+    {(totalPosts || followingCount || followersCount) && (
+      <p>
+        <span className="d-inline-block text-nowrap">{totalPosts} Posts</span>
+        <span className="d-inline-block ms-2 text-nowrap">
+          {followingCount} Following
+        </span>
+        <span className="d-inline-block ms-2 text-nowrap">
+          {followersCount} Followers
+        </span>
+      </p>
+    )}
     {Number.isInteger(createdAt) && (
       <p>Joined {format(createdAt, 'd MMM yyyy')}</p>
     )}

@@ -7,7 +7,6 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 
-import { getActorProfileFromPublicProfile } from '../lib/activities'
 import { Header } from '../lib/components/Header'
 import { PostBox } from '../lib/components/PostBox/PostBox'
 import { Posts } from '../lib/components/Posts/Posts'
@@ -24,19 +23,13 @@ interface Props {
   currentServerTime: number
   statuses: StatusData[]
   profile: ActorProfile
-  totalPosts: number
-  followersCount: number
-  followingCount: number
 }
 
 const Page: NextPage<Props> = ({
   host,
   profile,
   statuses,
-  currentServerTime,
-  totalPosts,
-  followersCount,
-  followingCount
+  currentServerTime
 }) => {
   const { data: session } = useSession()
   const [replyStatus, setReplyStatus] = useState<StatusData>()
@@ -83,9 +76,6 @@ const Page: NextPage<Props> = ({
               url={`https://${host}/${Actor.getMentionFromProfile(profile)}`}
               username={profile.username}
               domain={profile.domain}
-              totalPosts={totalPosts}
-              followersCount={followersCount}
-              followingCount={followingCount}
               createdAt={profile.createdAt}
             />
           </div>
@@ -164,23 +154,13 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
-  const [statuses, totalPosts, followingCount, followersCount] =
-    await Promise.all([
-      storage.getStatuses({ actorId: actor.id }),
-      storage.getActorStatusesCount({ actorId: actor.id }),
-      storage.getActorFollowingCount({ actorId: actor.id }),
-      storage.getActorFollowersCount({ actorId: actor.id })
-    ])
-
+  const statuses = await storage.getStatuses({ actorId: actor.id })
   return {
     props: {
       host: config.host,
       statuses: statuses.map((item) => item.toJson()),
       currentServerTime: Date.now(),
-      profile: actor.toProfile(),
-      totalPosts,
-      followersCount,
-      followingCount
+      profile: actor.toProfile()
     }
   }
 }
