@@ -2,9 +2,62 @@ import cn from 'classnames'
 import { FC, useState } from 'react'
 
 import { deleteStatus, repostStatus, undoRepostStatus } from '../../client'
-import { StatusType } from '../../models/status'
+import { ActorProfile } from '../../models/actor'
+import { StatusData, StatusType } from '../../models/status'
 import { Button } from '../Button'
 import { PostProps } from './Post'
+
+interface RepostButtonProps {
+  currentActor?: ActorProfile
+  status: StatusData
+  onPostReposted?: (status: StatusData) => void
+}
+const RepostButton: FC<RepostButtonProps> = ({
+  currentActor,
+  status,
+  onPostReposted
+}) => {
+  const mainStatus =
+    status.type === StatusType.Note ? status : status.originalStatus
+
+  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [boostedStatusesId, setBoostedStatusesId] = useState<string[]>(
+    mainStatus.boostedByStatusesId
+  )
+
+  if (!currentActor) return null
+
+  const isBoosted = Boolean(
+    boostedStatusesId.filter((item) => item.includes(currentActor.domain))
+      .length > 0
+  )
+
+  return (
+    <Button
+      disabled={isLoading}
+      variant="link"
+      className={cn({ 'text-danger': isBoosted })}
+      onClick={async () => {
+        if (isLoading) return
+
+        if (isBoosted) {
+          setIsLoading(true)
+          await undoRepostStatus({ statusId: mainStatus.id })
+          // TODO: remove status id from boosted id list
+          setIsLoading(false)
+          return
+        }
+        setIsLoading(true)
+        await repostStatus({ statusId: status.id })
+        // TODO: Grab announce id from repostStatus
+        onPostReposted?.(status)
+        setIsLoading(false)
+      }}
+    >
+      <i className="bi bi bi-repeat"></i>
+    </Button>
+  )
+}
 
 export const Actions: FC<PostProps> = ({
   currentActor,
@@ -15,19 +68,9 @@ export const Actions: FC<PostProps> = ({
   onPostDeleted,
   onPostReposted
 }) => {
-  const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [isReposted, setIsReposted] = useState<boolean>(
-    Boolean(
-      status.type === StatusType.Note &&
-        currentActor &&
-        status.boostedByStatusesId.filter((item) =>
-          item.includes(currentActor.domain)
-        ).length > 0
-    )
-  )
-
   if (!showActions) return null
   if (!currentActor) return null
+
   if (status.type === StatusType.Announce) {
     return (
       <div>
@@ -43,38 +86,14 @@ export const Actions: FC<PostProps> = ({
       <Button variant="link" onClick={() => onReply?.(status)}>
         <i className="bi bi-reply"></i>
       </Button>
-      <Button
-        disabled={isLoading}
-        variant="link"
-        className={cn({ 'text-danger': isReposted })}
-        onClick={async () => {
-          if (isLoading) return
-
-          if (isReposted) {
-            const boostedStatus = status.boostedByStatusesId
-              .filter((item) => item.includes(currentActor.domain))
-              .shift()
-            if (!boostedStatus) return
-
-            setIsLoading(true)
-            await undoRepostStatus({ statusId: boostedStatus })
-            setIsReposted(false)
-            setIsLoading(false)
-            return
-          }
-          setIsLoading(true)
-          await repostStatus({ statusId: status.id })
-          onPostReposted?.(status)
-          setIsReposted(true)
-          setIsLoading(false)
-        }}
-      >
-        <i className="bi bi bi-repeat"></i>
-      </Button>
+      <RepostButton
+        currentActor={currentActor}
+        status={status}
+        onPostReposted={onPostReposted}
+      />
       {showDeleteAction && (
         <Button
           variant="link"
-          disabled={isLoading}
           onClick={async () => {
             const deleteConfirmation = window.confirm(
               `Confirm delete status! ${
