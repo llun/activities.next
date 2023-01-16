@@ -77,6 +77,11 @@ export const Actions: FC<PostProps> = ({
         <Button variant="link" onClick={() => onReply?.(status.originalStatus)}>
           <i className="bi bi-reply"></i>
         </Button>
+        <RepostButton
+          currentActor={currentActor}
+          status={status}
+          onPostReposted={onPostReposted}
+        />
       </div>
     )
   }
