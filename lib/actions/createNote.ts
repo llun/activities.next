@@ -174,7 +174,7 @@ export const createNoteFromUserInput = async ({
   })
 
   const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
-  await Promise.all(
+  Promise.all(
     inboxes.map((inbox) => {
       return sendNote({
         currentActor,
