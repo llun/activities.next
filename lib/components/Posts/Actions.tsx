@@ -79,7 +79,7 @@ export const Actions: FC<PostProps> = ({
         </Button>
         <RepostButton
           currentActor={currentActor}
-          status={status}
+          status={status.originalStatus}
           onPostReposted={onPostReposted}
         />
       </div>
