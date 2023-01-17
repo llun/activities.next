@@ -294,13 +294,23 @@ export const sendNote = async ({
   // TODO: Add LinkedDataSignature later
   // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3
   try {
-    await fetch(inbox, {
+    const controller = new AbortController()
+    const signal = controller.signal
+    fetch(inbox, {
       method: 'POST',
       headers: {
         ...headers(currentActor, 'post', inbox, activity),
         'User-Agent': USER_AGENT
       },
-      body: JSON.stringify(activity)
+      body: JSON.stringify(activity),
+      signal
+    })
+    // Wait fetch for 1 minute
+    await new Promise((resolve) => {
+      setTimeout(() => {
+        controller.abort()
+        resolve(undefined)
+      }, 1000)
     })
   } catch (error: any) {
     // Ignore fail fetch
