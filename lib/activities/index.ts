@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/nextjs'
+
 import { getConfig } from '../config'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -54,9 +56,8 @@ export const getWebfingerSelf = async (account: string) => {
     const item = json.links.find((item) => item.rel === 'self')
     if (!item || !('href' in item)) return null
     return item.href
-  } catch (error: any) {
-    console.log(error.message)
-    console.log(error.stack)
+  } catch (error) {
+    Sentry.captureException(error)
     return null
   }
 }
@@ -199,7 +200,8 @@ export const getPublicProfile = async ({
 
       createdAt: new Date(person.published).getTime()
     }
-  } catch {
+  } catch (error) {
+    Sentry.captureException(error)
     return null
   }
 }
@@ -305,21 +307,18 @@ export const sendNote = async ({
       body: JSON.stringify(activity),
       signal
     })
-    // Wait fetch for 1 minute
+    // Wait fetch for 2 seconds
     await new Promise((resolve) => {
       setTimeout(() => {
         controller.abort()
+        if (process.env.NODE_ENV !== 'test') {
+          console.error('Abort fetch', inbox, note.id)
+        }
         resolve(undefined)
-      }, 1000)
+      }, 2000)
     })
-  } catch (error: any) {
-    // Ignore fail fetch
-    console.error({
-      error: error.message,
-      inbox,
-      status: activity.id,
-      type: 'note'
-    })
+  } catch (error) {
+    Sentry.captureException(error)
   }
 }
 
@@ -357,14 +356,8 @@ export const sendAnnounce = async ({
       },
       body: JSON.stringify(activity)
     })
-  } catch (error: any) {
-    // Ignore fail fetch
-    console.error({
-      error: error.message,
-      inbox,
-      status: status.id,
-      type: 'announce'
-    })
+  } catch (error) {
+    Sentry.captureException(error)
   }
 }
 
@@ -398,9 +391,8 @@ export const deleteStatus = async ({
       },
       body: JSON.stringify(activity)
     })
-  } catch (error: any) {
-    // Ignore fail fetch
-    console.error({ error: error.message, inbox, activity })
+  } catch (error) {
+    Sentry.captureException(error)
   }
 }
 
@@ -439,9 +431,8 @@ export const undoAnnounce = async ({
       },
       body: JSON.stringify(activity)
     })
-  } catch (error: any) {
-    // Ignore fail fetch
-    console.error({ error: error.message, inbox, activity })
+  } catch (error) {
+    Sentry.captureException(error)
   }
 }
 
