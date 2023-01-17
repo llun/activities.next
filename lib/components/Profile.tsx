@@ -28,7 +28,7 @@ export const Profile: FC<Props> = ({
   <div className={className}>
     <h1>{name}</h1>
     <h4>
-      <Link href={url} target={'_blank'}>
+      <Link prefetch={false} href={url} target={'_blank'}>
         {username}@{domain}
       </Link>
     </h4>

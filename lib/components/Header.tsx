@@ -13,7 +13,7 @@ export const Header: FC<Props> = ({ session }) => {
   return (
     <header className="navbar navbar-expand-lg bg-light">
       <nav className="container">
-        <Link className="navbar-brand" href={'/'}>
+        <Link prefetch={false} className="navbar-brand" href={'/'}>
           Activities
         </Link>
         {session?.user?.email && (
