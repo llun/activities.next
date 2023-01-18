@@ -9,13 +9,18 @@
 
 .medias {
   display: grid;
+  grid-auto-rows: 10rem;
   gap: 1rem;
+
+  @media screen and (max-width: 767px) {
+    grid-auto-rows: 8rem;
+  }
 }
 
 .media {
   cursor: pointer;
   object-fit: cover;
-  height: auto;
+  height: 100%;
   width: 100%;
   max-height: 15rem;
   border-radius: 1rem;
