@@ -1,8 +1,6 @@
 .modal {
   position: absolute;
   inset: 2.5rem;
-  border: 1px solid var(--bs-border-color);
-  background: var(--bs-body-bg);
   border-radius: 4px;
   outline: none;
   display: flex;
@@ -20,4 +18,8 @@
   position: fixed;
   inset: 0px;
   background-color: rgba(var(--bs-white-rgb), 0.75);
+}
+
+.modalBodyOpen {
+  overflow: hidden;
 }

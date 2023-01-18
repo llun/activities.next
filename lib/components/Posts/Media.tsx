@@ -1,6 +1,8 @@
+import cn from 'classnames'
 import { FC } from 'react'
 
 import { AttachmentData } from '../../models/attachment'
+import styles from './Media.module.scss'
 
 interface Props {
   caption?: string
@@ -27,7 +29,7 @@ export const Media: FC<Props> = ({
       <img
         onClick={onClick}
         key={id}
-        className={className}
+        className={cn(styles.media, className)}
         alt={caption ?? name ?? url}
         src={url}
         width={width}
@@ -39,7 +41,7 @@ export const Media: FC<Props> = ({
   if (mediaType.startsWith('video')) {
     return (
       <video
-        className={className}
+        className={cn(styles.media, className)}
         width={width}
         height={height}
         controls={showVideoControl}

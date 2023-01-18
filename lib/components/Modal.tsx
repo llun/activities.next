@@ -12,6 +12,7 @@ export const Modal: FC<Props> = ({ isOpen, children, onRequestClose }) => {
   return (
     <ReactModal
       overlayClassName={styles.modalOverlay}
+      bodyOpenClassName={styles.modalBodyOpen}
       className={styles.modal}
       isOpen={isOpen}
       onRequestClose={onRequestClose}
