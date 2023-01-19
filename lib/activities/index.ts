@@ -112,7 +112,7 @@ export const getPublicProfile = async ({
     if (response.status !== 200) return null
 
     const json = await response.json()
-    const person: Person = (await compact(json)) as any
+    const person: Person = (await compact(json)) as Person
 
     if (!withCollectionCount) {
       return {

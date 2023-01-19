@@ -1,6 +1,5 @@
 import { Firestore, Settings } from '@google-cloud/firestore'
 import crypto from 'crypto'
-import fs from 'fs'
 
 import { deliverTo } from '.'
 import { Account } from '../models/account'

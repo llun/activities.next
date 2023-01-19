@@ -4,7 +4,6 @@ import { AcceptFollow } from '../activities/actions/acceptFollow'
 import { FollowRequest } from '../activities/actions/follow'
 import { RejectFollow } from '../activities/actions/rejectFollow'
 import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
-import { FollowStatus } from '../models/follow'
 
 interface FollowRequestParams {
   withContext?: boolean

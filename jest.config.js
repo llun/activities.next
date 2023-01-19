@@ -19,7 +19,7 @@ const customJestConfig = {
   setupFilesAfterEnv: ['jest-extended/all'],
   setupFiles: ['<rootDir>/jest.setup.js'],
   transform: {
-    '\\.(js|jsx|ts|tsx)$': ['@sucrase/jest-plugin', { jsxRuntime: 'automatic' }]
+    '\\.(js|jsx|ts|tsx)$': ['@swc/jest']
   },
   verbose: true
 }
