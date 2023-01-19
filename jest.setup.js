@@ -6,3 +6,9 @@ require('jest-fetch-mock').enableMocks()
 fetchMock.dontMock()
 global.TextEncoder = TextEncoder
 global.TextDecoder = TextDecoder
+
+jest.mock('@digitalbazaar/http-client', () => {
+  return {
+    httpClient: jest.fn()
+  }
+})
