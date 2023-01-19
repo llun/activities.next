@@ -11,12 +11,12 @@ alpha stage and has only few features supported.
 - [x] Reply
 - [x] Image attachment via Apple Shared Album
 - [x] Boost/Repost
-- [ ] 🚧 Undo Boost/Repost
+- [x] Undo Boost/Repost
 - [ ] 🚧 Like
-- [ ] 🚧 Storage adapter, current supports are SQL via Knex.js (Tested with SQLite locally) and Firebase
+- [x] Storage adapter, current supports are SQL via Knex.js (Tested with SQLite locally) and Firebase
 - [ ] Account setup with username and password
 - [ ] Add actor under the same account (for different handle and type e.g. for `@ride@llun.dev`)
-- [ ] Support different domain for different actor
+- [ ] 🚧 Support different domain for different actor
 - [ ] Image storage via Object Storage(S3, GCS, etc)
 - [ ] Streaming
 - [ ] Timeline (Home Timeline, Personal Timeline, etc. https://misskey-hub.net/en/docs/features/timeline.html)
