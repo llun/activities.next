@@ -41,8 +41,12 @@ const RepostButton: FC<RepostButtonProps> = ({
         if (isLoading) return
 
         if (isBoosted) {
+          const boostedStatusId = mainStatus.boostedByStatusesId.find(
+            (statusId) => statusId.startsWith(currentActor.id)
+          )
+          if (!boostedStatusId) return
           setIsLoading(true)
-          await undoRepostStatus({ statusId: mainStatus.id })
+          await undoRepostStatus({ statusId: boostedStatusId })
           // TODO: remove status id from boosted id list
           setIsLoading(false)
           return

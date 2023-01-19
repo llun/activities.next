@@ -413,9 +413,9 @@ export const undoAnnounce = async ({
     actor: currentActor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
     object: {
-      id: announce.id,
+      id: `${announce.id}/activity`,
       type: 'Announce',
-      actor: currentActor.id,
+      actor: announce.actorId,
       published: getISOTimeUTC(announce.createdAt),
       to: announce.to,
       cc: announce.cc,
