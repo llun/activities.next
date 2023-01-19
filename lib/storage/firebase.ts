@@ -19,9 +19,11 @@ import {
   CreateAnnounceParams,
   CreateAttachmentParams,
   CreateFollowParams,
+  CreateLikeParams,
   CreateNoteParams,
   CreateTagParams,
   DeleteActorParams,
+  DeleteLikeParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
   GetAccountFromIdParams,
@@ -762,5 +764,36 @@ export class FirebaseStorage implements Storage {
       })
     )
     return replies.filter((item): item is StatusNote => Boolean(item))
+  }
+
+  async createLike({ actorId, statusId }: CreateLikeParams) {
+    const currentTime = Date.now()
+    const likes = this.db.collection('likes')
+    const countSnapshot = await likes
+      .where('statusId', '==', statusId)
+      .where('actorId', '==', actorId)
+      .count()
+      .get()
+    if (countSnapshot.data().count === 1) {
+      return
+    }
+
+    await likes.add({
+      actorId,
+      statusId,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+  }
+
+  async deleteLike({ statusId, actorId }: DeleteLikeParams) {
+    const likes = this.db.collection('likes')
+    const snapshot = await likes
+      .where('statusId', '==', statusId)
+      .where('actorId', '==', actorId)
+      .get()
+    if (!snapshot) return
+
+    await Promise.all(snapshot.docs.map((doc) => likes.doc(doc.id).delete()))
   }
 }

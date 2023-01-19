@@ -19,9 +19,11 @@ import {
   CreateAnnounceParams,
   CreateAttachmentParams,
   CreateFollowParams,
+  CreateLikeParams,
   CreateNoteParams,
   CreateTagParams,
   DeleteActorParams,
+  DeleteLikeParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
   GetAccountFromIdParams,
@@ -794,5 +796,24 @@ export class Sqlite3Storage implements Storage {
       statusId
     )
     return data.map((item) => new Tag(item))
+  }
+
+  async createLike({ actorId, statusId }: CreateLikeParams) {
+    const result = await this.database('likes')
+      .where({ actorId, statusId })
+      .count<{ count: number }>('* as count')
+      .first()
+    if (result?.count === 1) {
+      return
+    }
+
+    await this.database('likes').insert({
+      actorId,
+      statusId
+    })
+  }
+
+  async deleteLike({ statusId, actorId }: DeleteLikeParams) {
+    await this.database('likes').where({ actorId, statusId }).delete()
   }
 }
