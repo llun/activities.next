@@ -5,6 +5,7 @@ export interface AppleGalleryAttachment {
   url: string
   width: number
   height: number
+  posterUrl?: string
   name?: string
 }
 

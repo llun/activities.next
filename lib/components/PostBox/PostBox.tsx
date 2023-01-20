@@ -2,6 +2,7 @@ import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import { createStatus } from '../../client'
 import { Media } from '../../medias/apple/media'
+import { Video720p, VideoPosterDerivative } from '../../medias/apple/webstream'
 import { Actor, ActorProfile } from '../../models/actor'
 import {
   AppleGalleryAttachment,
@@ -62,8 +63,22 @@ export const PostBox: FC<Props> = ({
   }
 
   const onSelectAppleMedia = (media: Media) => {
-    // Video is not supported yet
-    if (media.type === 'video') return
+    if (media.type === 'video') {
+      const poster = media.derivatives[VideoPosterDerivative]
+      const video = media.derivatives[Video720p]
+      const attachment: AppleGalleryAttachment = {
+        type: 'apple',
+        guid: media.guid,
+        mediaType: 'video/mp4',
+        name: media.caption,
+        url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${video.checksum}`,
+        posterUrl: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${poster.checksum}`,
+        width: media.width,
+        height: media.height
+      }
+      setAttachments([...attachments, attachment])
+      return
+    }
 
     const biggestDerivatives = Object.keys(media.derivatives)
       .map((value) => parseInt(value, 10))
@@ -177,7 +192,7 @@ export const PostBox: FC<Props> = ({
             <div
               className={styles.attachment}
               key={item.guid}
-              style={{ backgroundImage: `url(${item.url})` }}
+              style={{ backgroundImage: `url(${item.posterUrl || item.url})` }}
               onClick={() => onRemoveAttachment(index)}
             />
           ))}
