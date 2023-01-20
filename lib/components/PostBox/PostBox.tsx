@@ -1,4 +1,13 @@
-import { FC, FormEvent, useEffect, useRef, useState } from 'react'
+import debounce from 'lodash/debounce'
+import {
+  FC,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { createStatus } from '../../client'
 import { Media } from '../../medias/apple/media'
@@ -30,78 +39,101 @@ export const PostBox: FC<Props> = ({
   onPostCreated,
   onDiscardReply
 }) => {
+  const [allowPost, setAllowPost] = useState<boolean>(false)
   const [attachments, setAttachments] = useState<PostBoxAttachment[]>([])
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
 
-  const onPost = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!postBoxRef.current) return
+  const onPost = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      if (!postBoxRef.current) return
 
-    const message = postBoxRef.current.value
-    const response = await createStatus({
-      message,
-      replyStatus,
-      attachments
-    })
-    if (!response) {
-      // Handle error
-      return
-    }
+      const message = postBoxRef.current.value
+      const response = await createStatus({
+        message,
+        replyStatus,
+        attachments
+      })
+      if (!response) {
+        // Handle error
+        return
+      }
 
-    const { status, attachments: storedAttachments } = response
-    onPostCreated(status, storedAttachments)
-    setAttachments([])
-    postBoxRef.current.value = ''
-  }
+      const { status, attachments: storedAttachments } = response
+      onPostCreated(status, storedAttachments)
+      setAttachments([])
+      postBoxRef.current.value = ''
+    },
+    [onPostCreated, replyStatus, attachments]
+  )
 
-  const onCloseReply = () => {
+  const onCloseReply = useCallback(() => {
     onDiscardReply()
 
     if (!postBoxRef.current) return
     const postBox = postBoxRef.current
     postBox.value = ''
-  }
+  }, [onDiscardReply])
 
-  const onSelectAppleMedia = (media: Media) => {
-    if (media.type === 'video') {
-      const poster = media.derivatives[VideoPosterDerivative]
-      const video = media.derivatives[Video720p]
+  const onSelectAppleMedia = useCallback(
+    (media: Media) => {
+      if (media.type === 'video') {
+        const poster = media.derivatives[VideoPosterDerivative]
+        const video = media.derivatives[Video720p]
+        const attachment: AppleGalleryAttachment = {
+          type: 'apple',
+          guid: media.guid,
+          mediaType: 'video/mp4',
+          name: media.caption,
+          url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${video.checksum}`,
+          posterUrl: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${poster.checksum}`,
+          width: media.width,
+          height: media.height
+        }
+        setAttachments([...attachments, attachment])
+        return
+      }
+
+      const biggestDerivatives = Object.keys(media.derivatives)
+        .map((value) => parseInt(value, 10))
+        .sort((n1, n2) => n2 - n1)[0]
+      const bestDerivatives = media.derivatives[biggestDerivatives]
       const attachment: AppleGalleryAttachment = {
         type: 'apple',
         guid: media.guid,
-        mediaType: 'video/mp4',
+        mediaType: 'image/jpeg',
         name: media.caption,
-        url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${video.checksum}`,
-        posterUrl: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${poster.checksum}`,
+        url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${bestDerivatives.checksum}`,
         width: media.width,
         height: media.height
       }
       setAttachments([...attachments, attachment])
-      return
-    }
+    },
+    [host, profile.appleSharedAlbumToken, attachments]
+  )
 
-    const biggestDerivatives = Object.keys(media.derivatives)
-      .map((value) => parseInt(value, 10))
-      .sort((n1, n2) => n2 - n1)[0]
-    const bestDerivatives = media.derivatives[biggestDerivatives]
-    const attachment: AppleGalleryAttachment = {
-      type: 'apple',
-      guid: media.guid,
-      mediaType: 'image/jpeg',
-      name: media.caption,
-      url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${bestDerivatives.checksum}`,
-      width: media.width,
-      height: media.height
-    }
-    setAttachments([...attachments, attachment])
-  }
+  const onRemoveAttachment = useCallback(
+    (attachmentIndex: number) => {
+      setAttachments([
+        ...attachments.slice(0, attachmentIndex),
+        ...attachments.slice(attachmentIndex + 1)
+      ])
+    },
+    [attachments]
+  )
 
-  const onRemoveAttachment = (attachmentIndex: number) => {
-    setAttachments([
-      ...attachments.slice(0, attachmentIndex),
-      ...attachments.slice(attachmentIndex + 1)
-    ])
-  }
+  const debounceTextChange = useMemo(
+    () =>
+      debounce(() => {
+        if (!postBoxRef.current) {
+          return setAllowPost(false)
+        }
+
+        const text = postBoxRef.current.value
+        setAllowPost(text.length > 0)
+      }, 50),
+    []
+  )
 
   /**
    * Handle default message in Postbox
@@ -175,6 +207,7 @@ export const PostBox: FC<Props> = ({
             ref={postBoxRef}
             className="form-control"
             rows={3}
+            onChange={debounceTextChange}
             name="message"
           />
         </div>
@@ -185,7 +218,9 @@ export const PostBox: FC<Props> = ({
               onSelectMedia={onSelectAppleMedia}
             />
           </div>
-          <Button type="submit">Send</Button>
+          <Button disabled={!allowPost} type="submit">
+            Send
+          </Button>
         </div>
         <div className={styles.attachments}>
           {attachments.map((item, index) => (
