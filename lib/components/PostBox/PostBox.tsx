@@ -1,10 +1,8 @@
-import debounce from 'lodash/debounce'
 import {
   FC,
   FormEvent,
-  useCallback,
+  KeyboardEvent,
   useEffect,
-  useMemo,
   useRef,
   useState
 } from 'react'
@@ -42,98 +40,102 @@ export const PostBox: FC<Props> = ({
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [attachments, setAttachments] = useState<PostBoxAttachment[]>([])
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
 
-  const onPost = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      if (!postBoxRef.current) return
+  const onPost = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault()
+    if (!postBoxRef.current) return
 
-      const message = postBoxRef.current.value
-      const response = await createStatus({
-        message,
-        replyStatus,
-        attachments
-      })
-      if (!response) {
-        // Handle error
-        return
-      }
+    setAllowPost(false)
+    const message = postBoxRef.current.value
+    const response = await createStatus({
+      message,
+      replyStatus,
+      attachments
+    })
+    if (!response) {
+      // Handle error
+      return
+    }
 
-      const { status, attachments: storedAttachments } = response
-      onPostCreated(status, storedAttachments)
-      setAttachments([])
-      postBoxRef.current.value = ''
-    },
-    [onPostCreated, replyStatus, attachments]
-  )
+    const { status, attachments: storedAttachments } = response
+    onPostCreated(status, storedAttachments)
+    setAttachments([])
 
-  const onCloseReply = useCallback(() => {
+    postBoxRef.current.value = ''
+  }
+
+  const onCloseReply = () => {
     onDiscardReply()
 
     if (!postBoxRef.current) return
     const postBox = postBoxRef.current
     postBox.value = ''
-  }, [onDiscardReply])
+  }
 
-  const onSelectAppleMedia = useCallback(
-    (media: Media) => {
-      if (media.type === 'video') {
-        const poster = media.derivatives[VideoPosterDerivative]
-        const video = media.derivatives[Video720p]
-        const attachment: AppleGalleryAttachment = {
-          type: 'apple',
-          guid: media.guid,
-          mediaType: 'video/mp4',
-          name: media.caption,
-          url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${video.checksum}`,
-          posterUrl: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${poster.checksum}`,
-          width: media.width,
-          height: media.height
-        }
-        setAttachments([...attachments, attachment])
-        return
-      }
-
-      const biggestDerivatives = Object.keys(media.derivatives)
-        .map((value) => parseInt(value, 10))
-        .sort((n1, n2) => n2 - n1)[0]
-      const bestDerivatives = media.derivatives[biggestDerivatives]
+  const onSelectAppleMedia = (media: Media) => {
+    if (media.type === 'video') {
+      const poster = media.derivatives[VideoPosterDerivative]
+      const video = media.derivatives[Video720p]
       const attachment: AppleGalleryAttachment = {
         type: 'apple',
         guid: media.guid,
-        mediaType: 'image/jpeg',
+        mediaType: 'video/mp4',
         name: media.caption,
-        url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${bestDerivatives.checksum}`,
+        url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${video.checksum}`,
+        posterUrl: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${poster.checksum}`,
         width: media.width,
         height: media.height
       }
       setAttachments([...attachments, attachment])
-    },
-    [host, profile.appleSharedAlbumToken, attachments]
-  )
+      return
+    }
 
-  const onRemoveAttachment = useCallback(
-    (attachmentIndex: number) => {
-      setAttachments([
-        ...attachments.slice(0, attachmentIndex),
-        ...attachments.slice(attachmentIndex + 1)
-      ])
-    },
-    [attachments]
-  )
+    const biggestDerivatives = Object.keys(media.derivatives)
+      .map((value) => parseInt(value, 10))
+      .sort((n1, n2) => n2 - n1)[0]
+    const bestDerivatives = media.derivatives[biggestDerivatives]
+    const attachment: AppleGalleryAttachment = {
+      type: 'apple',
+      guid: media.guid,
+      mediaType: 'image/jpeg',
+      name: media.caption,
+      url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${bestDerivatives.checksum}`,
+      width: media.width,
+      height: media.height
+    }
+    setAttachments([...attachments, attachment])
+  }
 
-  const debounceTextChange = useMemo(
-    () =>
-      debounce(() => {
-        if (!postBoxRef.current) {
-          return setAllowPost(false)
-        }
+  const onRemoveAttachment = (attachmentIndex: number) => {
+    setAttachments([
+      ...attachments.slice(0, attachmentIndex),
+      ...attachments.slice(attachmentIndex + 1)
+    ])
+  }
 
-        const text = postBoxRef.current.value
-        setAllowPost(text.length > 0)
-      }, 50),
-    []
-  )
+  const onQuickPost = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!(event.metaKey || event.ctrlKey)) return
+    if (event.code !== 'Enter') return
+
+    console.log('Allow post', allowPost, 'Form', formRef.current)
+
+    if (!allowPost) return
+    if (!formRef.current) return
+
+    console.log('Submit form')
+
+    onPost()
+  }
+
+  const onTextChange = () => {
+    if (!postBoxRef.current) {
+      return setAllowPost(false)
+    }
+
+    const text = postBoxRef.current.value
+    setAllowPost(text.length > 0)
+  }
 
   /**
    * Handle default message in Postbox
@@ -201,13 +203,14 @@ export const PostBox: FC<Props> = ({
   return (
     <div>
       <ReplyPreview status={replyStatus} onClose={onCloseReply} />
-      <form onSubmit={onPost}>
+      <form ref={formRef} onSubmit={onPost}>
         <div className="mb-3">
           <textarea
             ref={postBoxRef}
             className="form-control"
-            rows={3}
-            onChange={debounceTextChange}
+            rows={5}
+            onKeyDown={onQuickPost}
+            onChange={onTextChange}
             name="message"
           />
         </div>
