@@ -605,12 +605,14 @@ export class FirebaseStorage implements Storage {
       })
     }
 
-    const [attachments, tags, actor, boostedByStatusesId] = await Promise.all([
-      this.getAttachments({ statusId: data.id }),
-      this.getTags({ statusId: data.id }),
-      this.getActorFromId({ id: data.actorId }),
-      this.getBoostedByStatuses(data.id)
-    ])
+    const [attachments, tags, actor, boostedByStatusesId, totalLikes] =
+      await Promise.all([
+        this.getAttachments({ statusId: data.id }),
+        this.getTags({ statusId: data.id }),
+        this.getActorFromId({ id: data.actorId }),
+        this.getBoostedByStatuses(data.id),
+        this.getLikeCount(data.id)
+      ])
     const replies = withReplies ? await this.getReplies(data.id) : []
     return new Status({
       id: data.id,
@@ -625,8 +627,7 @@ export class FirebaseStorage implements Storage {
       reply: data.reply,
       replies,
       boostedByStatusesId,
-      // TODO: Add likes count here
-      totalLikes: 0,
+      totalLikes,
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
@@ -798,5 +799,14 @@ export class FirebaseStorage implements Storage {
     if (!snapshot) return
 
     await Promise.all(snapshot.docs.map((doc) => likes.doc(doc.id).delete()))
+  }
+
+  private async getLikeCount(statusId: string) {
+    const likes = this.db.collection('likes')
+    const countSnapshot = await likes
+      .where('statusId', '==', statusId)
+      .count()
+      .get()
+    return countSnapshot.data().count ?? 0
   }
 }
