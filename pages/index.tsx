@@ -73,7 +73,9 @@ const Page: NextPage<Props> = ({
             )}
             <ProfileComponent
               name={profile.name || ''}
-              url={`https://${host}/${Actor.getMentionFromProfile(profile)}`}
+              url={`https://${profile.domain}/${Actor.getMentionFromProfile(
+                profile
+              )}`}
               username={profile.username}
               domain={profile.domain}
               createdAt={profile.createdAt}

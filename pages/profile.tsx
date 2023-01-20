@@ -8,6 +8,7 @@ import Image from 'next/image'
 
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
+import { Profile as ProfileComponent } from '../lib/components/Profile'
 import { getConfig } from '../lib/config'
 import { Actor, ActorProfile } from '../lib/models/actor'
 import { getStorage } from '../lib/storage'
@@ -39,19 +40,15 @@ const Page: NextPage<Props> = ({ profile }) => {
                 src={profile.iconUrl}
               />
             )}
-            <div>
-              <h1>{profile.name}</h1>
-              <h4>{Actor.getMentionFromProfile(profile)}</h4>
-              {Number.isInteger(profile.createdAt) && (
-                <p>
-                  Joined{' '}
-                  {new Intl.DateTimeFormat('en-US', {
-                    dateStyle: 'long',
-                    timeStyle: 'short'
-                  }).format(new Date(profile.createdAt))}
-                </p>
-              )}
-            </div>
+            <ProfileComponent
+              name={profile.name || ''}
+              url={`https://${profile.domain}/${Actor.getMentionFromProfile(
+                profile
+              )}`}
+              username={profile.username}
+              domain={profile.domain}
+              createdAt={profile.createdAt}
+            />
           </div>
           <div className="col-12 col-md-9">
             <form action="/api/v1/accounts/profile" method="post">
