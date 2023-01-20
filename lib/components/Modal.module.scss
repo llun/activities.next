@@ -1,11 +1,13 @@
 .modal {
   position: absolute;
   inset: 2.5rem;
-  border-radius: 4px;
+  border-radius: 0.125rem;
   outline: none;
   display: flex;
   justify-content: center;
   align-items: center;
+  background-color: var(--bs-white);
+  border: 1px solid var(--bs-border-color);
 
   img {
     max-height: 100%;
