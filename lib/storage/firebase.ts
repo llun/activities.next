@@ -523,6 +523,7 @@ export class FirebaseStorage implements Storage {
       actor: actor?.toProfile() || null,
       attachments: [],
       boostedByStatusesId: [],
+      totalLikes: 0,
       tags: [],
       replies: []
     })
@@ -624,6 +625,8 @@ export class FirebaseStorage implements Storage {
       reply: data.reply,
       replies,
       boostedByStatusesId,
+      // TODO: Add likes count here
+      totalLikes: 0,
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,

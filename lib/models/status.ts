@@ -30,7 +30,10 @@ export interface StatusNote extends StatusBase {
   reply: string
   replies: StatusNote[]
 
+  // TODO: Change this to boosted count and add new flag for self boosted
   boostedByStatusesId: string[]
+
+  totalLikes: number
 
   attachments: AttachmentData[]
   tags: TagData[]
@@ -106,6 +109,9 @@ export class Status {
       tags: [],
 
       boostedByStatusesId: [],
+
+      // TODO: Add total likes from note here
+      totalLikes: 0,
 
       createdAt: new Date(note.published).getTime(),
       updatedAt: Date.now()

@@ -1,6 +1,6 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { FollowStatus } from '../models/follow'
-import { StatusType } from '../models/status'
+import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN } from '../stub/const'
 import { FirebaseStorage } from './firebase'
 import { Sqlite3Storage } from './sqlite3'
@@ -47,6 +47,9 @@ const TEST_DOMAIN10 = 'llun.random'
 
 // Status with boost
 const TEST_ID11 = 'https://llun.test/users/user11'
+
+// Likes
+const TEST_ID12 = 'https://llun.test/users/user12'
 
 type TestStorage = [string, Storage]
 
@@ -95,7 +98,7 @@ describe('Storage', () => {
         privateKey: 'privateKey1',
         publicKey: 'publicKey1'
       })
-      const idWithAccounts = [3, 4, 5, 6, 7, 8, 11]
+      const idWithAccounts = [3, 4, 5, 6, 7, 8, 11, 12]
       for (const id of idWithAccounts) {
         await storage.createAccount({
           email: `user${id}@llun.dev`,
@@ -431,6 +434,7 @@ describe('Storage', () => {
           cc: [],
           attachments: [],
           boostedByStatusesId: [],
+          totalLikes: 0,
           tags: [],
           reply: '',
           replies: [],
@@ -819,6 +823,30 @@ describe('Storage', () => {
         expect(originalStatus?.data.boostedByStatusesId).toContainValue(
           secondPostId
         )
+      })
+    })
+
+    describe('likes', () => {
+      it('returns status with likes count', async () => {
+        const statusId = `${TEST_ID12}/posts/1`
+        const status = await storage.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: TEST_ID12,
+
+          text: 'Status without likes',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        expect((status?.data as StatusNote).totalLikes).toEqual(0)
+
+        await storage.createLike({ actorId: TEST_ID, statusId })
+        const statusAfterLiked = await storage.getStatus({ statusId })
+        expect((statusAfterLiked?.data as StatusNote).totalLikes).toEqual(1)
+
+        await storage.deleteLike({ actorId: TEST_ID, statusId })
+        const statusAfterUnliked = await storage.getStatus({ statusId })
+        expect((statusAfterUnliked?.data as StatusNote).totalLikes).toEqual(0)
       })
     })
   })

@@ -516,6 +516,7 @@ export class Sqlite3Storage implements Storage {
       tags: [],
       replies: [],
       boostedByStatusesId: [],
+      totalLikes: 0,
       createdAt: statusCreatedAt,
       updatedAt: statusUpdatedAt
     })
@@ -678,6 +679,8 @@ export class Sqlite3Storage implements Storage {
       reply: data.reply,
       replies: repliesNote,
       boostedByStatusesId: boostedByStatusesId.map((item) => item.id),
+      // TODO: Add like counts here
+      totalLikes: 0,
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
