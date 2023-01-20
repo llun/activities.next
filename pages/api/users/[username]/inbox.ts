@@ -4,10 +4,12 @@ import { acceptFollowRequest } from '../../../../lib/actions/acceptFollowRequest
 import { createFollower } from '../../../../lib/actions/createFollower'
 import { rejectFollowRequest } from '../../../../lib/actions/rejectFollowRequest'
 import { FollowRequest } from '../../../../lib/activities/actions/follow'
+import { LikeStatus } from '../../../../lib/activities/actions/liks'
+import { UndoLike } from '../../../../lib/activities/actions/undeLike'
 import { UndoFollow } from '../../../../lib/activities/actions/undoFollow'
 import { activitiesGuard } from '../../../../lib/guard'
 import { FollowStatus } from '../../../../lib/models/follow'
-import { ERROR_400, ERROR_404 } from '../../../../lib/responses'
+import { DEFAULT_202, ERROR_400, ERROR_404 } from '../../../../lib/responses'
 import { getStorage } from '../../../../lib/storage'
 
 export default activitiesGuard(
@@ -45,24 +47,46 @@ export default activitiesGuard(
           }
           return res.status(202).send({ target: follow.object })
         }
+        case 'Like': {
+          const request = activity as LikeStatus
+          await storage.createLike({
+            statusId: request.object,
+            actorId: request.actor
+          })
+          return res.status(202).send(DEFAULT_202)
+        }
         case 'Undo': {
-          const undoRequest = activity as UndoFollow
-          const follow = await storage.getAcceptedOrRequestedFollow({
-            actorId: undoRequest.object.actor,
-            targetActorId: undoRequest.object.object
-          })
-          if (!follow) {
-            console.error('Fail to find follow', undoRequest)
-            return res.status(404).json(ERROR_404)
+          const undoRequest = activity as UndoFollow | UndoLike
+          switch (undoRequest.object.type) {
+            case 'Follow': {
+              const follow = await storage.getAcceptedOrRequestedFollow({
+                actorId: undoRequest.object.actor,
+                targetActorId: undoRequest.object.object
+              })
+              if (!follow) {
+                console.error('Fail to find follow', undoRequest)
+                return res.status(404).json(ERROR_404)
+              }
+              await storage.updateFollowStatus({
+                followId: follow.id,
+                status: FollowStatus.Undo
+              })
+              return res.status(202).send({ target: undoRequest.object.object })
+            }
+            case 'Like': {
+              await storage.deleteLike({
+                actorId: undoRequest.object.actor,
+                statusId: undoRequest.object.object
+              })
+              return res.status(202).send(DEFAULT_202)
+            }
+            default: {
+              return res.status(202).send(DEFAULT_202)
+            }
           }
-          await storage.updateFollowStatus({
-            followId: follow.id,
-            status: FollowStatus.Undo
-          })
-          return res.status(202).send({ target: undoRequest.object.object })
         }
         default:
-          return res.status(202).send('')
+          return res.status(202).send(DEFAULT_202)
       }
     }
 
