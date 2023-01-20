@@ -93,7 +93,7 @@ export class Sqlite3Storage implements Storage {
   async isAccountExists({ email }: IsAccountExistsParams) {
     const result = await this.database('accounts')
       .where('email', email)
-      .count('id as count')
+      .count<{ count: number }>('id as count')
       .first()
     return Boolean(result?.count && result?.count > 0)
   }
@@ -239,7 +239,7 @@ export class Sqlite3Storage implements Storage {
       .where('actorId', currentActorId)
       .andWhere('targetActorId', followingActorId)
       .andWhere('status', 'Accepted')
-      .count('id as count')
+      .count<{ count: number }>('id as count')
       .first()
     return Boolean(result?.count && result?.count > 0)
   }
@@ -319,18 +319,18 @@ export class Sqlite3Storage implements Storage {
     const result = await this.database('follows')
       .where('actorId', actorId)
       .andWhere('status', 'Accepted')
-      .count('* as count')
+      .count<{ count: number }>('* as count')
       .first()
-    return (result?.count as number) || 0
+    return result?.count ?? 0
   }
 
   async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
     const result = await this.database('follows')
       .where('targetActorId', actorId)
       .andWhere('status', 'Accepted')
-      .count('* as count')
+      .count<{ count: number }>('* as count')
       .first()
-    return (result?.count as number) || 0
+    return result?.count ?? 0
   }
 
   async createFollow({
@@ -641,7 +641,7 @@ export class Sqlite3Storage implements Storage {
       return new Status(announceData)
     }
 
-    const [attachments, tags, replies, actor, boostedByStatusesId] =
+    const [attachments, tags, replies, actor, boostedByStatusesId, totalLikes] =
       await Promise.all([
         this.getAttachments({ statusId: data.id }),
         this.getTags({ statusId: data.id }),
@@ -653,7 +653,11 @@ export class Sqlite3Storage implements Storage {
         this.database('statuses')
           .select('id')
           .where('type', StatusType.Announce)
-          .andWhere('content', data.id)
+          .andWhere('content', data.id),
+        this.database('likes')
+          .where('statusId', data.id)
+          .count<{ count: number }>('* as count')
+          .first()
       ])
 
     const repliesNote = (
@@ -679,8 +683,7 @@ export class Sqlite3Storage implements Storage {
       reply: data.reply,
       replies: repliesNote,
       boostedByStatusesId: boostedByStatusesId.map((item) => item.id),
-      // TODO: Add like counts here
-      totalLikes: 0,
+      totalLikes: totalLikes?.count ?? 0,
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
