@@ -843,10 +843,23 @@ describe('Storage', () => {
         await storage.createLike({ actorId: TEST_ID, statusId })
         const statusAfterLiked = await storage.getStatus({ statusId })
         expect((statusAfterLiked?.data as StatusNote).totalLikes).toEqual(1)
+        expect(await storage.getLikeCount({ statusId })).toEqual(1)
 
         await storage.deleteLike({ actorId: TEST_ID, statusId })
         const statusAfterUnliked = await storage.getStatus({ statusId })
         expect((statusAfterUnliked?.data as StatusNote).totalLikes).toEqual(0)
+        expect(await storage.getLikeCount({ statusId })).toEqual(0)
+      })
+
+      it('does not create like if the status is not exists', async () => {
+        const nonExistsStatusId = `${TEST_ID12}/posts/non-exists`
+        await storage.createLike({
+          actorId: TEST_ID,
+          statusId: nonExistsStatusId
+        })
+        expect(
+          await storage.getLikeCount({ statusId: nonExistsStatusId })
+        ).toEqual(0)
       })
     })
   })

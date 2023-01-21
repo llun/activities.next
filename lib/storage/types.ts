@@ -141,6 +141,9 @@ export type DeleteLikeParams = {
   actorId: string
   statusId: string
 }
+export type GetLikeCountParams = {
+  statusId: string
+}
 
 export interface Storage {
   isAccountExists(params: IsAccountExistsParams): Promise<boolean>
@@ -191,6 +194,7 @@ export interface Storage {
 
   createLike(params: CreateLikeParams): Promise<void>
   deleteLike(params: DeleteLikeParams): Promise<void>
+  getLikeCount(params: GetLikeCountParams): Promise<number>
 
   destroy(): Promise<void>
 }

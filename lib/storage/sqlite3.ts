@@ -37,6 +37,7 @@ import {
   GetAttachmentsParams,
   GetFollowFromIdParams,
   GetFollowersInboxParams,
+  GetLikeCountParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
   GetStatusesParams,
@@ -821,5 +822,13 @@ export class Sqlite3Storage implements Storage {
 
   async deleteLike({ statusId, actorId }: DeleteLikeParams) {
     await this.database('likes').where({ actorId, statusId }).delete()
+  }
+
+  async getLikeCount({ statusId }: GetLikeCountParams) {
+    const result = await this.database('likes')
+      .where('statusId', statusId)
+      .count<{ count: number }>('* as count')
+      .first()
+    return result?.count ?? 0
   }
 }

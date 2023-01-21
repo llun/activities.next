@@ -37,6 +37,7 @@ import {
   GetAttachmentsParams,
   GetFollowFromIdParams,
   GetFollowersInboxParams,
+  GetLikeCountParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
   GetStatusesParams,
@@ -611,7 +612,7 @@ export class FirebaseStorage implements Storage {
         this.getTags({ statusId: data.id }),
         this.getActorFromId({ id: data.actorId }),
         this.getBoostedByStatuses(data.id),
-        this.getLikeCount(data.id)
+        this.getLikeCount({ statusId: data.id })
       ])
     const replies = withReplies ? await this.getReplies(data.id) : []
     return new Status({
@@ -801,7 +802,7 @@ export class FirebaseStorage implements Storage {
     await Promise.all(snapshot.docs.map((doc) => likes.doc(doc.id).delete()))
   }
 
-  private async getLikeCount(statusId: string) {
+  async getLikeCount({ statusId }: GetLikeCountParams) {
     const likes = this.db.collection('likes')
     const countSnapshot = await likes
       .where('statusId', '==', statusId)
