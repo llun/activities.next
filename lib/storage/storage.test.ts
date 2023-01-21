@@ -4,7 +4,7 @@ import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN } from '../stub/const'
 import { FirebaseStorage } from './firebase'
 import { Sqlite3Storage } from './sqlite3'
-import { Storage } from './types'
+import { Storage, Timeline } from './types'
 
 jest.mock('../config')
 
@@ -860,6 +860,18 @@ describe('Storage', () => {
         expect(
           await storage.getLikeCount({ statusId: nonExistsStatusId })
         ).toEqual(0)
+      })
+    })
+
+    describe('timelines', () => {
+      // TODO: Create timeline model that can has different query
+      describe('public', () => {
+        it('returns all public posts from all local actors in instances', async () => {
+          const statuses = await storage.getTimeline({
+            timeline: Timeline.LocalPublic
+          })
+          console.log(statuses)
+        })
       })
     })
   })

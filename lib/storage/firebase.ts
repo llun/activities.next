@@ -42,10 +42,12 @@ import {
   GetStatusParams,
   GetStatusesParams,
   GetTagsParams,
+  GetTimelineParams,
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
   Storage,
+  Timeline,
   UpdateActorParams,
   UpdateFollowStatusParams
 } from './types'
@@ -659,6 +661,17 @@ export class FirebaseStorage implements Storage {
       })
     )
     return items.filter((status): status is Status => Boolean(status))
+  }
+
+  async getTimeline({ timeline }: GetTimelineParams) {
+    switch (timeline) {
+      case Timeline.LocalPublic: {
+        return []
+      }
+      default: {
+        return []
+      }
+    }
   }
 
   async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {

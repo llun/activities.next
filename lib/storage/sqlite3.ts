@@ -42,10 +42,12 @@ import {
   GetStatusParams,
   GetStatusesParams,
   GetTagsParams,
+  GetTimelineParams,
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
   Storage,
+  Timeline,
   UpdateActorParams,
   UpdateFollowStatusParams
 } from './types'
@@ -717,6 +719,17 @@ export class Sqlite3Storage implements Storage {
       )
     ).filter((item): item is Status => item !== undefined)
     return statuses
+  }
+
+  async getTimeline({ timeline, actorId }: GetTimelineParams) {
+    switch (timeline) {
+      case Timeline.LocalPublic: {
+        return []
+      }
+      default: {
+        return []
+      }
+    }
   }
 
   async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {

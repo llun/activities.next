@@ -5,6 +5,10 @@ import { Follow, FollowStatus } from '../models/follow'
 import { Status } from '../models/status'
 import { Tag } from '../models/tag'
 
+export enum Timeline {
+  LocalPublic = 'local-public'
+}
+
 export type IsAccountExistsParams = { email: string }
 export type IsUsernameExistsParams = { username: string; domain: string }
 export type CreateAccountParams = {
@@ -112,6 +116,11 @@ export type GetActorStatusesCountParams = { actorId: string }
 export type GetActorStatusesParams = { actorId: string }
 export type DeleteStatusParams = { statusId: string }
 
+export type GetTimelineParams = {
+  timeline: Timeline
+  actorId?: string
+}
+
 export type CreateAttachmentParams = {
   statusId: string
   mediaType: string
@@ -185,6 +194,8 @@ export interface Storage {
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
   deleteStatus(params: DeleteStatusParams): Promise<void>
+
+  getTimeline(params: GetTimelineParams): Promise<Status[]>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
