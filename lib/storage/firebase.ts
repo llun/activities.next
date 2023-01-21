@@ -772,6 +772,10 @@ export class FirebaseStorage implements Storage {
   }
 
   async createLike({ actorId, statusId }: CreateLikeParams) {
+    const statuses = this.db.collection('statuses')
+    const snapshot = await statuses.where('id', '==', statusId).limit(1).get()
+    if (snapshot.docs.length !== 1) return
+
     const currentTime = Date.now()
     const likes = this.db.collection('likes')
     const countSnapshot = await likes

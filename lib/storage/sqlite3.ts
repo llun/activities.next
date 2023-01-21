@@ -694,7 +694,8 @@ export class Sqlite3Storage implements Storage {
 
   async getStatus({ statusId }: GetStatusParams) {
     const status = await this.database('statuses').where('id', statusId).first()
-    if (!status) return undefined
+    if (!status) return
+
     return this.getStatusWithAttachmentsFromData(status)
   }
 
@@ -806,6 +807,9 @@ export class Sqlite3Storage implements Storage {
   }
 
   async createLike({ actorId, statusId }: CreateLikeParams) {
+    const status = await this.database('statuses').where('id', statusId).first()
+    if (!status) return
+
     const result = await this.database('likes')
       .where({ actorId, statusId })
       .count<{ count: number }>('* as count')
