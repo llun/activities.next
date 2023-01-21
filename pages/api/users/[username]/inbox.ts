@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 
 import { acceptFollowRequest } from '../../../../lib/actions/acceptFollowRequest'
 import { createFollower } from '../../../../lib/actions/createFollower'
+import { likeRequest } from '../../../../lib/actions/like'
 import { rejectFollowRequest } from '../../../../lib/actions/rejectFollowRequest'
 import { FollowRequest } from '../../../../lib/activities/actions/follow'
 import { LikeStatus } from '../../../../lib/activities/actions/liks'
@@ -48,16 +49,7 @@ export default activitiesGuard(
           return res.status(202).send({ target: follow.object })
         }
         case 'Like': {
-          const request = activity as LikeStatus
-          const statusId =
-            typeof request.object === 'string'
-              ? request.object
-              : request.object.id
-
-          await storage.createLike({
-            statusId,
-            actorId: request.actor
-          })
+          await likeRequest({ activity, storage })
           return res.status(202).send(DEFAULT_202)
         }
         case 'Undo': {
