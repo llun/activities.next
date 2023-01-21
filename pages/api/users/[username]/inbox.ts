@@ -49,8 +49,13 @@ export default activitiesGuard(
         }
         case 'Like': {
           const request = activity as LikeStatus
+          const statusId =
+            typeof request.object === 'string'
+              ? request.object
+              : request.object.id
+
           await storage.createLike({
-            statusId: request.object,
+            statusId,
             actorId: request.actor
           })
           return res.status(202).send(DEFAULT_202)
