@@ -75,29 +75,34 @@ interface LikeButtonProps {
   status: StatusNote
 }
 const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
+  const [isActorLiked, setIsActorLiked] = useState<boolean>(status.isActorLiked)
   return (
     <span>
       <Button
         variant="link"
         disabled={status.actorId === currentActor?.id}
         onClick={async () => {
-          if (status.isActorLiked) {
+          if (isActorLiked) {
             await undoLikeStatus({ statusId: status.id })
+            setIsActorLiked(false)
             return
           }
           await likeStatus({ statusId: status.id })
+          setIsActorLiked(true)
         }}
       >
         <i
           className={cn('bi', {
-            'bi-star': !status.isActorLiked,
-            'bi-star-fill': status.isActorLiked
+            'bi-star': !isActorLiked,
+            'bi-star-fill': isActorLiked
           })}
         />
       </Button>
-      {status.type === StatusType.Note && status.totalLikes > 0 && (
-        <span className={styles['like-count']}>{status.totalLikes}</span>
-      )}
+      {status.type === StatusType.Note &&
+        status.actorId === currentActor?.id &&
+        status.totalLikes > 0 && (
+          <span className={styles['like-count']}>{status.totalLikes}</span>
+        )}
     </span>
   )
 }
