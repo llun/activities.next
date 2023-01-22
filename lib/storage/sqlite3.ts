@@ -105,7 +105,7 @@ export class Sqlite3Storage implements Storage {
     const response = await this.database('actors')
       .where('username', username)
       .andWhere('domain', domain)
-      .count('id as count')
+      .count<{ count: number }>('id as count')
       .first()
     return Boolean(response?.count && response?.count > 0)
   }
