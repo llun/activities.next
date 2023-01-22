@@ -521,6 +521,7 @@ export class Sqlite3Storage implements Storage {
       replies: [],
       boostedByStatusesId: [],
       totalLikes: 0,
+      isActorLiked: false,
       createdAt: statusCreatedAt,
       updatedAt: statusUpdatedAt
     })
@@ -612,7 +613,10 @@ export class Sqlite3Storage implements Storage {
     return new Status(announceData)
   }
 
-  async getStatusWithAttachmentsFromData(data: any): Promise<Status> {
+  private async getStatusWithAttachmentsFromData(
+    data: any,
+    currentActorId?: string
+  ): Promise<Status> {
     const [to, cc] = await Promise.all([
       this.database('recipients')
         .where('statusId', data.id)
@@ -645,24 +649,32 @@ export class Sqlite3Storage implements Storage {
       return new Status(announceData)
     }
 
-    const [attachments, tags, replies, actor, boostedByStatusesId, totalLikes] =
-      await Promise.all([
-        this.getAttachments({ statusId: data.id }),
-        this.getTags({ statusId: data.id }),
-        this.database('statuses')
-          .select('id')
-          .where('reply', data.id)
-          .orderBy('createdAt', 'desc'),
-        this.getActorFromId({ id: data.actorId }),
-        this.database('statuses')
-          .select('id')
-          .where('type', StatusType.Announce)
-          .andWhere('content', data.id),
-        this.database('likes')
-          .where('statusId', data.id)
-          .count<{ count: number }>('* as count')
-          .first()
-      ])
+    const [
+      attachments,
+      tags,
+      replies,
+      actor,
+      boostedByStatusesId,
+      totalLikes,
+      isActorLikedStatus
+    ] = await Promise.all([
+      this.getAttachments({ statusId: data.id }),
+      this.getTags({ statusId: data.id }),
+      this.database('statuses')
+        .select('id')
+        .where('reply', data.id)
+        .orderBy('createdAt', 'desc'),
+      this.getActorFromId({ id: data.actorId }),
+      this.database('statuses')
+        .select('id')
+        .where('type', StatusType.Announce)
+        .andWhere('content', data.id),
+      this.database('likes')
+        .where('statusId', data.id)
+        .count<{ count: number }>('* as count')
+        .first(),
+      this.isActorLikedStatus(data.id, currentActorId)
+    ])
 
     const repliesNote = (
       await Promise.all(
@@ -688,6 +700,7 @@ export class Sqlite3Storage implements Storage {
       replies: repliesNote,
       boostedByStatusesId: boostedByStatusesId.map((item) => item.id),
       totalLikes: totalLikes?.count ?? 0,
+      isActorLiked: isActorLikedStatus,
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
@@ -710,12 +723,16 @@ export class Sqlite3Storage implements Storage {
       .andWhereLike('reply', `${actorId}%`)
       .orWhere('reply', '')
       .distinct('statusId')
+      .select('statuses.*')
       .orderBy('recipients.createdAt', 'desc')
       .limit(PER_PAGE_LIMIT)
     const local = await query
+
     const statuses = (
       await Promise.all(
-        local.map((item) => this.getStatus({ statusId: item.statusId }))
+        local.map((item) =>
+          this.getStatusWithAttachmentsFromData(item, actorId)
+        )
       )
     ).filter((item): item is Status => item !== undefined)
     return statuses
@@ -862,5 +879,17 @@ export class Sqlite3Storage implements Storage {
       .count<{ count: number }>('* as count')
       .first()
     return result?.count ?? 0
+  }
+
+  private async isActorLikedStatus(statusId: string, actorId?: string) {
+    if (!actorId) return false
+
+    const result = await this.database('likes')
+      .where('statusId', statusId)
+      .where('actorId', actorId)
+      .count<{ count: number }>('* as count')
+      .first()
+    if (!result) return false
+    return result.count !== 0
   }
 }

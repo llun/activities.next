@@ -579,7 +579,8 @@ export class FirebaseStorage implements Storage {
 
   private async getStatusFromData(
     data: any,
-    withReplies: boolean
+    withReplies: boolean,
+    currentActorId?: string
   ): Promise<Status | undefined> {
     if (data.type === StatusType.Announce) {
       const [originalStatus, actor] = await Promise.all([
@@ -608,14 +609,21 @@ export class FirebaseStorage implements Storage {
       })
     }
 
-    const [attachments, tags, actor, boostedByStatusesId, totalLikes] =
-      await Promise.all([
-        this.getAttachments({ statusId: data.id }),
-        this.getTags({ statusId: data.id }),
-        this.getActorFromId({ id: data.actorId }),
-        this.getBoostedByStatuses(data.id),
-        this.getLikeCount({ statusId: data.id })
-      ])
+    const [
+      attachments,
+      tags,
+      actor,
+      boostedByStatusesId,
+      totalLikes,
+      isActorLikedStatus
+    ] = await Promise.all([
+      this.getAttachments({ statusId: data.id }),
+      this.getTags({ statusId: data.id }),
+      this.getActorFromId({ id: data.actorId }),
+      this.getBoostedByStatuses(data.id),
+      this.getLikeCount({ statusId: data.id }),
+      this.isActorLikedStatus(data.id, currentActorId)
+    ])
     const replies = withReplies ? await this.getReplies(data.id) : []
     return new Status({
       id: data.id,
@@ -631,6 +639,7 @@ export class FirebaseStorage implements Storage {
       replies,
       boostedByStatusesId,
       totalLikes,
+      isActorLiked: isActorLikedStatus,
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
@@ -657,7 +666,7 @@ export class FirebaseStorage implements Storage {
     const items = await Promise.all(
       snapshot.docs.map((item) => {
         const data = item.data()
-        return this.getStatusFromData(data, false)
+        return this.getStatusFromData(data, false, actorId)
       })
     )
     return items.filter((status): status is Status => Boolean(status))
@@ -853,5 +862,17 @@ export class FirebaseStorage implements Storage {
       .count()
       .get()
     return countSnapshot.data().count ?? 0
+  }
+
+  private async isActorLikedStatus(statusId: string, actorId?: string) {
+    if (!actorId) return false
+
+    const likes = this.db.collection('likes')
+    const snapshot = await likes
+      .where('statusId', '==', statusId)
+      .where('actorId', '==', actorId)
+      .count()
+      .get()
+    return snapshot.data().count === 1
   }
 }

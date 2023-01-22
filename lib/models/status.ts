@@ -33,6 +33,7 @@ export interface StatusNote extends StatusBase {
   // TODO: Change this to boosted count and add new flag for self boosted
   boostedByStatusesId: string[]
 
+  isActorLiked: boolean
   totalLikes: number
 
   attachments: AttachmentData[]
@@ -110,7 +111,7 @@ export class Status {
 
       boostedByStatusesId: [],
 
-      // TODO: Add total likes from note here
+      isActorLiked: false,
       totalLikes: 0,
 
       createdAt: new Date(note.published).getTime(),
