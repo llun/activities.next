@@ -90,6 +90,32 @@ export const undoRepostStatus = async ({
   })
 }
 
+interface LikeStatusParams {
+  statusId: string
+}
+export const likeStatus = async ({ statusId }: LikeStatusParams) => {
+  await fetch('/api/v1/accounts/like', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ statusId })
+  })
+}
+
+interface UndoLikeStatusParams {
+  statusId: string
+}
+export const undoLikeStatus = async ({ statusId }: UndoLikeStatusParams) => {
+  await fetch('/api/v1/accounts/like', {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ statusId })
+  })
+}
+
 interface GetAppleSharedGalleryParams {
   albumToken: string
 }
