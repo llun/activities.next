@@ -5,6 +5,13 @@ const handler = ApiGuard(async (req, res, context) => {
   const { storage, currentActor } = context
   switch (req.method) {
     case 'POST': {
+      const { statusId } = req.body
+      await storage.createLike({ actorId: currentActor.id, statusId })
+      return res.status(202).json(DEFAULT_202)
+    }
+    case 'DELETE': {
+      const { statusId } = req.body
+      await storage.deleteLike({ actorId: currentActor.id, statusId })
       return res.status(202).json(DEFAULT_202)
     }
     default: {

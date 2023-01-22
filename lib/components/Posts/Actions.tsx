@@ -1,9 +1,15 @@
 import cn from 'classnames'
 import { FC, useState } from 'react'
 
-import { deleteStatus, repostStatus, undoRepostStatus } from '../../client'
+import {
+  deleteStatus,
+  likeStatus,
+  repostStatus,
+  undoLikeStatus,
+  undoRepostStatus
+} from '../../client'
 import { ActorProfile } from '../../models/actor'
-import { StatusData, StatusType } from '../../models/status'
+import { StatusData, StatusNote, StatusType } from '../../models/status'
 import { Button } from '../Button'
 import styles from './Actions.module.scss'
 import { PostProps } from './Post'
@@ -66,13 +72,28 @@ const RepostButton: FC<RepostButtonProps> = ({
 
 interface LikeButtonProps {
   currentActor?: ActorProfile
-  status: StatusData
+  status: StatusNote
 }
 const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
   return (
     <span>
-      <Button variant="link" disabled={status.actorId === currentActor?.id}>
-        <i className="bi bi-star" />
+      <Button
+        variant="link"
+        disabled={status.actorId === currentActor?.id}
+        onClick={async () => {
+          if (status.isActorLiked) {
+            await undoLikeStatus({ statusId: status.id })
+            return
+          }
+          await likeStatus({ statusId: status.id })
+        }}
+      >
+        <i
+          className={cn('bi', {
+            'bi-star': !status.isActorLiked,
+            'bi-star-fill': status.isActorLiked
+          })}
+        />
       </Button>
       {status.type === StatusType.Note && status.totalLikes > 0 && (
         <span className={styles['like-count']}>{status.totalLikes}</span>
