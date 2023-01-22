@@ -296,10 +296,8 @@ export class FirebaseStorage implements Storage {
 
   async deleteActor({ actorId }: DeleteActorParams): Promise<void> {
     const actors = this.db.collection('actors')
-    const snapshot = await actors.where('id', '==', actorId).limit(1).get()
-
-    if (snapshot.docs.length !== 1) return
-    await actors.doc(snapshot.docs[0].id).delete()
+    const snapshot = await actors.where('id', '==', actorId).get()
+    await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()))
   }
 
   async isCurrentActorFollowing({
@@ -666,6 +664,10 @@ export class FirebaseStorage implements Storage {
   async getTimeline({ timeline }: GetTimelineParams) {
     switch (timeline) {
       case Timeline.LocalPublic: {
+        const actors = await this.db
+          .collection('actors')
+          .where('privateKey', '!=', '')
+          .get()
         return []
       }
       default: {
@@ -702,11 +704,8 @@ export class FirebaseStorage implements Storage {
 
   async deleteStatus({ statusId }: DeleteStatusParams) {
     const statuses = this.db.collection('statuses')
-    const snapshot = await statuses.where('id', '==', statusId).limit(1).get()
-    if (snapshot.docs.length !== 1) return
-
-    const document = snapshot.docs[0]
-    await statuses.doc(document.id).delete()
+    const snapshot = await statuses.where('id', '==', statusId).get()
+    await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()))
   }
 
   async createAttachment({
@@ -814,9 +813,7 @@ export class FirebaseStorage implements Storage {
       .where('statusId', '==', statusId)
       .where('actorId', '==', actorId)
       .get()
-    if (!snapshot) return
-
-    await Promise.all(snapshot.docs.map((doc) => likes.doc(doc.id).delete()))
+    await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()))
   }
 
   async getLikeCount({ statusId }: GetLikeCountParams) {
