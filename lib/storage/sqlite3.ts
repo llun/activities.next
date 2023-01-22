@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { Knex, knex } from 'knex'
 
-import { deliverTo } from '.'
+import { PER_PAGE_LIMIT, deliverTo } from '.'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
@@ -702,7 +702,6 @@ export class Sqlite3Storage implements Storage {
   }
 
   async getStatuses({ actorId }: GetStatusesParams) {
-    const postsPerPage = 30
     const query = this.database('recipients')
       .leftJoin('statuses', 'recipients.statusId', 'statuses.id')
       .where('recipients.type', 'local')
@@ -711,7 +710,7 @@ export class Sqlite3Storage implements Storage {
       .orWhere('reply', '')
       .distinct('statusId')
       .orderBy('recipients.createdAt', 'desc')
-      .limit(postsPerPage)
+      .limit(PER_PAGE_LIMIT)
     const local = await query
     const statuses = (
       await Promise.all(
@@ -745,7 +744,7 @@ export class Sqlite3Storage implements Storage {
       .where('actorId', actorId)
       .andWhere('reply', '')
       .orderBy('createdAt', 'desc')
-      .limit(20)
+      .limit(PER_PAGE_LIMIT)
     return Promise.all(
       statuses.map((item) => this.getStatusWithAttachmentsFromData(item))
     )

@@ -1,7 +1,7 @@
 import { Firestore, Settings } from '@google-cloud/firestore'
 import crypto from 'crypto'
 
-import { deliverTo } from '.'
+import { PER_PAGE_LIMIT, deliverTo } from '.'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
@@ -650,7 +650,7 @@ export class FirebaseStorage implements Storage {
       .where('localRecipients', 'array-contains', actorId)
       .where('localActorForReply', 'in', ['', actorId])
       .orderBy('createdAt', 'desc')
-      .limit(30)
+      .limit(PER_PAGE_LIMIT)
       .get()
     const items = await Promise.all(
       snapshot.docs.map((item) => {
@@ -667,6 +667,19 @@ export class FirebaseStorage implements Storage {
         const actors = await this.db
           .collection('actors')
           .where('privateKey', '!=', '')
+          .get()
+        const actorIds = actors.docs.map((doc) => doc.data().id)
+        await this.db
+          .collection('statuses')
+          .where('actorId', 'in', actorIds)
+          .where(
+            'to',
+            'array-contains',
+            'https://www.w3.org/ns/activitystreams#Public'
+          )
+          .where('reply', '==', '')
+          .orderBy('createdAt', 'desc')
+          .limit(PER_PAGE_LIMIT)
           .get()
         return []
       }
@@ -691,7 +704,7 @@ export class FirebaseStorage implements Storage {
       .where('actorId', '==', actorId)
       .where('reply', '==', '')
       .orderBy('createdAt', 'desc')
-      .limit(20)
+      .limit(PER_PAGE_LIMIT)
       .get()
     const items = await Promise.all(
       snapshot.docs.map((item) => {

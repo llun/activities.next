@@ -5,6 +5,8 @@ import { FirebaseStorage } from './firebase'
 import { Sqlite3Storage } from './sqlite3'
 import { Storage } from './types'
 
+export const PER_PAGE_LIMIT = 30
+
 export const getStorage = memoize(async (): Promise<Storage | null> => {
   const config = getConfig()
   switch (config.database.type) {
