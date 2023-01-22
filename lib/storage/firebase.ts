@@ -403,7 +403,9 @@ export class FirebaseStorage implements Storage {
       .collection('actors')
       .where('privateKey', '!=', '')
       .get()
-    const domains = localActors.docs.map((doc) => doc.data().domain)
+    const domains = Array.from(
+      new Set(localActors.docs.map((doc) => doc.data().domain))
+    )
 
     const follows = this.db.collection('follows')
     const snapshot = await follows
@@ -669,19 +671,34 @@ export class FirebaseStorage implements Storage {
           .where('privateKey', '!=', '')
           .get()
         const actorIds = actors.docs.map((doc) => doc.data().id)
-        await this.db
-          .collection('statuses')
-          .where('actorId', 'in', actorIds)
-          .where(
-            'to',
-            'array-contains',
-            'https://www.w3.org/ns/activitystreams#Public'
+        // TODO: Add new index when create status for timeline
+        const actorsDocuments = await Promise.all(
+          actorIds.map((actorId) =>
+            this.db
+              .collection('statuses')
+              .where('actorId', '==', actorId)
+              .where(
+                'to',
+                'array-contains',
+                'https://www.w3.org/ns/activitystreams#Public'
+              )
+              .where('reply', '==', '')
+              .orderBy('createdAt', 'desc')
+              .limit(PER_PAGE_LIMIT)
+              .get()
           )
-          .where('reply', '==', '')
-          .orderBy('createdAt', 'desc')
-          .limit(PER_PAGE_LIMIT)
-          .get()
-        return []
+        )
+        const statuses = await Promise.all(
+          actorsDocuments
+            .map((item) => item.docs)
+            .flat()
+            .map((doc) => doc.data())
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .map((data) => this.getStatusFromData(data, false))
+        )
+        return statuses
+          .filter((status): status is Status => Boolean(status))
+          .slice(0, 30)
       }
       default: {
         return []

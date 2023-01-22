@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { Knex, knex } from 'knex'
 
 import { PER_PAGE_LIMIT, deliverTo } from '.'
+import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
@@ -720,10 +721,25 @@ export class Sqlite3Storage implements Storage {
     return statuses
   }
 
-  async getTimeline({ timeline, actorId }: GetTimelineParams) {
+  async getTimeline({ timeline }: GetTimelineParams) {
     switch (timeline) {
       case Timeline.LocalPublic: {
-        return []
+        const query = this.database('recipients')
+          .leftJoin('statuses', 'recipients.statusId', 'statuses.id')
+          .leftJoin('actors', 'statuses.actorId', 'actors.id')
+          .where('recipients.type', 'to')
+          .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+          .whereNotNull('actors.privateKey')
+          .where('statuses.reply', '')
+          .orderBy('recipients.createdAt', 'desc')
+          .limit(PER_PAGE_LIMIT)
+        const local = await query
+        const statuses = (
+          await Promise.all(
+            local.map((item) => this.getStatus({ statusId: item.statusId }))
+          )
+        ).filter((item): item is Status => item !== undefined)
+        return statuses
       }
       default: {
         return []

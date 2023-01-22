@@ -51,6 +51,10 @@ const TEST_ID11 = 'https://llun.test/users/user11'
 // Likes
 const TEST_ID12 = 'https://llun.test/users/user12'
 
+// Local public timeline
+const TEST_ID13 = 'https://llun.test/users/user13'
+const TEST_USERNAME13 = 'user13'
+
 type TestStorage = [string, Storage]
 
 describe('Storage', () => {
@@ -866,12 +870,63 @@ describe('Storage', () => {
     describe('timelines', () => {
       // TODO: Create timeline model that can has different query
       describe('public', () => {
+        beforeAll(async () => {
+          await storage.createActor({
+            actorId: TEST_ID13,
+            username: TEST_USERNAME13,
+            domain: TEST_DOMAIN,
+            publicKey: 'publicKey',
+            privateKey: 'privateKey',
+            inboxUrl: `${TEST_ID13}/inbox`,
+            sharedInboxUrl: `${TEST_ID13}/inbox`,
+            followersUrl: `${TEST_ID13}/followers`,
+            createdAt: Date.now()
+          })
+          await storage.createNote({
+            actorId: TEST_ID13,
+            cc: [],
+            to: [ACTIVITY_STREAM_PUBLIC],
+            id: `${TEST_ID13}/statuses/1`,
+            text: 'This is public status',
+            url: `${TEST_ID13}/statuses/1`,
+            reply: '',
+            createdAt: Date.now()
+          })
+          await storage.createNote({
+            actorId: TEST_ID13,
+            cc: [ACTIVITY_STREAM_PUBLIC, `${TEST_ID13}/followers`],
+            to: [],
+            id: `${TEST_ID13}/statuses/2`,
+            text: 'This is protected status',
+            url: `${TEST_ID13}/statuses/2`,
+            reply: '',
+            createdAt: Date.now()
+          })
+          await storage.createNote({
+            actorId: TEST_ID13,
+            cc: [TEST_ID12],
+            to: [],
+            id: `${TEST_ID13}/statuses/3`,
+            text: 'This is direct status',
+            url: `${TEST_ID13}/statuses/3`,
+            reply: '',
+            createdAt: Date.now()
+          })
+        }, 10000)
+
+        afterAll(async () => {
+          await storage.deleteStatus({ statusId: `${TEST_ID13}/statuses/1` })
+          await storage.deleteActor({ actorId: TEST_ID13 })
+        })
+
         it('returns all public posts from all local actors in instances', async () => {
           const statuses = await storage.getTimeline({
             timeline: Timeline.LocalPublic
           })
-          console.log(statuses)
-        })
+          for (const status of statuses) {
+            expect(status.actorId).toContain(TEST_DOMAIN)
+          }
+        }, 10000)
       })
     })
   })
