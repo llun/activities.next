@@ -5,6 +5,7 @@ import { deleteStatus, repostStatus, undoRepostStatus } from '../../client'
 import { ActorProfile } from '../../models/actor'
 import { StatusData, StatusType } from '../../models/status'
 import { Button } from '../Button'
+import styles from './Actions.module.scss'
 import { PostProps } from './Post'
 
 interface RepostButtonProps {
@@ -63,6 +64,23 @@ const RepostButton: FC<RepostButtonProps> = ({
   )
 }
 
+interface LikeButtonProps {
+  currentActor?: ActorProfile
+  status: StatusData
+}
+const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
+  return (
+    <span>
+      <Button variant="link" disabled={status.actorId === currentActor?.id}>
+        <i className="bi bi-star" />
+      </Button>
+      {status.type === StatusType.Note && status.totalLikes > 0 && (
+        <span className={styles['like-count']}>{status.totalLikes}</span>
+      )}
+    </span>
+  )
+}
+
 export const Actions: FC<PostProps> = ({
   currentActor,
   status,
@@ -79,12 +97,16 @@ export const Actions: FC<PostProps> = ({
     return (
       <div>
         <Button variant="link" onClick={() => onReply?.(status.originalStatus)}>
-          <i className="bi bi-reply"></i>
+          <i className="bi bi-reply" />
         </Button>
         <RepostButton
           currentActor={currentActor}
           status={status.originalStatus}
           onPostReposted={onPostReposted}
+        />
+        <LikeButton
+          currentActor={currentActor}
+          status={status.originalStatus}
         />
       </div>
     )
@@ -93,13 +115,14 @@ export const Actions: FC<PostProps> = ({
   return (
     <div>
       <Button variant="link" onClick={() => onReply?.(status)}>
-        <i className="bi bi-reply"></i>
+        <i className="bi bi-reply" />
       </Button>
       <RepostButton
         currentActor={currentActor}
         status={status}
         onPostReposted={onPostReposted}
       />
+      <LikeButton currentActor={currentActor} status={status} />
       {showDeleteAction && (
         <Button
           variant="link"
@@ -116,7 +139,7 @@ export const Actions: FC<PostProps> = ({
             onPostDeleted?.(status)
           }}
         >
-          <i className="bi bi-trash3"></i>
+          <i className="bi bi-trash3" />
         </Button>
       )}
     </div>
