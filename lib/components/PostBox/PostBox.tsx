@@ -117,14 +117,8 @@ export const PostBox: FC<Props> = ({
   const onQuickPost = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!(event.metaKey || event.ctrlKey)) return
     if (event.code !== 'Enter') return
-
-    console.log('Allow post', allowPost, 'Form', formRef.current)
-
     if (!allowPost) return
     if (!formRef.current) return
-
-    console.log('Submit form')
-
     onPost()
   }
 
