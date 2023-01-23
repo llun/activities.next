@@ -439,6 +439,7 @@ describe('Storage', () => {
           attachments: [],
           boostedByStatusesId: [],
           totalLikes: 0,
+          isActorLiked: false,
           tags: [],
           reply: '',
           replies: [],
