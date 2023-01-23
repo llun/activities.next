@@ -527,6 +527,7 @@ export class FirebaseStorage implements Storage {
       attachments: [],
       boostedByStatusesId: [],
       totalLikes: 0,
+      isActorLiked: false,
       tags: [],
       replies: []
     })
