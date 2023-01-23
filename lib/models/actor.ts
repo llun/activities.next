@@ -9,14 +9,15 @@ export interface ActorProfile {
   iconUrl?: string
   headerImageUrl?: string
   appleSharedAlbumToken?: string
-  createdAt: number
-}
 
-export type ActorData = ActorProfile & {
   followersUrl: string
   inboxUrl: string
   sharedInboxUrl: string
 
+  createdAt: number
+}
+
+export type ActorData = ActorProfile & {
   privateKey?: string
   publicKey: string
   account?: Account
@@ -137,6 +138,11 @@ export class Actor {
       ...(this.data.appleSharedAlbumToken
         ? { appleSharedAlbumToken: this.data.appleSharedAlbumToken }
         : null),
+
+      followersUrl: this.data.followersUrl,
+      inboxUrl: this.data.inboxUrl,
+      sharedInboxUrl: this.data.sharedInboxUrl,
+
       createdAt: this.data.createdAt
     }
   }

@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
+import crypto from 'crypto'
 
 import { getConfig } from '../config'
 import {
@@ -21,7 +22,9 @@ import { AnnounceStatus } from './actions/announceStatus'
 import { CreateStatus } from './actions/createStatus'
 import { DeleteStatus } from './actions/deleteStatus'
 import { FollowRequest } from './actions/follow'
+import { LikeStatus } from './actions/like'
 import { UndoFollow } from './actions/undoFollow'
+import { UndoLike } from './actions/undoLike'
 import { UndoStatus } from './actions/undoStatus'
 import { Image } from './entities/image'
 import { Note } from './entities/note'
@@ -35,6 +38,49 @@ const USER_AGENT = 'activities.next/0.1'
 const SHARED_HEADERS = {
   Accept: 'application/activity+json, application/ld+json',
   'User-Agent': USER_AGENT
+}
+
+interface FetchWithTimeout {
+  currentActor: Actor
+  url: string
+  method: 'GET' | 'POST' | 'DELETE'
+  activity:
+    | CreateStatus
+    | AnnounceStatus
+    | DeleteStatus
+    | UndoStatus
+    | UndoFollow
+    | FollowRequest
+    | AcceptFollow
+    | LikeStatus
+    | UndoLike
+  timeoutMilliseconds?: number
+}
+const fetchWithTimeout = async ({
+  currentActor,
+  url,
+  method,
+  activity,
+  timeoutMilliseconds = 2000
+}: FetchWithTimeout) => {
+  const controller = new AbortController()
+  const signal = controller.signal
+  const response = fetch(url, {
+    method,
+    headers: {
+      ...headers(currentActor, method.toLowerCase(), url, activity),
+      'User-Agent': USER_AGENT
+    },
+    body: JSON.stringify(activity),
+    signal
+  })
+  setTimeout(() => {
+    controller.abort()
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Abort fetch', url)
+    }
+  }, timeoutMilliseconds)
+  return response
 }
 
 export const getWebfingerSelf = async (account: string) => {
@@ -293,33 +339,7 @@ export const sendNote = async ({
     cc: note.cc,
     object: note
   }
-  // TODO: Add LinkedDataSignature later
-  // https://github.com/mastodon/mastodon/blob/48e136605a30fa7ee71a656b599d91adf47b17fc/app/lib/activitypub/linked_data_signature.rb#L3
-  try {
-    const controller = new AbortController()
-    const signal = controller.signal
-    fetch(inbox, {
-      method: 'POST',
-      headers: {
-        ...headers(currentActor, 'post', inbox, activity),
-        'User-Agent': USER_AGENT
-      },
-      body: JSON.stringify(activity),
-      signal
-    })
-    // Wait fetch for 2 seconds
-    await new Promise((resolve) => {
-      setTimeout(() => {
-        controller.abort()
-        if (process.env.NODE_ENV !== 'test') {
-          console.error('Abort fetch', inbox, note.id)
-        }
-        resolve(undefined)
-      }, 2000)
-    })
-  } catch (error) {
-    Sentry.captureException(error)
-  }
+  await fetchWithTimeout({ currentActor, url: inbox, method: 'POST', activity })
 }
 
 interface SendAnnounceParams {
@@ -346,19 +366,7 @@ export const sendAnnounce = async ({
     cc: status.cc,
     object: status.data.originalStatus.id
   }
-
-  try {
-    await fetch(inbox, {
-      method: 'POST',
-      headers: {
-        ...headers(currentActor, 'post', inbox, activity),
-        'User-Agent': USER_AGENT
-      },
-      body: JSON.stringify(activity)
-    })
-  } catch (error) {
-    Sentry.captureException(error)
-  }
+  await fetchWithTimeout({ currentActor, url: inbox, method: 'POST', activity })
 }
 
 interface DeleteStatusParams {
@@ -382,18 +390,7 @@ export const deleteStatus = async ({
       type: 'Tombstone'
     }
   }
-  try {
-    await fetch(inbox, {
-      method: 'POST',
-      headers: {
-        ...headers(currentActor, 'post', inbox, activity),
-        'User-Agent': USER_AGENT
-      },
-      body: JSON.stringify(activity)
-    })
-  } catch (error) {
-    Sentry.captureException(error)
-  }
+  await fetchWithTimeout({ currentActor, url: inbox, method: 'POST', activity })
 }
 
 interface UndoAnnounceParams {
@@ -422,18 +419,7 @@ export const undoAnnounce = async ({
       object: announce.originalStatus.id
     }
   }
-  try {
-    await fetch(inbox, {
-      method: 'POST',
-      headers: {
-        ...headers(currentActor, 'post', inbox, activity),
-        'User-Agent': USER_AGENT
-      },
-      body: JSON.stringify(activity)
-    })
-  } catch (error) {
-    Sentry.captureException(error)
-  }
+  await fetchWithTimeout({ currentActor, url: inbox, method: 'POST', activity })
 }
 
 export const follow = async (
@@ -441,7 +427,7 @@ export const follow = async (
   currentActor: Actor,
   targetActorId: string
 ) => {
-  const content: FollowRequest = {
+  const activity: FollowRequest = {
     '@context': ACTIVITY_STREAM_URL,
     id: `https://${currentActor.domain}/${id}`,
     type: 'Follow',
@@ -452,20 +438,18 @@ export const follow = async (
   const targetInbox = publicProfile?.endpoints.inbox
   if (!targetInbox) return false
 
-  const response = await fetch(targetInbox, {
+  const response = await fetchWithTimeout({
+    currentActor,
+    url: targetInbox,
     method: 'POST',
-    headers: {
-      ...headers(currentActor, 'post', targetInbox, content),
-      'User-Agent': USER_AGENT
-    },
-    body: JSON.stringify(content)
+    activity
   })
   return response.status === 202
 }
 
 export const unfollow = async (currentActor: Actor, follow: Follow) => {
   const config = getConfig()
-  const unfollowRequest: UndoFollow = {
+  const activity: UndoFollow = {
     '@context': ACTIVITY_STREAM_URL,
     id: `https://${config.host}/${currentActor.id}#follows/${follow.id}/undo`,
     type: 'Undo',
@@ -477,18 +461,18 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
       object: follow.targetActorId
     }
   }
-  const response = await fetch(`${follow.targetActorId}/inbox`, {
-    method: 'POST',
-    headers: {
-      ...headers(
-        currentActor,
-        'post',
-        `${follow.targetActorId}/inbox`,
-        unfollowRequest
-      ),
-      'User-Agent': USER_AGENT
-    },
-    body: JSON.stringify(unfollowRequest)
+
+  const publicProfile = await getPublicProfile({
+    actorId: follow.targetActorId
+  })
+  const targetInbox =
+    publicProfile?.endpoints.inbox ?? `${follow.targetActorId}/inbox`
+
+  const response = await fetchWithTimeout({
+    currentActor,
+    url: targetInbox,
+    activity,
+    method: 'POST'
   })
   return response.status === 202
 }
@@ -498,7 +482,7 @@ export const acceptFollow = async (
   followingInbox: string,
   followRequest: FollowRequest
 ) => {
-  const acceptFollowRequest: AcceptFollow = {
+  const activity: AcceptFollow = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${currentActor.id}#accepts/followers`,
     type: 'Accept',
@@ -510,14 +494,66 @@ export const acceptFollow = async (
       object: followRequest.object
     }
   }
-
-  const response = await fetch(followingInbox, {
+  const response = await fetchWithTimeout({
+    currentActor,
+    url: followingInbox,
     method: 'POST',
-    headers: {
-      ...headers(currentActor, 'post', followingInbox, acceptFollowRequest),
-      'User-Agent': USER_AGENT
-    },
-    body: JSON.stringify(acceptFollowRequest)
+    activity
   })
   return response.status === 202
+}
+
+const statusIdHash = (statusId: string) =>
+  crypto.createHash('md5').update(statusId).digest('hex')
+
+interface LikeParams {
+  currentActor: Actor
+  status: Status
+}
+export const sendLike = async ({ currentActor, status }: LikeParams) => {
+  if (!status.actor) return
+
+  const activity: LikeStatus = {
+    '@context': ACTIVITY_STREAM_URL,
+    id: `${currentActor.id}#likes/${statusIdHash(status.id)}`,
+    type: 'Like',
+    actor: currentActor.id,
+    object: status.id
+  }
+  await fetchWithTimeout({
+    currentActor,
+    activity,
+    method: 'POST',
+    url: status.actor.inboxUrl
+  })
+}
+
+interface UndoLikeParams {
+  currentActor: Actor
+  status: Status
+}
+export const sendUndoLike = async ({
+  currentActor,
+  status
+}: UndoLikeParams) => {
+  if (!status.actor) return
+
+  const activity: UndoLike = {
+    '@context': ACTIVITY_STREAM_URL,
+    id: `${currentActor.id}/#likes/${statusIdHash(status.id)}/undo`,
+    type: 'Undo',
+    actor: currentActor.id,
+    object: {
+      id: `${currentActor.id}/#likes/${statusIdHash(status.id)}`,
+      type: 'Like',
+      actor: currentActor.id,
+      object: status.id
+    }
+  }
+  await fetchWithTimeout({
+    currentActor,
+    activity,
+    method: 'POST',
+    url: status.actor.inboxUrl
+  })
 }

@@ -1,8 +1,8 @@
 import { ContextEntity } from '../entities/base'
-import { Like } from '../entities/like'
 import { BaseActivity } from './base'
+import { LikeStatus } from './like'
 
 export interface UndoLike extends BaseActivity, ContextEntity {
   type: 'Undo'
-  object: Like
+  object: LikeStatus
 }

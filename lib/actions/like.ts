@@ -1,4 +1,4 @@
-import { LikeStatus } from '../activities/actions/liks'
+import { LikeStatus } from '../activities/actions/like'
 import { Storage } from '../storage/types'
 
 interface LikeRequestParams {
