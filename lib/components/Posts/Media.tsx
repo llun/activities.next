@@ -49,7 +49,7 @@ export const Media: FC<Props> = ({
           onClick?.()
         }}
       >
-        <source src={url} type={mediaType} />
+        <source src={`${url}#t=0.01`} type={mediaType} />
       </video>
     )
   }
