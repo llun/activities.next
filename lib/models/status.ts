@@ -1,4 +1,5 @@
 import { AnnounceStatus } from '../activities/actions/announceStatus'
+import { Document } from '../activities/entities/document'
 import { Note, getContent, getSummary } from '../activities/entities/note'
 import { getISOTimeUTC } from '../time'
 import { ActorProfile } from './actor'
@@ -88,6 +89,10 @@ export class Status {
   }
 
   static fromNote(note: Note) {
+    const attachments = (
+      Array.isArray(note.attachment) ? note.attachment : [note.attachment]
+    ).filter((item): item is Document => item.type === 'Document')
+
     return new Status({
       id: note.id,
       url: note.url || note.id,
@@ -106,7 +111,17 @@ export class Status {
       reply: note.inReplyTo || '',
       replies: [],
 
-      attachments: [],
+      attachments: attachments.map((attachment) => ({
+        id: attachment.url,
+        statusId: note.id,
+        type: 'Document',
+        mediaType: attachment.mediaType,
+        url: attachment.url,
+        name: attachment.name ?? '',
+
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })),
       tags: [],
 
       boostedByStatusesId: [],

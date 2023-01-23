@@ -139,9 +139,9 @@ export class Actor {
         ? { appleSharedAlbumToken: this.data.appleSharedAlbumToken }
         : null),
 
-      followersUrl: this.data.followersUrl,
-      inboxUrl: this.data.inboxUrl,
-      sharedInboxUrl: this.data.sharedInboxUrl,
+      followersUrl: this.data.followersUrl ?? '',
+      inboxUrl: this.data.inboxUrl ?? '',
+      sharedInboxUrl: this.data.sharedInboxUrl ?? '',
 
       createdAt: this.data.createdAt
     }
