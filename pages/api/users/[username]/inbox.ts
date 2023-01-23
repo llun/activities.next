@@ -73,7 +73,10 @@ export default activitiesGuard(
             case 'Like': {
               await storage.deleteLike({
                 actorId: undoRequest.object.actor,
-                statusId: undoRequest.object.object
+                statusId:
+                  typeof undoRequest.object.object === 'string'
+                    ? undoRequest.object.object
+                    : undoRequest.object.object.id
               })
               return res.status(202).send(DEFAULT_202)
             }

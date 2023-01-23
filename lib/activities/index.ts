@@ -279,6 +279,11 @@ export const getActorProfileFromPublicProfile = async ({
     name: publicProfile.name,
     summary: publicProfile.summary,
     iconUrl: publicProfile.icon?.url || '',
+
+    inboxUrl: publicProfile.endpoints.inbox,
+    sharedInboxUrl: publicProfile.endpoints.sharedInbox,
+    followersUrl: publicProfile.endpoints.followers,
+
     createdAt: publicProfile.createdAt
   }
   return actor
