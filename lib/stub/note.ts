@@ -35,7 +35,7 @@ export const MockMastodonNote = ({
   to = [ACTIVITY_STREAM_PUBLIC],
   cc = [],
   inReplyTo,
-  documents,
+  documents = [],
   conversation,
 
   withContext
