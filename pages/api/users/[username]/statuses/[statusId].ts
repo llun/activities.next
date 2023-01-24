@@ -25,7 +25,7 @@ export default async function handler(
   const { username, statusId } = req.query
 
   if (
-    ['application/json', 'application/ld+json'].includes(
+    !['application/json', 'application/ld+json'].includes(
       req.headers.accept ?? ''
     )
   ) {
