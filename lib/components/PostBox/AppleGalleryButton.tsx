@@ -28,7 +28,7 @@ export const AppleGallerButton: FC<Props> = ({ profile, onSelectMedia }) => {
     event.stopPropagation()
     if (!profile.appleSharedAlbumToken) return
 
-    if (loadingState === 'idle') {
+    if (['idle', 'loaded'].includes(loadingState)) {
       setMediaLoadingState('loading')
       const stream = await getAppleSharedGallery({
         albumToken: profile.appleSharedAlbumToken
