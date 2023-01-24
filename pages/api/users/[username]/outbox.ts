@@ -1,22 +1,21 @@
 import type { NextApiHandler } from 'next'
 
-import { getConfig } from '../../../../lib/config'
+import { RequestHost } from '../../../../lib/guard'
 import { ERROR_400, ERROR_404 } from '../../../../lib/responses'
 import { getStorage } from '../../../../lib/storage'
 import { getISOTimeUTC } from '../../../../lib/time'
 
 const handle: NextApiHandler = async (req, res) => {
   const { username, page } = req.query
-  const config = getConfig()
   const storage = await getStorage()
   if (!storage) {
     return res.status(400).json(ERROR_400)
   }
 
-  // TODO: User request domain, instead of host from config
+  const host = RequestHost(req)
   switch (req.method) {
     case 'GET': {
-      const id = `https://${config.host}/users/${username}`
+      const id = `https://${host}/users/${username}`
       if (!page) {
         const totalItems = await storage.getActorStatusesCount({ actorId: id })
         const inboxId = `${id}/outbox`

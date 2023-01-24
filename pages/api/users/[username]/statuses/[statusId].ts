@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
 import { Note } from '../../../../../lib/activities/entities/note'
-import { getConfig } from '../../../../../lib/config'
 import { RequestHost } from '../../../../../lib/guard'
 import { ACTIVITY_STREAM_URL } from '../../../../../lib/jsonld/activitystream'
 import { ERROR_404, ERROR_500 } from '../../../../../lib/responses'
@@ -17,7 +16,6 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<Data>
 ) {
-  const config = getConfig()
   const storage = await getStorage()
   if (!storage) {
     return res.status(500).json(ERROR_500)
@@ -26,18 +24,15 @@ export default async function handler(
   const { username, statusId } = req.query
 
   const host = RequestHost(req)
-  console.log('Request host', host)
   if (
     !['application/json', 'application/ld+json'].includes(
       req.headers.accept ?? ''
     )
   ) {
-    return res
-      .status(302)
-      .redirect(`https://${config.host}/@${username}/${statusId}`)
+    return res.status(302).redirect(`https://${host}/@${username}/${statusId}`)
   }
 
-  const id = `https://${config.host}/users/${username}/statuses/${statusId}`
+  const id = `https://${host}/users/${username}/statuses/${statusId}`
   const status = await storage.getStatus({ statusId: id })
   if (!status) {
     return res.status(404).json(ERROR_404)
