@@ -525,9 +525,9 @@ export class FirebaseStorage implements Storage {
       ...status,
       actor: actor?.toProfile() || null,
       attachments: [],
-      boostedByStatusesId: [],
       totalLikes: 0,
       isActorLiked: false,
+      isActorAnnounced: false,
       tags: [],
       replies: []
     })
@@ -567,15 +567,18 @@ export class FirebaseStorage implements Storage {
     return new Status(announceData)
   }
 
-  private async getBoostedByStatuses(statusId: string) {
+  private async isActorAnnouncedStatus(statusId: string, actorId?: string) {
+    if (!actorId) return false
+
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses
       .where('originalStatusId', '==', statusId)
+      .where('type', '==', 'Announce')
+      .where('actorId', '==', actorId)
+      .count()
       .get()
-    return snapshot.docs.map((doc) => {
-      const data = doc.data()
-      return data.id
-    })
+
+    return snapshot.data().count === 1
   }
 
   private async getStatusFromData(
@@ -585,9 +588,7 @@ export class FirebaseStorage implements Storage {
   ): Promise<Status | undefined> {
     if (data.type === StatusType.Announce) {
       const [originalStatus, actor] = await Promise.all([
-        this.getStatus({
-          statusId: data.originalStatusId
-        }),
+        this.getStatusWithCurrentActor(data.originalStatusId, currentActorId),
         this.getActorFromId({
           id: data.actorId
         })
@@ -614,16 +615,16 @@ export class FirebaseStorage implements Storage {
       attachments,
       tags,
       actor,
-      boostedByStatusesId,
       totalLikes,
-      isActorLikedStatus
+      isActorLikedStatus,
+      isActorAnnouncedStatus
     ] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
       this.getTags({ statusId: data.id }),
       this.getActorFromId({ id: data.actorId }),
-      this.getBoostedByStatuses(data.id),
       this.getLikeCount({ statusId: data.id }),
-      this.isActorLikedStatus(data.id, currentActorId)
+      this.isActorLikedStatus(data.id, currentActorId),
+      this.isActorAnnouncedStatus(data.id, currentActorId)
     ])
     const replies = withReplies ? await this.getReplies(data.id) : []
     return new Status({
@@ -638,9 +639,9 @@ export class FirebaseStorage implements Storage {
       summary: data.summary,
       reply: data.reply,
       replies,
-      boostedByStatusesId,
       totalLikes,
       isActorLiked: isActorLikedStatus,
+      isActorAnnounced: isActorAnnouncedStatus,
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
@@ -648,12 +649,19 @@ export class FirebaseStorage implements Storage {
     })
   }
 
-  async getStatus({ statusId }: GetStatusParams) {
+  private async getStatusWithCurrentActor(
+    statusId: string,
+    currentActorId?: string
+  ) {
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses.where('id', '==', statusId).limit(1).get()
     if (snapshot.docs.length !== 1) return
     const data = snapshot.docs[0].data()
-    return this.getStatusFromData(data, true)
+    return this.getStatusFromData(data, true, currentActorId)
+  }
+
+  async getStatus({ statusId }: GetStatusParams) {
+    return this.getStatusWithCurrentActor(statusId)
   }
 
   async getStatuses({ actorId }: GetStatusesParams) {

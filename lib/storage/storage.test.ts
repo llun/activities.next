@@ -55,6 +55,9 @@ const TEST_ID12 = 'https://llun.test/users/user12'
 const TEST_ID13 = 'https://llun.test/users/user13'
 const TEST_USERNAME13 = 'user13'
 
+// Actor boosted test id 11 status
+const TEST_ID14 = 'https://llun.test/users/user14'
+
 type TestStorage = [string, Storage]
 
 describe('Storage', () => {
@@ -102,7 +105,7 @@ describe('Storage', () => {
         privateKey: 'privateKey1',
         publicKey: 'publicKey1'
       })
-      const idWithAccounts = [3, 4, 5, 6, 7, 8, 11, 12]
+      const idWithAccounts = [3, 4, 5, 6, 7, 8, 11, 12, 14]
       for (const id of idWithAccounts) {
         await storage.createAccount({
           email: `user${id}@llun.dev`,
@@ -437,9 +440,9 @@ describe('Storage', () => {
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           attachments: [],
-          boostedByStatusesId: [],
           totalLikes: 0,
           isActorLiked: false,
+          isActorAnnounced: false,
           tags: [],
           reply: '',
           replies: [],
@@ -811,23 +814,23 @@ describe('Storage', () => {
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
         })
-        const secondPostId = `${TEST_ID9}/posts/2`
+        const secondPostId = `${TEST_ID14}/posts/2`
         await storage.createAnnounce({
           id: secondPostId,
-          actorId: TEST_ID9,
+          actorId: TEST_ID14,
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           originalStatusId: firstPostId
         })
-        const originalStatus = await storage.getStatus({
-          statusId: firstPostId
-        })
-        if (originalStatus?.data.type !== StatusType.Note) {
-          fail('Status type must be Note')
+
+        const statuses = await storage.getStatuses({ actorId: TEST_ID14 })
+        const announceStatus = statuses.shift()
+        if (announceStatus?.data.type !== StatusType.Announce) {
+          fail('Status must be announce')
         }
-        expect(originalStatus?.data.boostedByStatusesId).toContainValue(
-          secondPostId
-        )
+
+        const originalStatus = announceStatus.data.originalStatus
+        expect(originalStatus.isActorAnnounced).toBeTrue()
       })
     })
 

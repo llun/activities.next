@@ -31,9 +31,7 @@ export interface StatusNote extends StatusBase {
   reply: string
   replies: StatusNote[]
 
-  // TODO: Change this to boosted count and add new flag for self boosted
-  boostedByStatusesId: string[]
-
+  isActorAnnounced: boolean
   isActorLiked: boolean
   totalLikes: number
 
@@ -124,8 +122,7 @@ export class Status {
       })),
       tags: [],
 
-      boostedByStatusesId: [],
-
+      isActorAnnounced: false,
       isActorLiked: false,
       totalLikes: 0,
 
