@@ -123,6 +123,7 @@ export function ApiGuard(handle: ApiHandle) {
 
 export function RequestHost(request: NextApiRequest) {
   const headers = request.headers
+  console.log('Header keys', Object.keys(headers))
   if (headers[ACTIVITIES_HOST]) {
     return headers[ACTIVITIES_HOST]
   }
