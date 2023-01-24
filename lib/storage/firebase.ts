@@ -587,6 +587,7 @@ export class FirebaseStorage implements Storage {
     currentActorId?: string
   ): Promise<Status | undefined> {
     if (data.type === StatusType.Announce) {
+      return
       const [originalStatus, actor] = await Promise.all([
         this.getStatusWithCurrentActor(data.originalStatusId, currentActorId),
         this.getActorFromId({
