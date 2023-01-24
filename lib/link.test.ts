@@ -37,12 +37,30 @@ describe('#linkifyText', () => {
     )
   })
 
-  it('linkify link without pathname', async () => {
+  it('linkify link without protocol and pathname', async () => {
     const message = await linkifyText(
-      'Test linkify string llun.me, without pathname'
+      'Test linkify string llun.me, without protocol and pathname'
     )
     expect(message).toEqual(
-      'Test linkify string <a href="https://llun.me" target="_blank" rel="nofollow noopener noreferrer">llun.me</a>, without pathname'
+      'Test linkify string <a href="https://llun.me/" target="_blank" rel="nofollow noopener noreferrer">llun.me</a>, without protocol and pathname'
+    )
+  })
+
+  it('linkify link without protocol', async () => {
+    const message = await linkifyText(
+      'Test linkify string llun.me/pathname, without pathname'
+    )
+    expect(message).toEqual(
+      'Test linkify string <a href="https://llun.me/pathname" target="_blank" rel="nofollow noopener noreferrer">llun.me/pathname</a>, without pathname'
+    )
+  })
+
+  it('linkify link without protocol with very long pathname', async () => {
+    const message = await linkifyText(
+      'Test linkify string www.llun.me/posts/dev/2023-01-07-my-wrong-assumptions-with-activity-pub/, without pathname'
+    )
+    expect(message).toEqual(
+      'Test linkify string <a href="https://www.llun.me/posts/dev/2023-01-07-my-wrong-assumptions-with-activity-pub/" target="_blank" rel="nofollow noopener noreferrer">llun.me/posts/dev/2023-01-07-my-…</a>, without pathname'
     )
   })
 })

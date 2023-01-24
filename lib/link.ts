@@ -6,25 +6,31 @@ import './linkify-mention'
 import { Actor } from './models/actor'
 import { Status } from './models/status'
 
+const LINK_BODY_LIMIT = 25
+
 function mentionBody(url = '', username = '') {
   return `<span class="h-card"><a href="${url}" target="_blank" class="u-url mention">@<span>${username}</span></a></span>`
 }
 
 function linkBody(url = '') {
-  const limit = 25
+  let link
   try {
-    const link = new URL(url)
-    const hostname = link.host.startsWith('www.')
-      ? link.host.slice(4)
-      : link.host
-    const pathname =
-      link.pathname.length > limit
-        ? `${link.pathname.slice(0, limit)}…`
-        : link.pathname
-    return `<a href="${url}" target="_blank" rel="nofollow noopener noreferrer">${hostname}${pathname}</a>`
-  } catch {
-    return `<a href="https://${url}" target="_blank" rel="nofollow noopener noreferrer">${url}</a>`
+    link = new URL(url)
+  } catch (error: any) {
+    if (error.code !== 'ERR_INVALID_URL') {
+      throw error
+    }
+    link = new URL(`https://${url}`)
   }
+
+  const hostname = link.host.startsWith('www.') ? link.host.slice(4) : link.host
+  const pathname =
+    link.pathname.length > LINK_BODY_LIMIT
+      ? `${link.pathname.slice(0, LINK_BODY_LIMIT)}…`
+      : link.pathname
+  return `<a href="${link.toString()}" target="_blank" rel="nofollow noopener noreferrer">${hostname}${
+    pathname === '/' ? '' : pathname
+  }</a>`
 }
 
 export async function linkifyText(text: string, mock?: boolean) {
