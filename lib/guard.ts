@@ -12,7 +12,8 @@ import { Storage } from './storage/types'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
-const ACTIVITIES_HOST = 'X-Activity-Next-Host'
+const ACTIVITIES_HOST = 'x-activity-next-host'
+const FORWARDED_HOST = 'x-forwarded-host'
 
 export function activitiesGuard<T>(
   handle: NextApiHandler<T>,
@@ -123,12 +124,7 @@ export function ApiGuard(handle: ApiHandle) {
 
 export function RequestHost(request: NextApiRequest) {
   const headers = request.headers
-  console.log('Header keys', Object.keys(headers))
-  if (headers[ACTIVITIES_HOST]) {
-    return headers[ACTIVITIES_HOST]
-  }
-  if (headers['X-Forwarded-Host']) {
-    return headers['X-Forwarded-Host']
-  }
+  if (headers[ACTIVITIES_HOST]) return headers[ACTIVITIES_HOST]
+  if (headers[FORWARDED_HOST]) return headers[FORWARDED_HOST]
   return headers.host
 }
