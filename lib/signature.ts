@@ -4,8 +4,13 @@ import { generate } from 'peggy'
 import util from 'util'
 
 import { getConfig } from './config'
-import { SIGNATURE_GRAMMAR } from './grammar'
 import { Actor } from './models/actor'
+
+export const SIGNATURE_GRAMMAR = `
+pairs = (","? pair:pair { return pair })+
+pair = key:token "=" '"' value:value '"' { return [key, value] }
+value = value:[0-9a-zA-Z:\\/\\.#\\-() \\+\\=]+ { return value.join('') }
+token = token:[0-9a-zA-Z]+ { return token.join('') }`.trim()
 
 interface StringMap {
   [key: string]: string
