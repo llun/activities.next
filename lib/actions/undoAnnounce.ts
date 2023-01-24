@@ -13,6 +13,7 @@ export const userUndoAnnounce = async ({
   storage,
   statusId
 }: UserUndoAnnounceParams) => {
+  // TODO: Find announce status from current actor and statusId
   const status = await storage.getStatus({ statusId })
   if (!status) return null
   if (status.data.type !== StatusType.Announce) return

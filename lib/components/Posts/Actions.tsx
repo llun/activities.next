@@ -28,40 +28,27 @@ const RepostButton: FC<RepostButtonProps> = ({
     status.type === StatusType.Note ? status : status.originalStatus
 
   const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [boostedStatusesId, setBoostedStatusesId] = useState<string[]>(
-    mainStatus.boostedByStatusesId
-  )
 
   if (!currentActor) return null
-
-  const isBoosted = Boolean(
-    boostedStatusesId.filter((item) => item.includes(currentActor.domain))
-      .length > 0
-  )
-
   return (
     <Button
       disabled={isLoading}
       variant="link"
-      className={cn({ 'text-danger': isBoosted })}
+      className={cn({ 'text-danger': mainStatus.isActorAnnounced })}
       onClick={async () => {
         if (isLoading) return
 
-        if (isBoosted) {
-          const boostedStatusId = mainStatus.boostedByStatusesId.find(
-            (statusId) => statusId.startsWith(currentActor.id)
-          )
-          if (!boostedStatusId) return
+        if (mainStatus.isActorAnnounced) {
           setIsLoading(true)
-          await undoRepostStatus({ statusId: boostedStatusId })
-          // TODO: remove status id from boosted id list
+          await undoRepostStatus({ statusId: mainStatus.id })
           setIsLoading(false)
+          // TODO: Reload?
           return
         }
         setIsLoading(true)
         await repostStatus({ statusId: status.id })
-        // TODO: Grab announce id from repostStatus
         onPostReposted?.(status)
+        // TODO: Reload?
         setIsLoading(false)
       }}
     >
