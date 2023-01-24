@@ -643,7 +643,7 @@ export class Sqlite3Storage implements Storage {
       const originalStatusId = data.content
       const [actor, originalStatus] = await Promise.all([
         this.getActorFromId({ id: data.actorId }),
-        this.getStatusWithCurrentActorId(originalStatusId, data.actorId)
+        this.getStatusWithCurrentActorId(originalStatusId, currentActorId)
       ])
 
       const announceData: StatusAnnounce = {
