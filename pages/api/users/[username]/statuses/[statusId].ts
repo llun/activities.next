@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 
 import { Note } from '../../../../../lib/activities/entities/note'
 import { getConfig } from '../../../../../lib/config'
+import { RequestHost } from '../../../../../lib/guard'
 import { ACTIVITY_STREAM_URL } from '../../../../../lib/jsonld/activitystream'
 import { ERROR_404, ERROR_500 } from '../../../../../lib/responses'
 import { getStorage } from '../../../../../lib/storage'
@@ -24,6 +25,8 @@ export default async function handler(
 
   const { username, statusId } = req.query
 
+  const host = RequestHost(req)
+  console.log('Request host', host)
   if (
     !['application/json', 'application/ld+json'].includes(
       req.headers.accept ?? ''

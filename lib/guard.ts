@@ -12,6 +12,8 @@ import { Storage } from './storage/types'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
+const ACTIVITIES_HOST = 'X-Activity-Next-Host'
+
 export function activitiesGuard<T>(
   handle: NextApiHandler<T>,
   guardMethods?: HttpMethod[]
@@ -27,13 +29,11 @@ export function activitiesGuard<T>(
 
     const headerSignature = req.headers.signature
     if (!headerSignature) {
-      console.error('-> 400 No Signature')
       return res.status(400).send(ERROR_400)
     }
 
     const signatureParts = await parse(headerSignature as string)
     if (!signatureParts.keyId) {
-      console.error('-> 400 No Signature key')
       return res.status(400).send(ERROR_400)
     }
 
@@ -43,12 +43,10 @@ export function activitiesGuard<T>(
       withPublicKey: true
     })
     if (!sender) {
-      console.error('-> 400 Person not found')
       return res.status(400).send(ERROR_400)
     }
 
     if (!req.url) {
-      console.error('-> 400 Invalid URL')
       return res.status(400).send(ERROR_400)
     }
     const requestUrl = new URL(req.url, `http://${req.headers.host}`)
@@ -121,4 +119,15 @@ export function ApiGuard(handle: ApiHandle) {
 
     return handle(req, res, { storage, session, currentActor })
   }
+}
+
+export function RequestHost(request: NextApiRequest) {
+  const headers = request.headers
+  if (headers[ACTIVITIES_HOST]) {
+    return headers[ACTIVITIES_HOST]
+  }
+  if (headers['X-Forwarded-Host']) {
+    return headers['X-Forwarded-Host']
+  }
+  return headers.host
 }
