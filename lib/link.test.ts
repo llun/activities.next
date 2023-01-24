@@ -36,6 +36,15 @@ describe('#linkifyText', () => {
       'Test linkify string <a href="https://www.llun.me/posts/dev/2023-01-07-my-wrong-assumptions-with-activity-pub/" target="_blank" rel="nofollow noopener noreferrer">llun.me/posts/dev/2023-01-07-my-…</a> with url'
     )
   })
+
+  it('linkify link without pathname', async () => {
+    const message = await linkifyText(
+      'Test linkify string llun.me, without pathname'
+    )
+    expect(message).toEqual(
+      'Test linkify string <a href="https://llun.me" target="_blank" rel="nofollow noopener noreferrer">llun.me</a>, without pathname'
+    )
+  })
 })
 
 describe('#paragraphText', () => {

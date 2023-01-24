@@ -12,13 +12,19 @@ function mentionBody(url = '', username = '') {
 
 function linkBody(url = '') {
   const limit = 25
-  const link = new URL(url)
-  const hostname = link.host.startsWith('www.') ? link.host.slice(4) : link.host
-  const pathname =
-    link.pathname.length > limit
-      ? `${link.pathname.slice(0, limit)}…`
-      : link.pathname
-  return `<a href="${url}" target="_blank" rel="nofollow noopener noreferrer">${hostname}${pathname}</a>`
+  try {
+    const link = new URL(url)
+    const hostname = link.host.startsWith('www.')
+      ? link.host.slice(4)
+      : link.host
+    const pathname =
+      link.pathname.length > limit
+        ? `${link.pathname.slice(0, limit)}…`
+        : link.pathname
+    return `<a href="${url}" target="_blank" rel="nofollow noopener noreferrer">${hostname}${pathname}</a>`
+  } catch {
+    return `<a href="https://${url}" target="_blank" rel="nofollow noopener noreferrer">${url}</a>`
+  }
 }
 
 export async function linkifyText(text: string, mock?: boolean) {
