@@ -24,14 +24,6 @@ export default async function handler(
   const { username, statusId } = req.query
 
   const host = RequestHost(req)
-  if (
-    !['application/json', 'application/ld+json'].includes(
-      req.headers.accept ?? ''
-    )
-  ) {
-    return res.status(302).redirect(`https://${host}/@${username}/${statusId}`)
-  }
-
   const id = `https://${host}/users/${username}/statuses/${statusId}`
   const status = await storage.getStatus({ statusId: id })
   if (!status) {
