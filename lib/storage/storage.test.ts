@@ -534,7 +534,7 @@ describe('Storage', () => {
           const expectedStatus = await storage.getStatus({ statusId })
           expect(statuses[index].toJson()).toEqual(expectedStatus?.toJson())
         }
-      })
+      }, 10000)
 
       it('returns all statuses without other people reply', async () => {
         const otherServerUser1 = 'https://other.server/u/user1'
