@@ -122,8 +122,7 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     })
 
-    const actors = this.db.collection('actors')
-    await actors.add({
+    await this.db.doc(`actors/${FirebaseStorage.urlToId(actorId)}`).set({
       id: actorId,
       accountId: accountRef.id,
       username,
@@ -173,7 +172,6 @@ export class FirebaseStorage implements Storage {
     const start = Date.now()
     logger.debug('FIREBASE_START createActor')
     const currentTime = Date.now()
-    const actors = this.db.collection('actors')
 
     const doc = {
       id: actorId,
@@ -644,7 +642,7 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     } as any
 
-    await this.db.doc(`statuses/${id}`).set({
+    await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set({
       ...status,
       new: true
     })

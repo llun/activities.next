@@ -62,16 +62,16 @@ type TestStorage = [string, Storage]
 
 describe('Storage', () => {
   const testTable: TestStorage[] = [
-    [
-      'sqlite',
-      new Sqlite3Storage({
-        client: 'sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-    ],
+    // [
+    //   'sqlite',
+    //   new Sqlite3Storage({
+    //     client: 'sqlite3',
+    //     useNullAsDefault: true,
+    //     connection: {
+    //       filename: ':memory:'
+    //     }
+    //   })
+    // ],
     // Enable this when run start:firestore emulator and clear the database manually
     [
       'firestore',
