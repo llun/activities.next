@@ -266,6 +266,11 @@ export class FirebaseStorage implements Storage {
     return this.getActorFromDataAndAccount(data, account)
   }
 
+  static urlToId(idInURLFormat: string) {
+    const url = new URL(idInURLFormat)
+    return `${url.host}:${url.pathname.slice(1).replaceAll('/', ':')}`
+  }
+
   async getActorFromId({ id }: GetActorFromIdParams) {
     const start = Date.now()
     console.log('FIREBASE_START getActorFromId')
