@@ -192,7 +192,7 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     }
     await Promise.all([
-      actors.add(doc),
+      actors.add({ ...doc, old: true }),
       this.db.doc(`actors/${FirebaseStorage.urlToId(actorId)}`).set(doc)
     ])
     logger.debug('FIREBASE_END createActor', Date.now() - start)
