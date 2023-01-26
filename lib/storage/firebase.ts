@@ -191,10 +191,7 @@ export class FirebaseStorage implements Storage {
       createdAt,
       updatedAt: currentTime
     }
-    await Promise.all([
-      actors.add({ ...doc, old: true }),
-      this.db.doc(`actors/${FirebaseStorage.urlToId(actorId)}`).set(doc)
-    ])
+    await this.db.doc(`actors/${FirebaseStorage.urlToId(actorId)}`).set(doc)
     logger.debug('FIREBASE_END createActor', Date.now() - start)
     return this.getActorFromId({ id: actorId })
   }
@@ -280,11 +277,13 @@ export class FirebaseStorage implements Storage {
   async getActorFromId({ id }: GetActorFromIdParams) {
     const start = Date.now()
     logger.debug('FIREBASE_START getActorFromId')
-    const actors = this.db.collection('actors')
-    const snapshot = await actors.where('id', '==', id).limit(1).get()
-    if (snapshot.docs.length !== 1) return
+    const doc = await this.db.doc(`actors/${FirebaseStorage.urlToId(id)}`).get()
+    const data = doc.data()
+    if (!data) {
+      logger.debug('FIREBASE_END getActorFromId', Date.now() - start)
+      return
+    }
 
-    const data = snapshot.docs[0].data()
     if (!data.accountId) {
       logger.debug('FIREBASE_END getActorFromId', Date.now() - start)
       return this.getActorFromDataAndAccount(data)
@@ -309,15 +308,16 @@ export class FirebaseStorage implements Storage {
     inboxUrl,
     sharedInboxUrl
   }: UpdateActorParams) {
-    const start = Date.now()
     logger.debug('FIREBASE_START updateActor')
-    const actors = this.db.collection('actors')
-    const snapshot = await actors.where('id', '==', actorId).limit(1).get()
-    if (snapshot.docs.length !== 1) return undefined
+
+    const path = `actors/${FirebaseStorage.urlToId(actorId)}`
+    const doc = await this.db.doc(path).get()
+    if (!doc.exists) return
 
     const currentTime = Date.now()
-    await actors.doc(snapshot.docs[0].id).update({
-      ...snapshot.docs[0].data(),
+    const data = doc.data()
+    await this.db.doc(path).update({
+      ...data,
       ...(iconUrl ? { iconUrl } : null),
       ...(headerImageUrl ? { headerImageUrl } : null),
       ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null),
@@ -329,7 +329,7 @@ export class FirebaseStorage implements Storage {
       ...(sharedInboxUrl ? { sharedInboxUrl } : null),
       updatedAt: currentTime
     })
-    logger.debug('FIREBASE_END updateActor', Date.now() - start)
+    logger.debug('FIREBASE_END updateActor', Date.now() - currentTime)
     return this.getActorFromId({ id: actorId })
   }
 
