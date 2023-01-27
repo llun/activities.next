@@ -685,14 +685,12 @@ export class FirebaseStorage implements Storage {
         return
       }
 
-      const statuses = this.db.collection('statuses')
-      const snapshot = await statuses
-        .where('id', '==', data.originalStatusId)
-        .limit(1)
+      const snapshot = await this.db
+        .doc(`statuses/${FirebaseStorage.urlToId(data.originalStatusId)}`)
         .get()
-      if (snapshot.docs.length !== 1) return
+      const originalStatusData = snapshot.data()
+      if (!originalStatusData) return
 
-      const originalStatusData = snapshot.docs[0].data()
       if (originalStatusData.type === StatusType.Announce) {
         console.error(
           'Announce status announce another status',
@@ -772,10 +770,12 @@ export class FirebaseStorage implements Storage {
   ) {
     const start = Date.now()
     logger.debug('FIREBASE_START getStatusWithCurrentActor')
-    const statuses = this.db.collection('statuses')
-    const snapshot = await statuses.where('id', '==', statusId).limit(1).get()
-    if (snapshot.docs.length !== 1) return
-    const data = snapshot.docs[0].data()
+
+    const snapshot = await this.db
+      .doc(`statuses/${FirebaseStorage.urlToId(statusId)}`)
+      .get()
+    const data = snapshot.data()
+    if (!data) return
     logger.debug('FIREBASE_END getStatusWithCurrentActor ', Date.now() - start)
     return this.getStatusFromData(data, true, currentActorId)
   }
@@ -885,9 +885,7 @@ export class FirebaseStorage implements Storage {
   async deleteStatus({ statusId }: DeleteStatusParams) {
     const start = Date.now()
     logger.debug('FIREBASE_START deleteStatus')
-    const statuses = this.db.collection('statuses')
-    const snapshot = await statuses.where('id', '==', statusId).get()
-    await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()))
+    await this.db.doc(`statuses/${FirebaseStorage.urlToId(statusId)}`).delete()
     logger.debug('FIREBASE_END deleteStatus', Date.now() - start)
   }
 
@@ -984,9 +982,10 @@ export class FirebaseStorage implements Storage {
   async createLike({ actorId, statusId }: CreateLikeParams) {
     const start = Date.now()
     logger.debug('FIREBASE_START createLike')
-    const statuses = this.db.collection('statuses')
-    const snapshot = await statuses.where('id', '==', statusId).limit(1).get()
-    if (snapshot.docs.length !== 1) return
+    const snapshot = await this.db
+      .doc(`statuses/${FirebaseStorage.urlToId(statusId)}`)
+      .get()
+    if (!snapshot.exists) return
 
     const currentTime = Date.now()
     const likes = this.db.collection('likes')
