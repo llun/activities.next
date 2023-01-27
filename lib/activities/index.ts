@@ -61,7 +61,7 @@ const fetchWithTimeout = async ({
   url,
   method,
   activity,
-  timeoutMilliseconds = 2000
+  timeoutMilliseconds = 4000
 }: FetchWithTimeout) => {
   const controller = new AbortController()
   const signal = controller.signal
