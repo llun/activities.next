@@ -598,7 +598,6 @@ export class FirebaseStorage implements Storage {
     } as StatusNote
     await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set({
       ...status,
-      new: true,
       localRecipients: local,
       localActorForReply: await this.getLocalActorFromReply(actorId, reply)
     })
@@ -642,10 +641,7 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     } as any
 
-    await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set({
-      ...status,
-      new: true
-    })
+    await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set(status)
 
     const originalStatus = await this.getStatus({ statusId: originalStatusId })
     const announceData: StatusAnnounce = {
