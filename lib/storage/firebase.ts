@@ -988,45 +988,27 @@ export class FirebaseStorage implements Storage {
     if (!snapshot.exists) return
 
     const currentTime = Date.now()
-    const likes = this.db.collection('likes')
-    const countSnapshot = await likes
-      .where('statusId', '==', statusId)
-      .where('actorId', '==', actorId)
-      .count()
-      .get()
-    if (countSnapshot.data().count === 1) {
-      return
-    }
+    const isLiked = await this.isActorLikedStatus(statusId, actorId)
+    if (isLiked) return
 
-    const data = {
-      actorId,
-      statusId,
-      createdAt: currentTime,
-      updatedAt: currentTime
-    }
-    await Promise.all([
-      likes.add(data),
-      this.db
-        .doc(
-          `statuses/${FirebaseStorage.urlToId(
-            statusId
-          )}/likes/${FirebaseStorage.urlToId(actorId)}`
-        )
-        .set(data)
-    ])
+    await this.db
+      .doc(
+        `statuses/${FirebaseStorage.urlToId(
+          statusId
+        )}/likes/${FirebaseStorage.urlToId(actorId)}`
+      )
+      .set({
+        actorId,
+        statusId,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
     logger.debug('FIREBASE_END createLike', Date.now() - start)
   }
 
   async deleteLike({ statusId, actorId }: DeleteLikeParams) {
     const start = Date.now()
     logger.debug('FIREBASE_START deleteLike')
-    const likes = this.db.collection('likes')
-    const snapshot = await likes
-      .where('statusId', '==', statusId)
-      .where('actorId', '==', actorId)
-      .get()
-    logger.debug('FIREBASE_END deleteLike', Date.now() - start)
-    await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()))
     await this.db
       .doc(
         `statuses/${FirebaseStorage.urlToId(
@@ -1034,14 +1016,14 @@ export class FirebaseStorage implements Storage {
         )}/likes/${FirebaseStorage.urlToId(actorId)}`
       )
       .delete()
+    logger.debug('FIREBASE_END deleteLike', Date.now() - start)
   }
 
   async getLikeCount({ statusId }: GetLikeCountParams) {
     const start = Date.now()
     logger.debug('FIREBASE_START getLikeCount')
-    const likes = this.db.collection('likes')
-    const countSnapshot = await likes
-      .where('statusId', '==', statusId)
+    const countSnapshot = await this.db
+      .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/likes`)
       .count()
       .get()
     logger.debug('FIREBASE_END getLikeCount', Date.now() - start)
@@ -1053,13 +1035,14 @@ export class FirebaseStorage implements Storage {
     logger.debug('FIREBASE_START isActorLikedStatus')
     if (!actorId) return false
 
-    const likes = this.db.collection('likes')
-    const snapshot = await likes
-      .where('statusId', '==', statusId)
-      .where('actorId', '==', actorId)
-      .count()
+    const snapshot = await this.db
+      .doc(
+        `statuses/${FirebaseStorage.urlToId(
+          statusId
+        )}/likes/${FirebaseStorage.urlToId(actorId)}`
+      )
       .get()
     logger.debug('FIREBASE_END isActorLikedStatus', Date.now() - start)
-    return snapshot.data().count === 1
+    return snapshot.exists
   }
 }
