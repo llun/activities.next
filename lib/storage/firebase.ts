@@ -914,13 +914,9 @@ export class FirebaseStorage implements Storage {
       createdAt: currentTime,
       updatedAt: currentTime
     }
-    const attachments = this.db.collection('attachments')
-    await Promise.all([
-      attachments.add(data),
-      this.db
-        .doc(`statuses/${FirebaseStorage.urlToId(statusId)}/attachments/${id}`)
-        .set(data)
-    ])
+    await this.db
+      .doc(`statuses/${FirebaseStorage.urlToId(statusId)}/attachments/${id}`)
+      .set(data)
     logger.debug('FIREBASE_END createAttachment', Date.now() - start)
     return new Attachment(data)
   }
@@ -928,8 +924,9 @@ export class FirebaseStorage implements Storage {
   async getAttachments({ statusId }: GetAttachmentsParams) {
     const start = Date.now()
     logger.debug('FIREBASE_START getAttachments')
-    const attachments = this.db.collection('attachments')
-    const snapshot = await attachments.where('statusId', '==', statusId).get()
+    const snapshot = await this.db
+      .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/attachments`)
+      .get()
     logger.debug('FIREBASE_END getAttachments', Date.now() - start)
     return snapshot.docs.map(
       (item) => new Attachment(item.data() as AttachmentData)
