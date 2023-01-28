@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 import { GetServerSideProps, NextPage } from 'next'
-import { unstable_getServerSession } from 'next-auth/next'
+import { getServerSession } from 'next-auth/next'
 import { getCsrfToken } from 'next-auth/react'
 import Head from 'next/head'
 
@@ -60,7 +60,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   req,
   res
 }) => {
-  const session = await unstable_getServerSession(req, res, authOptions)
+  const session = await getServerSession(req, res, authOptions)
   if (session?.user) {
     return {
       redirect: {

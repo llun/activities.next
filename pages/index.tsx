@@ -1,7 +1,7 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
 import { GetServerSideProps, NextPage } from 'next'
-import { unstable_getServerSession } from 'next-auth/next'
+import { getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import Image from 'next/image'
@@ -117,7 +117,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
 }) => {
   const [storage, session] = await Promise.all([
     getStorage(),
-    unstable_getServerSession(req, res, authOptions)
+    getServerSession(req, res, authOptions)
   ])
 
   const config = getConfig()

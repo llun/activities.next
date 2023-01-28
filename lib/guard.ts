@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
-import { Session, unstable_getServerSession } from 'next-auth'
+import { Session, getServerSession } from 'next-auth'
 
 import { authOptions } from '../pages/api/auth/[...nextauth]'
 import { getPublicProfile } from './activities'
@@ -83,7 +83,7 @@ export function SetupGuard(handle: SetupHandle) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const [storage, session] = await Promise.all([
       getStorage(),
-      unstable_getServerSession(req, res, authOptions)
+      getServerSession(req, res, authOptions)
     ])
     if (!storage || !session?.user?.email) {
       return res.status(302).redirect('/singin')
@@ -105,7 +105,7 @@ export function ApiGuard(handle: ApiHandle) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const [storage, session] = await Promise.all([
       getStorage(),
-      unstable_getServerSession(req, res, authOptions)
+      getServerSession(req, res, authOptions)
     ])
     if (!storage || !session?.user?.email) {
       return res.status(302).redirect('/singin')

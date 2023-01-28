@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 import { GetServerSideProps, NextPage } from 'next'
-import { unstable_getServerSession } from 'next-auth/next'
+import { getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 
@@ -59,7 +59,7 @@ const Page: NextPage = () => {
 
 export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
   const [session, storage] = await Promise.all([
-    unstable_getServerSession(req, res, authOptions),
+    getServerSession(req, res, authOptions),
     getStorage()
   ])
   if (!session?.user || !session.user.email || !storage) {
