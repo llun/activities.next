@@ -68,8 +68,7 @@ export const createNote = async ({
   await Promise.all([
     ...attachments.map(async (attachment) => {
       if (attachment.type !== 'Document') return
-
-      await storage.createAttachment({
+      return storage.createAttachment({
         statusId: compactNote.id,
         mediaType: attachment.mediaType,
         height: attachment.height,
