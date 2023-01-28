@@ -947,13 +947,9 @@ export class FirebaseStorage implements Storage {
       createdAt: currentTime,
       updatedAt: currentTime
     }
-    const tags = this.db.collection('tags')
-    await Promise.all([
-      tags.add(data),
-      this.db
-        .doc(`statuses/${FirebaseStorage.urlToId(statusId)}/tags/${id}`)
-        .set(data)
-    ])
+    await this.db
+      .doc(`statuses/${FirebaseStorage.urlToId(statusId)}/tags/${id}`)
+      .set(data)
     logger.debug('FIREBASE_END createTag', Date.now() - start)
     return new Tag(data)
   }
@@ -961,8 +957,9 @@ export class FirebaseStorage implements Storage {
   async getTags({ statusId }: GetTagsParams) {
     const start = Date.now()
     logger.debug('FIREBASE_START getTags')
-    const tags = this.db.collection('tags')
-    const snapshot = await tags.where('statusId', '==', statusId).get()
+    const snapshot = await this.db
+      .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/tags`)
+      .get()
     logger.debug('FIREBASE_END getTags', Date.now() - start)
     return snapshot.docs.map((item) => new Tag(item.data() as TagData))
   }
