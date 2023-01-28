@@ -900,8 +900,9 @@ export class FirebaseStorage implements Storage {
     const start = Date.now()
     logger.debug('FIREBASE_START createAttachment')
     const currentTime = Date.now()
+    const id = crypto.randomUUID()
     const data: AttachmentData = {
-      id: crypto.randomUUID(),
+      id,
       statusId,
       type: 'Document',
       mediaType,
@@ -914,7 +915,12 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     }
     const attachments = this.db.collection('attachments')
-    await attachments.add(data)
+    await Promise.all([
+      attachments.add(data),
+      this.db
+        .doc(`statuses/${FirebaseStorage.urlToId(statusId)}/attachments/${id}`)
+        .set(data)
+    ])
     logger.debug('FIREBASE_END createAttachment', Date.now() - start)
     return new Attachment(data)
   }
