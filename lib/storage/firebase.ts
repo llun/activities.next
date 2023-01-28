@@ -937,8 +937,9 @@ export class FirebaseStorage implements Storage {
     const start = Date.now()
     logger.debug('FIREBASE_START createTag')
     const currentTime = Date.now()
+    const id = crypto.randomUUID()
     const data: TagData = {
-      id: crypto.randomUUID(),
+      id,
       statusId,
       type: 'mention',
       name,
@@ -947,7 +948,12 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     }
     const tags = this.db.collection('tags')
-    await tags.add(data)
+    await Promise.all([
+      tags.add(data),
+      this.db
+        .doc(`statuses/${FirebaseStorage.urlToId(statusId)}/tags/${id}`)
+        .set(data)
+    ])
     logger.debug('FIREBASE_END createTag', Date.now() - start)
     return new Tag(data)
   }
