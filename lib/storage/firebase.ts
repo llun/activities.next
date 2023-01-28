@@ -998,12 +998,22 @@ export class FirebaseStorage implements Storage {
       return
     }
 
-    await likes.add({
+    const data = {
       actorId,
       statusId,
       createdAt: currentTime,
       updatedAt: currentTime
-    })
+    }
+    await Promise.all([
+      likes.add(data),
+      this.db
+        .doc(
+          `statuses/${FirebaseStorage.urlToId(
+            statusId
+          )}/likes/${FirebaseStorage.urlToId(actorId)}`
+        )
+        .set(data)
+    ])
     logger.debug('FIREBASE_END createLike', Date.now() - start)
   }
 
@@ -1017,6 +1027,13 @@ export class FirebaseStorage implements Storage {
       .get()
     logger.debug('FIREBASE_END deleteLike', Date.now() - start)
     await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()))
+    await this.db
+      .doc(
+        `statuses/${FirebaseStorage.urlToId(
+          statusId
+        )}/likes/${FirebaseStorage.urlToId(actorId)}`
+      )
+      .delete()
   }
 
   async getLikeCount({ statusId }: GetLikeCountParams) {
