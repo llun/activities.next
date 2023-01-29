@@ -110,4 +110,18 @@ describe('#mainTimelineRule', () => {
       await mainTimelineRule({ storage, currentActor, status: followingStatus })
     ).toBeNull()
   })
+
+  it('returns null when following actor status reply to following status that replies to non-following status', async () => {
+    const nonFollowingActor = (await storage.getActorFromId({
+      id: ACTOR1_ID
+    })) as Actor
+    const nonFollowingStatus = await storage.createNote({
+      id: `${ACTOR1_ID}/statuses/non-following-status`,
+      url: `${ACTOR1_ID}/statuses/non-following-status`,
+      actorId: ACTOR1_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [nonFollowingActor.followersUrl],
+      text: 'This is from non-following actor status'
+    })
+  })
 })

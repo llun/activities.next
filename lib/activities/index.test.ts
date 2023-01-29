@@ -13,7 +13,7 @@ import { MockActor } from '../stub/actor'
 import { MockMastodonNote } from '../stub/note'
 import { MockPerson } from '../stub/person'
 import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
-import { seedStorage } from '../stub/storage'
+import { TEST_SHARED_INBOX, seedStorage } from '../stub/storage'
 import { CreateStatus } from './actions/createStatus'
 
 enableFetchMocks()
@@ -81,7 +81,7 @@ describe('activities', () => {
 
       await sendNote({
         currentActor: actor,
-        inbox: 'https://llun.test/inbox',
+        inbox: TEST_SHARED_INBOX,
         note
       })
       const [, options] = fetchMock.mock.lastCall as any

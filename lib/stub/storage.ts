@@ -6,18 +6,23 @@ import { Storage } from '../storage/types'
 import { seedActor1 } from './seed/actor1'
 import { seedActor2 } from './seed/actor2'
 import { seedActor3 } from './seed/actor3'
+import { seedActor4 } from './seed/actor4'
+
+export const TEST_SHARED_INBOX = 'https://llun.test/inbox'
 
 export const seedStorage = async (storage: Storage) => {
   await Promise.all([
     storage.createAccount(seedActor1),
     storage.createAccount(seedActor2),
-    storage.createAccount(seedActor3)
+    storage.createAccount(seedActor3),
+    storage.createAccount(seedActor4)
   ])
 
   const actors = (await Promise.all([
     storage.getActorFromEmail({ email: seedActor1.email }),
     storage.getActorFromEmail({ email: seedActor2.email }),
-    storage.getActorFromEmail({ email: seedActor3.email })
+    storage.getActorFromEmail({ email: seedActor3.email }),
+    storage.getActorFromEmail({ email: seedActor4.email })
   ])) as Actor[]
 
   if (actors.some((actor) => !actor)) return
@@ -27,21 +32,21 @@ export const seedStorage = async (storage: Storage) => {
     actorId: actors[0].id,
     targetActorId: 'https://llun.dev/users/test1',
     inbox: `${actors[0].id}/indbox`,
-    sharedInbox: 'https://llun.test/inbox',
+    sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.Accepted
   })
   await storage.createFollow({
     actorId: actors[0].id,
     targetActorId: 'https://llun.dev/users/test2',
     inbox: `${actors[0].id}/indbox`,
-    sharedInbox: 'https://llun.test/inbox',
+    sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.Accepted
   })
   await storage.createFollow({
     actorId: actors[0].id,
     targetActorId: 'https://somewhere.test/actors/request-following',
     inbox: `${actors[0].id}/indbox`,
-    sharedInbox: 'https://llun.test/inbox',
+    sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.Requested
   })
 
@@ -59,7 +64,7 @@ export const seedStorage = async (storage: Storage) => {
     actorId: actors[1].id,
     targetActorId: 'https://llun.dev/users/test2',
     inbox: `${actors[1].id}/indbox`,
-    sharedInbox: 'https://llun.test/inbox',
+    sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.Accepted
   })
   // Actor2 followers
@@ -71,12 +76,21 @@ export const seedStorage = async (storage: Storage) => {
     status: FollowStatus.Accepted
   })
 
-  // Actor3 follows Actor3
+  // Actor3 follows Actor2
   await storage.createFollow({
     actorId: actors[2].id,
     targetActorId: actors[1].id,
     inbox: `${actors[2]}/inbox`,
-    sharedInbox: 'https://llun.test/inbox',
+    sharedInbox: TEST_SHARED_INBOX,
+    status: FollowStatus.Accepted
+  })
+
+  // Actor3 follows Actor4
+  await storage.createFollow({
+    actorId: actors[2].id,
+    targetActorId: actors[3].id,
+    inbox: `${actors[2]}/inbox`,
+    sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.Accepted
   })
 
