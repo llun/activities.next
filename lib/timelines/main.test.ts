@@ -1,7 +1,9 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
+import { Status } from '../models/status'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
+import { ACTOR1_ID } from '../stub/seed/actor1'
 import { ACTOR3_ID } from '../stub/seed/actor3'
 import { seedStorage } from '../stub/storage'
 import { mainTimelineRule } from './main'
@@ -44,5 +46,15 @@ describe('#mainTimelineRule', () => {
     expect(
       await mainTimelineRule({ storage, currentActor: actor, status })
     ).toEqual(Timeline.MAIN)
+  })
+
+  it('returns null for the non-following actor', async () => {
+    const actor = (await storage.getActorFromId({ id: ACTOR3_ID })) as Actor
+    const status = (await storage.getStatus({
+      statusId: `${ACTOR1_ID}/statuses/post-1`
+    })) as Status
+    expect(
+      await mainTimelineRule({ storage, currentActor: actor, status })
+    ).toBeNull()
   })
 })
