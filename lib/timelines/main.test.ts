@@ -4,6 +4,7 @@ import { Status } from '../models/status'
 import { Sqlite3Storage } from '../storage/sqlite3'
 import { mockRequests } from '../stub/activities'
 import { ACTOR1_ID } from '../stub/seed/actor1'
+import { ACTOR2_ID } from '../stub/seed/actor2'
 import { ACTOR3_ID } from '../stub/seed/actor3'
 import { seedStorage } from '../stub/storage'
 import { mainTimelineRule } from './main'
@@ -56,5 +57,20 @@ describe('#mainTimelineRule', () => {
     expect(
       await mainTimelineRule({ storage, currentActor: actor, status })
     ).toBeNull()
+  })
+
+  it('returns main timeline for following actor status', async () => {
+    const actor = (await storage.getActorFromId({ id: ACTOR3_ID })) as Actor
+    const status = await storage.createNote({
+      id: `${ACTOR2_ID}/statuses/to-followers`,
+      url: `${ACTOR2_ID}/statuses/to-followers`,
+      actorId: ACTOR2_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [actor?.followersUrl],
+      text: 'This is for following status'
+    })
+    expect(
+      await mainTimelineRule({ storage, currentActor: actor, status })
+    ).toEqual(Timeline.MAIN)
   })
 })

@@ -71,6 +71,15 @@ export const seedStorage = async (storage: Storage) => {
     status: FollowStatus.Accepted
   })
 
+  // Actor3 follows Actor3
+  await storage.createFollow({
+    actorId: actors[2].id,
+    targetActorId: actors[1].id,
+    inbox: `${actors[2]}/inbox`,
+    sharedInbox: 'https://llun.test/inbox',
+    status: FollowStatus.Accepted
+  })
+
   // Actor1 status
   await storage.createNote({
     id: `${actors[0].id}/statuses/post-1`,
