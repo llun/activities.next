@@ -35,7 +35,7 @@ export const mainTimelineRule: MainTimelineRule = async ({
     if (!repliedStatus) return null
 
     // Lookup for parent replied status, is current actor following
-    return await mainTimelineRule({
+    return mainTimelineRule({
       storage,
       currentActor,
       status: repliedStatus
