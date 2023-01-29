@@ -78,6 +78,11 @@ export class Status {
     return this.data.cc
   }
 
+  get reply() {
+    if (this.data.type === StatusType.Note) return this.data.reply
+    return null
+  }
+
   get createdAt() {
     return this.data.createdAt
   }

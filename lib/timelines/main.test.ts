@@ -41,7 +41,7 @@ describe('#mainTimelineRule', () => {
       url: `${ACTOR3_ID}/statuses/post-1`,
       actorId: ACTOR3_ID,
       to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [actor?.followersUrl],
+      cc: [actor.followersUrl],
       text: 'This is self status'
     })
     expect(
@@ -61,16 +61,53 @@ describe('#mainTimelineRule', () => {
 
   it('returns main timeline for following actor status', async () => {
     const actor = (await storage.getActorFromId({ id: ACTOR3_ID })) as Actor
+    const followingActor = (await storage.getActorFromId({
+      id: ACTOR2_ID
+    })) as Actor
     const status = await storage.createNote({
       id: `${ACTOR2_ID}/statuses/to-followers`,
       url: `${ACTOR2_ID}/statuses/to-followers`,
       actorId: ACTOR2_ID,
       to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [actor?.followersUrl],
+      cc: [followingActor.followersUrl],
       text: 'This is for following status'
     })
     expect(
       await mainTimelineRule({ storage, currentActor: actor, status })
     ).toEqual(Timeline.MAIN)
+  })
+
+  it('returns null when following actor status reply to non-following status', async () => {
+    const nonFollowingActor = (await storage.getActorFromId({
+      id: ACTOR1_ID
+    })) as Actor
+    const nonFollowingStatus = await storage.createNote({
+      id: `${ACTOR1_ID}/statuses/non-following-status`,
+      url: `${ACTOR1_ID}/statuses/non-following-status`,
+      actorId: ACTOR1_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [nonFollowingActor.followersUrl],
+      text: 'This is from non-following actor status'
+    })
+
+    const followingActor = (await storage.getActorFromId({
+      id: ACTOR2_ID
+    })) as Actor
+    const followingStatus = await storage.createNote({
+      id: `${ACTOR2_ID}/statuses/non-following-reply-status`,
+      url: `${ACTOR2_ID}/statuses/non-following-reply-status`,
+      actorId: ACTOR2_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [followingActor.followersUrl],
+      reply: nonFollowingStatus.id,
+      text: 'This is reply to non-following status'
+    })
+
+    const currentActor = (await storage.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    expect(
+      await mainTimelineRule({ storage, currentActor, status: followingStatus })
+    ).toBeNull()
   })
 })
