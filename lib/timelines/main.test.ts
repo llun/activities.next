@@ -156,4 +156,35 @@ describe('#mainTimelineRule', () => {
       })
     ).toBeNull()
   })
+
+  it('returns main timeline for the reply to current actor status', async () => {
+    const actor3 = (await storage.getActorFromId({ id: ACTOR3_ID })) as Actor
+    const status = await storage.createNote({
+      id: `${ACTOR3_ID}/statuses/post-2`,
+      url: `${ACTOR3_ID}/statuses/post-2`,
+      actorId: ACTOR3_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [actor3.followersUrl],
+      text: 'This is self status'
+    })
+
+    const actor1 = (await storage.getActorFromId({ id: ACTOR1_ID })) as Actor
+    const nonFollowingReplyStatus = await storage.createNote({
+      id: `${ACTOR1_ID}/statuses/reply-to-self-status-from-non-following`,
+      url: `${ACTOR1_ID}/statuses/reply-to-self-status-from-non-following`,
+      actorId: ACTOR1_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [actor1.followersUrl],
+      text: 'Reply to self status by non-following',
+      reply: status.id
+    })
+
+    expect(
+      await mainTimelineRule({
+        storage,
+        currentActor: actor3,
+        status: nonFollowingReplyStatus
+      })
+    ).toEqual(Timeline.MAIN)
+  })
 })
