@@ -6,7 +6,7 @@ export enum Timeline {
   MAIN = 'main'
 }
 
-interface TimelineRuleParams {
+export interface TimelineRuleParams {
   storage: Storage
   currentActor: Actor
   status: Status

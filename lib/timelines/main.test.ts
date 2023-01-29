@@ -6,6 +6,7 @@ import { mockRequests } from '../stub/activities'
 import { ACTOR1_ID } from '../stub/seed/actor1'
 import { ACTOR2_ID } from '../stub/seed/actor2'
 import { ACTOR3_ID } from '../stub/seed/actor3'
+import { ACTOR4_ID } from '../stub/seed/actor4'
 import { seedStorage } from '../stub/storage'
 import { mainTimelineRule } from './main'
 import { Timeline } from './types'
@@ -116,12 +117,43 @@ describe('#mainTimelineRule', () => {
       id: ACTOR1_ID
     })) as Actor
     const nonFollowingStatus = await storage.createNote({
-      id: `${ACTOR1_ID}/statuses/non-following-status`,
-      url: `${ACTOR1_ID}/statuses/non-following-status`,
+      id: `${ACTOR1_ID}/statuses/non-following-status-with-reply-from-following`,
+      url: `${ACTOR1_ID}/statuses/non-following-status-with-reply-from-following`,
       actorId: ACTOR1_ID,
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [nonFollowingActor.followersUrl],
-      text: 'This is from non-following actor status'
+      text: 'This is from non-following actor status with reply from following'
     })
+
+    const actor2 = (await storage.getActorFromId({ id: ACTOR2_ID })) as Actor
+    const actor2Status = await storage.createNote({
+      id: `${ACTOR2_ID}/statuses/first-reply-to-non-following`,
+      url: `${ACTOR2_ID}/statuses/first-reply-to-non-following`,
+      actorId: ACTOR2_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [actor2.followersUrl],
+      text: 'First status that reply to non-following status',
+      reply: nonFollowingStatus.id
+    })
+
+    const actor4 = (await storage.getActorFromId({ id: ACTOR4_ID })) as Actor
+    const actor4Status = await storage.createNote({
+      id: `${ACTOR4_ID}/statuses/first-reply-to-non-following`,
+      url: `${ACTOR4_ID}/statuses/first-reply-to-non-following`,
+      actorId: ACTOR4_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [actor4.followersUrl],
+      text: 'Second status that reply to following status',
+      reply: actor2Status.id
+    })
+
+    const actor3 = (await storage.getActorFromId({ id: ACTOR3_ID })) as Actor
+    expect(
+      await mainTimelineRule({
+        storage,
+        currentActor: actor3,
+        status: actor4Status
+      })
+    ).toBeNull()
   })
 })

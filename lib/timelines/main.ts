@@ -1,5 +1,4 @@
-import { StatusType } from '../models/status'
-import { MainTimelineRule, Timeline } from './types'
+import { MainTimelineRule, Timeline, TimelineRuleParams } from './types'
 
 /**
  * Main timeline
@@ -29,20 +28,20 @@ export const mainTimelineRule: MainTimelineRule = async ({
     currentActorId: currentActor.id,
     followingActorId: status.actorId
   })
-  if (status.reply) {
-    const repliedStatus = await storage.getStatus({ statusId: status.reply })
-    if (!repliedStatus) return null
-    if (
-      await storage.isCurrentActorFollowing({
-        currentActorId: currentActor.id,
-        followingActorId: repliedStatus.actorId
-      })
-    ) {
-      return Timeline.MAIN
-    }
 
-    return null
+  if (isFollowing && status.reply) {
+    const repliedStatus = await storage.getStatus({ statusId: status.reply })
+    // Deleted parent status, don't show child status
+    if (!repliedStatus) return null
+
+    // Lookup for parent replied status, is current actor following
+    return await mainTimelineRule({
+      storage,
+      currentActor,
+      status: repliedStatus
+    })
   }
+
   if (isFollowing) return Timeline.MAIN
   return null
 }
