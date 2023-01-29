@@ -17,9 +17,15 @@ import { MainTimelineRule, Timeline } from './types'
  *
  */
 export const mainTimelineRule: MainTimelineRule = async ({
+  storage,
   currentActor,
   status
 }) => {
   if (status.actorId === currentActor.id) return Timeline.MAIN
+  const isFollowing = await storage.isCurrentActorFollowing({
+    currentActorId: currentActor.id,
+    followingActorId: status.actorId
+  })
+  if (isFollowing) return Timeline.MAIN
   return null
 }
