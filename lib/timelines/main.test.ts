@@ -187,4 +187,45 @@ describe('#mainTimelineRule', () => {
       })
     ).toEqual(Timeline.MAIN)
   })
+
+  it('returns main timeline for the following actor reply that reply to non-following that reply to self', async () => {
+    const actor3 = (await storage.getActorFromId({ id: ACTOR3_ID })) as Actor
+    const status = await storage.createNote({
+      id: `${ACTOR3_ID}/statuses/post-3`,
+      url: `${ACTOR3_ID}/statuses/post-3`,
+      actorId: ACTOR3_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [actor3.followersUrl],
+      text: 'This is self status'
+    })
+
+    const actor1 = (await storage.getActorFromId({ id: ACTOR1_ID })) as Actor
+    const nonFollowingReplyStatus = await storage.createNote({
+      id: `${ACTOR1_ID}/statuses/reply-to-self-status-from-non-following-2`,
+      url: `${ACTOR1_ID}/statuses/reply-to-self-status-from-non-following-2`,
+      actorId: ACTOR1_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [actor1.followersUrl],
+      text: 'Reply to self status by non-following',
+      reply: status.id
+    })
+
+    const actor2 = (await storage.getActorFromId({ id: ACTOR2_ID })) as Actor
+    const followingReplyToNonFollowing = await storage.createNote({
+      id: `${ACTOR2_ID}/statuses/reply-to-non-following-that-reply-to-self`,
+      url: `${ACTOR2_ID}/statuses/reply-to-non-following-that-reply-to-self`,
+      actorId: ACTOR2_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [actor2.followersUrl],
+      text: 'Reply to non following that reply to self',
+      reply: nonFollowingReplyStatus.id
+    })
+    expect(
+      await mainTimelineRule({
+        storage,
+        currentActor: actor3,
+        status: followingReplyToNonFollowing
+      })
+    ).toEqual(Timeline.MAIN)
+  })
 })
