@@ -1,37 +1,46 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { linkifyText } from '../link'
+import { Actor } from '../models/actor'
 import { FollowStatus } from '../models/follow'
 import { Storage } from '../storage/types'
 import { seedActor1 } from './seed/actor1'
 import { seedActor2 } from './seed/actor2'
+import { seedActor3 } from './seed/actor3'
 
 export const seedStorage = async (storage: Storage) => {
-  await storage.createAccount(seedActor1)
-  await storage.createAccount(seedActor2)
+  await Promise.all([
+    storage.createAccount(seedActor1),
+    storage.createAccount(seedActor2),
+    storage.createAccount(seedActor3)
+  ])
 
-  const actor1 = await storage.getActorFromEmail({ email: seedActor1.email })
-  const actor2 = await storage.getActorFromEmail({ email: seedActor2.email })
-  if (!actor1 || !actor2) return
+  const actors = (await Promise.all([
+    storage.getActorFromEmail({ email: seedActor1.email }),
+    storage.getActorFromEmail({ email: seedActor2.email }),
+    storage.getActorFromEmail({ email: seedActor3.email })
+  ])) as Actor[]
+
+  if (actors.some((actor) => !actor)) return
 
   // Actor1 following
   await storage.createFollow({
-    actorId: actor1.id,
+    actorId: actors[0].id,
     targetActorId: 'https://llun.dev/users/test1',
-    inbox: `${actor1.id}/indbox`,
+    inbox: `${actors[0].id}/indbox`,
     sharedInbox: 'https://llun.test/inbox',
     status: FollowStatus.Accepted
   })
   await storage.createFollow({
-    actorId: actor1.id,
+    actorId: actors[0].id,
     targetActorId: 'https://llun.dev/users/test2',
-    inbox: `${actor1.id}/indbox`,
+    inbox: `${actors[0].id}/indbox`,
     sharedInbox: 'https://llun.test/inbox',
     status: FollowStatus.Accepted
   })
   await storage.createFollow({
-    actorId: actor1.id,
+    actorId: actors[0].id,
     targetActorId: 'https://somewhere.test/actors/request-following',
-    inbox: `${actor1.id}/indbox`,
+    inbox: `${actors[0].id}/indbox`,
     sharedInbox: 'https://llun.test/inbox',
     status: FollowStatus.Requested
   })
@@ -39,7 +48,7 @@ export const seedStorage = async (storage: Storage) => {
   // Actor1 followers
   await storage.createFollow({
     actorId: 'https://somewhere.test/actors/friend',
-    targetActorId: actor1.id,
+    targetActorId: actors[0].id,
     inbox: 'https://somewhere.test/inbox/friend',
     sharedInbox: 'https://somewhere.test/inbox',
     status: FollowStatus.Accepted
@@ -47,16 +56,16 @@ export const seedStorage = async (storage: Storage) => {
 
   // Actor2 following
   await storage.createFollow({
-    actorId: actor2.id,
+    actorId: actors[1].id,
     targetActorId: 'https://llun.dev/users/test2',
-    inbox: `${actor2.id}/indbox`,
+    inbox: `${actors[1].id}/indbox`,
     sharedInbox: 'https://llun.test/inbox',
     status: FollowStatus.Accepted
   })
   // Actor2 followers
   await storage.createFollow({
     actorId: 'https://llun.dev/users/test1',
-    targetActorId: actor2.id,
+    targetActorId: actors[1].id,
     inbox: 'https://llun.dev/users/test1',
     sharedInbox: 'https://llun.dev/inbox',
     status: FollowStatus.Accepted
@@ -64,9 +73,9 @@ export const seedStorage = async (storage: Storage) => {
 
   // Actor1 status
   await storage.createNote({
-    id: `${actor1.id}/statuses/post-1`,
-    url: `${actor1.id}/statuses/post-1`,
-    actorId: actor1.id,
+    id: `${actors[0].id}/statuses/post-1`,
+    url: `${actors[0].id}/statuses/post-1`,
+    actorId: actors[0].id,
     to: [ACTIVITY_STREAM_PUBLIC],
     cc: [],
     text: 'This is Actor1 post'
@@ -74,13 +83,13 @@ export const seedStorage = async (storage: Storage) => {
 
   // Actor2 status
   const post2 = await storage.createNote({
-    id: `${actor2.id}/statuses/post-2`,
-    url: `${actor2.id}/statuses/post-2`,
-    actorId: actor2.id,
-    to: [ACTIVITY_STREAM_PUBLIC, actor1.id],
-    cc: [`${actor2.id}/followers`],
+    id: `${actors[1].id}/statuses/post-2`,
+    url: `${actors[1].id}/statuses/post-2`,
+    actorId: actors[1].id,
+    to: [ACTIVITY_STREAM_PUBLIC, actors[0].id],
+    cc: [`${actors[1].id}/followers`],
     text: await linkifyText('@test1@llun.test This is Actor1 post', true),
-    reply: `${actor1.id}/statuses/post-1`
+    reply: `${actors[0].id}/statuses/post-1`
   })
   await storage.createTag({
     statusId: post2.data.id,
@@ -90,10 +99,10 @@ export const seedStorage = async (storage: Storage) => {
 
   // Actor2 announce
   await storage.createAnnounce({
-    id: `${actor2.id}/statuses/post-3`,
-    actorId: actor2.id,
+    id: `${actors[1].id}/statuses/post-3`,
+    actorId: actors[1].id,
     to: [ACTIVITY_STREAM_PUBLIC],
-    cc: [`${actor2.id}/followers`],
-    originalStatusId: `${actor2.id}/statuses/post-2`
+    cc: [`${actors[1].id}/followers`],
+    originalStatusId: `${actors[1].id}/statuses/post-2`
   })
 }

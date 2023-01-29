@@ -115,7 +115,7 @@ export function headers(
   }
 }
 
-export function generateKeyPair() {
+export function generateKeyPair(secretPhase: string) {
   return util.promisify(crypto.generateKeyPair)('rsa', {
     modulusLength: 4096,
     publicKeyEncoding: {
@@ -126,7 +126,7 @@ export function generateKeyPair() {
       type: 'pkcs8',
       format: 'pem',
       cipher: 'aes-256-cbc',
-      passphrase: getConfig().secretPhase
+      passphrase: secretPhase
     }
   })
 }

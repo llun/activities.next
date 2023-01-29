@@ -1,3 +1,4 @@
+import { getConfig } from '../../../lib/config'
 import { SetupGuard } from '../../../lib/guard'
 import { ERROR_404 } from '../../../lib/responses'
 import { generateKeyPair } from '../../../lib/signature'
@@ -12,7 +13,7 @@ const handler = SetupGuard(async (req, res, context) => {
       }
 
       try {
-        const keyPair = await generateKeyPair()
+        const keyPair = await generateKeyPair(getConfig().secretPhase)
         await storage.createAccount({
           email,
           username,
