@@ -42,6 +42,11 @@ export default async function handler(
         rel: 'self',
         type: 'application/activity+json',
         href: `https://${domain}/users/${username}`
+      },
+      {
+        rel: 'self',
+        type: 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+        href: `https://${domain}/users/${username}`
       }
     ]
   })
