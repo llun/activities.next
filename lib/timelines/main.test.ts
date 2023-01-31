@@ -33,6 +33,21 @@ const createStatus = async (
   })
 }
 
+const createAnnounce = async (
+  storage: Storage,
+  actorId: string,
+  originalStatusId: string
+) => {
+  const id = randomBytes(16).toString('hex')
+  return storage.createAnnounce({
+    actorId,
+    cc: [`${actorId}/followers`],
+    to: [ACTIVITY_STREAM_PUBLIC],
+    id: `${actorId}/statuses/${id}/activity`,
+    originalStatusId
+  })
+}
+
 describe('#mainTimelineRule', () => {
   const storage = new Sqlite3Storage({
     client: 'sqlite3',
@@ -215,5 +230,31 @@ describe('#mainTimelineRule', () => {
         status: anotherNonFollowingReply
       })
     ).toBeNull()
+  })
+
+  it('returns main timeline for announce from following', async () => {
+    const currentActor = (await storage.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const status = await createAnnounce(
+      storage,
+      ACTOR2_ID,
+      `${ACTOR1_ID}/statuses/post-1`
+    )
+    expect(await mainTimelineRule({ storage, currentActor, status })).toEqual(
+      Timeline.MAIN
+    )
+  })
+
+  it('returns null for announce that from non-following', async () => {
+    const currentActor = (await storage.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const status = await createAnnounce(
+      storage,
+      ACTOR5_ID,
+      `${ACTOR1_ID}/statuses/post-1`
+    )
+    expect(await mainTimelineRule({ storage, currentActor, status })).toBeNull()
   })
 })
