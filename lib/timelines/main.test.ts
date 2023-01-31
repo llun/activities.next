@@ -257,4 +257,31 @@ describe('#mainTimelineRule', () => {
     )
     expect(await mainTimelineRule({ storage, currentActor, status })).toBeNull()
   })
+
+  it('returns null for announce that already in timeline', async () => {
+    const currentActor = (await storage.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const originalStatus = await createStatus(
+      storage,
+      ACTOR3_ID,
+      'This is original status'
+    )
+    expect(
+      await mainTimelineRule({ storage, currentActor, status: originalStatus })
+    ).toEqual(Timeline.MAIN)
+
+    const followingAnnounce = await createAnnounce(
+      storage,
+      ACTOR2_ID,
+      originalStatus.id
+    )
+    expect(
+      await mainTimelineRule({
+        storage,
+        currentActor,
+        status: followingAnnounce
+      })
+    ).toBeNull()
+  })
 })
