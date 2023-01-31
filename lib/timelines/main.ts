@@ -1,5 +1,5 @@
 import { StatusType } from '../models/status'
-import { MainTimelineRule, Timeline, TimelineRuleParams } from './types'
+import { MainTimelineRule, Timeline } from './types'
 
 /**
  * Main timeline
