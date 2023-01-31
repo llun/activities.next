@@ -22,7 +22,7 @@ const createStatus = async (
   reply?: string
 ) => {
   const id = randomBytes(16).toString('hex')
-  return storage.createNote({
+  const status = await storage.createNote({
     id: `${actorId}/statuses/${id}`,
     url: `${actorId}/statuses/${id}`,
     actorId,
@@ -31,6 +31,7 @@ const createStatus = async (
     reply,
     text
   })
+  return status.data
 }
 
 const createAnnounce = async (
@@ -39,13 +40,14 @@ const createAnnounce = async (
   originalStatusId: string
 ) => {
   const id = randomBytes(16).toString('hex')
-  return storage.createAnnounce({
+  const status = await storage.createAnnounce({
     actorId,
     cc: [`${actorId}/followers`],
     to: [ACTIVITY_STREAM_PUBLIC],
     id: `${actorId}/statuses/${id}/activity`,
     originalStatusId
   })
+  return status.data
 }
 
 describe('#mainTimelineRule', () => {
@@ -86,7 +88,11 @@ describe('#mainTimelineRule', () => {
       statusId: `${ACTOR1_ID}/statuses/post-1`
     })) as Status
     expect(
-      await mainTimelineRule({ storage, currentActor: actor, status })
+      await mainTimelineRule({
+        storage,
+        currentActor: actor,
+        status: status.data
+      })
     ).toBeNull()
   })
 

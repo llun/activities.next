@@ -1,3 +1,4 @@
+import { StatusType } from '../models/status'
 import { MainTimelineRule, Timeline, TimelineRuleParams } from './types'
 
 /**
@@ -17,13 +18,29 @@ import { MainTimelineRule, Timeline, TimelineRuleParams } from './types'
  * - Announce that has status already in the timeline
  * - Deleted status
  * - Announce that already has status in the timeline
- *
  */
 export const mainTimelineRule: MainTimelineRule = async ({
   storage,
   currentActor,
   status
 }) => {
+  if (status.type === StatusType.Announce) {
+    const isFollowing = await storage.isCurrentActorFollowing({
+      currentActorId: currentActor.id,
+      followingActorId: status.actorId
+    })
+    if (!isFollowing) return null
+
+    const originalStatus = status.originalStatus
+    const timeline = await mainTimelineRule({
+      storage,
+      currentActor,
+      status: originalStatus
+    })
+    if (timeline === Timeline.MAIN) return null
+    return Timeline.MAIN
+  }
+
   if (status.actorId === currentActor.id) return Timeline.MAIN
   const isFollowing = await storage.isCurrentActorFollowing({
     currentActorId: currentActor.id,
@@ -40,5 +57,5 @@ export const mainTimelineRule: MainTimelineRule = async ({
   if (!repliedStatus) return null
   if (repliedStatus.actorId === currentActor.id) return Timeline.MAIN
   if (!isFollowing) return null
-  return mainTimelineRule({ storage, currentActor, status: repliedStatus })
+  return mainTimelineRule({ storage, currentActor, status: repliedStatus.data })
 }

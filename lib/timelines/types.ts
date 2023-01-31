@@ -1,5 +1,5 @@
 import { Actor } from '../models/actor'
-import { Status } from '../models/status'
+import { StatusData } from '../models/status'
 import { Storage } from '../storage/types'
 
 export enum Timeline {
@@ -9,7 +9,7 @@ export enum Timeline {
 export interface TimelineRuleParams {
   storage: Storage
   currentActor: Actor
-  status: Status
+  status: StatusData
 }
 
 export type MainTimelineRule = (
