@@ -83,6 +83,21 @@ export class Status {
     return null
   }
 
+  get url() {
+    if (this.data.type === StatusType.Note) return this.data.url
+    return null
+  }
+
+  get content() {
+    if (this.data.type === StatusType.Note) return this.data.text
+    return null
+  }
+
+  get attachments() {
+    if (this.data.type === StatusType.Note) return this.data.attachments
+    return []
+  }
+
   get createdAt() {
     return this.data.createdAt
   }
