@@ -29,17 +29,15 @@ export const mainTimelineRule: MainTimelineRule = async ({
     followingActorId: status.actorId
   })
 
-  if (status.reply) {
-    const repliedStatus = await storage.getStatus({ statusId: status.reply })
-    // Deleted parent status, don't show child status
-    if (!repliedStatus) return null
-    if (repliedStatus.actorId === currentActor.id) return Timeline.MAIN
-
-    if (isFollowing) {
-      return mainTimelineRule({ storage, currentActor, status: repliedStatus })
-    }
+  if (!status.reply) {
+    if (isFollowing) return Timeline.MAIN
+    return null
   }
 
-  if (isFollowing) return Timeline.MAIN
-  return null
+  const repliedStatus = await storage.getStatus({ statusId: status.reply })
+  // Deleted parent status, don't show child status
+  if (!repliedStatus) return null
+  if (repliedStatus.actorId === currentActor.id) return Timeline.MAIN
+  if (!isFollowing) return null
+  return mainTimelineRule({ storage, currentActor, status: repliedStatus })
 }
