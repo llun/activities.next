@@ -11,13 +11,14 @@ import { MainTimelineRule, Timeline } from './types'
  * - Following people status
  * - Following people status that replied to another following people status
  * - Announce from following people that the status is not already in the timeline
+ * - Non-following people status that reply to self status
  *
  * Excludes
  * - Following people status that replied to non-following people status
  * - Non following people status
  * - Announce that has status already in the timeline
  * - Deleted status
- * - Announce that already has status in the timeline
+ *
  */
 export const mainTimelineRule: MainTimelineRule = async ({
   storage,
