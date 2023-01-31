@@ -7,6 +7,7 @@ import { seedActor1 } from './seed/actor1'
 import { seedActor2 } from './seed/actor2'
 import { seedActor3 } from './seed/actor3'
 import { seedActor4 } from './seed/actor4'
+import { seedActor5 } from './seed/actor5'
 
 export const TEST_SHARED_INBOX = 'https://llun.test/inbox'
 
@@ -15,14 +16,16 @@ export const seedStorage = async (storage: Storage) => {
     storage.createAccount(seedActor1),
     storage.createAccount(seedActor2),
     storage.createAccount(seedActor3),
-    storage.createAccount(seedActor4)
+    storage.createAccount(seedActor4),
+    storage.createAccount(seedActor5)
   ])
 
   const actors = (await Promise.all([
     storage.getActorFromEmail({ email: seedActor1.email }),
     storage.getActorFromEmail({ email: seedActor2.email }),
     storage.getActorFromEmail({ email: seedActor3.email }),
-    storage.getActorFromEmail({ email: seedActor4.email })
+    storage.getActorFromEmail({ email: seedActor4.email }),
+    storage.getActorFromEmail({ email: seedActor5.email })
   ])) as Actor[]
 
   if (actors.some((actor) => !actor)) return

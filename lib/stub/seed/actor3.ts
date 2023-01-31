@@ -1,4 +1,5 @@
 export const ACTOR3_ID = 'https://llun.test/users/test3'
+export const ACTOR3_FOLLOWER_URL = `${ACTOR3_ID}/followers`
 
 export const seedActor3 = {
   email: 'test3@llun.test',
