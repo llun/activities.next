@@ -16,6 +16,7 @@ import { MainTimelineRule, Timeline, TimelineRuleParams } from './types'
  * - Non following people status
  * - Announce that has status already in the timeline
  * - Deleted status
+ * - Announce that already has status in the timeline
  *
  */
 export const mainTimelineRule: MainTimelineRule = async ({
