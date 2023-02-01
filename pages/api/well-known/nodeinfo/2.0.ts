@@ -101,7 +101,7 @@ export default async function handler(
     openRegistrations: false,
     protocols: ['activitypub'],
     services: { inbound: [], outbound: [] },
-    software: { name: 'actovities.next', version: '0.1' },
+    software: { name: 'mastodon', version: 'activities.next-0.1' },
     usage: { localPosts: 150, users: { total: 1 } },
     version: '2.0'
   })
