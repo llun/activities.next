@@ -1,6 +1,8 @@
 /* eslint-disable camelcase */
+import { IncomingHttpHeaders } from 'http'
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
 import { Session, getServerSession } from 'next-auth'
+import { NextRequest } from 'next/server'
 
 import { authOptions } from '../pages/api/auth/[...nextauth]'
 import { getPublicProfile } from './activities'
@@ -122,8 +124,7 @@ export function ApiGuard(handle: ApiHandle) {
   }
 }
 
-export function RequestHost(request: NextApiRequest) {
-  const headers = request.headers
+export function headerHost(headers: IncomingHttpHeaders) {
   if (headers[ACTIVITIES_HOST]) return headers[ACTIVITIES_HOST]
   if (headers[FORWARDED_HOST]) return headers[FORWARDED_HOST]
   return headers.host

@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
-import { GetStaticProps, NextPage } from 'next'
+import { GetServerSideProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import { useEffect, useState } from 'react'
@@ -15,7 +15,7 @@ import { FollowAction } from '../../lib/components/FollowAction'
 import { Header } from '../../lib/components/Header'
 import { Posts } from '../../lib/components/Posts/Posts'
 import { Profile } from '../../lib/components/Profile'
-import { getConfig } from '../../lib/config'
+import { headerHost } from '../../lib/guard'
 import { StatusData } from '../../lib/models/status'
 import { getStorage } from '../../lib/storage'
 import styles from './index.module.scss'
@@ -80,19 +80,26 @@ const Page: NextPage<Props> = ({ person, statuses }) => {
 type Params = {
   actor: string
 }
-export const getStaticProps: GetStaticProps<Props, Params> = async ({
-  params
+
+export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
+  req,
+  query
 }) => {
-  const actor = params?.actor
-  const parts = (actor as string).split('@').slice(1)
+  const { actor } = query
+  if (!actor || Array.isArray(actor)) return { notFound: true }
 
   const storage = await getStorage()
-  if (!storage || !actor || parts.length < 1 || parts.length > 2) {
+  if (!storage) throw new Error('Storage is not available')
+
+  const parts = (actor as string).split('@').slice(1)
+  if (parts.length < 1 || parts.length > 2) {
     return { notFound: true }
   }
 
   if (parts.length === 1) {
-    parts.push(getConfig().host)
+    const host = headerHost(req.headers)
+    if (!host || Array.isArray(host)) return { notFound: true }
+    parts.push(host)
   }
 
   const [username, domain] = parts
@@ -106,16 +113,7 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
     props: {
       person,
       statuses
-    },
-    // Revalidate page every 10 minutes
-    revalidate: 600
-  }
-}
-
-export async function getStaticPaths() {
-  return {
-    paths: [],
-    fallback: 'blocking'
+    }
   }
 }
 

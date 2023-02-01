@@ -1,15 +1,16 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 
 import { getConfig } from '../../../../../../lib/config'
+import { headerHost } from '../../../../../../lib/guard'
 import { fetchStream } from '../../../../../../lib/medias/apple/webstream'
 
 export const allowOrigin = (request: NextApiRequest) => {
   if (process.env.NODE_ENV !== 'production') return '*'
 
   const defaultAllowOrigin = `https://${getConfig().host}`
-  if (!request.headers.host) return defaultAllowOrigin
+  const requestHost = headerHost(request.headers)
+  if (!requestHost || Array.isArray(requestHost)) return defaultAllowOrigin
 
-  const requestHost = request.headers.host
   const allowMediaDomains = getConfig().allowMediaDomains || []
   if (!allowMediaDomains.includes(requestHost)) {
     return defaultAllowOrigin

@@ -1,6 +1,6 @@
 import type { NextApiHandler } from 'next'
 
-import { RequestHost } from '../../../../lib/guard'
+import { headerHost } from '../../../../lib/guard'
 import { ERROR_400, ERROR_404 } from '../../../../lib/responses'
 import { getStorage } from '../../../../lib/storage'
 
@@ -11,7 +11,7 @@ const handle: NextApiHandler = async (req, res) => {
     return res.status(400).json(ERROR_400)
   }
 
-  const host = RequestHost(req)
+  const host = headerHost(req.headers)
   const id = `https://${host}/users/${username}`
   const followerId = `${id}/followers`
 
