@@ -10,7 +10,7 @@ import { MainTimelineRule, Timeline } from './types'
  * - Self status
  * - Following people status
  * - Following people status that replied to another following people status
- * - Announce from following people that the status is not already in the timeline
+ * - Announce from following people
  * - Non-following people status that reply to self status
  *
  * Excludes
