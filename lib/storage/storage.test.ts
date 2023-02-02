@@ -410,6 +410,31 @@ describe('Storage', () => {
             targetActorId: TEST_ID4
           })
         expect(followsAfterLocalFollow.length).toEqual(1)
+
+        const OUTSIDE_NETWORK_ID = 'https://someone.else/u/outside-network'
+        await storage.createActor({
+          actorId: OUTSIDE_NETWORK_ID,
+          domain: 'someone.else',
+          username: 'outside-network',
+          followersUrl: 'https://someone.else/f/outside-network',
+          inboxUrl: 'https://someone.else/i/outside-network',
+          sharedInboxUrl: 'https://someone.else/i/outside-network',
+          publicKey: 'public-key',
+          createdAt: Date.now()
+        })
+
+        await storage.createFollow({
+          actorId: OUTSIDE_NETWORK_ID,
+          targetActorId: TEST_ID4,
+          status: FollowStatus.Accepted,
+          inbox: 'https://someone.else/i/outside-network',
+          sharedInbox: 'https://someone.else/i/outside-network'
+        })
+        const followsAfterOutsideFollow =
+          await storage.getLocalFollowersForActorId({
+            targetActorId: TEST_ID4
+          })
+        expect(followsAfterOutsideFollow.length).toEqual(1)
       })
     })
 
