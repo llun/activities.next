@@ -157,7 +157,15 @@ export const PostBox: FC<Props> = ({
       : `${Actor.getMentionFromId(replyStatus.actorId, true)} `
     const others = replyStatus.tags
       .filter((item) => item.type === 'mention')
-      .map((item) => item.name)
+      .map((item) => {
+        if (item.name.slice(1).includes('@')) return item.name
+        try {
+          const url = new URL(item.value)
+          return `${item.name}@${url.host}`
+        } catch {
+          return item.name
+        }
+      })
       .join(' ')
 
     if (others.length > 0) {
