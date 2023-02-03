@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@google-cloud/firestore": "^6.4.2",
-    "@sentry/nextjs": "7.35.0",
+    "@sentry/nextjs": "7.36.0",
     "@vercel/analytics": "^0.1.8",
     "better-sqlite3": "^8.0.1",
     "bootstrap": "^5.2.3",
@@ -31,7 +31,7 @@
     "linkifyjs": "^4.1.0",
     "lodash": "^4.17.21",
     "next": "13.1.6",
-    "next-auth": "4.19.1",
+    "next-auth": "4.19.2",
     "peggy": "^2.0.1",
     "pino": "^8.8.0",
     "react": "18.2.0",

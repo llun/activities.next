@@ -55,17 +55,18 @@ const handlePost = async (
 
 const ApiHandler: NextApiHandler = activitiesGuard(
   async (req, res) => {
-    const requestBody =
-      typeof req.body === 'string' ? JSON.parse(req.body) : req.body
-    const body = (await compact(requestBody)) as StatusActivity
     const storage = await getStorage()
     if (!storage) {
       return res.status(500).send(ERROR_500)
     }
 
     switch (req.method) {
-      case 'POST':
+      case 'POST': {
+        const requestBody =
+          typeof req.body === 'string' ? JSON.parse(req.body) : req.body
+        const body = (await compact(requestBody)) as StatusActivity
         return await handlePost(storage, body, res)
+      }
       default:
         return res.status(404).send(ERROR_404)
     }
