@@ -18,6 +18,7 @@ import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
+import { addStatusToTimelines } from '../timelines'
 import { recordActorIfNeeded } from './utils'
 
 interface CreateNoteParams {
@@ -44,7 +45,7 @@ export const createNote = async ({
   const text = getContent(compactNote)
   const summary = getSummary(compactNote)
 
-  await Promise.all([
+  const [, status] = await Promise.all([
     recordActorIfNeeded({ actorId: compactNote.attributedTo, storage }),
     storage.createNote({
       id: compactNote.id,
@@ -66,6 +67,7 @@ export const createNote = async ({
   const attachments = getAttachments(note)
   const tags = getTags(note)
   await Promise.all([
+    addStatusToTimelines(storage, status),
     ...attachments.map(async (attachment) => {
       if (attachment.type !== 'Document') return
       return storage.createAttachment({
@@ -110,7 +112,7 @@ export const createNoteFromUserInput = async ({
   const statusId = `${currentActor.id}/statuses/${postId}`
   const mentions = await getMentions({ text, currentActor, replyStatus })
 
-  await storage.createNote({
+  const createdStatus = await storage.createNote({
     id: statusId,
     url: `https://${
       currentActor.domain
@@ -128,6 +130,7 @@ export const createNoteFromUserInput = async ({
   })
 
   await Promise.all([
+    addStatusToTimelines(storage, createdStatus),
     ...attachments.map((attachment) =>
       storage.createAttachment({
         statusId,

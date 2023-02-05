@@ -7,6 +7,7 @@ import { compact } from '../jsonld'
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
+import { addStatusToTimelines } from '../timelines'
 import { createNote } from './createNote'
 import { recordActorIfNeeded } from './utils'
 
@@ -32,7 +33,7 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     statusId: compactedStatus.id
   })
   if (existingAnnounce) return
-  await Promise.all([
+  const [, announce] = await Promise.all([
     recordActorIfNeeded({ actorId: compactedStatus.actor, storage }),
     storage.createAnnounce({
       id: compactedStatus.id,
@@ -46,6 +47,7 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
       originalStatusId: object
     })
   ])
+  await addStatusToTimelines(storage, announce)
 }
 
 interface UserAnnounceParams {
@@ -69,6 +71,7 @@ export const userAnnounce = async ({
     cc: [currentActor.id, currentActor.followersUrl],
     originalStatusId: originalStatus.id
   })
+  await addStatusToTimelines(storage, status)
   const inboxes = await storage.getFollowersInbox({
     targetActorId: currentActor.id
   })

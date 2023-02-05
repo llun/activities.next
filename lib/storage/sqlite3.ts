@@ -406,16 +406,16 @@ export class Sqlite3Storage implements Storage {
   async getLocalActorsFromFollowerUrl({
     followerUrl
   }: GetLocalActorsFromFollowerUrlParams) {
-    const { id } = await this.database('actors')
+    const actor = await this.database('actors')
       .jsonExtract('settings', '$.followersUrl', 'followersUrl')
       .where('followersUrl', followerUrl)
       .select('id')
       .first()
-    if (!id) return []
+    if (!actor?.id) return []
 
     const localActors = await this.database('actors')
       .leftJoin('follows', 'follows.actorId', 'actors.id')
-      .where('follows.targetActorId', id)
+      .where('follows.targetActorId', actor.id)
       .where('follows.status', FollowStatus.Accepted)
       .where('actors.privateKey', '<>', '')
       .select('actors.*')

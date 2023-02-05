@@ -890,15 +890,16 @@ export class FirebaseStorage implements Storage {
   }: CreateTimelineStatusParams): Promise<void> {
     const currentTime = Date.now()
     logger.debug('FIREBASE_START addTimelineStatus')
-    await this.db
-      .collection(`actors/${FirebaseStorage.urlToId(actorId)}/timelines`)
-      .add({
-        timeline,
-        statusId: status.id,
-        statusActorId: status.actorId,
-        createdAt: currentTime,
-        updatedAt: currentTime
-      })
+    const path = `actors/${FirebaseStorage.urlToId(
+      actorId
+    )}/timelines/${timeline}-${FirebaseStorage.urlToId(status.id)}`
+    await this.db.doc(path).set({
+      timeline,
+      statusId: status.id,
+      statusActorId: status.actorId,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
     logger.debug('FIREBASE_END addTimelineStatus', Date.now() - currentTime)
   }
 

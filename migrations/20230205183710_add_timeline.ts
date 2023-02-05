@@ -5,6 +5,7 @@ export async function up(knex: Knex): Promise<void> {
     table.string('actorId')
     table.string('timeline')
     table.string('statusId')
+    table.string('statusActorId')
 
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
