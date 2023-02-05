@@ -14,7 +14,9 @@ import {
   StatusType
 } from '../models/status'
 import { Tag, TagData } from '../models/tag'
+import { Timeline } from '../timelines/types'
 import {
+  AddTimelineStatusParams,
   CreateAccountParams,
   CreateActorParams,
   CreateAnnounceParams,
@@ -49,7 +51,6 @@ import {
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
   Storage,
-  Timeline,
   UpdateActorParams,
   UpdateFollowStatusParams
 } from './types'
@@ -804,10 +805,25 @@ export class Sqlite3Storage implements Storage {
         ).filter((item): item is Status => item !== undefined)
         return statuses
       }
+      case Timeline.MAIN: {
+        return []
+      }
       default: {
         return []
       }
     }
+  }
+
+  async addTimelineStatus({
+    actorId,
+    status,
+    timeline
+  }: AddTimelineStatusParams): Promise<void> {
+    return this.database('timelines').insert({
+      actorId,
+      statusId: status.id,
+      timeline
+    })
   }
 
   async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {

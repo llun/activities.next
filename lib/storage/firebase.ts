@@ -14,7 +14,9 @@ import {
   StatusType
 } from '../models/status'
 import { Tag, TagData } from '../models/tag'
+import { Timeline } from '../timelines/types'
 import {
+  AddTimelineStatusParams,
   CreateAccountParams,
   CreateActorParams,
   CreateAnnounceParams,
@@ -49,7 +51,6 @@ import {
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
   Storage,
-  Timeline,
   UpdateActorParams,
   UpdateFollowStatusParams
 } from './types'
@@ -880,6 +881,29 @@ export class FirebaseStorage implements Storage {
         return []
       }
     }
+  }
+
+  async addTimelineStatus({
+    status,
+    timeline,
+    actorId
+  }: AddTimelineStatusParams): Promise<void> {
+    const currentTime = Date.now()
+    logger.debug('FIREBASE_START addTimelineStatus')
+    await this.db
+      .doc(
+        `actors/${FirebaseStorage.urlToId(
+          actorId
+        )}/timelines/${timeline}/${FirebaseStorage.urlToId(status.id)}`
+      )
+      .set({
+        timeline,
+        statusId: status.id,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+    this.db.doc(`actors/${actorId}`)
+    logger.debug('FIREBASE_END addTimelineStatus', Date.now() - currentTime)
   }
 
   async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {

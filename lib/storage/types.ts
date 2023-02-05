@@ -4,10 +4,7 @@ import { Attachment } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
 import { Status } from '../models/status'
 import { Tag } from '../models/tag'
-
-export enum Timeline {
-  LocalPublic = 'local-public'
-}
+import { Timeline } from '../timelines/types'
 
 export type IsAccountExistsParams = { email: string }
 export type IsUsernameExistsParams = { username: string; domain: string }
@@ -121,6 +118,11 @@ export type GetTimelineParams = {
   timeline: Timeline
   actorId?: string
 }
+export type AddTimelineStatusParams = {
+  timeline: Timeline
+  actorId: string
+  status: Status
+}
 
 export type CreateAttachmentParams = {
   statusId: string
@@ -200,6 +202,7 @@ export interface Storage {
   deleteStatus(params: DeleteStatusParams): Promise<void>
 
   getTimeline(params: GetTimelineParams): Promise<Status[]>
+  addTimelineStatus(params: AddTimelineStatusParams): Promise<void>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>

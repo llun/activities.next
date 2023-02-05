@@ -3,7 +3,8 @@ import { StatusData } from '../models/status'
 import { Storage } from '../storage/types'
 
 export enum Timeline {
-  MAIN = 'main'
+  MAIN = 'main',
+  LocalPublic = 'local-public'
 }
 
 export interface TimelineRuleParams {
