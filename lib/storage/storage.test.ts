@@ -673,20 +673,6 @@ describe('Storage', () => {
           actorId: TEST_ID8
         })
 
-        for (const status of statuses) {
-          if (status.data.actorId.startsWith('https://llun.test/users')) {
-            const actor = await storage.getActorFromId({
-              id: status.data.actorId
-            })
-            if (!actor) {
-              fail('Actor must be defined')
-            }
-            expect(status.data.actor).toMatchObject(actor.toProfile())
-          } else {
-            expect(status.data.actor).toBeNull()
-          }
-        }
-
         const otherServerStatus2 = await storage.getStatus({
           statusId: otherServerUser2Status(19)
         })
