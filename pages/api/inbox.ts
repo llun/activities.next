@@ -18,6 +18,7 @@ const handlePost = async (
     case 'Create': {
       switch (activity.object.type) {
         case 'Note': {
+          console.log('Create note from here?')
           await createNote({ storage, note: activity.object })
           break
         }

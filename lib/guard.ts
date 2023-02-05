@@ -2,12 +2,11 @@
 import { IncomingHttpHeaders } from 'http'
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
 import { Session, getServerSession } from 'next-auth'
-import { NextRequest } from 'next/server'
 
 import { authOptions } from '../pages/api/auth/[...nextauth]'
 import { getPublicProfile } from './activities'
 import { Actor } from './models/actor'
-import { ERROR_400 } from './responses'
+import { ERROR_400, ERROR_500 } from './responses'
 import { parse, verify } from './signature'
 import { getStorage } from './storage'
 import { Storage } from './storage/types'
@@ -16,6 +15,19 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
 const ACTIVITIES_HOST = 'x-activity-next-host'
 const FORWARDED_HOST = 'x-forwarded-host'
+
+async function getSenderPublicKey(storage: Storage, actorId: string) {
+  const localActor = await storage.getActorFromId({ id: actorId })
+  if (localActor) return localActor.publicKey
+
+  const sender = await getPublicProfile({
+    actorId,
+    withCollectionCount: false,
+    withPublicKey: true
+  })
+  if (sender) return sender.publicKey || ''
+  return ''
+}
 
 export function activitiesGuard<T>(
   handle: NextApiHandler<T>,
@@ -30,6 +42,11 @@ export function activitiesGuard<T>(
       return handle(req, res)
     }
 
+    const storage = await getStorage()
+    if (!storage) {
+      return res.status(500).send(ERROR_500)
+    }
+
     const headerSignature = req.headers.signature
     if (!headerSignature) {
       return res.status(400).send(ERROR_400)
@@ -40,27 +57,18 @@ export function activitiesGuard<T>(
       return res.status(400).send(ERROR_400)
     }
 
-    const sender = await getPublicProfile({
-      actorId: signatureParts.keyId,
-      withCollectionCount: false,
-      withPublicKey: true
-    })
-    if (!sender) {
-      return res.status(400).send(ERROR_400)
-    }
-
     if (!req.url) {
       return res.status(400).send(ERROR_400)
     }
     const requestUrl = new URL(req.url, `http://${req.headers.host}`)
+    const publicKey = await getSenderPublicKey(storage, signatureParts.keyId)
     if (
       !verify(
         `${req.method?.toLowerCase()} ${requestUrl.pathname}`,
         req.headers,
-        sender.publicKey || ''
+        publicKey
       )
     ) {
-      console.error('-> 400 Invalid Signature')
       return res.status(400).send(ERROR_400)
     }
 
