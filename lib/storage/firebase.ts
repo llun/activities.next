@@ -39,6 +39,7 @@ import {
   GetFollowFromIdParams,
   GetFollowersInboxParams,
   GetLikeCountParams,
+  GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
   GetStatusesParams,
@@ -478,6 +479,37 @@ export class FirebaseStorage implements Storage {
 
     logger.debug('FIREBASE_END getLocalFollowersForActorId', Date.now() - start)
     return snapshot.docs.map((doc) => doc.data() as Follow)
+  }
+
+  async getLocalActorsFromFollowerUrl({
+    followerUrl
+  }: GetLocalActorsFromFollowerUrlParams) {
+    const actorFromFollowerUrl = await this.db
+      .collection('actors')
+      .where('followersUrl', '==', followerUrl)
+      .get()
+    if (!actorFromFollowerUrl.size) return []
+    const id = actorFromFollowerUrl.docs[0].data().id
+
+    const follows = await this.db
+      .collection('follows')
+      .where('targetActorId', '==', id)
+      .where('status', '==', FollowStatus.Accepted)
+      .get()
+    if (!follows.size) return []
+    const followers = follows.docs
+      .map((doc) => doc.data())
+      .map((data) => data.actorId)
+
+    const actors = (
+      await Promise.all(
+        followers.map((actorId) => this.getActorFromId({ id: actorId }))
+      )
+    ).filter(
+      (actor): actor is Actor => actor !== undefined && actor.privateKey !== ''
+    )
+
+    return actors
   }
 
   async getAcceptedOrRequestedFollow({

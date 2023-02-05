@@ -235,6 +235,17 @@ describe('Storage', () => {
         const inbox = `${TEST_ID3}/inbox`
         const sharedInbox = 'https://llun.test/inbox'
 
+        await storage.createActor({
+          actorId: targetActorId,
+          domain: 'llun.dev',
+          username: 'null',
+          followersUrl: 'https://llun.dev/f/null',
+          sharedInboxUrl: 'https://llun.dev/i/null',
+          inboxUrl: 'https://llun.dev/i/null',
+          publicKey: 'public-key',
+          createdAt: Date.now()
+        })
+
         const follow = await storage.createFollow({
           actorId: TEST_ID3,
           targetActorId,
@@ -371,6 +382,13 @@ describe('Storage', () => {
         expect(await storage.getFollowersInbox({ targetActorId })).toEqual([
           sharedInbox
         ])
+
+        const actors = await storage.getLocalActorsFromFollowerUrl({
+          followerUrl: 'https://llun.dev/f/null'
+        })
+        expect(actors.length).toEqual(1)
+        expect(actors[0].id).toEqual(TEST_ID3)
+        expect(actors[0].privateKey).not.toEqual('')
       })
 
       it('gets other actor follow (follower)', async () => {

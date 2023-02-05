@@ -74,6 +74,7 @@ export type CreateFollowParams = {
   sharedInbox: string
 }
 export type GetLocalFollowersForActorIdParams = { targetActorId: string }
+export type GetLocalActorsFromFollowerUrlParams = { followerUrl: string }
 export type GetFollowFromIdParams = { followId: string }
 export type GetAcceptedOrRequestedFollowParams = {
   actorId: string
@@ -181,6 +182,9 @@ export interface Storage {
   getLocalFollowersForActorId(
     params: GetLocalFollowersForActorIdParams
   ): Promise<Follow[]>
+  getLocalActorsFromFollowerUrl(
+    params: GetLocalActorsFromFollowerUrlParams
+  ): Promise<Actor[]>
   getAcceptedOrRequestedFollow(
     params: GetAcceptedOrRequestedFollowParams
   ): Promise<Follow | undefined>
