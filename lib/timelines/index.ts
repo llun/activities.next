@@ -2,12 +2,11 @@ import { Actor } from '../models/actor'
 import { Status } from '../models/status'
 import { Storage } from '../storage/types'
 import { mainTimelineRule } from './main'
-import { Timeline } from './types'
 
-export const addStatusToTimeline = async (
+export const addStatusToTimelines = async (
   storage: Storage,
   status: Status
-): Promise<Timeline[]> => {
+): Promise<void> => {
   const { to, cc } = status
   const recipients = [...to, ...cc]
   const localActors = (
@@ -24,13 +23,19 @@ export const addStatusToTimeline = async (
   ).flat()
 
   const actors = [...localActors, ...getLocalActorsFromFollowerUrl]
-  for (const actor of actors) {
-    const timeline = mainTimelineRule({
-      currentActor: actor,
-      status: status.data,
-      storage
+  await Promise.all(
+    actors.map(async (actor) => {
+      const timeline = await mainTimelineRule({
+        currentActor: actor,
+        status: status.data,
+        storage
+      })
+      if (!timeline) return
+      return storage.createTimelineStatus({
+        actorId: actor.id,
+        status,
+        timeline
+      })
     })
-  }
-
-  return []
+  )
 }
