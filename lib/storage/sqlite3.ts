@@ -16,7 +16,6 @@ import {
 import { Tag, TagData } from '../models/tag'
 import { Timeline } from '../timelines/types'
 import {
-  AddTimelineStatusParams,
   CreateAccountParams,
   CreateActorParams,
   CreateAnnounceParams,
@@ -25,6 +24,7 @@ import {
   CreateLikeParams,
   CreateNoteParams,
   CreateTagParams,
+  CreateTimelineStatusParams,
   DeleteActorParams,
   DeleteLikeParams,
   DeleteStatusParams,
@@ -814,14 +814,15 @@ export class Sqlite3Storage implements Storage {
     }
   }
 
-  async addTimelineStatus({
+  async createTimelineStatus({
     actorId,
     status,
     timeline
-  }: AddTimelineStatusParams): Promise<void> {
+  }: CreateTimelineStatusParams): Promise<void> {
     return this.database('timelines').insert({
       actorId,
       statusId: status.id,
+      statusActorId: status.actorId,
       timeline
     })
   }
@@ -846,12 +847,20 @@ export class Sqlite3Storage implements Storage {
   }
 
   async deleteStatus({ statusId }: DeleteStatusParams) {
+    const replies = await this.database('statuses')
+      .where('reply', statusId)
+      .select('id')
+    await Promise.all(
+      replies.map(({ id }) => this.deleteStatus({ statusId: id }))
+    )
+
     await this.database.transaction(async (trx) => {
       await Promise.all([
         trx('statuses').where('id', statusId).delete(),
         trx('recipients').where('statusId', statusId).delete(),
         trx('tags').where('statusId', statusId).delete(),
-        trx('attachments').where('statusId', statusId).delete()
+        trx('attachments').where('statusId', statusId).delete(),
+        trx('timelines').where('statusId', statusId).delete()
       ])
     })
   }

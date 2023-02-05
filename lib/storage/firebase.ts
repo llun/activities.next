@@ -16,7 +16,6 @@ import {
 import { Tag, TagData } from '../models/tag'
 import { Timeline } from '../timelines/types'
 import {
-  AddTimelineStatusParams,
   CreateAccountParams,
   CreateActorParams,
   CreateAnnounceParams,
@@ -25,6 +24,7 @@ import {
   CreateLikeParams,
   CreateNoteParams,
   CreateTagParams,
+  CreateTimelineStatusParams,
   DeleteActorParams,
   DeleteLikeParams,
   DeleteStatusParams,
@@ -883,26 +883,22 @@ export class FirebaseStorage implements Storage {
     }
   }
 
-  async addTimelineStatus({
+  async createTimelineStatus({
     status,
     timeline,
     actorId
-  }: AddTimelineStatusParams): Promise<void> {
+  }: CreateTimelineStatusParams): Promise<void> {
     const currentTime = Date.now()
     logger.debug('FIREBASE_START addTimelineStatus')
     await this.db
-      .doc(
-        `actors/${FirebaseStorage.urlToId(
-          actorId
-        )}/timelines/${timeline}/${FirebaseStorage.urlToId(status.id)}`
-      )
-      .set({
+      .collection(`actors/${FirebaseStorage.urlToId(actorId)}/timelines`)
+      .add({
         timeline,
         statusId: status.id,
+        statusActorId: status.actorId,
         createdAt: currentTime,
         updatedAt: currentTime
       })
-    this.db.doc(`actors/${actorId}`)
     logger.debug('FIREBASE_END addTimelineStatus', Date.now() - currentTime)
   }
 
@@ -941,7 +937,28 @@ export class FirebaseStorage implements Storage {
   async deleteStatus({ statusId }: DeleteStatusParams) {
     const start = Date.now()
     logger.debug('FIREBASE_START deleteStatus')
-    await this.db.doc(`statuses/${FirebaseStorage.urlToId(statusId)}`).delete()
+
+    const repliesSnapshot = await this.db
+      .collection('statuses')
+      .where('reply', '==', statusId)
+      .get()
+
+    await Promise.all(
+      repliesSnapshot.docs
+        .map((doc) => doc.data().id)
+        .map((statusId) => this.deleteStatus({ statusId }))
+    )
+
+    const statusInTimelines = await this.db
+      .collectionGroup('timelines')
+      .where('statusId', '==', statusId)
+      .get()
+
+    await Promise.all([
+      ...statusInTimelines.docs.map((doc) => doc.ref.delete()),
+      this.db.doc(`statuses/${FirebaseStorage.urlToId(statusId)}`).delete()
+    ])
+
     logger.debug('FIREBASE_END deleteStatus', Date.now() - start)
   }
 

@@ -118,7 +118,7 @@ export type GetTimelineParams = {
   timeline: Timeline
   actorId?: string
 }
-export type AddTimelineStatusParams = {
+export type CreateTimelineStatusParams = {
   timeline: Timeline
   actorId: string
   status: Status
@@ -202,7 +202,7 @@ export interface Storage {
   deleteStatus(params: DeleteStatusParams): Promise<void>
 
   getTimeline(params: GetTimelineParams): Promise<Status[]>
-  addTimelineStatus(params: AddTimelineStatusParams): Promise<void>
+  createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
