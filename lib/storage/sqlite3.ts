@@ -39,6 +39,7 @@ import {
   GetFollowFromIdParams,
   GetFollowersInboxParams,
   GetLikeCountParams,
+  GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
   GetStatusesParams,
@@ -303,15 +304,17 @@ export class Sqlite3Storage implements Storage {
       ...(sharedInboxUrl ? { sharedInboxUrl } : null)
     }
 
-    await this.database<SQLActor>('actors').update({
-      ...(name ? { name } : null),
-      ...(summary ? { summary } : null),
+    await this.database<SQLActor>('actors')
+      .where('id', actorId)
+      .update({
+        ...(name ? { name } : null),
+        ...(summary ? { summary } : null),
 
-      ...(publicKey ? { publicKey } : null),
+        ...(publicKey ? { publicKey } : null),
 
-      settings: JSON.stringify(settings),
-      updatedAt: Date.now()
-    })
+        settings: JSON.stringify(settings),
+        updatedAt: Date.now()
+      })
     return this.getActorFromId({ id: actorId })
   }
 
@@ -397,6 +400,16 @@ export class Sqlite3Storage implements Storage {
       .whereIn('actorHost', domains)
       .whereIn('status', [FollowStatus.Accepted])
       .orderBy('createdAt', 'desc')
+  }
+
+  async getLocalActorsFromFollowerUrl({
+    followerUrl
+  }: GetLocalActorsFromFollowerUrlParams) {
+    const actor = await this.database('actors')
+      .where('followersUrl', followerUrl)
+      .first()
+
+    return []
   }
 
   async getAcceptedOrRequestedFollow({
