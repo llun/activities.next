@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
 import { getStorage } from '../../../../lib/storage'
-import { Timeline } from '../../../../lib/storage/types'
 import { getISOTimeUTC } from '../../../../lib/time'
+import { Timeline } from '../../../../lib/timelines/types'
 
 export default async function handler(
   req: NextApiRequest,

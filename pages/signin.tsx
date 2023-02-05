@@ -10,7 +10,7 @@ import { Posts } from '../lib/components/Posts/Posts'
 import { getConfig } from '../lib/config'
 import { StatusData } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
-import { Timeline } from '../lib/storage/types'
+import { Timeline } from '../lib/timelines/types'
 import { authOptions } from './api/auth/[...nextauth]'
 
 interface Props {
