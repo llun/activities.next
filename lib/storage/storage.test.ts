@@ -2,9 +2,10 @@ import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { FollowStatus } from '../models/follow'
 import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN } from '../stub/const'
+import { Timeline } from '../timelines/types'
 import { FirebaseStorage } from './firebase'
 import { Sqlite3Storage } from './sqlite3'
-import { Storage, Timeline } from './types'
+import { Storage } from './types'
 
 jest.mock('../config')
 
