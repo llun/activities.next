@@ -808,8 +808,7 @@ export class Sqlite3Storage implements Storage {
       case Timeline.MAIN: {
         if (!actorId) return []
         const statusesId = await this.database('timelines')
-          .leftJoin('statuses', 'statuses.id', 'timelines.statusId')
-          .where('timelines.actorId', actorId)
+          .where('actorId', actorId)
           .select('statusId')
           .orderBy('createdAt', 'desc')
           .limit(PER_PAGE_LIMIT)
