@@ -117,7 +117,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   res,
   query
 }) => {
-  const { timeline } = query
+  const { t } = query
   const [storage, session] = await Promise.all([
     getStorage(),
     getServerSession(req, res, authOptions)
@@ -159,13 +159,12 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
-  const statuses =
-    timeline === 'n'
-      ? await storage.getTimeline({
-          timeline: Timeline.MAIN,
-          actorId: actor.id
-        })
-      : await storage.getStatuses({ actorId: actor.id })
+  const statuses = await (t === 'o'
+    ? storage.getStatuses({ actorId: actor.id })
+    : storage.getTimeline({
+        timeline: Timeline.MAIN,
+        actorId: actor.id
+      }))
   return {
     props: {
       host: config.host,
