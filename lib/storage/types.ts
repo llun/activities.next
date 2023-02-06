@@ -117,6 +117,7 @@ export type DeleteStatusParams = { statusId: string }
 export type GetTimelineParams = {
   timeline: Timeline
   actorId?: string
+  startAfterStatusId?: string
 }
 export type CreateTimelineStatusParams = {
   timeline: Timeline

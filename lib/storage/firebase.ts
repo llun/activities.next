@@ -837,7 +837,11 @@ export class FirebaseStorage implements Storage {
     return items.filter((status): status is Status => Boolean(status))
   }
 
-  async getTimeline({ timeline, actorId }: GetTimelineParams) {
+  async getTimeline({
+    timeline,
+    actorId,
+    startAfterStatusId
+  }: GetTimelineParams) {
     const start = Date.now()
     logger.debug('FIREBASE_START getTimeline')
     switch (timeline) {
@@ -875,17 +879,27 @@ export class FirebaseStorage implements Storage {
         logger.debug('FIREBASE_END getTimeline', Date.now() - start)
         return statuses
           .filter((status): status is Status => Boolean(status))
-          .slice(0, 30)
+          .slice(0, PER_PAGE_LIMIT)
       }
       case Timeline.MAIN: {
         if (!actorId) return []
 
-        const snapshot = await this.db
+        let query = this.db
           .collection(`actors/${FirebaseStorage.urlToId(actorId)}/timelines`)
           .where('timeline', '==', timeline)
           .orderBy('createdAt', 'desc')
-          .limit(30)
-          .get()
+          .limit(PER_PAGE_LIMIT)
+        if (startAfterStatusId) {
+          const lastStatus = await this.db
+            .collection(`actors/${FirebaseStorage.urlToId(actorId)}/timelines`)
+            .where('timeline', '==', timeline)
+            .where('statusId', '==', startAfterStatusId)
+            .get()
+          if (lastStatus.size === 1) {
+            query = query.startAfter(lastStatus.docs[0])
+          }
+        }
+        const snapshot = await query.get()
         const statuses = await Promise.all(
           snapshot.docs
             .map((doc) => doc.data().statusId)
