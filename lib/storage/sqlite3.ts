@@ -832,11 +832,21 @@ export class Sqlite3Storage implements Storage {
     status,
     timeline
   }: CreateTimelineStatusParams): Promise<void> {
+    const exists = await this.database('timelines')
+      .where('actorId', actorId)
+      .andWhere('statusId', status.id)
+      .andWhere('timeline', timeline)
+      .count<{ count: number }>('* as count')
+      .first()
+    if (exists && exists.count) return
+
     return this.database('timelines').insert({
       actorId,
       statusId: status.id,
       statusActorId: status.actorId,
-      timeline
+      timeline,
+      createdAt: status.createdAt,
+      updatedAt: Date.now()
     })
   }
 

@@ -929,7 +929,7 @@ export class FirebaseStorage implements Storage {
       timeline,
       statusId: status.id,
       statusActorId: status.actorId,
-      createdAt: currentTime,
+      createdAt: status.createdAt,
       updatedAt: currentTime
     })
     logger.debug('FIREBASE_END addTimelineStatus', Date.now() - currentTime)
