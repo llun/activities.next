@@ -837,7 +837,7 @@ export class FirebaseStorage implements Storage {
     return items.filter((status): status is Status => Boolean(status))
   }
 
-  async getTimeline({ timeline }: GetTimelineParams) {
+  async getTimeline({ timeline, actorId }: GetTimelineParams) {
     const start = Date.now()
     logger.debug('FIREBASE_START getTimeline')
     switch (timeline) {
@@ -876,6 +876,24 @@ export class FirebaseStorage implements Storage {
         return statuses
           .filter((status): status is Status => Boolean(status))
           .slice(0, 30)
+      }
+      case Timeline.MAIN: {
+        if (!actorId) return []
+
+        const snapshot = await this.db
+          .collection(`actors/${FirebaseStorage.urlToId(actorId)}/timelines`)
+          .where('timeline', '==', timeline)
+          .orderBy('createdAt', 'desc')
+          .limit(30)
+          .get()
+        const statuses = await Promise.all(
+          snapshot.docs
+            .map((doc) => doc.data().statusId)
+            .map((statusId) => this.getStatus({ statusId }))
+        )
+        return statuses.filter(
+          (status): status is Status => status !== undefined
+        )
       }
       default: {
         return []
