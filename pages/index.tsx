@@ -15,7 +15,6 @@ import { getConfig } from '../lib/config'
 import { Actor, ActorProfile } from '../lib/models/actor'
 import { StatusData } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
-import { Timeline } from '../lib/timelines/types'
 import { authOptions } from './api/auth/[...nextauth]'
 import styles from './index.module.scss'
 
@@ -157,10 +156,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
-  const statuses = await storage.getTimeline({
-    timeline: Timeline.MAIN,
-    actorId: actor.id
-  })
+  const statuses = await storage.getStatuses({ actorId: actor.id })
   return {
     props: {
       host: config.host,
