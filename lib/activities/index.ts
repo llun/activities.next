@@ -65,6 +65,7 @@ const fetchWithTimeout = async ({
 }: FetchWithTimeout) => {
   const controller = new AbortController()
   const signal = controller.signal
+  let isResolved = false
   const response = fetch(url, {
     method,
     headers: {
@@ -74,11 +75,25 @@ const fetchWithTimeout = async ({
     body: JSON.stringify(activity),
     signal
   })
+    .then(() => {
+      isResolved = true
+    })
+    .catch((error) => {
+      if (
+        error instanceof DOMException &&
+        error.message === 'This operation was aborted'
+      ) {
+        // Ignore abort operation
+        if (process.env.NODE_ENV !== 'test') {
+          console.error('Abort fetch', url)
+        }
+        return
+      }
+      throw error
+    })
   setTimeout(() => {
+    if (isResolved) return
     controller.abort()
-    if (process.env.NODE_ENV !== 'test') {
-      console.error('Abort fetch', url)
-    }
   }, timeoutMilliseconds)
   return response
 }
@@ -344,7 +359,12 @@ export const sendNote = async ({
     cc: note.cc,
     object: note
   }
-  await fetchWithTimeout({ currentActor, url: inbox, method: 'POST', activity })
+  await fetchWithTimeout({
+    currentActor,
+    url: inbox,
+    method: 'POST',
+    activity
+  })
 }
 
 interface SendAnnounceParams {
