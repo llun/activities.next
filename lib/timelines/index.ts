@@ -7,8 +7,8 @@ export const addStatusToTimelines = async (
   storage: Storage,
   status: Status
 ): Promise<void> => {
-  const { to, cc } = status
-  const recipients = [...to, ...cc]
+  const { to, cc, actorId } = status
+  const recipients = [...to, ...cc, actorId]
   const localActors = (
     await Promise.all(recipients.map((id) => storage.getActorFromId({ id })))
   ).filter(

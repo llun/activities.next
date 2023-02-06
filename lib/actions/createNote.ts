@@ -29,7 +29,6 @@ export const createNote = async ({
   note,
   storage
 }: CreateNoteParams): Promise<Note | null> => {
-  console.log('Start create note')
   const existingStatus = await storage.getStatus({ statusId: note.id })
   if (existingStatus) {
     return note
@@ -64,7 +63,6 @@ export const createNote = async ({
       createdAt: new Date(compactNote.published).getTime()
     })
   ])
-  console.log('Create note here')
   await addStatusToTimelines(storage, status)
 
   const attachments = getAttachments(note)
