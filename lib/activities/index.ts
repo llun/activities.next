@@ -75,6 +75,7 @@ const fetchWithTimeout = async ({
     body: JSON.stringify(activity),
     signal
   })
+  response
     .then(() => {
       isResolved = true
     })
