@@ -15,6 +15,7 @@ import { getConfig } from '../lib/config'
 import { Actor, ActorProfile } from '../lib/models/actor'
 import { StatusData } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
+import { Timeline } from '../lib/timelines/types'
 import { authOptions } from './api/auth/[...nextauth]'
 import styles from './index.module.scss'
 
@@ -113,8 +114,10 @@ const Page: NextPage<Props> = ({
 
 export const getServerSideProps: GetServerSideProps<Props> = async ({
   req,
-  res
+  res,
+  query
 }) => {
+  const { timeline } = query
   const [storage, session] = await Promise.all([
     getStorage(),
     getServerSession(req, res, authOptions)
@@ -156,7 +159,13 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
-  const statuses = await storage.getStatuses({ actorId: actor.id })
+  const statuses =
+    timeline === 'n'
+      ? await storage.getTimeline({
+          timeline: Timeline.MAIN,
+          actorId: actor.id
+        })
+      : await storage.getStatuses({ actorId: actor.id })
   return {
     props: {
       host: config.host,
