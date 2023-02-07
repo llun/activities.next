@@ -1,5 +1,24 @@
+import { FC } from 'react'
+
+import { Button } from './Button'
 import styles from './TimelineLoadMoreButton.module.scss'
 
-export const TimelineLoadMoreButton = () => {
-  return <div className={styles.button}>Load More Timeline</div>
+interface Props {
+  onClick: () => void
+}
+
+export const TimelineLoadMoreButton: FC<Props> = ({ onClick }) => {
+  return (
+    <div className={styles.button}>
+      <Button
+        variant="link"
+        onClick={(event) => {
+          event.preventDefault()
+          onClick?.()
+        }}
+      >
+        Load More Timeline
+      </Button>
+    </div>
+  )
 }
