@@ -2,6 +2,7 @@ import { Assets, Stream } from './medias/apple/webstream'
 import { Attachment, PostBoxAttachment } from './models/attachment'
 import { Follow, FollowStatus } from './models/follow'
 import { StatusData } from './models/status'
+import { Timeline } from './timelines/types'
 
 export interface CreateStatusParams {
   message: string
@@ -182,4 +183,28 @@ export const isFollowing = async ({ targetActorId }: IsFollowingParams) => {
   if (!data.follow) return false
   const follow = data.follow as Follow
   return follow.status === FollowStatus.Accepted
+}
+
+interface GetTimelineParams {
+  timeline: Timeline
+  startAfterStatusId?: string
+}
+export const getTimeline = async ({
+  timeline,
+  startAfterStatusId
+}: GetTimelineParams) => {
+  const path = `/api/v1/accounts/timeline/${timeline}`
+  const url = new URL(`https://${window.origin}${path}`)
+  if (startAfterStatusId) {
+    url.searchParams.append('startAfterStatusId', startAfterStatusId)
+  }
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) return []
+  const data = await response.json()
+  return data.statuses as StatusData[]
 }

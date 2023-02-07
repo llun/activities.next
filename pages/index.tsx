@@ -11,6 +11,7 @@ import { Header } from '../lib/components/Header'
 import { PostBox } from '../lib/components/PostBox/PostBox'
 import { Posts } from '../lib/components/Posts/Posts'
 import { Profile as ProfileComponent } from '../lib/components/Profile'
+import { TimelineLoadMoreButton } from '../lib/components/TimelineLoadMoreButton'
 import { getConfig } from '../lib/config'
 import { Actor, ActorProfile } from '../lib/models/actor'
 import { StatusData } from '../lib/models/status'
@@ -105,6 +106,7 @@ const Page: NextPage<Props> = ({
               onReply={onReply}
               onPostDeleted={onPostDeleted}
             />
+            <TimelineLoadMoreButton />
           </div>
         </div>
       </section>
