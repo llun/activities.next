@@ -785,7 +785,11 @@ export class Sqlite3Storage implements Storage {
     return statuses
   }
 
-  async getTimeline({ timeline, actorId }: GetTimelineParams) {
+  async getTimeline({
+    timeline,
+    actorId,
+    startAfterStatusId
+  }: GetTimelineParams) {
     switch (timeline) {
       case Timeline.LocalPublic: {
         const query = this.database('recipients')
@@ -807,11 +811,31 @@ export class Sqlite3Storage implements Storage {
       }
       case Timeline.MAIN: {
         if (!actorId) return []
-        const statusesId = await this.database('timelines')
-          .where('actorId', actorId)
-          .select('statusId')
-          .orderBy('createdAt', 'desc')
-          .limit(PER_PAGE_LIMIT)
+        const limit = PER_PAGE_LIMIT
+        const startAfterId = startAfterStatusId
+          ? (
+              await this.database('timelines')
+                .where('actorId', actorId)
+                .where('timeline', timeline)
+                .where('statusId', startAfterStatusId)
+                .select('id')
+                .first<{ id: number }>()
+            ).id
+          : 0
+
+        const statusesId = await (startAfterStatusId
+          ? this.database('timelines')
+              .where('actorId', actorId)
+              .where('id', '<', startAfterId)
+              .select('statusId')
+              .orderBy('createdAt', 'desc')
+              .limit(limit)
+          : this.database('timelines')
+              .where('actorId', actorId)
+              .select('statusId')
+              .orderBy('createdAt', 'desc')
+              .limit(limit))
+
         const statuses = await Promise.all(
           statusesId
             .map((item) => item.statusId)

@@ -2,6 +2,7 @@ import { Knex } from 'knex'
 
 export async function up(knex: Knex): Promise<void> {
   return knex.schema.createTable('timelines', function (table) {
+    table.increments('id').primary()
     table.string('actorId')
     table.string('timeline')
     table.string('statusId')
@@ -10,7 +11,9 @@ export async function up(knex: Knex): Promise<void> {
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
-    table.primary(['actorId', 'timeline', 'statusId'])
+    table.unique(['actorId', 'timeline', 'statusId'], {
+      indexName: 'actor_timeline_status'
+    })
   })
 }
 
