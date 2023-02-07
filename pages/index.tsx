@@ -38,6 +38,8 @@ const Page: NextPage<Props> = ({
   const [replyStatus, setReplyStatus] = useState<StatusData>()
   const [currentStatuses, setCurrentStatuses] = useState<StatusData[]>(statuses)
   const [currentTime, setCurrentTime] = useState<number>(currentServerTime)
+  const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
+    useState<boolean>(false)
 
   const onReply = (status: StatusData) => {
     setReplyStatus(status)
@@ -108,13 +110,16 @@ const Page: NextPage<Props> = ({
               onPostDeleted={onPostDeleted}
             />
             <TimelineLoadMoreButton
+              disabled={isLoadingMoreStatuses}
               onClick={async () => {
+                setLoadingMoreStatuses(true)
                 const statuses = await getTimeline({
                   timeline: Timeline.MAIN,
                   startAfterStatusId:
                     currentStatuses[currentStatuses.length - 1].id
                 })
-                console.log(statuses)
+                setCurrentStatuses([...currentStatuses, ...statuses])
+                setLoadingMoreStatuses(false)
               }}
             />
           </div>
