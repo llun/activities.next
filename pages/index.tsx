@@ -7,6 +7,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 
+import { getTimeline } from '../lib/client'
 import { Header } from '../lib/components/Header'
 import { PostBox } from '../lib/components/PostBox/PostBox'
 import { Posts } from '../lib/components/Posts/Posts'
@@ -106,7 +107,16 @@ const Page: NextPage<Props> = ({
               onReply={onReply}
               onPostDeleted={onPostDeleted}
             />
-            <TimelineLoadMoreButton />
+            <TimelineLoadMoreButton
+              onClick={async () => {
+                const statuses = await getTimeline({
+                  timeline: Timeline.MAIN,
+                  startAfterStatusId:
+                    currentStatuses[currentStatuses.length - 1].id
+                })
+                console.log(statuses)
+              }}
+            />
           </div>
         </div>
       </section>
@@ -116,8 +126,7 @@ const Page: NextPage<Props> = ({
 
 export const getServerSideProps: GetServerSideProps<Props> = async ({
   req,
-  res,
-  query
+  res
 }) => {
   const [storage, session] = await Promise.all([
     getStorage(),

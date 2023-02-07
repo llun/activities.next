@@ -193,8 +193,8 @@ export const getTimeline = async ({
   timeline,
   startAfterStatusId
 }: GetTimelineParams) => {
-  const path = `/api/v1/accounts/timeline/${timeline}`
-  const url = new URL(`https://${window.origin}${path}`)
+  const path = `/api/v1/timelines/${timeline}`
+  const url = new URL(`${window.origin}${path}`)
   if (startAfterStatusId) {
     url.searchParams.append('startAfterStatusId', startAfterStatusId)
   }
