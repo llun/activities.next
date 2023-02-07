@@ -16,11 +16,14 @@ alpha stage and has only few features supported.
 - ✅ Storage adapter, current supports are SQL via Knex.js (Tested with SQLite locally) and Firebase
 - 🚧 Account setup with username and password
 - [ ] Add actor under the same account (for different handle and type e.g. for `@ride@llun.dev`)
-- 🚧 Support different domain for different actor
+- ✅ Support different domain for different actor
 - 🚧 Image storage via Object Storage(S3, GCS, etc)
 - [ ] Streaming
-- 🚧 Timeline (Home Timeline, Personal Timeline, etc. https://misskey-hub.net/en/docs/features/timeline.html)
-- [ ] OAuth Bearer
+- 🚧 Timelines
+  - ✅ Main timeline
+  - [ ] Notifications timeline
+  - [ ] Medias timeline
+- 🚧 OAuth Bearer
 - [ ] Mastodon API compatible and clients supports
 - [ ] GPS Activity e.g. Bicycle ride, Running etc
 
@@ -100,3 +103,4 @@ and add below index to FireStore
 - Collection `statuses`, `localRecipients` Arrays, `localActorForReply` Ascending, `createdAt` Descending
 - Collection `statuses`, `to` Arrays, `actorId` Ascending, `createdAt` Descending
 - Collection `follows`, `actorId` Ascending, `status` Ascending, `targetActorId` Ascending, `createdAt` Descending
+- Collection `timelines`, `timeline` Ascending, `createdAt` Descending
