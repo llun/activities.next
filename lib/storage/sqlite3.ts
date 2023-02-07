@@ -44,7 +44,6 @@ import {
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
-  GetStatusesParams,
   GetTagsParams,
   GetTimelineParams,
   IsAccountExistsParams,
@@ -762,29 +761,6 @@ export class Sqlite3Storage implements Storage {
     return this.getStatusWithCurrentActorId(statusId)
   }
 
-  async getStatuses({ actorId }: GetStatusesParams) {
-    const query = this.database('recipients')
-      .leftJoin('statuses', 'recipients.statusId', 'statuses.id')
-      .where('recipients.type', 'local')
-      .andWhere('recipients.actorId', actorId)
-      .andWhereLike('reply', `${actorId}%`)
-      .orWhere('reply', '')
-      .distinct('statusId')
-      .select('statuses.*')
-      .orderBy('recipients.createdAt', 'desc')
-      .limit(PER_PAGE_LIMIT)
-    const local = await query
-
-    const statuses = (
-      await Promise.all(
-        local.map((item) =>
-          this.getStatusWithAttachmentsFromData(item, actorId)
-        )
-      )
-    ).filter((item): item is Status => item !== undefined)
-    return statuses
-  }
-
   async getTimeline({
     timeline,
     actorId,
@@ -839,8 +815,11 @@ export class Sqlite3Storage implements Storage {
         const statuses = await Promise.all(
           statusesId
             .map((item) => item.statusId)
-            .map((statusId) => this.getStatus({ statusId }))
+            .map((statusId) =>
+              this.getStatusWithCurrentActorId(statusId, actorId)
+            )
         )
+
         return statuses.filter(
           (status): status is Status => status !== undefined
         )

@@ -2,6 +2,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { FollowStatus } from '../models/follow'
 import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN } from '../stub/const'
+import { addStatusToTimelines } from '../timelines'
 import { Timeline } from '../timelines/types'
 import { FirebaseStorage } from './firebase'
 import { Sqlite3Storage } from './sqlite3'
@@ -59,6 +60,9 @@ const TEST_USERNAME13 = 'user13'
 // Actor boosted test id 11 status
 const TEST_ID14 = 'https://llun.test/users/user14'
 
+// Actor who follows Actor14 and see boost
+const TEST_ID15 = 'https://llun.test/users/user15'
+
 type TestStorage = [string, Storage]
 
 describe('Storage', () => {
@@ -106,7 +110,7 @@ describe('Storage', () => {
         privateKey: 'privateKey1',
         publicKey: 'publicKey1'
       })
-      const idWithAccounts = [3, 4, 5, 6, 7, 8, 11, 12, 14]
+      const idWithAccounts = [3, 4, 5, 6, 7, 8, 11, 12, 14, 15]
       for (const id of idWithAccounts) {
         await storage.createAccount({
           email: `user${id}@llun.dev`,
@@ -554,22 +558,32 @@ describe('Storage', () => {
         expect(persistedStatus?.data.tags[0]).toMatchObject(tag.data)
       })
 
-      it('returns all statuses', async () => {
+      it('returns main timeline statuses', async () => {
         const sender = 'https://llun.dev/users/null'
+        await storage.createFollow({
+          actorId: TEST_ID5,
+          targetActorId: sender,
+          status: FollowStatus.Accepted,
+          inbox: `${TEST_ID5}/inbox`,
+          sharedInbox: `${TEST_ID5}/inbox`
+        })
         for (let i = 0; i < 50; i++) {
           const statusId = `https://llun.dev/users/null/statuses/post-${i + 1}`
-          await storage.createNote({
+          const status = await storage.createNote({
             id: statusId,
             url: statusId,
             actorId: sender,
 
             text: `Status ${i + 1}`,
-            to: [ACTIVITY_STREAM_PUBLIC, TEST_ID5],
-            cc: []
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [TEST_ID5]
           })
-          await new Promise((resolve) => setTimeout(resolve, 10))
+          await addStatusToTimelines(storage, status)
         }
-        const statuses = await storage.getStatuses({ actorId: TEST_ID5 })
+        const statuses = await storage.getTimeline({
+          timeline: Timeline.MAIN,
+          actorId: TEST_ID5
+        })
         expect(statuses.length).toEqual(30)
         for (const index in statuses) {
           const statusId = `https://llun.dev/users/null/statuses/post-${
@@ -599,6 +613,7 @@ describe('Storage', () => {
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
         })
+        await addStatusToTimelines(storage, mainStatusForReply)
 
         await storage.createFollow({
           actorId: TEST_ID8,
@@ -617,7 +632,7 @@ describe('Storage', () => {
 
         for (let i = 1; i <= 20; i++) {
           const statusId = `${TEST_ID8}/statuses/post-${i}`
-          await storage.createNote({
+          const note = await storage.createNote({
             id: statusId,
             url: statusId,
             actorId: TEST_ID8,
@@ -627,9 +642,10 @@ describe('Storage', () => {
             to: [ACTIVITY_STREAM_PUBLIC],
             cc: []
           })
+          await addStatusToTimelines(storage, note)
 
           if (i % 11 === 0) {
-            await storage.createNote({
+            const note = await storage.createNote({
               id: otherServerUser1Status(i),
               url: otherServerUser1Status(i),
               actorId: otherServerUser1,
@@ -638,10 +654,11 @@ describe('Storage', () => {
               to: [ACTIVITY_STREAM_PUBLIC],
               cc: [`${otherServerUser1}/followers`]
             })
+            await addStatusToTimelines(storage, note)
           }
 
           if (i % 17 === 0) {
-            await storage.createNote({
+            const note = await storage.createNote({
               id: otherServerUser2Status(i),
               url: otherServerUser2Status(i),
               actorId: otherServerUser2,
@@ -650,10 +667,11 @@ describe('Storage', () => {
               to: [ACTIVITY_STREAM_PUBLIC],
               cc: [`${otherServerUser2}/followers`]
             })
+            await addStatusToTimelines(storage, note)
           }
 
           if (i % 19 === 0) {
-            await storage.createNote({
+            const note = await storage.createNote({
               id: otherServerUser2Status(i),
               url: otherServerUser2Status(i),
               actorId: otherServerUser2,
@@ -663,6 +681,7 @@ describe('Storage', () => {
               cc: [`${otherServerUser2}/followers`],
               reply: otherServerUser1Status(11)
             })
+            await addStatusToTimelines(storage, note)
           }
 
           await new Promise((resolve) => setTimeout(resolve, 1))
@@ -670,7 +689,8 @@ describe('Storage', () => {
         expect(
           await storage.getActorStatusesCount({ actorId: TEST_ID8 })
         ).toEqual(20)
-        const statuses = await storage.getStatuses({
+        const statuses = await storage.getTimeline({
+          timeline: Timeline.MAIN,
           actorId: TEST_ID8
         })
 
@@ -834,33 +854,60 @@ describe('Storage', () => {
       })
 
       it('returns status with boost status id', async () => {
+        await storage.createFollow({
+          actorId: TEST_ID14,
+          targetActorId: TEST_ID11,
+          status: FollowStatus.Accepted,
+          inbox: `${TEST_ID14}/inbox`,
+          sharedInbox: `${TEST_ID14}/inbox`
+        })
+        await storage.createFollow({
+          actorId: TEST_ID15,
+          targetActorId: TEST_ID14,
+          status: FollowStatus.Accepted,
+          inbox: `${TEST_ID15}/inbox`,
+          sharedInbox: `${TEST_ID15}/inbox`
+        })
+
         const firstPostId = `${TEST_ID11}/posts/1`
-        await storage.createNote({
+        const note = await storage.createNote({
           id: firstPostId,
           url: firstPostId,
           actorId: TEST_ID11,
 
           text: 'This is status for boost',
           to: [ACTIVITY_STREAM_PUBLIC],
-          cc: []
+          cc: [`${TEST_ID11}/followers`]
         })
+        await addStatusToTimelines(storage, note)
         const secondPostId = `${TEST_ID14}/posts/2`
-        await storage.createAnnounce({
+        const announce = await storage.createAnnounce({
           id: secondPostId,
           actorId: TEST_ID14,
           to: [ACTIVITY_STREAM_PUBLIC],
-          cc: [],
+          cc: [`${TEST_ID14}/followers`],
           originalStatusId: firstPostId
         })
+        await addStatusToTimelines(storage, announce)
 
-        const statuses = await storage.getStatuses({ actorId: TEST_ID14 })
-        const announceStatus = statuses.shift()
+        const test14Statuses = await storage.getTimeline({
+          timeline: Timeline.MAIN,
+          actorId: TEST_ID14
+        })
+        const statusData = test14Statuses.shift()?.data as StatusNote
+        expect(statusData.isActorAnnounced).toBeTrue()
+
+        const test15Statuses = await storage.getTimeline({
+          timeline: Timeline.MAIN,
+          actorId: TEST_ID15
+        })
+        const announceStatus = test15Statuses.shift()
         if (announceStatus?.data.type !== StatusType.Announce) {
           fail('Status must be announce')
         }
 
         const originalStatus = announceStatus.data.originalStatus
-        expect(originalStatus.isActorAnnounced).toBeTrue()
+        expect(originalStatus.id).toEqual(note.id)
       })
     })
 

@@ -109,7 +109,6 @@ export type CreateAnnounceParams = {
   createdAt?: number
 }
 export type GetStatusParams = { statusId: string }
-export type GetStatusesParams = { actorId: string }
 export type GetActorStatusesCountParams = { actorId: string }
 export type GetActorStatusesParams = { actorId: string }
 export type DeleteStatusParams = { statusId: string }
@@ -197,7 +196,6 @@ export interface Storage {
   createNote(params: CreateNoteParams): Promise<Status>
   createAnnounce(params: CreateAnnounceParams): Promise<Status>
   getStatus(params: GetStatusParams): Promise<Status | undefined>
-  getStatuses(params: GetStatusesParams): Promise<Status[]>
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
   deleteStatus(params: DeleteStatusParams): Promise<void>

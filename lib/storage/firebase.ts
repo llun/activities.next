@@ -44,7 +44,6 @@ import {
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
-  GetStatusesParams,
   GetTagsParams,
   GetTimelineParams,
   IsAccountExistsParams,
@@ -817,26 +816,6 @@ export class FirebaseStorage implements Storage {
     return this.getStatusWithCurrentActor(statusId)
   }
 
-  async getStatuses({ actorId }: GetStatusesParams) {
-    const start = Date.now()
-    logger.debug('FIREBASE_START get statuses')
-    const statuses = this.db.collection('statuses')
-    const snapshot = await statuses
-      .where('localRecipients', 'array-contains', actorId)
-      .where('localActorForReply', 'in', ['', actorId])
-      .orderBy('createdAt', 'desc')
-      .limit(PER_PAGE_LIMIT)
-      .get()
-    const items = await Promise.all(
-      snapshot.docs.map((item) => {
-        const data = item.data()
-        return this.getStatusFromData(data, false, actorId)
-      })
-    )
-    logger.debug('FIREBASE_END get statuses', Date.now() - start)
-    return items.filter((status): status is Status => Boolean(status))
-  }
-
   async getTimeline({
     timeline,
     actorId,
@@ -899,11 +878,17 @@ export class FirebaseStorage implements Storage {
             query = query.startAfter(lastStatus.docs[0])
           }
         }
+
         const snapshot = await query.get()
         const statuses = await Promise.all(
           snapshot.docs
             .map((doc) => doc.data().statusId)
-            .map((statusId) => this.getStatus({ statusId }))
+            .map(async (statusId) => {
+              const statusData = await this.db
+                .doc(`statuses/${FirebaseStorage.urlToId(statusId)}`)
+                .get()
+              return this.getStatusFromData(statusData.data(), false, actorId)
+            })
         )
         return statuses.filter(
           (status): status is Status => status !== undefined
