@@ -68,12 +68,11 @@ export const Post: FC<PostProps> = (props) => {
       <div className={'me-1'}>{cleanClassName(actualStatus.text)}</div>
       {actualStatus.attachments && actualStatus.attachments.length > 0 && (
         <div
-          className={cn(styles.medias)}
-          style={{
-            gridTemplateColumns: `repeat(${
-              actualStatus.attachments.length > 1 ? 2 : 1
-            }, 1fr)`
-          }}
+          className={cn(styles.medias, {
+            [styles.grids]: actualStatus.attachments.length > 1,
+            [styles.three]: actualStatus.attachments.length === 3,
+            [styles.more]: actualStatus.attachments.length > 3
+          })}
         >
           {actualStatus.attachments.map((attachment) => (
             <Media
