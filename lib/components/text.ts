@@ -34,7 +34,7 @@ export const convertQuoteToCode = (text: string) => {
   const matches = []
   const parts = []
 
-  const pattern = /`[\w ]+`/dg
+  const pattern = /`[\w .]+`/dg
   let result
   while ((result = pattern.exec(text) as any) !== null) {
     if (!result.indices?.[0]) continue
