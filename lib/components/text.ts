@@ -29,3 +29,34 @@ export const cleanClassName = (text: string) =>
       return domNode
     }
   })
+
+export const convertQuoteToCode = (text: string) => {
+  const matches = []
+  const parts = []
+
+  const pattern = /`[\w ]+`/dg
+  let result
+  while ((result = pattern.exec(text)) !== null) {
+    if (!result.indices?.[0]) continue
+    matches.push(result.indices?.[0])
+  }
+
+  for (let index = 0; index < matches.length; index++) {
+    const previous = matches[index - 1]
+    const matched = matches[index]
+    parts.push(
+      ...[
+        text.slice(previous?.[1] ?? 0, matched[0]),
+        `<code>${text.slice(matched[0] + 1, matched[1] - 1)}</code>`
+      ]
+    )
+  }
+
+  if (matches.length) {
+    const last = matches.pop()
+    parts.push(text.slice(last?.[1]))
+    return parts.join('')
+  }
+
+  return text
+}

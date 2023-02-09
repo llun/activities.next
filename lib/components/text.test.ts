@@ -19,7 +19,7 @@ describe('#convertQuoteToCode', () => {
         'Message with multiple `quote` blocks, e.g. another `quote` here'
       )
     ).toEqual(
-      'Message with multiple <div>quote</div> blocks, e.g. another <div>quote</div> here'
+      'Message with multiple <code>quote</code> blocks, e.g. another <code>quote</code> here'
     )
   })
 
