@@ -10,7 +10,7 @@ interface replacingNode {
 }
 
 export const cleanClassName = (text: string) =>
-  parse(text, {
+  parse(convertQuoteToCode(text), {
     replace: (domNode) => {
       const node = domNode as replacingNode
       if (node.name === 'span') {
