@@ -65,7 +65,9 @@ export const Post: FC<PostProps> = (props) => {
           </a>
         </div>
       </div>
-      <div className={'me-1'}>{cleanClassName(actualStatus.text)}</div>
+      <div className={'me-1 text-break'}>
+        {cleanClassName(actualStatus.text)}
+      </div>
       {actualStatus.attachments && actualStatus.attachments.length > 0 && (
         <div
           className={cn(styles.medias, {
