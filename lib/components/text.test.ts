@@ -1,3 +1,4 @@
+/* eslint-disable no-template-curly-in-string */
 import { convertQuoteToCode } from './text'
 
 describe('#convertQuoteToCode', () => {
@@ -52,6 +53,18 @@ describe('#convertQuoteToCode', () => {
   it('convert quote when it inside the tag alone', () => {
     expect(convertQuoteToCode('<p>`Quote here`</p>')).toEqual(
       '<p><code>Quote here</code></p>'
+    )
+  })
+
+  it('convert quote blocks with $, {, }, ?, - to code blocks', () => {
+    expect(convertQuoteToCode('`${status?.id}-${type}-${date}`')).toEqual(
+      '<code>${status?.id}-${type}-${date}</code>'
+    )
+  })
+
+  it('convert quote blocks when end with .', () => {
+    expect(convertQuoteToCode('this should be `quote block`.')).toEqual(
+      'this should be <code>quote block</code>.'
     )
   })
 })

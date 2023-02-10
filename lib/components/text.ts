@@ -34,15 +34,21 @@ export const convertQuoteToCode = (text: string) => {
   const matches = []
   const parts = []
 
-  const pattern =
-    /([ >]`[\w .]+`[ <]|^`[\w .]+`[ <]|[ >]`[\w .]+`$|^`[\w .]+`$)/dg
+  const supportedWord = '`[\\w$-?{} .]+`'
+  const front = '[ >.]'
+  const back = '[ <.]'
+  const pattern = new RegExp(
+    `(${front}${supportedWord}${back}|^${supportedWord}${back}|${front}${supportedWord}$|^${supportedWord}$)`,
+    'dg'
+  )
+
   let result
   while ((result = pattern.exec(text) as any) !== null) {
     if (!result.indices?.[0]) continue
     matches.push(result.indices?.[0])
   }
 
-  if (matches.length === 1 && matches[0][1] === text.length) {
+  if (matches.length === 1 && matches[0][1] - matches[0][0] === text.length) {
     return `<code>${text.slice(1, text.length - 1)}</code>`
   }
 
