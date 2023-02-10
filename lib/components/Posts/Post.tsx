@@ -55,7 +55,7 @@ export const Post: FC<PostProps> = (props) => {
       <BoostStatus status={status} />
       <div className={cn('d-flex', 'mb-2')}>
         <Actor
-          className={cn('flex-fill', 'me-2')}
+          className={cn('flex-grow-1', 'overflow-hidden', 'me-2')}
           actor={actualStatus.actor}
           actorId={(showActorId && actualStatus.actorId) || ''}
         />

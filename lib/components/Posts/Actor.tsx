@@ -1,7 +1,9 @@
+import cn from 'classnames'
 import Link from 'next/link'
 import { FC } from 'react'
 
 import { Actor as ActorModel, ActorProfile } from '../../models/actor'
+import styles from './Actor.module.scss'
 
 interface Props {
   actorId?: string
@@ -13,11 +15,21 @@ export const Actor: FC<Props> = ({ actor, actorId, className }) => {
   if (actor) {
     return (
       <div className={className}>
-        <strong>@{actor.username}</strong>
-        <small>@{actor.domain}</small>
+        <span
+          className={cn(
+            'd-inline-block',
+            'text-truncate',
+            'align-middle',
+            'overflow-hidden',
+            styles.handle
+          )}
+        >
+          <strong>@{actor.username}</strong>
+          <small>@{actor.domain}</small>
+        </span>
         <Link
           prefetch={false}
-          className="ms-2"
+          className="ms-2 align-middle"
           href={`/${ActorModel.getMentionFromProfile(actor, true)}`}
         >
           <i className="bi bi-person-badge"></i>
