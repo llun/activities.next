@@ -28,4 +28,26 @@ describe('#convertQuoteToCode', () => {
       convertQuoteToCode('Message with `quote that has space` in it')
     ).toEqual('Message with <code>quote that has space</code> in it')
   })
+
+  it('does not convert quote if there is no space before and after', () => {
+    expect(convertQuoteToCode('Text with`embedded quote`inside')).toEqual(
+      'Text with`embedded quote`inside'
+    )
+
+    expect(convertQuoteToCode('Text end with`embedded quote`')).toEqual(
+      'Text end with`embedded quote`'
+    )
+
+    expect(
+      convertQuoteToCode('`Embedded quote`Text at the beginning of text')
+    ).toEqual('`Embedded quote`Text at the beginning of text')
+  })
+
+  it('convert quote when it live alone', () => {
+    expect('`Quote here`').toEqual('<code>Quote here</code>')
+  })
+
+  it('convert quote when it inside the tag alone', () => {
+    expect('<p>`Quote here`</p>').toEqual('<p><code>Quote here</code></p>')
+  })
 })
