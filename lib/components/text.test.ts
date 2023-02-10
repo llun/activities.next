@@ -44,10 +44,14 @@ describe('#convertQuoteToCode', () => {
   })
 
   it('convert quote when it live alone', () => {
-    expect('`Quote here`').toEqual('<code>Quote here</code>')
+    expect(convertQuoteToCode('`Quote here`')).toEqual(
+      '<code>Quote here</code>'
+    )
   })
 
   it('convert quote when it inside the tag alone', () => {
-    expect('<p>`Quote here`</p>').toEqual('<p><code>Quote here</code></p>')
+    expect(convertQuoteToCode('<p>`Quote here`</p>')).toEqual(
+      '<p><code>Quote here</code></p>'
+    )
   })
 })

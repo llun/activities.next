@@ -34,11 +34,15 @@ export const convertQuoteToCode = (text: string) => {
   const matches = []
   const parts = []
 
-  const pattern = /[ ]`[\w .]+`[ ]/dg
+  const pattern = /( `[\w .]+` |^`[\w .]+` |[ ]`[\w .]+` $|^`[\w .]+`$)/dg
   let result
   while ((result = pattern.exec(text) as any) !== null) {
     if (!result.indices?.[0]) continue
     matches.push(result.indices?.[0])
+  }
+
+  if (matches.length === 1 && matches[0][1] === text.length) {
+    return `<code>${text.slice(1, text.length - 1)}</code>`
   }
 
   for (let index = 0; index < matches.length; index++) {
