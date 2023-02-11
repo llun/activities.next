@@ -785,7 +785,8 @@ export class Sqlite3Storage implements Storage {
         ).filter((item): item is Status => item !== undefined)
         return statuses
       }
-      case Timeline.MAIN: {
+      case Timeline.MAIN:
+      case Timeline.NOANNOUNCE: {
         if (!actorId) return []
         const limit = PER_PAGE_LIMIT
         const startAfterId = startAfterStatusId

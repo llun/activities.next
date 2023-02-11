@@ -860,7 +860,8 @@ export class FirebaseStorage implements Storage {
           .filter((status): status is Status => Boolean(status))
           .slice(0, PER_PAGE_LIMIT)
       }
-      case Timeline.MAIN: {
+      case Timeline.MAIN:
+      case Timeline.NOANNOUNCE: {
         if (!actorId) return []
 
         let query = this.db
