@@ -18,4 +18,8 @@ export type MainTimelineRule = (
   params: TimelineRuleParams
 ) => Promise<Timeline.MAIN | null>
 
-export type TimelineRule = MainTimelineRule
+export type NoAnnounceTimelineRule = (
+  params: TimelineRuleParams
+) => Promise<Timeline.NOANNOUNCE | null>
+
+export type TimelineRule = MainTimelineRule | NoAnnounceTimelineRule

@@ -1,5 +1,5 @@
 import { StatusType } from '../models/status'
-import { MainTimelineRule, Timeline } from './types'
+import { NoAnnounceTimelineRule, Timeline } from './types'
 
 /**
  * No announce timeline
@@ -21,27 +21,27 @@ import { MainTimelineRule, Timeline } from './types'
  * - Deleted status
  *
  */
-export const noannounceTimelineRule: MainTimelineRule = async ({
+export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
   storage,
   currentActor,
   status
 }) => {
   if (status.type === StatusType.Announce) return null
-  if (status.actorId === currentActor.id) return Timeline.MAIN
+  if (status.actorId === currentActor.id) return Timeline.NOANNOUNCE
   const isFollowing = await storage.isCurrentActorFollowing({
     currentActorId: currentActor.id,
     followingActorId: status.actorId
   })
 
   if (!status.reply) {
-    if (isFollowing) return Timeline.MAIN
+    if (isFollowing) return Timeline.NOANNOUNCE
     return null
   }
 
   const repliedStatus = await storage.getStatus({ statusId: status.reply })
   // Deleted parent status, don't show child status
   if (!repliedStatus) return null
-  if (repliedStatus.actorId === currentActor.id) return Timeline.MAIN
+  if (repliedStatus.actorId === currentActor.id) return Timeline.NOANNOUNCE
   if (!isFollowing) return null
   return noannounceTimelineRule({
     storage,

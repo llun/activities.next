@@ -47,21 +47,16 @@ describe('#addStatusToTimeline', () => {
       text: 'message to followers'
     })
     await addStatusToTimelines(storage, status)
-    expect(
-      (
-        await storage.getTimeline({
-          timeline: Timeline.MAIN,
-          actorId: ACTOR1_ID
-        })
-      ).length
-    ).toEqual(1)
-    expect(
-      (
-        await storage.getTimeline({
-          timeline: Timeline.NOANNOUNCE,
-          actorId: ACTOR1_ID
-        })
-      ).length
-    ).toEqual(1)
+    const mainTimeline = await storage.getTimeline({
+      timeline: Timeline.MAIN,
+      actorId: ACTOR1_ID
+    })
+    expect(mainTimeline).toHaveLength(1)
+
+    const noannounceTimeline = await storage.getTimeline({
+      timeline: Timeline.NOANNOUNCE,
+      actorId: ACTOR1_ID
+    })
+    expect(noannounceTimeline).toHaveLength(1)
   })
 })

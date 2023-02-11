@@ -2,6 +2,7 @@ import { Actor } from '../models/actor'
 import { Status } from '../models/status'
 import { Storage } from '../storage/types'
 import { mainTimelineRule } from './main'
+import { noannounceTimelineRule } from './noaanounce'
 
 export const addStatusToTimelines = async (
   storage: Storage,
@@ -24,18 +25,24 @@ export const addStatusToTimelines = async (
 
   const actors = [...localActors, ...getLocalActorsFromFollowerUrl]
   await Promise.all(
-    actors.map(async (actor) => {
-      const timeline = await mainTimelineRule({
-        currentActor: actor,
-        status: status.data,
-        storage
+    actors
+      .map((actor) => {
+        return [mainTimelineRule, noannounceTimelineRule].map(
+          async (timelineFunction) => {
+            const timeline = await timelineFunction({
+              currentActor: actor,
+              status: status.data,
+              storage
+            })
+            if (!timeline) return
+            return storage.createTimelineStatus({
+              actorId: actor.id,
+              status,
+              timeline
+            })
+          }
+        )
       })
-      if (!timeline) return
-      return storage.createTimelineStatus({
-        actorId: actor.id,
-        status,
-        timeline
-      })
-    })
+      .flat()
   )
 }
