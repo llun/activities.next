@@ -574,31 +574,6 @@ export class FirebaseStorage implements Storage {
     logger.debug('FIREBASE_END getFollowersInbox', Date.now() - start)
   }
 
-  private async getLocalActorFromReply(actorId?: string, reply?: string) {
-    const start = Date.now()
-    logger.debug('FIREBASE_START getLocalActorFromReply')
-    if (actorId) {
-      const actor = await this.getActorFromId({ id: actorId })
-      logger.debug('FIREBASE_END getLocalActorFromReply', Date.now() - start)
-      if (actor?.privateKey) return actorId
-    }
-
-    logger.debug('FIREBASE_END getLocalActorFromReply', Date.now() - start)
-    if (!reply) return ''
-
-    const localActors = await this.db
-      .collection('actors')
-      .where('privateKey', '!=', '')
-      .get()
-    const domains = localActors.docs.map((doc) => doc.data().domain)
-    const url = new URL(reply)
-
-    logger.debug('FIREBASE_END getLocalActorFromReply', Date.now() - start)
-    if (!domains.includes(url.hostname)) return 'external'
-    logger.debug('FIREBASE_END getLocalActorFromReply', Date.now() - start)
-    return reply.slice(0, reply.indexOf('/statuses'))
-  }
-
   async createNote({
     id,
     url,
@@ -627,10 +602,7 @@ export class FirebaseStorage implements Storage {
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
     } as StatusNote
-    await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set({
-      ...status,
-      localActorForReply: await this.getLocalActorFromReply(actorId, reply)
-    })
+    await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set(status)
 
     const actor = await this.getActorFromId({ id: actorId })
     logger.debug('FIREBASE_END createNote', Date.now() - start)
@@ -665,7 +637,6 @@ export class FirebaseStorage implements Storage {
       to,
       cc,
       originalStatusId,
-      localActorForReply: await this.getLocalActorFromReply(actorId, ''),
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
     } as any
