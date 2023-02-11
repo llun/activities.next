@@ -1,7 +1,7 @@
 import { Firestore, Settings } from '@google-cloud/firestore'
 import crypto from 'crypto'
 
-import { PER_PAGE_LIMIT, deliverTo } from '.'
+import { PER_PAGE_LIMIT } from '.'
 import { logger } from '../logger'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
@@ -613,7 +613,6 @@ export class FirebaseStorage implements Storage {
     const start = Date.now()
     logger.debug('FIREBASE_START createNote')
     const currentTime = Date.now()
-    const local = await deliverTo({ from: actorId, to, cc, storage: this })
 
     const status = {
       id,
@@ -630,7 +629,6 @@ export class FirebaseStorage implements Storage {
     } as StatusNote
     await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set({
       ...status,
-      localRecipients: local,
       localActorForReply: await this.getLocalActorFromReply(actorId, reply)
     })
 
@@ -659,7 +657,7 @@ export class FirebaseStorage implements Storage {
     const start = Date.now()
     logger.debug('FIREBASE_START createAnnounce')
     const currentTime = Date.now()
-    const local = await deliverTo({ from: actorId, to, cc, storage: this })
+
     const status = {
       id,
       actorId,
@@ -667,7 +665,6 @@ export class FirebaseStorage implements Storage {
       to,
       cc,
       originalStatusId,
-      localRecipients: local,
       localActorForReply: await this.getLocalActorFromReply(actorId, ''),
       createdAt: createdAt || currentTime,
       updatedAt: currentTime

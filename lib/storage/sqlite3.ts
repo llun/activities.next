@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { Knex, knex } from 'knex'
 
-import { PER_PAGE_LIMIT, deliverTo } from '.'
+import { PER_PAGE_LIMIT } from '.'
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
@@ -475,7 +475,6 @@ export class Sqlite3Storage implements Storage {
     const statusCreatedAt = createdAt || currentTime
     const statusUpdatedAt = currentTime
 
-    const local = await deliverTo({ from: actorId, to, cc, storage: this })
     await this.database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
@@ -511,20 +510,6 @@ export class Sqlite3Storage implements Storage {
             statusId: id,
             actorId,
             type: 'cc',
-
-            createdAt: statusUpdatedAt,
-            updatedAt: statusUpdatedAt
-          })
-        )
-      )
-
-      await Promise.all(
-        local.map((actorId) =>
-          trx('recipients').insert({
-            id: crypto.randomUUID(),
-            statusId: id,
-            actorId,
-            type: 'local',
 
             createdAt: statusUpdatedAt,
             updatedAt: statusUpdatedAt
@@ -568,7 +553,6 @@ export class Sqlite3Storage implements Storage {
     const statusCreatedAt = createdAt || currentTime
     const statusUpdatedAt = currentTime
 
-    const local = await deliverTo({ from: actorId, to, cc, storage: this })
     await this.database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
@@ -600,20 +584,6 @@ export class Sqlite3Storage implements Storage {
             statusId: id,
             actorId,
             type: 'cc',
-
-            createdAt: statusUpdatedAt,
-            updatedAt: statusUpdatedAt
-          })
-        )
-      )
-
-      await Promise.all(
-        local.map((actorId) =>
-          trx('recipients').insert({
-            id: crypto.randomUUID(),
-            statusId: id,
-            actorId,
-            type: 'local',
 
             createdAt: statusUpdatedAt,
             updatedAt: statusUpdatedAt
