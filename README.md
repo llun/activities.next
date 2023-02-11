@@ -99,8 +99,6 @@ and add below index to FireStore
 - Collection `statuses`, `actorId` Ascending, `createdAt` Descending
 - Collection `statuses`, `reply` Ascending, `createdAt` Descending
 - Collection `statuses`, `actorId` Ascending, `reply` Ascending, `createdAt` Descending
-- Collection `statuses`, `localRecipients` Arrays, `createdAt` Descending
-- Collection `statuses`, `localRecipients` Arrays, `localActorForReply` Ascending, `createdAt` Descending
 - Collection `statuses`, `to` Arrays, `actorId` Ascending, `createdAt` Descending
 - Collection `follows`, `actorId` Ascending, `status` Ascending, `targetActorId` Ascending, `createdAt` Descending
 - Collection `timelines`, `timeline` Ascending, `createdAt` Descending
