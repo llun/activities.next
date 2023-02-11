@@ -8,6 +8,11 @@ import { seedActor2 } from './seed/actor2'
 import { seedActor3 } from './seed/actor3'
 import { seedActor4 } from './seed/actor4'
 import { seedActor5 } from './seed/actor5'
+import {
+  EXTERNAL_ACTOR1,
+  EXTERNAL_ACTOR1_INBOX,
+  seedExternal1
+} from './seed/external1'
 
 export const TEST_SHARED_INBOX = 'https://llun.test/inbox'
 
@@ -30,10 +35,13 @@ export const seedStorage = async (storage: Storage) => {
 
   if (actors.some((actor) => !actor)) return
 
+  // External Actors
+  await storage.createActor(seedExternal1)
+
   // Actor1 following
   await storage.createFollow({
     actorId: actors[0].id,
-    targetActorId: 'https://llun.dev/users/test1',
+    targetActorId: EXTERNAL_ACTOR1,
     inbox: `${actors[0].id}/indbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.Accepted
@@ -72,10 +80,10 @@ export const seedStorage = async (storage: Storage) => {
   })
   // Actor2 followers
   await storage.createFollow({
-    actorId: 'https://llun.dev/users/test1',
+    actorId: EXTERNAL_ACTOR1,
     targetActorId: actors[1].id,
-    inbox: 'https://llun.dev/users/test1',
-    sharedInbox: 'https://llun.dev/inbox',
+    inbox: EXTERNAL_ACTOR1_INBOX,
+    sharedInbox: EXTERNAL_ACTOR1_INBOX,
     status: FollowStatus.Accepted
   })
 
