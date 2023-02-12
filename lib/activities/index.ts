@@ -162,8 +162,11 @@ export const getPublicProfile = async ({
   withPublicKey = false
 }: GetPublicProfileParams): Promise<PublicProfile | null> => {
   try {
-    const response = await fetch(actorId, {
-      headers: SHARED_HEADERS
+    const response = await fetchWithTimeout({
+      url: actorId,
+      method: 'GET',
+      headers: SHARED_HEADERS,
+      timeoutMilliseconds: 2000
     })
     if (response.status !== 200) return null
 
