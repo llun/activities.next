@@ -35,8 +35,8 @@ export const recordActorIfNeeded = async ({
   }
 
   const currentTime = Date.now()
-  // Update actor if it's older than a day
-  if (currentTime - existingActor.data.updatedAt > 86_400_000) {
+  // Update actor if it's older than 30 days
+  if (currentTime - existingActor.data.updatedAt > 2_592_000_000) {
     const profile = await getPublicProfile({
       actorId,
       withPublicKey: true

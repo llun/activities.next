@@ -78,7 +78,7 @@ export function sign(
   )
 }
 
-export function headers(
+export function signedHeaders(
   currentActor: Actor,
   method: string,
   targetUrl: string,

@@ -63,11 +63,11 @@ export const createNote = async ({
       createdAt: new Date(compactNote.published).getTime()
     })
   ])
-  await addStatusToTimelines(storage, status)
 
   const attachments = getAttachments(note)
   const tags = getTags(note)
   await Promise.all([
+    addStatusToTimelines(storage, status),
     ...attachments.map(async (attachment) => {
       if (attachment.type !== 'Document') return
       return storage.createAttachment({

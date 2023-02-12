@@ -15,7 +15,7 @@ import {
   StatusData,
   StatusType
 } from '../models/status'
-import { headers } from '../signature'
+import { signedHeaders } from '../signature'
 import { getISOTimeUTC } from '../time'
 import { AcceptFollow } from './actions/acceptFollow'
 import { AnnounceStatus } from './actions/announceStatus'
@@ -23,6 +23,12 @@ import { CreateStatus } from './actions/createStatus'
 import { DeleteStatus } from './actions/deleteStatus'
 import { FollowRequest } from './actions/follow'
 import { LikeStatus } from './actions/like'
+import {
+  AnnounceAction,
+  CreateAction,
+  DeleteAction,
+  UndoAction
+} from './actions/types'
 import { UndoFollow } from './actions/undoFollow'
 import { UndoLike } from './actions/undoLike'
 import { UndoStatus } from './actions/undoStatus'
@@ -41,26 +47,17 @@ const SHARED_HEADERS = {
 }
 
 interface FetchWithTimeout {
-  currentActor: Actor
   url: string
   method: 'GET' | 'POST' | 'DELETE'
-  activity:
-    | CreateStatus
-    | AnnounceStatus
-    | DeleteStatus
-    | UndoStatus
-    | UndoFollow
-    | FollowRequest
-    | AcceptFollow
-    | LikeStatus
-    | UndoLike
+  headers?: HeadersInit
+  body?: string
   timeoutMilliseconds?: number
 }
 const fetchWithTimeout = async ({
-  currentActor,
   url,
   method,
-  activity,
+  headers,
+  body,
   timeoutMilliseconds = 4000
 }: FetchWithTimeout) => {
   const controller = new AbortController()
@@ -68,11 +65,8 @@ const fetchWithTimeout = async ({
   let isResolved = false
   const response = fetch(url, {
     method,
-    headers: {
-      ...headers(currentActor, method.toLowerCase(), url, activity),
-      'User-Agent': USER_AGENT
-    },
-    body: JSON.stringify(activity),
+    headers,
+    body,
     signal
   })
   response
@@ -353,18 +347,22 @@ export const sendNote = async ({
   const activity: CreateStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${note.id}/activity`,
-    type: 'Create',
+    type: CreateAction,
     actor: note.attributedTo,
     published: note.published,
     to: note.to,
     cc: note.cc,
     object: note
   }
+  const method = 'POST'
   await fetchWithTimeout({
-    currentActor,
     url: inbox,
-    method: 'POST',
-    activity
+    method,
+    headers: {
+      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+      'User-Agent': USER_AGENT
+    },
+    body: JSON.stringify(activity)
   })
 }
 
@@ -385,14 +383,23 @@ export const sendAnnounce = async ({
   const activity: AnnounceStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${status.id}/activity`,
-    type: 'Announce',
+    type: AnnounceAction,
     actor: status.actorId,
     published: getISOTimeUTC(status.createdAt),
     to: status.to,
     cc: status.cc,
     object: status.data.originalStatus.id
   }
-  await fetchWithTimeout({ currentActor, url: inbox, method: 'POST', activity })
+  const method = 'POST'
+  await fetchWithTimeout({
+    url: inbox,
+    headers: {
+      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+      'User-Agent': USER_AGENT
+    },
+    method,
+    body: JSON.stringify(activity)
+  })
 }
 
 interface DeleteStatusParams {
@@ -408,7 +415,7 @@ export const deleteStatus = async ({
   const activity: DeleteStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${statusId}#delete`,
-    type: 'Delete',
+    type: DeleteAction,
     actor: currentActor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
     object: {
@@ -416,7 +423,16 @@ export const deleteStatus = async ({
       type: 'Tombstone'
     }
   }
-  await fetchWithTimeout({ currentActor, url: inbox, method: 'POST', activity })
+  const method = 'POST'
+  await fetchWithTimeout({
+    url: inbox,
+    headers: {
+      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+      'User-Agent': USER_AGENT
+    },
+    method,
+    body: JSON.stringify(activity)
+  })
 }
 
 interface UndoAnnounceParams {
@@ -432,12 +448,12 @@ export const undoAnnounce = async ({
   const activity: UndoStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${announce.id}#undo`,
-    type: 'Undo',
+    type: UndoAction,
     actor: currentActor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
     object: {
       id: `${announce.id}/activity`,
-      type: 'Announce',
+      type: AnnounceAction,
       actor: announce.actorId,
       published: getISOTimeUTC(announce.createdAt),
       to: announce.to,
@@ -445,7 +461,16 @@ export const undoAnnounce = async ({
       object: announce.originalStatus.id
     }
   }
-  await fetchWithTimeout({ currentActor, url: inbox, method: 'POST', activity })
+  const method = 'POST'
+  await fetchWithTimeout({
+    url: inbox,
+    method,
+    headers: {
+      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+      'User-Agent': USER_AGENT
+    },
+    body: JSON.stringify(activity)
+  })
 }
 
 export const follow = async (
@@ -464,11 +489,20 @@ export const follow = async (
   const targetInbox = publicProfile?.endpoints.inbox
   if (!targetInbox) return false
 
+  const method = 'POST'
   const response = await fetchWithTimeout({
-    currentActor,
     url: targetInbox,
-    method: 'POST',
-    activity
+    method,
+    headers: {
+      ...signedHeaders(
+        currentActor,
+        method.toLowerCase(),
+        targetInbox,
+        activity
+      ),
+      'User-Agent': USER_AGENT
+    },
+    body: JSON.stringify(activity)
   })
   return response.status === 202
 }
@@ -494,11 +528,20 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
   const targetInbox =
     publicProfile?.endpoints.inbox ?? `${follow.targetActorId}/inbox`
 
+  const method = 'POST'
   const response = await fetchWithTimeout({
-    currentActor,
     url: targetInbox,
-    activity,
-    method: 'POST'
+    headers: {
+      ...signedHeaders(
+        currentActor,
+        method.toLowerCase(),
+        targetInbox,
+        activity
+      ),
+      'User-Agent': USER_AGENT
+    },
+    method,
+    body: JSON.stringify(activity)
   })
   return response.status === 202
 }
@@ -520,11 +563,20 @@ export const acceptFollow = async (
       object: followRequest.object
     }
   }
+  const method = 'POST'
   const response = await fetchWithTimeout({
-    currentActor,
     url: followingInbox,
-    method: 'POST',
-    activity
+    method,
+    headers: {
+      ...signedHeaders(
+        currentActor,
+        method.toLowerCase(),
+        followingInbox,
+        activity
+      ),
+      'User-Agent': USER_AGENT
+    },
+    body: JSON.stringify(activity)
   })
   return response.status === 202
 }
@@ -546,11 +598,20 @@ export const sendLike = async ({ currentActor, status }: LikeParams) => {
     actor: currentActor.id,
     object: status.id
   }
+  const method = 'POST'
   await fetchWithTimeout({
-    currentActor,
-    activity,
-    method: 'POST',
-    url: status.actor.inboxUrl
+    method,
+    url: status.actor.inboxUrl,
+    headers: {
+      ...signedHeaders(
+        currentActor,
+        method.toLowerCase(),
+        status.actor.inboxUrl,
+        activity
+      ),
+      'User-Agent': USER_AGENT
+    },
+    body: JSON.stringify(activity)
   })
 }
 
@@ -576,10 +637,19 @@ export const sendUndoLike = async ({
       object: status.id
     }
   }
+  const method = 'POST'
   await fetchWithTimeout({
-    currentActor,
-    activity,
-    method: 'POST',
-    url: status.actor.inboxUrl
+    method,
+    url: status.actor.inboxUrl,
+    headers: {
+      ...signedHeaders(
+        currentActor,
+        method.toLowerCase(),
+        status.actor.inboxUrl,
+        activity
+      ),
+      'User-Agent': USER_AGENT
+    },
+    body: JSON.stringify(activity)
   })
 }
