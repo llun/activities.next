@@ -6,6 +6,9 @@ import { PropertyValue } from './propertyValue'
 
 export type Attachment = PropertyValue | Document
 
+export const NoteEntity = 'Note'
+export type NoteEntity = typeof NoteEntity
+
 export interface BaseNote extends ContextEntity {
   id: string
   summary?: string

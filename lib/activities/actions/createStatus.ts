@@ -7,9 +7,10 @@ import { Note } from '../entities/note'
 import { Question } from '../entities/question'
 import { Signature } from '../types'
 import { BaseActivity } from './base'
+import { CreateAction } from './types'
 
 export interface CreateStatus extends BaseActivity, ContextEntity {
-  type: 'Create'
+  type: CreateAction
   published: string
   to: string | string[]
   cc: string | string[]
@@ -26,7 +27,7 @@ export const compact = ({ status }: CompactParams) => {
   const document = {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id: `${status.data.id}/activity`,
-    type: 'Create',
+    type: CreateAction,
     actor: status.data.actorId,
     published,
     to: status.data.to,

@@ -3,6 +3,14 @@ import type { NextApiHandler, NextApiResponse } from 'next'
 import { announce } from '../../lib/actions/announce'
 import { createNote } from '../../lib/actions/createNote'
 import { StatusActivity } from '../../lib/activities/actions/status'
+import {
+  AnnounceAction,
+  CreateAction,
+  DeleteAction,
+  UndoAction
+} from '../../lib/activities/actions/types'
+import { NoteEntity } from '../../lib/activities/entities/note'
+import { QuestionEntity } from '../../lib/activities/entities/question'
 import { activitiesGuard } from '../../lib/guard'
 import { compact } from '../../lib/jsonld'
 import { ERROR_404, ERROR_500 } from '../../lib/responses'
@@ -15,23 +23,25 @@ const handlePost = async (
   res: NextApiResponse
 ) => {
   switch (activity.type) {
-    case 'Create': {
+    case CreateAction: {
       switch (activity.object.type) {
-        case 'Note': {
-          console.log('Create note from here?')
+        case NoteEntity: {
           await createNote({ storage, note: activity.object })
+          break
+        }
+        case QuestionEntity: {
           break
         }
       }
       return res.status(202).send('')
     }
-    case 'Announce': {
+    case AnnounceAction: {
       await announce({ storage, status: activity })
       return res.status(202).send('')
     }
-    case 'Undo': {
+    case UndoAction: {
       switch (activity.object.type) {
-        case 'Announce': {
+        case AnnounceAction: {
           const statusId = activity.object.id
           await storage.deleteStatus({ statusId })
           break
@@ -39,7 +49,7 @@ const handlePost = async (
       }
       return res.status(202).send('')
     }
-    case 'Delete': {
+    case DeleteAction: {
       // TODO: Handle delete object type string
       if (typeof activity.object === 'string') {
         return res.status(202).send('')
