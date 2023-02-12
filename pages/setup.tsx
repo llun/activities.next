@@ -10,7 +10,11 @@ import { getConfig } from '../lib/config'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
 
-const Page: NextPage = () => {
+interface Props {
+  defaultHost: string
+}
+
+const Page: NextPage<Props> = ({ defaultHost }) => {
   const { data: session } = useSession()
   return (
     <main>
@@ -36,6 +40,21 @@ const Page: NextPage = () => {
             </div>
           </div>
           <div className="mb-3">
+            <label htmlFor="password" className="form-label">
+              Password
+            </label>
+            <input
+              type="password"
+              className="form-control"
+              id="password"
+              name="password"
+              aria-describedby="passwordHelp"
+            />
+            <div id="passwordHelp" className="form-text">
+              User password
+            </div>
+          </div>
+          <div className="mb-3">
             <label htmlFor="domain" className="form-label">
               Domain
             </label>
@@ -44,6 +63,7 @@ const Page: NextPage = () => {
               className="form-control"
               id="domain"
               name="domain"
+              defaultValue={defaultHost}
               aria-describedby="domainHelp"
             />
             <div id="domainHelp" className="form-text">
@@ -57,7 +77,10 @@ const Page: NextPage = () => {
   )
 }
 
-export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
+export const getServerSideProps: GetServerSideProps<Props> = async ({
+  req,
+  res
+}) => {
   const [session, storage] = await Promise.all([
     getServerSession(req, res, authOptions),
     getStorage()
@@ -91,7 +114,9 @@ export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
   }
 
   return {
-    props: {}
+    props: {
+      defaultHost: config.host
+    }
   }
 }
 
