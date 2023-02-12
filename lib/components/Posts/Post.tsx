@@ -39,10 +39,14 @@ interface BoostStatusProps {
 const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   if (status.type !== StatusType.Announce) return null
   return (
-    <div className="d-flex mb-1">
+    <div className={cn('d-flex', 'mb-1', 'align-items-center')}>
       <i className="bi bi-repeat me-2"></i>
       <span className="me-2">Boost by</span>
-      <Actor actor={status.actor} actorId={status.actorId} />
+      <Actor
+        className={cn('flex-grow-1')}
+        actor={status.actor}
+        actorId={status.actorId}
+      />
     </div>
   )
 }
