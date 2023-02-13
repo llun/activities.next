@@ -9,6 +9,7 @@ import { Header } from '../../lib/components/Header'
 import { Modal } from '../../lib/components/Modal'
 import { Media } from '../../lib/components/Posts/Media'
 import { Post } from '../../lib/components/Posts/Post'
+import { Posts } from '../../lib/components/Posts/Posts'
 import { headerHost } from '../../lib/guard'
 import { AttachmentData } from '../../lib/models/attachment'
 import { StatusData } from '../../lib/models/status'
@@ -19,9 +20,10 @@ import styles from './index.module.scss'
 interface Props {
   status: StatusData
   replies: StatusData[]
+  serverTime: number
 }
 
-const Page: NextPage<Props> = ({ status }) => {
+const Page: NextPage<Props> = ({ status, replies, serverTime }) => {
   const { data: session } = useSession()
   const [currentTime] = useState<number>(Date.now())
   const [modalMedia, setModalMedia] = useState<AttachmentData>()
@@ -43,6 +45,7 @@ const Page: NextPage<Props> = ({ status }) => {
             }
           />
         </section>
+        <Posts currentTime={new Date(serverTime)} statuses={replies} />
       </section>
       <Modal
         isOpen={Boolean(modalMedia)}
@@ -88,7 +91,8 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
   return {
     props: {
       status: status.toJson(),
-      replies: replies.map((status) => status.toJson())
+      replies: replies.map((status) => status.toJson()),
+      serverTime: Date.now()
     }
   }
 }

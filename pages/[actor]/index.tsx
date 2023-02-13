@@ -24,11 +24,11 @@ import styles from './index.module.scss'
 interface Props {
   person: PublicProfile
   statuses: StatusData[]
+  serverTime: number
 }
 
-const Page: NextPage<Props> = ({ person, statuses }) => {
+const Page: NextPage<Props> = ({ person, statuses, serverTime }) => {
   const { data: session } = useSession()
-  const [currentTime] = useState<number>(Date.now())
   const [followingStatus, setFollowingStatus] = useState<boolean | undefined>()
   const isLoggedIn = Boolean(session?.user?.email)
 
@@ -72,7 +72,7 @@ const Page: NextPage<Props> = ({ person, statuses }) => {
             />
           </div>
         </section>
-        <Posts currentTime={new Date(currentTime)} statuses={statuses} />
+        <Posts currentTime={new Date(serverTime)} statuses={statuses} />
       </section>
     </main>
   )
@@ -113,7 +113,8 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
   return {
     props: {
       person,
-      statuses
+      statuses,
+      serverTime: Date.now()
     }
   }
 }
