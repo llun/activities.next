@@ -24,10 +24,11 @@ function linkBody(url = '') {
   }
 
   const hostname = link.host.startsWith('www.') ? link.host.slice(4) : link.host
+  const pathnameWithSearch = `${link.pathname}${link.search}`
   const pathname =
-    link.pathname.length > LINK_BODY_LIMIT
-      ? `${link.pathname.slice(0, LINK_BODY_LIMIT)}…`
-      : link.pathname
+    pathnameWithSearch.length > LINK_BODY_LIMIT
+      ? `${pathnameWithSearch.slice(0, LINK_BODY_LIMIT)}…`
+      : pathnameWithSearch
   return `<a href="${link.toString()}" target="_blank" rel="nofollow noopener noreferrer">${hostname}${
     pathname === '/' ? '' : pathname
   }</a>`

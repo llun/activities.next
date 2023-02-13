@@ -63,6 +63,24 @@ describe('#linkifyText', () => {
       'Test linkify string <a href="https://www.llun.me/posts/dev/2023-01-07-my-wrong-assumptions-with-activity-pub/" target="_blank" rel="nofollow noopener noreferrer">llun.me/posts/dev/2023-01-07-my-…</a>, without pathname'
     )
   })
+
+  it('linkify link include query', async () => {
+    const message = await linkifyText(
+      'Test linkify with query in url https://www.youtube.com/watch?v=mroK84Y2GwM'
+    )
+    expect(message).toEqual(
+      'Test linkify with query in url <a href="https://www.youtube.com/watch?v=mroK84Y2GwM" target="_blank" rel="nofollow noopener noreferrer">youtube.com/watch?v=mroK84Y2GwM</a>'
+    )
+  })
+
+  it('linkify cuts query short', async () => {
+    const message = await linkifyText(
+      'Linkify with long query https://www.google.com/search?q=noreferrer&sourceid=chrome&ie=UTF-8'
+    )
+    expect(message).toEqual(
+      'Linkify with long query <a href="https://www.google.com/search?q=noreferrer&sourceid=chrome&ie=UTF-8" target="_blank" rel="nofollow noopener noreferrer">google.com/search?q=noreferrer&sour…</a>'
+    )
+  })
 })
 
 describe('#paragraphText', () => {
