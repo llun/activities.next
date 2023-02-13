@@ -44,6 +44,7 @@ import {
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
+  GetStatusRepliesParams,
   GetTagsParams,
   GetTimelineParams,
   IsAccountExistsParams,
@@ -782,6 +783,10 @@ export class FirebaseStorage implements Storage {
 
   async getStatus({ statusId }: GetStatusParams) {
     return this.getStatusWithCurrentActor(statusId)
+  }
+
+  async getStatusReplies({ statusId }: GetStatusRepliesParams) {
+    return (await this.getReplies(statusId)).map((note) => new Status(note))
   }
 
   async getTimeline({

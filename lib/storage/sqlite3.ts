@@ -44,6 +44,7 @@ import {
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
+  GetStatusRepliesParams,
   GetTagsParams,
   GetTimelineParams,
   IsAccountExistsParams,
@@ -729,6 +730,15 @@ export class Sqlite3Storage implements Storage {
 
   async getStatus({ statusId }: GetStatusParams) {
     return this.getStatusWithCurrentActorId(statusId)
+  }
+
+  async getStatusReplies({ statusId }: GetStatusRepliesParams) {
+    const statuses = await this.database('statuses')
+      .where('reply', statusId)
+      .orderBy('createdAt', 'desc')
+    return Promise.all(
+      statuses.map((status) => this.getStatusWithAttachmentsFromData(status))
+    )
   }
 
   async getTimeline({
