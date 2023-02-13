@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@google-cloud/firestore": "^6.4.2",
-    "@sentry/nextjs": "7.37.1",
+    "@sentry/nextjs": "7.37.2",
     "@vercel/analytics": "^0.1.8",
     "better-sqlite3": "^8.1.0",
     "bootstrap": "^5.2.3",
