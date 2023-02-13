@@ -17,6 +17,7 @@ import { Posts } from '../../lib/components/Posts/Posts'
 import { Profile } from '../../lib/components/Profile'
 import { headerHost } from '../../lib/guard'
 import { StatusData } from '../../lib/models/status'
+import { getFirstValueFromParsedQuery } from '../../lib/query'
 import { getStorage } from '../../lib/storage'
 import styles from './index.module.scss'
 
@@ -85,8 +86,8 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
   req,
   query
 }) => {
-  const { actor } = query
-  if (!actor || Array.isArray(actor)) return { notFound: true }
+  const actor = getFirstValueFromParsedQuery(query.actor)
+  if (!actor) return { notFound: true }
 
   const storage = await getStorage()
   if (!storage) throw new Error('Storage is not available')
@@ -97,8 +98,8 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
   }
 
   if (parts.length === 1) {
-    const host = headerHost(req.headers)
-    if (!host || Array.isArray(host)) return { notFound: true }
+    const host = getFirstValueFromParsedQuery(headerHost(req.headers))
+    if (!host) return { notFound: true }
     parts.push(host)
   }
 

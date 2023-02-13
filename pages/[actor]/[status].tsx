@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
-import { GetStaticProps, NextPage } from 'next'
+import { GetServerSideProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import { useState } from 'react'
@@ -9,14 +9,16 @@ import { Header } from '../../lib/components/Header'
 import { Modal } from '../../lib/components/Modal'
 import { Media } from '../../lib/components/Posts/Media'
 import { Post } from '../../lib/components/Posts/Post'
-import { getConfig } from '../../lib/config'
+import { headerHost } from '../../lib/guard'
 import { AttachmentData } from '../../lib/models/attachment'
 import { StatusData } from '../../lib/models/status'
+import { getFirstValueFromParsedQuery } from '../../lib/query'
 import { getStorage } from '../../lib/storage'
 import styles from './index.module.scss'
 
 interface Props {
   status: StatusData
+  replies: StatusData[]
 }
 
 const Page: NextPage<Props> = ({ status }) => {
@@ -60,37 +62,34 @@ type Params = {
   actor: string
   status: string
 }
-export const getStaticProps: GetStaticProps<Props, Params> = async ({
-  params
-}) => {
-  const actor = params?.actor
-  const storage = await getStorage()
-  if (!storage || !actor) {
-    return { notFound: true }
-  }
 
-  const status = await storage.getStatus({
-    statusId: `https://${getConfig().host}/users/${actor.slice(1)}/statuses/${
-      params.status
-    }`
-  })
+export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
+  req,
+  query
+}) => {
+  const storage = await getStorage()
+  if (!storage) throw new Error('Storage is not available')
+
+  const actor = getFirstValueFromParsedQuery(query.actor)
+  const id = getFirstValueFromParsedQuery(query.status)
+  const host = getFirstValueFromParsedQuery(headerHost(req.headers))
+
+  if (!actor || !id || !host) return { notFound: true }
+
+  const statusId = `https://${host}/users/${actor.slice(1)}/statuses/${id}`
+  const [status, replies] = await Promise.all([
+    storage.getStatus({ statusId }),
+    storage.getStatusReplies({ statusId })
+  ])
   if (!status) {
     return { notFound: true }
   }
 
   return {
     props: {
-      status: status.toJson()
-    },
-    // Revalidate page every 6 hours
-    revalidate: 21_600
-  }
-}
-
-export async function getStaticPaths() {
-  return {
-    paths: [],
-    fallback: 'blocking'
+      status: status.toJson(),
+      replies: replies.map((status) => status.toJson())
+    }
   }
 }
 
