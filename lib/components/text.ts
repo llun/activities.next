@@ -36,7 +36,7 @@ export const convertQuoteToCode = (text: string) => {
 
   const supportedWord = '`[\\w$-?{} .]+`'
   const front = '[ >.]'
-  const back = '[ <.]'
+  const back = '[ <.,]'
   const pattern = new RegExp(
     `(${front}${supportedWord}${back}|^${supportedWord}${back}|${front}${supportedWord}$|^${supportedWord}$)`,
     'dg'

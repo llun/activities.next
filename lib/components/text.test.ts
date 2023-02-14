@@ -67,4 +67,10 @@ describe('#convertQuoteToCode', () => {
       'this should be <code>quote block</code>.'
     )
   })
+
+  it('convert quote blocks when end with ,', () => {
+    expect(convertQuoteToCode('this should be `quote`, `block`.')).toEqual(
+      'this should be <code>quote</code>, <code>block</code>.'
+    )
+  })
 })
