@@ -66,6 +66,7 @@ export const createNote = async ({
 
   const attachments = getAttachments(note)
   const tags = getTags(note)
+
   await Promise.all([
     addStatusToTimelines(storage, status),
     ...attachments.map(async (attachment) => {
@@ -82,7 +83,7 @@ export const createNote = async ({
     ...tags.map((item) =>
       storage.createTag({
         statusId: compactNote.id,
-        name: item.name,
+        name: item.name || '',
         value: item.href
       })
     )
@@ -144,7 +145,7 @@ export const createNoteFromUserInput = async ({
     ...mentions.map((mention) =>
       storage.createTag({
         statusId,
-        name: mention.name,
+        name: mention.name || '',
         value: mention.href
       })
     )
