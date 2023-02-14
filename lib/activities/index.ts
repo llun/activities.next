@@ -1,7 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import crypto from 'crypto'
 
-import { getConfig } from '../config'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
@@ -511,14 +510,13 @@ export const follow = async (
 }
 
 export const unfollow = async (currentActor: Actor, follow: Follow) => {
-  const config = getConfig()
   const activity: UndoFollow = {
     '@context': ACTIVITY_STREAM_URL,
-    id: `https://${config.host}/${currentActor.id}#follows/${follow.id}/undo`,
+    id: `https://${currentActor.domain}/${currentActor.id}#follows/${follow.id}/undo`,
     type: 'Undo',
     actor: currentActor.id,
     object: {
-      id: `https://${config.host}/${follow.id}`,
+      id: `https://${currentActor.domain}/${follow.id}`,
       type: 'Follow',
       actor: follow.actorId,
       object: follow.targetActorId
