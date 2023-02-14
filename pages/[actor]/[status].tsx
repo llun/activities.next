@@ -20,12 +20,12 @@ import styles from './index.module.scss'
 interface Props {
   status: StatusData
   replies: StatusData[]
+  previouses: StatusData[]
   serverTime: number
 }
 
-const Page: NextPage<Props> = ({ status, replies, serverTime }) => {
+const Page: NextPage<Props> = ({ status, replies, serverTime, previouses }) => {
   const { data: session } = useSession()
-  const [currentTime] = useState<number>(Date.now())
   const [modalMedia, setModalMedia] = useState<AttachmentData>()
 
   return (
@@ -35,10 +35,11 @@ const Page: NextPage<Props> = ({ status, replies, serverTime }) => {
       </Head>
       <Header session={session} />
       <section className="container pt-4">
+        <Posts currentTime={new Date(serverTime)} statuses={previouses} />
         <section className="card p-4">
           <Post
             showActorId
-            currentTime={new Date(currentTime)}
+            currentTime={new Date(serverTime)}
             status={status}
             onShowAttachment={(attachment: AttachmentData) =>
               setModalMedia(attachment)
@@ -88,9 +89,23 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
     return { notFound: true }
   }
 
+  const previouses = []
+  if (status.reply) {
+    let replyStatus = await storage.getStatus({ statusId: status.reply })
+    while (previouses.length < 5 && replyStatus) {
+      previouses.push(replyStatus.toJson())
+      if (!replyStatus.reply) {
+        replyStatus = undefined
+        continue
+      }
+      replyStatus = await storage.getStatus({ statusId: replyStatus.reply })
+    }
+  }
+
   return {
     props: {
       status: status.toJson(),
+      previouses,
       replies: replies.map((status) => status.toJson()),
       serverTime: Date.now()
     }
