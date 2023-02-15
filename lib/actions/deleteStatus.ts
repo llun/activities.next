@@ -12,7 +12,10 @@ export const deleteStatusFromUserInput = async ({
   statusId,
   storage
 }: DeleteStatusFromUserInputParams): Promise<void> => {
-  const originalStatus = await storage.getStatus({ statusId })
+  const originalStatus = await storage.getStatus({
+    statusId,
+    withReplies: false
+  })
   if (!originalStatus) return
 
   await storage.deleteStatus({ statusId })

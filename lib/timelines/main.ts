@@ -53,7 +53,10 @@ export const mainTimelineRule: MainTimelineRule = async ({
     return null
   }
 
-  const repliedStatus = await storage.getStatus({ statusId: status.reply })
+  const repliedStatus = await storage.getStatus({
+    statusId: status.reply,
+    withReplies: false
+  })
   // Deleted parent status, don't show child status
   if (!repliedStatus) return null
   if (repliedStatus.actorId === currentActor.id) return Timeline.MAIN

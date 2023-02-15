@@ -35,7 +35,10 @@ export const createNote = async ({
     ?.getTransaction()
     ?.startChild({ op: 'createNote', data: note })
 
-  const existingStatus = await storage.getStatus({ statusId: note.id })
+  const existingStatus = await storage.getStatus({
+    statusId: note.id,
+    withReplies: false
+  })
   if (existingStatus) {
     return note
   }
@@ -120,7 +123,7 @@ export const createNoteFromUserInput = async ({
   })
 
   const replyStatus = replyNoteId
-    ? await storage.getStatus({ statusId: replyNoteId })
+    ? await storage.getStatus({ statusId: replyNoteId, withReplies: false })
     : undefined
 
   const postId = crypto.randomUUID()
@@ -165,7 +168,7 @@ export const createNoteFromUserInput = async ({
     )
   ])
 
-  const status = await storage.getStatus({ statusId })
+  const status = await storage.getStatus({ statusId, withReplies: false })
   if (!status) {
     span?.finish()
     return null

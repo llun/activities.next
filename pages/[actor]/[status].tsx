@@ -82,7 +82,7 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
 
   const statusId = `https://${host}/users/${actor.slice(1)}/statuses/${id}`
   const [status, replies] = await Promise.all([
-    storage.getStatus({ statusId }),
+    storage.getStatus({ statusId, withReplies: false }),
     storage.getStatusReplies({ statusId })
   ])
   if (!status) {
@@ -91,14 +91,20 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
 
   const previouses = []
   if (status.reply) {
-    let replyStatus = await storage.getStatus({ statusId: status.reply })
+    let replyStatus = await storage.getStatus({
+      statusId: status.reply,
+      withReplies: false
+    })
     while (previouses.length < 5 && replyStatus) {
       previouses.push(replyStatus.toJson())
       if (!replyStatus.reply) {
         replyStatus = undefined
         continue
       }
-      replyStatus = await storage.getStatus({ statusId: replyStatus.reply })
+      replyStatus = await storage.getStatus({
+        statusId: replyStatus.reply,
+        withReplies: false
+      })
     }
   }
 

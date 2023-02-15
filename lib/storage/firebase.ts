@@ -739,7 +739,10 @@ export class FirebaseStorage implements Storage {
 
     await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set(status)
 
-    const originalStatus = await this.getStatus({ statusId: originalStatusId })
+    const originalStatus = await this.getStatus({
+      statusId: originalStatusId,
+      withReplies: false
+    })
     const announceData: StatusAnnounce = {
       ...status,
       originalStatus: originalStatus?.data
@@ -880,6 +883,7 @@ export class FirebaseStorage implements Storage {
 
   private async getStatusWithCurrentActor(
     statusId: string,
+    withReplies: boolean,
     currentActorId?: string
   ) {
     const span = Sentry.getCurrentHub()
@@ -899,13 +903,13 @@ export class FirebaseStorage implements Storage {
       return
     }
 
-    const status = this.getStatusFromData(data, true, currentActorId)
+    const status = this.getStatusFromData(data, withReplies, currentActorId)
     span?.finish()
     return status
   }
 
-  async getStatus({ statusId }: GetStatusParams) {
-    return this.getStatusWithCurrentActor(statusId)
+  async getStatus({ statusId, withReplies = false }: GetStatusParams) {
+    return this.getStatusWithCurrentActor(statusId, withReplies)
   }
 
   async getStatusReplies({ statusId }: GetStatusRepliesParams) {

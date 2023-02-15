@@ -20,7 +20,8 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
   const { object } = compactedStatus
 
   const existingStatus = await storage.getStatus({
-    statusId: object
+    statusId: object,
+    withReplies: false
   })
   if (!existingStatus) {
     const boostedStatus = await getStatus({ statusId: object })
@@ -30,7 +31,8 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
   }
 
   const existingAnnounce = await storage.getStatus({
-    statusId: compactedStatus.id
+    statusId: compactedStatus.id,
+    withReplies: false
   })
   if (existingAnnounce) return
   const [, announce] = await Promise.all([
@@ -60,7 +62,10 @@ export const userAnnounce = async ({
   statusId,
   storage
 }: UserAnnounceParams) => {
-  const originalStatus = await storage.getStatus({ statusId })
+  const originalStatus = await storage.getStatus({
+    statusId,
+    withReplies: false
+  })
   if (!originalStatus) return null
 
   const id = `${currentActor.id}/statuses/${crypto.randomUUID()}`

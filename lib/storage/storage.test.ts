@@ -827,7 +827,8 @@ describe('Storage', () => {
         })
 
         const status = await storage.getStatus({
-          statusId: statusWithRepliesId
+          statusId: statusWithRepliesId,
+          withReplies: true
         })
         if (status?.data.type !== StatusType.Note) {
           fail('Status type must be Note')

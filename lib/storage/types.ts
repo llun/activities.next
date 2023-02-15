@@ -108,7 +108,7 @@ export type CreateAnnounceParams = {
 
   createdAt?: number
 }
-export type GetStatusParams = { statusId: string }
+export type GetStatusParams = { statusId: string; withReplies?: boolean }
 export type GetStatusRepliesParams = { statusId: string }
 export type GetActorStatusesCountParams = { actorId: string }
 export type GetActorStatusesParams = { actorId: string }

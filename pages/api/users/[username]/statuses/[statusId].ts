@@ -25,7 +25,7 @@ export default async function handler(
 
   const host = headerHost(req.headers)
   const id = `https://${host}/users/${username}/statuses/${statusId}`
-  const status = await storage.getStatus({ statusId: id })
+  const status = await storage.getStatus({ statusId: id, withReplies: true })
   if (!status) {
     return res.status(404).json(ERROR_404)
   }
