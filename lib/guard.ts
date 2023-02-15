@@ -1,4 +1,5 @@
 /* eslint-disable camelcase */
+import * as Sentry from '@sentry/node'
 import { IncomingHttpHeaders } from 'http'
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
 import { Session, getServerSession } from 'next-auth'
@@ -17,14 +18,23 @@ const ACTIVITIES_HOST = 'x-activity-next-host'
 const FORWARDED_HOST = 'x-forwarded-host'
 
 async function getSenderPublicKey(storage: Storage, actorId: string) {
+  const span = Sentry.getCurrentHub().getScope()?.getTransaction()?.startChild({
+    op: 'getSenderPublicKey',
+    data: { actorId }
+  })
   const localActor = await storage.getActorFromId({ id: actorId })
-  if (localActor) return localActor.publicKey
+  if (localActor) {
+    span?.finish()
+    return localActor.publicKey
+  }
 
   const sender = await getPublicProfile({
     actorId,
     withCollectionCount: false,
     withPublicKey: true
   })
+
+  span?.finish()
   if (sender) return sender.publicKey || ''
   return ''
 }
