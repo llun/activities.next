@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node'
 import type { NextApiHandler, NextApiResponse } from 'next'
 
 import { announce } from '../../lib/actions/announce'
@@ -66,6 +67,8 @@ const handlePost = async (
 
 const ApiHandler: NextApiHandler = activitiesGuard(
   async (req, res) => {
+    const transaction = Sentry.startTransaction({ name: 'inbox' })
+
     const storage = await getStorage()
     if (!storage) {
       return res.status(500).send(ERROR_500)
@@ -73,10 +76,15 @@ const ApiHandler: NextApiHandler = activitiesGuard(
 
     switch (req.method) {
       case 'POST': {
+        const span = transaction.startChild({ op: 'post' })
         const requestBody =
           typeof req.body === 'string' ? JSON.parse(req.body) : req.body
         const body = (await compact(requestBody)) as StatusActivity
-        return await handlePost(storage, body, res)
+
+        await handlePost(storage, body, res)
+        span.finish()
+        transaction.finish()
+        return
       }
       default:
         return res.status(404).send(ERROR_404)

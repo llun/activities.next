@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node'
 import crypto from 'crypto'
 
 import { getPublicProfile, sendNote } from '../activities'
@@ -29,6 +30,11 @@ export const createNote = async ({
   note,
   storage
 }: CreateNoteParams): Promise<Note | null> => {
+  const span = Sentry.getCurrentHub()
+    .getScope()
+    ?.getTransaction()
+    ?.startChild({ op: 'createNote', data: note })
+
   const existingStatus = await storage.getStatus({ statusId: note.id })
   if (existingStatus) {
     return note
@@ -39,6 +45,7 @@ export const createNote = async ({
     ...note
   })) as Note
   if (compactNote.type !== StatusType.Note) {
+    span?.finish()
     return null
   }
 
@@ -88,6 +95,8 @@ export const createNote = async ({
       })
     )
   ])
+
+  span?.finish()
   return note
 }
 
@@ -105,6 +114,11 @@ export const createNoteFromUserInput = async ({
   attachments = [],
   storage
 }: CreateNoteFromUserInputParams) => {
+  const span = Sentry.getCurrentHub().getScope()?.getTransaction()?.startChild({
+    op: 'createNoteFromUser',
+    data: { text, replyNoteId }
+  })
+
   const replyStatus = replyNoteId
     ? await storage.getStatus({ statusId: replyNoteId })
     : undefined
@@ -152,7 +166,10 @@ export const createNoteFromUserInput = async ({
   ])
 
   const status = await storage.getStatus({ statusId })
-  if (!status) return null
+  if (!status) {
+    span?.finish()
+    return null
+  }
 
   const currentActorUrl = new URL(currentActor.id)
   const remoteActorsInbox = (
@@ -187,5 +204,6 @@ export const createNoteFromUserInput = async ({
     })
   )
 
+  span?.finish()
   return status
 }
