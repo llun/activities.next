@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node'
 import crypto from 'crypto'
 import { IncomingHttpHeaders } from 'http'
 import { generate } from 'peggy'
@@ -28,14 +29,22 @@ export async function parse(signature: string): Promise<StringMap> {
   }
 }
 
-// TODO: Add more checks later https://github.com/mastodon/mastodon/blob/main/app/controllers/concerns/signature_verification.rb#L78
 export async function verify(
   requestTarget: string,
   headers: IncomingHttpHeaders,
   publicKey: string
 ) {
+  const span = Sentry.getCurrentHub()
+    .getScope()
+    ?.getTransaction()
+    ?.startChild({ op: 'signature.verify', data: { requestTarget } })
+
   const headerSignature = await parse(headers.signature as string)
-  if (!headerSignature.headers) return false
+  if (!headerSignature.headers) {
+    span?.setStatus('invalid')
+    span?.finish()
+    return false
+  }
 
   const comparedSignedString = headerSignature.headers
     .split(' ')
@@ -51,8 +60,12 @@ export async function verify(
   const verifier = crypto.createVerify(headerSignature.algorithm)
   verifier.update(comparedSignedString)
   try {
+    span?.setStatus('ok')
+    span?.finish()
     return verifier.verify(publicKey, signature, 'base64')
   } catch {
+    span?.setStatus('invalid')
+    span?.finish()
     return false
   }
 }
@@ -62,6 +75,10 @@ export function sign(
   headers: IncomingHttpHeaders,
   privateKey: string
 ) {
+  const span = Sentry.getCurrentHub()
+    .getScope()
+    ?.getTransaction()
+    ?.startChild({ op: 'signature.sign', data: { request } })
   const signedString = [
     request,
     `host: ${headers.host}`,
@@ -72,6 +89,7 @@ export function sign(
   const signer = crypto.createSign('rsa-sha256')
   signer.write(signedString)
   signer.end()
+  span?.finish()
   return signer.sign(
     { key: privateKey, passphrase: getConfig().secretPhase },
     'base64'
@@ -84,6 +102,10 @@ export function signedHeaders(
   targetUrl: string,
   content: any
 ) {
+  const span = Sentry.getCurrentHub()
+    .getScope()
+    ?.getTransaction()
+    ?.startChild({ op: 'signature.signedHeader', data: { targetUrl, method } })
   const url = new URL(targetUrl)
   const digest = `SHA-256=${crypto
     .createHash('sha-256')
@@ -100,6 +122,8 @@ export function signedHeaders(
     'content-type': contentType
   }
   if (!currentActor.privateKey) {
+    span?.setStatus('invalid')
+    span?.finish()
     return headers
   }
 
@@ -109,6 +133,8 @@ export function signedHeaders(
     currentActor.privateKey
   )
   const signatureHeader = `keyId="${currentActor.id}#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="${signature}"`
+  span?.setStatus('ok')
+  span?.finish()
   return {
     ...headers,
     signature: signatureHeader
