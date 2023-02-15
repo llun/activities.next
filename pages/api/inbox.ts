@@ -67,8 +67,6 @@ const handlePost = async (
 
 const ApiHandler: NextApiHandler = activitiesGuard(
   async (req, res) => {
-    const transaction = Sentry.startTransaction({ name: 'inbox' })
-
     const storage = await getStorage()
     if (!storage) {
       return res.status(500).send(ERROR_500)
@@ -76,14 +74,18 @@ const ApiHandler: NextApiHandler = activitiesGuard(
 
     switch (req.method) {
       case 'POST': {
-        const span = transaction.startChild({ op: 'post' })
+        const span = Sentry.getCurrentHub()
+          .getScope()
+          ?.getTransaction()
+          ?.startChild({
+            op: 'handlePost'
+          })
         const requestBody =
           typeof req.body === 'string' ? JSON.parse(req.body) : req.body
         const body = (await compact(requestBody)) as StatusActivity
 
         await handlePost(storage, body, res)
-        span.finish()
-        transaction.finish()
+        span?.finish()
         return
       }
       default:
