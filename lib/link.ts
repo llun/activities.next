@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node'
 import * as linkify from 'linkifyjs'
 
 import { getPublicProfileFromHandle } from './activities'
@@ -128,6 +129,11 @@ export const getMentions = async ({
   currentActor,
   replyStatus
 }: GetMentionsParams): Promise<Mention[]> => {
+  const span = Sentry.getCurrentHub().getScope()?.getTransaction()?.startChild({
+    op: 'getMentions',
+    data: { text, currentActor, replyStatus }
+  })
+
   const mentions = await Promise.all(
     linkify
       .find(text)
@@ -168,5 +174,6 @@ export const getMentions = async ({
       return out
     }, {} as { [key: string]: Mention })
 
+  span?.finish()
   return Object.values(mentionsMap)
 }
