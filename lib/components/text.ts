@@ -34,40 +34,44 @@ export const convertQuoteToCode = (text: string) => {
   const matches = []
   const parts = []
 
-  const supportedWord = '`[\\w$-?{} .]+`'
-  const front = '[ >.(]'
-  const back = '[ <.,)]'
-  const pattern = new RegExp(
-    `(${front}${supportedWord}${back}|^${supportedWord}${back}|${front}${supportedWord}$|^${supportedWord}$)`,
-    'dg'
-  )
-
-  let result
-  while ((result = pattern.exec(text) as any) !== null) {
-    if (!result.indices?.[0]) continue
-    matches.push(result.indices?.[0])
-  }
-
-  if (matches.length === 1 && matches[0][1] - matches[0][0] === text.length) {
-    return `<code>${text.slice(1, text.length - 1)}</code>`
-  }
-
-  for (let index = 0; index < matches.length; index++) {
-    const previous = matches[index - 1]
-    const matched = matches[index]
-    parts.push(
-      ...[
-        text.slice(previous?.[1] - 1 ?? 0, matched[0] + 1),
-        `<code>${text.slice(matched[0] + 2, matched[1] - 2)}</code>`
-      ]
+  try {
+    const supportedWord = '`[\\w$-?{} .]+`'
+    const front = '[ >.(]'
+    const back = '[ <.,)]'
+    const pattern = new RegExp(
+      `(${front}${supportedWord}${back}|^${supportedWord}${back}|${front}${supportedWord}$|^${supportedWord}$)`,
+      'dg'
     )
-  }
 
-  if (matches.length) {
-    const last = matches.pop()
-    parts.push(text.slice(last?.[1] - 1))
-    return parts.join('')
-  }
+    let result
+    while ((result = pattern.exec(text) as any) !== null) {
+      if (!result.indices?.[0]) continue
+      matches.push(result.indices?.[0])
+    }
 
-  return text
+    if (matches.length === 1 && matches[0][1] - matches[0][0] === text.length) {
+      return `<code>${text.slice(1, text.length - 1)}</code>`
+    }
+
+    for (let index = 0; index < matches.length; index++) {
+      const previous = matches[index - 1]
+      const matched = matches[index]
+      parts.push(
+        ...[
+          text.slice(previous?.[1] - 1 ?? 0, matched[0] + 1),
+          `<code>${text.slice(matched[0] + 2, matched[1] - 2)}</code>`
+        ]
+      )
+    }
+
+    if (matches.length) {
+      const last = matches.pop()
+      parts.push(text.slice(last?.[1] - 1))
+      return parts.join('')
+    }
+
+    return text
+  } catch {
+    return text
+  }
 }
