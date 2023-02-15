@@ -779,7 +779,7 @@ export class FirebaseStorage implements Storage {
     const span = Sentry.getCurrentHub()
       .getScope()
       ?.getTransaction()
-      ?.startChild({ op: 'getStatusFromData' })
+      ?.startChild({ op: 'getStatusFromData', data: { id: data.id } })
 
     if (data.type === StatusType.Announce) {
       if (!data.originalStatusId) {
