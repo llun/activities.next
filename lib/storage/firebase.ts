@@ -1,9 +1,7 @@
 import { Firestore, Settings } from '@google-cloud/firestore'
-import * as Sentry from '@sentry/node'
 import crypto from 'crypto'
 
 import { PER_PAGE_LIMIT } from '.'
-import { logger } from '../logger'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
@@ -16,6 +14,7 @@ import {
 } from '../models/status'
 import { Tag, TagData } from '../models/tag'
 import { Timeline } from '../timelines/types'
+import { getDatabaseSpan } from '../trace'
 import {
   CreateAccountParams,
   CreateActorParams,
@@ -81,24 +80,26 @@ export class FirebaseStorage implements Storage {
   }
 
   async isAccountExists({ email }: IsAccountExistsParams) {
-    const start = Date.now()
-    logger.debug('FIREBASE_START isAccountExists')
+    const span = getDatabaseSpan('isAccountExists', 'accounts', { email })
     const accounts = this.db.collection('accounts')
     const snapshot = await accounts.where('email', '==', email).count().get()
-    logger.debug('FIREBASE_END isAccountExists', Date.now() - start)
+    span?.finish()
     return snapshot.data().count === 1
   }
 
   async isUsernameExists({ username, domain }: IsUsernameExistsParams) {
-    const start = Date.now()
-    logger.debug('FIREBASE_START isUsernameExists')
+    const span = getDatabaseSpan('isUsernameExists', 'actors', {
+      username,
+      domain
+    })
+
     const accounts = this.db.collection('actors')
     const snapshot = await accounts
       .where('username', '==', username)
       .where('domain', '==', domain)
       .count()
       .get()
-    logger.debug('FIREBASE_END isUsernameExists', Date.now() - start)
+    span?.finish()
     return snapshot.data().count === 1
   }
 
@@ -109,10 +110,11 @@ export class FirebaseStorage implements Storage {
     privateKey,
     publicKey
   }: CreateAccountParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'createAccount', data: { email, username, domain } })
+    const span = getDatabaseSpan('createAccount', 'accounts', {
+      email,
+      username,
+      domain
+    })
 
     const actorId = `https://${domain}/users/${username}`
     if (await this.isAccountExists({ email })) {
@@ -144,10 +146,7 @@ export class FirebaseStorage implements Storage {
   }
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getAccountFromId', data: { id } })
+    const span = getDatabaseSpan('getAccountFromId', 'accounts', { id })
 
     const accounts = this.db.collection('accounts')
     const snapshot = await accounts.doc(id).get()
@@ -177,10 +176,11 @@ export class FirebaseStorage implements Storage {
 
     createdAt
   }: CreateActorParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'createActor', data: { actorId, domain, username } })
+    const span = getDatabaseSpan('createActor', 'actors', {
+      actorId,
+      domain,
+      username
+    })
     const currentTime = Date.now()
 
     const doc = {
@@ -228,10 +228,7 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorFromEmail({ email }: GetActorFromEmailParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getActorFromEmail', data: { email } })
+    const span = getDatabaseSpan('getActorFromEmail', 'actors', { email })
 
     const accounts = this.db.collection('accounts')
     const accountsSnapshot = await accounts
@@ -265,10 +262,7 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorFromUsername({ username, domain }: GetActorFromUsernameParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getActorFromUsername', data: { username } })
+    const span = getDatabaseSpan('getActorFromUsername', 'actors', { username })
 
     const actors = this.db.collection('actors')
     const snapshot = await actors
@@ -298,10 +292,7 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorFromId({ id }: GetActorFromIdParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getActorFromId', data: { id } })
+    const span = getDatabaseSpan('getActorFromId', 'actors', { id })
 
     const doc = await this.db.doc(`actors/${FirebaseStorage.urlToId(id)}`).get()
     const data = doc.data()
@@ -334,10 +325,7 @@ export class FirebaseStorage implements Storage {
     inboxUrl,
     sharedInboxUrl
   }: UpdateActorParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'updateActor', data: { actorId } })
+    const span = getDatabaseSpan('updateActor', 'actors', { actorId })
 
     const path = `actors/${FirebaseStorage.urlToId(actorId)}`
     const doc = await this.db.doc(path).get()
@@ -366,10 +354,7 @@ export class FirebaseStorage implements Storage {
   }
 
   async deleteActor({ actorId }: DeleteActorParams): Promise<void> {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'deleteActor', data: { actorId } })
+    const span = getDatabaseSpan('deleteActor', 'actors', { actorId })
 
     const actors = this.db.collection('actors')
     const snapshot = await actors.where('id', '==', actorId).get()
@@ -381,13 +366,10 @@ export class FirebaseStorage implements Storage {
     currentActorId,
     followingActorId
   }: IsCurrentActorFollowingParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({
-        op: 'isCurrentActorFollowing',
-        data: { currentActorId, followingActorId }
-      })
+    const span = getDatabaseSpan('isCurrentActorFollowing', 'follows', {
+      currentActorId,
+      followingActorId
+    })
 
     const follows = this.db.collection('follows')
     const snapshot = await follows
@@ -401,10 +383,9 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getActorFollowingCount', data: { actorId } })
+    const span = getDatabaseSpan('getActorFollowingCount', 'follows', {
+      actorId
+    })
 
     const follows = this.db.collection('follows')
     const snapshot = await follows
@@ -417,10 +398,9 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getActorFollowersCount', data: { actorId } })
+    const span = getDatabaseSpan('getActorFollowersCount', 'follows', {
+      actorId
+    })
 
     const follows = this.db.collection('follows')
     const snapshot = await follows
@@ -439,10 +419,10 @@ export class FirebaseStorage implements Storage {
     inbox,
     sharedInbox
   }: CreateFollowParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'createFollow', data: { actorId, targetActorId } })
+    const span = getDatabaseSpan('createFollow', 'follows', {
+      actorId,
+      targetActorId
+    })
 
     const existingFollow = await this.getAcceptedOrRequestedFollow({
       actorId,
@@ -475,10 +455,9 @@ export class FirebaseStorage implements Storage {
   }
 
   async getFollowFromId({ followId }: GetFollowFromIdParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getFollowFromId', data: { followId } })
+    const span = getDatabaseSpan('getFollowFromId', 'follows', {
+      followId
+    })
 
     const follows = this.db.collection('follows')
     const snapshot = await follows.doc(followId).get()
@@ -500,13 +479,9 @@ export class FirebaseStorage implements Storage {
   async getLocalFollowersForActorId({
     targetActorId
   }: GetLocalFollowersForActorIdParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({
-        op: 'getLocalFollowersForActorId',
-        data: { targetActorId }
-      })
+    const span = getDatabaseSpan('getLocalFollowersForActorId', 'follows', {
+      targetActorId
+    })
 
     const actor = await this.getActorFromId({ id: targetActorId })
     // External actor, all followers are internal
@@ -544,13 +519,9 @@ export class FirebaseStorage implements Storage {
   async getLocalActorsFromFollowerUrl({
     followerUrl
   }: GetLocalActorsFromFollowerUrlParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({
-        op: 'getLocalActorsFromFollowerUrl',
-        data: { followerUrl }
-      })
+    const span = getDatabaseSpan('getLocalActorsFromFollowerUrl', 'actors', {
+      followerUrl
+    })
 
     const actorFromFollowerUrl = await this.db
       .collection('actors')
@@ -591,13 +562,10 @@ export class FirebaseStorage implements Storage {
     actorId,
     targetActorId
   }: GetAcceptedOrRequestedFollowParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({
-        op: 'geAcceptedOrRequestedFollow',
-        data: { actorId, targetActorId }
-      })
+    const span = getDatabaseSpan('geAcceptedOrRequestedFollow', 'follows', {
+      actorId,
+      targetActorId
+    })
 
     const follows = this.db.collection('follows')
     const snapshot = await follows
@@ -623,10 +591,9 @@ export class FirebaseStorage implements Storage {
   }
 
   async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getFollowersInbox', data: { targetActorId } })
+    const span = getDatabaseSpan('getFollowersInbox', 'follows', {
+      targetActorId
+    })
 
     const follows = this.db.collection('follows')
     const snapshot = await follows
@@ -645,10 +612,10 @@ export class FirebaseStorage implements Storage {
   }
 
   async updateFollowStatus({ followId, status }: UpdateFollowStatusParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'updateFollowStatus', data: { followId, status } })
+    const span = getDatabaseSpan('updateFollowStatus', 'follows', {
+      followId,
+      status
+    })
 
     const follow = await this.getFollowFromId({ followId })
     if (!follow) {
@@ -675,10 +642,9 @@ export class FirebaseStorage implements Storage {
     reply = '',
     createdAt
   }: CreateNoteParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'createNote', data: { id } })
+    const span = getDatabaseSpan('createNote', 'statuses', {
+      id
+    })
 
     const currentTime = Date.now()
 
@@ -719,10 +685,9 @@ export class FirebaseStorage implements Storage {
     originalStatusId,
     createdAt
   }: CreateAnnounceParams): Promise<Status> {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'createAnnounce', data: { id } })
+    const span = getDatabaseSpan('createAnnounce', 'statuses', {
+      id
+    })
 
     const currentTime = Date.now()
 
@@ -754,13 +719,10 @@ export class FirebaseStorage implements Storage {
   private async isActorAnnouncedStatus(statusId: string, actorId?: string) {
     if (!actorId) return false
 
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({
-        op: 'isActorAnnouncedStatus',
-        data: { statusId, actorId }
-      })
+    const span = getDatabaseSpan('isActorAnnouncedStatus', 'statuses', {
+      statusId,
+      actorId
+    })
 
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses
@@ -779,11 +741,9 @@ export class FirebaseStorage implements Storage {
     withReplies: boolean,
     currentActorId?: string
   ): Promise<Status | undefined> {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getStatusFromData', data: { id: data.id } })
-
+    const span = getDatabaseSpan('getStatusFromData', 'statuses', {
+      id: data.id
+    })
     if (data.type === StatusType.Announce) {
       if (!data.originalStatusId) {
         console.error(
@@ -886,13 +846,9 @@ export class FirebaseStorage implements Storage {
     withReplies: boolean,
     currentActorId?: string
   ) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({
-        op: 'getStatusWithCurrentActor',
-        data: { statusId, currentActorId }
-      })
+    const span = getDatabaseSpan('getStatusWithCurrentActor', 'statuses', {
+      statusId
+    })
 
     const snapshot = await this.db
       .doc(`statuses/${FirebaseStorage.urlToId(statusId)}`)
@@ -921,13 +877,11 @@ export class FirebaseStorage implements Storage {
     actorId,
     startAfterStatusId
   }: GetTimelineParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({
-        op: 'getTimeline',
-        data: { timeline, actorId, startAfterStatusId }
-      })
+    const span = getDatabaseSpan('getTimeline', 'timelines', {
+      timeline,
+      actorId,
+      startAfterStatusId
+    })
 
     switch (timeline) {
       case Timeline.LocalPublic: {
@@ -1017,10 +971,10 @@ export class FirebaseStorage implements Storage {
     timeline,
     actorId
   }: CreateTimelineStatusParams): Promise<void> {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'createTimelineStatus', data: { timeline, actorId } })
+    const span = getDatabaseSpan('createTimelineStatus', 'timelines', {
+      timeline,
+      actorId
+    })
 
     const currentTime = Date.now()
     const path = `actors/${FirebaseStorage.urlToId(
@@ -1037,10 +991,9 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getActorStatusesCount', data: { actorId } })
+    const span = getDatabaseSpan('getActorStatusesCount', 'statuses', {
+      actorId
+    })
 
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses
@@ -1052,10 +1005,9 @@ export class FirebaseStorage implements Storage {
   }
 
   async getActorStatuses({ actorId }: GetActorStatusesParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getActorStatuses', data: { actorId } })
+    const span = getDatabaseSpan('getActorStatuses', 'statuses', {
+      actorId
+    })
 
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses
@@ -1075,10 +1027,9 @@ export class FirebaseStorage implements Storage {
   }
 
   async deleteStatus({ statusId }: DeleteStatusParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'deleteStatus', data: { statusId } })
+    const span = getDatabaseSpan('deleteStatus', 'statuses', {
+      statusId
+    })
 
     const repliesSnapshot = await this.db
       .collection('statuses')
@@ -1112,13 +1063,11 @@ export class FirebaseStorage implements Storage {
     height,
     name = ''
   }: CreateAttachmentParams): Promise<Attachment> {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({
-        op: 'createAttachment',
-        data: { statusId, mediaType, url }
-      })
+    const span = getDatabaseSpan('createAttachment', 'attachments', {
+      statusId,
+      mediaType,
+      url
+    })
 
     const currentTime = Date.now()
     const id = crypto.randomUUID()
@@ -1143,10 +1092,9 @@ export class FirebaseStorage implements Storage {
   }
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getAttachments', data: { statusId } })
+    const span = getDatabaseSpan('getAttachments', 'attachments', {
+      statusId
+    })
 
     const snapshot = await this.db
       .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/attachments`)
@@ -1158,10 +1106,11 @@ export class FirebaseStorage implements Storage {
   }
 
   async createTag({ statusId, name, value }: CreateTagParams): Promise<Tag> {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'createTag', data: { statusId, name, value } })
+    const span = getDatabaseSpan('createTag', 'tags', {
+      statusId,
+      name,
+      value
+    })
     const currentTime = Date.now()
     const id = crypto.randomUUID()
     const data: TagData = {
@@ -1181,10 +1130,9 @@ export class FirebaseStorage implements Storage {
   }
 
   async getTags({ statusId }: GetTagsParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getTags', data: { statusId } })
+    const span = getDatabaseSpan('getTags', 'tags', {
+      statusId
+    })
 
     const snapshot = await this.db
       .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/tags`)
@@ -1194,10 +1142,9 @@ export class FirebaseStorage implements Storage {
   }
 
   private async getReplies(statusId: string) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getReplies', data: { statusId } })
+    const span = getDatabaseSpan('getReplies', 'statuses', {
+      statusId
+    })
 
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses
@@ -1218,10 +1165,10 @@ export class FirebaseStorage implements Storage {
   }
 
   async createLike({ actorId, statusId }: CreateLikeParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'createLike', data: { actorId, statusId } })
+    const span = getDatabaseSpan('createLike', 'likes', {
+      actorId,
+      statusId
+    })
     const snapshot = await this.db
       .doc(`statuses/${FirebaseStorage.urlToId(statusId)}`)
       .get()
@@ -1253,10 +1200,10 @@ export class FirebaseStorage implements Storage {
   }
 
   async deleteLike({ statusId, actorId }: DeleteLikeParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'deleteLike', data: { statusId, actorId } })
+    const span = getDatabaseSpan('deleteLike', 'likes', {
+      actorId,
+      statusId
+    })
 
     await this.db
       .doc(
@@ -1269,10 +1216,9 @@ export class FirebaseStorage implements Storage {
   }
 
   async getLikeCount({ statusId }: GetLikeCountParams) {
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'getLikeCount', data: { statusId } })
+    const span = getDatabaseSpan('getLikeCount', 'likes', {
+      statusId
+    })
 
     const countSnapshot = await this.db
       .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/likes`)
@@ -1284,10 +1230,10 @@ export class FirebaseStorage implements Storage {
 
   private async isActorLikedStatus(statusId: string, actorId?: string) {
     if (!actorId) return false
-    const span = Sentry.getCurrentHub()
-      .getScope()
-      ?.getTransaction()
-      ?.startChild({ op: 'isActorLikedStatus', data: { statusId, actorId } })
+    const span = getDatabaseSpan('isActorLikedStatus', 'likes', {
+      statusId,
+      actorId
+    })
 
     const snapshot = await this.db
       .doc(
