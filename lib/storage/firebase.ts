@@ -14,7 +14,7 @@ import {
 } from '../models/status'
 import { Tag, TagData } from '../models/tag'
 import { Timeline } from '../timelines/types'
-import { getDatabaseSpan } from '../trace'
+import { Trace } from '../trace'
 import {
   CreateAccountParams,
   CreateActorParams,
@@ -79,30 +79,25 @@ export class FirebaseStorage implements Storage {
     await this.db.terminate()
   }
 
+  @Trace('db')
   async isAccountExists({ email }: IsAccountExistsParams) {
-    const span = getDatabaseSpan('isAccountExists', 'accounts', { email })
     const accounts = this.db.collection('accounts')
     const snapshot = await accounts.where('email', '==', email).count().get()
-    span?.finish()
     return snapshot.data().count === 1
   }
 
+  @Trace('db')
   async isUsernameExists({ username, domain }: IsUsernameExistsParams) {
-    const span = getDatabaseSpan('isUsernameExists', 'actors', {
-      username,
-      domain
-    })
-
     const accounts = this.db.collection('actors')
     const snapshot = await accounts
       .where('username', '==', username)
       .where('domain', '==', domain)
       .count()
       .get()
-    span?.finish()
     return snapshot.data().count === 1
   }
 
+  @Trace('db')
   async createAccount({
     email,
     username,
@@ -110,12 +105,6 @@ export class FirebaseStorage implements Storage {
     privateKey,
     publicKey
   }: CreateAccountParams) {
-    const span = getDatabaseSpan('createAccount', 'accounts', {
-      email,
-      username,
-      domain
-    })
-
     const actorId = `https://${domain}/users/${username}`
     if (await this.isAccountExists({ email })) {
       throw new Error('Account already exists')
@@ -141,16 +130,13 @@ export class FirebaseStorage implements Storage {
       createdAt: currentTime,
       updatedAt: currentTime
     })
-    span?.finish()
     return accountRef.id
   }
 
+  @Trace('db')
   async getAccountFromId({ id }: GetAccountFromIdParams) {
-    const span = getDatabaseSpan('getAccountFromId', 'accounts', { id })
-
     const accounts = this.db.collection('accounts')
     const snapshot = await accounts.doc(id).get()
-    span?.finish()
     if (!snapshot) return
     return {
       ...snapshot.data(),
@@ -158,6 +144,7 @@ export class FirebaseStorage implements Storage {
     } as Account
   }
 
+  @Trace('db')
   async createActor({
     actorId,
 
@@ -176,13 +163,7 @@ export class FirebaseStorage implements Storage {
 
     createdAt
   }: CreateActorParams) {
-    const span = getDatabaseSpan('createActor', 'actors', {
-      actorId,
-      domain,
-      username
-    })
     const currentTime = Date.now()
-
     const doc = {
       id: actorId,
       username,
@@ -200,7 +181,6 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     }
     await this.db.doc(`actors/${FirebaseStorage.urlToId(actorId)}`).set(doc)
-    span?.finish()
     return this.getActorFromId({ id: actorId })
   }
 
@@ -227,18 +207,14 @@ export class FirebaseStorage implements Storage {
     })
   }
 
+  @Trace('db')
   async getActorFromEmail({ email }: GetActorFromEmailParams) {
-    const span = getDatabaseSpan('getActorFromEmail', 'actors', { email })
-
     const accounts = this.db.collection('accounts')
     const accountsSnapshot = await accounts
       .where('email', '==', email)
       .limit(1)
       .get()
-    if (accountsSnapshot.docs.length !== 1) {
-      span?.finish()
-      return
-    }
+    if (accountsSnapshot.docs.length !== 1) return
 
     const accountId = accountsSnapshot.docs[0].id
     const actors = this.db.collection('actors')
@@ -246,43 +222,31 @@ export class FirebaseStorage implements Storage {
       .where('accountId', '==', accountId)
       .limit(1)
       .get()
-    if (actorsSnapshot.docs.length !== 1) {
-      span?.finish()
-      return
-    }
+    if (actorsSnapshot.docs.length !== 1) return
 
     const data = actorsSnapshot.docs[0].data()
     const account = {
       ...accountsSnapshot.docs[0].data(),
       id: accountId
     } as Account
-
-    span?.finish()
     return this.getActorFromDataAndAccount(data, account)
   }
 
+  @Trace('db')
   async getActorFromUsername({ username, domain }: GetActorFromUsernameParams) {
-    const span = getDatabaseSpan('getActorFromUsername', 'actors', { username })
-
     const actors = this.db.collection('actors')
     const snapshot = await actors
       .where('username', '==', username)
       .where('domain', '==', domain)
       .limit(1)
       .get()
-    if (snapshot.docs.length !== 1) {
-      span?.finish()
-      return undefined
-    }
-
+    if (snapshot.docs.length !== 1) return
     const data = snapshot.docs[0].data()
     if (!data.accountId) {
-      span?.finish()
       return this.getActorFromDataAndAccount(data)
     }
 
     const account = await this.getAccountFromId({ id: data.accountId })
-    span?.finish()
     return this.getActorFromDataAndAccount(data, account)
   }
 
@@ -291,26 +255,21 @@ export class FirebaseStorage implements Storage {
     return `${url.host}:${url.pathname.slice(1).replaceAll('/', ':')}`
   }
 
+  @Trace('db')
   async getActorFromId({ id }: GetActorFromIdParams) {
-    const span = getDatabaseSpan('getActorFromId', 'actors', { id })
-
     const doc = await this.db.doc(`actors/${FirebaseStorage.urlToId(id)}`).get()
     const data = doc.data()
-    if (!data) {
-      span?.finish()
-      return
-    }
+    if (!data) return
 
     if (!data.accountId) {
-      span?.finish()
       return this.getActorFromDataAndAccount(data)
     }
 
     const account = await this.getAccountFromId({ id: data.accountId })
-    span?.finish()
     return this.getActorFromDataAndAccount(data, account)
   }
 
+  @Trace('db')
   async updateActor({
     actorId,
     name,
@@ -325,14 +284,9 @@ export class FirebaseStorage implements Storage {
     inboxUrl,
     sharedInboxUrl
   }: UpdateActorParams) {
-    const span = getDatabaseSpan('updateActor', 'actors', { actorId })
-
     const path = `actors/${FirebaseStorage.urlToId(actorId)}`
     const doc = await this.db.doc(path).get()
-    if (!doc.exists) {
-      span?.finish()
-      return
-    }
+    if (!doc.exists) return
 
     const currentTime = Date.now()
     const data = doc.data()
@@ -349,28 +303,21 @@ export class FirebaseStorage implements Storage {
       ...(sharedInboxUrl ? { sharedInboxUrl } : null),
       updatedAt: currentTime
     })
-    span?.finish()
     return this.getActorFromId({ id: actorId })
   }
 
+  @Trace('db')
   async deleteActor({ actorId }: DeleteActorParams): Promise<void> {
-    const span = getDatabaseSpan('deleteActor', 'actors', { actorId })
-
     const actors = this.db.collection('actors')
     const snapshot = await actors.where('id', '==', actorId).get()
     await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()))
-    span?.finish()
   }
 
+  @Trace('db')
   async isCurrentActorFollowing({
     currentActorId,
     followingActorId
   }: IsCurrentActorFollowingParams) {
-    const span = getDatabaseSpan('isCurrentActorFollowing', 'follows', {
-      currentActorId,
-      followingActorId
-    })
-
     const follows = this.db.collection('follows')
     const snapshot = await follows
       .where('actorId', '==', currentActorId)
@@ -378,40 +325,32 @@ export class FirebaseStorage implements Storage {
       .where('status', '==', FollowStatus.Accepted)
       .count()
       .get()
-    span?.finish()
     return snapshot.data().count > 0
   }
 
+  @Trace('db')
   async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
-    const span = getDatabaseSpan('getActorFollowingCount', 'follows', {
-      actorId
-    })
-
     const follows = this.db.collection('follows')
     const snapshot = await follows
       .where('actorId', '==', actorId)
       .where('status', '==', FollowStatus.Accepted)
       .count()
       .get()
-    span?.finish()
     return snapshot.data().count
   }
 
+  @Trace('db')
   async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
-    const span = getDatabaseSpan('getActorFollowersCount', 'follows', {
-      actorId
-    })
-
     const follows = this.db.collection('follows')
     const snapshot = await follows
       .where('targetActorId', '==', actorId)
       .where('status', '==', FollowStatus.Accepted)
       .count()
       .get()
-    span?.finish()
     return snapshot.data().count
   }
 
+  @Trace('db')
   async createFollow({
     actorId,
     targetActorId,
@@ -419,17 +358,11 @@ export class FirebaseStorage implements Storage {
     inbox,
     sharedInbox
   }: CreateFollowParams) {
-    const span = getDatabaseSpan('createFollow', 'follows', {
-      actorId,
-      targetActorId
-    })
-
     const existingFollow = await this.getAcceptedOrRequestedFollow({
       actorId,
       targetActorId
     })
     if (existingFollow) {
-      span?.finish()
       return existingFollow
     }
 
@@ -447,27 +380,19 @@ export class FirebaseStorage implements Storage {
     }
     const follows = this.db.collection('follows')
     const ref = await follows.add(content)
-    span?.finish()
     return {
       id: ref.id,
       ...content
     }
   }
 
+  @Trace('db')
   async getFollowFromId({ followId }: GetFollowFromIdParams) {
-    const span = getDatabaseSpan('getFollowFromId', 'follows', {
-      followId
-    })
-
     const follows = this.db.collection('follows')
     const snapshot = await follows.doc(followId).get()
-    if (!snapshot) {
-      span?.finish()
-      return
-    }
+    if (!snapshot) return
 
     const data = snapshot.data()
-    span?.finish()
     return {
       id: followId,
       actorHost: new URL(data?.actorId).host,
@@ -476,13 +401,10 @@ export class FirebaseStorage implements Storage {
     } as Follow
   }
 
+  @Trace('db')
   async getLocalFollowersForActorId({
     targetActorId
   }: GetLocalFollowersForActorIdParams) {
-    const span = getDatabaseSpan('getLocalFollowersForActorId', 'follows', {
-      targetActorId
-    })
-
     const actor = await this.getActorFromId({ id: targetActorId })
     // External actor, all followers are internal
     if (!actor?.privateKey) {
@@ -491,8 +413,6 @@ export class FirebaseStorage implements Storage {
         .where('targetActorId', '==', targetActorId)
         .where('status', '==', FollowStatus.Accepted)
         .get()
-
-      span?.finish()
       return snapshot.docs.map((doc) => doc.data() as Follow)
     }
 
@@ -511,26 +431,18 @@ export class FirebaseStorage implements Storage {
       .where('status', '==', FollowStatus.Accepted)
       .where('actorHost', 'in', domains)
       .get()
-
-    span?.finish()
     return snapshot.docs.map((doc) => doc.data() as Follow)
   }
 
+  @Trace('db')
   async getLocalActorsFromFollowerUrl({
     followerUrl
   }: GetLocalActorsFromFollowerUrlParams) {
-    const span = getDatabaseSpan('getLocalActorsFromFollowerUrl', 'actors', {
-      followerUrl
-    })
-
     const actorFromFollowerUrl = await this.db
       .collection('actors')
       .where('followersUrl', '==', followerUrl)
       .get()
-    if (!actorFromFollowerUrl.size) {
-      span?.finish()
-      return []
-    }
+    if (!actorFromFollowerUrl.size) return []
     const id = actorFromFollowerUrl.docs[0].data().id
 
     const follows = await this.db
@@ -538,10 +450,7 @@ export class FirebaseStorage implements Storage {
       .where('targetActorId', '==', id)
       .where('status', '==', FollowStatus.Accepted)
       .get()
-    if (!follows.size) {
-      span?.finish()
-      return []
-    }
+    if (!follows.size) return []
     const followers = follows.docs
       .map((doc) => doc.data())
       .map((data) => data.actorId)
@@ -554,19 +463,14 @@ export class FirebaseStorage implements Storage {
       (actor): actor is Actor => actor !== undefined && actor.privateKey !== ''
     )
 
-    span?.finish()
     return actors
   }
 
+  @Trace('db')
   async getAcceptedOrRequestedFollow({
     actorId,
     targetActorId
   }: GetAcceptedOrRequestedFollowParams) {
-    const span = getDatabaseSpan('geAcceptedOrRequestedFollow', 'follows', {
-      actorId,
-      targetActorId
-    })
-
     const follows = this.db.collection('follows')
     const snapshot = await follows
       .where('actorId', '==', actorId)
@@ -575,13 +479,9 @@ export class FirebaseStorage implements Storage {
       .orderBy('createdAt', 'desc')
       .limit(1)
       .get()
-    if (snapshot.docs.length !== 1) {
-      span?.finish()
-      return
-    }
+    if (snapshot.docs.length !== 1) return
     const document = snapshot.docs[0]
     const data = document.data()
-    span?.finish()
     return {
       ...data,
       id: document.id,
@@ -590,17 +490,13 @@ export class FirebaseStorage implements Storage {
     } as Follow
   }
 
+  @Trace('db')
   async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {
-    const span = getDatabaseSpan('getFollowersInbox', 'follows', {
-      targetActorId
-    })
-
     const follows = this.db.collection('follows')
     const snapshot = await follows
       .where('targetActorId', '==', targetActorId)
       .where('status', '==', FollowStatus.Accepted)
       .get()
-    span?.finish()
     return Array.from(
       snapshot.docs.reduce((uniqueInboxes, document) => {
         const data = document.data()
@@ -611,26 +507,19 @@ export class FirebaseStorage implements Storage {
     )
   }
 
+  @Trace('db')
   async updateFollowStatus({ followId, status }: UpdateFollowStatusParams) {
-    const span = getDatabaseSpan('updateFollowStatus', 'follows', {
-      followId,
-      status
-    })
-
     const follow = await this.getFollowFromId({ followId })
-    if (!follow) {
-      span?.finish()
-      return
-    }
+    if (!follow) return
 
     const ref = this.db.collection('follows').doc(follow.id)
     await ref.update({
       status,
       updatedAt: Date.now()
     })
-    span?.finish()
   }
 
+  @Trace('db')
   async createNote({
     id,
     url,
@@ -642,12 +531,7 @@ export class FirebaseStorage implements Storage {
     reply = '',
     createdAt
   }: CreateNoteParams) {
-    const span = getDatabaseSpan('createNote', 'statuses', {
-      id
-    })
-
     const currentTime = Date.now()
-
     const status = {
       id,
       url,
@@ -664,7 +548,6 @@ export class FirebaseStorage implements Storage {
     await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set(status)
 
     const actor = await this.getActorFromId({ id: actorId })
-    span?.finish()
     return new Status({
       ...status,
       actor: actor?.toProfile() || null,
@@ -677,6 +560,7 @@ export class FirebaseStorage implements Storage {
     })
   }
 
+  @Trace('db')
   async createAnnounce({
     id,
     actorId,
@@ -685,12 +569,7 @@ export class FirebaseStorage implements Storage {
     originalStatusId,
     createdAt
   }: CreateAnnounceParams): Promise<Status> {
-    const span = getDatabaseSpan('createAnnounce', 'statuses', {
-      id
-    })
-
     const currentTime = Date.now()
-
     const status = {
       id,
       actorId,
@@ -712,17 +591,12 @@ export class FirebaseStorage implements Storage {
       ...status,
       originalStatus: originalStatus?.data
     }
-    span?.finish()
     return new Status(announceData)
   }
 
+  @Trace('db')
   private async isActorAnnouncedStatus(statusId: string, actorId?: string) {
     if (!actorId) return false
-
-    const span = getDatabaseSpan('isActorAnnouncedStatus', 'statuses', {
-      statusId,
-      actorId
-    })
 
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses
@@ -732,25 +606,21 @@ export class FirebaseStorage implements Storage {
       .count()
       .get()
 
-    span?.finish()
     return snapshot.data().count === 1
   }
 
+  @Trace('db')
   private async getStatusFromData(
     data: any,
     withReplies: boolean,
     currentActorId?: string
   ): Promise<Status | undefined> {
-    const span = getDatabaseSpan('getStatusFromData', 'statuses', {
-      id: data.id
-    })
     if (data.type === StatusType.Announce) {
       if (!data.originalStatusId) {
         console.error(
           'Announce status original status id is undefined',
           data.id
         )
-        span?.finish()
         return
       }
 
@@ -758,10 +628,7 @@ export class FirebaseStorage implements Storage {
         .doc(`statuses/${FirebaseStorage.urlToId(data.originalStatusId)}`)
         .get()
       const originalStatusData = snapshot.data()
-      if (!originalStatusData) {
-        span?.finish()
-        return
-      }
+      if (!originalStatusData) return
 
       if (originalStatusData.type === StatusType.Announce) {
         console.error(
@@ -769,7 +636,6 @@ export class FirebaseStorage implements Storage {
           data.id,
           data.originalStatusId
         )
-        span?.finish()
         return
       }
 
@@ -779,12 +645,7 @@ export class FirebaseStorage implements Storage {
           id: data.actorId
         })
       ])
-      if (!originalStatus) {
-        span?.finish()
-        return
-      }
-
-      span?.finish()
+      if (!originalStatus) return
       return new Status({
         id: data.id,
         actorId: data.actorId,
@@ -818,7 +679,6 @@ export class FirebaseStorage implements Storage {
     ])
 
     const replies = withReplies ? await this.getReplies(data.id) : []
-    span?.finish()
     return new Status({
       id: data.id,
       url: data.url,
@@ -841,27 +701,18 @@ export class FirebaseStorage implements Storage {
     })
   }
 
+  @Trace('db')
   private async getStatusWithCurrentActor(
     statusId: string,
     withReplies: boolean,
     currentActorId?: string
   ) {
-    const span = getDatabaseSpan('getStatusWithCurrentActor', 'statuses', {
-      statusId
-    })
-
     const snapshot = await this.db
       .doc(`statuses/${FirebaseStorage.urlToId(statusId)}`)
       .get()
     const data = snapshot.data()
-    if (!data) {
-      span?.finish()
-      return
-    }
-
-    const status = this.getStatusFromData(data, withReplies, currentActorId)
-    span?.finish()
-    return status
+    if (!data) return
+    return this.getStatusFromData(data, withReplies, currentActorId)
   }
 
   async getStatus({ statusId, withReplies = false }: GetStatusParams) {
@@ -872,17 +723,12 @@ export class FirebaseStorage implements Storage {
     return (await this.getReplies(statusId)).map((note) => new Status(note))
   }
 
+  @Trace('db')
   async getTimeline({
     timeline,
     actorId,
     startAfterStatusId
   }: GetTimelineParams) {
-    const span = getDatabaseSpan('getTimeline', 'timelines', {
-      timeline,
-      actorId,
-      startAfterStatusId
-    })
-
     switch (timeline) {
       case Timeline.LocalPublic: {
         const actors = await this.db
@@ -915,17 +761,13 @@ export class FirebaseStorage implements Storage {
             .sort((a, b) => b.createdAt - a.createdAt)
             .map((data) => this.getStatusFromData(data, false))
         )
-        span?.finish()
         return statuses
           .filter((status): status is Status => Boolean(status))
           .slice(0, PER_PAGE_LIMIT)
       }
       case Timeline.MAIN:
       case Timeline.NOANNOUNCE: {
-        if (!actorId) {
-          span?.finish()
-          return []
-        }
+        if (!actorId) return []
 
         let query = this.db
           .collection(`actors/${FirebaseStorage.urlToId(actorId)}/timelines`)
@@ -954,28 +796,22 @@ export class FirebaseStorage implements Storage {
               return this.getStatusFromData(statusData.data(), false, actorId)
             })
         )
-        span?.finish()
         return statuses.filter(
           (status): status is Status => status !== undefined
         )
       }
       default: {
-        span?.finish()
         return []
       }
     }
   }
 
+  @Trace('db')
   async createTimelineStatus({
     status,
     timeline,
     actorId
   }: CreateTimelineStatusParams): Promise<void> {
-    const span = getDatabaseSpan('createTimelineStatus', 'timelines', {
-      timeline,
-      actorId
-    })
-
     const currentTime = Date.now()
     const path = `actors/${FirebaseStorage.urlToId(
       actorId
@@ -987,28 +823,20 @@ export class FirebaseStorage implements Storage {
       createdAt: status.createdAt,
       updatedAt: currentTime
     })
-    span?.finish()
   }
 
+  @Trace('db')
   async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
-    const span = getDatabaseSpan('getActorStatusesCount', 'statuses', {
-      actorId
-    })
-
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses
       .where('actorId', '==', actorId)
       .count()
       .get()
-    span?.finish()
     return snapshot.data().count
   }
 
+  @Trace('db')
   async getActorStatuses({ actorId }: GetActorStatusesParams) {
-    const span = getDatabaseSpan('getActorStatuses', 'statuses', {
-      actorId
-    })
-
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses
       .where('actorId', '==', actorId)
@@ -1022,15 +850,11 @@ export class FirebaseStorage implements Storage {
         return this.getStatusFromData(data, false)
       })
     )
-    span?.finish()
     return items.filter((item): item is Status => Boolean(item))
   }
 
+  @Trace('db')
   async deleteStatus({ statusId }: DeleteStatusParams) {
-    const span = getDatabaseSpan('deleteStatus', 'statuses', {
-      statusId
-    })
-
     const repliesSnapshot = await this.db
       .collection('statuses')
       .where('reply', '==', statusId)
@@ -1051,10 +875,9 @@ export class FirebaseStorage implements Storage {
       ...statusInTimelines.docs.map((doc) => doc.ref.delete()),
       this.db.doc(`statuses/${FirebaseStorage.urlToId(statusId)}`).delete()
     ])
-
-    span?.finish()
   }
 
+  @Trace('db')
   async createAttachment({
     statusId,
     mediaType,
@@ -1063,12 +886,6 @@ export class FirebaseStorage implements Storage {
     height,
     name = ''
   }: CreateAttachmentParams): Promise<Attachment> {
-    const span = getDatabaseSpan('createAttachment', 'attachments', {
-      statusId,
-      mediaType,
-      url
-    })
-
     const currentTime = Date.now()
     const id = crypto.randomUUID()
     const data: AttachmentData = {
@@ -1087,30 +904,21 @@ export class FirebaseStorage implements Storage {
     await this.db
       .doc(`statuses/${FirebaseStorage.urlToId(statusId)}/attachments/${id}`)
       .set(data)
-    span?.finish()
     return new Attachment(data)
   }
 
+  @Trace('db')
   async getAttachments({ statusId }: GetAttachmentsParams) {
-    const span = getDatabaseSpan('getAttachments', 'attachments', {
-      statusId
-    })
-
     const snapshot = await this.db
       .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/attachments`)
       .get()
-    span?.finish()
     return snapshot.docs.map(
       (item) => new Attachment(item.data() as AttachmentData)
     )
   }
 
+  @Trace('db')
   async createTag({ statusId, name, value }: CreateTagParams): Promise<Tag> {
-    const span = getDatabaseSpan('createTag', 'tags', {
-      statusId,
-      name,
-      value
-    })
     const currentTime = Date.now()
     const id = crypto.randomUUID()
     const data: TagData = {
@@ -1125,27 +933,19 @@ export class FirebaseStorage implements Storage {
     await this.db
       .doc(`statuses/${FirebaseStorage.urlToId(statusId)}/tags/${id}`)
       .set(data)
-    span?.finish()
     return new Tag(data)
   }
 
+  @Trace('db')
   async getTags({ statusId }: GetTagsParams) {
-    const span = getDatabaseSpan('getTags', 'tags', {
-      statusId
-    })
-
     const snapshot = await this.db
       .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/tags`)
       .get()
-    span?.finish()
     return snapshot.docs.map((item) => new Tag(item.data() as TagData))
   }
 
+  @Trace('db')
   private async getReplies(statusId: string) {
-    const span = getDatabaseSpan('getReplies', 'statuses', {
-      statusId
-    })
-
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses
       .where('reply', '==', statusId)
@@ -1160,29 +960,19 @@ export class FirebaseStorage implements Storage {
         return status.data
       })
     )
-    span?.finish()
     return replies.filter((item): item is StatusNote => Boolean(item))
   }
 
+  @Trace('db')
   async createLike({ actorId, statusId }: CreateLikeParams) {
-    const span = getDatabaseSpan('createLike', 'likes', {
-      actorId,
-      statusId
-    })
     const snapshot = await this.db
       .doc(`statuses/${FirebaseStorage.urlToId(statusId)}`)
       .get()
-    if (!snapshot.exists) {
-      span?.finish()
-      return
-    }
+    if (!snapshot.exists) return
 
     const currentTime = Date.now()
     const isLiked = await this.isActorLikedStatus(statusId, actorId)
-    if (isLiked) {
-      span?.finish()
-      return
-    }
+    if (isLiked) return
 
     await this.db
       .doc(
@@ -1196,15 +986,10 @@ export class FirebaseStorage implements Storage {
         createdAt: currentTime,
         updatedAt: currentTime
       })
-    span?.finish()
   }
 
+  @Trace('db')
   async deleteLike({ statusId, actorId }: DeleteLikeParams) {
-    const span = getDatabaseSpan('deleteLike', 'likes', {
-      actorId,
-      statusId
-    })
-
     await this.db
       .doc(
         `statuses/${FirebaseStorage.urlToId(
@@ -1212,29 +997,20 @@ export class FirebaseStorage implements Storage {
         )}/likes/${FirebaseStorage.urlToId(actorId)}`
       )
       .delete()
-    span?.finish()
   }
 
+  @Trace('db')
   async getLikeCount({ statusId }: GetLikeCountParams) {
-    const span = getDatabaseSpan('getLikeCount', 'likes', {
-      statusId
-    })
-
     const countSnapshot = await this.db
       .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/likes`)
       .count()
       .get()
-    span?.finish()
     return countSnapshot.data().count ?? 0
   }
 
+  @Trace('db')
   private async isActorLikedStatus(statusId: string, actorId?: string) {
     if (!actorId) return false
-    const span = getDatabaseSpan('isActorLikedStatus', 'likes', {
-      statusId,
-      actorId
-    })
-
     const snapshot = await this.db
       .doc(
         `statuses/${FirebaseStorage.urlToId(
@@ -1242,7 +1018,6 @@ export class FirebaseStorage implements Storage {
         )}/likes/${FirebaseStorage.urlToId(actorId)}`
       )
       .get()
-    span?.finish()
     return snapshot.exists
   }
 }
