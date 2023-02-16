@@ -20,7 +20,7 @@
     "@sentry/nextjs": "7.37.2",
     "@sentry/node": "^7.37.2",
     "@sentry/tracing": "^7.37.2",
-    "@vercel/analytics": "^0.1.8",
+    "@vercel/analytics": "^0.1.9",
     "better-sqlite3": "^8.1.0",
     "bootstrap": "^5.2.3",
     "bootstrap-icons": "^1.10.3",

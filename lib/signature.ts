@@ -41,7 +41,6 @@ export async function verify(
 
   const headerSignature = await parse(headers.signature as string)
   if (!headerSignature.headers) {
-    span?.setStatus('invalid')
     span?.finish()
     return false
   }
@@ -60,11 +59,9 @@ export async function verify(
   const verifier = crypto.createVerify(headerSignature.algorithm)
   verifier.update(comparedSignedString)
   try {
-    span?.setStatus('ok')
     span?.finish()
     return verifier.verify(publicKey, signature, 'base64')
   } catch {
-    span?.setStatus('invalid')
     span?.finish()
     return false
   }
@@ -122,7 +119,6 @@ export function signedHeaders(
     'content-type': contentType
   }
   if (!currentActor.privateKey) {
-    span?.setStatus('invalid')
     span?.finish()
     return headers
   }
@@ -133,7 +129,6 @@ export function signedHeaders(
     currentActor.privateKey
   )
   const signatureHeader = `keyId="${currentActor.id}#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="${signature}"`
-  span?.setStatus('ok')
   span?.finish()
   return {
     ...headers,
