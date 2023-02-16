@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/node'
 import * as linkify from 'linkifyjs'
 
 import { getPublicProfileFromHandle } from './activities'
@@ -6,6 +5,7 @@ import { Mention } from './activities/entities/mention'
 import './linkify-mention'
 import { Actor } from './models/actor'
 import { Status } from './models/status'
+import { getSpan } from './trace'
 
 const LINK_BODY_LIMIT = 25
 
@@ -129,9 +129,10 @@ export const getMentions = async ({
   currentActor,
   replyStatus
 }: GetMentionsParams): Promise<Mention[]> => {
-  const span = Sentry.getCurrentHub().getScope()?.getTransaction()?.startChild({
-    op: 'getMentions',
-    data: { text, currentActor, replyStatus }
+  const span = getSpan('link', 'getMentions', {
+    text,
+    actorId: currentActor.id,
+    replyStatusId: replyStatus?.id
   })
 
   const mentions = await Promise.all(

@@ -1120,7 +1120,7 @@
     rollup "2.78.0"
     tslib "^1.9.3"
 
-"@sentry/node@7.37.2", "@sentry/node@^7.37.2":
+"@sentry/node@7.37.2":
   version "7.37.2"
   resolved "https://registry.yarnpkg.com/@sentry/node/-/node-7.37.2.tgz#7ce3b09c93112afca0eef0fd65ec87ea1cd1b7d2"
   integrity sha512-aeJQ4oU3vF9zks8S/fvoLPVVhofmTjyMhZZIpSQWtfFqWxrXQsrqNlNUZZdXoqAUPNjA4QAzzOoXHhpUsa3Nxw==

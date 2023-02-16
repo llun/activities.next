@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/node'
+import * as Sentry from '@sentry/nextjs'
 
 interface Data {
   [key: string]: string | boolean | number | undefined
@@ -8,7 +8,7 @@ interface Data {
 export const getDatabaseSpan = (
   databaseMethod: string,
   collection: string,
-  data: Data
+  data: Data = {}
 ) => {
   return Sentry.getCurrentHub()
     .getScope()
@@ -23,7 +23,7 @@ export const getDatabaseSpan = (
     })
 }
 
-export const getSpan = (op: string, name: string, data: Data) => {
+export const getSpan = (op: string, name: string, data: Data = {}) => {
   return Sentry.getCurrentHub().getScope()?.getTransaction()?.startChild({
     op,
     description: name,

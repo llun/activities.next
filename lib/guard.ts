@@ -1,5 +1,4 @@
 /* eslint-disable camelcase */
-import * as Sentry from '@sentry/node'
 import { IncomingHttpHeaders } from 'http'
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
 import { Session, getServerSession } from 'next-auth'
@@ -11,6 +10,7 @@ import { ERROR_400, ERROR_500 } from './responses'
 import { parse, verify } from './signature'
 import { getStorage } from './storage'
 import { Storage } from './storage/types'
+import { getSpan } from './trace'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
@@ -18,10 +18,7 @@ const ACTIVITIES_HOST = 'x-activity-next-host'
 const FORWARDED_HOST = 'x-forwarded-host'
 
 async function getSenderPublicKey(storage: Storage, actorId: string) {
-  const span = Sentry.getCurrentHub().getScope()?.getTransaction()?.startChild({
-    op: 'getSenderPublicKey',
-    data: { actorId }
-  })
+  const span = getSpan('guard', 'getSenderPublicKey', { actorId })
   const localActor = await storage.getActorFromId({ id: actorId })
   if (localActor) {
     span?.finish()

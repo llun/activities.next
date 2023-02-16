@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/node'
 import crypto from 'crypto'
 
 import { getPublicProfile, sendNote } from '../activities'
@@ -20,6 +19,7 @@ import { PostBoxAttachment } from '../models/attachment'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
+import { getSpan } from '../trace'
 import { recordActorIfNeeded } from './utils'
 
 interface CreateNoteParams {
@@ -30,10 +30,7 @@ export const createNote = async ({
   note,
   storage
 }: CreateNoteParams): Promise<Note | null> => {
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({ op: 'createNote', data: note })
+  const span = getSpan('actions', 'createNote', { status: note.id })
 
   const existingStatus = await storage.getStatus({
     statusId: note.id,
@@ -117,11 +114,7 @@ export const createNoteFromUserInput = async ({
   attachments = [],
   storage
 }: CreateNoteFromUserInputParams) => {
-  const span = Sentry.getCurrentHub().getScope()?.getTransaction()?.startChild({
-    op: 'createNoteFromUser',
-    data: { text, replyNoteId }
-  })
-
+  const span = getSpan('actions', 'createNoteFromUser', { text, replyNoteId })
   const replyStatus = replyNoteId
     ? await storage.getStatus({ statusId: replyNoteId, withReplies: false })
     : undefined

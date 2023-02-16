@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/node'
 import type { NextApiHandler, NextApiResponse } from 'next'
 
 import { announce } from '../../lib/actions/announce'
@@ -17,6 +16,7 @@ import { compact } from '../../lib/jsonld'
 import { ERROR_404, ERROR_500 } from '../../lib/responses'
 import { getStorage } from '../../lib/storage'
 import { Storage } from '../../lib/storage/types'
+import { getSpan } from '../../lib/trace'
 
 const handlePost = async (
   storage: Storage,
@@ -74,12 +74,7 @@ const ApiHandler: NextApiHandler = activitiesGuard(
 
     switch (req.method) {
       case 'POST': {
-        const span = Sentry.getCurrentHub()
-          .getScope()
-          ?.getTransaction()
-          ?.startChild({
-            op: 'handlePost'
-          })
+        const span = getSpan('api', 'handlePost')
         const requestBody =
           typeof req.body === 'string' ? JSON.parse(req.body) : req.body
         const body = (await compact(requestBody)) as StatusActivity
