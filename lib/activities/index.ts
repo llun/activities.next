@@ -16,6 +16,7 @@ import {
 } from '../models/status'
 import { signedHeaders } from '../signature'
 import { getISOTimeUTC } from '../time'
+import { getSpan } from '../trace'
 import { AcceptFollow } from './actions/acceptFollow'
 import { AnnounceStatus } from './actions/announceStatus'
 import { CreateStatus } from './actions/createStatus'
@@ -95,11 +96,7 @@ const fetchWithTimeout = async ({
 export const getWebfingerSelf = async (account: string) => {
   const [user, domain] = account.split('@')
   if (!user || !domain) return null
-  const span = Sentry.getCurrentHub().getScope()?.getTransaction()?.startChild({
-    op: 'getWebfingerSelf',
-    data: { account }
-  })
-
+  const span = getSpan('activities', 'getWebfingerSelf', { account })
   try {
     const response = await fetch(
       `https://${domain}/.well-known/webfinger?resource=acct:${account}`,
@@ -171,10 +168,12 @@ export const getPublicProfile = async ({
   withCollectionCount = false,
   withPublicKey = false
 }: GetPublicProfileParams): Promise<PublicProfile | null> => {
-  const span = Sentry.getCurrentHub().getScope()?.getTransaction()?.startChild({
-    op: 'getPublicProfile',
-    data: { actorId, withCollectionCount, withPublicKey }
+  const span = getSpan('activities', 'getPublicProfile', {
+    actorId,
+    withCollectionCount,
+    withPublicKey
   })
+
   try {
     const response = await fetchWithTimeout({
       url: actorId,
@@ -327,9 +326,8 @@ interface GetActorPostsParams {
 }
 export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
   if (!postsUrl) return []
-  const span = Sentry.getCurrentHub().getScope()?.getTransaction()?.startChild({
-    op: 'getActorPosts',
-    data: { postsUrl }
+  const span = getSpan('activities', 'getActorPosts', {
+    postsUrl
   })
 
   const response = await fetch(postsUrl, {
@@ -358,9 +356,8 @@ interface GetStatusParams {
   statusId: string
 }
 export const getStatus = async ({ statusId }: GetStatusParams) => {
-  const span = Sentry.getCurrentHub().getScope()?.getTransaction()?.startChild({
-    op: 'getStatus',
-    data: { statusId }
+  const span = getSpan('activities', 'getStatus', {
+    statusId
   })
   const response = await fetch(statusId, {
     headers: SHARED_HEADERS
@@ -382,13 +379,10 @@ export const sendNote = async ({
   inbox,
   note
 }: SendNoteParams) => {
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({
-      op: 'sendNote',
-      data: { actorId: currentActor.id, inbox }
-    })
+  const span = getSpan('activities', 'sendNote', {
+    actorId: currentActor.id,
+    inbox
+  })
   const activity: CreateStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${note.id}/activity`,
@@ -426,13 +420,10 @@ export const sendAnnounce = async ({
     return null
   }
 
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({
-      op: 'sendAnnounce',
-      data: { actorId: currentActor.id, inbox }
-    })
+  const span = getSpan('activities', 'sendAnnounce', {
+    actorId: currentActor.id,
+    inbox
+  })
   const activity: AnnounceStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${status.id}/activity`,
@@ -466,13 +457,10 @@ export const deleteStatus = async ({
   inbox,
   statusId
 }: DeleteStatusParams) => {
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({
-      op: 'deleteStatus',
-      data: { actorId: currentActor.id, inbox }
-    })
+  const span = getSpan('activities', 'deleteStatus', {
+    actorId: currentActor.id,
+    inbox
+  })
   const activity: DeleteStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${statusId}#delete`,
@@ -507,13 +495,10 @@ export const undoAnnounce = async ({
   inbox,
   announce
 }: UndoAnnounceParams) => {
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({
-      op: 'undoAnnounce',
-      data: { actorId: currentActor.id, inbox }
-    })
+  const span = getSpan('activities', 'undoAnnounce', {
+    actorId: currentActor.id,
+    inbox
+  })
   const activity: UndoStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${announce.id}#undo`,
@@ -548,13 +533,11 @@ export const follow = async (
   currentActor: Actor,
   targetActorId: string
 ) => {
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({
-      op: 'follow',
-      data: { id, actorId: currentActor.id, targetActorId }
-    })
+  const span = getSpan('activities', 'follow', {
+    id,
+    actorId: currentActor.id,
+    targetActorId
+  })
   const activity: FollowRequest = {
     '@context': ACTIVITY_STREAM_URL,
     id: `https://${currentActor.domain}/${id}`,
@@ -589,13 +572,10 @@ export const follow = async (
 }
 
 export const unfollow = async (currentActor: Actor, follow: Follow) => {
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({
-      op: 'unfollow',
-      data: { actorId: currentActor.id, follow }
-    })
+  const span = getSpan('activities', 'unfollow', {
+    actorId: currentActor.id,
+    follow: follow.id
+  })
   const activity: UndoFollow = {
     '@context': ACTIVITY_STREAM_URL,
     id: `https://${currentActor.domain}/${currentActor.id}#follows/${follow.id}/undo`,
@@ -639,13 +619,10 @@ export const acceptFollow = async (
   followingInbox: string,
   followRequest: FollowRequest
 ) => {
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({
-      op: 'acceptFollow',
-      data: { actorId: currentActor.id, followingInbox }
-    })
+  const span = getSpan('activities', 'acceptFollow', {
+    actorId: currentActor.id,
+    followingInbox
+  })
   const activity: AcceptFollow = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${currentActor.id}#accepts/followers`,
@@ -687,13 +664,11 @@ interface LikeParams {
 export const sendLike = async ({ currentActor, status }: LikeParams) => {
   if (!status.actor) return
 
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({
-      op: 'sendLike',
-      data: { actorId: currentActor.id, statusId: status.id }
-    })
+  const span = getSpan('activities', 'sendLike', {
+    actorId: currentActor.id,
+    statusId: status.id
+  })
+
   const activity: LikeStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${currentActor.id}#likes/${statusIdHash(status.id)}`,
@@ -728,13 +703,11 @@ export const sendUndoLike = async ({
   status
 }: UndoLikeParams) => {
   if (!status.actor) return
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({
-      op: 'undoLike',
-      data: { actorId: currentActor.id, statusId: status.id }
-    })
+
+  const span = getSpan('activities', 'undoLike', {
+    actorId: currentActor.id,
+    statusId: status.id
+  })
 
   const activity: UndoLike = {
     '@context': ACTIVITY_STREAM_URL,

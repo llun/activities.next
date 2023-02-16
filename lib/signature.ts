@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/node'
 import crypto from 'crypto'
 import { IncomingHttpHeaders } from 'http'
 import { generate } from 'peggy'
@@ -6,6 +5,7 @@ import util from 'util'
 
 import { getConfig } from './config'
 import { Actor } from './models/actor'
+import { getSpan } from './trace'
 
 export const SIGNATURE_GRAMMAR = `
 pairs = (","? pair:pair { return pair })+
@@ -34,10 +34,9 @@ export async function verify(
   headers: IncomingHttpHeaders,
   publicKey: string
 ) {
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({ op: 'signature.verify', data: { requestTarget } })
+  const span = getSpan('signature', 'verify', {
+    requestTarget
+  })
 
   const headerSignature = await parse(headers.signature as string)
   if (!headerSignature.headers) {
@@ -72,10 +71,6 @@ export function sign(
   headers: IncomingHttpHeaders,
   privateKey: string
 ) {
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({ op: 'signature.sign', data: { request } })
   const signedString = [
     request,
     `host: ${headers.host}`,
@@ -86,7 +81,6 @@ export function sign(
   const signer = crypto.createSign('rsa-sha256')
   signer.write(signedString)
   signer.end()
-  span?.finish()
   return signer.sign(
     { key: privateKey, passphrase: getConfig().secretPhase },
     'base64'
@@ -99,10 +93,6 @@ export function signedHeaders(
   targetUrl: string,
   content: any
 ) {
-  const span = Sentry.getCurrentHub()
-    .getScope()
-    ?.getTransaction()
-    ?.startChild({ op: 'signature.signedHeader', data: { targetUrl, method } })
   const url = new URL(targetUrl)
   const digest = `SHA-256=${crypto
     .createHash('sha-256')
@@ -119,7 +109,6 @@ export function signedHeaders(
     'content-type': contentType
   }
   if (!currentActor.privateKey) {
-    span?.finish()
     return headers
   }
 
@@ -129,7 +118,6 @@ export function signedHeaders(
     currentActor.privateKey
   )
   const signatureHeader = `keyId="${currentActor.id}#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="${signature}"`
-  span?.finish()
   return {
     ...headers,
     signature: signatureHeader
