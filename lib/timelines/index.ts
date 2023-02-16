@@ -1,6 +1,7 @@
 import { Actor } from '../models/actor'
 import { Status } from '../models/status'
 import { Storage } from '../storage/types'
+import { getSpan } from '../trace'
 import { mainTimelineRule } from './main'
 import { noannounceTimelineRule } from './noaanounce'
 
@@ -8,6 +9,9 @@ export const addStatusToTimelines = async (
   storage: Storage,
   status: Status
 ): Promise<void> => {
+  const span = getSpan('timelines', 'addStatusToTimelines', {
+    statusId: status.id
+  })
   const { to, cc, actorId } = status
   const recipients = [...to, ...cc, actorId]
   const localActors = (
@@ -45,4 +49,5 @@ export const addStatusToTimelines = async (
       })
       .flat()
   )
+  span?.finish()
 }

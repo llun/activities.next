@@ -1,4 +1,5 @@
 import { StatusType } from '../models/status'
+import { getSpan } from '../trace'
 import { MainTimelineRule, Timeline } from './types'
 
 /**
@@ -25,12 +26,19 @@ export const mainTimelineRule: MainTimelineRule = async ({
   currentActor,
   status
 }) => {
+  const span = getSpan('timelines', 'mainTimelineRule', {
+    actorId: currentActor.id,
+    statusId: status.id
+  })
   if (status.type === StatusType.Announce) {
     const isFollowing = await storage.isCurrentActorFollowing({
       currentActorId: currentActor.id,
       followingActorId: status.actorId
     })
-    if (!isFollowing) return null
+    if (!isFollowing) {
+      span?.finish()
+      return null
+    }
 
     const originalStatus = status.originalStatus
     const timeline = await mainTimelineRule({
@@ -38,17 +46,22 @@ export const mainTimelineRule: MainTimelineRule = async ({
       currentActor,
       status: originalStatus
     })
+    span?.finish()
     if (timeline === Timeline.MAIN) return null
     return Timeline.MAIN
   }
 
-  if (status.actorId === currentActor.id) return Timeline.MAIN
+  if (status.actorId === currentActor.id) {
+    span?.finish()
+    return Timeline.MAIN
+  }
   const isFollowing = await storage.isCurrentActorFollowing({
     currentActorId: currentActor.id,
     followingActorId: status.actorId
   })
 
   if (!status.reply) {
+    span?.finish()
     if (isFollowing) return Timeline.MAIN
     return null
   }
@@ -58,8 +71,23 @@ export const mainTimelineRule: MainTimelineRule = async ({
     withReplies: false
   })
   // Deleted parent status, don't show child status
-  if (!repliedStatus) return null
-  if (repliedStatus.actorId === currentActor.id) return Timeline.MAIN
-  if (!isFollowing) return null
-  return mainTimelineRule({ storage, currentActor, status: repliedStatus.data })
+  if (!repliedStatus) {
+    span?.finish()
+    return null
+  }
+  if (repliedStatus.actorId === currentActor.id) {
+    span?.finish()
+    return Timeline.MAIN
+  }
+  if (!isFollowing) {
+    span?.finish()
+    return null
+  }
+  const value = await mainTimelineRule({
+    storage,
+    currentActor,
+    status: repliedStatus.data
+  })
+  span?.finish()
+  return value
 }

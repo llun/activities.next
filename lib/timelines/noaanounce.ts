@@ -1,4 +1,5 @@
 import { StatusType } from '../models/status'
+import { getSpan } from '../trace'
 import { NoAnnounceTimelineRule, Timeline } from './types'
 
 /**
@@ -26,14 +27,25 @@ export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
   currentActor,
   status
 }) => {
-  if (status.type === StatusType.Announce) return null
-  if (status.actorId === currentActor.id) return Timeline.NOANNOUNCE
+  const span = getSpan('timelines', 'noAnnounceTimelineRule', {
+    actorId: currentActor.id,
+    statusId: status.id
+  })
+  if (status.type === StatusType.Announce) {
+    span?.finish()
+    return null
+  }
+  if (status.actorId === currentActor.id) {
+    span?.finish()
+    return Timeline.NOANNOUNCE
+  }
   const isFollowing = await storage.isCurrentActorFollowing({
     currentActorId: currentActor.id,
     followingActorId: status.actorId
   })
 
   if (!status.reply) {
+    span?.finish()
     if (isFollowing) return Timeline.NOANNOUNCE
     return null
   }
@@ -43,12 +55,23 @@ export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
     withReplies: false
   })
   // Deleted parent status, don't show child status
-  if (!repliedStatus) return null
-  if (repliedStatus.actorId === currentActor.id) return Timeline.NOANNOUNCE
-  if (!isFollowing) return null
-  return noannounceTimelineRule({
+  if (!repliedStatus) {
+    span?.finish()
+    return null
+  }
+  if (repliedStatus.actorId === currentActor.id) {
+    span?.finish()
+    return Timeline.NOANNOUNCE
+  }
+  if (!isFollowing) {
+    span?.finish()
+    return null
+  }
+  const value = await noannounceTimelineRule({
     storage,
     currentActor,
     status: repliedStatus.data
   })
+  span?.finish()
+  return value
 }
