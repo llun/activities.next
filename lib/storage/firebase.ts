@@ -568,7 +568,7 @@ export class FirebaseStorage implements Storage {
     cc,
     originalStatusId,
     createdAt
-  }: CreateAnnounceParams): Promise<Status> {
+  }: CreateAnnounceParams) {
     const currentTime = Date.now()
     const status = {
       id,
@@ -579,7 +579,7 @@ export class FirebaseStorage implements Storage {
       originalStatusId,
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
-    } as any
+    }
 
     await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set(status)
 
@@ -587,9 +587,14 @@ export class FirebaseStorage implements Storage {
       statusId: originalStatusId,
       withReplies: false
     })
+    if (!originalStatus) return
+    if (originalStatus.data.type !== StatusType.Note) return
+
     const announceData: StatusAnnounce = {
       ...status,
-      originalStatus: originalStatus?.data
+      ...(originalStatus?.data && { originalStatus: originalStatus.data }),
+      type: StatusType.Announce,
+      actor: null
     }
     return new Status(announceData)
   }

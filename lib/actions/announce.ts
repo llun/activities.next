@@ -2,7 +2,6 @@ import crypto from 'crypto'
 
 import { getStatus, sendAnnounce } from '../activities'
 import { AnnounceStatus } from '../activities/actions/announceStatus'
-import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
@@ -27,7 +26,7 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     const boostedStatus = await getStatus({ statusId: object })
     if (!boostedStatus) return
 
-    await createNote({ note: boostedStatus as Note, storage })
+    await createNote({ note: boostedStatus, storage })
   }
 
   const existingAnnounce = await storage.getStatus({
@@ -49,6 +48,7 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
       originalStatusId: object
     })
   ])
+  if (!announce) return
   await addStatusToTimelines(storage, announce)
 }
 
@@ -76,6 +76,7 @@ export const userAnnounce = async ({
     cc: [currentActor.id, currentActor.followersUrl],
     originalStatusId: originalStatus.id
   })
+  if (!status) return null
   await addStatusToTimelines(storage, status)
   const inboxes = await storage.getFollowersInbox({
     targetActorId: currentActor.id

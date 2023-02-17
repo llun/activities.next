@@ -195,7 +195,7 @@ export interface Storage {
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
 
   createNote(params: CreateNoteParams): Promise<Status>
-  createAnnounce(params: CreateAnnounceParams): Promise<Status>
+  createAnnounce(params: CreateAnnounceParams): Promise<Status | undefined>
   getStatus(params: GetStatusParams): Promise<Status | undefined>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
 

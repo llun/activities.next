@@ -12,6 +12,7 @@ import {
   Status,
   StatusAnnounce,
   StatusData,
+  StatusNote,
   StatusType
 } from '../models/status'
 import { signedHeaders } from '../signature'
@@ -34,7 +35,10 @@ import { UndoLike } from './actions/undoLike'
 import { UndoStatus } from './actions/undoStatus'
 import { Image } from './entities/image'
 import { Note } from './entities/note'
-import { OrderedCollection } from './entities/orderedCollection'
+import {
+  OrderedCollection,
+  getOrderCollectionFirstPage
+} from './entities/orderedCollection'
 import { OrderedCollectionPage } from './entities/orderedCollectionPage'
 import { Person } from './entities/person'
 import { WebFinger } from './types'
@@ -144,9 +148,9 @@ export interface PublicProfile {
   }
 
   urls?: {
-    followers?: string
-    following?: string
-    posts?: string
+    followers: string | null
+    following: string | null
+    posts: string | null
   }
 
   publicKey?: string
@@ -263,16 +267,9 @@ export const getPublicProfile = async ({
       },
 
       urls: {
-        followers:
-          typeof followers?.first !== 'string'
-            ? followers?.first?.id
-            : followers?.first,
-        following:
-          typeof following?.first !== 'string'
-            ? following?.first?.id
-            : following?.first,
-        posts:
-          typeof posts?.first !== 'string' ? posts?.first?.id : posts?.first
+        followers: getOrderCollectionFirstPage(followers),
+        following: getOrderCollectionFirstPage(following),
+        posts: getOrderCollectionFirstPage(posts)
       },
 
       createdAt: new Date(person.published).getTime()
@@ -339,33 +336,47 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
   }
 
   const json: OrderedCollectionPage = await response.json()
-  span?.finish()
-  return json.orderedItems
-    .map((item) => {
+  const statusData = await Promise.all(
+    json.orderedItems.map(async (item) => {
+      if (item.type === AnnounceAction) {
+        const note = await getStatus({ statusId: item.object })
+        if (!note) return null
+        const originalStatus = Status.fromNote(note)
+        return Status.fromAnnoucne(
+          item,
+          originalStatus.data as StatusNote
+        ).toJson()
+      }
+
       // Unsupported activity
-      if (item.type !== 'Create') return null
+      if (item.type !== CreateAction) return null
       // Unsupported Object
       if (item.object.type !== 'Note') return null
 
       return Status.fromNote(item.object).toJson()
     })
-    .filter((item): item is StatusData => item !== null)
+  )
+
+  span?.finish()
+  return statusData.filter((item): item is StatusData => item !== null)
 }
 
 interface GetStatusParams {
   statusId: string
 }
-export const getStatus = async ({ statusId }: GetStatusParams) => {
+export const getStatus = async ({
+  statusId
+}: GetStatusParams): Promise<Note | null> => {
   const span = getSpan('activities', 'getStatus', {
     statusId
   })
-  const response = await fetch(statusId, {
+  const response = await fetchWithTimeout({
+    url: statusId,
+    method: 'GET',
     headers: SHARED_HEADERS
   })
   span?.finish()
-  if (response.status !== 200) {
-    return null
-  }
+  if (response.status !== 200) return null
   return response.json()
 }
 
