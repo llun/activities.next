@@ -13,7 +13,6 @@ import styles from './Post.module.scss'
 
 export interface PostProps {
   currentActor?: ActorProfile
-  showActorId?: boolean
   currentTime: Date
   status: StatusData
   showDeleteAction?: boolean
@@ -52,7 +51,7 @@ const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
 }
 
 export const Post: FC<PostProps> = (props) => {
-  const { showActorId = false, status, currentTime, onShowAttachment } = props
+  const { status, currentTime, onShowAttachment } = props
   const actualStatus = getActualStatus(status)
   return (
     <div key={status.id} className={cn(styles.post)}>
@@ -61,7 +60,7 @@ export const Post: FC<PostProps> = (props) => {
         <Actor
           className={cn('flex-grow-1', 'overflow-hidden', 'me-2')}
           actor={actualStatus.actor}
-          actorId={(showActorId && actualStatus.actorId) || ''}
+          actorId={actualStatus.actorId}
         />
         <div className={cn('flex-shrink-0', styles.misc)}>
           <a href={actualStatus.url} target="_blank" rel="noreferrer">

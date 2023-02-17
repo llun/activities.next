@@ -104,7 +104,6 @@ const Page: NextPage<Props> = ({
               currentTime={new Date(currentTime)}
               statuses={currentStatuses}
               currentActor={profile}
-              showActorId
               showActions
               onReply={onReply}
               onPostDeleted={onPostDeleted}

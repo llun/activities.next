@@ -38,7 +38,6 @@ const Page: NextPage<Props> = ({ status, replies, serverTime, previouses }) => {
         <Posts currentTime={new Date(serverTime)} statuses={previouses} />
         <section className="card p-4">
           <Post
-            showActorId
             currentTime={new Date(serverTime)}
             status={status}
             onShowAttachment={(attachment: AttachmentData) =>
