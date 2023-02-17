@@ -847,7 +847,6 @@ export class Sqlite3Storage implements Storage {
   async getActorStatuses({ actorId }: GetActorStatusesParams) {
     const statuses = await this.database('statuses')
       .where('actorId', actorId)
-      .andWhere('reply', '')
       .orderBy('createdAt', 'desc')
       .limit(PER_PAGE_LIMIT)
     return Promise.all(

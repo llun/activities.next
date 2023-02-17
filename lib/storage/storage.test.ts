@@ -746,7 +746,7 @@ describe('Storage', () => {
         )
       })
 
-      it('returns actor statuses without replies', async () => {
+      it('returns actor statuses with replies', async () => {
         // Mock status for reply
         const mainStatusForReplyId = `${TEST_ID}/statuses/post-for-reply`
         await storage.createNote({
@@ -779,13 +779,7 @@ describe('Storage', () => {
         const statuses = await storage.getActorStatuses({
           actorId: TEST_ID7
         })
-        expect(statuses.length).toEqual(14)
-        for (const status of statuses) {
-          if (status.data.type !== StatusType.Note) {
-            fail('Status type must be note')
-          }
-          expect(status.data.reply).toEqual('')
-        }
+        expect(statuses.length).toEqual(20)
       })
 
       it('returns status with replies', async () => {

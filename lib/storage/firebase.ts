@@ -845,7 +845,6 @@ export class FirebaseStorage implements Storage {
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses
       .where('actorId', '==', actorId)
-      .where('reply', '==', '')
       .orderBy('createdAt', 'desc')
       .limit(PER_PAGE_LIMIT)
       .get()

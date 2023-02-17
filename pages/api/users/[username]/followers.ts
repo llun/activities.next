@@ -23,8 +23,7 @@ const handle: NextApiHandler = async (req, res) => {
           '@context': 'https://www.w3.org/ns/activitystreams',
           id: followerId,
           type: 'OrderedCollection',
-          totalItems,
-          first: `${id}?page=1`
+          totalItems
         })
       }
       return res.status(404).json(ERROR_404)
