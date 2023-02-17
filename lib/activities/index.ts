@@ -319,7 +319,7 @@ export const getActorProfileFromPublicProfile = async ({
 }
 
 interface GetActorPostsParams {
-  postsUrl?: string
+  postsUrl?: string | null
 }
 export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
   if (!postsUrl) return []
