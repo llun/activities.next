@@ -1,6 +1,11 @@
 import type { NextApiHandler } from 'next'
 
+import {
+  AnnounceAction,
+  CreateAction
+} from '../../../../lib/activities/actions/types'
 import { headerHost } from '../../../../lib/guard'
+import { StatusType } from '../../../../lib/models/status'
 import { ERROR_400, ERROR_404 } from '../../../../lib/responses'
 import { getStorage } from '../../../../lib/storage'
 import { getISOTimeUTC } from '../../../../lib/time'
@@ -30,20 +35,29 @@ const handle: NextApiHandler = async (req, res) => {
       }
 
       const statuses = await storage.getActorStatuses({ actorId: id })
-      const items = await Promise.all(
-        statuses.map(async (status) => {
+      const items = statuses.map((status) => {
+        if (status.data.type === StatusType.Announce) {
           return {
-            id: `${status.data.id}/activity`,
-            type: 'Create',
+            id: status.id,
+            type: AnnounceAction,
             actor: id,
-            published: getISOTimeUTC(status.data.createdAt),
-            // TODO: Fix the to and cc store in database
-            to: status.data.to || null,
-            cc: status.data.cc || null,
-            object: status.toObject()
+            published: getISOTimeUTC(status.createdAt),
+            ...(status.to ? { to: status.to } : null),
+            ...(status.cc ? { cc: status.cc } : null),
+            object: status.data.originalStatus.id
           }
-        })
-      )
+        }
+
+        return {
+          id: `${status.id}/activity`,
+          type: CreateAction,
+          actor: id,
+          published: getISOTimeUTC(status.createdAt),
+          ...(status.to ? { to: status.to } : null),
+          ...(status.cc ? { cc: status.cc } : null),
+          object: status.toObject()
+        }
+      })
 
       return res.status(200).json({
         '@context': 'https://www.w3.org/ns/activitystreams',
