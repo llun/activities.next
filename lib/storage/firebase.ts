@@ -47,6 +47,7 @@ import {
   GetStatusRepliesParams,
   GetTagsParams,
   GetTimelineParams,
+  HasActorAnnouncedStatusParams,
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
@@ -600,21 +601,6 @@ export class FirebaseStorage implements Storage {
   }
 
   @Trace('db')
-  private async isActorAnnouncedStatus(statusId: string, actorId?: string) {
-    if (!actorId) return false
-
-    const statuses = this.db.collection('statuses')
-    const snapshot = await statuses
-      .where('originalStatusId', '==', statusId)
-      .where('type', '==', 'Announce')
-      .where('actorId', '==', actorId)
-      .count()
-      .get()
-
-    return snapshot.data().count === 1
-  }
-
-  @Trace('db')
   private async getStatusFromData(
     data: any,
     withReplies: boolean,
@@ -680,7 +666,10 @@ export class FirebaseStorage implements Storage {
       this.getActorFromId({ id: data.actorId }),
       this.getLikeCount({ statusId: data.id }),
       this.isActorLikedStatus(data.id, currentActorId),
-      this.isActorAnnouncedStatus(data.id, currentActorId)
+      this.hasActorAnnouncedStatus({
+        statusId: data.id,
+        actorId: currentActorId
+      })
     ])
 
     const replies = withReplies ? await this.getReplies(data.id) : []
@@ -726,6 +715,24 @@ export class FirebaseStorage implements Storage {
 
   async getStatusReplies({ statusId }: GetStatusRepliesParams) {
     return (await this.getReplies(statusId)).map((note) => new Status(note))
+  }
+
+  @Trace('db')
+  async hasActorAnnouncedStatus({
+    actorId,
+    statusId
+  }: HasActorAnnouncedStatusParams) {
+    if (!actorId) return false
+
+    const statuses = this.db.collection('statuses')
+    const snapshot = await statuses
+      .where('originalStatusId', '==', statusId)
+      .where('type', '==', 'Announce')
+      .where('actorId', '==', actorId)
+      .count()
+      .get()
+
+    return snapshot.data().count === 1
   }
 
   @Trace('db')

@@ -47,6 +47,7 @@ import {
   GetStatusRepliesParams,
   GetTagsParams,
   GetTimelineParams,
+  HasActorAnnouncedStatusParams,
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
@@ -613,19 +614,6 @@ export class Sqlite3Storage implements Storage {
     return new Status(announceData)
   }
 
-  private async isActorAnnouncedStatus(statusId: string, actorId?: string) {
-    if (!actorId) return false
-
-    const result = await this.database('statuses')
-      .where('type', StatusType.Announce)
-      .where('content', statusId)
-      .where('actorId', actorId)
-      .count<{ count: number }>('* as count')
-      .first()
-    if (!result) return false
-    return result.count !== 0
-  }
-
   private async getStatusWithAttachmentsFromData(
     data: any,
     currentActorId?: string
@@ -683,7 +671,10 @@ export class Sqlite3Storage implements Storage {
         .count<{ count: number }>('* as count')
         .first(),
       this.isActorLikedStatus(data.id, currentActorId),
-      this.isActorAnnouncedStatus(data.id, currentActorId)
+      this.hasActorAnnouncedStatus({
+        statusId: data.id,
+        actorId: currentActorId
+      })
     ])
 
     const repliesNote = (
@@ -739,6 +730,22 @@ export class Sqlite3Storage implements Storage {
     return Promise.all(
       statuses.map((status) => this.getStatusWithAttachmentsFromData(status))
     )
+  }
+
+  async hasActorAnnouncedStatus({
+    actorId,
+    statusId
+  }: HasActorAnnouncedStatusParams): Promise<boolean> {
+    if (!actorId) return false
+
+    const result = await this.database('statuses')
+      .where('type', StatusType.Announce)
+      .where('content', statusId)
+      .where('actorId', actorId)
+      .count<{ count: number }>('* as count')
+      .first()
+    if (!result) return false
+    return result.count !== 0
   }
 
   async getTimeline({

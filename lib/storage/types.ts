@@ -113,6 +113,10 @@ export type GetStatusRepliesParams = { statusId: string }
 export type GetActorStatusesCountParams = { actorId: string }
 export type GetActorStatusesParams = { actorId: string }
 export type DeleteStatusParams = { statusId: string }
+export type HasActorAnnouncedStatusParams = {
+  statusId: string
+  actorId?: string
+}
 
 export type GetTimelineParams = {
   timeline: Timeline
@@ -198,6 +202,9 @@ export interface Storage {
   createAnnounce(params: CreateAnnounceParams): Promise<Status | undefined>
   getStatus(params: GetStatusParams): Promise<Status | undefined>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
+  hasActorAnnouncedStatus(
+    params: HasActorAnnouncedStatusParams
+  ): Promise<boolean>
 
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
