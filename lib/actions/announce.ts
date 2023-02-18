@@ -7,6 +7,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
+import { getSpan } from '../trace'
 import { createNote } from './createNote'
 import { recordActorIfNeeded } from './utils'
 
@@ -15,6 +16,7 @@ interface AnnounceParams {
   storage: Storage
 }
 export const announce = async ({ status, storage }: AnnounceParams) => {
+  const span = getSpan('actions', 'announce')
   const compactedStatus = (await compact(status)) as AnnounceStatus
   const { object } = compactedStatus
 
@@ -24,7 +26,10 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
   })
   if (!existingStatus) {
     const boostedStatus = await getStatus({ statusId: object })
-    if (!boostedStatus) return
+    if (!boostedStatus) {
+      span?.finish()
+      return
+    }
 
     await createNote({ note: boostedStatus, storage })
   }
@@ -33,7 +38,10 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     statusId: compactedStatus.id,
     withReplies: false
   })
-  if (existingAnnounce) return
+  if (existingAnnounce) {
+    span?.finish()
+    return
+  }
   const [, announce] = await Promise.all([
     recordActorIfNeeded({ actorId: compactedStatus.actor, storage }),
     storage.createAnnounce({
@@ -48,8 +56,12 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
       originalStatusId: object
     })
   ])
-  if (!announce) return
+  if (!announce) {
+    span?.finish()
+    return
+  }
   await addStatusToTimelines(storage, announce)
+  span?.finish()
 }
 
 interface UserAnnounceParams {
@@ -62,11 +74,18 @@ export const userAnnounce = async ({
   statusId,
   storage
 }: UserAnnounceParams) => {
-  const originalStatus = await storage.getStatus({
-    statusId,
-    withReplies: false
-  })
-  if (!originalStatus) return null
+  const span = getSpan('actions', 'userAnnounce')
+  const [originalStatus, hasActorAnnouncedStatus] = await Promise.all([
+    storage.getStatus({
+      statusId,
+      withReplies: false
+    }),
+    storage.hasActorAnnouncedStatus({ statusId, actorId: currentActor.id })
+  ])
+  if (!originalStatus || hasActorAnnouncedStatus) {
+    span?.finish()
+    return null
+  }
 
   const id = `${currentActor.id}/statuses/${crypto.randomUUID()}`
   const status = await storage.createAnnounce({
@@ -76,7 +95,10 @@ export const userAnnounce = async ({
     cc: [currentActor.id, currentActor.followersUrl],
     originalStatusId: originalStatus.id
   })
-  if (!status) return null
+  if (!status) {
+    span?.finish()
+    return null
+  }
   await addStatusToTimelines(storage, status)
   const inboxes = await storage.getFollowersInbox({
     targetActorId: currentActor.id
@@ -90,5 +112,6 @@ export const userAnnounce = async ({
       })
     })
   )
+  span?.finish()
   return status
 }
