@@ -115,6 +115,24 @@ export const seedStorage = async (storage: Storage) => {
     text: 'This is Actor1 post'
   })
 
+  await storage.createNote({
+    id: `${actors[0].id}/statuses/post-2`,
+    url: `${actors[0].id}/statuses/post-2`,
+    actorId: actors[0].id,
+    to: [ACTIVITY_STREAM_PUBLIC],
+    cc: [],
+    text: 'This is Actor1 post 2'
+  })
+
+  await storage.createNote({
+    id: `${actors[0].id}/statuses/post-3`,
+    url: `${actors[0].id}/statuses/post-3`,
+    actorId: actors[0].id,
+    to: [ACTIVITY_STREAM_PUBLIC],
+    cc: [],
+    text: 'This is Actor1 post 3'
+  })
+
   // Actor2 status
   const post2 = await storage.createNote({
     id: `${actors[1].id}/statuses/post-2`,

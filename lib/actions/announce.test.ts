@@ -175,12 +175,12 @@ describe('Announce action', () => {
       }
       const status = await userAnnounce({
         currentActor: actor1,
-        statusId: `${actor1.id}/statuses/post-1`,
+        statusId: `${actor1.id}/statuses/post-2`,
         storage
       })
 
       const originalStatus = await storage.getStatus({
-        statusId: `${actor1.id}/statuses/post-1`
+        statusId: `${actor1.id}/statuses/post-2`
       })
       expect(status?.data).toMatchObject({
         type: StatusType.Announce,
@@ -196,8 +196,27 @@ describe('Announce action', () => {
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [actor1.id, actor1.followersUrl],
-        object: 'https://llun.test/users/test1/statuses/post-1'
+        object: 'https://llun.test/users/test1/statuses/post-2'
       })
+    })
+
+    it('does not create duplicate announce', async () => {
+      if (!actor1) {
+        fail('Actor1 is required')
+      }
+      const status = await userAnnounce({
+        currentActor: actor1,
+        statusId: `${actor1.id}/statuses/post-3`,
+        storage
+      })
+      expect(status).not.toBeNull()
+
+      const duplicateStatus = await userAnnounce({
+        currentActor: actor1,
+        statusId: `${actor1.id}/statuses/post-3`,
+        storage
+      })
+      expect(duplicateStatus).toBeNull()
     })
   })
 })
