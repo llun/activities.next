@@ -20,11 +20,17 @@ export default async function handler(
     : firstResource
 
   const [username, domain] = account.split('@')
+  if (!domain) {
+    return res.status(404).json(ERROR_404)
+  }
+
   const storage = await getStorage()
   const actor = await storage?.getActorFromUsername({ username, domain })
 
   // This is not local actors
-  if (!actor?.privateKey) res.status(404).json(ERROR_404)
+  if (!actor?.privateKey) {
+    return res.status(404).json(ERROR_404)
+  }
 
   res.status(200).json({
     subject: `acct:${username}@${domain}`,
