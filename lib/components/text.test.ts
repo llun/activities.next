@@ -95,4 +95,12 @@ describe('#convertQuoteToCode', () => {
       '<p>Sample quote text with <code>quote</code>: ending</p>'
     )
   })
+
+  it('convert quote block for other languages', () => {
+    const text =
+      '<p>Quote block for other languages `ภาษาไทย`, `中文`, `إسرائيل`</p>'
+    expect(convertQuoteToCode(text)).toEqual(
+      '<p>Quote block for other languages <code>ภาษาไทย</code>, <code>中文</code>, <code>إسرائيل</code></p>'
+    )
+  })
 })
