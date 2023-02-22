@@ -54,5 +54,13 @@ export const Media: FC<Props> = ({
     )
   }
 
+  if (mediaType.startsWith('audio')) {
+    return (
+      <audio className={className} controls>
+        <source src={url} type={mediaType} />
+      </audio>
+    )
+  }
+
   return null
 }
