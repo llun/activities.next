@@ -81,4 +81,11 @@ describe('#convertQuoteToCode', () => {
       '<p>need a regex class for ending sentence character (<code>.</code>, <code>,</code> etc)</p>'
     )
   })
+
+  it('convert quote blocks for text ending with?', () => {
+    const text = '<p>Sample quote text with `question mark`? ending</p>'
+    expect(convertQuoteToCode(text)).toEqual(
+      '<p>Sample quote text with <code>question mark</code>? ending</p>'
+    )
+  })
 })
