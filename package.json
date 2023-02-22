@@ -33,7 +33,7 @@
     "lodash": "^4.17.21",
     "next": "13.1.6",
     "next-auth": "4.19.2",
-    "peggy": "^2.0.1",
+    "peggy": "^3.0.0",
     "pino": "^8.10.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
@@ -43,7 +43,7 @@
   "devDependencies": {
     "@sucrase/jest-plugin": "^3.0.0",
     "@swc-node/register": "^1.6.2",
-    "@swc/core": "^1.3.35",
+    "@swc/core": "^1.3.36",
     "@swc/jest": "^0.2.24",
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^14.0.0",

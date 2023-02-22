@@ -31,8 +31,7 @@ export const createStatus = async ({
     })
   })
   if (response.status !== 200) {
-    // Create or throw an error here
-    return
+    throw new Error('Fail to create a new status')
   }
 
   const json = await response.json()
