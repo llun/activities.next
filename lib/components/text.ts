@@ -50,7 +50,7 @@ export const convertQuoteToCode = (text: string) => {
     }
 
     if (matches.length === 1 && matches[0][1] - matches[0][0] === text.length) {
-      return `<code>${text.slice(1, text.length - 1)}</code>`
+      return `<code>${text.slice(0, text.length)}</code>`
     }
 
     for (let index = 0; index < matches.length; index++) {
@@ -59,7 +59,7 @@ export const convertQuoteToCode = (text: string) => {
       parts.push(
         ...[
           text.slice(previous?.[1] - 1 ?? 0, matched[0] + 1),
-          `<code>${text.slice(matched[0] + 2, matched[1] - 2)}</code>`
+          `<code>${text.slice(matched[0] + 1, matched[1] - 1)}</code>`
         ]
       )
     }

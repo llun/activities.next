@@ -10,7 +10,7 @@ describe('#convertQuoteToCode', () => {
 
   it('replace quote block to code block', () => {
     expect(convertQuoteToCode('Message with `quote` block')).toEqual(
-      'Message with <code>quote</code> block'
+      'Message with <code>`quote`</code> block'
     )
   })
 
@@ -20,14 +20,14 @@ describe('#convertQuoteToCode', () => {
         'Message with multiple `quote` blocks, e.g. another `quote` here'
       )
     ).toEqual(
-      'Message with multiple <code>quote</code> blocks, e.g. another <code>quote</code> here'
+      'Message with multiple <code>`quote`</code> blocks, e.g. another <code>`quote`</code> here'
     )
   })
 
   it('replace quote with space', () => {
     expect(
       convertQuoteToCode('Message with `quote that has space` in it')
-    ).toEqual('Message with <code>quote that has space</code> in it')
+    ).toEqual('Message with <code>`quote that has space`</code> in it')
   })
 
   it('does not convert quote if there is no space before and after', () => {
@@ -46,31 +46,31 @@ describe('#convertQuoteToCode', () => {
 
   it('convert quote when it live alone', () => {
     expect(convertQuoteToCode('`Quote here`')).toEqual(
-      '<code>Quote here</code>'
+      '<code>`Quote here`</code>'
     )
   })
 
   it('convert quote when it inside the tag alone', () => {
     expect(convertQuoteToCode('<p>`Quote here`</p>')).toEqual(
-      '<p><code>Quote here</code></p>'
+      '<p><code>`Quote here`</code></p>'
     )
   })
 
   it('convert quote blocks with $, {, }, ?, - to code blocks', () => {
     expect(convertQuoteToCode('`${status?.id}-${type}-${date}`')).toEqual(
-      '<code>${status?.id}-${type}-${date}</code>'
+      '<code>`${status?.id}-${type}-${date}`</code>'
     )
   })
 
   it('convert quote blocks when end with .', () => {
     expect(convertQuoteToCode('this should be `quote block`.')).toEqual(
-      'this should be <code>quote block</code>.'
+      'this should be <code>`quote block`</code>.'
     )
   })
 
   it('convert quote blocks when end with ,', () => {
     expect(convertQuoteToCode('this should be `quote`, `block`.')).toEqual(
-      'this should be <code>quote</code>, <code>block</code>.'
+      'this should be <code>`quote`</code>, <code>`block`</code>.'
     )
   })
 
@@ -78,21 +78,21 @@ describe('#convertQuoteToCode', () => {
     const text =
       '<p>need a regex class for ending sentence character (`.`, `,` etc)</p>'
     expect(convertQuoteToCode(text)).toEqual(
-      '<p>need a regex class for ending sentence character (<code>.</code>, <code>,</code> etc)</p>'
+      '<p>need a regex class for ending sentence character (<code>`.`</code>, <code>`,`</code> etc)</p>'
     )
   })
 
   it('convert quote blocks for text ending with ?', () => {
     const text = '<p>Sample quote text with `question mark`? ending</p>'
     expect(convertQuoteToCode(text)).toEqual(
-      '<p>Sample quote text with <code>question mark</code>? ending</p>'
+      '<p>Sample quote text with <code>`question mark`</code>? ending</p>'
     )
   })
 
   it('convert quote block for text ending with :', () => {
     const text = '<p>Sample quote text with `quote`: ending</p>'
     expect(convertQuoteToCode(text)).toEqual(
-      '<p>Sample quote text with <code>quote</code>: ending</p>'
+      '<p>Sample quote text with <code>`quote`</code>: ending</p>'
     )
   })
 
@@ -100,7 +100,7 @@ describe('#convertQuoteToCode', () => {
     const text =
       '<p>Quote block for other languages `ภาษาไทย`, `中文`, `إسرائيل`</p>'
     expect(convertQuoteToCode(text)).toEqual(
-      '<p>Quote block for other languages <code>ภาษาไทย</code>, <code>中文</code>, <code>إسرائيل</code></p>'
+      '<p>Quote block for other languages <code>`ภาษาไทย`</code>, <code>`中文`</code>, <code>`إسرائيل`</code></p>'
     )
   })
 })
