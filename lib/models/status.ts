@@ -4,11 +4,13 @@ import { Note, getContent, getSummary } from '../activities/entities/note'
 import { getISOTimeUTC } from '../time'
 import { ActorProfile } from './actor'
 import { Attachment, AttachmentData } from './attachment'
+import { QuestionChoice } from './questionChoice'
 import { Tag, TagData } from './tag'
 
 export enum StatusType {
   Note = 'Note',
-  Announce = 'Announce'
+  Announce = 'Announce',
+  Question = 'Question'
 }
 
 interface StatusBase {
@@ -43,6 +45,22 @@ export interface StatusAnnounce extends StatusBase {
   type: StatusType.Announce
 
   originalStatus: StatusNote
+}
+
+export interface StatusQuestion extends StatusBase {
+  type: StatusType.Question
+  url: string
+  text: string
+  summary: string
+  reply: string
+  replies: StatusNote[]
+
+  isActorAnnounced: boolean
+  isActorLiked: boolean
+  totalLikes: number
+
+  tags: TagData[]
+  choices: QuestionChoice[]
 }
 
 export type StatusData = StatusNote | StatusAnnounce
