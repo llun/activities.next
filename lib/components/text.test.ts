@@ -82,10 +82,17 @@ describe('#convertQuoteToCode', () => {
     )
   })
 
-  it('convert quote blocks for text ending with?', () => {
+  it('convert quote blocks for text ending with ?', () => {
     const text = '<p>Sample quote text with `question mark`? ending</p>'
     expect(convertQuoteToCode(text)).toEqual(
       '<p>Sample quote text with <code>question mark</code>? ending</p>'
+    )
+  })
+
+  it('convert quote block for text ending with :', () => {
+    const text = '<p>Sample quote text with `quote`: ending</p>'
+    expect(convertQuoteToCode(text)).toEqual(
+      '<p>Sample quote text with <code>quote</code>: ending</p>'
     )
   })
 })
