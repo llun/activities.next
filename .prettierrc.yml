@@ -11,3 +11,4 @@ importOrder:
 importOrderParserPlugins:
   - typescript
   - decorators-legacy
+  - jsx

@@ -222,6 +222,9 @@ export const PostBox: FC<Props> = ({
               profile={profile}
               onSelectMedia={onSelectAppleMedia}
             />
+            <Button variant="link">
+              <i className="bi bi-image" />
+            </Button>
           </div>
           <Button disabled={!allowPost} type="submit">
             Send

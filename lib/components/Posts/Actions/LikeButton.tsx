@@ -1,11 +1,10 @@
 import cn from 'classnames'
 import { FC, useState } from 'react'
 
-import { likeStatus, undoLikeStatus } from "../../../client"
-import { ActorProfile } from "../../../models/actor"
-import { StatusNote, StatusType } from "../../../models/status"
-import { Button } from "../../Button"
-
+import { likeStatus, undoLikeStatus } from '../../../client'
+import { ActorProfile } from '../../../models/actor'
+import { StatusNote, StatusType } from '../../../models/status'
+import { Button } from '../../Button'
 import styles from './LikeButton.module.scss'
 
 interface LikeButtonProps {

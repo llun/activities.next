@@ -1,14 +1,11 @@
 import { FC } from 'react'
 
-import {
-  deleteStatus
-} from '../../client'
+import { deleteStatus } from '../../client'
 import { StatusType } from '../../models/status'
 import { Button } from '../Button'
 import { LikeButton } from './Actions/LikeButton'
 import { RepostButton } from './Actions/RepostButton'
 import { PostProps } from './Post'
-
 
 export const Actions: FC<PostProps> = ({
   currentActor,
