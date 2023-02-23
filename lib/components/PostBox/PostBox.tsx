@@ -19,6 +19,7 @@ import {
 import { StatusData, StatusNote, StatusType } from '../../models/status'
 import { Button } from '../Button'
 import { AppleGallerButton } from './AppleGalleryButton'
+import { PollChoices } from './PollChoices'
 import styles from './PostBox.module.scss'
 import { ReplyPreview } from './ReplyPreview'
 
@@ -39,6 +40,7 @@ export const PostBox: FC<Props> = ({
 }) => {
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [attachments, setAttachments] = useState<PostBoxAttachment[]>([])
+  const [showPolls, setShowPolls] = useState<boolean>(false)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -216,13 +218,17 @@ export const PostBox: FC<Props> = ({
             name="message"
           />
         </div>
+        <PollChoices show={showPolls} />
         <div className="d-flex justify-content-between mb-3">
           <div>
             <AppleGallerButton
               profile={profile}
               onSelectMedia={onSelectAppleMedia}
             />
-            <Button variant="link">
+            <Button
+              variant="link"
+              onClick={() => setShowPolls((value) => !value)}
+            >
               <i className="bi bi-bar-chart-fill" />
             </Button>
           </div>
