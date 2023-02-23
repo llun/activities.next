@@ -223,7 +223,7 @@ export const PostBox: FC<Props> = ({
               onSelectMedia={onSelectAppleMedia}
             />
             <Button variant="link">
-              <i className="bi bi-image" />
+              <i className="bi bi-bar-chart-fill" />
             </Button>
           </div>
           <Button disabled={!allowPost} type="submit">
