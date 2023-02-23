@@ -19,17 +19,26 @@ export const PollChoices: FC<Props> = ({ show }) => {
     setChoices((previouse) => [...previouse, { text: '' }])
   }
 
+  const removeChoice = (index: number) => {
+    if (choices.length < 2) return
+    console.log(choices[index])
+    setChoices([...choices.slice(0, index), ...choices.slice(index + 1)])
+  }
+
   return (
     <div>
       {choices.map((choice, index) => {
         return (
-          <div key={index} className="mb-1">
+          <div key={index} className="mb-1 d-flex flex-row">
             <input
               className="form-control"
               type="text"
               placeholder={`Choice ${index + 1}`}
               defaultValue={choice.text}
             />
+            <Button variant="link" onClick={() => removeChoice(index)}>
+              <i className="bi bi-x-circle-fill" />
+            </Button>
           </div>
         )
       })}
