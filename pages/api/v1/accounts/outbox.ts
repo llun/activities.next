@@ -4,8 +4,10 @@ import { CreateStatusParams, DeleteStatusParams } from '../../../../lib/client'
 import { ApiGuard } from '../../../../lib/guard'
 import { StatusNote } from '../../../../lib/models/status'
 import { DEFAULT_202, ERROR_404, ERROR_500 } from '../../../../lib/responses'
+import { getSpan } from '../../../../lib/trace'
 
 const handler = ApiGuard(async (req, res, context) => {
+  const span = getSpan('api', 'outbox', { method: req.method })
   const { currentActor, storage } = context
   switch (req.method) {
     case 'POST': {
@@ -19,9 +21,11 @@ const handler = ApiGuard(async (req, res, context) => {
         storage
       })
       if (!status) {
+        span?.finish()
         return res.status(500).json(ERROR_500)
       }
 
+      span?.finish()
       return res.status(200).json({
         status: status?.toJson(),
         note: status.toObject(),
@@ -31,10 +35,12 @@ const handler = ApiGuard(async (req, res, context) => {
     case 'DELETE': {
       const { statusId } = req.body as DeleteStatusParams
       await deleteStatusFromUserInput({ currentActor, statusId, storage })
+      span?.finish()
       return res.status(202).json(DEFAULT_202)
     }
     default: {
-      res.status(404).json(ERROR_404)
+      span?.finish()
+      return res.status(404).json(ERROR_404)
     }
   }
 })
