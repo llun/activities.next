@@ -415,9 +415,11 @@ export const sendNote = async ({
       },
       body: JSON.stringify(activity)
     })
-  } catch (e) {
+  } catch (e: any) {
     // Capture exception but return as normal
     Sentry.captureException(e)
+    console.error(e.message)
+    console.error(e.stack)
   }
   span?.finish()
 }

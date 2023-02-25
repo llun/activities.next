@@ -34,8 +34,10 @@ const handler = ApiGuard(async (req, res, context) => {
           note: status.toObject(),
           attachments: (status.data as StatusNote).attachments
         })
-      } catch (e) {
+      } catch (e: any) {
         Sentry.captureException(e)
+        console.error(e.message)
+        console.error(e.stack)
         span?.finish()
         return res.status(500).json(ERROR_500)
       }
