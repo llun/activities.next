@@ -274,8 +274,10 @@ export const getPublicProfile = async ({
 
       createdAt: new Date(person.published).getTime()
     }
-  } catch (error) {
+  } catch (error: any) {
     Sentry.captureException(error)
+    console.error(error.message)
+    console.error(error.stack)
     span?.finish()
     return null
   }
