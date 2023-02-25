@@ -67,6 +67,7 @@ const fetchWithTimeout = async ({
   const controller = new AbortController()
   const signal = controller.signal
   let isResolved = false
+  console.log(`Fetch url: ${url}`)
   const response = fetch(url, {
     method,
     headers,
@@ -78,6 +79,7 @@ const fetchWithTimeout = async ({
       isResolved = true
     })
     .catch((error) => {
+      Sentry.captureException(error)
       if (
         error instanceof DOMException &&
         error.message === 'This operation was aborted'
