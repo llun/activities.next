@@ -405,15 +405,20 @@ export const sendNote = async ({
     object: note
   }
   const method = 'POST'
-  await fetchWithTimeout({
-    url: inbox,
-    method,
-    headers: {
-      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-      'User-Agent': USER_AGENT
-    },
-    body: JSON.stringify(activity)
-  })
+  try {
+    await fetchWithTimeout({
+      url: inbox,
+      method,
+      headers: {
+        ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+        'User-Agent': USER_AGENT
+      },
+      body: JSON.stringify(activity)
+    })
+  } catch (e) {
+    // Capture exception but return as normal
+    Sentry.captureException(e)
+  }
   span?.finish()
 }
 
