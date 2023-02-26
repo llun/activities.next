@@ -1,5 +1,11 @@
-.post p {
-  white-space: pre-wrap;
+.post {
+  p {
+    white-space: pre-wrap;
+  }
+
+  code a {
+    color: var(--bs-code-color);
+  }
 }
 
 .misc {
