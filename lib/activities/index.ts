@@ -417,8 +417,7 @@ export const sendNote = async ({
         ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
         'User-Agent': USER_AGENT
       },
-      body: JSON.stringify(activity),
-      timeoutMilliseconds: 2000
+      body: JSON.stringify(activity)
     })
   } catch (e: any) {
     // Capture exception but return as normal
