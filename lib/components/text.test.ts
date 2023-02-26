@@ -103,4 +103,12 @@ describe('#convertQuoteToCode', () => {
       '<p>Quote block for other languages <code>`ภาษาไทย`</code>, <code>`中文`</code>, <code>`إسرائيل`</code></p>'
     )
   })
+
+  it('convert to quote for link block', () => {
+    const text =
+      '<p>Testing quote with link inside e.g. `<a href="https://www.llun.social/" target="_blank" rel="nofollow noopener noreferrer">llun.social</a>`</p>'
+    expect(convertQuoteToCode(text)).toEqual(
+      '<p>Testing quote with link inside e.g. <code>`<a href="https://www.llun.social/" target="_blank" rel="nofollow noopener noreferrer">llun.social</a>`</code></p>'
+    )
+  })
 })

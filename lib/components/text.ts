@@ -35,9 +35,9 @@ export const convertQuoteToCode = (text: string) => {
   const parts = []
 
   try {
-    const supportedWord = '`[\\p{Letter}$-?{} .]+`'
-    const front = '[ >.(]'
-    const back = '[ <.,):?]'
+    const supportedWord = '`[\\p{Letter}$-?{} ."=:/_]+`'
+    const front = '([ >.(]|<a)'
+    const back = '([ <.,):?]|</a>)'
     const pattern = new RegExp(
       `(${front}${supportedWord}${back}|^${supportedWord}${back}|${front}${supportedWord}$|^${supportedWord}$)`,
       'udg'
