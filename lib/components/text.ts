@@ -1,5 +1,6 @@
 import parse from 'html-react-parser'
 
+import { TagData } from '../models/tag'
 import styles from './text.module.scss'
 
 interface replacingNode {
@@ -74,4 +75,17 @@ export const convertQuoteToCode = (text: string) => {
   } catch {
     return text
   }
+}
+
+export const convertEmojisToImages = (text: string, tags: TagData[]) => {
+  return tags
+    .filter((tag) => tag.type === 'emoji')
+    .reduce(
+      (replaceText, tag) =>
+        replaceText.replaceAll(
+          tag.name,
+          `<img src="${tag.value}" alt="${tag.name}"></img>`
+        ),
+      text
+    )
 }
