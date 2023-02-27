@@ -50,21 +50,21 @@ export const PostBox: FC<Props> = ({
 
     setAllowPost(false)
     const message = postBoxRef.current.value
-    const response = await createStatus({
-      message,
-      replyStatus,
-      attachments
-    })
-    if (!response) {
-      // Handle error
-      return
+    try {
+      await createStatus({
+        message,
+        replyStatus,
+        attachments
+      })
+
+      // const { status, attachments: storedAttachments } = response
+      // onPostCreated(status, storedAttachments)
+      setAttachments([])
+
+      postBoxRef.current.value = ''
+    } catch {
+      alert('Fail to create a post')
     }
-
-    const { status, attachments: storedAttachments } = response
-    onPostCreated(status, storedAttachments)
-    setAttachments([])
-
-    postBoxRef.current.value = ''
   }
 
   const onCloseReply = () => {

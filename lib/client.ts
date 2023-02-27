@@ -15,8 +15,7 @@ export const createStatus = async ({
   attachments = []
 }: CreateStatusParams) => {
   if (message.trim().length === 0 && attachments.length === 0) {
-    // Don't create any empty post
-    return
+    throw new Error('Message or attachments must not be empty')
   }
 
   const response = await fetch('/api/v1/accounts/outbox', {
