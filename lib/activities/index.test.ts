@@ -7,7 +7,7 @@ import {
   sendNote
 } from '.'
 import { Actor } from '../models/actor'
-import { Sqlite3Storage } from '../storage/sqlite3'
+import { SqlStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
 import { MockActor } from '../stub/actor'
 import { MockMastodonNote } from '../stub/note'
@@ -20,7 +20,7 @@ enableFetchMocks()
 jest.mock('../config')
 
 describe('activities', () => {
-  const storage = new Sqlite3Storage({
+  const storage = new SqlStorage({
     client: 'sqlite3',
     useNullAsDefault: true,
     connection: {

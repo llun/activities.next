@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto'
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { Status } from '../models/status'
-import { Sqlite3Storage } from '../storage/sqlite3'
+import { SqlStorage } from '../storage/sql'
 import { Storage } from '../storage/types'
 import { mockRequests } from '../stub/activities'
 import { ACTOR1_ID } from '../stub/seed/actor1'
@@ -47,11 +47,11 @@ const createAnnounce = async (
     id: `${actorId}/statuses/${id}/activity`,
     originalStatusId
   })
-  return status.data
+  return status?.data
 }
 
 describe('#mainTimelineRule', () => {
-  const storage = new Sqlite3Storage({
+  const storage = new SqlStorage({
     client: 'sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -247,6 +247,7 @@ describe('#mainTimelineRule', () => {
       ACTOR2_ID,
       `${ACTOR1_ID}/statuses/post-1`
     )
+    if (!status) fail('Status must be defined')
     expect(await mainTimelineRule({ storage, currentActor, status })).toEqual(
       Timeline.MAIN
     )
@@ -261,6 +262,7 @@ describe('#mainTimelineRule', () => {
       ACTOR5_ID,
       `${ACTOR1_ID}/statuses/post-1`
     )
+    if (!status) fail('Status must be defined')
     expect(await mainTimelineRule({ storage, currentActor, status })).toBeNull()
   })
 
@@ -282,6 +284,7 @@ describe('#mainTimelineRule', () => {
       ACTOR2_ID,
       originalStatus.id
     )
+    if (!followingAnnounce) fail('Status must be defined')
     expect(
       await mainTimelineRule({
         storage,

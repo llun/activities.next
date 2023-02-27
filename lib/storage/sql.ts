@@ -82,7 +82,7 @@ interface SQLActor {
   updatedAt: number
 }
 
-export class Sqlite3Storage implements Storage {
+export class SqlStorage implements Storage {
   database: Knex
 
   constructor(config: Knex.Config) {

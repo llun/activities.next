@@ -1,6 +1,6 @@
 import { getMentions, linkifyText, paragraphText } from './link'
 import { Actor } from './models/actor'
-import { Sqlite3Storage } from './storage/sqlite3'
+import { SqlStorage } from './storage/sql'
 import { mockRequests } from './stub/activities'
 import { ACTOR1_ID, seedActor1 } from './stub/seed/actor1'
 import { seedActor2 } from './stub/seed/actor2'
@@ -191,7 +191,7 @@ This is fourth line text
 })
 
 describe('#getMentions', () => {
-  const storage = new Sqlite3Storage({
+  const storage = new SqlStorage({
     client: 'sqlite3',
     useNullAsDefault: true,
     connection: {

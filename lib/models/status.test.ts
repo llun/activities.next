@@ -2,7 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
-import { Sqlite3Storage } from '../storage/sqlite3'
+import { SqlStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
 import { MockMastodonNote } from '../stub/note'
 import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
@@ -16,7 +16,7 @@ enableFetchMocks()
 jest.mock('../config')
 
 describe('Status', () => {
-  const storage = new Sqlite3Storage({
+  const storage = new SqlStorage({
     client: 'sqlite3',
     useNullAsDefault: true,
     connection: {

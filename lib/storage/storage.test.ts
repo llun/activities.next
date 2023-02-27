@@ -5,7 +5,7 @@ import { TEST_DOMAIN } from '../stub/const'
 import { addStatusToTimelines } from '../timelines'
 import { Timeline } from '../timelines/types'
 import { FirestoreStorage } from './firestore'
-import { Sqlite3Storage } from './sqlite3'
+import { SqlStorage } from './sql'
 import { Storage } from './types'
 
 jest.mock('../config')
@@ -69,7 +69,7 @@ describe('Storage', () => {
   const testTable: TestStorage[] = [
     [
       'sqlite',
-      new Sqlite3Storage({
+      new SqlStorage({
         client: 'sqlite3',
         useNullAsDefault: true,
         connection: {
@@ -91,7 +91,7 @@ describe('Storage', () => {
 
   beforeAll(async () => {
     const sqlItem = testTable.find((value) => value[0] === 'sqlite')
-    if (sqlItem) await (sqlItem[1] as Sqlite3Storage).migrate()
+    if (sqlItem) await (sqlItem[1] as SqlStorage).migrate()
   })
 
   afterAll(async () => {

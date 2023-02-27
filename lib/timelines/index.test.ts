@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto'
 
 import { addStatusToTimelines } from '.'
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
-import { Sqlite3Storage } from '../storage/sqlite3'
+import { SqlStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
 import { ACTOR1_ID } from '../stub/seed/actor1'
 import {
@@ -13,7 +13,7 @@ import { seedStorage } from '../stub/storage'
 import { Timeline } from './types'
 
 describe('#addStatusToTimeline', () => {
-  const storage = new Sqlite3Storage({
+  const storage = new SqlStorage({
     client: 'sqlite3',
     useNullAsDefault: true,
     connection: {

@@ -4,7 +4,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { linkifyText, paragraphText } from '../link'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
-import { Sqlite3Storage } from '../storage/sqlite3'
+import { SqlStorage } from '../storage/sql'
 import { expectCall, mockRequests } from '../stub/activities'
 import { MockImageDocument } from '../stub/imageDocument'
 import { MockLitepubNote, MockMastodonNote } from '../stub/note'
@@ -20,7 +20,7 @@ jest.mock('../config')
 const FRIEND_ACTOR_ID = 'https://somewhere.test/actors/friend'
 
 describe('Create note action', () => {
-  const storage = new Sqlite3Storage({
+  const storage = new SqlStorage({
     client: 'sqlite3',
     useNullAsDefault: true,
     connection: {

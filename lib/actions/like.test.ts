@@ -1,16 +1,12 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { AcceptFollow } from '../activities/actions/acceptFollow'
 import { Note } from '../activities/entities/note'
-import { FollowStatus } from '../models/follow'
 import { StatusType } from '../models/status'
-import { Sqlite3Storage } from '../storage/sqlite3'
+import { SqlStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
-import { MockFollowRequestResponse } from '../stub/followRequest'
 import { ACTOR1_ID } from '../stub/seed/actor1'
 import { ACTOR2_ID } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
-import { acceptFollowRequest } from './acceptFollowRequest'
 import { likeRequest } from './like'
 
 enableFetchMocks()
@@ -18,7 +14,7 @@ enableFetchMocks()
 jest.mock('../config')
 
 describe('Accept follow action', () => {
-  const storage = new Sqlite3Storage({
+  const storage = new SqlStorage({
     client: 'sqlite3',
     useNullAsDefault: true,
     connection: {
