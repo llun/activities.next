@@ -45,7 +45,7 @@ import { Person } from './entities/person'
 import { WebFinger } from './types'
 
 const USER_AGENT = 'activities.next/0.1'
-const DEFAULT_RESPONSE_TIMEOUT = 4000
+const DEFAULT_RESPONSE_TIMEOUT = 30000
 const MAX_RETRY_LIMIT = 1
 
 const SHARED_HEADERS = {
@@ -89,20 +89,19 @@ export const getWebfingerSelf = async (account: string) => {
   if (!user || !domain) return null
   const span = getSpan('activities', 'getWebfingerSelf', { account })
   try {
-    const response = await fetch(
-      `https://${domain}/.well-known/webfinger?resource=acct:${account}`,
-      {
-        headers: {
-          Accept: 'application/json'
-        }
+    const { statusCode, body } = await request({
+      url: `https://${domain}/.well-known/webfinger?resource=acct:${account}`,
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': USER_AGENT
       }
-    )
-    if (response.status !== 200) {
+    })
+    if (statusCode !== 200) {
       span?.finish()
       return null
     }
 
-    const json = (await response.json()) as WebFinger
+    const json = JSON.parse(body) as WebFinger
     const item = json.links.find((item) => item.rel === 'self')
     span?.finish()
     if (!item || !('href' in item)) {
