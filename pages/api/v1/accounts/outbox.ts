@@ -1,10 +1,8 @@
 import * as Sentry from '@sentry/nextjs'
 
-import { createNoteFromUserInput } from '../../../../lib/actions/createNote'
 import { deleteStatusFromUserInput } from '../../../../lib/actions/deleteStatus'
 import { CreateStatusParams, DeleteStatusParams } from '../../../../lib/client'
 import { ApiGuard } from '../../../../lib/guard'
-import { StatusNote } from '../../../../lib/models/status'
 import { DEFAULT_202, ERROR_404, ERROR_500 } from '../../../../lib/responses'
 import { getSpan } from '../../../../lib/trace'
 
@@ -16,23 +14,29 @@ const handler = ApiGuard(async (req, res, context) => {
       const body = req.body
       const { message, replyStatus, attachments } = body as CreateStatusParams
       try {
-        const status = await createNoteFromUserInput({
-          currentActor,
-          text: message,
-          replyNoteId: replyStatus?.id,
-          attachments,
-          storage
-        })
-        if (!status) {
-          span?.finish()
-          return res.status(500).json(ERROR_500)
-        }
+        // const status = await createNoteFromUserInput({
+        //   currentActor,
+        //   text: message,
+        //   replyNoteId: replyStatus?.id,
+        //   attachments,
+        //   storage
+        // })
+        // if (!status) {
+        //   span?.finish()
+        //   return res.status(500).json(ERROR_500)
+        // }
 
+        // span?.finish()
+        // return res.status(200).json({
+        //   status: status?.toJson(),
+        //   note: status.toObject(),
+        //   attachments: (status.data as StatusNote).attachments
+        // })
         span?.finish()
         return res.status(200).json({
-          status: status?.toJson(),
-          note: status.toObject(),
-          attachments: (status.data as StatusNote).attachments
+          status: {},
+          note: {},
+          attachments: []
         })
       } catch (e: any) {
         Sentry.captureException(e)
