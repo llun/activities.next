@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 
-import { getPublicProfile } from '../activities'
+import { getPublicProfile, sendNote } from '../activities'
 import {
   Note,
   getAttachments,
@@ -190,16 +190,19 @@ export const createNoteFromUserInput = async ({
   })
 
   const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
-  console.log(inboxes)
-  // await Promise.all(
-  //   inboxes.map((inbox) => {
-  //     return sendNote({
-  //       currentActor,
-  //       inbox,
-  //       note: status.toObject()
-  //     })
-  //   })
-  // )
+  await Promise.all(
+    inboxes.map(async (inbox) => {
+      try {
+        await sendNote({
+          currentActor,
+          inbox,
+          note: status.toObject()
+        })
+      } catch {
+        console.error(`Fail to send note to ${inbox}`)
+      }
+    })
+  )
 
   span?.finish()
   return status

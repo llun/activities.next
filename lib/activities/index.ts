@@ -67,7 +67,6 @@ const fetchWithTimeout = async ({
   const controller = new AbortController()
   const signal = controller.signal
   let isResolved = false
-  console.log(`Fetch url: ${url}`)
   const response = fetch(url, {
     method,
     headers,
@@ -79,7 +78,6 @@ const fetchWithTimeout = async ({
       isResolved = true
     })
     .catch((error) => {
-      Sentry.captureException(error)
       if (
         error instanceof DOMException &&
         error.message === 'This operation was aborted'
@@ -409,22 +407,15 @@ export const sendNote = async ({
     object: note
   }
   const method = 'POST'
-  try {
-    await fetchWithTimeout({
-      url: inbox,
-      method,
-      headers: {
-        ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-        'User-Agent': USER_AGENT
-      },
-      body: JSON.stringify(activity)
-    })
-  } catch (e: any) {
-    // Capture exception but return as normal
-    Sentry.captureException(e)
-    console.error(e.message)
-    console.error(e.stack)
-  }
+  await fetchWithTimeout({
+    url: inbox,
+    method,
+    headers: {
+      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+      'User-Agent': USER_AGENT
+    },
+    body: JSON.stringify(activity)
+  })
   span?.finish()
 }
 
