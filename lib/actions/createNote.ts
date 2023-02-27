@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 
-import { getPublicProfile, sendNote } from '../activities'
+import { getPublicProfile } from '../activities'
 import {
   Note,
   getAttachments,
@@ -185,20 +185,20 @@ export const createNoteFromUserInput = async ({
     )
   ).filter((item): item is string => item !== null)
 
-  const followersInbox = await storage.getFollowersInbox({
-    targetActorId: currentActor.id
-  })
+  // const followersInbox = await storage.getFollowersInbox({
+  //   targetActorId: currentActor.id
+  // })
 
-  const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
-  await Promise.all(
-    inboxes.map((inbox) => {
-      return sendNote({
-        currentActor,
-        inbox,
-        note: status.toObject()
-      })
-    })
-  )
+  // const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
+  // await Promise.all(
+  //   inboxes.map((inbox) => {
+  //     return sendNote({
+  //       currentActor,
+  //       inbox,
+  //       note: status.toObject()
+  //     })
+  //   })
+  // )
 
   span?.finish()
   return status

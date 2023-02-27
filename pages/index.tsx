@@ -93,10 +93,10 @@ const Page: NextPage<Props> = ({
               replyStatus={replyStatus}
               onDiscardReply={() => setReplyStatus(undefined)}
               onPostCreated={(status: StatusData) => {
-                // setCurrentStatuses((previousValue) => [
-                //   status,
-                //   ...previousValue
-                // ])
+                setCurrentStatuses((previousValue) => [
+                  status,
+                  ...previousValue
+                ])
                 setReplyStatus(undefined)
               }}
             />
