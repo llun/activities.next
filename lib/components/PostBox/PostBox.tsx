@@ -51,14 +51,14 @@ export const PostBox: FC<Props> = ({
     setAllowPost(false)
     const message = postBoxRef.current.value
     try {
-      await createStatus({
+      const response = await createStatus({
         message,
         replyStatus,
         attachments
       })
 
-      // const { status, attachments: storedAttachments } = response
-      // onPostCreated(status, storedAttachments)
+      const { status, attachments: storedAttachments } = response
+      onPostCreated(status, storedAttachments)
       setAttachments([])
 
       postBoxRef.current.value = ''
