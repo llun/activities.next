@@ -87,13 +87,22 @@ export const createNote = async ({
         url: attachment.url
       })
     }),
-    ...tags.map((item) =>
-      storage.createTag({
+    ...tags.map((item) => {
+      if (item.type === 'Emoji') {
+        return storage.createTag({
+          statusId: compactNote.id,
+          name: item.name,
+          value: item.icon.url,
+          type: 'emoji'
+        })
+      }
+      return storage.createTag({
         statusId: compactNote.id,
         name: item.name || '',
-        value: item.href
+        value: item.href,
+        type: 'mention'
       })
-    )
+    })
   ])
 
   span?.finish()
@@ -156,7 +165,8 @@ export const createNoteFromUserInput = async ({
       storage.createTag({
         statusId,
         name: mention.name || '',
-        value: mention.href
+        value: mention.href,
+        type: 'mention'
       })
     )
   ])

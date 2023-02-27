@@ -146,7 +146,8 @@ export const seedStorage = async (storage: Storage) => {
   await storage.createTag({
     statusId: post2.data.id,
     name: '@test',
-    value: 'https://llun.test/@test1'
+    value: 'https://llun.test/@test1',
+    type: 'mention'
   })
 
   // Actor2 announce

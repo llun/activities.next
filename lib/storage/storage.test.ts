@@ -548,7 +548,8 @@ describe('Storage', () => {
         const tag = await storage.createTag({
           statusId: id,
           name: '@test2@llun.test',
-          value: 'https://llun.test/@test2'
+          value: 'https://llun.test/@test2',
+          type: 'mention'
         })
         const persistedStatus = await storage.getStatus({ statusId: id })
         if (persistedStatus?.data.type !== StatusType.Note) {

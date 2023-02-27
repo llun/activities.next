@@ -913,13 +913,18 @@ export class SqlStorage implements Storage {
     return data.map((item) => new Attachment(item))
   }
 
-  async createTag({ statusId, name, value }: CreateTagParams): Promise<Tag> {
+  async createTag({
+    statusId,
+    name,
+    value,
+    type
+  }: CreateTagParams): Promise<Tag> {
     const currentTime = Date.now()
 
     const data: TagData = {
       id: crypto.randomUUID(),
       statusId,
-      type: 'mention',
+      type,
       name,
       value: value || '',
       createdAt: currentTime,

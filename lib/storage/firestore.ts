@@ -931,13 +931,18 @@ export class FirestoreStorage implements Storage {
   }
 
   @Trace('db')
-  async createTag({ statusId, name, value }: CreateTagParams): Promise<Tag> {
+  async createTag({
+    statusId,
+    name,
+    value,
+    type
+  }: CreateTagParams): Promise<Tag> {
     const currentTime = Date.now()
     const id = crypto.randomUUID()
     const data: TagData = {
       id,
       statusId,
-      type: 'mention',
+      type,
       name,
       value: value || '',
       createdAt: currentTime,

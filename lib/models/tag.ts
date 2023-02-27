@@ -1,9 +1,10 @@
 import { Mention } from '../activities/entities/mention'
+import { TagType } from '../storage/types'
 
 export interface TagData {
   id: string
   statusId: string
-  type: 'mention'
+  type: TagType
   name: string
   value: string
 
@@ -20,7 +21,7 @@ export class Tag {
   toObject() {
     const data = this.data
     return {
-      type: 'Mention',
+      type: [data.type[0].toUpperCase(), data.type.slice(1)].join(''),
       name: data.name,
       href: data.value
     } as Mention

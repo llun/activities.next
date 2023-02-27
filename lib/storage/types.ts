@@ -141,9 +141,11 @@ export type GetAttachmentsParams = {
   statusId: string
 }
 
+export type TagType = 'emoji' | 'mention'
 export type CreateTagParams = {
   statusId: string
   name: string
+  type: TagType
   value?: string
 }
 export type GetTagsParams = {

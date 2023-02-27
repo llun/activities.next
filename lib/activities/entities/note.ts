@@ -1,6 +1,7 @@
 import { ContextEntity } from './base'
 import { Collection } from './collection'
 import { Document } from './document'
+import { Emoji } from './emoji'
 import { Mention } from './mention'
 import { PropertyValue } from './propertyValue'
 
@@ -26,7 +27,7 @@ export interface BaseNote extends ContextEntity {
     [key in string]: string
   }
   attachment: Attachment | Attachment[]
-  tag: Mention[]
+  tag: (Mention | Emoji)[]
   replies?: Collection
 }
 
