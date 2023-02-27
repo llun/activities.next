@@ -26,6 +26,7 @@
     "classnames": "^2.3.2",
     "date-fns": "^2.29.3",
     "date-fns-tz": "^2.0.0",
+    "got": "^12.5.3",
     "html-react-parser": "^3.0.9",
     "jsonld": "^8.1.0",
     "knex": "2.4.2",

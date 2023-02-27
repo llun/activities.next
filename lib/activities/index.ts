@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import crypto from 'crypto'
+import got, { Headers, Method } from 'got'
 
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -44,57 +45,43 @@ import { Person } from './entities/person'
 import { WebFinger } from './types'
 
 const USER_AGENT = 'activities.next/0.1'
+const DEFAULT_RESPONSE_TIMEOUT = 4000
+const MAX_RETRY_LIMIT = 1
 
 const SHARED_HEADERS = {
   Accept: 'application/activity+json, application/ld+json',
   'User-Agent': USER_AGENT
 }
 
-interface FetchWithTimeout {
+interface Request {
   url: string
-  method: 'GET' | 'POST' | 'DELETE'
-  headers?: HeadersInit
+  method?: Method
+  headers?: Headers
   body?: string
-  timeoutMilliseconds?: number
+  responseTimeout?: number
 }
-const fetchWithTimeout = async ({
+
+const request = ({
   url,
-  method,
+  method = 'GET',
   headers,
   body,
-  timeoutMilliseconds = 4000
-}: FetchWithTimeout) => {
-  const controller = new AbortController()
-  const signal = controller.signal
-  let isResolved = false
-  const response = fetch(url, {
+  responseTimeout = DEFAULT_RESPONSE_TIMEOUT
+}: Request) => {
+  return got(url, {
+    headers: {
+      ...SHARED_HEADERS,
+      ...headers
+    },
+    timeout: {
+      response: responseTimeout
+    },
+    retry: {
+      limit: MAX_RETRY_LIMIT
+    },
     method,
-    headers,
-    body,
-    signal
+    body
   })
-  response
-    .then(() => {
-      isResolved = true
-    })
-    .catch((error) => {
-      if (
-        error instanceof DOMException &&
-        error.message === 'This operation was aborted'
-      ) {
-        // Ignore abort operation
-        if (process.env.NODE_ENV !== 'test') {
-          console.error('Abort fetch', url)
-        }
-        return
-      }
-      throw error
-    })
-  setTimeout(() => {
-    if (isResolved) return
-    controller.abort()
-  }, timeoutMilliseconds)
-  return response
 }
 
 export const getWebfingerSelf = async (account: string) => {
@@ -178,70 +165,16 @@ export const getPublicProfile = async ({
     withPublicKey
   })
 
-  try {
-    const response = await fetchWithTimeout({
-      url: actorId,
-      method: 'GET',
-      headers: SHARED_HEADERS,
-      timeoutMilliseconds: 2000
-    })
-    if (response.status !== 200) {
-      span?.finish()
-      return null
-    }
+  const { statusCode, body } = await request({ url: actorId })
+  if (statusCode !== 200) {
+    span?.finish()
+    return null
+  }
 
-    const json = await response.json()
-    const person: Person = (await compact(json)) as Person
+  const data = JSON.parse(body)
+  const person: Person = (await compact(data)) as Person
 
-    if (!withCollectionCount) {
-      span?.finish()
-      return {
-        id: person.id,
-        username: person.preferredUsername,
-        domain: new URL(person.id).hostname,
-        ...(person.icon ? { icon: person.icon } : null),
-        url: person.url,
-        name: person.name || '',
-        summary: person.summary || '',
-
-        followersCount: 0,
-        followingCount: 0,
-        totalPosts: 0,
-
-        ...(withPublicKey
-          ? { publicKey: person.publicKey.publicKeyPem }
-          : null),
-
-        endpoints: {
-          following: person.following,
-          followers: person.followers,
-          inbox: person.inbox,
-          outbox: person.outbox,
-          sharedInbox: person.endpoints?.sharedInbox ?? person.inbox
-        },
-
-        createdAt: new Date(person.published).getTime()
-      }
-    }
-
-    const [followers, following, posts] = await Promise.all([
-      fetch(person.followers, {
-        headers: SHARED_HEADERS
-      }).then((res) =>
-        res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
-      ),
-      fetch(person.following, {
-        headers: SHARED_HEADERS
-      }).then((res) =>
-        res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
-      ),
-      fetch(person.outbox, {
-        headers: SHARED_HEADERS
-      }).then((res) =>
-        res.status === 200 ? (res.json() as Promise<OrderedCollection>) : null
-      )
-    ])
-
+  if (!withCollectionCount) {
     span?.finish()
     return {
       id: person.id,
@@ -252,34 +185,73 @@ export const getPublicProfile = async ({
       name: person.name || '',
       summary: person.summary || '',
 
-      ...(withPublicKey ? { publicKey: person.publicKey.publicKeyPem } : null),
+      followersCount: 0,
+      followingCount: 0,
+      totalPosts: 0,
 
-      followersCount: followers?.totalItems || 0,
-      followingCount: following?.totalItems || 0,
-      totalPosts: posts?.totalItems || 0,
+      ...(withPublicKey ? { publicKey: person.publicKey.publicKeyPem } : null),
 
       endpoints: {
         following: person.following,
         followers: person.followers,
         inbox: person.inbox,
         outbox: person.outbox,
-        sharedInbox: person.endpoints?.sharedInbox ?? person.outbox
-      },
-
-      urls: {
-        followers: getOrderCollectionFirstPage(followers),
-        following: getOrderCollectionFirstPage(following),
-        posts: getOrderCollectionFirstPage(posts)
+        sharedInbox: person.endpoints?.sharedInbox ?? person.inbox
       },
 
       createdAt: new Date(person.published).getTime()
     }
-  } catch (error: any) {
-    Sentry.captureException(error)
-    console.error(error.message)
-    console.error(error.stack)
-    span?.finish()
-    return null
+  }
+
+  const [followers, following, posts] = await Promise.all([
+    request({ url: person.followers }).then((res) =>
+      res.statusCode === 200
+        ? (JSON.parse(res.body) as Promise<OrderedCollection>)
+        : null
+    ),
+    request({ url: person.following }).then((res) =>
+      res.statusCode === 200
+        ? (JSON.parse(res.body) as Promise<OrderedCollection>)
+        : null
+    ),
+    request({ url: person.outbox }).then((res) =>
+      res.statusCode === 200
+        ? (JSON.parse(res.body) as Promise<OrderedCollection>)
+        : null
+    )
+  ])
+
+  span?.finish()
+  return {
+    id: person.id,
+    username: person.preferredUsername,
+    domain: new URL(person.id).hostname,
+    ...(person.icon ? { icon: person.icon } : null),
+    url: person.url,
+    name: person.name || '',
+    summary: person.summary || '',
+
+    ...(withPublicKey ? { publicKey: person.publicKey.publicKeyPem } : null),
+
+    followersCount: followers?.totalItems || 0,
+    followingCount: following?.totalItems || 0,
+    totalPosts: posts?.totalItems || 0,
+
+    endpoints: {
+      following: person.following,
+      followers: person.followers,
+      inbox: person.inbox,
+      outbox: person.outbox,
+      sharedInbox: person.endpoints?.sharedInbox ?? person.outbox
+    },
+
+    urls: {
+      followers: getOrderCollectionFirstPage(followers),
+      following: getOrderCollectionFirstPage(following),
+      posts: getOrderCollectionFirstPage(posts)
+    },
+
+    createdAt: new Date(person.published).getTime()
   }
 }
 
@@ -329,15 +301,13 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
     postsUrl
   })
 
-  const response = await fetch(postsUrl, {
-    headers: SHARED_HEADERS
-  })
-  if (response.status !== 200) {
+  const { statusCode, body } = await request({ url: postsUrl })
+  if (statusCode !== 200) {
     span?.finish()
     return []
   }
 
-  const json: OrderedCollectionPage = await response.json()
+  const json: OrderedCollectionPage = JSON.parse(body)
   const statusData = await Promise.all(
     json.orderedItems.map(async (item) => {
       if (item.type === AnnounceAction) {
@@ -372,14 +342,10 @@ export const getStatus = async ({
   const span = getSpan('activities', 'getStatus', {
     statusId
   })
-  const response = await fetchWithTimeout({
-    url: statusId,
-    method: 'GET',
-    headers: SHARED_HEADERS
-  })
+  const { statusCode, body } = await request({ url: statusId })
   span?.finish()
-  if (response.status !== 200) return null
-  return response.json()
+  if (statusCode !== 200) return null
+  return JSON.parse(body)
 }
 
 interface SendNoteParams {
@@ -407,7 +373,7 @@ export const sendNote = async ({
     object: note
   }
   const method = 'POST'
-  await fetchWithTimeout({
+  await request({
     url: inbox,
     method,
     headers: {
@@ -448,7 +414,7 @@ export const sendAnnounce = async ({
     object: status.data.originalStatus.id
   }
   const method = 'POST'
-  await fetchWithTimeout({
+  await request({
     url: inbox,
     headers: {
       ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
@@ -486,7 +452,7 @@ export const deleteStatus = async ({
     }
   }
   const method = 'POST'
-  await fetchWithTimeout({
+  await request({
     url: inbox,
     headers: {
       ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
@@ -529,7 +495,7 @@ export const undoAnnounce = async ({
     }
   }
   const method = 'POST'
-  await fetchWithTimeout({
+  await request({
     url: inbox,
     method,
     headers: {
@@ -566,7 +532,7 @@ export const follow = async (
   }
 
   const method = 'POST'
-  const response = await fetchWithTimeout({
+  const { statusCode } = await request({
     url: targetInbox,
     method,
     headers: {
@@ -581,7 +547,7 @@ export const follow = async (
     body: JSON.stringify(activity)
   })
   span?.finish()
-  return response.status === 202
+  return statusCode === 202
 }
 
 export const unfollow = async (currentActor: Actor, follow: Follow) => {
@@ -609,7 +575,7 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
     publicProfile?.endpoints.inbox ?? `${follow.targetActorId}/inbox`
 
   const method = 'POST'
-  const response = await fetchWithTimeout({
+  const { statusCode } = await request({
     url: targetInbox,
     headers: {
       ...signedHeaders(
@@ -624,7 +590,7 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
     body: JSON.stringify(activity)
   })
   span?.finish()
-  return response.status === 202
+  return statusCode === 202
 }
 
 export const acceptFollow = async (
@@ -649,7 +615,7 @@ export const acceptFollow = async (
     }
   }
   const method = 'POST'
-  const response = await fetchWithTimeout({
+  const { statusCode } = await request({
     url: followingInbox,
     method,
     headers: {
@@ -664,7 +630,7 @@ export const acceptFollow = async (
     body: JSON.stringify(activity)
   })
   span?.finish()
-  return response.status === 202
+  return statusCode === 202
 }
 
 const statusIdHash = (statusId: string) =>
@@ -690,7 +656,7 @@ export const sendLike = async ({ currentActor, status }: LikeParams) => {
     object: status.id
   }
   const method = 'POST'
-  await fetchWithTimeout({
+  await request({
     method,
     url: status.actor.inboxUrl,
     headers: {
@@ -735,7 +701,7 @@ export const sendUndoLike = async ({
     }
   }
   const method = 'POST'
-  await fetchWithTimeout({
+  await request({
     method,
     url: status.actor.inboxUrl,
     headers: {
