@@ -5,7 +5,7 @@ import { FC } from 'react'
 import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
 import { StatusData, StatusType } from '../../models/status'
-import { cleanClassName } from '../text'
+import { cleanClassName, convertTextContent } from '../text'
 import { Actions } from './Actions'
 import { Actor } from './Actor'
 import { Media } from './Media'
@@ -69,7 +69,9 @@ export const Post: FC<PostProps> = (props) => {
         </div>
       </div>
       <div className={'me-1 text-break'}>
-        {cleanClassName(actualStatus.text)}
+        {cleanClassName(
+          convertTextContent(actualStatus.text, actualStatus.tags)
+        )}
       </div>
       {actualStatus.attachments && actualStatus.attachments.length > 0 && (
         <div

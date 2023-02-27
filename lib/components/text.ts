@@ -1,4 +1,5 @@
 import parse from 'html-react-parser'
+import _ from 'lodash'
 
 import { TagData } from '../models/tag'
 import styles from './text.module.scss'
@@ -9,27 +10,6 @@ interface replacingNode {
     [key in string]: string
   }
 }
-
-export const cleanClassName = (text: string) =>
-  parse(convertQuoteToCode(text), {
-    replace: (domNode) => {
-      const node = domNode as replacingNode
-      if (node.name === 'span') {
-        if (node.attribs?.class === 'invisible') {
-          node.attribs.class = styles.invisible
-        }
-        if (node.attribs?.class === 'ellipsis') {
-          node.attribs.class = styles.ellipsis
-        }
-      }
-      if (node.attribs && node.name === 'a') {
-        node.attribs.target = '_blank'
-        return node
-      }
-
-      return domNode
-    }
-  })
 
 export const convertQuoteToCode = (text: string) => {
   const matches = []
@@ -84,8 +64,39 @@ export const convertEmojisToImages = (text: string, tags: TagData[]) => {
       (replaceText, tag) =>
         replaceText.replaceAll(
           tag.name,
-          `<img src="${tag.value}" alt="${tag.name}"></img>`
+          `<img class="emoji" src="${tag.value}" alt="${tag.name}"></img>`
         ),
       text
     )
 }
+
+export const convertTextContent = (text: string, tags: TagData[]) => {
+  return _.chain(text)
+    .thru(convertQuoteToCode)
+    .thru(_.curryRight(convertEmojisToImages)(tags))
+    .value()
+}
+
+export const cleanClassName = (text: string) =>
+  parse(text, {
+    replace: (domNode) => {
+      const node = domNode as replacingNode
+      if (node.name === 'span') {
+        if (node.attribs?.class === 'invisible') {
+          node.attribs.class = styles.invisible
+        }
+        if (node.attribs?.class === 'ellipsis') {
+          node.attribs.class = styles.ellipsis
+        }
+      }
+      if (node.attribs && node.name === 'a') {
+        node.attribs.target = '_blank'
+        return node
+      }
+      if (node.name === 'img' && node.attribs?.class === 'emoji') {
+        node.attribs.class = styles.emoji
+      }
+
+      return domNode
+    }
+  })

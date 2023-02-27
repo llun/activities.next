@@ -140,7 +140,7 @@ describe('#convertEmojisToImages', () => {
     const text = '<p>Another test with custom emoji :image1: :image2:</p>'
 
     expect(convertEmojisToImages(text, tags)).toEqual(
-      '<p>Another test with custom emoji <img src="https://llun.test/image1.png" alt=":image1:"></img> <img src="https://llun.test/image2" alt=":image2:"></img></p>'
+      '<p>Another test with custom emoji <img class="emoji" src="https://llun.test/image1.png" alt=":image1:"></img> <img class="emoji" src="https://llun.test/image2" alt=":image2:"></img></p>'
     )
   })
 
@@ -170,7 +170,7 @@ describe('#convertEmojisToImages', () => {
       '<p><span class="h-card"><a href="https://llun.test/@user4" class="u-url mention">@<span>user4</span></a></span> Another test with custom emoji :image3:</p>'
 
     expect(convertEmojisToImages(text, tags)).toEqual(
-      '<p><span class="h-card"><a href="https://llun.test/@user4" class="u-url mention">@<span>user4</span></a></span> Another test with custom emoji <img src="https://llun.test/image3" alt=":image3:"></img></p>'
+      '<p><span class="h-card"><a href="https://llun.test/@user4" class="u-url mention">@<span>user4</span></a></span> Another test with custom emoji <img class="emoji" src="https://llun.test/image3" alt=":image3:"></img></p>'
     )
   })
 })

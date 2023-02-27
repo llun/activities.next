@@ -4,7 +4,7 @@ import { FC } from 'react'
 import { StatusData, StatusType } from '../../models/status'
 import { CloseButton } from '../CloseButton'
 import { Actor } from '../Posts/Actor'
-import { cleanClassName } from '../text'
+import { cleanClassName, convertTextContent } from '../text'
 import styles from './ReplyPreview.module.scss'
 
 interface Props {
@@ -23,6 +23,15 @@ const getText = (statusData: StatusData) => {
   }
 }
 
+const getTags = (statusData: StatusData) => {
+  switch (statusData.type) {
+    case StatusType.Note:
+      return statusData.tags
+    default:
+      return []
+  }
+}
+
 export const ReplyPreview: FC<Props> = ({ status, onClose }) => {
   if (!status) return null
   return (
@@ -38,7 +47,7 @@ export const ReplyPreview: FC<Props> = ({ status, onClose }) => {
     >
       <div>
         <Actor actorId={status.actorId || ''} />
-        {cleanClassName(getText(status))}
+        {cleanClassName(convertTextContent(getText(status), getTags(status)))}
       </div>
       <CloseButton className={cn(styles.close)} onClick={() => onClose?.()} />
     </section>
