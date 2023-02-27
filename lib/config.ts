@@ -4,8 +4,8 @@ import type { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 import path from 'path'
 
-type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' }
-type FirebaseDatabase = FirestoreSetting & { type: 'firebase' }
+type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' | 'sql' }
+type FirebaseDatabase = FirestoreSetting & { type: 'firebase' | 'firestore' }
 
 export interface Config {
   host: string

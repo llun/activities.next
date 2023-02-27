@@ -56,14 +56,14 @@ import {
   UpdateFollowStatusParams
 } from './types'
 
-export interface FirebaseConfig extends Settings {
-  type: 'firebase'
+export interface FirestoreConfig extends Settings {
+  type: 'firebase' | 'firestore'
 }
 
-export class FirebaseStorage implements Storage {
+export class FirestoreStorage implements Storage {
   readonly db: Firestore
 
-  constructor(config: FirebaseConfig) {
+  constructor(config: FirestoreConfig) {
     if (process.env.FIREBASE_PRIVATE_KEY && config.credentials) {
       config.credentials.private_key = process.env.FIREBASE_PRIVATE_KEY
     }
@@ -120,7 +120,7 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     })
 
-    await this.db.doc(`actors/${FirebaseStorage.urlToId(actorId)}`).set({
+    await this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`).set({
       id: actorId,
       accountId: accountRef.id,
       username,
@@ -181,7 +181,7 @@ export class FirebaseStorage implements Storage {
       createdAt,
       updatedAt: currentTime
     }
-    await this.db.doc(`actors/${FirebaseStorage.urlToId(actorId)}`).set(doc)
+    await this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`).set(doc)
     return this.getActorFromId({ id: actorId })
   }
 
@@ -258,7 +258,9 @@ export class FirebaseStorage implements Storage {
 
   @Trace('db')
   async getActorFromId({ id }: GetActorFromIdParams) {
-    const doc = await this.db.doc(`actors/${FirebaseStorage.urlToId(id)}`).get()
+    const doc = await this.db
+      .doc(`actors/${FirestoreStorage.urlToId(id)}`)
+      .get()
     const data = doc.data()
     if (!data) return
 
@@ -285,7 +287,7 @@ export class FirebaseStorage implements Storage {
     inboxUrl,
     sharedInboxUrl
   }: UpdateActorParams) {
-    const path = `actors/${FirebaseStorage.urlToId(actorId)}`
+    const path = `actors/${FirestoreStorage.urlToId(actorId)}`
     const doc = await this.db.doc(path).get()
     if (!doc.exists) return
 
@@ -546,7 +548,7 @@ export class FirebaseStorage implements Storage {
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
     } as StatusNote
-    await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set(status)
+    await this.db.doc(`statuses/${FirestoreStorage.urlToId(id)}`).set(status)
 
     const actor = await this.getActorFromId({ id: actorId })
     return new Status({
@@ -582,7 +584,7 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     }
 
-    await this.db.doc(`statuses/${FirebaseStorage.urlToId(id)}`).set(status)
+    await this.db.doc(`statuses/${FirestoreStorage.urlToId(id)}`).set(status)
 
     const originalStatus = await this.getStatus({
       statusId: originalStatusId,
@@ -616,7 +618,7 @@ export class FirebaseStorage implements Storage {
       }
 
       const snapshot = await this.db
-        .doc(`statuses/${FirebaseStorage.urlToId(data.originalStatusId)}`)
+        .doc(`statuses/${FirestoreStorage.urlToId(data.originalStatusId)}`)
         .get()
       const originalStatusData = snapshot.data()
       if (!originalStatusData) return
@@ -702,7 +704,7 @@ export class FirebaseStorage implements Storage {
     currentActorId?: string
   ) {
     const snapshot = await this.db
-      .doc(`statuses/${FirebaseStorage.urlToId(statusId)}`)
+      .doc(`statuses/${FirestoreStorage.urlToId(statusId)}`)
       .get()
     const data = snapshot.data()
     if (!data) return
@@ -782,13 +784,13 @@ export class FirebaseStorage implements Storage {
         if (!actorId) return []
 
         let query = this.db
-          .collection(`actors/${FirebaseStorage.urlToId(actorId)}/timelines`)
+          .collection(`actors/${FirestoreStorage.urlToId(actorId)}/timelines`)
           .where('timeline', '==', timeline)
           .orderBy('createdAt', 'desc')
           .limit(PER_PAGE_LIMIT)
         if (startAfterStatusId) {
           const lastStatus = await this.db
-            .collection(`actors/${FirebaseStorage.urlToId(actorId)}/timelines`)
+            .collection(`actors/${FirestoreStorage.urlToId(actorId)}/timelines`)
             .where('timeline', '==', timeline)
             .where('statusId', '==', startAfterStatusId)
             .get()
@@ -803,7 +805,7 @@ export class FirebaseStorage implements Storage {
             .map((doc) => doc.data().statusId)
             .map(async (statusId) => {
               const statusData = await this.db
-                .doc(`statuses/${FirebaseStorage.urlToId(statusId)}`)
+                .doc(`statuses/${FirestoreStorage.urlToId(statusId)}`)
                 .get()
               return this.getStatusFromData(statusData.data(), false, actorId)
             })
@@ -825,9 +827,9 @@ export class FirebaseStorage implements Storage {
     actorId
   }: CreateTimelineStatusParams): Promise<void> {
     const currentTime = Date.now()
-    const path = `actors/${FirebaseStorage.urlToId(
+    const path = `actors/${FirestoreStorage.urlToId(
       actorId
-    )}/timelines/${timeline}-${FirebaseStorage.urlToId(status.id)}`
+    )}/timelines/${timeline}-${FirestoreStorage.urlToId(status.id)}`
     await this.db.doc(path).set({
       timeline,
       statusId: status.id,
@@ -884,7 +886,7 @@ export class FirebaseStorage implements Storage {
 
     await Promise.all([
       ...statusInTimelines.docs.map((doc) => doc.ref.delete()),
-      this.db.doc(`statuses/${FirebaseStorage.urlToId(statusId)}`).delete()
+      this.db.doc(`statuses/${FirestoreStorage.urlToId(statusId)}`).delete()
     ])
   }
 
@@ -913,7 +915,7 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     }
     await this.db
-      .doc(`statuses/${FirebaseStorage.urlToId(statusId)}/attachments/${id}`)
+      .doc(`statuses/${FirestoreStorage.urlToId(statusId)}/attachments/${id}`)
       .set(data)
     return new Attachment(data)
   }
@@ -921,7 +923,7 @@ export class FirebaseStorage implements Storage {
   @Trace('db')
   async getAttachments({ statusId }: GetAttachmentsParams) {
     const snapshot = await this.db
-      .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/attachments`)
+      .collection(`statuses/${FirestoreStorage.urlToId(statusId)}/attachments`)
       .get()
     return snapshot.docs.map(
       (item) => new Attachment(item.data() as AttachmentData)
@@ -942,7 +944,7 @@ export class FirebaseStorage implements Storage {
       updatedAt: currentTime
     }
     await this.db
-      .doc(`statuses/${FirebaseStorage.urlToId(statusId)}/tags/${id}`)
+      .doc(`statuses/${FirestoreStorage.urlToId(statusId)}/tags/${id}`)
       .set(data)
     return new Tag(data)
   }
@@ -950,7 +952,7 @@ export class FirebaseStorage implements Storage {
   @Trace('db')
   async getTags({ statusId }: GetTagsParams) {
     const snapshot = await this.db
-      .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/tags`)
+      .collection(`statuses/${FirestoreStorage.urlToId(statusId)}/tags`)
       .get()
     return snapshot.docs.map((item) => new Tag(item.data() as TagData))
   }
@@ -977,7 +979,7 @@ export class FirebaseStorage implements Storage {
   @Trace('db')
   async createLike({ actorId, statusId }: CreateLikeParams) {
     const snapshot = await this.db
-      .doc(`statuses/${FirebaseStorage.urlToId(statusId)}`)
+      .doc(`statuses/${FirestoreStorage.urlToId(statusId)}`)
       .get()
     if (!snapshot.exists) return
 
@@ -987,9 +989,9 @@ export class FirebaseStorage implements Storage {
 
     await this.db
       .doc(
-        `statuses/${FirebaseStorage.urlToId(
+        `statuses/${FirestoreStorage.urlToId(
           statusId
-        )}/likes/${FirebaseStorage.urlToId(actorId)}`
+        )}/likes/${FirestoreStorage.urlToId(actorId)}`
       )
       .set({
         actorId,
@@ -1003,9 +1005,9 @@ export class FirebaseStorage implements Storage {
   async deleteLike({ statusId, actorId }: DeleteLikeParams) {
     await this.db
       .doc(
-        `statuses/${FirebaseStorage.urlToId(
+        `statuses/${FirestoreStorage.urlToId(
           statusId
-        )}/likes/${FirebaseStorage.urlToId(actorId)}`
+        )}/likes/${FirestoreStorage.urlToId(actorId)}`
       )
       .delete()
   }
@@ -1013,7 +1015,7 @@ export class FirebaseStorage implements Storage {
   @Trace('db')
   async getLikeCount({ statusId }: GetLikeCountParams) {
     const countSnapshot = await this.db
-      .collection(`statuses/${FirebaseStorage.urlToId(statusId)}/likes`)
+      .collection(`statuses/${FirestoreStorage.urlToId(statusId)}/likes`)
       .count()
       .get()
     return countSnapshot.data().count ?? 0
@@ -1024,9 +1026,9 @@ export class FirebaseStorage implements Storage {
     if (!actorId) return false
     const snapshot = await this.db
       .doc(
-        `statuses/${FirebaseStorage.urlToId(
+        `statuses/${FirestoreStorage.urlToId(
           statusId
-        )}/likes/${FirebaseStorage.urlToId(actorId)}`
+        )}/likes/${FirestoreStorage.urlToId(actorId)}`
       )
       .get()
     return snapshot.exists

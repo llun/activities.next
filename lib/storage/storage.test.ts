@@ -4,7 +4,7 @@ import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN } from '../stub/const'
 import { addStatusToTimelines } from '../timelines'
 import { Timeline } from '../timelines/types'
-import { FirebaseStorage } from './firebase'
+import { FirestoreStorage } from './firestore'
 import { Sqlite3Storage } from './sqlite3'
 import { Storage } from './types'
 
@@ -80,7 +80,7 @@ describe('Storage', () => {
     // Enable this when run start:firestore emulator and clear the database manually
     [
       'firestore',
-      new FirebaseStorage({
+      new FirestoreStorage({
         type: 'firebase',
         projectId: 'test',
         host: 'localhost:8080',
@@ -883,6 +883,9 @@ describe('Storage', () => {
           cc: [`${TEST_ID14}/followers`],
           originalStatusId: firstPostId
         })
+        if (!announce) {
+          fail('Announce must not be undefined')
+        }
         await addStatusToTimelines(storage, announce)
 
         const test14Statuses = await storage.getTimeline({
