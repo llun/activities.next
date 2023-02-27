@@ -53,7 +53,7 @@ const SHARED_HEADERS = {
   'User-Agent': USER_AGENT
 }
 
-interface Request {
+export interface RequestOptions {
   url: string
   method?: Method
   headers?: Headers
@@ -61,13 +61,13 @@ interface Request {
   responseTimeout?: number
 }
 
-const request = ({
+export const request = ({
   url,
   method = 'GET',
   headers,
   body,
   responseTimeout = DEFAULT_RESPONSE_TIMEOUT
-}: Request) => {
+}: RequestOptions) => {
   return got(url, {
     headers: {
       ...SHARED_HEADERS,

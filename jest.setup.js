@@ -12,3 +12,21 @@ jest.mock('@digitalbazaar/http-client', () => {
     httpClient: jest.fn()
   }
 })
+
+jest.mock('got', () => {
+  return async (url, options) => {
+    const response = await fetch(url, {
+      method: options.method,
+      body: options.body,
+      headers: {
+        ...options.headers
+      }
+    })
+    if (response.status < 300) {
+      const body = await response.text()
+      return { statusCode: response.status, body }
+    }
+
+    return { statusCode: response.status }
+  }
+})
