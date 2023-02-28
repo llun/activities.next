@@ -1,4 +1,5 @@
 /* eslint-disable camelcase */
+import { HTTPError } from 'got'
 import { IncomingHttpHeaders } from 'http'
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
 import { Session, getServerSession } from 'next-auth'
@@ -25,15 +26,35 @@ async function getSenderPublicKey(storage: Storage, actorId: string) {
     return localActor.publicKey
   }
 
-  const sender = await getPublicProfile({
-    actorId,
-    withCollectionCount: false,
-    withPublicKey: true
-  })
+  try {
+    const sender = await getPublicProfile({
+      actorId,
+      withCollectionCount: false,
+      withPublicKey: true
+    })
+    span?.finish()
+    if (sender) return sender.publicKey || ''
+    return ''
+  } catch (error) {
+    if (!(error instanceof HTTPError)) {
+      span?.finish()
+      throw error
+    }
 
-  span?.finish()
-  if (sender) return sender.publicKey || ''
-  return ''
+    if (error.response.statusCode === 410) {
+      const url = new URL(actorId)
+      const sender = await getPublicProfile({
+        actorId: `${url.protocol}//${url.host}/actor#main-key`,
+        withPublicKey: true
+      })
+      span?.finish()
+      if (sender) return sender.publicKey || ''
+      return ''
+    }
+
+    span?.finish()
+    return ''
+  }
 }
 
 export function activitiesGuard<T>(
