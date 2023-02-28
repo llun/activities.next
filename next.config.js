@@ -23,6 +23,10 @@ const nextConfig = {
   async rewrites() {
     return [
       {
+        source: '/activities/_next/:path*',
+        destination: '/_next/:path*'
+      },
+      {
         source: '/.well-known/:path*',
         destination: '/api/well-known/:path*'
       },
