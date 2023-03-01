@@ -79,6 +79,7 @@ export const request = ({
     retry: {
       limit: MAX_RETRY_LIMIT
     },
+    throwHttpErrors: false,
     method,
     body
   })
