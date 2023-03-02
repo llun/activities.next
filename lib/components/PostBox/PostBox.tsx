@@ -19,7 +19,7 @@ import {
 import { StatusData, StatusNote, StatusType } from '../../models/status'
 import { Button } from '../Button'
 import { AppleGallerButton } from './AppleGalleryButton'
-import { PollChoices } from './PollChoices'
+import { Choice, PollChoices } from './PollChoices'
 import styles from './PostBox.module.scss'
 import { ReplyPreview } from './ReplyPreview'
 
@@ -30,6 +30,8 @@ interface Props {
   onDiscardReply: () => void
   onPostCreated: (status: StatusData, attachments: Attachment[]) => void
 }
+
+const key = () => Math.round(Math.random() * 1000)
 
 export const PostBox: FC<Props> = ({
   host,
@@ -43,6 +45,10 @@ export const PostBox: FC<Props> = ({
   const [showPolls, setShowPolls] = useState<boolean>(false)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const [choices, setChoices] = useState<Choice[]>([
+    { key: key(), text: '' },
+    { key: key(), text: '' }
+  ])
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
@@ -133,6 +139,16 @@ export const PostBox: FC<Props> = ({
     setAllowPost(text.length > 0)
   }
 
+  const onAddChoice = () => {
+    if (choices.length > 4) return
+    setChoices((previous) => [...previous, { key: key(), text: '' }])
+  }
+
+  const onRemoveChoice = (index: number) => {
+    if (choices.length < 3) return
+    setChoices([...choices.slice(0, index), ...choices.slice(index + 1)])
+  }
+
   /**
    * Handle default message in Postbox
    *
@@ -221,7 +237,12 @@ export const PostBox: FC<Props> = ({
             name="message"
           />
         </div>
-        <PollChoices show={showPolls} />
+        <PollChoices
+          show={showPolls}
+          choices={choices}
+          onAddChoice={onAddChoice}
+          onRemoveChoice={onRemoveChoice}
+        />
         <div className="d-flex justify-content-between mb-3">
           <div>
             <AppleGallerButton
