@@ -4,16 +4,16 @@ import { Follow, FollowStatus } from './models/follow'
 import { StatusData } from './models/status'
 import { Timeline } from './timelines/types'
 
-export interface CreateStatusParams {
+export interface CreateNoteParams {
   message: string
   replyStatus?: StatusData
   attachments?: PostBoxAttachment[]
 }
-export const createStatus = async ({
+export const createNote = async ({
   message,
   replyStatus,
   attachments = []
-}: CreateStatusParams) => {
+}: CreateNoteParams) => {
   if (message.trim().length === 0 && attachments.length === 0) {
     throw new Error('Message or attachments must not be empty')
   }
@@ -24,13 +24,14 @@ export const createStatus = async ({
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
+      type: 'note',
       replyStatus,
       message,
       attachments
     })
   })
   if (response.status !== 200) {
-    throw new Error('Fail to create a new status')
+    throw new Error('Fail to create a new note')
   }
 
   const json = await response.json()
@@ -38,6 +39,30 @@ export const createStatus = async ({
     status: json.status as StatusData,
     attachments: json.attachments as Attachment[]
   }
+}
+
+export interface CreateQuestionParams {
+  message: string
+  choices: string[]
+  replyStatus?: StatusData
+}
+
+export const createQuestion = async ({
+  message,
+  choices,
+  replyStatus
+}: CreateQuestionParams) => {
+  if (message.trim().length === 0 && choices.length === 0) {
+    throw new Error('Message or choices must not be empty')
+  }
+
+  for (const choice of choices) {
+    if (choice.trim().length === 0) {
+      throw new Error('Choice text must not be empty')
+    }
+  }
+
+  console.log('Create new question')
 }
 
 export interface DeleteStatusParams {

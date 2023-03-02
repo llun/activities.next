@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 
 import { createNoteFromUserInput } from '../../../../lib/actions/createNote'
 import { deleteStatusFromUserInput } from '../../../../lib/actions/deleteStatus'
-import { CreateStatusParams, DeleteStatusParams } from '../../../../lib/client'
+import { CreateNoteParams, DeleteStatusParams } from '../../../../lib/client'
 import { ApiGuard } from '../../../../lib/guard'
 import { StatusNote } from '../../../../lib/models/status'
 import { DEFAULT_202, ERROR_404, ERROR_500 } from '../../../../lib/responses'
@@ -14,7 +14,7 @@ const handler = ApiGuard(async (req, res, context) => {
   switch (req.method) {
     case 'POST': {
       const body = req.body
-      const { message, replyStatus, attachments } = body as CreateStatusParams
+      const { message, replyStatus, attachments } = body as CreateNoteParams
       try {
         const status = await createNoteFromUserInput({
           currentActor,

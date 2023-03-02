@@ -7,7 +7,7 @@ import {
   useState
 } from 'react'
 
-import { createStatus } from '../../client'
+import { createNote } from '../../client'
 import { Media } from '../../medias/apple/media'
 import { Video720p, VideoPosterDerivative } from '../../medias/apple/webstream'
 import { Actor, ActorProfile } from '../../models/actor'
@@ -57,7 +57,7 @@ export const PostBox: FC<Props> = ({
     setAllowPost(false)
     const message = postBoxRef.current.value
     try {
-      const response = await createStatus({
+      const response = await createNote({
         message,
         replyStatus,
         attachments
