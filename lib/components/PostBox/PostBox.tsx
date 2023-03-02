@@ -159,6 +159,9 @@ export const PostBox: FC<Props> = ({
       : `${Actor.getMentionFromId(replyStatus.actorId, true)} `
     const others = replyStatus.tags
       .filter((item) => item.type === 'mention')
+      .filter(
+        (item) => item.name !== Actor.getMentionFromProfile(profile, true)
+      )
       .map((item) => {
         if (item.name.slice(1).includes('@')) return item.name
         try {
