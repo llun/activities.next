@@ -7176,10 +7176,10 @@ path-type@^4.0.0:
   resolved "https://registry.yarnpkg.com/path-type/-/path-type-4.0.0.tgz#84ed01c0a7ba380afe09d90a8c180dcd9d03043b"
   integrity sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw==
 
-peggy@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/peggy/-/peggy-3.0.0.tgz#d9d74bf42712ad8e4587452c1b600eba9cf0eb30"
-  integrity sha512-Z4wzPw+OhPO1X2nVM3rt4Uprn79lIV9AlkOar1JC+veI6q7f+X92k1pI+HBhkxncz5LCwvei+Xl1+oKjdlcxiQ==
+peggy@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/peggy/-/peggy-3.0.1.tgz#5c5aac3f7b92752c81f6fcaa54ffb058157b2bea"
+  integrity sha512-opG0pnfH5ZQvlqz8Ozmk1SvIer9Rz6op0nDSkVQ4kQnVL0+KOKtIocoidxOgpLoS82r+ZW8J16FjhL3rhH/MpA==
   dependencies:
     commander "^10.0.0"
     source-map-generator "0.8.0"
