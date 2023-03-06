@@ -27,7 +27,7 @@
     "content-type": "^1.0.5",
     "date-fns": "^2.29.3",
     "date-fns-tz": "^2.0.0",
-    "got": "^12.5.3",
+    "got": "^12.6.0",
     "html-react-parser": "^3.0.9",
     "jsonld": "^8.1.1",
     "knex": "2.4.2",
