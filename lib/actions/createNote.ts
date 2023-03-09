@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { encode } from 'html-entities'
 
 import { getPublicProfile, sendNote } from '../activities'
 import {
@@ -140,7 +141,7 @@ export const createNoteFromUserInput = async ({
 
     actorId: currentActor.id,
 
-    text: paragraphText(await linkifyText(text)),
+    text: paragraphText(await linkifyText(encode(text))),
     summary: '',
 
     to: [ACTIVITY_STREAM_PUBLIC],
