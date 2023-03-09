@@ -133,6 +133,15 @@ export const createNoteFromUserInput = async ({
   const statusId = `${currentActor.id}/statuses/${postId}`
   const mentions = await getMentions({ text, currentActor, replyStatus })
 
+  const to =
+    replyStatus && replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC)
+      ? [ACTIVITY_STREAM_PUBLIC]
+      : [currentActor.followersUrl]
+  const cc =
+    replyStatus && replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC)
+      ? [currentActor.followersUrl, ...mentions.map((item) => item.href)]
+      : [ACTIVITY_STREAM_PUBLIC, ...mentions.map((item) => item.href)]
+
   const createdStatus = await storage.createNote({
     id: statusId,
     url: `https://${
@@ -144,8 +153,8 @@ export const createNoteFromUserInput = async ({
     text: paragraphText(await linkifyText(encode(text))),
     summary: '',
 
-    to: [ACTIVITY_STREAM_PUBLIC],
-    cc: [currentActor.followersUrl, ...mentions.map((item) => item.href)],
+    to,
+    cc,
 
     reply: replyStatus?.data.id || ''
   })
