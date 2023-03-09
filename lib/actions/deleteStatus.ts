@@ -1,6 +1,7 @@
 import { deleteStatus } from '../activities'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
+import { getSpan } from '../trace'
 
 interface DeleteStatusFromUserInputParams {
   currentActor: Actor
@@ -12,11 +13,15 @@ export const deleteStatusFromUserInput = async ({
   statusId,
   storage
 }: DeleteStatusFromUserInputParams): Promise<void> => {
+  const span = getSpan('actions', 'deleteNote', { statusId })
   const originalStatus = await storage.getStatus({
     statusId,
     withReplies: false
   })
-  if (!originalStatus) return
+  if (!originalStatus) {
+    span?.finish()
+    return
+  }
 
   await storage.deleteStatus({ statusId })
   // TODO: Get inboxes from status, instead of followers?
@@ -32,4 +37,5 @@ export const deleteStatusFromUserInput = async ({
       })
     })
   )
+  span?.finish()
 }
