@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { encode } from 'html-entities'
 
 import { getPublicProfile, sendNote } from '../activities'
+import { Mention } from '../activities/entities/mention'
 import {
   Note,
   getAttachments,
@@ -17,7 +18,7 @@ import {
 import { getMentions, linkifyText, paragraphText } from '../link'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
-import { StatusType } from '../models/status'
+import { Status, StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
 import { getSpan } from '../trace'
@@ -110,6 +111,35 @@ export const createNote = async ({
   return note
 }
 
+// TODO: Support status visibility public, unlist, followers only, mentions only
+const statusRecipientsTo = (actor: Actor, replyStatus?: Status) => {
+  if (!replyStatus) {
+    return [ACTIVITY_STREAM_PUBLIC]
+  }
+
+  if (replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC)) {
+    return [ACTIVITY_STREAM_PUBLIC]
+  }
+
+  return [actor.followersUrl]
+}
+
+const statusRecipientsCC = (
+  actor: Actor,
+  mentions: Mention[],
+  replyStatus?: Status
+) => {
+  if (!replyStatus) {
+    return [actor.followersUrl, ...mentions.map((item) => item.href)]
+  }
+
+  if (replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC)) {
+    return [actor.followersUrl, ...mentions.map((item) => item.href)]
+  }
+
+  return [ACTIVITY_STREAM_PUBLIC, ...mentions.map((item) => item.href)]
+}
+
 interface CreateNoteFromUserInputParams {
   text: string
   replyNoteId?: string
@@ -133,14 +163,8 @@ export const createNoteFromUserInput = async ({
   const statusId = `${currentActor.id}/statuses/${postId}`
   const mentions = await getMentions({ text, currentActor, replyStatus })
 
-  const to =
-    replyStatus && replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC)
-      ? [ACTIVITY_STREAM_PUBLIC]
-      : [currentActor.followersUrl]
-  const cc =
-    replyStatus && replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC)
-      ? [currentActor.followersUrl, ...mentions.map((item) => item.href)]
-      : [ACTIVITY_STREAM_PUBLIC, ...mentions.map((item) => item.href)]
+  const to = statusRecipientsTo(currentActor, replyStatus)
+  const cc = statusRecipientsCC(currentActor, mentions, replyStatus)
 
   const createdStatus = await storage.createNote({
     id: statusId,
