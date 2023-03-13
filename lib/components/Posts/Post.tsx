@@ -40,7 +40,7 @@ const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   return (
     <div className={cn('d-flex', 'mb-1', 'align-items-center')}>
       <i className="bi bi-repeat me-2"></i>
-      <span className="me-2">Boost by</span>
+      <span className="me-2 text-nowrap">Boost by</span>
       <Actor
         className={cn('flex-grow-1')}
         actor={status.actor}
