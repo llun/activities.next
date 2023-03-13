@@ -62,7 +62,19 @@ export const createQuestion = async ({
     }
   }
 
-  console.log('Create new question')
+  const response = await fetch('/api/v1/accounts/outbox', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      type: 'question',
+      replyStatus,
+      message,
+      choices
+    })
+  })
+  console.log(response.status)
 }
 
 export interface DeleteStatusParams {

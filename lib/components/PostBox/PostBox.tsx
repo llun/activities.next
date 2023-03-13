@@ -7,7 +7,7 @@ import {
   useState
 } from 'react'
 
-import { createNote } from '../../client'
+import { createNote, createQuestion } from '../../client'
 import { Media } from '../../medias/apple/media'
 import { Video720p, VideoPosterDerivative } from '../../medias/apple/webstream'
 import { Actor, ActorProfile } from '../../models/actor'
@@ -33,6 +33,11 @@ interface Props {
 
 const key = () => Math.round(Math.random() * 1000)
 
+const DEFAULT_CHOICES = [
+  { key: key(), text: '' },
+  { key: key(), text: '' }
+]
+
 export const PostBox: FC<Props> = ({
   host,
   profile,
@@ -45,10 +50,7 @@ export const PostBox: FC<Props> = ({
   const [showPolls, setShowPolls] = useState<boolean>(false)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
-  const [choices, setChoices] = useState<Choice[]>([
-    { key: key(), text: '' },
-    { key: key(), text: '' }
-  ])
+  const [choices, setChoices] = useState<Choice[]>(DEFAULT_CHOICES)
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
@@ -57,6 +59,19 @@ export const PostBox: FC<Props> = ({
     setAllowPost(false)
     const message = postBoxRef.current.value
     try {
+      if (showPolls) {
+        const response = await createQuestion({
+          message,
+          choices: choices.map((item) => item.text),
+          replyStatus
+        })
+
+        setAttachments([])
+        setChoices(DEFAULT_CHOICES)
+        setShowPolls(false)
+        return
+      }
+
       const response = await createNote({
         message,
         replyStatus,
@@ -66,6 +81,8 @@ export const PostBox: FC<Props> = ({
       const { status, attachments: storedAttachments } = response
       onPostCreated(status, storedAttachments)
       setAttachments([])
+      setChoices(DEFAULT_CHOICES)
+      setShowPolls(false)
 
       postBoxRef.current.value = ''
     } catch {
