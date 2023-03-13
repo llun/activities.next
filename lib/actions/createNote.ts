@@ -13,6 +13,7 @@ import {
 import { compact } from '../jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMACT,
   ACTIVITY_STREAM_URL
 } from '../jsonld/activitystream'
 import { getMentions, linkifyText, paragraphText } from '../link'
@@ -121,6 +122,10 @@ const statusRecipientsTo = (actor: Actor, replyStatus?: Status) => {
     return [ACTIVITY_STREAM_PUBLIC]
   }
 
+  if (replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC_COMACT)) {
+    return [ACTIVITY_STREAM_PUBLIC]
+  }
+
   return [actor.followersUrl]
 }
 
@@ -134,6 +139,10 @@ const statusRecipientsCC = (
   }
 
   if (replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC)) {
+    return [actor.followersUrl, ...mentions.map((item) => item.href)]
+  }
+
+  if (replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC_COMACT)) {
     return [actor.followersUrl, ...mentions.map((item) => item.href)]
   }
 
