@@ -7,7 +7,7 @@ import {
   useState
 } from 'react'
 
-import { createNote, createQuestion } from '../../client'
+import { createNote, createPoll } from '../../client'
 import { Media } from '../../medias/apple/media'
 import { Video720p, VideoPosterDerivative } from '../../medias/apple/webstream'
 import { Actor, ActorProfile } from '../../models/actor'
@@ -60,7 +60,7 @@ export const PostBox: FC<Props> = ({
     const message = postBoxRef.current.value
     try {
       if (showPolls) {
-        const response = await createQuestion({
+        const response = await createPoll({
           message,
           choices: choices.map((item) => item.text),
           replyStatus

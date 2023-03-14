@@ -113,7 +113,7 @@ export const createNote = async ({
 }
 
 // TODO: Support status visibility public, unlist, followers only, mentions only
-const statusRecipientsTo = (actor: Actor, replyStatus?: Status) => {
+export const statusRecipientsTo = (actor: Actor, replyStatus?: Status) => {
   if (!replyStatus) {
     return [ACTIVITY_STREAM_PUBLIC]
   }
@@ -129,7 +129,7 @@ const statusRecipientsTo = (actor: Actor, replyStatus?: Status) => {
   return [actor.followersUrl]
 }
 
-const statusRecipientsCC = (
+export const statusRecipientsCC = (
   actor: Actor,
   mentions: Mention[],
   replyStatus?: Status

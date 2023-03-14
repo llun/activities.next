@@ -41,17 +41,17 @@ export const createNote = async ({
   }
 }
 
-export interface CreateQuestionParams {
+export interface CreatePollParams {
   message: string
   choices: string[]
   replyStatus?: StatusData
 }
 
-export const createQuestion = async ({
+export const createPoll = async ({
   message,
   choices,
   replyStatus
-}: CreateQuestionParams) => {
+}: CreatePollParams) => {
   if (message.trim().length === 0 && choices.length === 0) {
     throw new Error('Message or choices must not be empty')
   }
@@ -68,7 +68,7 @@ export const createQuestion = async ({
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      type: 'question',
+      type: 'poll',
       replyStatus,
       message,
       choices

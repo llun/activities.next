@@ -4,7 +4,7 @@ import { createNoteFromUserInput } from '../../../../lib/actions/createNote'
 import { deleteStatusFromUserInput } from '../../../../lib/actions/deleteStatus'
 import {
   CreateNoteParams,
-  CreateQuestionParams,
+  CreatePollParams,
   DeleteStatusParams
 } from '../../../../lib/client'
 import { ApiGuard } from '../../../../lib/guard'
@@ -13,9 +13,9 @@ import { DEFAULT_202, ERROR_404, ERROR_500 } from '../../../../lib/responses'
 import { getSpan } from '../../../../lib/trace'
 
 type CreateNoteRequest = { type: 'note' } & CreateNoteParams
-type CreateQuestionRequest = { type: 'question' } & CreateQuestionParams
+type CreatePollRequest = { type: 'poll' } & CreatePollParams
 
-type PostRequest = CreateNoteRequest | CreateQuestionRequest
+type PostRequest = CreateNoteRequest | CreatePollRequest
 
 const handler = ApiGuard(async (req, res, context) => {
   const span = getSpan('api', 'outbox', { method: req.method })
