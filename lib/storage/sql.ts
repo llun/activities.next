@@ -23,6 +23,7 @@ import {
   CreateFollowParams,
   CreateLikeParams,
   CreateNoteParams,
+  CreatePollParams,
   CreateTagParams,
   CreateTimelineStatusParams,
   DeleteActorParams,
@@ -612,6 +613,89 @@ export class SqlStorage implements Storage {
     }
 
     return new Status(announceData)
+  }
+
+  async createPoll({
+    id,
+    url,
+    actorId,
+    text,
+    summary = '',
+    to,
+    cc,
+    reply = '',
+    endAt,
+    createdAt
+  }: CreatePollParams) {
+    const currentTime = Date.now()
+    const statusCreatedAt = createdAt || currentTime
+    const statusUpdatedAt = currentTime
+
+    await this.database.transaction(async (trx) => {
+      await trx('statuses').insert({
+        id,
+        actorId,
+        type: StatusType.Poll,
+        content: JSON.stringify({
+          url,
+          text,
+          summary
+        }),
+        reply,
+        createdAt: statusCreatedAt,
+        updatedAt: statusUpdatedAt
+      })
+      await Promise.all(
+        to.map((actorId) =>
+          trx('recipients').insert({
+            id: crypto.randomUUID(),
+            statusId: id,
+            actorId,
+            type: 'to',
+
+            createdAt: statusUpdatedAt,
+            updatedAt: statusUpdatedAt
+          })
+        )
+      )
+
+      await Promise.all(
+        cc.map((actorId) =>
+          trx('recipients').insert({
+            id: crypto.randomUUID(),
+            statusId: id,
+            actorId,
+            type: 'cc',
+
+            createdAt: statusUpdatedAt,
+            updatedAt: statusUpdatedAt
+          })
+        )
+      )
+    })
+
+    const actor = await this.getActorFromId({ id: actorId })
+    return new Status({
+      id,
+      url,
+      actorId,
+      actor: actor?.toProfile() || null,
+      type: StatusType.Poll,
+      text,
+      summary,
+      reply,
+      to,
+      cc,
+      tags: [],
+      replies: [],
+      choices: [],
+      totalLikes: 0,
+      isActorLiked: false,
+      isActorAnnounced: false,
+      endAt,
+      createdAt: statusCreatedAt,
+      updatedAt: statusUpdatedAt
+    })
   }
 
   private async getStatusWithAttachmentsFromData(

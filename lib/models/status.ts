@@ -1,16 +1,17 @@
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Document } from '../activities/entities/document'
 import { Note, getContent, getSummary } from '../activities/entities/note'
+import { Question, QuestionEntity } from '../activities/entities/question'
 import { getISOTimeUTC } from '../time'
 import { ActorProfile } from './actor'
 import { Attachment, AttachmentData } from './attachment'
-import { QuestionChoice } from './questionChoice'
+import { PollChoice } from './pollChoice'
 import { Tag, TagData } from './tag'
 
 export enum StatusType {
   Note = 'Note',
   Announce = 'Announce',
-  Question = 'Question'
+  Poll = 'Poll'
 }
 
 interface StatusBase {
@@ -47,8 +48,8 @@ export interface StatusAnnounce extends StatusBase {
   originalStatus: StatusNote
 }
 
-export interface StatusQuestion extends StatusBase {
-  type: StatusType.Question
+export interface StatusPoll extends StatusBase {
+  type: StatusType.Poll
   url: string
   text: string
   summary: string
@@ -60,10 +61,12 @@ export interface StatusQuestion extends StatusBase {
   totalLikes: number
 
   tags: TagData[]
-  choices: QuestionChoice[]
+  choices: PollChoice[]
+
+  endAt: number
 }
 
-export type StatusData = StatusNote | StatusAnnounce
+export type StatusData = StatusNote | StatusAnnounce | StatusPoll
 
 export class Status {
   readonly data: StatusData
@@ -127,7 +130,7 @@ export class Status {
   static fromNote(note: Note) {
     const attachments = (
       Array.isArray(note.attachment) ? note.attachment : [note.attachment]
-    ).filter((item): item is Document => item.type === 'Document')
+    ).filter((item): item is Document => item?.type === 'Document')
 
     return new Status({
       id: note.id,
@@ -188,9 +191,39 @@ export class Status {
     })
   }
 
-  toObject(): Note {
+  toObject(): Note | Question {
+    if (this.data.type === StatusType.Poll) {
+      const data = this.data
+      return {
+        id: data.id,
+        type: QuestionEntity,
+        summary: data.summary || null,
+        published: getISOTimeUTC(data.createdAt),
+        url: data.url,
+        attributedTo: data.actorId,
+        to: data.to,
+        cc: data.cc,
+        inReplyTo: data.reply || null,
+        content: data.text,
+        tag: data.tags.map((tag) => new Tag(tag).toObject()),
+        endTime: getISOTimeUTC(data.endAt),
+        oneOf: [],
+        replies: {
+          id: `${data.id}/replies`,
+          type: 'Collection',
+          totalItems: data.replies.length,
+          items: data.replies.map((reply) => {
+            const status = new Status(reply)
+            return status.toObject()
+          })
+        }
+      } as Question
+    }
+
     const data =
-      this.data.type === StatusType.Note ? this.data : this.data.originalStatus
+      this.data.type === StatusType.Announce
+        ? this.data.originalStatus
+        : this.data
 
     return {
       id: data.id,

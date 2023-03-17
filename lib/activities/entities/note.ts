@@ -26,13 +26,13 @@ export interface BaseNote extends ContextEntity {
   contentMap?: {
     [key in string]: string
   }
-  attachment: Attachment | Attachment[]
+  attachment?: Attachment | Attachment[]
   tag: (Mention | Emoji)[]
   replies?: Collection
 }
 
 export interface Note extends BaseNote {
-  type: 'Note'
+  type: NoteEntity
 }
 
 export const getAttachments = (object: Note) => {

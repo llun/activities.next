@@ -98,14 +98,29 @@ export type CreateNoteParams = {
 }
 export type CreateAnnounceParams = {
   id: string
-
   actorId: string
 
   to: string[]
   cc: string[]
 
   originalStatusId: string
+  createdAt?: number
+}
+export type CreatePollParams = {
+  id: string
+  actorId: string
+  url: string
+  text: string
+  summary?: string
 
+  to: string[]
+  cc: string[]
+
+  choices: string[]
+
+  reply?: string
+
+  endAt: number
   createdAt?: number
 }
 export type GetStatusParams = { statusId: string; withReplies?: boolean }
@@ -202,6 +217,7 @@ export interface Storage {
 
   createNote(params: CreateNoteParams): Promise<Status>
   createAnnounce(params: CreateAnnounceParams): Promise<Status | undefined>
+  createPoll(params: CreatePollParams): Promise<Status>
   getStatus(params: GetStatusParams): Promise<Status | undefined>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
   hasActorAnnouncedStatus(

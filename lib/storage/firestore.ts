@@ -23,6 +23,7 @@ import {
   CreateFollowParams,
   CreateLikeParams,
   CreateNoteParams,
+  CreatePollParams,
   CreateTagParams,
   CreateTimelineStatusParams,
   DeleteActorParams,
@@ -600,6 +601,49 @@ export class FirestoreStorage implements Storage {
       actor: null
     }
     return new Status(announceData)
+  }
+
+  @Trace('db')
+  async createPoll({
+    id,
+    url,
+    actorId,
+    text,
+    summary = '',
+    to,
+    cc,
+    reply = '',
+    endAt,
+    createdAt
+  }: CreatePollParams): Promise<Status> {
+    const currentTime = Date.now()
+    const status = {
+      id,
+      url,
+      actorId,
+      type: StatusType.Poll as StatusType.Poll,
+      text,
+      summary,
+      to,
+      cc,
+      reply,
+      endAt,
+      createdAt: createdAt || currentTime,
+      updatedAt: currentTime
+    }
+    await this.db.doc(`statuses/${FirestoreStorage.urlToId(id)}`).set(status)
+
+    const actor = await this.getActorFromId({ id: actorId })
+    return new Status({
+      ...status,
+      actor: actor?.toProfile() || null,
+      totalLikes: 0,
+      isActorLiked: false,
+      isActorAnnounced: false,
+      tags: [],
+      replies: [],
+      choices: []
+    })
   }
 
   @Trace('db')

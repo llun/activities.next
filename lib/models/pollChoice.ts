@@ -1,4 +1,4 @@
-export interface QuestionChoiceData {
+export interface PollChoiceData {
   statusId: string
   text: string
   totalVote: number
@@ -7,10 +7,10 @@ export interface QuestionChoiceData {
   updatedAt: number
 }
 
-export class QuestionChoice {
-  readonly data: QuestionChoiceData
+export class PollChoice {
+  readonly data: PollChoiceData
 
-  constructor(data: QuestionChoiceData) {
+  constructor(data: PollChoiceData) {
     this.data = data
   }
 
