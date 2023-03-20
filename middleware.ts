@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { acceptContainsContentTypes } from './lib/accept'
 
-export async function middleware(request: NextRequest) {
-  if (request.method === 'POST') {
-    const data = await request.json()
-    console.log(JSON.stringify(data, null, 2))
-  }
+export const config = {
+  matcher: ['/(@.*)']
+}
 
+export async function middleware(request: NextRequest) {
   if (request.method === 'GET') {
     const pathname = request.nextUrl.pathname
     const acceptValue = request.headers.get('Accept')
