@@ -625,6 +625,7 @@ export class SqlStorage implements Storage {
     cc,
     reply = '',
     endAt,
+    choices,
     createdAt
   }: CreatePollParams) {
     const currentTime = Date.now()
@@ -639,12 +640,21 @@ export class SqlStorage implements Storage {
         content: JSON.stringify({
           url,
           text,
-          summary
+          summary,
+          endAt
         }),
         reply,
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })
+      await Promise.all(
+        choices.map((choice) =>
+          trx('poll_choices').insert({
+            statusId: id,
+            title: choice
+          })
+        )
+      )
       await Promise.all(
         to.map((actorId) =>
           trx('recipients').insert({
