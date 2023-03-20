@@ -243,13 +243,19 @@ export const createNoteFromUserInput = async ({
   })
 
   const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
+  const note = status.toNote()
+  if (!note) {
+    span?.finish()
+    return status
+  }
+
   await Promise.all(
     inboxes.map(async (inbox) => {
       try {
         await sendNote({
           currentActor,
           inbox,
-          note: status.toObject()
+          note
         })
       } catch {
         console.error(`Fail to send note to ${inbox}`)

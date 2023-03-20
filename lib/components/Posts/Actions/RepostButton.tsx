@@ -17,7 +17,7 @@ export const RepostButton: FC<RepostButtonProps> = ({
   onPostReposted
 }) => {
   const mainStatus =
-    status.type === StatusType.Note ? status : status.originalStatus
+    status.type === StatusType.Announce ? status.originalStatus : status
 
   const [isLoading, setIsLoading] = useState<boolean>(false)
 

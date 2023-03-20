@@ -73,24 +73,26 @@ export const Post: FC<PostProps> = (props) => {
           convertTextContent(actualStatus.text, actualStatus.tags)
         )}
       </div>
-      {actualStatus.attachments && actualStatus.attachments.length > 0 && (
-        <div
-          className={cn(styles.medias, {
-            [styles.grids]: actualStatus.attachments.length > 1,
-            [styles.three]: actualStatus.attachments.length === 3,
-            [styles.more]: actualStatus.attachments.length > 3
-          })}
-        >
-          {actualStatus.attachments.map((attachment) => (
-            <Media
-              className={styles.media}
-              onClick={() => onShowAttachment(attachment)}
-              key={attachment.id}
-              attachment={attachment}
-            />
-          ))}
-        </div>
-      )}
+      {actualStatus.type === StatusType.Note &&
+        actualStatus.attachments &&
+        actualStatus.attachments.length > 0 && (
+          <div
+            className={cn(styles.medias, {
+              [styles.grids]: actualStatus.attachments.length > 1,
+              [styles.three]: actualStatus.attachments.length === 3,
+              [styles.more]: actualStatus.attachments.length > 3
+            })}
+          >
+            {actualStatus.attachments.map((attachment) => (
+              <Media
+                className={styles.media}
+                onClick={() => onShowAttachment(attachment)}
+                key={attachment.id}
+                attachment={attachment}
+              />
+            ))}
+          </div>
+        )}
       <Actions {...props} />
     </div>
   )

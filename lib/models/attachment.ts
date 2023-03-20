@@ -1,3 +1,5 @@
+import { Document } from '../activities/entities/document'
+
 export interface AppleGalleryAttachment {
   type: 'apple'
   guid: string
@@ -34,7 +36,7 @@ export class Attachment {
 
   toObject() {
     const data = this.data
-    return {
+    const document: Document = {
       type: 'Document',
       mediaType: data.mediaType,
       url: data.url,
@@ -42,6 +44,7 @@ export class Attachment {
       ...(data.height ? { height: data.height } : null),
       name: data.name
     }
+    return document
   }
 
   toJson(): AttachmentData {
