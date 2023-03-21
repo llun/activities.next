@@ -184,7 +184,7 @@ export const createNoteFromUserInput = async ({
     actorId: currentActor.id,
 
     text: paragraphText(await linkifyText(encode(text))),
-    summary: '',
+    summary: null,
 
     to,
     cc,
