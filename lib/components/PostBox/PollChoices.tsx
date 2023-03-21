@@ -1,4 +1,5 @@
-import { FC } from 'react'
+import cn from 'classnames'
+import { FC, useState } from 'react'
 
 import { Button } from '../Button'
 
@@ -20,6 +21,9 @@ export const PollChoices: FC<Props> = ({
   onAddChoice,
   onRemoveChoice
 }) => {
+  const [showDurationDropdown, setShowDurationDropdown] =
+    useState<boolean>(false)
+
   if (!show) return null
 
   return (
@@ -45,9 +49,38 @@ export const PollChoices: FC<Props> = ({
           </Button>
         </div>
       ))}
-      <Button disabled={choices.length >= 5} onClick={() => onAddChoice()}>
-        Add choice
-      </Button>
+      <div className="mb-1 d-flex flex-row">
+        <div className={cn('dropdown me-2', { show: showDurationDropdown })}>
+          <button
+            className="btn btn-secondary dropdown-toggle"
+            type="button"
+            id="dropdownMenuButton"
+            data-toggle="dropdown"
+            aria-haspopup="true"
+            aria-expanded="false"
+            onClick={() => setShowDurationDropdown(!showDurationDropdown)}
+          >
+            6 hours
+          </button>
+          <div
+            className={cn('dropdown-menu mt-1', { show: showDurationDropdown })}
+            aria-labelledby="dropdownMenuButton"
+          >
+            <a className="dropdown-item" href="#">
+              30 minutes
+            </a>
+            <a className="dropdown-item" href="#">
+              1 hours
+            </a>
+            <a className="dropdown-item" href="#">
+              6 hours
+            </a>
+          </div>
+        </div>
+        <Button disabled={choices.length >= 5} onClick={() => onAddChoice()}>
+          Add choice
+        </Button>
+      </div>
     </div>
   )
 }
