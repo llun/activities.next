@@ -67,6 +67,9 @@ export const PollChoices: FC<Props> = ({
             aria-labelledby="dropdownMenuButton"
           >
             <a className="dropdown-item" href="#">
+              5 minutes
+            </a>
+            <a className="dropdown-item" href="#">
               30 minutes
             </a>
             <a className="dropdown-item" href="#">
@@ -74,6 +77,18 @@ export const PollChoices: FC<Props> = ({
             </a>
             <a className="dropdown-item" href="#">
               6 hours
+            </a>
+            <a className="dropdown-item" href="#">
+              12 hours
+            </a>
+            <a className="dropdown-item" href="#">
+              1 day
+            </a>
+            <a className="dropdown-item" href="#">
+              3 days
+            </a>
+            <a className="dropdown-item" href="#">
+              7 days
             </a>
           </div>
         </div>
