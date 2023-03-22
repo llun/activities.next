@@ -50,6 +50,17 @@ export const PollChoices: FC<Props> = ({
         </div>
       ))}
       <div className="mb-1 d-flex flex-row">
+        <div className="form-check py-1 me-2">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            value=""
+            id="flexCheckDefault"
+          />
+          <label className="form-check-label" htmlFor="flexCheckDefault">
+            Multiple Choices
+          </label>
+        </div>
         <div className={cn('dropdown me-2', { show: showDurationDropdown })}>
           <button
             className="btn btn-secondary dropdown-toggle"
