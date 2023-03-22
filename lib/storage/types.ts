@@ -87,7 +87,7 @@ export type CreateNoteParams = {
   actorId: string
   url: string
   text: string
-  summary?: string
+  summary?: string | null
 
   to: string[]
   cc: string[]
