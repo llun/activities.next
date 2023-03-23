@@ -12,7 +12,7 @@ export type NoteEntity = typeof NoteEntity
 
 export interface BaseNote extends ContextEntity {
   id: string
-  summary?: string
+  summary?: string | null
   summaryMap?: {
     [key in string]: string
   }

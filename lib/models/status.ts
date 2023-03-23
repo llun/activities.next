@@ -30,7 +30,7 @@ export interface StatusNote extends StatusBase {
   type: StatusType.Note
   url: string
   text: string
-  summary: string
+  summary: string | null
   reply: string
   replies: StatusNote[]
 
@@ -52,7 +52,7 @@ export interface StatusPoll extends StatusBase {
   type: StatusType.Poll
   url: string
   text: string
-  summary: string
+  summary: string | null
   reply: string
   replies: StatusNote[]
 
