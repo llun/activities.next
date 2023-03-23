@@ -19,7 +19,7 @@ import {
 import { StatusData, StatusNote, StatusType } from '../../models/status'
 import { Button } from '../Button'
 import { AppleGallerButton } from './AppleGalleryButton'
-import { Choice, PollChoices } from './PollChoices'
+import { Choice, DEFAULT_DURATION, Duration, PollChoices } from './PollChoices'
 import styles from './PostBox.module.scss'
 import { ReplyPreview } from './ReplyPreview'
 
@@ -51,6 +51,8 @@ export const PostBox: FC<Props> = ({
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const [choices, setChoices] = useState<Choice[]>(DEFAULT_CHOICES)
+  const [pollDurationInSeconds, setPollDuration] =
+    useState<Duration>(DEFAULT_DURATION)
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
@@ -257,8 +259,12 @@ export const PostBox: FC<Props> = ({
         <PollChoices
           show={showPolls}
           choices={choices}
+          durationInSeconds={pollDurationInSeconds}
           onAddChoice={onAddChoice}
           onRemoveChoice={onRemoveChoice}
+          onChooseDuration={(durationInSeconds: Duration) =>
+            setPollDuration(durationInSeconds)
+          }
         />
         <div className="d-flex justify-content-between mb-3">
           <div>

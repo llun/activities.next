@@ -3,6 +3,21 @@ import { FC, useState } from 'react'
 
 import { Button } from '../Button'
 
+export const DEFAULT_DURATION = 21_600
+
+const SecondsToDurationText = {
+  300: '5 Minutes',
+  1_800: '30 Minutes',
+  3_600: '1 Hour',
+  21_600: '6 Hours',
+  43_200: '12 Hours',
+  86_400: '1 Day',
+  259_200: '3 Days',
+  604_800: '7 Days'
+}
+
+export type Duration = keyof typeof SecondsToDurationText
+
 export interface Choice {
   key: number
   text: string
@@ -11,15 +26,19 @@ export interface Choice {
 interface Props {
   show: boolean
   choices: Choice[]
+  durationInSeconds: Duration
   onAddChoice: () => void
   onRemoveChoice: (index: number) => void
+  onChooseDuration: (durationInSeconds: Duration) => void
 }
 
 export const PollChoices: FC<Props> = ({
   show,
   choices,
+  durationInSeconds,
   onAddChoice,
-  onRemoveChoice
+  onRemoveChoice,
+  onChooseDuration
 }) => {
   const [showDurationDropdown, setShowDurationDropdown] =
     useState<boolean>(false)
@@ -71,36 +90,26 @@ export const PollChoices: FC<Props> = ({
             aria-expanded="false"
             onClick={() => setShowDurationDropdown(!showDurationDropdown)}
           >
-            6 hours
+            {SecondsToDurationText[durationInSeconds]}
           </button>
           <div
             className={cn('dropdown-menu mt-1', { show: showDurationDropdown })}
             aria-labelledby="dropdownMenuButton"
           >
-            <a className="dropdown-item" href="#">
-              5 minutes
-            </a>
-            <a className="dropdown-item" href="#">
-              30 minutes
-            </a>
-            <a className="dropdown-item" href="#">
-              1 hours
-            </a>
-            <a className="dropdown-item" href="#">
-              6 hours
-            </a>
-            <a className="dropdown-item" href="#">
-              12 hours
-            </a>
-            <a className="dropdown-item" href="#">
-              1 day
-            </a>
-            <a className="dropdown-item" href="#">
-              3 days
-            </a>
-            <a className="dropdown-item" href="#">
-              7 days
-            </a>
+            {Object.keys(SecondsToDurationText).map((duration) => (
+              <a
+                className="dropdown-item"
+                href="#"
+                key={duration}
+                onClick={(event) => {
+                  event.preventDefault()
+                  setShowDurationDropdown(false)
+                  onChooseDuration(parseInt(duration) as Duration)
+                }}
+              >
+                {SecondsToDurationText[parseInt(duration) as Duration]}
+              </a>
+            ))}
           </div>
         </div>
         <Button disabled={choices.length >= 5} onClick={() => onAddChoice()}>
