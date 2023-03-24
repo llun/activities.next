@@ -1,6 +1,9 @@
+import cn from 'classnames'
 import format from 'date-fns/format'
 import Link from 'next/link'
 import { FC } from 'react'
+
+import styles from './Profile.module.scss'
 
 interface Props {
   className?: string
@@ -25,9 +28,9 @@ export const Profile: FC<Props> = ({
   followingCount,
   createdAt
 }) => (
-  <div className={className}>
-    <h1>{name}</h1>
-    <h4>
+  <div className={cn(className, styles.profile)}>
+    <h1 className="text-truncate">{name}</h1>
+    <h4 className="text-truncate">
       <Link prefetch={false} href={url} target={'_blank'}>
         {username}@{domain}
       </Link>

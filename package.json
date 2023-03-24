@@ -29,7 +29,7 @@
     "date-fns-tz": "^2.0.0",
     "got": "^12.6.0",
     "html-entities": "^2.3.3",
-    "html-react-parser": "^3.0.13",
+    "html-react-parser": "^3.0.14",
     "jsonld": "^8.1.1",
     "knex": "2.4.2",
     "linkifyjs": "^4.1.0",
@@ -41,7 +41,7 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-modal": "^3.16.1",
-    "sass": "^1.59.3"
+    "sass": "^1.60.0"
   },
   "devDependencies": {
     "@sucrase/jest-plugin": "^3.0.0",
@@ -55,7 +55,7 @@
     "@types/jest": "^29.5.0",
     "@types/jsonld": "^1.5.8",
     "@types/lodash": "^4.14.191",
-    "@types/node": "^18.15.5",
+    "@types/node": "^18.15.6",
     "@types/react": "18.0.28",
     "@types/react-dom": "18.0.11",
     "@types/react-modal": "^3.13.1",
