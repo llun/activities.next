@@ -3,6 +3,7 @@ import {
   FormEvent,
   KeyboardEvent,
   useEffect,
+  useReducer,
   useRef,
   useState
 } from 'react'
@@ -11,17 +12,23 @@ import { createNote, createPoll } from '../../client'
 import { Media } from '../../medias/apple/media'
 import { Video720p, VideoPosterDerivative } from '../../medias/apple/webstream'
 import { Actor, ActorProfile } from '../../models/actor'
-import {
-  AppleGalleryAttachment,
-  Attachment,
-  PostBoxAttachment
-} from '../../models/attachment'
+import { AppleGalleryAttachment, Attachment } from '../../models/attachment'
 import { StatusData, StatusNote, StatusType } from '../../models/status'
 import { Button } from '../Button'
 import { AppleGallerButton } from './AppleGalleryButton'
-import { Choice, DEFAULT_DURATION, Duration, PollChoices } from './PollChoices'
+import { Duration, PollChoices } from './PollChoices'
 import styles from './PostBox.module.scss'
 import { ReplyPreview } from './ReplyPreview'
+import {
+  DEFAULT_STATE,
+  addPollChoice,
+  removePollChoice,
+  resetExtension,
+  setAttachments,
+  setPollDurationInSeconds,
+  setPollVisibility,
+  statusExtensionReducer
+} from './reducers'
 
 interface Props {
   host: string
@@ -31,13 +38,6 @@ interface Props {
   onPostCreated: (status: StatusData, attachments: Attachment[]) => void
 }
 
-const key = () => Math.round(Math.random() * 1000)
-
-const DEFAULT_CHOICES = [
-  { key: key(), text: '' },
-  { key: key(), text: '' }
-]
-
 export const PostBox: FC<Props> = ({
   host,
   profile,
@@ -46,13 +46,13 @@ export const PostBox: FC<Props> = ({
   onDiscardReply
 }) => {
   const [allowPost, setAllowPost] = useState<boolean>(false)
-  const [attachments, setAttachments] = useState<PostBoxAttachment[]>([])
-  const [showPolls, setShowPolls] = useState<boolean>(false)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
-  const [choices, setChoices] = useState<Choice[]>(DEFAULT_CHOICES)
-  const [pollDurationInSeconds, setPollDuration] =
-    useState<Duration>(DEFAULT_DURATION)
+
+  const [postExtension, dispatch] = useReducer(
+    statusExtensionReducer,
+    DEFAULT_STATE
+  )
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
@@ -61,19 +61,19 @@ export const PostBox: FC<Props> = ({
     setAllowPost(false)
     const message = postBoxRef.current.value
     try {
-      if (showPolls) {
+      if (postExtension.poll.showing) {
+        const poll = postExtension.poll
         const response = await createPoll({
           message,
-          choices: choices.map((item) => item.text),
+          choices: poll.choices.map((item) => item.text),
           replyStatus
         })
 
-        setAttachments([])
-        setChoices(DEFAULT_CHOICES)
-        setShowPolls(false)
+        dispatch(resetExtension())
         return
       }
 
+      const attachments = postExtension.attachments
       const response = await createNote({
         message,
         replyStatus,
@@ -82,9 +82,7 @@ export const PostBox: FC<Props> = ({
 
       const { status, attachments: storedAttachments } = response
       onPostCreated(status, storedAttachments)
-      setAttachments([])
-      setChoices(DEFAULT_CHOICES)
-      setShowPolls(false)
+      dispatch(resetExtension())
 
       postBoxRef.current.value = ''
     } catch {
@@ -114,7 +112,7 @@ export const PostBox: FC<Props> = ({
         width: media.width,
         height: media.height
       }
-      setAttachments([...attachments, attachment])
+      dispatch(setAttachments([...postExtension.attachments, attachment]))
       return
     }
 
@@ -131,14 +129,16 @@ export const PostBox: FC<Props> = ({
       width: media.width,
       height: media.height
     }
-    setAttachments([...attachments, attachment])
+    dispatch(setAttachments([...postExtension.attachments, attachment]))
   }
 
   const onRemoveAttachment = (attachmentIndex: number) => {
-    setAttachments([
-      ...attachments.slice(0, attachmentIndex),
-      ...attachments.slice(attachmentIndex + 1)
-    ])
+    dispatch(
+      setAttachments([
+        ...postExtension.attachments.slice(0, attachmentIndex),
+        ...postExtension.attachments.slice(attachmentIndex + 1)
+      ])
+    )
   }
 
   const onQuickPost = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -156,16 +156,6 @@ export const PostBox: FC<Props> = ({
 
     const text = postBoxRef.current.value
     setAllowPost(text.length > 0)
-  }
-
-  const onAddChoice = () => {
-    if (choices.length > 4) return
-    setChoices((previous) => [...previous, { key: key(), text: '' }])
-  }
-
-  const onRemoveChoice = (index: number) => {
-    if (choices.length < 3) return
-    setChoices([...choices.slice(0, index), ...choices.slice(index + 1)])
   }
 
   /**
@@ -257,13 +247,13 @@ export const PostBox: FC<Props> = ({
           />
         </div>
         <PollChoices
-          show={showPolls}
-          choices={choices}
-          durationInSeconds={pollDurationInSeconds}
-          onAddChoice={onAddChoice}
-          onRemoveChoice={onRemoveChoice}
+          show={postExtension.poll.showing}
+          choices={postExtension.poll.choices}
+          durationInSeconds={postExtension.poll.durationInSeconds}
+          onAddChoice={() => dispatch(addPollChoice)}
+          onRemoveChoice={(index) => dispatch(removePollChoice(index))}
           onChooseDuration={(durationInSeconds: Duration) =>
-            setPollDuration(durationInSeconds)
+            dispatch(setPollDurationInSeconds(durationInSeconds))
           }
         />
         <div className="d-flex justify-content-between mb-3">
@@ -274,7 +264,9 @@ export const PostBox: FC<Props> = ({
             />
             <Button
               variant="link"
-              onClick={() => setShowPolls((value) => !value)}
+              onClick={() =>
+                dispatch(setPollVisibility(!postExtension.poll.showing))
+              }
             >
               <i className="bi bi-bar-chart-fill" />
             </Button>
@@ -284,7 +276,7 @@ export const PostBox: FC<Props> = ({
           </Button>
         </div>
         <div className={styles.attachments}>
-          {attachments.map((item, index) => (
+          {postExtension.attachments.map((item, index) => (
             <div
               className={styles.attachment}
               key={item.guid}
