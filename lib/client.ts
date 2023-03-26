@@ -1,3 +1,4 @@
+import { Duration } from './components/PostBox/PollChoices'
 import { Assets, Stream } from './medias/apple/webstream'
 import { Attachment, PostBoxAttachment } from './models/attachment'
 import { Follow, FollowStatus } from './models/follow'
@@ -44,12 +45,14 @@ export const createNote = async ({
 export interface CreatePollParams {
   message: string
   choices: string[]
+  durationInSeconds: Duration
   replyStatus?: StatusData
 }
 
 export const createPoll = async ({
   message,
   choices,
+  durationInSeconds,
   replyStatus
 }: CreatePollParams) => {
   if (message.trim().length === 0 && choices.length === 0) {
@@ -71,6 +74,7 @@ export const createPoll = async ({
       type: 'poll',
       replyStatus,
       message,
+      durationInSeconds,
       choices
     })
   })

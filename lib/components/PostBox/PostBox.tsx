@@ -66,6 +66,7 @@ export const PostBox: FC<Props> = ({
         const response = await createPoll({
           message,
           choices: poll.choices.map((item) => item.text),
+          durationInSeconds: poll.durationInSeconds,
           replyStatus
         })
 
