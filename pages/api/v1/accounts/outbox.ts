@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 
 import { createNoteFromUserInput } from '../../../../lib/actions/createNote'
+import { createPollFromUserInput } from '../../../../lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '../../../../lib/actions/deleteStatus'
 import {
   CreateNoteParams,
@@ -45,6 +46,18 @@ const handler = ApiGuard(async (req, res, context) => {
               note: status.toObject(),
               attachments: (status.data as StatusNote).attachments
             })
+          }
+          case 'poll': {
+            const { message, replyStatus, choices, durationInSeconds } = body
+            await createPollFromUserInput({
+              currentActor,
+              replyStatusId: replyStatus?.id,
+              text: message,
+              choices,
+              storage,
+              endAt: Date.now() + durationInSeconds * 1000
+            })
+            return res.status(404).json(ERROR_404)
           }
           default: {
             return res.status(404).json(ERROR_404)
