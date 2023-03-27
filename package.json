@@ -76,7 +76,7 @@
     "postcss": "^8.4.21",
     "prettier": "^2.8.7",
     "sqlite3": "^5.1.6",
-    "sucrase": "^3.30.0",
+    "sucrase": "^3.31.0",
     "typescript": "^5.0.2"
   },
   "resolutions": {

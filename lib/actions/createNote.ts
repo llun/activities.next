@@ -40,6 +40,7 @@ export const createNote = async ({
     withReplies: false
   })
   if (existingStatus) {
+    span?.finish()
     return note
   }
 

@@ -41,13 +41,13 @@ export const getAttachments = (object: Note) => {
   return [object.attachment]
 }
 
-export const getTags = (object: Note) => {
+export const getTags = (object: BaseNote) => {
   if (!object.tag) return []
   if (Array.isArray(object.tag)) return object.tag
   return [object.tag]
 }
 
-export const getContent = (object: Note) => {
+export const getContent = (object: BaseNote) => {
   if (object.content) return object.content
   if (object.contentMap) {
     const keys = Object.keys(object.contentMap)
@@ -59,7 +59,7 @@ export const getContent = (object: Note) => {
   return ''
 }
 
-export const getSummary = (object: Note) => {
+export const getSummary = (object: BaseNote) => {
   if (object.summary) return object.summary
   if (object.summaryMap) {
     const keys = Object.keys(object.summaryMap)

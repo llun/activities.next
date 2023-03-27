@@ -2,6 +2,7 @@ import type { NextApiHandler, NextApiResponse } from 'next'
 
 import { announce } from '../../lib/actions/announce'
 import { createNote } from '../../lib/actions/createNote'
+import { createPoll } from '../../lib/actions/createPoll'
 import { StatusActivity } from '../../lib/activities/actions/status'
 import {
   AnnounceAction,
@@ -31,6 +32,7 @@ const handlePost = async (
           break
         }
         case QuestionEntity: {
+          await createPoll({ storage, question: activity.object })
           break
         }
       }
