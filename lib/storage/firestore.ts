@@ -6,6 +6,7 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
+import { PollChoice, PollChoiceData } from '../models/pollChoice'
 import {
   Status,
   StatusAnnounce,
@@ -613,6 +614,7 @@ export class FirestoreStorage implements Storage {
     to,
     cc,
     reply = '',
+    choices,
     endAt,
     createdAt
   }: CreatePollParams): Promise<Status> {
@@ -631,7 +633,21 @@ export class FirestoreStorage implements Storage {
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
     }
-    await this.db.doc(`statuses/${FirestoreStorage.urlToId(id)}`).set(status)
+    const statusPath = `statuses/${FirestoreStorage.urlToId(id)}`
+    const choicesData: PollChoiceData[] = choices.map((choice) => ({
+      statusId: id,
+      text: choice,
+      totalVote: 0,
+      createdAt: createdAt || currentTime,
+      updatedAt: currentTime
+    }))
+
+    await this.db.doc(statusPath).set(status)
+    await Promise.all(
+      choices.map((_, index) =>
+        this.db.doc(`${statusPath}/choices/${index}`).set(choicesData[index])
+      )
+    )
 
     const actor = await this.getActorFromId({ id: actorId })
     return new Status({
@@ -642,7 +658,7 @@ export class FirestoreStorage implements Storage {
       isActorAnnounced: false,
       tags: [],
       replies: [],
-      choices: []
+      choices: choicesData.map((data) => new PollChoice(data))
     })
   }
 
