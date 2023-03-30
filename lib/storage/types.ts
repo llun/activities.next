@@ -123,6 +123,15 @@ export type CreatePollParams = {
   endAt: number
   createdAt?: number
 }
+
+export type UpdatePollParams = {
+  id: string
+  text: string
+  summary?: string
+
+  choices: { title: string; totalVotes: number }[]
+}
+
 export type GetStatusParams = { statusId: string; withReplies?: boolean }
 export type GetStatusRepliesParams = { statusId: string }
 export type GetActorStatusesCountParams = { actorId: string }
@@ -218,6 +227,9 @@ export interface Storage {
   createNote(params: CreateNoteParams): Promise<Status>
   createAnnounce(params: CreateAnnounceParams): Promise<Status | undefined>
   createPoll(params: CreatePollParams): Promise<Status>
+
+  updatePoll(params: UpdatePollParams): Promise<Status | undefined>
+
   getStatus(params: GetStatusParams): Promise<Status | undefined>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
   hasActorAnnouncedStatus(

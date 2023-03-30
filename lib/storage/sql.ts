@@ -54,7 +54,8 @@ import {
   IsUsernameExistsParams,
   Storage,
   UpdateActorParams,
-  UpdateFollowStatusParams
+  UpdateFollowStatusParams,
+  UpdatePollParams
 } from './types'
 
 interface ActorSettings {
@@ -651,7 +652,10 @@ export class SqlStorage implements Storage {
         choices.map((choice) =>
           trx('poll_choices').insert({
             statusId: id,
-            title: choice
+            title: choice,
+
+            createdAt: statusUpdatedAt,
+            updatedAt: statusUpdatedAt
           })
         )
       )
@@ -706,6 +710,30 @@ export class SqlStorage implements Storage {
       createdAt: statusCreatedAt,
       updatedAt: statusUpdatedAt
     })
+  }
+
+  async updatePoll({ id, choices }: UpdatePollParams) {
+    const existingStatus = await this.database('statuses')
+      .where('id', id)
+      .first()
+    if (!existingStatus) return
+
+    const currentTime = Date.now()
+    await this.database.transaction(async (trx) => {
+      await Promise.all([
+        choices.map((choice) => {
+          return trx('poll_choices')
+            .where('statusId', id)
+            .andWhere('title', choice.title)
+            .update({
+              totalVotes: choice.totalVotes,
+              updatedAt: currentTime
+            })
+        })
+      ])
+    })
+
+    return this.getStatus({ statusId: id })
   }
 
   private async getStatusWithAttachmentsFromData(

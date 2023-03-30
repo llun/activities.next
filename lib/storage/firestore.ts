@@ -55,7 +55,8 @@ import {
   IsUsernameExistsParams,
   Storage,
   UpdateActorParams,
-  UpdateFollowStatusParams
+  UpdateFollowStatusParams,
+  UpdatePollParams
 } from './types'
 
 export interface FirestoreConfig extends Settings {
@@ -604,6 +605,12 @@ export class FirestoreStorage implements Storage {
     return new Status(announceData)
   }
 
+  private createMD5(content: string) {
+    const hash = crypto.createHash('md5')
+    hash.update(content)
+    return hash.digest('hex')
+  }
+
   @Trace('db')
   async createPoll({
     id,
@@ -644,8 +651,10 @@ export class FirestoreStorage implements Storage {
 
     await this.db.doc(statusPath).set(status)
     await Promise.all(
-      choices.map((_, index) =>
-        this.db.doc(`${statusPath}/choices/${index}`).set(choicesData[index])
+      choices.map((title, index) =>
+        this.db
+          .doc(`${statusPath}/choices/${this.createMD5(title)}`)
+          .set(choicesData[index])
       )
     )
 
@@ -660,6 +669,24 @@ export class FirestoreStorage implements Storage {
       replies: [],
       choices: choicesData.map((data) => new PollChoice(data))
     })
+  }
+
+  @Trace('db')
+  async updatePoll({ id, choices }: UpdatePollParams) {
+    const statusPath = `statuses/${FirestoreStorage.urlToId(id)}`
+    const snapshot = await this.db.doc(statusPath).get()
+    if (!snapshot.exists) return
+
+    const currentTime = Date.now()
+    choices.map(async (choice) => {
+      const key = `${statusPath}/choices/${this.createMD5(choice.title)}`
+      return this.db.doc(key).update({
+        totalVotes: choice.totalVotes,
+        updatedAt: currentTime
+      })
+    })
+
+    return this.getStatus({ statusId: id })
   }
 
   @Trace('db')
