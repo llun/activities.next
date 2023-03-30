@@ -7,6 +7,7 @@ import { UpdateStatus } from './updateStatus'
 
 export type StatusActivity =
   | CreateStatus
+  | UpdateStatus
   | DeleteStatus
   | DeleteUser
   | AnnounceStatus

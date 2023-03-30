@@ -91,6 +91,12 @@ export const createPoll = async ({ question, storage }: CreatePollParams) => {
   return question
 }
 
+interface UpdatePollParams {
+  question: Question
+  storage: Storage
+}
+export const updatePoll = async ({ question, storage }: UpdatePollParams) => {}
+
 interface CreatePollFromUserInputParams {
   text: string
   replyStatusId?: string

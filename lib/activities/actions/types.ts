@@ -9,3 +9,6 @@ export type UndoAction = typeof UndoAction
 
 export const DeleteAction = 'Delete'
 export type DeleteAction = typeof DeleteAction
+
+export const UpdateAction = 'Update'
+export type UpdateAction = typeof UpdateAction

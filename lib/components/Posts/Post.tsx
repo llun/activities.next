@@ -53,6 +53,9 @@ const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
 export const Post: FC<PostProps> = (props) => {
   const { status, currentTime, onShowAttachment } = props
   const actualStatus = getActualStatus(status)
+
+  console.log(status)
+
   return (
     <div key={status.id} className={cn(styles.post)}>
       <BoostStatus status={status} />
