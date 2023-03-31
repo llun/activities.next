@@ -2,7 +2,8 @@ import type { NextApiHandler, NextApiResponse } from 'next'
 
 import { announce } from '../../lib/actions/announce'
 import { createNote } from '../../lib/actions/createNote'
-import { createPoll, updatePoll } from '../../lib/actions/createPoll'
+import { createPoll } from '../../lib/actions/createPoll'
+import { updatePoll } from '../../lib/actions/updatePoll'
 import { StatusActivity } from '../../lib/activities/actions/status'
 import {
   AnnounceAction,
