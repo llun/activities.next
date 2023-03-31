@@ -804,7 +804,12 @@ export class SqlStorage implements Storage {
         replies.map((item) => this.getStatus({ statusId: item.id }))
       )
     )
-      .map((item) => (item?.data.type === StatusType.Note ? item.data : null))
+      .map((item) =>
+        item?.data.type &&
+        [StatusType.Note, StatusType.Poll].includes(item?.data.type)
+          ? item.data
+          : null
+      )
       .filter((item): item is StatusNote => Boolean(item))
 
     const content = JSON.parse(data.content)
@@ -816,7 +821,7 @@ export class SqlStorage implements Storage {
       cc: cc.map((item) => item.actorId),
       actorId: data.actorId,
       actor: actor?.toProfile() || null,
-      type: StatusType.Note,
+      type: data.type,
       text: content.text,
       summary: content.summary,
       reply: data.reply,
