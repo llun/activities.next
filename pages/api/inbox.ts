@@ -2,13 +2,14 @@ import type { NextApiHandler, NextApiResponse } from 'next'
 
 import { announce } from '../../lib/actions/announce'
 import { createNote } from '../../lib/actions/createNote'
-import { createPoll } from '../../lib/actions/createPoll'
+import { createPoll, updatePoll } from '../../lib/actions/createPoll'
 import { StatusActivity } from '../../lib/activities/actions/status'
 import {
   AnnounceAction,
   CreateAction,
   DeleteAction,
-  UndoAction
+  UndoAction,
+  UpdateAction
 } from '../../lib/activities/actions/types'
 import { NoteEntity } from '../../lib/activities/entities/note'
 import { QuestionEntity } from '../../lib/activities/entities/question'
@@ -33,6 +34,15 @@ const handlePost = async (
         }
         case QuestionEntity: {
           await createPoll({ storage, question: activity.object })
+          break
+        }
+      }
+      return res.status(202).send('')
+    }
+    case UpdateAction: {
+      switch (activity.object.type) {
+        case QuestionEntity: {
+          await updatePoll({ storage, question: activity.object })
           break
         }
       }
