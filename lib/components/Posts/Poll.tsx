@@ -14,7 +14,7 @@ export const Poll: FC<Props> = ({ status }) => {
   return (
     <div>
       {choices.map((choice) => (
-        <div key={choice.text}>{choice.text}</div>
+        <div key={choice.title}>{choice.title}</div>
       ))}
     </div>
   )
