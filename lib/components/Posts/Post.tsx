@@ -9,6 +9,7 @@ import { cleanClassName, convertTextContent } from '../text'
 import { Actions } from './Actions'
 import { Actor } from './Actor'
 import { Attachments } from './Attachments'
+import { Poll } from './Poll'
 import styles from './Post.module.scss'
 
 export interface PostProps {
@@ -74,6 +75,7 @@ export const Post: FC<PostProps> = (props) => {
           convertTextContent(actualStatus.text, actualStatus.tags)
         )}
       </div>
+      <Poll status={actualStatus} />
       <Attachments status={actualStatus} onClickMedia={onShowAttachment} />
       <Actions {...props} />
     </div>
