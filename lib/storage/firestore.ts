@@ -643,8 +643,8 @@ export class FirestoreStorage implements Storage {
     const statusPath = `statuses/${FirestoreStorage.urlToId(id)}`
     const choicesData: PollChoiceData[] = choices.map((choice) => ({
       statusId: id,
-      text: choice,
-      totalVote: 0,
+      title: choice,
+      totalVotes: 0,
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
     }))
@@ -667,7 +667,7 @@ export class FirestoreStorage implements Storage {
       isActorAnnounced: false,
       tags: [],
       replies: [],
-      choices: choicesData.map((data) => new PollChoice(data))
+      choices: choicesData.map((data) => new PollChoice(data).toJson())
     })
   }
 
