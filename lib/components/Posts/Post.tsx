@@ -8,7 +8,7 @@ import { StatusData, StatusType } from '../../models/status'
 import { cleanClassName, convertTextContent } from '../text'
 import { Actions } from './Actions'
 import { Actor } from './Actor'
-import { Media } from './Media'
+import { Attachments } from './Attachments'
 import styles from './Post.module.scss'
 
 export interface PostProps {
@@ -74,26 +74,7 @@ export const Post: FC<PostProps> = (props) => {
           convertTextContent(actualStatus.text, actualStatus.tags)
         )}
       </div>
-      {actualStatus.type === StatusType.Note &&
-        actualStatus.attachments &&
-        actualStatus.attachments.length > 0 && (
-          <div
-            className={cn(styles.medias, {
-              [styles.grids]: actualStatus.attachments.length > 1,
-              [styles.three]: actualStatus.attachments.length === 3,
-              [styles.more]: actualStatus.attachments.length > 3
-            })}
-          >
-            {actualStatus.attachments.map((attachment) => (
-              <Media
-                className={styles.media}
-                onClick={() => onShowAttachment(attachment)}
-                key={attachment.id}
-                attachment={attachment}
-              />
-            ))}
-          </div>
-        )}
+      <Attachments status={actualStatus} onClickMedia={onShowAttachment} />
       <Actions {...props} />
     </div>
   )
