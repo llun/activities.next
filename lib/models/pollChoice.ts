@@ -1,7 +1,7 @@
 export interface PollChoiceData {
   statusId: string
-  text: string
-  totalVote: number
+  title: string
+  totalVotes: number
 
   createdAt: number
   updatedAt: number
@@ -18,11 +18,15 @@ export class PollChoice {
     return this.data.statusId
   }
 
-  get text() {
-    return this.data.text
+  get title() {
+    return this.data.title
   }
 
-  get totalVote() {
-    return this.data.totalVote
+  get totalVotes() {
+    return this.data.totalVotes
+  }
+
+  toJson() {
+    return this.data
   }
 }

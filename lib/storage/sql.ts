@@ -7,6 +7,7 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
+import { PollChoice } from '../models/pollChoice'
 import {
   Status,
   StatusAnnounce,
@@ -736,6 +737,13 @@ export class SqlStorage implements Storage {
     return this.getStatus({ statusId: id })
   }
 
+  private async getPollChoices(statusId: string) {
+    const raw = await this.database('poll_choices')
+      .where('statusId', statusId)
+      .orderBy('choiceId', 'asc')
+    return raw.map((data) => new PollChoice(data))
+  }
+
   private async getStatusWithAttachmentsFromData(
     data: any,
     currentActorId?: string
@@ -779,7 +787,8 @@ export class SqlStorage implements Storage {
       actor,
       totalLikes,
       isActorLikedStatus,
-      isActorAnnouncedStatus
+      isActorAnnouncedStatus,
+      pollChoices
     ] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
       this.getTags({ statusId: data.id }),
@@ -796,7 +805,8 @@ export class SqlStorage implements Storage {
       this.hasActorAnnouncedStatus({
         statusId: data.id,
         actorId: currentActorId
-      })
+      }),
+      this.getPollChoices(data.id)
     ])
 
     const repliesNote = (
@@ -830,6 +840,7 @@ export class SqlStorage implements Storage {
       isActorLiked: isActorLikedStatus,
       isActorAnnounced: isActorAnnouncedStatus,
       attachments: attachments.map((attachment) => attachment.toJson()),
+      choices: pollChoices.map((choice) => choice.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
       updatedAt: data.updatedAt

@@ -5,7 +5,7 @@ import { Question, QuestionEntity } from '../activities/entities/question'
 import { getISOTimeUTC } from '../time'
 import { ActorProfile } from './actor'
 import { Attachment, AttachmentData } from './attachment'
-import { PollChoice } from './pollChoice'
+import { PollChoiceData } from './pollChoice'
 import { Tag, TagData } from './tag'
 
 export enum StatusType {
@@ -61,7 +61,7 @@ export interface StatusPoll extends StatusBase {
   totalLikes: number
 
   tags: TagData[]
-  choices: PollChoice[]
+  choices: PollChoiceData[]
 
   endAt: number
 }
