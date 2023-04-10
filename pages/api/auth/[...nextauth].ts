@@ -10,6 +10,9 @@ export const authOptions: NextAuthOptions = {
       clientId: getConfig().auth?.github?.id || '',
       clientSecret: getConfig().auth?.github?.secret || ''
     })
-  ]
+  ],
+  pages: {
+    signIn: '/auth/signin'
+  }
 }
 export default NextAuth(authOptions)

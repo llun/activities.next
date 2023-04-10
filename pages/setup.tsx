@@ -88,7 +88,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   if (!session?.user || !session.user.email || !storage) {
     return {
       redirect: {
-        destination: '/api/auth/signin',
+        destination: '/auth/signin',
         permanent: false
       }
     }
@@ -98,7 +98,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   if (!config.allowEmails.includes(session.user.email)) {
     return {
       redirect: {
-        destination: '/api/auth/signin',
+        destination: '/auth/signin',
         permanent: false
       }
     }
