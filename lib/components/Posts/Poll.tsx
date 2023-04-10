@@ -14,6 +14,12 @@ export const Poll: FC<Props> = ({ status, currentTime }) => {
   const choices = status.choices
   const totalVotes =
     choices.reduce((sum, choice) => sum + choice.totalVotes, 0) || 1
+
+  const backgroundRevertPercentage = choices.map((choice) => {
+    if (choice.totalVotes === 0) return 0
+    return 1 - (choice.totalVotes / totalVotes) * 100
+  })
+
   return (
     <div>
       {choices.map((choice, index) => (
@@ -31,9 +37,7 @@ export const Poll: FC<Props> = ({ status, currentTime }) => {
             style={{
               background: `linear-gradient(90deg, pink ${
                 (choice.totalVotes / totalVotes) * 100
-              }%, rgba(255,255,255, 0) ${
-                (1 - choice.totalVotes / totalVotes) * 100
-              }%)`
+              }%, rgba(255,255,255, 0) ${backgroundRevertPercentage[index]}%)`
             }}
           >
             <label
