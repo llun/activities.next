@@ -611,6 +611,15 @@ export class FirestoreStorage implements Storage {
     return hash.digest('hex')
   }
 
+  private async getPollChoices(statusId: string) {
+    const snapshot = await this.db
+      .collection(`statuses/${FirestoreStorage.urlToId(statusId)}/choices`)
+      .get()
+    return snapshot.docs.map(
+      (item) => new PollChoice(item.data() as PollChoiceData)
+    )
+  }
+
   @Trace('db')
   async createPoll({
     id,
@@ -695,6 +704,8 @@ export class FirestoreStorage implements Storage {
     withReplies: boolean,
     currentActorId?: string
   ): Promise<Status | undefined> {
+    if (!data) return
+
     if (data.type === StatusType.Announce) {
       if (!data.originalStatusId) {
         console.error(
@@ -748,7 +759,8 @@ export class FirestoreStorage implements Storage {
       actor,
       totalLikes,
       isActorLikedStatus,
-      isActorAnnouncedStatus
+      isActorAnnouncedStatus,
+      pollChoices
     ] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
       this.getTags({ statusId: data.id }),
@@ -758,7 +770,8 @@ export class FirestoreStorage implements Storage {
       this.hasActorAnnouncedStatus({
         statusId: data.id,
         actorId: currentActorId
-      })
+      }),
+      this.getPollChoices(data.id)
     ])
 
     const replies = withReplies ? await this.getReplies(data.id) : []
@@ -780,7 +793,14 @@ export class FirestoreStorage implements Storage {
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
-      updatedAt: data.updatedAt
+      updatedAt: data.updatedAt,
+
+      ...(data.type === StatusType.Poll
+        ? {
+            choices: pollChoices.map((choice) => choice.toJson()),
+            endAt: data.endAt
+          }
+        : null)
     })
   }
 

@@ -842,9 +842,11 @@ export class SqlStorage implements Storage {
       updatedAt: data.updatedAt,
 
       ...(data.type === StatusType.Poll
-        ? { choices: pollChoices.map((choice) => choice.toJson()) }
-        : null),
-      ...(content.endAt ? { endAt: content.endAt } : null)
+        ? {
+            choices: pollChoices.map((choice) => choice.toJson()),
+            endAt: content.endAt
+          }
+        : null)
     })
   }
 

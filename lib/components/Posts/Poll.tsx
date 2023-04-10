@@ -17,7 +17,7 @@ export const Poll: FC<Props> = ({ status, currentTime }) => {
   return (
     <div>
       {choices.map((choice, index) => (
-        <div key={choice.title} className="form-check">
+        <div key={`poll-${index}`} className="form-check">
           <input
             className="form-check-input"
             type="radio"
