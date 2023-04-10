@@ -145,7 +145,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   ) {
     return {
       redirect: {
-        destination: '/signin',
+        destination: '/api/auth/signin',
         permanent: false
       }
     }
@@ -167,7 +167,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   if (!actor) {
     return {
       redirect: {
-        destination: '/signin',
+        destination: '/api/auth/signin',
         permanent: false
       }
     }

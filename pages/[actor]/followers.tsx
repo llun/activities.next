@@ -79,7 +79,7 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({
   if (!storage) {
     return {
       redirect: {
-        destination: '/signin',
+        destination: '/api/auth/signin',
         permanent: false
       }
     }

@@ -17,6 +17,10 @@ alpha stage and has only few features supported.
 - 🚧 Account setup with username and password
 - [ ] Add actor under the same account (for different handle and type e.g. for `@ride@llun.dev`)
 - ✅ Support different domain for different actor
+- 🚧 Poll
+  - ✅ View poll and poll result
+  - [ ] Vote on the poll
+  - [ ] Create a poll
 - 🚧 Image storage via Object Storage(S3, GCS, etc)
 - [ ] Streaming
 - 🚧 Timelines
