@@ -837,11 +837,13 @@ export class SqlStorage implements Storage {
       isActorLiked: isActorLikedStatus,
       isActorAnnounced: isActorAnnouncedStatus,
       attachments: attachments.map((attachment) => attachment.toJson()),
-      choices: pollChoices.map((choice) => choice.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
 
+      ...(data.type === StatusType.Poll
+        ? { choices: pollChoices.map((choice) => choice.toJson()) }
+        : null),
       ...(content.endAt ? { endAt: content.endAt } : null)
     })
   }
