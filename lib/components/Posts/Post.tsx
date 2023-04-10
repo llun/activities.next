@@ -75,7 +75,7 @@ export const Post: FC<PostProps> = (props) => {
           convertTextContent(actualStatus.text, actualStatus.tags)
         )}
       </div>
-      <Poll status={actualStatus} />
+      <Poll status={actualStatus} currentTime={currentTime} />
       <Attachments status={actualStatus} onClickMedia={onShowAttachment} />
       <Actions {...props} />
     </div>

@@ -821,7 +821,6 @@ export class SqlStorage implements Storage {
       .filter((item): item is StatusNote => Boolean(item))
 
     const content = JSON.parse(data.content)
-
     return new Status({
       id: data.id,
       url: content.url,
@@ -841,7 +840,9 @@ export class SqlStorage implements Storage {
       choices: pollChoices.map((choice) => choice.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
-      updatedAt: data.updatedAt
+      updatedAt: data.updatedAt,
+
+      ...(content.endAt ? { endAt: content.endAt } : null)
     })
   }
 
