@@ -672,8 +672,8 @@ export class FirestoreStorage implements Storage {
   }
 
   @Trace('db')
-  async updatePoll({ id, choices }: UpdatePollParams) {
-    const statusPath = `statuses/${FirestoreStorage.urlToId(id)}`
+  async updatePoll({ statusId, choices }: UpdatePollParams) {
+    const statusPath = `statuses/${FirestoreStorage.urlToId(statusId)}`
     const snapshot = await this.db.doc(statusPath).get()
     if (!snapshot.exists) return
 
@@ -686,7 +686,7 @@ export class FirestoreStorage implements Storage {
       })
     })
 
-    return this.getStatus({ statusId: id })
+    return this.getStatus({ statusId })
   }
 
   @Trace('db')

@@ -713,28 +713,26 @@ export class SqlStorage implements Storage {
     })
   }
 
-  async updatePoll({ id, choices }: UpdatePollParams) {
+  async updatePoll({ statusId, choices }: UpdatePollParams) {
     const existingStatus = await this.database('statuses')
-      .where('id', id)
+      .where('id', statusId)
       .first()
     if (!existingStatus) return
-
     const currentTime = Date.now()
     await this.database.transaction(async (trx) => {
-      await Promise.all([
-        choices.map((choice) => {
-          return trx('poll_choices')
-            .where('statusId', id)
-            .andWhere('title', choice.title)
-            .update({
-              totalVotes: choice.totalVotes,
-              updatedAt: currentTime
-            })
-        })
-      ])
+      for (const choice of choices) {
+        await trx('poll_choices')
+          .where({
+            statusId,
+            title: choice.title
+          })
+          .update({
+            totalVotes: choice.totalVotes,
+            updatedAt: currentTime
+          })
+      }
     })
-
-    return this.getStatus({ statusId: id })
+    return this.getStatus({ statusId })
   }
 
   private async getPollChoices(statusId: string) {

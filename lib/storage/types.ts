@@ -125,7 +125,7 @@ export type CreatePollParams = {
 }
 
 export type UpdatePollParams = {
-  id: string
+  statusId: string
   text: string
   summary?: string
 
