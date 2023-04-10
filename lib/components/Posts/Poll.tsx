@@ -26,7 +26,16 @@ export const Poll: FC<Props> = ({ status, currentTime }) => {
             value={index}
           />
 
-          <div className="d-flex">
+          <div
+            className="d-flex"
+            style={{
+              background: `linear-gradient(90deg, pink ${
+                (choice.totalVotes / totalVotes) * 100
+              }%, rgba(255,255,255, 0) ${
+                (1 - choice.totalVotes / totalVotes) * 100
+              }%)`
+            }}
+          >
             <label
               className="form-check-label flex-fill"
               htmlFor={`choice-${index}`}
