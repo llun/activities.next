@@ -48,7 +48,7 @@ export const Poll: FC<Props> = ({ status, currentTime }) => {
             </label>
             <span>
               {choice.totalVotes} (
-              {`${(choice.totalVotes / totalVotes) * 100}%`})
+              {`${Number((choice.totalVotes / totalVotes) * 100).toFixed(2)}%`})
             </span>
           </div>
         </div>
