@@ -1,3 +1,4 @@
+import formatDistance from 'date-fns/formatDistance'
 import { FC } from 'react'
 
 import { StatusData, StatusType } from '../../models/status'
@@ -11,6 +12,7 @@ export const Poll: FC<Props> = ({ status, currentTime }) => {
   if (status.type !== StatusType.Poll) return null
   if (!status.choices) return null
 
+  const isPollClosed = currentTime.getTime() > status.endAt
   const choices = status.choices
   const totalVotes =
     choices.reduce((sum, choice) => sum + choice.totalVotes, 0) || 1
@@ -53,8 +55,11 @@ export const Poll: FC<Props> = ({ status, currentTime }) => {
           </div>
         </div>
       ))}
-      {currentTime.getTime() > status.endAt ? (
-        <div className="fs-6">Poll closed</div>
+      {isPollClosed ? <div className="fs-6">Poll closed</div> : null}
+      {!isPollClosed ? (
+        <div className="fs-6">
+          Poll close in {formatDistance(status.endAt, currentTime)}
+        </div>
       ) : null}
     </div>
   )
