@@ -32,7 +32,7 @@ export const Profile: FC<Props> = ({
     <h1 className="text-truncate">{name}</h1>
     <h4 className="text-truncate">
       <Link prefetch={false} href={url} target={'_blank'}>
-        {username}@{domain}
+        @{username}
       </Link>
     </h4>
     {(totalPosts || followingCount || followersCount) && (
