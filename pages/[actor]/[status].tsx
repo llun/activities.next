@@ -1,5 +1,4 @@
 /* eslint-disable camelcase */
-import cn from 'classnames'
 import { GetServerSideProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
@@ -15,7 +14,7 @@ import { AttachmentData } from '../../lib/models/attachment'
 import { StatusData } from '../../lib/models/status'
 import { getFirstValueFromParsedQuery } from '../../lib/query'
 import { getStorage } from '../../lib/storage'
-import styles from './index.module.scss'
+import styles from './[status].module.scss'
 
 interface Props {
   status: StatusData
@@ -36,7 +35,7 @@ const Page: NextPage<Props> = ({ status, replies, serverTime, previouses }) => {
       <Header session={session} />
       <section className="container pt-4">
         <Posts currentTime={new Date(serverTime)} statuses={previouses} />
-        <section className="card p-4">
+        <section className={styles.highlight}>
           <Post
             currentTime={new Date(serverTime)}
             status={status}
@@ -51,11 +50,7 @@ const Page: NextPage<Props> = ({ status, replies, serverTime, previouses }) => {
         isOpen={Boolean(modalMedia)}
         onRequestClose={() => setModalMedia(undefined)}
       >
-        <Media
-          showVideoControl
-          className={cn(styles.media)}
-          attachment={modalMedia}
-        />
+        <Media showVideoControl attachment={modalMedia} />
       </Modal>
     </main>
   )
@@ -94,11 +89,11 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
       statusId: status.reply,
       withReplies: false
     })
-    while (previouses.length < 5 && replyStatus) {
+    while (previouses.length < 3 && replyStatus) {
       previouses.push(replyStatus.toJson())
       if (!replyStatus.reply) {
         replyStatus = undefined
-        continue
+        break
       }
       replyStatus = await storage.getStatus({
         statusId: replyStatus.reply,
@@ -110,7 +105,7 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
   return {
     props: {
       status: status.toJson(),
-      previouses,
+      previouses: previouses.reverse(),
       replies: replies.map((status) => status.toJson()),
       serverTime: Date.now()
     }

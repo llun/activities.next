@@ -20,7 +20,6 @@ interface Props {
 export const Profile: FC<Props> = ({
   className,
   username,
-  domain,
   name,
   url,
   totalPosts,
