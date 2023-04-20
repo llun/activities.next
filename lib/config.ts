@@ -19,6 +19,17 @@ export interface Config {
       secret: string
     }
   }
+  aws?: {
+    key: string
+    secret: string
+    region: string
+    functions: {
+      sendMail?: {
+        name: string
+        qualifier?: string
+      }
+    }
+  }
 }
 
 export const getConfig = memoize((): Config => {
