@@ -1,19 +1,52 @@
 import { Adapter } from 'next-auth/adapters'
 
-import { Storage } from '../../storage/types'
+import { Account } from '../../models/account'
+import { getStorage } from '../../storage'
 
 const NoImplementationError = new Error('No implmentation')
 
-export function StorageAdapter(storage: Storage): Adapter {
+const userFromAccount = (account: Account) => ({
+  id: account.id,
+  email: account.email,
+  emailVerified: new Date(account.createdAt)
+})
+
+export function StorageAdapter(): Adapter {
   return {
-    async createUser(user) {
-      throw NoImplementationError
+    async createUser({ email }) {
+      const storage = await getStorage()
+      const actor = await storage?.getActorFromEmail({ email })
+      if (!actor) {
+        throw NoImplementationError
+      }
+
+      const account = actor.account
+      if (!account) {
+        throw NoImplementationError
+      }
+
+      return userFromAccount(account)
     },
     async getUser(id) {
-      throw NoImplementationError
+      const storage = await getStorage()
+      if (!storage) return null
+
+      const account = await storage.getAccountFromId({ id })
+      if (!account) return null
+
+      return userFromAccount(account)
     },
     async getUserByEmail(email) {
-      throw NoImplementationError
+      const storage = await getStorage()
+      if (!storage) return null
+
+      const actor = await storage?.getActorFromEmail({ email })
+      if (!actor) return null
+
+      const account = actor.account
+      if (!account) return null
+
+      return userFromAccount(account)
     },
     async getUserByAccount(providerAccountId) {
       throw NoImplementationError

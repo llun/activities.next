@@ -83,6 +83,10 @@ export class Actor {
     return this.data.followersUrl
   }
 
+  get account(): Account | undefined {
+    return this.data.account
+  }
+
   get createdAt(): number {
     return this.data.createdAt
   }
