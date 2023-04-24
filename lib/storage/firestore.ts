@@ -32,6 +32,7 @@ import {
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
   GetAccountFromIdParams,
+  GetAccountFromProviderIdParams,
   GetActorFollowersCountParams,
   GetActorFollowingCountParams,
   GetActorFromEmailParams,
@@ -53,6 +54,7 @@ import {
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
+  LinkAccountWithProviderParams,
   Storage,
   UpdateActorParams,
   UpdateFollowStatusParams,
@@ -146,6 +148,55 @@ export class FirestoreStorage implements Storage {
       ...snapshot.data(),
       id
     } as Account
+  }
+
+  @Trace('db')
+  async getAccountFromProviderId({
+    provider,
+    accountId
+  }: GetAccountFromProviderIdParams): Promise<Account | undefined> {
+    const providers = await this.db
+      .collectionGroup('accountProviders')
+      .where('provider', '==', provider)
+      .where('providerAccountId', '==', accountId)
+      .get()
+    if (providers.size !== 1) return
+
+    const providerDoc = providers.docs[0]
+    const doc = await this.db
+      .doc(`accounts/${providerDoc.data().accountId}`)
+      .get()
+    if (!doc.exists) return
+    return doc.data() as Account
+  }
+
+  @Trace('db')
+  async linkAccountWithProvider({
+    accountId,
+    providerAccountId,
+    provider
+  }: LinkAccountWithProviderParams): Promise<Account | undefined> {
+    const providers = await this.db
+      .collectionGroup('accountProviders')
+      .where('provider', '==', provider)
+      .where('accountId', '==', accountId)
+      .get()
+    if (providers.size === 1) return
+
+    const account = await this.db.doc(`accounts/${accountId}`).get()
+    if (!account.exists) return
+
+    const currentTime = Date.now()
+    await this.db
+      .doc(`accounts/${accountId}/accountProviders/${provider}`)
+      .set({
+        accountId,
+        provider,
+        providerAccountId,
+
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
   }
 
   @Trace('db')

@@ -16,6 +16,15 @@ export type CreateAccountParams = {
   publicKey: string
 }
 export type GetAccountFromIdParams = { id: string }
+export type GetAccountFromProviderIdParams = {
+  provider: string
+  accountId: string
+}
+export type LinkAccountWithProviderParams = {
+  accountId: string
+  provider: string
+  providerAccountId: string
+}
 
 export type CreateActorParams = {
   actorId: string
@@ -194,6 +203,12 @@ export interface Storage {
 
   createAccount(params: CreateAccountParams): Promise<string>
   getAccountFromId(params: GetAccountFromIdParams): Promise<Account | undefined>
+  getAccountFromProviderId(
+    params: GetAccountFromProviderIdParams
+  ): Promise<Account | undefined>
+  linkAccountWithProvider(
+    params: LinkAccountWithProviderParams
+  ): Promise<Account | undefined>
 
   createActor(params: CreateActorParams): Promise<Actor | undefined>
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | undefined>

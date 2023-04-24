@@ -32,6 +32,7 @@ import {
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
   GetAccountFromIdParams,
+  GetAccountFromProviderIdParams,
   GetActorFollowersCountParams,
   GetActorFollowingCountParams,
   GetActorFromEmailParams,
@@ -53,6 +54,7 @@ import {
   IsAccountExistsParams,
   IsCurrentActorFollowingParams,
   IsUsernameExistsParams,
+  LinkAccountWithProviderParams,
   Storage,
   UpdateActorParams,
   UpdateFollowStatusParams,
@@ -159,6 +161,46 @@ export class SqlStorage implements Storage {
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
     return this.database<Account>('accounts').where('id', id).first()
+  }
+
+  async getAccountFromProviderId({
+    provider,
+    accountId
+  }: GetAccountFromProviderIdParams): Promise<Account | undefined> {
+    return this.database('accountProviders')
+      .where('provider', provider)
+      .where('providerId', accountId)
+      .join('accounts', 'accountProviders.accountId', '=', 'accounts.id')
+      .select<Account>('accounts.*')
+      .first()
+  }
+
+  async linkAccountWithProvider({
+    accountId,
+    providerAccountId,
+    provider
+  }: LinkAccountWithProviderParams): Promise<Account | undefined> {
+    const [existingLinkAccount, account] = await Promise.all([
+      this.database('accountProviders')
+        .where('provider', provider)
+        .where('providerId', providerAccountId)
+        .first(),
+      this.database('accounts').where('id', accountId).first<Account>()
+    ])
+
+    if (existingLinkAccount) return
+    if (!account) return
+
+    const currentTime = Date.now()
+    await this.database('accountProviders').insert({
+      provider,
+      providerId: providerAccountId,
+      accountId,
+
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+    return account
   }
 
   async createActor({
