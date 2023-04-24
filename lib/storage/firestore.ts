@@ -29,6 +29,7 @@ import {
   CreatePollParams,
   CreateTagParams,
   CreateTimelineStatusParams,
+  DeleteAccountSessionParams,
   DeleteActorParams,
   DeleteLikeParams,
   DeleteStatusParams,
@@ -235,6 +236,18 @@ export class FirestoreStorage implements Storage {
     if (!account) return
 
     return { account, session }
+  }
+
+  @Trace('db')
+  async deleteAccountSession({
+    token
+  }: DeleteAccountSessionParams): Promise<void> {
+    const sessions = await this.db
+      .collectionGroup('sessions')
+      .where('token', '==', token)
+      .get()
+
+    await Promise.all(sessions.docs.map((doc) => doc.ref.delete()))
   }
 
   @Trace('db')

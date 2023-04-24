@@ -29,6 +29,7 @@ import {
   CreatePollParams,
   CreateTagParams,
   CreateTimelineStatusParams,
+  DeleteAccountSessionParams,
   DeleteActorParams,
   DeleteLikeParams,
   DeleteStatusParams,
@@ -248,6 +249,12 @@ export class SqlStorage implements Storage {
         token: sessionToken
       }
     }
+  }
+
+  async deleteAccountSession({
+    token
+  }: DeleteAccountSessionParams): Promise<void> {
+    await this.database('sessions').where('token', token).delete()
   }
 
   async createActor({

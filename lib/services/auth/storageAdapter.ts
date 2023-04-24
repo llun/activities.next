@@ -61,11 +61,9 @@ export function StorageAdapter(): Adapter {
       return userFromAccount(account)
     },
     async updateUser(user) {
-      console.log('Update User =====>', user)
       throw NoImplementationError
     },
     async deleteUser(userId) {
-      console.log('Delete User =====>', userId)
       throw NoImplementationError
     },
     async linkAccount({ provider, providerAccountId, userId }) {
@@ -79,7 +77,6 @@ export function StorageAdapter(): Adapter {
       })
     },
     async unlinkAccount(accountId) {
-      console.log('Unlink account =====>', accountId)
       throw NoImplementationError
     },
     async createSession(session) {
@@ -117,19 +114,16 @@ export function StorageAdapter(): Adapter {
       }
     },
     async updateSession(session) {
-      console.log('Update session =====>', session)
       throw NoImplementationError
     },
     async deleteSession(sessionToken) {
-      console.log('Delete session =====>', sessionToken)
-      throw NoImplementationError
+      const storage = await getStorage()
+      await storage?.deleteAccountSession({ token: sessionToken })
     },
     async createVerificationToken(verificationToken) {
-      console.log('Create verification token =====>', verificationToken)
       throw NoImplementationError
     },
     async useVerificationToken(params) {
-      console.log('Use verification token =====>', params)
       throw NoImplementationError
     }
   }
