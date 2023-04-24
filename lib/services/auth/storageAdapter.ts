@@ -15,9 +15,6 @@ export function StorageAdapter(): Adapter {
   return {
     async createUser(user) {
       const { email } = user
-
-      console.log('createUser =========>', email)
-
       const storage = await getStorage()
       const actor = await storage?.getActorFromEmail({ email })
       if (!actor) {
@@ -32,7 +29,6 @@ export function StorageAdapter(): Adapter {
       return userFromAccount(account)
     },
     async getUser(id) {
-      console.log('getUser =====>', id)
       const storage = await getStorage()
       if (!storage) return null
 
@@ -42,7 +38,6 @@ export function StorageAdapter(): Adapter {
       return userFromAccount(account)
     },
     async getUserByEmail(email) {
-      console.log('getUserByEmail =====>', email)
       const storage = await getStorage()
       if (!storage) return null
 
@@ -55,7 +50,6 @@ export function StorageAdapter(): Adapter {
       return userFromAccount(account)
     },
     async getUserByAccount({ provider, providerAccountId }) {
-      console.log('getUserByAccount =====>', provider, providerAccountId)
       const storage = await getStorage()
       if (!storage) return null
 
@@ -89,9 +83,9 @@ export function StorageAdapter(): Adapter {
       throw NoImplementationError
     },
     async createSession(session) {
-      console.log('Create Session ======> ', session)
       const { sessionToken, userId, expires } = session
       const storage = await getStorage()
+
       await storage?.createAccountSession({
         accountId: userId,
         token: sessionToken,
@@ -100,8 +94,27 @@ export function StorageAdapter(): Adapter {
       return session
     },
     async getSessionAndUser(sessionToken) {
-      console.log('Get session and user =====>', sessionToken)
-      throw NoImplementationError
+      const storage = await getStorage()
+      if (!storage) return null
+
+      const accountAndSession = await storage.getAccountSession({
+        token: sessionToken
+      })
+      if (!accountAndSession) return null
+
+      const { account, session } = accountAndSession
+      return {
+        session: {
+          sessionToken,
+          expires: new Date(session.expireAt),
+          userId: session.accountId
+        },
+        user: {
+          email: account.email,
+          emailVerified: new Date(account.createdAt),
+          id: account.id
+        }
+      }
     },
     async updateSession(session) {
       console.log('Update session =====>', session)

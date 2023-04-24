@@ -8,6 +8,7 @@ import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
 import { PollChoice } from '../models/pollChoice'
+import { Session } from '../models/session'
 import {
   Status,
   StatusAnnounce,
@@ -34,6 +35,7 @@ import {
   GetAcceptedOrRequestedFollowParams,
   GetAccountFromIdParams,
   GetAccountFromProviderIdParams,
+  GetAccountSessionParams,
   GetActorFollowersCountParams,
   GetActorFollowingCountParams,
   GetActorFromEmailParams,
@@ -222,6 +224,30 @@ export class SqlStorage implements Storage {
       createdAt: currentTime,
       updatedAt: currentTime
     })
+  }
+
+  async getAccountSession({
+    token
+  }: GetAccountSessionParams): Promise<
+    { account: Account; session: Session } | undefined
+  > {
+    const session = await this.database('sessions')
+      .where('token', token)
+      .first()
+    if (!session) return
+
+    const { accountId, token: sessionToken, expireAt } = session
+    const account = await this.getAccountFromId({ id: accountId })
+    if (!account) return
+
+    return {
+      account,
+      session: {
+        accountId,
+        expireAt,
+        token: sessionToken
+      }
+    }
   }
 
   async createActor({

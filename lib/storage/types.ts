@@ -2,6 +2,7 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
+import { Session } from '../models/session'
 import { Status } from '../models/status'
 import { Tag } from '../models/tag'
 import { Timeline } from '../timelines/types'
@@ -29,6 +30,9 @@ export type CreateAccountSessionParams = {
   accountId: string
   token: string
   expireAt: number
+}
+export type GetAccountSessionParams = {
+  token: string
 }
 
 export type CreateActorParams = {
@@ -214,7 +218,11 @@ export interface Storage {
   linkAccountWithProvider(
     params: LinkAccountWithProviderParams
   ): Promise<Account | undefined>
+
   createAccountSession(params: CreateAccountSessionParams): Promise<void>
+  getAccountSession(
+    params: GetAccountSessionParams
+  ): Promise<{ account: Account; session: Session } | undefined>
 
   createActor(params: CreateActorParams): Promise<Actor | undefined>
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | undefined>
