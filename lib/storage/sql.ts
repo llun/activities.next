@@ -18,6 +18,7 @@ import { Tag, TagData } from '../models/tag'
 import { Timeline } from '../timelines/types'
 import {
   CreateAccountParams,
+  CreateAccountSessionParams,
   CreateActorParams,
   CreateAnnounceParams,
   CreateAttachmentParams,
@@ -193,6 +194,7 @@ export class SqlStorage implements Storage {
 
     const currentTime = Date.now()
     await this.database('accountProviders').insert({
+      id: crypto.randomUUID(),
       provider,
       providerId: providerAccountId,
       accountId,
@@ -201,6 +203,25 @@ export class SqlStorage implements Storage {
       updatedAt: currentTime
     })
     return account
+  }
+
+  async createAccountSession({
+    accountId,
+    expireAt,
+    token
+  }: CreateAccountSessionParams): Promise<void> {
+    const currentTime = Date.now()
+
+    await this.database('sessions').insert({
+      id: crypto.randomUUID(),
+      accountId,
+      token,
+
+      expireAt,
+
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
   }
 
   async createActor({

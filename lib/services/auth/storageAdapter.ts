@@ -52,7 +52,6 @@ export function StorageAdapter(): Adapter {
       const account = actor.account
       if (!account) return null
 
-      return null
       return userFromAccount(account)
     },
     async getUserByAccount({ provider, providerAccountId }) {
@@ -90,8 +89,15 @@ export function StorageAdapter(): Adapter {
       throw NoImplementationError
     },
     async createSession(session) {
-      console.log('Create session =====>', session)
-      throw NoImplementationError
+      console.log('Create Session ======> ', session)
+      const { sessionToken, userId, expires } = session
+      const storage = await getStorage()
+      await storage?.createAccountSession({
+        accountId: userId,
+        token: sessionToken,
+        expireAt: expires.getTime()
+      })
+      return session
     },
     async getSessionAndUser(sessionToken) {
       console.log('Get session and user =====>', sessionToken)

@@ -25,6 +25,11 @@ export type LinkAccountWithProviderParams = {
   provider: string
   providerAccountId: string
 }
+export type CreateAccountSessionParams = {
+  accountId: string
+  token: string
+  expireAt: number
+}
 
 export type CreateActorParams = {
   actorId: string
@@ -209,6 +214,7 @@ export interface Storage {
   linkAccountWithProvider(
     params: LinkAccountWithProviderParams
   ): Promise<Account | undefined>
+  createAccountSession(params: CreateAccountSessionParams): Promise<void>
 
   createActor(params: CreateActorParams): Promise<Actor | undefined>
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | undefined>

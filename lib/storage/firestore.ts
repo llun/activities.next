@@ -18,6 +18,7 @@ import { Timeline } from '../timelines/types'
 import { Trace } from '../trace'
 import {
   CreateAccountParams,
+  CreateAccountSessionParams,
   CreateActorParams,
   CreateAnnounceParams,
   CreateAttachmentParams,
@@ -197,6 +198,22 @@ export class FirestoreStorage implements Storage {
         createdAt: currentTime,
         updatedAt: currentTime
       })
+  }
+
+  @Trace('db')
+  async createAccountSession({
+    accountId,
+    expireAt,
+    token
+  }: CreateAccountSessionParams): Promise<void> {
+    const currentTime = Date.now()
+    await this.db.doc(`accounts/${accountId}/sessions/${token}`).set({
+      accountId,
+      token,
+      expireAt,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
   }
 
   @Trace('db')
