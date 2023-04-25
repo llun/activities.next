@@ -229,7 +229,7 @@ export class FirestoreStorage implements Storage {
       .collectionGroup('sessions')
       .where('token', '==', token)
       .get()
-    if (tokenDocs.size !== 0) return
+    if (tokenDocs.size !== 1) return
 
     const session = tokenDocs.docs[0].data() as Session
     const account = await this.getAccountFromId({ id: session.accountId })
