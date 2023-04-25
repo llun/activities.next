@@ -106,3 +106,6 @@ and add below index to FireStore
 - Collection `statuses`, `to` Arrays, `actorId` Ascending, `createdAt` Descending
 - Collection `follows`, `actorId` Ascending, `status` Ascending, `targetActorId` Ascending, `createdAt` Descending
 - Collection `timelines`, `timeline` Ascending, `createdAt` Descending
+- Collection group `accountProviders`, `provider` Ascending, `accountId` Ascending
+- Exemptions collection group `sessions`, `token` Ascending
+- Exemptions collection group `timeline`, `statusId` Ascending
