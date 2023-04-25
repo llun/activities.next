@@ -107,5 +107,6 @@ and add below index to FireStore
 - Collection `follows`, `actorId` Ascending, `status` Ascending, `targetActorId` Ascending, `createdAt` Descending
 - Collection `timelines`, `timeline` Ascending, `createdAt` Descending
 - Collection group `accountProviders`, `provider` Ascending, `accountId` Ascending
+- Collection group `accountProviders`, `provider` Ascending, `providerAccountId` Ascending
 - Exemptions collection group `sessions`, `token` Ascending
 - Exemptions collection group `timeline`, `statusId` Ascending

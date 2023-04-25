@@ -167,11 +167,9 @@ export class FirestoreStorage implements Storage {
     if (providers.size !== 1) return
 
     const providerDoc = providers.docs[0]
-    const doc = await this.db
-      .doc(`accounts/${providerDoc.data().accountId}`)
-      .get()
-    if (!doc.exists) return
-    return doc.data() as Account
+    return this.getAccountFromId({
+      id: providerDoc.data().accountId
+    })
   }
 
   @Trace('db')
