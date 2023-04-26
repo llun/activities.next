@@ -48,7 +48,6 @@ export function StorageAdapter(): Adapter {
       if (!account) return null
 
       return null
-      return userFromAccount(account)
     },
     async getUserByAccount({ provider, providerAccountId }) {
       const storage = await getStorage()
