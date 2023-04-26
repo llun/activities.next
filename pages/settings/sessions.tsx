@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
+import formatDistance from 'date-fns/formatDistance'
 import { GetServerSideProps, NextPage } from 'next'
 import { getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
@@ -19,9 +20,10 @@ import styles from '../settings.module.scss'
 interface Props {
   profile: ActorProfile
   sessions: Session[]
+  currentTime: number
 }
 
-const Page: NextPage<Props> = ({ profile, sessions }) => {
+const Page: NextPage<Props> = ({ profile, sessions, currentTime }) => {
   const { data: session } = useSession()
 
   return (
@@ -66,6 +68,14 @@ const Page: NextPage<Props> = ({ profile, sessions }) => {
           </div>
           <div className="col-12 col-md-9">
             <h2>Sessions</h2>
+            <ul>
+              {sessions.map((session) => (
+                <li key={`session-${session.expireAt}`}>
+                  Session expires in{' '}
+                  {formatDistance(session.expireAt, currentTime)}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
@@ -113,7 +123,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
   return {
     props: {
       profile: actor.toProfile(),
-      sessions
+      sessions,
+      currentTime: Date.now()
     }
   }
 }
