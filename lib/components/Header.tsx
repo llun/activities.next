@@ -21,6 +21,12 @@ export const Header: FC<Props> = ({ session }) => {
         {isLoggedIn && (
           <div className="d-flex justify-content-start">
             <Button variant="link">
+              <Link prefetch={false} href={'/'}>
+                Timeline
+              </Link>
+            </Button>
+
+            <Button variant="link">
               <Link prefetch={false} href={'/profile'}>
                 Profile
               </Link>
