@@ -14,6 +14,7 @@ export interface Config {
   secretPhase: string
   allowMediaDomains?: string[]
   auth?: {
+    enableStorageAdapter?: boolean
     github?: {
       id: string
       secret: string
