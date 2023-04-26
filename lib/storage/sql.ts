@@ -34,6 +34,7 @@ import {
   DeleteLikeParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
+  GetAccountAllSessionsParams,
   GetAccountFromIdParams,
   GetAccountFromProviderIdParams,
   GetAccountSessionParams,
@@ -249,6 +250,12 @@ export class SqlStorage implements Storage {
         token: sessionToken
       }
     }
+  }
+
+  async getAccountAllSessions({
+    accountId
+  }: GetAccountAllSessionsParams): Promise<Session[]> {
+    return this.database<Session>('sessions').where('accountId', accountId)
   }
 
   async deleteAccountSession({

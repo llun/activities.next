@@ -34,6 +34,7 @@ import {
   DeleteLikeParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
+  GetAccountAllSessionsParams,
   GetAccountFromIdParams,
   GetAccountFromProviderIdParams,
   GetAccountSessionParams,
@@ -234,6 +235,16 @@ export class FirestoreStorage implements Storage {
     if (!account) return
 
     return { account, session }
+  }
+
+  @Trace('db')
+  async getAccountAllSessions({
+    accountId
+  }: GetAccountAllSessionsParams): Promise<Session[]> {
+    const sessionDocs = await this.db
+      .collection(`accounts/${accountId}/sessions`)
+      .get()
+    return sessionDocs.docs.map((doc) => doc.data() as Session)
   }
 
   @Trace('db')

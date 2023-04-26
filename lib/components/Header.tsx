@@ -27,8 +27,8 @@ export const Header: FC<Props> = ({ session }) => {
             </Button>
 
             <Button variant="link">
-              <Link prefetch={false} href={'/profile'}>
-                Profile
+              <Link prefetch={false} href={'/settings'}>
+                Settings
               </Link>
             </Button>
 

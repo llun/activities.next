@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import Image from 'next/image'
+import Link from 'next/link'
 
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
@@ -13,7 +14,7 @@ import { getConfig } from '../lib/config'
 import { Actor, ActorProfile } from '../lib/models/actor'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
-import styles from './profile.module.scss'
+import styles from './settings.module.scss'
 
 interface Props {
   profile: ActorProfile
@@ -25,7 +26,7 @@ const Page: NextPage<Props> = ({ profile }) => {
   return (
     <main>
       <Head>
-        <title>Activities: profile</title>
+        <title>Activities: Settings</title>
       </Head>
       <Header session={session} />
       <section className="container pt-4">
@@ -49,6 +50,18 @@ const Page: NextPage<Props> = ({ profile }) => {
               domain={profile.domain}
               createdAt={profile.createdAt}
             />
+            <ul>
+              <li>
+                <Link href="/settings" prefetch={false}>
+                  Profile
+                </Link>
+              </li>
+              <li>
+                <Link href="/settings/sessions" prefetch={false}>
+                  Sessions
+                </Link>
+              </li>
+            </ul>
           </div>
           <div className="col-12 col-md-9">
             <form action="/api/v1/accounts/profile" method="post">

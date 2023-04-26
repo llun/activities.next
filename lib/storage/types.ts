@@ -34,6 +34,9 @@ export type CreateAccountSessionParams = {
 export type GetAccountSessionParams = {
   token: string
 }
+export type GetAccountAllSessionsParams = {
+  accountId: string
+}
 export type DeleteAccountSessionParams = {
   token: string
 }
@@ -226,6 +229,7 @@ export interface Storage {
   getAccountSession(
     params: GetAccountSessionParams
   ): Promise<{ account: Account; session: Session } | undefined>
+  getAccountAllSessions(params: GetAccountAllSessionsParams): Promise<Session[]>
   deleteAccountSession(params: DeleteAccountSessionParams): Promise<void>
 
   createActor(params: CreateActorParams): Promise<Actor | undefined>
