@@ -10,16 +10,26 @@ interface Props {
 }
 
 export const Header: FC<Props> = ({ session }) => {
+  const isLoggedIn = Boolean(session?.user)
+
   return (
     <header className="navbar navbar-expand-lg bg-light">
       <nav className="container">
         <Link prefetch={false} className="navbar-brand" href={'/'}>
           Activities
         </Link>
-        {session?.user?.email && (
-          <Button outline onClick={() => signOut()}>
-            Logout
-          </Button>
+        {isLoggedIn && (
+          <div className="d-flex justify-content-start">
+            <Button variant="link">
+              <Link prefetch={false} href={'/profile'}>
+                Profile
+              </Link>
+            </Button>
+
+            <Button outline onClick={() => signOut()}>
+              Logout
+            </Button>
+          </div>
         )}
       </nav>
     </header>
