@@ -47,7 +47,7 @@ export function StorageAdapter(): Adapter {
       const account = actor.account
       if (!account) return null
 
-      return null
+      return userFromAccount(account)
     },
     async getUserByAccount({ provider, providerAccountId }) {
       const storage = await getStorage()
