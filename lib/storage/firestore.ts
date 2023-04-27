@@ -61,6 +61,7 @@ import {
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
   Storage,
+  UpdateAccountSessionParams,
   UpdateActorParams,
   UpdateFollowStatusParams,
   UpdatePollParams
@@ -245,6 +246,22 @@ export class FirestoreStorage implements Storage {
       .collection(`accounts/${accountId}/sessions`)
       .get()
     return sessionDocs.docs.map((doc) => doc.data() as Session)
+  }
+
+  @Trace('db')
+  async updateAccountSession({
+    token,
+    expireAt
+  }: UpdateAccountSessionParams): Promise<void> {
+    if (!expireAt) return
+
+    const sessionDocs = await this.db
+      .collectionGroup('sessions')
+      .where('token', '==', token)
+      .get()
+    await Promise.all(
+      sessionDocs.docs.map((doc) => doc.ref.update({ expireAt }))
+    )
   }
 
   @Trace('db')

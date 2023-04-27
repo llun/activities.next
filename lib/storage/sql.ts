@@ -61,6 +61,7 @@ import {
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
   Storage,
+  UpdateAccountSessionParams,
   UpdateActorParams,
   UpdateFollowStatusParams,
   UpdatePollParams
@@ -256,6 +257,15 @@ export class SqlStorage implements Storage {
     accountId
   }: GetAccountAllSessionsParams): Promise<Session[]> {
     return this.database<Session>('sessions').where('accountId', accountId)
+  }
+
+  async updateAccountSession({
+    token,
+    expireAt
+  }: UpdateAccountSessionParams): Promise<void> {
+    if (!expireAt) return
+
+    return this.database('sessions').where('token', token).update({ expireAt })
   }
 
   async deleteAccountSession({
