@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
 import formatDistance from 'date-fns/formatDistance'
+import formatRelative from 'date-fns/formatRelative'
 import { GetServerSideProps, NextPage } from 'next'
 import { getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
@@ -8,6 +9,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
 
+import { Button } from '../../lib/components/Button'
 import { Header } from '../../lib/components/Header'
 import { Profile as ProfileComponent } from '../../lib/components/Profile'
 import { getConfig } from '../../lib/config'
@@ -68,14 +70,16 @@ const Page: NextPage<Props> = ({ profile, sessions, currentTime }) => {
           </div>
           <div className="col-12 col-md-9">
             <h2>Sessions</h2>
-            <ul>
+            <ol>
               {sessions.map((session) => (
                 <li key={`session-${session.expireAt}`}>
-                  Session expires in{' '}
-                  {formatDistance(session.expireAt, currentTime)}
+                  Session created at{' '}
+                  {formatRelative(session.createdAt, currentTime)} and will
+                  expires in {formatDistance(session.expireAt, currentTime)}
+                  <Button variant="link">Delete</Button>
                 </li>
               ))}
-            </ul>
+            </ol>
           </div>
         </div>
       </section>

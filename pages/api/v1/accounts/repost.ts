@@ -9,12 +9,14 @@ const handler = ApiGuard(async (req, res, context) => {
     case 'POST': {
       const { statusId } = req.body
       await userAnnounce({ currentActor, statusId, storage })
-      return res.status(202).json(DEFAULT_202)
+      res.status(202).json(DEFAULT_202)
+      return
     }
     case 'DELETE': {
       const { statusId } = req.body
       await userUndoAnnounce({ currentActor, statusId, storage })
-      return res.status(202).json(DEFAULT_202)
+      res.status(202).json(DEFAULT_202)
+      return
     }
     default: {
       res.status(404).json(ERROR_404)

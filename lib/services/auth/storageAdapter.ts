@@ -114,11 +114,29 @@ export function StorageAdapter(): Adapter {
       }
     },
     async updateSession(session) {
-      throw NoImplementationError
+      const { sessionToken, expires } = session
+      const storage = await getStorage()
+      if (!storage) return null
+
+      await storage.updateAccountSession({
+        token: sessionToken,
+        expireAt: expires?.getTime()
+      })
+      const accountAndSession = await storage.getAccountSession({
+        token: sessionToken
+      })
+      if (!accountAndSession) return null
+      return {
+        sessionToken,
+        expires: new Date(accountAndSession.session.expireAt),
+        userId: accountAndSession.account.id
+      }
     },
     async deleteSession(sessionToken) {
       const storage = await getStorage()
-      await storage?.deleteAccountSession({ token: sessionToken })
+      if (!storage) return
+
+      await storage.deleteAccountSession({ token: sessionToken })
     },
     async createVerificationToken(verificationToken) {
       throw NoImplementationError

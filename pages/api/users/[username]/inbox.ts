@@ -19,23 +19,28 @@ export default activitiesGuard(
         typeof req.body === 'string' ? JSON.parse(req.body) : req.body
       const storage = await getStorage()
       if (!storage) {
-        return res.status(400).json(ERROR_400)
+        res.status(400).json(ERROR_400)
+        return
       }
 
       switch (activity.type) {
         case 'Accept': {
           const follow = await acceptFollowRequest({ activity, storage })
           if (!follow) {
-            return res.status(404).json(ERROR_404)
+            res.status(404).json(ERROR_404)
+            return
           }
-          return res.status(202).send('')
+          res.status(202).send('')
+          return
         }
         case 'Reject': {
           const follow = await rejectFollowRequest({ activity, storage })
           if (!follow) {
-            return res.status(404).json(ERROR_404)
+            res.status(404).json(ERROR_404)
+            return
           }
-          return res.status(202).send('')
+          res.status(202).send('')
+          return
         }
         case 'Follow': {
           const follow = await createFollower({
@@ -43,13 +48,16 @@ export default activitiesGuard(
             storage
           })
           if (!follow) {
-            return res.status(404).json(ERROR_404)
+            res.status(404).json(ERROR_404)
+            return
           }
-          return res.status(202).send({ target: follow.object })
+          res.status(202).send({ target: follow.object })
+          return
         }
         case 'Like': {
           await likeRequest({ activity, storage })
-          return res.status(202).send(DEFAULT_202)
+          res.status(202).send(DEFAULT_202)
+          return
         }
         case 'Undo': {
           const undoRequest = activity as UndoFollow | UndoLike
@@ -61,13 +69,15 @@ export default activitiesGuard(
               })
               if (!follow) {
                 console.error('Fail to find follow', undoRequest)
-                return res.status(404).json(ERROR_404)
+                res.status(404).json(ERROR_404)
+                return
               }
               await storage.updateFollowStatus({
                 followId: follow.id,
                 status: FollowStatus.Undo
               })
-              return res.status(202).send({ target: undoRequest.object.object })
+              res.status(202).send({ target: undoRequest.object.object })
+              return
             }
             case 'Like': {
               await storage.deleteLike({
@@ -77,19 +87,22 @@ export default activitiesGuard(
                     ? undoRequest.object.object
                     : undoRequest.object.object.id
               })
-              return res.status(202).send(DEFAULT_202)
+              res.status(202).send(DEFAULT_202)
+              return
             }
             default: {
-              return res.status(202).send(DEFAULT_202)
+              res.status(202).send(DEFAULT_202)
+              return
             }
           }
         }
         default:
-          return res.status(202).send(DEFAULT_202)
+          res.status(202).send(DEFAULT_202)
+          return
       }
     }
 
-    return res.status(404).json(ERROR_404)
+    res.status(404).json(ERROR_404)
   },
   ['POST']
 )

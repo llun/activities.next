@@ -23,7 +23,8 @@ export default async function handler(
 
   const storage = await getStorage()
   if (!storage) {
-    return res.status(500).json(ERROR_500)
+    res.status(500).json(ERROR_500)
+    return
   }
 
   const host = headerHost(req.headers)
@@ -32,7 +33,8 @@ export default async function handler(
     domain: host as string
   })
   if (!actor) {
-    return res.status(404).json(ERROR_404)
+    res.status(404).json(ERROR_404)
+    return
   }
 
   const icon = actor.iconUrl

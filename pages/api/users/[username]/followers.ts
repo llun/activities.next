@@ -8,7 +8,8 @@ const handle: NextApiHandler = async (req, res) => {
   const { username, page } = req.query
   const storage = await getStorage()
   if (!storage) {
-    return res.status(400).json(ERROR_400)
+    res.status(400).json(ERROR_400)
+    return
   }
 
   const host = headerHost(req.headers)
@@ -26,10 +27,11 @@ const handle: NextApiHandler = async (req, res) => {
           totalItems
         })
       }
-      return res.status(404).json(ERROR_404)
+      res.status(404).json(ERROR_404)
+      return
     }
     default:
-      return res.status(404).json(ERROR_404)
+      res.status(404).json(ERROR_404)
   }
 }
 

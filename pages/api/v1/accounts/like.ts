@@ -8,23 +8,31 @@ const handler = ApiGuard(async (req, res, context) => {
     case 'POST': {
       const { statusId } = req.body
       const status = await storage.getStatus({ statusId, withReplies: false })
-      if (!status) return res.status(404).json(ERROR_404)
+      if (!status) {
+        res.status(404).json(ERROR_404)
+        return
+      }
 
       await storage.createLike({ actorId: currentActor.id, statusId })
       await sendLike({ currentActor, status })
-      return res.status(202).json(DEFAULT_202)
+      res.status(202).json(DEFAULT_202)
+      return
     }
     case 'DELETE': {
       const { statusId } = req.body
       const status = await storage.getStatus({ statusId, withReplies: false })
-      if (!status) return res.status(404).json(ERROR_404)
+      if (!status) {
+        res.status(404).json(ERROR_404)
+        return
+      }
 
       await storage.deleteLike({ actorId: currentActor.id, statusId })
       await sendUndoLike({ currentActor, status })
-      return res.status(202).json(DEFAULT_202)
+      res.status(202).json(DEFAULT_202)
+      return
     }
     default: {
-      return res.status(404).json(ERROR_404)
+      res.status(404).json(ERROR_404)
     }
   }
 })

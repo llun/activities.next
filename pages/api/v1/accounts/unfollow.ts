@@ -13,7 +13,8 @@ const handler = ApiGuard(async (req, res, context) => {
         targetActorId: target
       })
       if (!follow) {
-        return res.status(404).json(ERROR_404)
+        res.status(404).json(ERROR_404)
+        return
       }
 
       await Promise.all([
@@ -25,13 +26,15 @@ const handler = ApiGuard(async (req, res, context) => {
       ])
       const profile = await getPublicProfile({ actorId: target })
       if (!profile) {
-        return res.redirect(302, '/')
+        res.redirect(302, '/')
+        return
       }
 
-      return res.redirect(302, `/@${profile.username}@${profile.domain}`)
+      res.redirect(302, `/@${profile.username}@${profile.domain}`)
+      return
     }
     default: {
-      return res.status(404).json(ERROR_404)
+      res.status(404).json(ERROR_404)
     }
   }
 })

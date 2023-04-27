@@ -17,12 +17,11 @@ const handler = ApiGuard(async (req, res, context) => {
         actorId: currentActor.id,
         startAfterStatusId: getFirstValueFromQuery(startAfterStatusId)
       })
-      return res
-        .status(200)
-        .json({ statuses: statuses.map((item) => item.toJson()) })
+      res.status(200).json({ statuses: statuses.map((item) => item.toJson()) })
+      return
     }
     default: {
-      return res.status(404).json(ERROR_404)
+      res.status(404).json(ERROR_404)
     }
   }
 })

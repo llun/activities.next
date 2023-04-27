@@ -11,7 +11,8 @@ const handle: NextApiHandler = async (
   const { username, page } = req.query
   const storage = await getStorage()
   if (!storage) {
-    return res.status(400).json(ERROR_400)
+    res.status(400).json(ERROR_400)
+    return
   }
 
   const host = headerHost(req.headers)
@@ -22,17 +23,19 @@ const handle: NextApiHandler = async (
     case 'GET': {
       if (!page) {
         const totalItems = await storage.getActorFollowingCount({ actorId: id })
-        return res.status(200).json({
+        res.status(200).json({
           '@context': 'https://www.w3.org/ns/activitystreams',
           id: followingId,
           type: 'OrderedCollection',
           totalItems
         })
+        return
       }
-      return res.status(404).json(ERROR_404)
+      res.status(404).json(ERROR_404)
+      return
     }
     default:
-      return res.status(404).json(ERROR_404)
+      res.status(404).json(ERROR_404)
   }
 }
 

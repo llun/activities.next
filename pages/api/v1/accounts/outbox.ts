@@ -37,15 +37,17 @@ const handler = ApiGuard(async (req, res, context) => {
             })
             if (!status) {
               span?.finish()
-              return res.status(500).json(ERROR_500)
+              res.status(500).json(ERROR_500)
+              return
             }
 
             span?.finish()
-            return res.status(200).json({
+            res.status(200).json({
               status: status?.toJson(),
               note: status.toObject(),
               attachments: (status.data as StatusNote).attachments
             })
+            return
           }
           case 'poll': {
             const { message, replyStatus, choices, durationInSeconds } = body
@@ -57,10 +59,12 @@ const handler = ApiGuard(async (req, res, context) => {
               storage,
               endAt: Date.now() + durationInSeconds * 1000
             })
-            return res.status(404).json(ERROR_404)
+            res.status(404).json(ERROR_404)
+            return
           }
           default: {
-            return res.status(404).json(ERROR_404)
+            res.status(404).json(ERROR_404)
+            return
           }
         }
       } catch (e: any) {
@@ -68,18 +72,20 @@ const handler = ApiGuard(async (req, res, context) => {
         console.error(e.message)
         console.error(e.stack)
         span?.finish()
-        return res.status(500).json(ERROR_500)
+        res.status(500).json(ERROR_500)
+        return
       }
     }
     case 'DELETE': {
       const { statusId } = req.body as DeleteStatusParams
       await deleteStatusFromUserInput({ currentActor, statusId, storage })
       span?.finish()
-      return res.status(202).json(DEFAULT_202)
+      res.status(202).json(DEFAULT_202)
+      return
     }
     default: {
       span?.finish()
-      return res.status(404).json(ERROR_404)
+      res.status(404).json(ERROR_404)
     }
   }
 })

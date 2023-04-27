@@ -9,7 +9,8 @@ const handler = SetupGuard(async (req, res, context) => {
     case 'POST': {
       const { username, domain } = req.body
       if (await storage.isUsernameExists({ username, domain })) {
-        return res.status(302).redirect('/setup?error=HANDLE_ALREADY_EXISTS')
+        res.status(302).redirect('/setup?error=HANDLE_ALREADY_EXISTS')
+        return
       }
 
       try {
@@ -23,13 +24,15 @@ const handler = SetupGuard(async (req, res, context) => {
         })
       } catch {
         console.error('Fail to create account')
-        return res.status(302).redirect('/setup?error=FAIL_TO_CREATE_ACCOUNT')
+        res.status(302).redirect('/setup?error=FAIL_TO_CREATE_ACCOUNT')
+        return
       }
 
-      return res.status(302).redirect('/')
+      res.status(302).redirect('/')
+      return
     }
     default: {
-      return res.status(404).json(ERROR_404)
+      res.status(404).json(ERROR_404)
     }
   }
 })

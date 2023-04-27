@@ -9,7 +9,8 @@ const handler = ApiGuard(async (req, res, context) => {
         actorId: currentActor.id,
         ...req.body
       })
-      return res.status(301).redirect('/profile')
+      res.status(301).redirect('/profile')
+      return
     }
     default: {
       res.status(404).json(ERROR_404)

@@ -14,7 +14,8 @@ const handle: NextApiHandler = async (req, res) => {
   const { username, page } = req.query
   const storage = await getStorage()
   if (!storage) {
-    return res.status(400).json(ERROR_400)
+    res.status(400).json(ERROR_400)
+    return
   }
 
   const host = headerHost(req.headers)
@@ -24,7 +25,7 @@ const handle: NextApiHandler = async (req, res) => {
       if (!page) {
         const totalItems = await storage.getActorStatusesCount({ actorId: id })
         const inboxId = `${id}/outbox`
-        return res.status(200).json({
+        res.status(200).json({
           '@context': 'https://www.w3.org/ns/activitystreams',
           id: inboxId,
           type: 'OrderedCollection',
@@ -32,6 +33,7 @@ const handle: NextApiHandler = async (req, res) => {
           first: `${inboxId}?page=true`,
           last: `${inboxId}?min_id=0&page=true`
         })
+        return
       }
 
       const statuses = await storage.getActorStatuses({ actorId: id })
@@ -59,16 +61,17 @@ const handle: NextApiHandler = async (req, res) => {
         }
       })
 
-      return res.status(200).json({
+      res.status(200).json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: `${id}/outbox?page=true`,
         type: 'OrderedCollectionPage',
         partOf: `${id}/outbox`,
         orderedItems: items
       })
+      return
     }
     default:
-      return res.status(404).json(ERROR_404)
+      res.status(404).json(ERROR_404)
   }
 }
 

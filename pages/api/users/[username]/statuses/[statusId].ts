@@ -18,7 +18,8 @@ export default async function handler(
 ) {
   const storage = await getStorage()
   if (!storage) {
-    return res.status(500).json(ERROR_500)
+    res.status(500).json(ERROR_500)
+    return
   }
 
   const { username, statusId } = req.query
@@ -27,12 +28,14 @@ export default async function handler(
   const id = `https://${host}/users/${username}/statuses/${statusId}`
   const status = await storage.getStatus({ statusId: id, withReplies: true })
   if (!status) {
-    return res.status(404).json(ERROR_404)
+    res.status(404).json(ERROR_404)
+    return
   }
 
   const note = status.toNote()
   if (!note) {
-    return res.status(404).json(ERROR_404)
+    res.status(404).json(ERROR_404)
+    return
   }
 
   res.status(200).json({

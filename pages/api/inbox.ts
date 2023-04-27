@@ -38,7 +38,8 @@ const handlePost = async (
           break
         }
       }
-      return res.status(202).send('')
+      res.status(202).send('')
+      return
     }
     case UpdateAction: {
       switch (activity.object.type) {
@@ -47,11 +48,13 @@ const handlePost = async (
           break
         }
       }
-      return res.status(202).send('')
+      res.status(202).send('')
+      return
     }
     case AnnounceAction: {
       await announce({ storage, status: activity })
-      return res.status(202).send('')
+      res.status(202).send('')
+      return
     }
     case UndoAction: {
       switch (activity.object.type) {
@@ -61,20 +64,23 @@ const handlePost = async (
           break
         }
       }
-      return res.status(202).send('')
+      res.status(202).send('')
+      return
     }
     case DeleteAction: {
       // TODO: Handle delete object type string
       if (typeof activity.object === 'string') {
-        return res.status(202).send('')
+        res.status(202).send('')
+        return
       }
 
       const id = activity.object.id
       await storage.deleteStatus({ statusId: id })
-      return res.status(202).send('')
+      res.status(202).send('')
+      return
     }
     default:
-      return res.status(404).send(ERROR_404)
+      res.status(404).send(ERROR_404)
   }
 }
 
@@ -82,7 +88,8 @@ const ApiHandler: NextApiHandler = activitiesGuard(
   async (req, res) => {
     const storage = await getStorage()
     if (!storage) {
-      return res.status(500).send(ERROR_500)
+      res.status(500).send(ERROR_500)
+      return
     }
 
     switch (req.method) {
@@ -97,7 +104,7 @@ const ApiHandler: NextApiHandler = activitiesGuard(
         return
       }
       default:
-        return res.status(404).send(ERROR_404)
+        res.status(404).send(ERROR_404)
     }
   },
   ['POST']
