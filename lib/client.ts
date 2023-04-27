@@ -247,3 +247,18 @@ export const getTimeline = async ({
   const data = await response.json()
   return data.statuses as StatusData[]
 }
+
+interface DeleteSessionParams {
+  token: string
+}
+export const deleteSession = async ({ token }: DeleteSessionParams) => {
+  const path = `/api/v1/accounts/sessions/${token}`
+  const response = await fetch(path, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  if (response.status !== 200) return false
+  return true
+}

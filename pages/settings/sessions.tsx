@@ -9,6 +9,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
 
+import { deleteSession } from '../../lib/client'
 import { Button } from '../../lib/components/Button'
 import { Header } from '../../lib/components/Header'
 import { Profile as ProfileComponent } from '../../lib/components/Profile'
@@ -71,12 +72,20 @@ const Page: NextPage<Props> = ({ profile, sessions, currentTime }) => {
           <div className="col-12 col-md-9">
             <h2>Sessions</h2>
             <ol>
-              {sessions.map((session) => (
-                <li key={`session-${session.expireAt}`}>
+              {sessions.map((existingSession) => (
+                <li key={`session-${existingSession.expireAt}`}>
                   Session created at{' '}
-                  {formatRelative(session.createdAt, currentTime)} and will
-                  expires in {formatDistance(session.expireAt, currentTime)}
-                  <Button variant="link">Delete</Button>
+                  {formatRelative(existingSession.createdAt, currentTime)} and
+                  will expires in{' '}
+                  {formatDistance(existingSession.expireAt, currentTime)}
+                  <Button
+                    variant="link"
+                    onClick={async () => {
+                      await deleteSession({ token: existingSession.token })
+                    }}
+                  >
+                    Delete
+                  </Button>
                 </li>
               ))}
             </ol>
