@@ -239,7 +239,13 @@ export class SqlStorage implements Storage {
       .first()
     if (!session) return
 
-    const { accountId, token: sessionToken, expireAt } = session
+    const {
+      accountId,
+      token: sessionToken,
+      expireAt,
+      createdAt,
+      updatedAt
+    } = session
     const account = await this.getAccountFromId({ id: accountId })
     if (!account) return
 
@@ -248,7 +254,9 @@ export class SqlStorage implements Storage {
       session: {
         accountId,
         expireAt,
-        token: sessionToken
+        token: sessionToken,
+        createdAt,
+        updatedAt
       }
     }
   }
