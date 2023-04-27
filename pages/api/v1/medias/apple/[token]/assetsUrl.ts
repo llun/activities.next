@@ -16,13 +16,15 @@ const handle = async (req: NextApiRequest, res: NextApiResponse) => {
   res.setHeader('Vary', 'Origin')
 
   if (req.method !== 'POST') {
-    return res.status(400).json({ error: 'Invalid' })
+    res.status(400).json({ error: 'Invalid' })
+    return
   }
   const { token } = req.query
   const body = req.body as AssetsRequest
   const response = await fetchAssetsUrl(token as string, body.photoGuids)
   if (!response || !response.body) {
-    return res.status(404).json({ error: 'Not Found' })
+    res.status(404).json({ error: 'Not Found' })
+    return
   }
 
   const assets = (await response.json()) as Assets

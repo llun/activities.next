@@ -9,14 +9,16 @@ const handler = ApiGuard(async (req, res, context) => {
     case 'GET': {
       const { targetActorId } = req.query
       if (!targetActorId) {
-        return res.status(404).json(ERROR_404)
+        res.status(404).json(ERROR_404)
+        return
       }
 
       const follow = await storage.getAcceptedOrRequestedFollow({
         actorId: currentActor.id,
         targetActorId: targetActorId as string
       })
-      return res.status(200).json({ follow })
+      res.status(200).json({ follow })
+      return
     }
     case 'POST': {
       const { target } = req.body
@@ -30,10 +32,12 @@ const handler = ApiGuard(async (req, res, context) => {
       await follow(followItem.id, currentActor, target)
       const profile = await getPublicProfile({ actorId: target })
       if (!profile) {
-        return res.redirect(302, '/')
+        res.redirect(302, '/')
+        return
       }
 
-      return res.redirect(302, `/@${profile.username}@${profile.domain}`)
+      res.redirect(302, `/@${profile.username}@${profile.domain}`)
+      return
     }
     default: {
       res.status(404).json(ERROR_404)
