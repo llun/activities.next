@@ -9,7 +9,7 @@ interface UpdateNoteParams {
   note: Note
   storage: Storage
 }
-export const updatePoll = async ({ note, storage }: UpdateNoteParams) => {
+export const updateNote = async ({ note, storage }: UpdateNoteParams) => {
   const span = getSpan('actions', 'updateNote', { status: note.id })
   const existingStatus = await storage.getStatus({
     statusId: note.id,
