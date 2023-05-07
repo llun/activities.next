@@ -848,20 +848,22 @@ export class FirestoreStorage implements Storage {
 
     const snapshotData = snapshot.data()
     const currentTime = Date.now()
-    const previousData = {
-      statusId,
-      text: snapshotData?.text,
-      ...(snapshotData?.summary ? { summary: snapshotData.summary } : null),
-      createdAt: snapshotData?.createdAt,
-      updatedAt: currentTime
+    if (text !== snapshotData?.text || summary !== snapshotData?.summary) {
+      const previousData = {
+        statusId,
+        text: snapshotData?.text,
+        ...(snapshotData?.summary ? { summary: snapshotData.summary } : null),
+        createdAt: snapshotData?.createdAt,
+        updatedAt: currentTime
+      }
+      const historyPath = `${statusPath}/history/${currentTime}`
+      await this.db.doc(historyPath).set(previousData)
+      await this.db.doc(statusPath).update({
+        text,
+        ...(summary ? { summary } : null),
+        updatedAt: currentTime
+      })
     }
-    const historyPath = `${statusPath}/history/${currentTime}`
-    await this.db.doc(historyPath).set(previousData)
-    await this.db.doc(statusPath).update({
-      text,
-      ...(summary ? { summary } : null),
-      updatedAt: currentTime
-    })
     choices.map(async (choice) => {
       const key = `${statusPath}/choices/${this.createMD5(choice.title)}`
       return this.db.doc(key).update({

@@ -873,22 +873,25 @@ export class SqlStorage implements Storage {
       .first()
     if (!existingStatus) return
     const currentTime = Date.now()
-    const previousData = {
-      text: existingStatus.text,
-      summary: existingStatus.summary
-    }
+
     await this.database.transaction(async (trx) => {
-      await trx('status_history').insert({
-        statusId,
-        data: previousData,
-        createdAt: existingStatus.createdAt,
-        updatedAt: currentTime
-      })
-      await trx('statuses').where('id', statusId).update({
-        text,
-        summary,
-        updatedAt: currentTime
-      })
+      if (text !== existingStatus.text || summary !== existingStatus.summary) {
+        const previousData = {
+          text: existingStatus.text,
+          summary: existingStatus.summary
+        }
+        await trx('status_history').insert({
+          statusId,
+          data: previousData,
+          createdAt: existingStatus.createdAt,
+          updatedAt: currentTime
+        })
+        await trx('statuses').where('id', statusId).update({
+          text,
+          summary,
+          updatedAt: currentTime
+        })
+      }
       for (const choice of choices) {
         await trx('poll_choices')
           .where({
