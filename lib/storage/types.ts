@@ -126,6 +126,9 @@ interface BaseCreateStatusParams {
 }
 
 export type CreateNoteParams = BaseCreateStatusParams
+export type UpdateNoteParams = Pick<CreateNoteParams, 'text' | 'summary'> & {
+  statusId: string
+}
 
 export type CreateAnnounceParams = Pick<
   BaseCreateStatusParams,
@@ -138,12 +141,8 @@ export type CreatePollParams = BaseCreateStatusParams & {
   choices: string[]
   endAt: number
 }
-
-export type UpdatePollParams = {
+export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> & {
   statusId: string
-  text: string
-  summary?: string
-
   choices: { title: string; totalVotes: number }[]
 }
 
@@ -250,9 +249,11 @@ export interface Storage {
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
 
   createNote(params: CreateNoteParams): Promise<Status>
-  createAnnounce(params: CreateAnnounceParams): Promise<Status | undefined>
-  createPoll(params: CreatePollParams): Promise<Status>
+  updateNote(params: UpdateNoteParams): Promise<Status | undefined>
 
+  createAnnounce(params: CreateAnnounceParams): Promise<Status | undefined>
+
+  createPoll(params: CreatePollParams): Promise<Status>
   updatePoll(params: UpdatePollParams): Promise<Status | undefined>
 
   getStatus(params: GetStatusParams): Promise<Status | undefined>

@@ -173,10 +173,10 @@ export class SqlStorage implements Storage {
     provider,
     accountId
   }: GetAccountFromProviderIdParams): Promise<Account | undefined> {
-    return this.database('accountProviders')
+    return this.database('account_providers')
       .where('provider', provider)
       .where('providerId', accountId)
-      .join('accounts', 'accountProviders.accountId', '=', 'accounts.id')
+      .join('accounts', 'account_providers.accountId', '=', 'accounts.id')
       .select<Account>('accounts.*')
       .first()
   }
@@ -187,7 +187,7 @@ export class SqlStorage implements Storage {
     provider
   }: LinkAccountWithProviderParams): Promise<Account | undefined> {
     const [existingLinkAccount, account] = await Promise.all([
-      this.database('accountProviders')
+      this.database('account_providers')
         .where('provider', provider)
         .where('providerId', providerAccountId)
         .first(),
@@ -198,7 +198,7 @@ export class SqlStorage implements Storage {
     if (!account) return
 
     const currentTime = Date.now()
-    await this.database('accountProviders').insert({
+    await this.database('account_providers').insert({
       id: crypto.randomUUID(),
       provider,
       providerId: providerAccountId,
