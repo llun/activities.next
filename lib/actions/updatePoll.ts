@@ -33,6 +33,7 @@ export const updatePoll = async ({ question, storage }: UpdatePollParams) => {
   const text = getContent(compactQuestion)
   await storage.updatePoll({
     statusId: compactQuestion.id,
+    summary: compactQuestion.summary,
     text,
     choices: compactQuestion.oneOf.map((answer) => ({
       title: answer.name,

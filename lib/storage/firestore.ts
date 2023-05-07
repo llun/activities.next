@@ -705,7 +705,7 @@ export class FirestoreStorage implements Storage {
     if (!status) return
 
     const data = status.data
-    if (data.type !== StatusType.Note && data.type !== StatusType.Poll) return
+    if (data.type !== StatusType.Note) return
 
     const currentTime = Date.now()
     const previousData = {
@@ -723,6 +723,7 @@ export class FirestoreStorage implements Storage {
       ...(summary ? { summary } : null),
       updatedAt: currentTime
     })
+    return this.getStatus({ statusId })
   }
 
   @Trace('db')
@@ -840,12 +841,27 @@ export class FirestoreStorage implements Storage {
   }
 
   @Trace('db')
-  async updatePoll({ statusId, choices }: UpdatePollParams) {
+  async updatePoll({ statusId, text, summary, choices }: UpdatePollParams) {
     const statusPath = `statuses/${FirestoreStorage.urlToId(statusId)}`
     const snapshot = await this.db.doc(statusPath).get()
     if (!snapshot.exists) return
 
+    const snapshotData = snapshot.data()
     const currentTime = Date.now()
+    const previousData = {
+      statusId,
+      text: snapshotData?.text,
+      ...(snapshotData?.summary ? { summary: snapshotData.summary } : null),
+      createdAt: snapshotData?.createdAt,
+      updatedAt: currentTime
+    }
+    const historyPath = `${statusPath}/history/${currentTime}`
+    await this.db.doc(historyPath).set(previousData)
+    await this.db.doc(statusPath).update({
+      text,
+      ...(summary ? { summary } : null),
+      updatedAt: currentTime
+    })
     choices.map(async (choice) => {
       const key = `${statusPath}/choices/${this.createMD5(choice.title)}`
       return this.db.doc(key).update({
