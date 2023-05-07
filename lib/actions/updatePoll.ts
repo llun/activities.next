@@ -1,4 +1,4 @@
-import { getContent } from '../activities/entities/note'
+import { getContent, getSummary } from '../activities/entities/note'
 import { Question, QuestionEntity } from '../activities/entities/question'
 import { compact } from '../jsonld'
 import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
@@ -31,9 +31,10 @@ export const updatePoll = async ({ question, storage }: UpdatePollParams) => {
   }
 
   const text = getContent(compactQuestion)
+  const summary = getSummary(compactQuestion)
   await storage.updatePoll({
     statusId: compactQuestion.id,
-    summary: compactQuestion.summary,
+    summary,
     text,
     choices: compactQuestion.oneOf.map((answer) => ({
       title: answer.name,

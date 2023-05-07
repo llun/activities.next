@@ -687,15 +687,20 @@ export class SqlStorage implements Storage {
     await this.database.transaction(async (trx) => {
       await trx('status_history').insert({
         statusId: status.id,
-        data: previousData,
+        data: JSON.stringify(previousData),
         createdAt: status.createdAt,
         updatedAt: currentTime
       })
-      await trx('statuses').where('id', status.id).update({
-        text,
-        summary,
-        updatedAt: currentTime
-      })
+      await trx('statuses')
+        .where('id', status.id)
+        .update({
+          content: JSON.stringify({
+            url: status.url,
+            text,
+            summary
+          }),
+          updatedAt: currentTime
+        })
     })
     return this.getStatus({ statusId })
   }
@@ -876,21 +881,27 @@ export class SqlStorage implements Storage {
 
     await this.database.transaction(async (trx) => {
       if (text !== existingStatus.text || summary !== existingStatus.summary) {
+        const data = JSON.parse(existingStatus.content)
         const previousData = {
-          text: existingStatus.text,
-          summary: existingStatus.summary
+          text: data.text,
+          summary: data.summary
         }
         await trx('status_history').insert({
           statusId,
-          data: previousData,
+          data: JSON.stringify(previousData),
           createdAt: existingStatus.createdAt,
           updatedAt: currentTime
         })
-        await trx('statuses').where('id', statusId).update({
-          text,
-          summary,
-          updatedAt: currentTime
-        })
+        await trx('statuses')
+          .where('id', statusId)
+          .update({
+            content: {
+              url: data.url,
+              text: data.text,
+              summary: data.summary
+            },
+            updatedAt: currentTime
+          })
       }
       for (const choice of choices) {
         await trx('poll_choices')

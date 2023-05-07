@@ -1,4 +1,9 @@
-import { Note, NoteEntity, getContent } from '../activities/entities/note'
+import {
+  Note,
+  NoteEntity,
+  getContent,
+  getSummary
+} from '../activities/entities/note'
 import { compact } from '../jsonld'
 import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
 import { StatusType } from '../models/status'
@@ -15,7 +20,7 @@ export const updateNote = async ({ note, storage }: UpdateNoteParams) => {
     statusId: note.id,
     withReplies: false
   })
-  if (!existingStatus || existingStatus.type !== StatusType.Poll) {
+  if (!existingStatus || existingStatus.type !== StatusType.Note) {
     span?.finish()
     return note
   }
@@ -30,7 +35,12 @@ export const updateNote = async ({ note, storage }: UpdateNoteParams) => {
   }
 
   const text = getContent(compactNote)
-  console.log(text)
+  const summary = getSummary(compactNote)
+  await storage.updateNote({
+    statusId: compactNote.id,
+    summary,
+    text
+  })
   span?.finish()
   return note
 }
