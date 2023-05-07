@@ -64,6 +64,7 @@ import {
   UpdateAccountSessionParams,
   UpdateActorParams,
   UpdateFollowStatusParams,
+  UpdateNoteParams,
   UpdatePollParams
 } from './types'
 
@@ -691,6 +692,36 @@ export class FirestoreStorage implements Storage {
       isActorAnnounced: false,
       tags: [],
       replies: []
+    })
+  }
+
+  @Trace('db')
+  async updateNote({
+    statusId,
+    text,
+    summary
+  }: UpdateNoteParams): Promise<Status | undefined> {
+    const status = await this.getStatus({ statusId })
+    if (!status) return
+
+    const data = status.data
+    if (data.type !== StatusType.Note && data.type !== StatusType.Poll) return
+
+    const currentTime = Date.now()
+    const previousData = {
+      statusId,
+      text: data.text,
+      summary: data.summary,
+      createdAt: status.createdAt,
+      updatedAt: currentTime
+    }
+    const statusPath = `statuses/${FirestoreStorage.urlToId(statusId)}`
+    const historyPath = `${statusPath}/history/${currentTime}`
+    await this.db.doc(historyPath).set(previousData)
+    await this.db.doc(statusPath).update({
+      text,
+      ...(summary ? { summary } : null),
+      updatedAt: currentTime
     })
   }
 

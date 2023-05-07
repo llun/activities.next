@@ -64,6 +64,7 @@ import {
   UpdateAccountSessionParams,
   UpdateActorParams,
   UpdateFollowStatusParams,
+  UpdateNoteParams,
   UpdatePollParams
 } from './types'
 
@@ -665,6 +666,38 @@ export class SqlStorage implements Storage {
       createdAt: statusCreatedAt,
       updatedAt: statusUpdatedAt
     })
+  }
+
+  async updateNote({
+    statusId,
+    text,
+    summary
+  }: UpdateNoteParams): Promise<Status | undefined> {
+    const status = await this.getStatus({ statusId })
+    if (!status) return
+
+    const data = status.data
+    if (data.type !== StatusType.Note && data.type !== StatusType.Poll) return
+
+    const previousData = {
+      text: data.text,
+      summary: data.summary
+    }
+    const currentTime = Date.now()
+    await this.database.transaction(async (trx) => {
+      await trx('status_history').insert({
+        statusId: status.id,
+        data: previousData,
+        createdAt: status.createdAt,
+        updatedAt: currentTime
+      })
+      await trx('statuses').where('id', status.id).update({
+        text,
+        summary,
+        updatedAt: currentTime
+      })
+    })
+    return this.getStatus({ statusId })
   }
 
   async createAnnounce({
