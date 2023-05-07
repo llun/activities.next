@@ -110,46 +110,33 @@ export type UpdateFollowStatusParams = {
   followId: string
   status: FollowStatus
 }
-export type CreateNoteParams = {
+
+interface BaseCreateStatusParams {
   id: string
   actorId: string
+  to: string[]
+  cc: string[]
+
   url: string
   text: string
   summary?: string | null
-
-  to: string[]
-  cc: string[]
-
   reply?: string
 
   createdAt?: number
 }
-export type CreateAnnounceParams = {
-  id: string
-  actorId: string
 
-  to: string[]
-  cc: string[]
+export type CreateNoteParams = BaseCreateStatusParams
 
+export type CreateAnnounceParams = Pick<
+  BaseCreateStatusParams,
+  'id' | 'actorId' | 'to' | 'cc' | 'createdAt'
+> & {
   originalStatusId: string
-  createdAt?: number
 }
-export type CreatePollParams = {
-  id: string
-  actorId: string
-  url: string
-  text: string
-  summary?: string
 
-  to: string[]
-  cc: string[]
-
+export type CreatePollParams = BaseCreateStatusParams & {
   choices: string[]
-
-  reply?: string
-
   endAt: number
-  createdAt?: number
 }
 
 export type UpdatePollParams = {
@@ -204,17 +191,13 @@ export type GetTagsParams = {
   statusId: string
 }
 
-export type CreateLikeParams = {
+interface BaseLikeParams {
   actorId: string
   statusId: string
 }
-export type DeleteLikeParams = {
-  actorId: string
-  statusId: string
-}
-export type GetLikeCountParams = {
-  statusId: string
-}
+export type CreateLikeParams = BaseLikeParams
+export type DeleteLikeParams = BaseLikeParams
+export type GetLikeCountParams = Pick<BaseLikeParams, 'statusId'>
 
 export interface Storage {
   isAccountExists(params: IsAccountExistsParams): Promise<boolean>
