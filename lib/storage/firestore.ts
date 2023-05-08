@@ -9,6 +9,7 @@ import { Follow, FollowStatus } from '../models/follow'
 import { PollChoice, PollChoiceData } from '../models/pollChoice'
 import { Session } from '../models/session'
 import {
+  Edited,
   Status,
   StatusAnnounce,
   StatusNote,
@@ -691,7 +692,8 @@ export class FirestoreStorage implements Storage {
       isActorLiked: false,
       isActorAnnounced: false,
       tags: [],
-      replies: []
+      replies: [],
+      edits: []
     })
   }
 
@@ -877,6 +879,13 @@ export class FirestoreStorage implements Storage {
     return this.getStatus({ statusId })
   }
 
+  private async getEdits(statusId: string) {
+    const snapshot = await this.db
+      .collection(`statuses/${FirestoreStorage.urlToId(statusId)}/history`)
+      .get()
+    return snapshot.docs.map((item) => item.data() as Edited)
+  }
+
   @Trace('db')
   private async getStatusFromData(
     data: any,
@@ -940,7 +949,8 @@ export class FirestoreStorage implements Storage {
       totalLikes,
       isActorLikedStatus,
       isActorAnnouncedStatus,
-      pollChoices
+      pollChoices,
+      edits
     ] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
       this.getTags({ statusId: data.id }),
@@ -951,7 +961,8 @@ export class FirestoreStorage implements Storage {
         statusId: data.id,
         actorId: currentActorId
       }),
-      this.getPollChoices(data.id)
+      this.getPollChoices(data.id),
+      this.getEdits(data.id)
     ])
 
     const replies = withReplies ? await this.getReplies(data.id) : []
@@ -975,7 +986,7 @@ export class FirestoreStorage implements Storage {
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
 
-      edits: [],
+      edits,
       ...(data.type === StatusType.Poll
         ? {
             choices: pollChoices.map((choice) => choice.toJson()),

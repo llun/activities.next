@@ -14,7 +14,7 @@ export enum StatusType {
   Poll = 'Poll'
 }
 
-interface Edited {
+export interface Edited {
   text: string
   summary: string | null
   createdAt: number
