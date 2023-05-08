@@ -1,20 +1,25 @@
 import { FC } from 'react'
 
 import { deleteStatus } from '../../client'
-import { StatusType } from '../../models/status'
+import { StatusData, StatusType } from '../../models/status'
 import { Button } from '../Button'
 import { LikeButton } from './Actions/LikeButton'
 import { RepostButton } from './Actions/RepostButton'
 import { PostProps } from './Post'
 
-export const Actions: FC<PostProps> = ({
+interface Props extends PostProps {
+  onShowEdits?: (status: StatusData) => void
+}
+
+export const Actions: FC<Props> = ({
   currentActor,
   status,
   showDeleteAction = false,
   showActions = false,
   onReply,
   onPostDeleted,
-  onPostReposted
+  onPostReposted,
+  onShowEdits
 }) => {
   if (!showActions) return null
   if (!currentActor) return null
@@ -68,6 +73,11 @@ export const Actions: FC<PostProps> = ({
           <i className="bi bi-trash3" />
         </Button>
       )}
+      {status.edits.length > 0 ? (
+        <Button variant="link" onClick={() => onShowEdits?.(status)}>
+          <i className="bi bi-eraser" />
+        </Button>
+      ) : null}
     </div>
   )
 }
