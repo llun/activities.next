@@ -14,6 +14,12 @@ export enum StatusType {
   Poll = 'Poll'
 }
 
+interface Edited {
+  text: string
+  summary: string | null
+  createdAt: number
+}
+
 interface StatusBase {
   id: string
   actorId: string
@@ -21,6 +27,8 @@ interface StatusBase {
 
   to: string[]
   cc: string[]
+
+  edits: Edited[]
 
   createdAt: number
   updatedAt: number
@@ -146,6 +154,7 @@ export class Status {
 
       to: Array.isArray(note.to) ? note.to : [note.to],
       cc: Array.isArray(note.cc) ? note.cc : [note.cc],
+      edits: [],
 
       reply: note.inReplyTo || '',
       replies: [],
@@ -183,6 +192,7 @@ export class Status {
 
       to: Array.isArray(announce.to) ? announce.to : [announce.to],
       cc: Array.isArray(announce.cc) ? announce.cc : [announce.cc],
+      edits: [],
 
       originalStatus,
 

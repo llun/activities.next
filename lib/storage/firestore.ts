@@ -759,6 +759,7 @@ export class FirestoreStorage implements Storage {
     const announceData: StatusAnnounce = {
       ...status,
       ...(originalStatus?.data && { originalStatus: originalStatus.data }),
+      edits: [],
       type: StatusType.Announce,
       actor: null
     }
@@ -834,6 +835,7 @@ export class FirestoreStorage implements Storage {
       totalLikes: 0,
       isActorLiked: false,
       isActorAnnounced: false,
+      edits: [],
       tags: [],
       replies: [],
       choices: choicesData.map((data) => new PollChoice(data).toJson())
@@ -922,6 +924,7 @@ export class FirestoreStorage implements Storage {
 
         to: data.to,
         cc: data.cc,
+        edits: [],
 
         originalStatus: originalStatus?.data as StatusNote,
 
@@ -972,6 +975,7 @@ export class FirestoreStorage implements Storage {
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
 
+      edits: [],
       ...(data.type === StatusType.Poll
         ? {
             choices: pollChoices.map((choice) => choice.toJson()),

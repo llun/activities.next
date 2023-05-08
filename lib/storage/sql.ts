@@ -657,6 +657,7 @@ export class SqlStorage implements Storage {
       reply,
       to,
       cc,
+      edits: [],
       attachments: [],
       tags: [],
       replies: [],
@@ -766,6 +767,7 @@ export class SqlStorage implements Storage {
       actor: actor?.toProfile() || null,
       to,
       cc,
+      edits: [],
       type: StatusType.Announce,
       originalStatus: originalStatus?.data as StatusNote,
 
@@ -860,6 +862,7 @@ export class SqlStorage implements Storage {
       reply,
       to,
       cc,
+      edits: [],
       tags: [],
       replies: [],
       choices: [],
@@ -952,6 +955,7 @@ export class SqlStorage implements Storage {
         type: StatusType.Announce,
         to: to.map((item) => item.actorId),
         cc: cc.map((item) => item.actorId),
+        edits: [],
         originalStatus: originalStatus?.data as StatusNote,
 
         createdAt: data.createdAt,
@@ -1023,6 +1027,8 @@ export class SqlStorage implements Storage {
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
+
+      edits: [],
 
       ...(data.type === StatusType.Poll
         ? {

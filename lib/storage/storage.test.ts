@@ -487,6 +487,7 @@ describe('Storage', () => {
           summary: '',
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
+          edits: [],
           attachments: [],
           totalLikes: 0,
           isActorLiked: false,
