@@ -3,6 +3,7 @@ import { FC } from 'react'
 import { deleteStatus } from '../../client'
 import { StatusData, StatusType } from '../../models/status'
 import { Button } from '../Button'
+import { EditHistoryButton } from './Actions/EditHistoryButton'
 import { LikeButton } from './Actions/LikeButton'
 import { RepostButton } from './Actions/RepostButton'
 import { PostProps } from './Post'
@@ -73,11 +74,7 @@ export const Actions: FC<Props> = ({
           <i className="bi bi-trash3" />
         </Button>
       )}
-      {status.edits.length > 0 ? (
-        <Button variant="link" onClick={() => onShowEdits?.(status)}>
-          <i className="bi bi-eraser" />
-        </Button>
-      ) : null}
+      <EditHistoryButton status={status} onShowEdits={onShowEdits} />
     </div>
   )
 }
