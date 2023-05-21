@@ -1,0 +1,12 @@
+.button {
+  position: relative;
+}
+
+.history {
+  padding: 0.25rem;
+  border-radius: 0.125rem;
+  background-color: var(--bs-white);
+  border: 1px solid var(--bs-border-color);
+  position: absolute;
+  left: 0;
+}
