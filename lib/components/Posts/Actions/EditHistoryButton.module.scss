@@ -3,10 +3,12 @@
 }
 
 .history {
-  padding: 0.25rem;
-  border-radius: 0.125rem;
-  background-color: var(--bs-white);
-  border: 1px solid var(--bs-border-color);
   position: absolute;
   left: 0;
+  width: 25rem;
+
+  @media screen and (max-width: 767px) {
+    left: -8rem;
+    width: 18rem;
+  }
 }

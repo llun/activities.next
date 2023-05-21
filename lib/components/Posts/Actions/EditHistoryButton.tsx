@@ -1,8 +1,10 @@
 import cn from 'classnames'
+import formatDistance from 'date-fns/formatDistance'
 import { FC, useState } from 'react'
 
 import { StatusData, StatusNote, StatusPoll } from '../../../models/status'
 import { Button } from '../../Button'
+import { cleanClassName, convertTextContent } from '../../text'
 import styles from './EditHistoryButton.module.scss'
 
 interface Props {
@@ -31,7 +33,28 @@ export const EditHistoryButton: FC<Props> = ({ status, onShowEdits }) => {
           'd-none': !showHistory
         })}
       >
-        HistoryPopup
+        <ul className="list-group">
+          {status.edits.reverse().map((edit) => {
+            return (
+              <li
+                key={edit.createdAt}
+                className={cn(
+                  'list-group-item',
+                  'd-flex',
+                  'flex-column',
+                  'align-items-start'
+                )}
+              >
+                <div className="badge bg-primary rounded-pill align-self-end">
+                  {formatDistance(edit.createdAt, Date.now())}
+                </div>
+                <div className="me-auto">
+                  {cleanClassName(convertTextContent(edit.text, status.tags))}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
       </div>
     </Button>
   )
