@@ -1,8 +1,9 @@
+import cn from 'classnames'
 import { FC } from 'react'
 
-import { deleteStatus } from '../../client'
 import { StatusData, StatusType } from '../../models/status'
 import { Button } from '../Button'
+import { DeleteButton } from './Actions/DeleteButton'
 import { EditHistoryButton } from './Actions/EditHistoryButton'
 import { LikeButton } from './Actions/LikeButton'
 import { RepostButton } from './Actions/RepostButton'
@@ -55,25 +56,11 @@ export const Actions: FC<Props> = ({
         onPostReposted={onPostReposted}
       />
       <LikeButton currentActor={currentActor} status={status} />
-      {showDeleteAction && (
-        <Button
-          variant="link"
-          onClick={async () => {
-            const deleteConfirmation = window.confirm(
-              `Confirm delete status! ${
-                status.text.length
-                  ? `${status.text.slice(0, 20)}...`
-                  : status.id
-              }`
-            )
-            if (!deleteConfirmation) return
-            await deleteStatus({ statusId: status.id })
-            onPostDeleted?.(status)
-          }}
-        >
-          <i className="bi bi-trash3" />
-        </Button>
-      )}
+      <DeleteButton
+        className={cn({ 'd-none': showDeleteAction })}
+        status={status}
+        onPostDeleted={onPostDeleted}
+      />
       <EditHistoryButton status={status} onShowEdits={onShowEdits} />
     </div>
   )
