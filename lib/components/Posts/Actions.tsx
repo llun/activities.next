@@ -67,7 +67,7 @@ export const Actions: FC<Props> = ({
         onPostDeleted={onPostDeleted}
       />
       <EditHistoryButton status={status} onShowEdits={onShowEdits} />
-      <EditButton />
+      <EditButton className={cn({ 'd-none': !showDeleteAction })} />
     </div>
   )
 }

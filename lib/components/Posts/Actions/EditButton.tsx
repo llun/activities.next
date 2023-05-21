@@ -2,9 +2,13 @@ import { FC } from 'react'
 
 import { Button } from '../../Button'
 
-export const EditButton: FC = () => {
+interface Props {
+  className?: string
+}
+
+export const EditButton: FC<Props> = ({ className }) => {
   return (
-    <Button variant="link" title="Edit">
+    <Button className={className} variant="link" title="Edit">
       <i className="bi bi-pencil" />
     </Button>
   )
