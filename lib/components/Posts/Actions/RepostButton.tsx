@@ -26,6 +26,7 @@ export const RepostButton: FC<RepostButtonProps> = ({
     <Button
       disabled={isLoading}
       variant="link"
+      title="Repost"
       className={cn({ 'text-danger': mainStatus.isActorAnnounced })}
       onClick={async () => {
         if (isLoading) return

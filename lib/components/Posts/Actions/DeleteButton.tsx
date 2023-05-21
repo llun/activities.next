@@ -19,6 +19,7 @@ export const DeleteButton: FC<Props> = ({
     <Button
       className={className}
       variant="link"
+      title="Delete post"
       onClick={async () => {
         const deleteConfirmation = window.confirm(
           `Confirm delete status! ${

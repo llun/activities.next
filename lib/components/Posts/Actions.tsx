@@ -4,6 +4,7 @@ import { FC } from 'react'
 import { StatusData, StatusType } from '../../models/status'
 import { Button } from '../Button'
 import { DeleteButton } from './Actions/DeleteButton'
+import { EditButton } from './Actions/EditButton'
 import { EditHistoryButton } from './Actions/EditHistoryButton'
 import { LikeButton } from './Actions/LikeButton'
 import { RepostButton } from './Actions/RepostButton'
@@ -41,13 +42,17 @@ export const Actions: FC<Props> = ({
           currentActor={currentActor}
           status={status.originalStatus}
         />
+        <EditHistoryButton
+          status={status.originalStatus}
+          onShowEdits={onShowEdits}
+        />
       </div>
     )
   }
 
   return (
     <div>
-      <Button variant="link" onClick={() => onReply?.(status)}>
+      <Button variant="link" title="Reply" onClick={() => onReply?.(status)}>
         <i className="bi bi-reply" />
       </Button>
       <RepostButton
@@ -57,11 +62,12 @@ export const Actions: FC<Props> = ({
       />
       <LikeButton currentActor={currentActor} status={status} />
       <DeleteButton
-        className={cn({ 'd-none': showDeleteAction })}
+        className={cn({ 'd-none': !showDeleteAction })}
         status={status}
         onPostDeleted={onPostDeleted}
       />
       <EditHistoryButton status={status} onShowEdits={onShowEdits} />
+      <EditButton />
     </div>
   )
 }

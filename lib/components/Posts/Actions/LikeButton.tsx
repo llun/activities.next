@@ -17,6 +17,7 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
     <span>
       <Button
         variant="link"
+        title={isActorLiked ? 'Unlike' : 'Like'}
         disabled={status.actorId === currentActor?.id}
         onClick={async () => {
           if (isActorLiked) {
