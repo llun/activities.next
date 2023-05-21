@@ -48,7 +48,7 @@ export const EditHistoryButton: FC<Props> = ({ status, onShowEdits }) => {
                 <div className="badge bg-primary rounded-pill align-self-end">
                   {formatDistance(edit.createdAt, Date.now())}
                 </div>
-                <div className="me-auto">
+                <div className="me-auto text-start">
                   {cleanClassName(convertTextContent(edit.text, status.tags))}
                 </div>
               </li>
