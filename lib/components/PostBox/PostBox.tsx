@@ -7,13 +7,19 @@ import {
   useRef,
   useState
 } from 'react'
+import sanitizeHtml from 'sanitize-html'
 
 import { createNote, createPoll } from '../../client'
 import { Media } from '../../medias/apple/media'
 import { Video720p, VideoPosterDerivative } from '../../medias/apple/webstream'
 import { Actor, ActorProfile } from '../../models/actor'
 import { AppleGalleryAttachment, Attachment } from '../../models/attachment'
-import { StatusData, StatusNote, StatusType } from '../../models/status'
+import {
+  EditableStatusData,
+  StatusData,
+  StatusNote,
+  StatusType
+} from '../../models/status'
 import { Button } from '../Button'
 import { AppleGallerButton } from './AppleGalleryButton'
 import { Duration, PollChoices } from './PollChoices'
@@ -34,7 +40,7 @@ interface Props {
   host: string
   profile: ActorProfile
   replyStatus?: StatusData
-  editStatus?: StatusData
+  editStatus?: EditableStatusData
   onDiscardReply: () => void
   onPostCreated: (status: StatusData, attachments: Attachment[]) => void
 }
@@ -213,10 +219,17 @@ export const PostBox: FC<Props> = ({
   }
 
   useEffect(() => {
-    if (!replyStatus) return
     if (!postBoxRef.current) return
-
     const postBox = postBoxRef.current
+
+    if (editStatus) {
+      postBox.value = sanitizeHtml(editStatus.text, { allowedTags: [] })
+      postBox.focus()
+      return
+    }
+
+    if (!replyStatus) return
+
     if (replyStatus.type !== StatusType.Note) {
       postBox.focus()
       return
@@ -233,7 +246,7 @@ export const PostBox: FC<Props> = ({
     postBox.selectionStart = start
     postBox.selectionEnd = end
     postBox.focus()
-  }, [profile, replyStatus])
+  }, [profile, replyStatus, editStatus])
 
   return (
     <div>

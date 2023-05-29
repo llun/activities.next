@@ -3,7 +3,7 @@ import { FC, useState } from 'react'
 
 import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
-import { StatusData } from '../../models/status'
+import { EditableStatusData, StatusData } from '../../models/status'
 import { Modal } from '../Modal'
 import { Media } from './Media'
 import { Post } from './Post'
@@ -15,7 +15,7 @@ interface Props {
   currentTime: Date
   statuses: StatusData[]
   onReply?: (status: StatusData) => void
-  onEdit?: (status: StatusData) => void
+  onEdit?: (status: EditableStatusData) => void
   onPostDeleted?: (status: StatusData) => void
 }
 

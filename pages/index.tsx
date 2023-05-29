@@ -15,7 +15,7 @@ import { Profile as ProfileComponent } from '../lib/components/Profile'
 import { TimelineLoadMoreButton } from '../lib/components/TimelineLoadMoreButton'
 import { getConfig } from '../lib/config'
 import { Actor, ActorProfile } from '../lib/models/actor'
-import { StatusData } from '../lib/models/status'
+import { EditableStatusData, StatusData } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 import { Timeline } from '../lib/timelines/types'
 import { authOptions } from './api/auth/[...nextauth]'
@@ -31,14 +31,17 @@ interface Props {
 const replyAction = (status: StatusData) => ({ type: 'reply' as const, status })
 type ReplyAction = ReturnType<typeof replyAction>
 
-const editAction = (status: StatusData) => ({ type: 'edit' as const, status })
+const editAction = (status: EditableStatusData) => ({
+  type: 'edit' as const,
+  status
+})
 type EditAction = ReturnType<typeof editAction>
 
 const clearAction = () => ({ type: 'clear' as const })
 type ClearAction = ReturnType<typeof clearAction>
 
 const statusActionReducer: Reducer<
-  { replyStatus?: StatusData; editStatus?: StatusData },
+  { replyStatus?: StatusData; editStatus?: EditableStatusData },
   ReplyAction | EditAction | ClearAction
 > = (state, action) => {
   switch (action.type) {
@@ -75,7 +78,7 @@ const Page: NextPage<Props> = ({
     window.scrollTo({ top: 0 })
   }
 
-  const onEdit = (status: StatusData) => {
+  const onEdit = (status: EditableStatusData) => {
     dispatchStatusAction(editAction(status))
     window.scrollTo({ top: 0 })
   }

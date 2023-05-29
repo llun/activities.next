@@ -1,15 +1,20 @@
 import { FC } from 'react'
 
-import { StatusData } from '../../../models/status'
+import {
+  EditableStatusData,
+  StatusData,
+  StatusType
+} from '../../../models/status'
 import { Button } from '../../Button'
 
 interface Props {
   className?: string
   status: StatusData
-  onEdit?: (status: StatusData) => void
+  onEdit?: (status: EditableStatusData) => void
 }
 
 export const EditButton: FC<Props> = ({ className, status, onEdit }) => {
+  if (status.type === StatusType.Announce) return null
   return (
     <Button
       className={className}

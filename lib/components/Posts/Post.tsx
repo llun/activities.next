@@ -4,7 +4,7 @@ import { FC } from 'react'
 
 import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
-import { StatusData, StatusType } from '../../models/status'
+import { EditableStatusData, StatusData, StatusType } from '../../models/status'
 import { cleanClassName, convertTextContent } from '../text'
 import { Actions } from './Actions'
 import { Actor } from './Actor'
@@ -19,7 +19,7 @@ export interface PostProps {
   showDeleteAction?: boolean
   showActions?: boolean
   onReply?: (status: StatusData) => void
-  onEdit?: (status: StatusData) => void
+  onEdit?: (status: EditableStatusData) => void
   onPostDeleted?: (status: StatusData) => void
   onPostReposted?: (status: StatusData) => void
   onShowAttachment: (attachment: AttachmentData) => void

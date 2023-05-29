@@ -34,10 +34,10 @@ export const EditHistoryButton: FC<Props> = ({ status, onShowEdits }) => {
         })}
       >
         <ul className="list-group">
-          {status.edits.reverse().map((edit) => {
+          {status.edits.reverse().map((edit, index) => {
             return (
               <li
-                key={edit.createdAt}
+                key={edit.createdAt + index}
                 className={cn(
                   'list-group-item',
                   'd-flex',

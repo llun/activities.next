@@ -75,6 +75,7 @@ export interface StatusPoll extends StatusBase {
 }
 
 export type StatusData = StatusNote | StatusAnnounce | StatusPoll
+export type EditableStatusData = StatusNote | StatusPoll
 
 export class Status {
   readonly data: StatusData
