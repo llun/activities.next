@@ -19,6 +19,7 @@ export interface PostProps {
   showDeleteAction?: boolean
   showActions?: boolean
   onReply?: (status: StatusData) => void
+  onEdit?: (status: StatusData) => void
   onPostDeleted?: (status: StatusData) => void
   onPostReposted?: (status: StatusData) => void
   onShowAttachment: (attachment: AttachmentData) => void
