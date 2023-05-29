@@ -164,7 +164,18 @@ export const PostBox: FC<Props> = ({
     }
 
     const text = postBoxRef.current.value
-    setAllowPost(text.length > 0)
+    if (text.trim().length === 0) {
+      setAllowPost(false)
+      return
+    }
+    if (
+      editStatus &&
+      text === sanitizeHtml(editStatus.text, { allowedTags: [] })
+    ) {
+      setAllowPost(false)
+      return
+    }
+    setAllowPost(true)
   }
 
   /**
