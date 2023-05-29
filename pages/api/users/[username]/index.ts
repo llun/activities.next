@@ -2,10 +2,10 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 
 import { Image } from '../../../../lib/activities/entities/image'
 import { Person } from '../../../../lib/activities/entities/person'
+import { ERROR_404, ERROR_500 } from '../../../../lib/errors'
 import { headerHost } from '../../../../lib/guard'
 import { ACTIVITY_STREAM_URL } from '../../../../lib/jsonld/activitystream'
 import { W3ID_URL } from '../../../../lib/jsonld/w3id'
-import { ERROR_404, ERROR_500 } from '../../../../lib/responses'
 import { getStorage } from '../../../../lib/storage'
 import { getISOTimeUTC } from '../../../../lib/time'
 

@@ -4,9 +4,9 @@ import {
   AnnounceAction,
   CreateAction
 } from '../../../../lib/activities/actions/types'
+import { ERROR_400, ERROR_404 } from '../../../../lib/errors'
 import { headerHost } from '../../../../lib/guard'
 import { StatusType } from '../../../../lib/models/status'
-import { ERROR_400, ERROR_404 } from '../../../../lib/responses'
 import { getStorage } from '../../../../lib/storage'
 import { getISOTimeUTC } from '../../../../lib/time'
 

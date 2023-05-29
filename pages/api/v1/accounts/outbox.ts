@@ -8,9 +8,9 @@ import {
   CreatePollParams,
   DeleteStatusParams
 } from '../../../../lib/client'
+import { DEFAULT_202, ERROR_404, ERROR_500 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
 import { StatusNote } from '../../../../lib/models/status'
-import { DEFAULT_202, ERROR_404, ERROR_500 } from '../../../../lib/responses'
 import { getSpan } from '../../../../lib/trace'
 
 type CreateNoteRequest = { type: 'note' } & CreateNoteParams

@@ -1,6 +1,6 @@
 import { sendLike, sendUndoLike } from '../../../../lib/activities'
+import { DEFAULT_202, ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
-import { DEFAULT_202, ERROR_404 } from '../../../../lib/responses'
 
 const handler = ApiGuard(async (req, res, context) => {
   const { storage, currentActor } = context

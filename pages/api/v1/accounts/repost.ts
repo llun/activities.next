@@ -1,7 +1,7 @@
 import { userAnnounce } from '../../../../lib/actions/announce'
 import { userUndoAnnounce } from '../../../../lib/actions/undoAnnounce'
+import { DEFAULT_202, ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
-import { DEFAULT_202, ERROR_404 } from '../../../../lib/responses'
 
 const handler = ApiGuard(async (req, res, context) => {
   const { storage, currentActor } = context

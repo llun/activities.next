@@ -6,8 +6,8 @@ import { Session, getServerSession } from 'next-auth'
 
 import { authOptions } from '../pages/api/auth/[...nextauth]'
 import { getPublicProfile } from './activities'
+import { ERROR_400, ERROR_500 } from './errors'
 import { Actor } from './models/actor'
-import { ERROR_400, ERROR_500 } from './responses'
 import { parse, verify } from './signature'
 import { getStorage } from './storage'
 import { Storage } from './storage/types'
@@ -139,8 +139,9 @@ export type ApiHandle = (
   }
 ) => unknown | Promise<unknown>
 
-export function ApiGuard(handle: ApiHandle) {
-  return async (req: NextApiRequest, res: NextApiResponse) => {
+export const ApiGuard =
+  (handle: ApiHandle): NextApiHandler<unknown> =>
+  async (req, res) => {
     const [storage, session] = await Promise.all([
       getStorage(),
       getServerSession(req, res, authOptions)
@@ -158,7 +159,6 @@ export function ApiGuard(handle: ApiHandle) {
 
     return handle(req, res, { storage, session, currentActor })
   }
-}
 
 export function headerHost(headers: IncomingHttpHeaders) {
   if (headers[ACTIVITIES_HOST]) return headers[ACTIVITIES_HOST]

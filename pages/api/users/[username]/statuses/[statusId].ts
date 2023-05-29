@@ -1,9 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
 import { Note } from '../../../../../lib/activities/entities/note'
+import { ERROR_404, ERROR_500 } from '../../../../../lib/errors'
 import { headerHost } from '../../../../../lib/guard'
 import { ACTIVITY_STREAM_URL } from '../../../../../lib/jsonld/activitystream'
-import { ERROR_404, ERROR_500 } from '../../../../../lib/responses'
 import { getStorage } from '../../../../../lib/storage'
 
 type Data =

@@ -1,5 +1,5 @@
+import { ERROR_404 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
-import { ERROR_404 } from '../../../../lib/responses'
 import { Timeline } from '../../../../lib/timelines/types'
 
 const getFirstValueFromQuery = <T>(value?: T | T[]) => {

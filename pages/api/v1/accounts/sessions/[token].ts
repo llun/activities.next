@@ -1,5 +1,5 @@
+import { DEFAULT_202, ERROR_400, ERROR_404 } from '../../../../../lib/errors'
 import { ApiGuard } from '../../../../../lib/guard'
-import { DEFAULT_202, ERROR_400, ERROR_404 } from '../../../../../lib/responses'
 import { getSpan } from '../../../../../lib/trace'
 
 const handler = ApiGuard(async (req, res, context) => {

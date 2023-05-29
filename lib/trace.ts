@@ -1,8 +1,10 @@
 import * as Sentry from '@sentry/nextjs'
+import { NextApiHandler } from 'next'
 
+import { errorResponse } from './errors'
 import { logger } from './logger'
 
-interface Data {
+export interface Data {
   [key: string]: string | boolean | number | undefined
 }
 
@@ -70,3 +72,16 @@ export function TraceAsync(op: string, fn: AsyncFunction) {
     return value
   }
 }
+
+export const ApiTrace =
+  (name: string, handle: NextApiHandler): NextApiHandler =>
+  async (req, res) => {
+    const span = getSpan('api', name, { method: req.method })
+    try {
+      await handle(req, res)
+    } catch (e: any) {
+      Sentry.captureException(e)
+      return errorResponse(res, 500)
+    }
+    span?.finish()
+  }
