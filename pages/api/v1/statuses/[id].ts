@@ -2,11 +2,14 @@ import z from 'zod'
 
 import { errorResponse } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
+import { StatusType } from '../../../../lib/models/status'
 import { getFirstValueFromParsedQuery } from '../../../../lib/query'
+import { getISOTimeUTC } from '../../../../lib/time'
 import { ApiTrace } from '../../../../lib/trace'
 
 const EditNoteSchema = z.object({
-  status: z.string()
+  status: z.string(),
+  spoiler_text: z.string().optional()
 })
 
 export type EditNoteSchema = z.infer<typeof EditNoteSchema>
@@ -26,11 +29,30 @@ const handler = ApiTrace(
         const status = await storage.getStatus({
           statusId
         })
-        if (currentActor.id !== status?.actorId) {
+        if (
+          currentActor.id !== status?.actorId ||
+          status.type !== StatusType.Note
+        ) {
           return errorResponse(res, 403)
         }
 
-        res.status(200).json({ ok: true })
+        const editNote = EditNoteSchema.parse(req.body)
+        const updatedNote = await storage.updateNote({
+          statusId,
+          summary: editNote.spoiler_text,
+          text: editNote.status
+        })
+        if (!updatedNote) {
+          return errorResponse(res, 403)
+        }
+
+        res.status(200).json({
+          id: status.id,
+          created_at: getISOTimeUTC(status.createdAt),
+          in_reply_to_id: status.reply,
+          edited_at: getISOTimeUTC(updatedNote.updatedAt),
+          content: status.content
+        })
         return
       }
       default: {
