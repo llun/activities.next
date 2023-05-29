@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth/next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import Image from 'next/image'
-import { useEffect, useState } from 'react'
+import { Reducer, useEffect, useReducer, useState } from 'react'
 
 import { getTimeline } from '../lib/client'
 import { Header } from '../lib/components/Header'
@@ -28,6 +28,30 @@ interface Props {
   profile: ActorProfile
 }
 
+const replyAction = (status: StatusData) => ({ type: 'reply' as const, status })
+type ReplyAction = ReturnType<typeof replyAction>
+
+const editAction = (status: StatusData) => ({ type: 'edit' as const, status })
+type EditAction = ReturnType<typeof editAction>
+
+const clearAction = () => ({ type: 'clear' as const })
+type ClearAction = ReturnType<typeof clearAction>
+
+const statusActionReducer: Reducer<
+  { replyStatus?: StatusData; editStatus?: StatusData },
+  ReplyAction | EditAction | ClearAction
+> = (state, action) => {
+  switch (action.type) {
+    case 'edit':
+      return { editStatus: action.status }
+    case 'reply':
+      return { replyStatus: action.status }
+    default: {
+      return {}
+    }
+  }
+}
+
 const Page: NextPage<Props> = ({
   host,
   profile,
@@ -35,14 +59,24 @@ const Page: NextPage<Props> = ({
   currentServerTime
 }) => {
   const { data: session } = useSession()
-  const [replyStatus, setReplyStatus] = useState<StatusData>()
+
+  const [statusActionState, dispatchStatusAction] = useReducer(
+    statusActionReducer,
+    {}
+  )
+
   const [currentStatuses, setCurrentStatuses] = useState<StatusData[]>(statuses)
   const [currentTime, setCurrentTime] = useState<number>(currentServerTime)
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
 
   const onReply = (status: StatusData) => {
-    setReplyStatus(status)
+    dispatchStatusAction(replyAction(status))
+    window.scrollTo({ top: 0 })
+  }
+
+  const onEdit = (status: StatusData) => {
+    dispatchStatusAction(editAction(status))
     window.scrollTo({ top: 0 })
   }
 
@@ -90,14 +124,15 @@ const Page: NextPage<Props> = ({
             <PostBox
               host={host}
               profile={profile}
-              replyStatus={replyStatus}
-              onDiscardReply={() => setReplyStatus(undefined)}
+              replyStatus={statusActionState.replyStatus}
+              editStatus={statusActionState.editStatus}
+              onDiscardReply={() => dispatchStatusAction(clearAction())}
               onPostCreated={(status: StatusData) => {
                 setCurrentStatuses((previousValue) => [
                   status,
                   ...previousValue
                 ])
-                setReplyStatus(undefined)
+                dispatchStatusAction(clearAction())
               }}
             />
             <Posts
@@ -106,6 +141,7 @@ const Page: NextPage<Props> = ({
               currentActor={profile}
               showActions
               onReply={onReply}
+              onEdit={onEdit}
               onPostDeleted={onPostDeleted}
             />
             <TimelineLoadMoreButton

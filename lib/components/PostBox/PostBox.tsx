@@ -34,6 +34,7 @@ interface Props {
   host: string
   profile: ActorProfile
   replyStatus?: StatusData
+  editStatus?: StatusData
   onDiscardReply: () => void
   onPostCreated: (status: StatusData, attachments: Attachment[]) => void
 }
@@ -42,6 +43,7 @@ export const PostBox: FC<Props> = ({
   host,
   profile,
   replyStatus,
+  editStatus,
   onPostCreated,
   onDiscardReply
 }) => {
