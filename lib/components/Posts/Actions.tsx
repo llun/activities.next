@@ -2,11 +2,11 @@ import cn from 'classnames'
 import { FC } from 'react'
 
 import { StatusData, StatusType } from '../../models/status'
-import { Button } from '../Button'
 import { DeleteButton } from './Actions/DeleteButton'
 import { EditButton } from './Actions/EditButton'
 import { EditHistoryButton } from './Actions/EditHistoryButton'
 import { LikeButton } from './Actions/LikeButton'
+import { ReplyButton } from './Actions/ReplyButton'
 import { RepostButton } from './Actions/RepostButton'
 import { PostProps } from './Post'
 
@@ -30,9 +30,7 @@ export const Actions: FC<Props> = ({
   if (status.type === StatusType.Announce) {
     return (
       <div>
-        <Button variant="link" onClick={() => onReply?.(status.originalStatus)}>
-          <i className="bi bi-reply" />
-        </Button>
+        <ReplyButton onReply={onReply} status={status.originalStatus} />
         <RepostButton
           currentActor={currentActor}
           status={status.originalStatus}
@@ -52,9 +50,7 @@ export const Actions: FC<Props> = ({
 
   return (
     <div>
-      <Button variant="link" title="Reply" onClick={() => onReply?.(status)}>
-        <i className="bi bi-reply" />
-      </Button>
+      <ReplyButton status={status} onReply={onReply} />
       <RepostButton
         currentActor={currentActor}
         status={status}
