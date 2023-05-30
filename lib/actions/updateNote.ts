@@ -1,3 +1,4 @@
+import { sendUpdateNote } from '../activities'
 import {
   Note,
   NoteEntity,
@@ -5,7 +6,11 @@ import {
   getSummary
 } from '../activities/entities/note'
 import { compact } from '../jsonld'
-import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMACT,
+  ACTIVITY_STREAM_URL
+} from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
@@ -61,13 +66,72 @@ export const updateNoteFromUserInput = async ({
   summary,
   storage
 }: UpdateNoteFromUserInput) => {
+  const span = getSpan('actions', 'updateNoteFromUser', { statusId })
   const status = await storage.getStatus({ statusId })
-  if (!status) return null
-  if (status.type !== StatusType.Note) return null
-  if (status.actorId !== currentActor.id) return null
+  if (
+    !status ||
+    status.type !== StatusType.Note ||
+    status.actorId !== currentActor.id
+  ) {
+    span?.finish()
+    return null
+  }
 
   const updatedNote = await storage.updateNote({ statusId, summary, text })
-  if (!updatedNote) return null
+  if (!updatedNote) {
+    span?.finish()
+    return null
+  }
 
+  const inboxes = []
+  if (
+    updatedNote.to.includes(ACTIVITY_STREAM_PUBLIC) ||
+    updatedNote.to.includes(ACTIVITY_STREAM_PUBLIC_COMACT) ||
+    updatedNote.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
+    updatedNote.cc.includes(ACTIVITY_STREAM_PUBLIC_COMACT)
+  ) {
+    const followersInbox = await storage.getFollowersInbox({
+      targetActorId: currentActor.id
+    })
+    inboxes.push(...followersInbox)
+  }
+
+  const toInboxes = (
+    await Promise.all(
+      [...updatedNote.to, ...updatedNote.cc]
+        .filter(
+          (item) =>
+            item !== ACTIVITY_STREAM_PUBLIC &&
+            item !== ACTIVITY_STREAM_PUBLIC_COMACT
+        )
+        .map(async (item) => storage.getActorFromId({ id: item }))
+    )
+  )
+    .filter((actor): actor is Actor => Boolean(actor))
+    .map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
+  inboxes.push(...toInboxes)
+
+  const uniqueInboxes = new Set(inboxes)
+  const note = status.toNote()
+  if (!note) {
+    span?.finish()
+    return status
+  }
+
+  await Promise.all(
+    Array.from(uniqueInboxes).map(async (inbox) => {
+      try {
+        await sendUpdateNote({
+          currentActor,
+          inbox,
+          note
+        })
+      } catch {
+        console.error(`Fail to update note to ${inbox}`)
+      }
+    })
+  )
+
+  span?.finish()
   return status
 }

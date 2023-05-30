@@ -385,6 +385,23 @@ export const sendNote = async ({
   span?.finish()
 }
 
+interface SendUpdateNoteParams {
+  currentActor: Actor
+  inbox: string
+  note: Note
+}
+export const sendUpdateNote = async ({
+  currentActor,
+  inbox,
+  note
+}: SendUpdateNoteParams) => {
+  const span = getSpan('activities', 'updateNote', {
+    actorId: currentActor.id,
+    inbox
+  })
+  span?.finish()
+}
+
 interface SendAnnounceParams {
   currentActor: Actor
   inbox: string
