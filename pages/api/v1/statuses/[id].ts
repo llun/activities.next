@@ -1,8 +1,8 @@
 import z from 'zod'
 
+import { updateNoteFromUserInput } from '../../../../lib/actions/updateNote'
 import { errorResponse } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
-import { StatusType } from '../../../../lib/models/status'
 import { getFirstValueFromParsedQuery } from '../../../../lib/query'
 import { getISOTimeUTC } from '../../../../lib/time'
 import { ApiTrace } from '../../../../lib/trace'
@@ -26,32 +26,25 @@ const handler = ApiTrace(
           return errorResponse(res, 400)
         }
 
-        const status = await storage.getStatus({
-          statusId
-        })
-        if (
-          currentActor.id !== status?.actorId ||
-          status.type !== StatusType.Note
-        ) {
-          return errorResponse(res, 403)
-        }
-
-        const editNote = EditNoteSchema.parse(req.body)
-        const updatedNote = await storage.updateNote({
+        const changes = EditNoteSchema.parse(req.body)
+        const updatedNote = await updateNoteFromUserInput({
           statusId,
-          summary: editNote.spoiler_text,
-          text: editNote.status
+          currentActor,
+          text: changes.status,
+          summary: changes.spoiler_text,
+          storage
         })
+
         if (!updatedNote) {
           return errorResponse(res, 403)
         }
 
         res.status(200).json({
-          id: status.id,
-          created_at: getISOTimeUTC(status.createdAt),
-          in_reply_to_id: status.reply,
+          id: updatedNote.id,
+          created_at: getISOTimeUTC(updatedNote.createdAt),
+          in_reply_to_id: updatedNote.reply,
           edited_at: getISOTimeUTC(updatedNote.updatedAt),
-          content: status.content
+          content: updatedNote.content
         })
         return
       }

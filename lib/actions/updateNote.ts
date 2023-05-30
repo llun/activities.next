@@ -6,6 +6,7 @@ import {
 } from '../activities/entities/note'
 import { compact } from '../jsonld'
 import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
+import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { getSpan } from '../trace'
@@ -43,4 +44,30 @@ export const updateNote = async ({ note, storage }: UpdateNoteParams) => {
   })
   span?.finish()
   return note
+}
+
+interface UpdateNoteFromUserInput {
+  statusId: string
+  currentActor: Actor
+  text: string
+  summary?: string
+  storage: Storage
+}
+
+export const updateNoteFromUserInput = async ({
+  statusId,
+  currentActor,
+  text,
+  summary,
+  storage
+}: UpdateNoteFromUserInput) => {
+  const status = await storage.getStatus({ statusId })
+  if (!status) return null
+  if (status.type !== StatusType.Note) return null
+  if (status.actorId !== currentActor.id) return null
+
+  const updatedNote = await storage.updateNote({ statusId, summary, text })
+  if (!updatedNote) return null
+
+  return status
 }
