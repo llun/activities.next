@@ -82,6 +82,10 @@ export const PostBox: FC<Props> = ({
         return
       }
 
+      if (editStatus) {
+        return
+      }
+
       const attachments = postExtension.attachments
       const response = await createNote({
         message,

@@ -29,11 +29,13 @@ import {
   AnnounceAction,
   CreateAction,
   DeleteAction,
-  UndoAction
+  UndoAction,
+  UpdateAction
 } from './actions/types'
 import { UndoFollow } from './actions/undoFollow'
 import { UndoLike } from './actions/undoLike'
 import { UndoStatus } from './actions/undoStatus'
+import { UpdateStatus } from './actions/updateStatus'
 import { Image } from './entities/image'
 import { Note } from './entities/note'
 import {
@@ -399,6 +401,27 @@ export const sendUpdateNote = async ({
     actorId: currentActor.id,
     inbox
   })
+  const activity: UpdateStatus = {
+    '@context': ACTIVITY_STREAM_URL,
+    id: `${note.id}#updates/${Date.now()}`,
+    type: UpdateAction,
+    actor: note.attributedTo,
+    published: note.published,
+    to: note.to,
+    cc: note.cc,
+    object: note
+  }
+  const method = 'POST'
+  await request({
+    url: inbox,
+    method,
+    headers: {
+      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+      'User-Agent': USER_AGENT
+    },
+    body: JSON.stringify(activity)
+  })
+  console.log('Update activity', activity)
   span?.finish()
 }
 

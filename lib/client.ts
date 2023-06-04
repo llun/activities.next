@@ -42,6 +42,35 @@ export const createNote = async ({
   }
 }
 
+export interface UpdateNoteParams {
+  statusId: number
+  message: string
+}
+export const updateNote = async ({ statusId, message }: UpdateNoteParams) => {
+  if (message.trim().length === 0) {
+    throw new Error('Message must not be empty')
+  }
+
+  const response = await fetch(`/api/v1/statuses/${statusId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      status: message
+    })
+  })
+  if (response.status !== 200) {
+    throw new Error('Fail to create a new note')
+  }
+
+  const json = await response.json()
+  return {
+    status: json.status as StatusData,
+    attachments: json.attachments as Attachment[]
+  }
+}
+
 export interface CreatePollParams {
   message: string
   choices: string[]

@@ -29,7 +29,7 @@
     "content-type": "^1.0.5",
     "date-fns": "^2.30.0",
     "date-fns-tz": "^2.0.0",
-    "got": "^13.0.0",
+    "got": "^12.6.1",
     "html-entities": "^2.3.3",
     "html-react-parser": "^4.0.0",
     "jsonld": "^8.2.0",
@@ -87,7 +87,6 @@
   },
   "resolutions": {
     "jsonwebtoken": "^9.0.0",
-    "json5": "^2.2.2",
-    "got": "^12.5.3"
+    "json5": "^2.2.2"
   }
 }

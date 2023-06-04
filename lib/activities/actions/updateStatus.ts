@@ -7,7 +7,9 @@ import { UpdateAction } from './types'
 
 export interface UpdateStatus extends BaseActivity, ContextEntity {
   type: UpdateAction
-  to: string[]
+  published: string
+  to: string | string[]
+  cc: string | string[]
   object: Note | Question
-  signature: Signature
+  signature?: Signature
 }
