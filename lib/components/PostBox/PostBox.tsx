@@ -93,6 +93,8 @@ export const PostBox: FC<Props> = ({
         editStatus.text = content
         onPostUpdated(editStatus)
         dispatch(resetExtension())
+
+        postBoxRef.current.value = ''
         return
       }
 

@@ -141,6 +141,7 @@ const Page: NextPage<Props> = ({
                 const index = currentStatuses.findIndex(
                   (status) => status.id === updatedStatus.id
                 )
+                // TODO: Update status in Timeline somehow.
                 if (index >= 0) {
                   currentStatuses[index] = updatedStatus
                   setCurrentStatuses(() => currentStatuses)
