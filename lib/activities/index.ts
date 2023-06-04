@@ -390,23 +390,30 @@ export const sendNote = async ({
 interface SendUpdateNoteParams {
   currentActor: Actor
   inbox: string
-  note: Note
+  status: Status
 }
 export const sendUpdateNote = async ({
   currentActor,
   inbox,
-  note
+  status
 }: SendUpdateNoteParams) => {
   const span = getSpan('activities', 'updateNote', {
     actorId: currentActor.id,
     inbox
   })
+
+  const note = status.toNote()
+  if (!note) {
+    span?.finish()
+    return
+  }
+
   const activity: UpdateStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${note.id}#updates/${Date.now()}`,
     type: UpdateAction,
     actor: note.attributedTo,
-    published: note.published,
+    published: getISOTimeUTC(status.updatedAt),
     to: note.to,
     cc: note.cc,
     object: note

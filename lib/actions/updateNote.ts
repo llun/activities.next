@@ -112,19 +112,13 @@ export const updateNoteFromUserInput = async ({
   inboxes.push(...toInboxes)
 
   const uniqueInboxes = new Set(inboxes)
-  const note = status.toNote()
-  if (!note) {
-    span?.finish()
-    return status
-  }
-
   await Promise.all(
     Array.from(uniqueInboxes).map(async (inbox) => {
       try {
         await sendUpdateNote({
           currentActor,
           inbox,
-          note
+          status
         })
       } catch {
         console.error(`Fail to update note to ${inbox}`)
