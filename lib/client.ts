@@ -63,6 +63,8 @@ export const updateNote = async ({ statusId, message }: UpdateNoteParams) => {
   if (response.status !== 200) {
     throw new Error('Fail to create a new note')
   }
+
+  return response.json()
 }
 
 export interface CreatePollParams {
@@ -88,7 +90,8 @@ export const createPoll = async ({
     }
   }
 
-  const response = await fetch('/api/v1/accounts/outbox', {
+  // TODO: Continue on create poll
+  await fetch('/api/v1/accounts/outbox', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -101,7 +104,6 @@ export const createPoll = async ({
       choices
     })
   })
-  console.log(response.status)
 }
 
 export interface DeleteStatusParams {

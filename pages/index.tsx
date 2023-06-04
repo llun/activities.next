@@ -137,6 +137,16 @@ const Page: NextPage<Props> = ({
                 ])
                 dispatchStatusAction(clearAction())
               }}
+              onPostUpdated={(updatedStatus: StatusData) => {
+                const index = currentStatuses.findIndex(
+                  (status) => status.id === updatedStatus.id
+                )
+                if (index >= 0) {
+                  currentStatuses[index] = updatedStatus
+                  setCurrentStatuses(() => currentStatuses)
+                }
+                dispatchStatusAction(clearAction())
+              }}
             />
             <Posts
               currentTime={new Date(currentTime)}

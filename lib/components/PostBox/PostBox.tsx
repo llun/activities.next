@@ -43,6 +43,7 @@ interface Props {
   editStatus?: EditableStatusData
   onDiscardReply: () => void
   onPostCreated: (status: StatusData, attachments: Attachment[]) => void
+  onPostUpdated: (status: StatusData) => void
 }
 
 export const PostBox: FC<Props> = ({
@@ -51,6 +52,7 @@ export const PostBox: FC<Props> = ({
   replyStatus,
   editStatus,
   onPostCreated,
+  onPostUpdated,
   onDiscardReply
 }) => {
   const [allowPost, setAllowPost] = useState<boolean>(false)
@@ -86,8 +88,11 @@ export const PostBox: FC<Props> = ({
         const uuid = new URL(editStatus.id).pathname.split('/').pop()
         if (!uuid) return
 
-        await updateNote({ statusId: uuid, message })
-        console.log(uuid)
+        // TODO: Update updateNote api to return full status?
+        const { content } = await updateNote({ statusId: uuid, message })
+        editStatus.text = content
+        onPostUpdated(editStatus)
+        dispatch(resetExtension())
         return
       }
 
