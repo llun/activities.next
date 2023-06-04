@@ -272,6 +272,7 @@ export class Status {
       type: data.type,
       summary: data.summary,
       published: getISOTimeUTC(data.createdAt),
+      updated: getISOTimeUTC(data.updatedAt),
       url: data.url,
       attributedTo: data.actorId,
       to: data.to,

@@ -18,6 +18,7 @@ export interface BaseNote extends ContextEntity {
   }
   inReplyTo: string | null
   published: string
+  updated?: string
   url?: string
   attributedTo: string
   to: string | string[]
