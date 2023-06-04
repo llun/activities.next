@@ -9,7 +9,7 @@ import {
 } from 'react'
 import sanitizeHtml from 'sanitize-html'
 
-import { createNote, createPoll } from '../../client'
+import { createNote, createPoll, updateNote } from '../../client'
 import { Media } from '../../medias/apple/media'
 import { Video720p, VideoPosterDerivative } from '../../medias/apple/webstream'
 import { Actor, ActorProfile } from '../../models/actor'
@@ -83,6 +83,11 @@ export const PostBox: FC<Props> = ({
       }
 
       if (editStatus) {
+        const uuid = new URL(editStatus.id).pathname.split('/').pop()
+        if (!uuid) return
+
+        await updateNote({ statusId: uuid, message })
+        console.log(uuid)
         return
       }
 

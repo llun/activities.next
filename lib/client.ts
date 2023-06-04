@@ -43,7 +43,7 @@ export const createNote = async ({
 }
 
 export interface UpdateNoteParams {
-  statusId: number
+  statusId: string
   message: string
 }
 export const updateNote = async ({ statusId, message }: UpdateNoteParams) => {
@@ -62,12 +62,6 @@ export const updateNote = async ({ statusId, message }: UpdateNoteParams) => {
   })
   if (response.status !== 200) {
     throw new Error('Fail to create a new note')
-  }
-
-  const json = await response.json()
-  return {
-    status: json.status as StatusData,
-    attachments: json.attachments as Attachment[]
   }
 }
 

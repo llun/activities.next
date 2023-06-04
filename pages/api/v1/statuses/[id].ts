@@ -21,11 +21,12 @@ const handler = ApiTrace(
     const { storage, currentActor } = context
     switch (req.method) {
       case 'PUT': {
-        const statusId = getFirstValueFromParsedQuery(id)
-        if (!statusId) {
+        const uuid = getFirstValueFromParsedQuery(id)
+        if (!uuid) {
           return errorResponse(res, 400)
         }
 
+        const statusId = `${currentActor.id}/statuses/${uuid}`
         const changes = EditNoteSchema.parse(req.body)
         const updatedNote = await updateNoteFromUserInput({
           statusId,

@@ -77,18 +77,18 @@ export const updateNoteFromUserInput = async ({
     return null
   }
 
-  const updatedNote = await storage.updateNote({ statusId, summary, text })
-  if (!updatedNote) {
+  const updatedStatus = await storage.updateNote({ statusId, summary, text })
+  if (!updatedStatus) {
     span?.finish()
     return null
   }
 
   const inboxes = []
   if (
-    updatedNote.to.includes(ACTIVITY_STREAM_PUBLIC) ||
-    updatedNote.to.includes(ACTIVITY_STREAM_PUBLIC_COMACT) ||
-    updatedNote.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
-    updatedNote.cc.includes(ACTIVITY_STREAM_PUBLIC_COMACT)
+    updatedStatus.to.includes(ACTIVITY_STREAM_PUBLIC) ||
+    updatedStatus.to.includes(ACTIVITY_STREAM_PUBLIC_COMACT) ||
+    updatedStatus.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
+    updatedStatus.cc.includes(ACTIVITY_STREAM_PUBLIC_COMACT)
   ) {
     const followersInbox = await storage.getFollowersInbox({
       targetActorId: currentActor.id
@@ -98,7 +98,7 @@ export const updateNoteFromUserInput = async ({
 
   const toInboxes = (
     await Promise.all(
-      [...updatedNote.to, ...updatedNote.cc]
+      [...updatedStatus.to, ...updatedStatus.cc]
         .filter(
           (item) =>
             item !== ACTIVITY_STREAM_PUBLIC &&
@@ -118,7 +118,7 @@ export const updateNoteFromUserInput = async ({
         await sendUpdateNote({
           currentActor,
           inbox,
-          status
+          status: updatedStatus
         })
       } catch {
         console.error(`Fail to update note to ${inbox}`)
