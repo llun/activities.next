@@ -299,7 +299,7 @@ export const PostBox: FC<Props> = ({
             </Button>
           </div>
           <Button disabled={!allowPost} type="submit">
-            Send
+            {editStatus ? 'Update' : 'Send'}
           </Button>
         </div>
         <div className={styles.attachments}>
