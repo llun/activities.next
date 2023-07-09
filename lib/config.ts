@@ -7,6 +7,15 @@ import path from 'path'
 type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' | 'sql' }
 type FirebaseDatabase = FirestoreSetting & { type: 'firebase' | 'firestore' }
 
+type FileConfig =
+  | {
+      type: 'fs'
+    }
+  | {
+      type: 'object'
+      bucket: string
+    }
+
 export interface Config {
   host: string
   database: KnexBaseDatabase | FirebaseDatabase
@@ -31,9 +40,7 @@ export interface Config {
       }
     }
   }
-  file?: {
-    type: 'object' | 'fs'
-  }
+  file?: FileConfig
 }
 
 export const getConfig = memoize((): Config => {
