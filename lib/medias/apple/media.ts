@@ -25,10 +25,13 @@ export function getMediaList(stream: Stream): Media[] {
         width: parseInt(poster.width, 10),
         height: parseInt(poster.height, 10),
         caption: photo.caption,
-        derivatives: Object.keys(photo.derivatives).reduce((out, item) => {
-          out[item] = { checksum: photo.derivatives[item].checksum }
-          return out
-        }, {} as { [key in string]: { checksum: string } }),
+        derivatives: Object.keys(photo.derivatives).reduce(
+          (out, item) => {
+            out[item] = { checksum: photo.derivatives[item].checksum }
+            return out
+          },
+          {} as { [key in string]: { checksum: string } }
+        ),
         guid: photo.photoGuid
       } as Media
     }
@@ -39,10 +42,13 @@ export function getMediaList(stream: Stream): Media[] {
       width: photo.width,
       height: photo.height,
       caption: photo.caption,
-      derivatives: Object.keys(photo.derivatives).reduce((out, item) => {
-        out[item] = { checksum: photo.derivatives[item].checksum }
-        return out
-      }, {} as { [key in string]: { checksum: string } }),
+      derivatives: Object.keys(photo.derivatives).reduce(
+        (out, item) => {
+          out[item] = { checksum: photo.derivatives[item].checksum }
+          return out
+        },
+        {} as { [key in string]: { checksum: string } }
+      ),
       guid: photo.photoGuid
     } as Media
   })

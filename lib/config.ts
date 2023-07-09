@@ -31,6 +31,9 @@ export interface Config {
       }
     }
   }
+  file?: {
+    type: 'object' | 'fs'
+  }
 }
 
 export const getConfig = memoize((): Config => {

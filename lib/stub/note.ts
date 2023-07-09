@@ -71,7 +71,7 @@ export const MockMastodonNote = ({
         items: []
       }
     }
-  } as Note)
+  }) as Note
 
 export const MockLitepubNote = ({
   id = stubNoteId(),
@@ -119,4 +119,4 @@ export const MockLitepubNote = ({
     tag: [],
     to,
     type: 'Note'
-  } as Note)
+  }) as Note

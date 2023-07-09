@@ -170,10 +170,13 @@ export const getMentions = async ({
 
   const mentionsMap = mentions
     .filter((item): item is Mention => item !== null)
-    .reduce((out, item) => {
-      out[item.name] = item
-      return out
-    }, {} as { [key: string]: Mention })
+    .reduce(
+      (out, item) => {
+        out[item.name] = item
+        return out
+      },
+      {} as { [key: string]: Mention }
+    )
 
   span?.finish()
   return Object.values(mentionsMap)
