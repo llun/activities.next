@@ -10,6 +10,7 @@ type FirebaseDatabase = FirestoreSetting & { type: 'firebase' | 'firestore' }
 type FileConfig =
   | {
       type: 'fs'
+      path: string
     }
   | {
       type: 'object'
