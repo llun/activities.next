@@ -79,6 +79,7 @@ export const ApiTrace =
     const span = getSpan('api', name, { method: req.method })
     try {
       await handle(req, res)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       Sentry.captureException(e)
       return errorResponse(res, 500)

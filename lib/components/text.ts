@@ -25,6 +25,7 @@ export const convertQuoteToCode = (text: string) => {
     )
 
     let result
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     while ((result = pattern.exec(text) as any) !== null) {
       if (!result.indices?.[0]) continue
       matches.push(result.indices?.[0])

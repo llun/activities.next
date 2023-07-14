@@ -17,6 +17,7 @@ function linkBody(url = '') {
   let link
   try {
     link = new URL(url)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     if (error.code !== 'ERR_INVALID_URL') {
       throw error

@@ -55,6 +55,7 @@ export const mention: Plugin = ({ scanner, parser }) => {
   AtHyphen.tt(HYPHEN, AtHyphen)
 
   // Valid mention (not made up entirely of symbols)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Mention = At.tt(UNDERSCORE, MentionToken as any)
 
   At.ta(domain, Mention)
@@ -70,6 +71,7 @@ export const mention: Plugin = ({ scanner, parser }) => {
   Mention.tt(AT, MentionDomain)
   MentionDomain.ta(domain, MentionDomain)
   MentionDomain.tt(DOT, MentionDomain)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   MentionDomain.ta(domain, MentionToken as any)
 
   // Mention with a divider

@@ -1,3 +1,4 @@
+/** eslint-disable @typescript-eslint/no-explicit-any */
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import {

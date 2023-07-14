@@ -929,6 +929,7 @@ export class SqlStorage implements Storage {
   }
 
   private async getStatusWithAttachmentsFromData(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
     currentActorId?: string
   ): Promise<Status> {

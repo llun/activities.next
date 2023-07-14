@@ -318,6 +318,7 @@ export class FirestoreStorage implements Storage {
     return this.getActorFromId({ id: actorId })
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private getActorFromDataAndAccount(data: any, account?: Account): Actor {
     return new Actor({
       id: data.id,
@@ -888,6 +889,7 @@ export class FirestoreStorage implements Storage {
 
   @Trace('db')
   private async getStatusFromData(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
     withReplies: boolean,
     currentActorId?: string

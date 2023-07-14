@@ -67,6 +67,7 @@ const handler = ApiGuard(async (req, res, context) => {
             return
           }
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
         Sentry.captureException(e)
         console.error(e.message)

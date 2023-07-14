@@ -73,7 +73,7 @@ export const PostBox: FC<Props> = ({
     try {
       if (postExtension.poll.showing) {
         const poll = postExtension.poll
-        const response = await createPoll({
+        await createPoll({
           message,
           choices: poll.choices.map((item) => item.text),
           durationInSeconds: poll.durationInSeconds,
