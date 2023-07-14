@@ -85,6 +85,7 @@ describe('activities', () => {
         inbox: TEST_SHARED_INBOX,
         note
       })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [, options] = fetchMock.mock.lastCall as any
       const { body } = options
       const data = JSON.parse(body) as CreateStatus

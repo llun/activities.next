@@ -8,7 +8,7 @@ export const MediaSchema = z.object({})
 
 const handler = ApiTrace(
   'v2/media',
-  ApiGuard(async (req, res, context) => {
+  ApiGuard(async (req, res) => {
     switch (req.method) {
       case 'POST': {
         res.status(200).json({
