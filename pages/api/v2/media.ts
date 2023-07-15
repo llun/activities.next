@@ -34,26 +34,29 @@ const handler = ApiTrace(
             minFileSize: 0
           })
           const [fields, files] = await form.parse(req)
-          const combined = { ...fields, ...files }
-          const parsedInput = MediaSchema.parse(
-            Object.keys(combined).reduce((out, item) => {
-              const value = combined[item]
-              const firstValue = Array.isArray(value)
-                ? value
-                    .filter((item) => {
-                      if (typeof item === 'string') {
-                        return item.length > 0
-                      }
-                      return item.size > 0
-                    })
-                    .shift()
-                : value
+          const combined = {
+            ...Object.keys(fields).reduce((out, field) => {
+              const values = fields[field]
+              const value = (Array.isArray(values) ? values : [values])
+                .filter((item) => item.length > 0)
+                .shift()
               return {
                 ...out,
-                ...(firstValue && { [item]: firstValue })
+                ...(value && { [field]: value })
+              }
+            }, {}),
+            ...Object.keys(files).reduce((out, file) => {
+              const values = files[file]
+              const value = (Array.isArray(values) ? values : [values])
+                .filter((item) => item.size > 0)
+                .shift()
+              return {
+                ...out,
+                ...(value && { [file]: value })
               }
             }, {})
-          )
+          }
+          const parsedInput = MediaSchema.parse(combined)
           console.log(parsedInput)
           res.status(200).json({
             id: 1,
