@@ -49,6 +49,7 @@
     "react-modal": "^3.16.1",
     "sanitize-html": "^2.11.0",
     "sass": "^1.63.6",
+    "sharp": "^0.32.3",
     "zod": "^3.21.4"
   },
   "devDependencies": {
