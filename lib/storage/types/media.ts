@@ -1,13 +1,26 @@
-export type StorageType = 'fs' | 'object'
+export enum MediaStorageType {
+  LocalFile = 'fs',
+  ObjectStorage = 'object'
+}
+
+export type MediaStorageConfig =
+  | {
+      type: MediaStorageType.LocalFile
+      path: string
+    }
+  | {
+      type: MediaStorageType.ObjectStorage
+      bucket: string
+    }
 
 interface BaseMedia {
   actorId: string
   original: {
-    storage: StorageType
+    storage: MediaStorageType
     path: string
   }
   thumbnail?: {
-    storage: StorageType
+    storage: MediaStorageType
     path: string
   }
   description?: string

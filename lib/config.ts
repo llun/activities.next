@@ -4,18 +4,10 @@ import type { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 import path from 'path'
 
+import { MediaStorageConfig } from './storage/types/media'
+
 type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' | 'sql' }
 type FirebaseDatabase = FirestoreSetting & { type: 'firebase' | 'firestore' }
-
-type FileConfig =
-  | {
-      type: 'fs'
-      path: string
-    }
-  | {
-      type: 'object'
-      bucket: string
-    }
 
 export interface Config {
   host: string
@@ -41,7 +33,7 @@ export interface Config {
       }
     }
   }
-  file?: FileConfig
+  mediaStorage?: MediaStorageConfig
 }
 
 export const getConfig = memoize((): Config => {

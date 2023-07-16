@@ -1,6 +1,7 @@
 import formidable from 'formidable'
 import z from 'zod'
 
+import { getConfig } from '../../../lib/config'
 import { errorResponse } from '../../../lib/errors'
 import { ApiGuard } from '../../../lib/guard'
 import { ApiTrace } from '../../../lib/trace'
@@ -25,9 +26,14 @@ export const config = {
 
 const handler = ApiTrace(
   'v2/media',
-  ApiGuard(async (req, res) => {
+  ApiGuard(async (req, res, context) => {
+    const { storage, currentActor } = context
+    const config = getConfig()
     switch (req.method) {
       case 'POST': {
+        if (!config.mediaStorage) {
+          return errorResponse(res, 500)
+        }
         try {
           const form = formidable({
             allowEmptyFiles: true,
@@ -57,7 +63,28 @@ const handler = ApiTrace(
             }, {})
           }
           const parsedInput = MediaSchema.parse(combined)
-          console.log(parsedInput)
+          const media = await storage.createMedia({
+            actorId: currentActor.id,
+            original: {
+              storage: config.mediaStorage.type,
+              path: parsedInput.file.filepath
+            },
+            ...(parsedInput.thumbnail
+              ? {
+                  thumbnail: {
+                    storage: config.mediaStorage.type,
+                    path: parsedInput.thumbnail.filepath
+                  }
+                }
+              : null),
+            ...(parsedInput.description
+              ? { description: parsedInput.description }
+              : null)
+          })
+          // TODO: Fix FS path
+          // TODO: Fix FS filename
+          // TODO: Upload file to Object Storage
+          console.log(media)
           res.status(200).json({
             id: 1,
             type: 'image',
@@ -83,7 +110,7 @@ const handler = ApiTrace(
                 aspect: 1.3
               }
             },
-            description: '',
+            description: media?.description ?? '',
             blurhash: ''
           })
         } catch {
