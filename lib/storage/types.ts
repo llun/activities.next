@@ -1,49 +1,11 @@
-import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
-import { Session } from '../models/session'
 import { Status } from '../models/status'
 import { Tag } from '../models/tag'
 import { Timeline } from '../timelines/types'
-
-export type IsAccountExistsParams = { email: string }
-export type IsUsernameExistsParams = { username: string; domain: string }
-export type CreateAccountParams = {
-  email: string
-  username: string
-  domain: string
-  privateKey: string
-  publicKey: string
-}
-export type GetAccountFromIdParams = { id: string }
-export type GetAccountFromProviderIdParams = {
-  provider: string
-  accountId: string
-}
-export type LinkAccountWithProviderParams = {
-  accountId: string
-  provider: string
-  providerAccountId: string
-}
-export type CreateAccountSessionParams = {
-  accountId: string
-  token: string
-  expireAt: number
-}
-export type GetAccountSessionParams = {
-  token: string
-}
-export type GetAccountAllSessionsParams = {
-  accountId: string
-}
-export type DeleteAccountSessionParams = {
-  token: string
-}
-export type UpdateAccountSessionParams = {
-  token: string
-  expireAt?: number
-}
+import { AccountStorage } from './types/acount'
+import { LikeStorage } from './types/like'
 
 export type CreateActorParams = {
   actorId: string
@@ -190,35 +152,7 @@ export type GetTagsParams = {
   statusId: string
 }
 
-interface BaseLikeParams {
-  actorId: string
-  statusId: string
-}
-export type CreateLikeParams = BaseLikeParams
-export type DeleteLikeParams = BaseLikeParams
-export type GetLikeCountParams = Pick<BaseLikeParams, 'statusId'>
-
-export interface Storage {
-  isAccountExists(params: IsAccountExistsParams): Promise<boolean>
-  isUsernameExists(params: IsUsernameExistsParams): Promise<boolean>
-
-  createAccount(params: CreateAccountParams): Promise<string>
-  getAccountFromId(params: GetAccountFromIdParams): Promise<Account | undefined>
-  getAccountFromProviderId(
-    params: GetAccountFromProviderIdParams
-  ): Promise<Account | undefined>
-  linkAccountWithProvider(
-    params: LinkAccountWithProviderParams
-  ): Promise<Account | undefined>
-
-  createAccountSession(params: CreateAccountSessionParams): Promise<void>
-  getAccountSession(
-    params: GetAccountSessionParams
-  ): Promise<{ account: Account; session: Session } | undefined>
-  getAccountAllSessions(params: GetAccountAllSessionsParams): Promise<Session[]>
-  updateAccountSession(params: UpdateAccountSessionParams): Promise<void>
-  deleteAccountSession(params: DeleteAccountSessionParams): Promise<void>
-
+export interface Storage extends AccountStorage, LikeStorage {
   createActor(params: CreateActorParams): Promise<Actor | undefined>
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | undefined>
   getActorFromUsername(
@@ -274,10 +208,6 @@ export interface Storage {
 
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>
-
-  createLike(params: CreateLikeParams): Promise<void>
-  deleteLike(params: DeleteLikeParams): Promise<void>
-  getLikeCount(params: GetLikeCountParams): Promise<number>
 
   destroy(): Promise<void>
 }

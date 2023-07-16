@@ -18,26 +18,17 @@ import {
 import { Tag, TagData } from '../models/tag'
 import { Timeline } from '../timelines/types'
 import {
-  CreateAccountParams,
-  CreateAccountSessionParams,
   CreateActorParams,
   CreateAnnounceParams,
   CreateAttachmentParams,
   CreateFollowParams,
-  CreateLikeParams,
   CreateNoteParams,
   CreatePollParams,
   CreateTagParams,
   CreateTimelineStatusParams,
-  DeleteAccountSessionParams,
   DeleteActorParams,
-  DeleteLikeParams,
   DeleteStatusParams,
   GetAcceptedOrRequestedFollowParams,
-  GetAccountAllSessionsParams,
-  GetAccountFromIdParams,
-  GetAccountFromProviderIdParams,
-  GetAccountSessionParams,
   GetActorFollowersCountParams,
   GetActorFollowingCountParams,
   GetActorFromEmailParams,
@@ -48,7 +39,6 @@ import {
   GetAttachmentsParams,
   GetFollowFromIdParams,
   GetFollowersInboxParams,
-  GetLikeCountParams,
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
   GetStatusParams,
@@ -56,17 +46,31 @@ import {
   GetTagsParams,
   GetTimelineParams,
   HasActorAnnouncedStatusParams,
-  IsAccountExistsParams,
   IsCurrentActorFollowingParams,
-  IsUsernameExistsParams,
-  LinkAccountWithProviderParams,
   Storage,
-  UpdateAccountSessionParams,
   UpdateActorParams,
   UpdateFollowStatusParams,
   UpdateNoteParams,
   UpdatePollParams
 } from './types'
+import {
+  CreateAccountParams,
+  CreateAccountSessionParams,
+  DeleteAccountSessionParams,
+  GetAccountAllSessionsParams,
+  GetAccountFromIdParams,
+  GetAccountFromProviderIdParams,
+  GetAccountSessionParams,
+  IsAccountExistsParams,
+  IsUsernameExistsParams,
+  LinkAccountWithProviderParams,
+  UpdateAccountSessionParams
+} from './types/acount'
+import {
+  CreateLikeParams,
+  DeleteLikeParams,
+  GetLikeCountParams
+} from './types/like'
 
 interface ActorSettings {
   iconUrl?: string
