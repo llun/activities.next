@@ -71,6 +71,7 @@ import {
   DeleteLikeParams,
   GetLikeCountParams
 } from './types/like'
+import { CreateMediaParams } from './types/media'
 
 interface ActorSettings {
   iconUrl?: string
@@ -1326,5 +1327,31 @@ export class SqlStorage implements Storage {
       .first()
     if (!result) return false
     return result.count !== 0
+  }
+
+  async createMedia({
+    actorId,
+    original,
+    thumbnail,
+    description
+  }: CreateMediaParams) {
+    if (!actorId) return null
+
+    const content = {
+      actorId,
+      original: JSON.stringify(original),
+      ...(thumbnail ? { thumbnail: JSON.stringify(thumbnail) } : null),
+      ...(description ? { description } : null)
+    }
+
+    const ids = await this.database('medias').insert(content, ['id'])
+    if (ids.length === 0) return null
+    return {
+      id: ids[0],
+      actorId,
+      original,
+      thumbnail,
+      description
+    }
   }
 }

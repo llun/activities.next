@@ -72,6 +72,7 @@ import {
   DeleteLikeParams,
   GetLikeCountParams
 } from './types/like'
+import { CreateMediaParams, Media } from './types/media'
 
 export interface FirestoreConfig extends Settings {
   type: 'firebase' | 'firestore'
@@ -1342,5 +1343,29 @@ export class FirestoreStorage implements Storage {
       )
       .get()
     return snapshot.exists
+  }
+
+  @Trace('db')
+  async createMedia({
+    actorId,
+    original,
+    thumbnail,
+    description
+  }: CreateMediaParams): Promise<Media | null> {
+    if (!actorId) return null
+
+    const id = crypto.randomUUID()
+    const currentTime = Date.now()
+    const media = {
+      id,
+      actorId,
+      original,
+      ...(thumbnail ? { thumbnail } : null),
+      ...(description ? { description } : null),
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
+    await this.db.doc(`medias/${id}`).set(media)
+    return media
   }
 }

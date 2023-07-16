@@ -6,6 +6,7 @@ import { Tag } from '../models/tag'
 import { Timeline } from '../timelines/types'
 import { AccountStorage } from './types/acount'
 import { LikeStorage } from './types/like'
+import { MediaStorage } from './types/media'
 
 export type CreateActorParams = {
   actorId: string
@@ -152,7 +153,7 @@ export type GetTagsParams = {
   statusId: string
 }
 
-export interface Storage extends AccountStorage, LikeStorage {
+export interface Storage extends AccountStorage, LikeStorage, MediaStorage {
   createActor(params: CreateActorParams): Promise<Actor | undefined>
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | undefined>
   getActorFromUsername(
