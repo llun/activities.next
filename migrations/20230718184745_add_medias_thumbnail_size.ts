@@ -8,8 +8,8 @@ export async function up(knex: Knex): Promise<void> {
     table.renameColumn('bytes', 'originalBytes')
     table.renameColumn('mimeType', 'originalMimeType')
 
-    table.bigint('thumbnailBytes').unsigned()
-    table.string('thumbnailMimeType')
+    table.bigint('thumbnailBytes').unsigned().nullable()
+    table.string('thumbnailMimeType').nullable()
 
     table.index(
       ['accountId', 'originalMimeType'],

@@ -1339,8 +1339,16 @@ export class SqlStorage implements Storage {
 
     const content = {
       actorId,
-      original: JSON.stringify(original),
-      ...(thumbnail ? { thumbnail: JSON.stringify(thumbnail) } : null),
+      original: original.path,
+      originalBytes: original.bytes,
+      originalMimeType: original.mimeType,
+      ...(thumbnail
+        ? {
+            thumbnail: thumbnail.path,
+            thumbnailBytes: thumbnail.bytes,
+            thumbnailMimeType: thumbnail.mimeType
+          }
+        : null),
       ...(description ? { description } : null)
     }
 

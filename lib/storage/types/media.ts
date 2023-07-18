@@ -16,12 +16,14 @@ export type MediaStorageConfig =
 interface BaseMedia {
   actorId: string
   original: {
-    storage: MediaStorageType
     path: string
+    bytes: number
+    mimeType: string
   }
   thumbnail?: {
-    storage: MediaStorageType
     path: string
+    bytes: number
+    mimeType: string
   }
   description?: string
 }
