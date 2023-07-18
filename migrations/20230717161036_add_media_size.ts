@@ -4,7 +4,7 @@ export async function up(knex: Knex): Promise<void> {
   return knex.schema.alterTable('medias', function (table) {
     table.string('accountId')
     table.string('mimeType')
-    table.integer('bytes').unsigned()
+    table.bigint('bytes').unsigned()
 
     table.index(['accountId', 'mimeType'], 'medias_accountId_mimeType_idx')
     table.index(['actorId', 'mimeType'], 'medias_actorId_mimeType_idx')
