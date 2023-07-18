@@ -13,17 +13,24 @@ export type MediaStorageConfig =
       bucket: string
     }
 
+interface MetaData {
+  width: number
+  height: number
+}
+
 interface BaseMedia {
   actorId: string
   original: {
     path: string
     bytes: number
     mimeType: string
+    metaData: MetaData
   }
   thumbnail?: {
     path: string
     bytes: number
     mimeType: string
+    metaData: MetaData
   }
   description?: string
 }

@@ -1342,11 +1342,13 @@ export class SqlStorage implements Storage {
       original: original.path,
       originalBytes: original.bytes,
       originalMimeType: original.mimeType,
+      originalMetaData: JSON.stringify(original.metaData),
       ...(thumbnail
         ? {
             thumbnail: thumbnail.path,
             thumbnailBytes: thumbnail.bytes,
-            thumbnailMimeType: thumbnail.mimeType
+            thumbnailMimeType: thumbnail.mimeType,
+            thumbnailMetaData: JSON.stringify(thumbnail.metaData)
           }
         : null),
       ...(description ? { description } : null)

@@ -1,4 +1,5 @@
 import formidable from 'formidable'
+import sharp from 'sharp'
 import z from 'zod'
 
 import { getConfig } from '../../../lib/config'
@@ -63,17 +64,35 @@ const handler = ApiTrace(
             }, {})
           }
           const parsedInput = MediaSchema.parse(combined)
+          const originalMetaData = await sharp(
+            parsedInput.file.filepath
+          ).metadata()
+
+          const thumbnailMetaData = parsedInput.thumbnail
+            ? await sharp(parsedInput.thumbnail.filepath).metadata()
+            : null
+
           const media = await storage.createMedia({
             actorId: currentActor.id,
             original: {
-              storage: config.mediaStorage.type,
-              path: parsedInput.file.filepath
+              path: parsedInput.file.filepath,
+              bytes: originalMetaData.size ?? 0,
+              mimeType: `image/${originalMetaData.format}`,
+              metaData: {
+                width: originalMetaData.width ?? 0,
+                height: originalMetaData.height ?? 0
+              }
             },
             ...(parsedInput.thumbnail
               ? {
                   thumbnail: {
-                    storage: config.mediaStorage.type,
-                    path: parsedInput.thumbnail.filepath
+                    path: parsedInput.thumbnail.filepath,
+                    bytes: thumbnailMetaData?.size ?? 0,
+                    mimeType: `image/${thumbnailMetaData?.format}`,
+                    metaData: {
+                      width: thumbnailMetaData?.width ?? 0,
+                      height: thumbnailMetaData?.height ?? 0
+                    }
                   }
                 }
               : null),
@@ -81,10 +100,15 @@ const handler = ApiTrace(
               ? { description: parsedInput.description }
               : null)
           })
+
+          if (!media) {
+            return errorResponse(res, 422)
+          }
           // TODO: Fix FS path
           // TODO: Fix FS filename
           // TODO: Upload file to Object Storage
           console.log(media)
+
           res.status(200).json({
             id: 1,
             type: 'image',
@@ -93,25 +117,27 @@ const handler = ApiTrace(
             text_url: '',
             remote_Url: '',
             meta: {
-              focus: {
-                x: 0,
-                y: 0
-              },
               original: {
-                width: 100,
-                height: 100,
-                size: '100x100',
-                aspect: 1.3
+                width: media.original.metaData.width,
+                height: media.original.metaData.height,
+                size: `${media.original.metaData.width}x${media.original.metaData.height}`,
+                aspect:
+                  media.original.metaData.width / media.original.metaData.height
               },
-              small: {
-                width: 50,
-                height: 50,
-                size: '50x50',
-                aspect: 1.3
-              }
+              ...(media.thumbnail
+                ? {
+                    small: {
+                      width: media.thumbnail.metaData.width,
+                      height: media.thumbnail.metaData.height,
+                      size: `${media.thumbnail.metaData.width}x${media.thumbnail.metaData.height}`,
+                      aspect:
+                        media.thumbnail.metaData.width /
+                        media.thumbnail.metaData.height
+                    }
+                  }
+                : null)
             },
-            description: media?.description ?? '',
-            blurhash: ''
+            description: media?.description ?? ''
           })
         } catch {
           return errorResponse(res, 422)
