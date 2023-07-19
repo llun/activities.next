@@ -2,7 +2,8 @@
 import { HTTPError } from 'got'
 import { IncomingHttpHeaders } from 'http'
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
-import { Session, getServerSession } from 'next-auth'
+import { Session } from 'next-auth'
+import { getServerSession } from 'next-auth/next'
 
 import { authOptions } from '../pages/api/auth/[...nextauth]'
 import { getPublicProfile } from './activities'
