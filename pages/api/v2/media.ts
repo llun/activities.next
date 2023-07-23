@@ -1,10 +1,15 @@
+import crypto from 'crypto'
 import formidable from 'formidable'
+import mime from 'mime-types'
+import os from 'os'
+import path from 'path'
 import sharp from 'sharp'
 import z from 'zod'
 
 import { getConfig } from '../../../lib/config'
 import { errorResponse } from '../../../lib/errors'
 import { ApiGuard } from '../../../lib/guard'
+import { MediaStorageType } from '../../../lib/storage/types/media'
 import { ApiTrace } from '../../../lib/trace'
 
 const FormidableFile = z.object({
@@ -35,10 +40,20 @@ const handler = ApiTrace(
         if (!config.mediaStorage) {
           return errorResponse(res, 500)
         }
+
+        const { mediaStorage } = config
         try {
           const form = formidable({
             allowEmptyFiles: true,
-            minFileSize: 0
+            minFileSize: 0,
+            uploadDir:
+              mediaStorage.type === MediaStorageType.LocalFile
+                ? path.resolve(mediaStorage.path)
+                : os.tmpdir(),
+            filename: (name, ext, part) =>
+              `${crypto.randomBytes(14).toString('hex')}.${mime.extension(
+                part.mimetype || 'bin'
+              )}`
           })
           const [fields, files] = await form.parse(req)
           const combined = {
@@ -68,9 +83,21 @@ const handler = ApiTrace(
             parsedInput.file.filepath
           ).metadata()
 
+          // TODO: Remove this guard and add support to video format
+          if (!['jpeg', 'png'].includes(originalMetaData.format ?? '')) {
+            return errorResponse(res, 422)
+          }
+
           const thumbnailMetaData = parsedInput.thumbnail
             ? await sharp(parsedInput.thumbnail.filepath).metadata()
             : null
+
+          if (
+            thumbnailMetaData &&
+            !['jpeg', 'png'].includes(thumbnailMetaData.format ?? '')
+          ) {
+            return errorResponse(res, 422)
+          }
 
           const media = await storage.createMedia({
             actorId: currentActor.id,
@@ -104,15 +131,21 @@ const handler = ApiTrace(
           if (!media) {
             return errorResponse(res, 422)
           }
-          // TODO: Fix FS path
-          // TODO: Fix FS filename
-          // TODO: Upload file to Object Storage
-          console.log(media)
 
+          if (mediaStorage.type !== MediaStorageType.LocalFile) {
+            return errorResponse(res, 422)
+          }
+
+          // TODO: Upload file to Object Storage
           res.status(200).json({
             id: 1,
-            type: 'image',
-            url: '',
+            type: media.original.mimeType.startsWith('image')
+              ? 'image'
+              : 'binary',
+            // TODO: Add config for base image domain?
+            url: `https://${config.host}/api/v1/files/${media.original.path
+              .split('/')
+              .pop()}`,
             preview_url: '',
             text_url: '',
             remote_Url: '',
