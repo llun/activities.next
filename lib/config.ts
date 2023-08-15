@@ -6,7 +6,7 @@ import path from 'path'
 
 import { MediaStorageConfig } from './storage/types/media'
 
-type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' | 'sql' }
+type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' | 'sql' | 'knex' }
 type FirebaseDatabase = FirestoreSetting & { type: 'firebase' | 'firestore' }
 
 export interface Config {

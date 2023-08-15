@@ -11,6 +11,8 @@ export const getStorage = memoize(async (): Promise<Storage | null> => {
   const config = getConfig()
   switch (config.database.type) {
     case 'sqlite3':
+    case 'knex':
+    case 'sql':
       return new SqlStorage(config.database)
     case 'firebase':
     case 'firestore':

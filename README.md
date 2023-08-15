@@ -39,7 +39,7 @@ For SQLite (or SQL database), add `config.json`
 {
   "host": "domain.tld",
   "database": {
-    "type": "knex",
+    "type": "sql",
     "client": "better-sqlite3",
     "useNullAsDefault": true,
     "connection": {
@@ -70,7 +70,7 @@ below environment variables
 
 ```
 ACTIVITIES_HOST=domain.tld,
-ACTIVITIES_DATABASE='{"type":"knex","client":"better-sqlite3","useNullAsDefault":true,"connection":{"filename":"./dev.sqlite3"}}'
+ACTIVITIES_DATABASE='{"type":"sql","client":"better-sqlite3","useNullAsDefault":true,"connection":{"filename":"./dev.sqlite3"}}'
 ACTIVITIES_SECRET_PHASE='random-hash-for-cookie'
 ACTIVITIES_ALLOW_EMAILS='[]'
 ACTIVITIES_ALLOW_MEDIA_DOMAINS='[]'
