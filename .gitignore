@@ -42,7 +42,6 @@ next-env.d.ts
 
 # database
 *.sqlite3
-knexfile.ts
 
 # shared configuration
 config.json
