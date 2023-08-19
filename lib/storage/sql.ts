@@ -134,6 +134,7 @@ export class SqlStorage implements Storage {
   async createAccount({
     email,
     username,
+    passwordHash,
     domain,
     privateKey,
     publicKey
@@ -152,6 +153,7 @@ export class SqlStorage implements Storage {
       await trx('accounts').insert({
         id: accountId,
         email,
+        passwordHash,
         createdAt: currentTime,
         updatedAt: currentTime
       })

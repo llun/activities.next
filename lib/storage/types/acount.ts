@@ -6,6 +6,7 @@ export type IsUsernameExistsParams = { username: string; domain: string }
 export type CreateAccountParams = {
   email: string
   username: string
+  passwordHash?: string
   domain: string
   privateKey: string
   publicKey: string

@@ -10,6 +10,7 @@ type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' | 'sql' | 'knex' }
 type FirebaseDatabase = FirestoreSetting & { type: 'firebase' | 'firestore' }
 
 export interface Config {
+  serviceName?: string
   host: string
   database: KnexBaseDatabase | FirebaseDatabase
   allowEmails: string[]

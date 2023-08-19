@@ -1,7 +1,7 @@
 export interface Account {
   id: string
   email: string
-  password: string
+  passwordHash: string
 
   createdAt: number
   updatedAt: number
