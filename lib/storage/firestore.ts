@@ -135,7 +135,7 @@ export class FirestoreStorage implements Storage {
     const accounts = this.db.collection('accounts')
     const accountRef = await accounts.add({
       email,
-      passwordHash,
+      ...(passwordHash ? { passwordHash } : null),
       createdAt: currentTime,
       updatedAt: currentTime
     })
