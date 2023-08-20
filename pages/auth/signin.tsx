@@ -3,7 +3,7 @@ import type {
   InferGetServerSidePropsType
 } from 'next'
 import { getServerSession } from 'next-auth/next'
-import { getProviders, signIn } from 'next-auth/react'
+import { getCsrfToken, getProviders, signIn } from 'next-auth/react'
 import Head from 'next/head'
 
 import { Button } from '../../lib/components/Button'
@@ -14,6 +14,7 @@ import { Timeline } from '../../lib/timelines/types'
 import { authOptions } from '../api/auth/[...nextauth]'
 
 export default function SignIn({
+  csrfToken,
   providers,
   statuses,
   currentServerTime
@@ -27,13 +28,63 @@ export default function SignIn({
       <section className="container pt-4">
         <div className="col-12">
           <h1 className="mb-4">Local public timeline</h1>
-          {Object.values(providers).map((provider) => (
-            <div key={provider.name}>
-              <Button onClick={() => signIn(provider.id)}>
-                Sign in with {provider.name}
-              </Button>
-            </div>
-          ))}
+          {Object.values(providers).map((provider) => {
+            if (provider.id === 'credentials') {
+              return (
+                <div key={provider.name} className="mb-2">
+                  <form method="post" action="/api/auth/callback/credentials">
+                    <input
+                      name="csrfToken"
+                      type="hidden"
+                      defaultValue={csrfToken}
+                    />
+                    <div className="mb-3 row">
+                      <label
+                        htmlFor="inputUsername"
+                        className="col-sm-2 col-form-label"
+                      >
+                        Username
+                      </label>
+                      <div className="col-sm-10">
+                        <input
+                          name="username"
+                          type="text"
+                          className="form-control"
+                          id="inputUsername"
+                        />
+                      </div>
+                    </div>
+                    <div className="mb-3 row">
+                      <label
+                        htmlFor="inputPassword"
+                        className="col-sm-2 col-form-label"
+                      >
+                        Password
+                      </label>
+                      <div className="col-sm-10">
+                        <input
+                          name="password"
+                          type="password"
+                          className="form-control"
+                          id="inputPassword"
+                        />
+                      </div>
+                    </div>
+
+                    <Button type="submit">Sign in with {provider.name}</Button>
+                  </form>
+                </div>
+              )
+            }
+
+            return (
+              <div key={provider.name} className="mb-2">
+                <Button onClick={() => signIn(provider.id)}>
+                  Sign in with {provider.name}
+                </Button>
+              </div>
+            )
+          })}
           <Posts
             currentTime={new Date(currentServerTime)}
             statuses={statuses ?? []}
@@ -50,13 +101,18 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     return { redirect: { destination: '/' } }
   }
 
-  const [storage, providers] = await Promise.all([getStorage(), getProviders()])
+  const [storage, providers, csrfToken] = await Promise.all([
+    getStorage(),
+    getProviders(),
+    getCsrfToken(context)
+  ])
   const statuses = await storage?.getTimeline({
     timeline: Timeline.LocalPublic
   })
 
   return {
     props: {
+      csrfToken,
       providers: providers ?? [],
       currentServerTime: Date.now(),
       statuses: statuses?.map((status) => status.toJson())

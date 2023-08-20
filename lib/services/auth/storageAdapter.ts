@@ -5,7 +5,7 @@ import { getStorage } from '../../storage'
 
 const NoImplementationError = new Error('No implmentation')
 
-const userFromAccount = (account: Account) => ({
+export const userFromAccount = (account: Account) => ({
   id: account.id,
   email: account.email,
   emailVerified: new Date(account.createdAt)

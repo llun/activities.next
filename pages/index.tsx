@@ -187,12 +187,12 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     getServerSession(req, res, authOptions)
   ])
 
+  if (!storage) {
+    throw new Error('Fail to load storage')
+  }
+
   const config = getConfig()
-  if (
-    !session?.user?.email ||
-    !config.allowEmails.includes(session?.user?.email || '') ||
-    !storage
-  ) {
+  if (!session?.user?.email) {
     return {
       redirect: {
         destination: '/auth/signin',
@@ -201,19 +201,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
-  const isAccountExists = await storage.isAccountExists({
-    email: session?.user?.email
-  })
-  if (!isAccountExists) {
-    return {
-      redirect: {
-        destination: '/setup',
-        permanent: false
-      }
-    }
-  }
-
-  const actor = await storage.getActorFromEmail({ email: session.user.email })
+  const actor = await storage.getActorFromEmail({ email: session?.user?.email })
   if (!actor) {
     return {
       redirect: {
