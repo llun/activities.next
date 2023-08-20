@@ -10,9 +10,9 @@ import { ApiTrace } from '../../../../lib/trace'
 const BCRYPT_ROUND = 10
 
 export const NoteSchema = z.object({
-  username: z.string(),
-  email: z.string(),
-  password: z.string()
+  username: z.string().regex(/[\w]+/).trim(),
+  email: z.string().email().trim(),
+  password: z.string().min(8).trim()
 })
 
 export type NoteSchema = z.infer<typeof NoteSchema>
