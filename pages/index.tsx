@@ -201,7 +201,19 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
     }
   }
 
-  const actor = await storage.getActorFromEmail({ email: session?.user?.email })
+  if (
+    config.allowEmails.length &&
+    !config.allowEmails.includes(session.user.email)
+  ) {
+    return {
+      redirect: {
+        destination: '/auth/signin',
+        permanent: false
+      }
+    }
+  }
+
+  const actor = await storage.getActorFromEmail({ email: session.user.email })
   if (!actor) {
     return {
       redirect: {
