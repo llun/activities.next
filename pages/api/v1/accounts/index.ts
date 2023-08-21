@@ -17,6 +17,8 @@ export const NoteSchema = z.object({
 
 export type NoteSchema = z.infer<typeof NoteSchema>
 
+const MAIN_ERROR_MESSAGE = 'Validation failed'
+
 const handler = ApiTrace('v1/accounts/index', async (req, res) => {
   switch (req.method) {
     case 'POST': {
@@ -26,7 +28,7 @@ const handler = ApiTrace('v1/accounts/index', async (req, res) => {
         return errorResponse(res, 500)
       }
 
-      const domain = config.host
+      const { host: domain, allowEmails } = config
       const content = NoteSchema.safeParse(req.body)
       if (!content.success) {
         const error = content.error
@@ -35,13 +37,25 @@ const handler = ApiTrace('v1/accounts/index', async (req, res) => {
           description: issue.message
         }))
         res.status(422).json({
-          error: 'Validation failed',
+          error: MAIN_ERROR_MESSAGE,
           details: fields.fieldErrors
         })
         return
       }
 
       const form = content.data
+      if (allowEmails.length && !allowEmails.includes(form.email)) {
+        res.status(422).json({
+          error: MAIN_ERROR_MESSAGE,
+          details: {
+            email: [
+              { error: 'ERR_TAKEN', description: 'Email is already taken' }
+            ]
+          }
+        })
+        return
+      }
+
       const [isAccountExists, isUsernameExists] = await Promise.all([
         storage.isAccountExists({ email: form.email }),
         storage.isUsernameExists({ username: form.username, domain })
@@ -69,7 +83,7 @@ const handler = ApiTrace('v1/accounts/index', async (req, res) => {
       }
       if (Object.keys(errorDetails).length > 0) {
         res.status(422).json({
-          error: 'Validation failed',
+          error: MAIN_ERROR_MESSAGE,
           details: errorDetails
         })
         return
