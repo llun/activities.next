@@ -52,6 +52,8 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/auth/signin'
   },
-  ...(auth?.enableStorageAdapter ? { adapter: StorageAdapter() } : null)
+  ...(auth?.enableStorageAdapter
+    ? { adapter: StorageAdapter(secretPhase) }
+    : null)
 }
 export default NextAuth(authOptions)
