@@ -98,13 +98,9 @@ export function StorageAdapter(secret: string): Adapter {
       const storage = await getStorage()
       if (!storage) return null
 
-      const [accountAndSession, accountFromJWT] = await Promise.all([
-        storage.getAccountSession({
-          token: sessionToken
-        }),
-        decode({ token: sessionToken, secret })
-      ])
-
+      const accountAndSession = await storage.getAccountSession({
+        token: sessionToken
+      })
       if (accountAndSession) {
         const { account, session } = accountAndSession
         return {
@@ -121,26 +117,33 @@ export function StorageAdapter(secret: string): Adapter {
         }
       }
 
-      const decodedJWT = accountFromJWT as JWT & {
-        jti: string
-        exp: number
-        iat: number
-      }
-      if (!decodedJWT?.email) return null
-      const actor = await storage.getActorFromEmail({ email: decodedJWT.email })
-      if (!actor || !actor.account) return null
-
-      return {
-        session: {
-          sessionToken,
-          expires: new Date(decodedJWT.exp * 1000),
-          userId: actor.account.id
-        },
-        user: {
-          email: decodedJWT.email,
-          emailVerified: new Date(actor.account.createdAt),
-          id: actor.account.id
+      try {
+        const accountFromJWT = await decode({ token: sessionToken, secret })
+        const decodedJWT = accountFromJWT as JWT & {
+          jti: string
+          exp: number
+          iat: number
         }
+        if (!decodedJWT?.email) return null
+        const actor = await storage.getActorFromEmail({
+          email: decodedJWT.email
+        })
+        if (!actor || !actor.account) return null
+
+        return {
+          session: {
+            sessionToken,
+            expires: new Date(decodedJWT.exp * 1000),
+            userId: actor.account.id
+          },
+          user: {
+            email: decodedJWT.email,
+            emailVerified: new Date(actor.account.createdAt),
+            id: actor.account.id
+          }
+        }
+      } catch {
+        return null
       }
     },
     async updateSession(session) {

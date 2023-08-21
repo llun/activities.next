@@ -1,8 +1,12 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
-import { GetServerSideProps, NextPage } from 'next'
+import {
+  GetServerSidePropsContext,
+  InferGetServerSidePropsType,
+  NextPage
+} from 'next'
 import { getServerSession } from 'next-auth/next'
-import { useSession } from 'next-auth/react'
+import { getProviders, signIn, useSession } from 'next-auth/react'
 import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -11,17 +15,63 @@ import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { Profile as ProfileComponent } from '../lib/components/Profile'
 import { getConfig } from '../lib/config'
-import { Actor, ActorProfile } from '../lib/models/actor'
+import { Actor } from '../lib/models/actor'
 import { getStorage } from '../lib/storage'
 import { authOptions } from './api/auth/[...nextauth]'
 import styles from './settings.module.scss'
 
-interface Props {
-  profile: ActorProfile
+export async function getServerSideProps({
+  req,
+  res
+}: GetServerSidePropsContext) {
+  const [storage, session, providers] = await Promise.all([
+    getStorage(),
+    getServerSession(req, res, authOptions),
+    getProviders()
+  ])
+
+  const config = getConfig()
+  if (
+    !session?.user?.email ||
+    !config.allowEmails.includes(session?.user?.email || '') ||
+    !storage
+  ) {
+    return {
+      redirect: {
+        destination: '/auth/signin',
+        permanent: false
+      }
+    }
+  }
+
+  const actor = await storage.getActorFromEmail({ email: session.user.email })
+  if (!actor) {
+    return {
+      redirect: {
+        destination: '/auth/signin',
+        permanent: false
+      }
+    }
+  }
+
+  return {
+    props: {
+      profile: actor.toProfile(),
+      providers
+    }
+  }
 }
 
-const Page: NextPage<Props> = ({ profile }) => {
+const Page: NextPage<
+  InferGetServerSidePropsType<typeof getServerSideProps>
+> = ({ profile, providers }) => {
   const { data: session } = useSession()
+  const nonCredentialsProviders =
+    (providers &&
+      Object.values(providers).filter(
+        (provider) => provider.id !== 'credentials'
+      )) ||
+    []
 
   return (
     <main>
@@ -151,51 +201,23 @@ const Page: NextPage<Props> = ({ profile }) => {
                 Update
               </Button>
             </form>
+            {nonCredentialsProviders.length && (
+              <div>
+                <hr />
+                {nonCredentialsProviders.map((provider) => (
+                  <div key={provider.name} className="mb-2">
+                    <Button onClick={() => signIn(provider.id)}>
+                      Connect to {provider.name}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>
     </main>
   )
-}
-
-export const getServerSideProps: GetServerSideProps<Props> = async ({
-  req,
-  res
-}) => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(req, res, authOptions)
-  ])
-
-  const config = getConfig()
-  if (
-    !session?.user?.email ||
-    !config.allowEmails.includes(session?.user?.email || '') ||
-    !storage
-  ) {
-    return {
-      redirect: {
-        destination: '/auth/signin',
-        permanent: false
-      }
-    }
-  }
-
-  const actor = await storage.getActorFromEmail({ email: session.user.email })
-  if (!actor) {
-    return {
-      redirect: {
-        destination: '/auth/signin',
-        permanent: false
-      }
-    }
-  }
-
-  return {
-    props: {
-      profile: actor.toProfile()
-    }
-  }
 }
 
 export default Page
