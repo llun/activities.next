@@ -31,37 +31,9 @@ alpha stage and has only few features supported.
 - [ ] Mastodon API compatible and clients supports
 - [ ] GPS Activity e.g. Bicycle ride, Running etc
 
-## Running locally
+## Setup
 
-For SQLite (or SQL database), add `config.json`
-
-```
-{
-  "host": "domain.tld",
-  "database": {
-    "type": "sql",
-    "client": "better-sqlite3",
-    "useNullAsDefault": true,
-    "connection": {
-      "filename": "./dev.sqlite3"
-    }
-  },
-  "allowMediaDomains": [],
-  "allowEmails": [],
-  "secretPhase": "random-hash-for-cookie",
-  "auth": {
-    "github": {
-      "id": "GITHUB_APP_CLIENT_ID",
-      "secret": "GITHUB_APP_SECRET"
-    }
-  }
-}
-```
-
-and run database migration with `yarn migrate`.
-
-To start the server, run `yarn dev` or build the server with
-`yarn build` and start it with `yarn start`
+Follow [this document](docs/setup.md) to setup your local server
 
 ### Host it on Vercel
 
@@ -79,34 +51,3 @@ ACTIVITIES_AUTH='{"github":{"id":"GITHUB_APP_CLIENT_ID","secret":"GITHUB_APP_SEC
 
 Change the database client to your database type e.g. pg and update
 the connection with your database configuration.
-
-### Firebase
-
-To use Firebase, change the type to `firebase` and add the configuration
-that Firebase provide e.g.
-
-```
-{
-  "type": "firebase",
-  "apiKey": "FireBaseAPIKey",
-  "authDomain": "project.firebaseapp.com",
-  "projectId": "project",
-  "storageBucket": "project.appspot.com",
-  "messagingSenderId": "senderId",
-  "appId": "appId",
-  "measurementId": "measurementId"
-}
-```
-
-and add below index to FireStore
-
-- Collection `statuses`, `actorId` Ascending, `createdAt` Descending
-- Collection `statuses`, `reply` Ascending, `createdAt` Descending
-- Collection `statuses`, `actorId` Ascending, `reply` Ascending, `createdAt` Descending
-- Collection `statuses`, `to` Arrays, `actorId` Ascending, `createdAt` Descending
-- Collection `follows`, `actorId` Ascending, `status` Ascending, `targetActorId` Ascending, `createdAt` Descending
-- Collection `timelines`, `timeline` Ascending, `createdAt` Descending
-- Collection group `accountProviders`, `provider` Ascending, `accountId` Ascending
-- Collection group `accountProviders`, `provider` Ascending, `providerAccountId` Ascending
-- Exemptions collection group `sessions`, `token` Ascending
-- Exemptions collection group `timeline`, `statusId` Ascending
