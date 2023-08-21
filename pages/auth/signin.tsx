@@ -5,6 +5,7 @@ import type {
 import { getServerSession } from 'next-auth/next'
 import { getCsrfToken, getProviders, signIn } from 'next-auth/react'
 import Head from 'next/head'
+import Link from 'next/link'
 
 import { Button } from '../../lib/components/Button'
 import { Header } from '../../lib/components/Header'
@@ -85,6 +86,7 @@ export default function SignIn({
               </div>
             )
           })}
+          <Link href="/auth/register">Register</Link>
           <Posts
             currentTime={new Date(currentServerTime)}
             statuses={statuses ?? []}
