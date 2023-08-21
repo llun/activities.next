@@ -1,4 +1,5 @@
 import { Adapter } from 'next-auth/adapters'
+import { JWT, decode } from 'next-auth/jwt'
 
 import { Account } from '../../models/account'
 import { getStorage } from '../../storage'
@@ -11,7 +12,7 @@ export const userFromAccount = (account: Account) => ({
   emailVerified: new Date(account.createdAt)
 })
 
-export function StorageAdapter(): Adapter {
+export function StorageAdapter(secret: string): Adapter {
   return {
     async createUser(user) {
       const { email } = user
@@ -97,22 +98,48 @@ export function StorageAdapter(): Adapter {
       const storage = await getStorage()
       if (!storage) return null
 
-      const accountAndSession = await storage.getAccountSession({
-        token: sessionToken
-      })
-      if (!accountAndSession) return null
+      const [accountAndSession, accountFromJWT] = await Promise.all([
+        storage.getAccountSession({
+          token: sessionToken
+        }),
+        decode({ token: sessionToken, secret })
+      ])
 
-      const { account, session } = accountAndSession
+      if (accountAndSession) {
+        const { account, session } = accountAndSession
+        return {
+          session: {
+            sessionToken,
+            expires: new Date(session.expireAt),
+            userId: session.accountId
+          },
+          user: {
+            email: account.email,
+            emailVerified: new Date(account.createdAt),
+            id: account.id
+          }
+        }
+      }
+
+      const decodedJWT = accountFromJWT as JWT & {
+        jti: string
+        exp: number
+        iat: number
+      }
+      if (!decodedJWT?.email) return null
+      const actor = await storage.getActorFromEmail({ email: decodedJWT.email })
+      if (!actor || !actor.account) return null
+
       return {
         session: {
           sessionToken,
-          expires: new Date(session.expireAt),
-          userId: session.accountId
+          expires: new Date(decodedJWT.exp * 1000),
+          userId: actor.account.id
         },
         user: {
-          email: account.email,
-          emailVerified: new Date(account.createdAt),
-          id: account.id
+          email: decodedJWT.email,
+          emailVerified: new Date(actor.account.createdAt),
+          id: actor.account.id
         }
       }
     },
