@@ -4,6 +4,7 @@ import type { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 import path from 'path'
 
+import { LambdaConfig } from './services/email/lambda'
 import { SMTPConfig } from './services/email/smtp'
 import { MediaStorageConfig } from './storage/types/media'
 
@@ -24,18 +25,7 @@ export interface Config {
       secret: string
     }
   }
-  aws?: {
-    key: string
-    secret: string
-    region: string
-    functions: {
-      sendMail?: {
-        name: string
-        qualifier?: string
-      }
-    }
-  }
-  email?: SMTPConfig
+  email?: SMTPConfig | LambdaConfig
   mediaStorage?: MediaStorageConfig
 }
 
