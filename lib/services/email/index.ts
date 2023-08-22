@@ -1,4 +1,4 @@
-type Email = string | { name: string; email: string }
+export type Email = string | { name: string; email: string }
 
 export interface Message {
   from: Email

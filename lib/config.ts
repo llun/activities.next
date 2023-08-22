@@ -4,6 +4,7 @@ import type { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 import path from 'path'
 
+import { SMTPConfig } from './services/email/smtp'
 import { MediaStorageConfig } from './storage/types/media'
 
 type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' | 'sql' | 'knex' }
@@ -34,6 +35,7 @@ export interface Config {
       }
     }
   }
+  email?: SMTPConfig
   mediaStorage?: MediaStorageConfig
 }
 
