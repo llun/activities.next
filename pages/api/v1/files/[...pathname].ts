@@ -25,12 +25,9 @@ const handler = ApiTrace('v2/files', async (req, res) => {
         return errorResponse(res, 404)
       }
 
-      const userPath = Array.isArray(pathname) ? pathname.join('/') : pathname
-
-      if (!/[\w/-]+\.\w+/.test(userPath)) {
-        return errorResponse(res, 404)
-      }
-
+      const userPath = path
+        .normalize(Array.isArray(pathname) ? pathname.join('/') : pathname)
+        .replace(/^(\.\.(\/|\\|$))+/, '')
       const filePath = path.resolve(mediaStorage.path, userPath)
       const contentType = mime.contentType(path.extname(filePath))
       if (!contentType) {
