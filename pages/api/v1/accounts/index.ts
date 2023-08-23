@@ -3,6 +3,7 @@ import z from 'zod'
 
 import { getConfig } from '../../../../lib/config'
 import { errorResponse } from '../../../../lib/errors'
+import { sendMail } from '../../../../lib/services/email'
 import { generateKeyPair } from '../../../../lib/signature'
 import { getStorage } from '../../../../lib/storage'
 import { ApiTrace } from '../../../../lib/trace'
@@ -103,6 +104,23 @@ const handler = ApiTrace('v1/accounts/index', async (req, res) => {
         publicKey: keyPair.publicKey,
         passwordHash
       })
+
+      if (config.email) {
+        try {
+          await sendMail({
+            from: config.email.serviceFromAddress,
+            to: [form.email],
+            subject: 'Email verification',
+            content: {
+              text: `Open this link to verify your email https://${config.host}/auth/confirmation?confirmation_token=`,
+              html: `Open <a href="https://${config.host}/auth/confirmation?confirmation_token=">this link</a> to verify your email.`
+            }
+          })
+        } catch {
+          console.error(`Fail to send email to ${form.email}`)
+        }
+      }
+
       res.status(302).redirect('/auth/signin')
       return
     }
