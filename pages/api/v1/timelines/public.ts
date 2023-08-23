@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
+import { errorResponse } from '../../../../lib/errors'
 import { getStorage } from '../../../../lib/storage'
 import { getISOTimeUTC } from '../../../../lib/time'
 import { Timeline } from '../../../../lib/timelines/types'
@@ -9,11 +10,18 @@ export default async function handler(
   res: NextApiResponse
 ) {
   const storage = await getStorage()
-  if (!storage) return res.status(200).json([])
+  if (!storage) {
+    return errorResponse(res, 500)
+  }
 
   const statuses = await storage.getTimeline({
     timeline: Timeline.LocalPublic
   })
+
+  if (statuses.length === 0) {
+    res.status(200).json([])
+    return
+  }
 
   // TODO: Add last actor status
   const lastStatusDate = new Date(statuses[0].createdAt)
