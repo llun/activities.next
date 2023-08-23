@@ -6,18 +6,18 @@ import {
 import { fromUtf8 } from '@aws-sdk/util-utf8-node'
 
 import { getConfig } from '../../config'
-import { Message } from './index'
+import { BaseEmailSettings, Message } from './types'
 
-const TYPE_LAMBDA = 'lambda'
+export const TYPE_LAMBDA = 'lambda'
 
-export interface LambdaConfig {
+export interface LambdaConfig extends BaseEmailSettings {
   type: typeof TYPE_LAMBDA
   region: string
   functionName: string
   functionQualifier: string
 }
 
-export async function sendMail(message: Message) {
+export async function sendLambdaMail(message: Message) {
   const config = getConfig()
   if (!config.email) return
   if (config.email.type !== TYPE_LAMBDA) return
