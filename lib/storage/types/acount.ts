@@ -7,7 +7,7 @@ export type CreateAccountParams = {
   email: string
   username: string
   passwordHash: string
-  verificationCode?: string
+  verificationCode?: string | null
   domain: string
   privateKey: string
   publicKey: string

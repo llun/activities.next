@@ -1,4 +1,5 @@
 import * as bcrypt from 'bcrypt'
+import crypto from 'crypto'
 import z from 'zod'
 
 import { getConfig } from '../../../../lib/config'
@@ -96,13 +97,18 @@ const handler = ApiTrace('v1/accounts/index', async (req, res) => {
         bcrypt.hash(form.password, BCRYPT_ROUND)
       ])
 
+      const verificationCode = config.email
+        ? crypto.randomBytes(32).toString('base64url')
+        : null
+
       await storage.createAccount({
         domain,
         email: form.email,
         username: form.username,
         privateKey: keyPair.privateKey,
         publicKey: keyPair.publicKey,
-        passwordHash
+        passwordHash,
+        verificationCode
       })
 
       if (config.email) {
@@ -112,8 +118,8 @@ const handler = ApiTrace('v1/accounts/index', async (req, res) => {
             to: [form.email],
             subject: 'Email verification',
             content: {
-              text: `Open this link to verify your email https://${config.host}/auth/confirmation?confirmation_token=`,
-              html: `Open <a href="https://${config.host}/auth/confirmation?confirmation_token=">this link</a> to verify your email.`
+              text: `Open this link to verify your email https://${config.host}/auth/confirmation?confirmation_token=${verificationCode}`,
+              html: `Open <a href="https://${config.host}/auth/confirmation?confirmation_token=${verificationCode}">this link</a> to verify your email.`
             }
           })
         } catch {
