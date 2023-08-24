@@ -34,6 +34,7 @@ export const authOptions: NextAuthOptions = {
 
         const account = actor.account
         if (!account?.passwordHash) return null
+        if (!account.verifiedAt) return null
 
         const isPasswordCorrect = await bcrypt.compare(
           password,
@@ -52,8 +53,17 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/auth/signin'
   },
-  ...(auth?.enableStorageAdapter
-    ? { adapter: StorageAdapter(secretPhase) }
-    : null)
+  callbacks: {
+    async signIn({ user }) {
+      const storage = await getStorage()
+      if (!storage) return false
+
+      const account = await storage.getAccountFromId({ id: user.id })
+      if (!account?.verifiedAt) return false
+
+      return true
+    }
+  },
+  adapter: StorageAdapter(secretPhase)
 }
 export default NextAuth(authOptions)
