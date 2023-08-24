@@ -11,6 +11,7 @@ import { Storage } from './types'
 jest.mock('../config')
 
 const TEST_SHARED_INBOX = 'https://llun.test/inbox'
+const TEST_PASSWORD_HASH = 'password_hash'
 
 // For testing existing user
 const TEST_EMAIL = 'user@llun.dev'
@@ -106,6 +107,7 @@ describe('Storage', () => {
       await storage.createAccount({
         email: TEST_EMAIL,
         username: TEST_USERNAME,
+        passwordHash: TEST_PASSWORD_HASH,
         domain: TEST_DOMAIN,
         privateKey: 'privateKey1',
         publicKey: 'publicKey1'
@@ -115,6 +117,7 @@ describe('Storage', () => {
         await storage.createAccount({
           email: `user${id}@llun.dev`,
           username: `user${id}`,
+          passwordHash: TEST_PASSWORD_HASH,
           domain: TEST_DOMAIN,
           privateKey: `privateKey${id}`,
           publicKey: `publicKey${id}`
@@ -139,6 +142,7 @@ describe('Storage', () => {
         await storage.createAccount({
           email: TEST_EMAIL2,
           username: TEST_USERNAME2,
+          passwordHash: TEST_PASSWORD_HASH,
           domain: TEST_DOMAIN,
           privateKey: 'privateKey2',
           publicKey: 'publicKey2'

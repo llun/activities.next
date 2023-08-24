@@ -65,7 +65,8 @@ import {
   IsAccountExistsParams,
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
-  UpdateAccountSessionParams
+  UpdateAccountSessionParams,
+  VerifyAccountParams
 } from './types/acount'
 import {
   CreateLikeParams,
@@ -132,7 +133,6 @@ export class FirestoreStorage implements Storage {
     }
 
     const currentTime = Date.now()
-
     const accounts = this.db.collection('accounts')
     const accountRef = await accounts.add({
       email,
@@ -173,7 +173,7 @@ export class FirestoreStorage implements Storage {
   async getAccountFromProviderId({
     provider,
     accountId
-  }: GetAccountFromProviderIdParams): Promise<Account | undefined> {
+  }: GetAccountFromProviderIdParams) {
     const providers = await this.db
       .collectionGroup('accountProviders')
       .where('provider', '==', provider)
@@ -192,7 +192,7 @@ export class FirestoreStorage implements Storage {
     accountId,
     providerAccountId,
     provider
-  }: LinkAccountWithProviderParams): Promise<Account | undefined> {
+  }: LinkAccountWithProviderParams) {
     const providers = await this.db
       .collectionGroup('accountProviders')
       .where('provider', '==', provider)
@@ -207,13 +207,34 @@ export class FirestoreStorage implements Storage {
     await this.db
       .doc(`accounts/${accountId}/accountProviders/${provider}`)
       .set({
-        accountId,
+        ...account.data(),
         provider,
         providerAccountId,
-
-        createdAt: currentTime,
         updatedAt: currentTime
       })
+    return this.getAccountFromId({ id: accountId })
+  }
+
+  @Trace('db')
+  async verifyAccount({ verificationCode }: VerifyAccountParams) {
+    const accounts = this.db.collection('accounts')
+    const snapshot = await accounts
+      .where('verificationCode', '==', verificationCode)
+      .get()
+    if (snapshot.docs.length !== 1) return
+
+    const currentTime = Date.now()
+    await Promise.all(
+      snapshot.docs.map((doc) =>
+        doc.ref.update({
+          verificationCode: '',
+          updatedAt: currentTime,
+          verifiedAt: currentTime
+        })
+      )
+    )
+
+    return this.getAccountFromId({ id: snapshot.docs[0].data().id })
   }
 
   @Trace('db')

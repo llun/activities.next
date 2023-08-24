@@ -22,6 +22,9 @@ export type LinkAccountWithProviderParams = {
   provider: string
   providerAccountId: string
 }
+export type VerifyAccountParams = {
+  verificationCode: string
+}
 export type CreateAccountSessionParams = {
   accountId: string
   token: string
@@ -53,6 +56,7 @@ export interface AccountStorage {
   linkAccountWithProvider(
     params: LinkAccountWithProviderParams
   ): Promise<Account | undefined>
+  verifyAccount(params: VerifyAccountParams): Promise<Account | undefined>
 
   createAccountSession(params: CreateAccountSessionParams): Promise<void>
   getAccountSession(

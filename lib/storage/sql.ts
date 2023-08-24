@@ -64,7 +64,8 @@ import {
   IsAccountExistsParams,
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
-  UpdateAccountSessionParams
+  UpdateAccountSessionParams,
+  VerifyAccountParams
 } from './types/acount'
 import {
   CreateLikeParams,
@@ -220,6 +221,21 @@ export class SqlStorage implements Storage {
       updatedAt: currentTime
     })
     return account
+  }
+
+  async verifyAccount({ verificationCode }: VerifyAccountParams) {
+    const account = await this.database('accounts')
+      .where('verificationCode', verificationCode)
+      .first()
+    if (!account) return
+
+    const currentTime = Date.now()
+    await this.database('accounts').where('id', account.id).update({
+      verificationCode: '',
+      verifiedAt: currentTime,
+      updatedAt: currentTime
+    })
+    return this.getAccountFromId(account.id)
   }
 
   async createAccountSession({
