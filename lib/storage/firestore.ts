@@ -121,6 +121,7 @@ export class FirestoreStorage implements Storage {
     email,
     username,
     passwordHash,
+    verificationCode,
     domain,
     privateKey,
     publicKey
@@ -135,7 +136,10 @@ export class FirestoreStorage implements Storage {
     const accounts = this.db.collection('accounts')
     const accountRef = await accounts.add({
       email,
-      ...(passwordHash ? { passwordHash } : null),
+      passwordHash,
+      ...(verificationCode
+        ? { verificationCode }
+        : { verifiedAt: currentTime }),
       createdAt: currentTime,
       updatedAt: currentTime
     })

@@ -135,6 +135,7 @@ export class SqlStorage implements Storage {
     email,
     username,
     passwordHash,
+    verificationCode,
     domain,
     privateKey,
     publicKey
@@ -154,6 +155,9 @@ export class SqlStorage implements Storage {
         id: accountId,
         email,
         passwordHash,
+        ...(verificationCode
+          ? { verificationCode }
+          : { verifiedAt: currentTime }),
         createdAt: currentTime,
         updatedAt: currentTime
       })
