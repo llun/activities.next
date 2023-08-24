@@ -226,7 +226,7 @@ export class SqlStorage implements Storage {
   async verifyAccount({ verificationCode }: VerifyAccountParams) {
     const account = await this.database('accounts')
       .where('verificationCode', verificationCode)
-      .first()
+      .first<Account>()
     if (!account) return
 
     const currentTime = Date.now()
@@ -235,7 +235,7 @@ export class SqlStorage implements Storage {
       verifiedAt: currentTime,
       updatedAt: currentTime
     })
-    return this.getAccountFromId(account.id)
+    return this.getAccountFromId({ id: account.id })
   }
 
   async createAccountSession({

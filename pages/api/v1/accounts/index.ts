@@ -118,8 +118,8 @@ const handler = ApiTrace('v1/accounts/index', async (req, res) => {
             to: [form.email],
             subject: 'Email verification',
             content: {
-              text: `Open this link to verify your email https://${config.host}/auth/confirmation?confirmation_token=${verificationCode}`,
-              html: `Open <a href="https://${config.host}/auth/confirmation?confirmation_token=${verificationCode}">this link</a> to verify your email.`
+              text: `Open this link to verify your email https://${config.host}/auth/confirmation?verificationCode=${verificationCode}`,
+              html: `Open <a href="https://${config.host}/auth/confirmation?verificationCode=${verificationCode}">this link</a> to verify your email.`
             }
           })
         } catch {
