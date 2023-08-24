@@ -4,6 +4,7 @@ export const ACTOR4_FOLLOWER_URL = `${ACTOR4_ID}/followers`
 export const seedActor4 = {
   email: 'test4@llun.test',
   username: 'test4',
+  passwordHash: 'test4password',
   domain: 'llun.test',
   publicKey:
     '-----BEGIN PUBLIC KEY-----\n' +

@@ -6,6 +6,7 @@ export const EXTERNAL_ACTOR1_INBOX = `${EXTERNAL_ACTOR1}/inbox`
 export const seedExternal1 = {
   actorId: EXTERNAL_ACTOR1,
   username: EXTERNAL_ACTOR1_USER,
+  passwordHash: 'passwordhash',
   domain: 'llun.dev',
   inboxUrl: EXTERNAL_ACTOR1_INBOX,
   sharedInboxUrl: EXTERNAL_ACTOR1_INBOX,
