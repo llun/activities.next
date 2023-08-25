@@ -13,6 +13,7 @@ import { PostBox } from '../lib/components/PostBox/PostBox'
 import { Posts } from '../lib/components/Posts/Posts'
 import { Profile as ProfileComponent } from '../lib/components/Profile'
 import { TimelineLoadMoreButton } from '../lib/components/TimelineLoadMoreButton'
+import { Tab, TimelineTabs } from '../lib/components/TimelineTabs'
 import { getConfig } from '../lib/config'
 import { Actor, ActorProfile } from '../lib/models/actor'
 import { EditableStatusData, StatusData } from '../lib/models/status'
@@ -27,6 +28,11 @@ interface Props {
   statuses: StatusData[]
   profile: ActorProfile
 }
+
+const TIMELINES_TABS: Tab[] = [
+  { link: 'home', name: 'Home' },
+  { link: 'no-announce', name: 'No Announces' }
+]
 
 const replyAction = (status: StatusData) => ({ type: 'reply' as const, status })
 type ReplyAction = ReturnType<typeof replyAction>
@@ -62,12 +68,11 @@ const Page: NextPage<Props> = ({
   currentServerTime
 }) => {
   const { data: session } = useSession()
-
+  const [currentTab, setCurrentTab] = useState<Tab>(TIMELINES_TABS[0])
   const [statusActionState, dispatchStatusAction] = useReducer(
     statusActionReducer,
     {}
   )
-
   const [currentStatuses, setCurrentStatuses] = useState<StatusData[]>(statuses)
   const [currentTime, setCurrentTime] = useState<number>(currentServerTime)
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
@@ -147,6 +152,13 @@ const Page: NextPage<Props> = ({
                   setCurrentStatuses(() => currentStatuses)
                 }
                 dispatchStatusAction(clearAction())
+              }}
+            />
+            <TimelineTabs
+              currentTab={currentTab}
+              tabs={TIMELINES_TABS}
+              onClickTab={(tab) => {
+                setCurrentTab(tab)
               }}
             />
             <Posts

@@ -1,32 +1,35 @@
 import cn from 'classnames'
-import { FC, useState } from 'react'
+import { FC } from 'react'
 
 export interface Tab {
   name: string
+  link: string
 }
 
 interface Props {
+  currentTab: Tab
   tabs: Tab[]
   onClickTab: (tab: Tab) => void
 }
 
-export const TimelineTabs: FC<Props> = ({ tabs, onClickTab }) => {
-  const [currentTab, setCurrentTab] = useState<Tab>()
-
+export const TimelineTabs: FC<Props> = ({ currentTab, tabs, onClickTab }) => {
   return (
-    <ul>
+    <ul className="nav nav-tabs">
       {tabs.map((tab) => (
-        <a
-          key={tab.name}
-          className={cn('nav-link', { active: currentTab?.name === tab.name })}
-          onClick={(event) => {
-            event.preventDefault()
-            setCurrentTab(tab)
-            onClickTab(tab)
-          }}
-        >
-          {tab.name}
-        </a>
+        <li key={tab.name} className="nav-item">
+          <a
+            href={`#timeline/${tab.link}`}
+            className={cn('nav-link', {
+              active: currentTab.name === tab.name
+            })}
+            onClick={(event) => {
+              event.preventDefault()
+              onClickTab(tab)
+            }}
+          >
+            {tab.name}
+          </a>
+        </li>
       ))}
     </ul>
   )
