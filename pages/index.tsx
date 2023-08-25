@@ -30,8 +30,8 @@ interface Props {
 }
 
 const TIMELINES_TABS: Tab[] = [
-  { link: 'home', name: 'Home' },
-  { link: 'no-announce', name: 'No Announces' }
+  { timeline: Timeline.MAIN, name: 'Home' },
+  { timeline: Timeline.NOANNOUNCE, name: 'No Announces' }
 ]
 
 const replyAction = (status: StatusData) => ({ type: 'reply' as const, status })
@@ -157,8 +157,16 @@ const Page: NextPage<Props> = ({
             <TimelineTabs
               currentTab={currentTab}
               tabs={TIMELINES_TABS}
-              onClickTab={(tab) => {
+              onClickTab={async (tab) => {
                 setCurrentTab(tab)
+                setCurrentStatuses([])
+                setLoadingMoreStatuses(true)
+
+                const statuses = await getTimeline({
+                  timeline: tab.timeline
+                })
+                setCurrentStatuses(statuses)
+                setLoadingMoreStatuses(false)
               }}
             />
             <Posts

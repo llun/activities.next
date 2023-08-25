@@ -1,9 +1,11 @@
 import cn from 'classnames'
 import { FC } from 'react'
 
+import { Timeline } from '../timelines/types'
+
 export interface Tab {
   name: string
-  link: string
+  timeline: Timeline
 }
 
 interface Props {
@@ -18,7 +20,7 @@ export const TimelineTabs: FC<Props> = ({ currentTab, tabs, onClickTab }) => {
       {tabs.map((tab) => (
         <li key={tab.name} className="nav-item">
           <a
-            href={`#timeline/${tab.link}`}
+            href={`#timeline/${tab.timeline}`}
             className={cn('nav-link', {
               active: currentTab.name === tab.name
             })}
