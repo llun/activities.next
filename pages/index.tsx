@@ -183,7 +183,7 @@ const Page: NextPage<Props> = ({
               onClick={async () => {
                 setLoadingMoreStatuses(true)
                 const statuses = await getTimeline({
-                  timeline: Timeline.MAIN,
+                  timeline: currentTab.timeline,
                   startAfterStatusId:
                     currentStatuses[currentStatuses.length - 1].id
                 })
