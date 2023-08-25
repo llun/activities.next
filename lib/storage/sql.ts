@@ -1192,21 +1192,23 @@ export class SqlStorage implements Storage {
     status,
     timeline
   }: CreateTimelineStatusParams): Promise<void> {
-    const exists = await this.database('timelines')
-      .where('actorId', actorId)
-      .andWhere('statusId', status.id)
-      .andWhere('timeline', timeline)
-      .count<{ count: number }>('* as count')
-      .first()
-    if (exists && exists.count) return
+    await this.database.transaction(async (trx) => {
+      const exists = await trx('timelines')
+        .where('actorId', actorId)
+        .andWhere('statusId', status.id)
+        .andWhere('timeline', timeline)
+        .count<{ count: number }>('* as count')
+        .first()
+      if (exists && exists.count) return
 
-    return this.database('timelines').insert({
-      actorId,
-      statusId: status.id,
-      statusActorId: status.actorId,
-      timeline,
-      createdAt: status.createdAt,
-      updatedAt: Date.now()
+      return trx('timelines').insert({
+        actorId,
+        statusId: status.id,
+        statusActorId: status.actorId,
+        timeline,
+        createdAt: status.createdAt,
+        updatedAt: Date.now()
+      })
     })
   }
 

@@ -31,7 +31,8 @@ interface Props {
 
 const TIMELINES_TABS: Tab[] = [
   { timeline: Timeline.MAIN, name: 'Home' },
-  { timeline: Timeline.NOANNOUNCE, name: 'No Announces' }
+  { timeline: Timeline.NOANNOUNCE, name: 'No Announces' },
+  { timeline: Timeline.MENTION, name: 'Mention' }
 ]
 
 const replyAction = (status: StatusData) => ({ type: 'reply' as const, status })
