@@ -14,7 +14,7 @@ alpha stage and has only few features supported.
 - ✅ Undo Boost/Repost
 - ✅ Like
 - ✅ Storage adapter, current supports are SQL via Knex.js (Tested with SQLite locally) and Firebase
-- 🚧 Account setup with username and password
+- ✅ Account setup with username and password
 - [ ] Add actor under the same account (for different handle and type e.g. for `@ride@llun.dev`)
 - ✅ Support different domain for different actor
 - 🚧 Poll
