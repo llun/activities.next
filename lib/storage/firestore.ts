@@ -1077,7 +1077,7 @@ export class FirestoreStorage implements Storage {
     startAfterStatusId
   }: GetTimelineParams) {
     switch (timeline) {
-      case Timeline.LocalPublic: {
+      case Timeline.LOCAL_PUBLIC: {
         const actors = await this.db
           .collection('actors')
           .where('privateKey', '!=', '')

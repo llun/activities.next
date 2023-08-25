@@ -119,7 +119,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     getCsrfToken(context)
   ])
   const statuses = await storage?.getTimeline({
-    timeline: Timeline.LocalPublic
+    timeline: Timeline.LOCAL_PUBLIC
   })
 
   return {

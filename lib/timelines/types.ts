@@ -5,7 +5,7 @@ import { Storage } from '../storage/types'
 export enum Timeline {
   MAIN = 'main',
   NOANNOUNCE = 'noannounce',
-  LocalPublic = 'local-public'
+  LOCAL_PUBLIC = 'local-public'
 }
 
 export interface TimelineRuleParams {

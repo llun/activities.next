@@ -1121,7 +1121,7 @@ export class SqlStorage implements Storage {
     startAfterStatusId
   }: GetTimelineParams) {
     switch (timeline) {
-      case Timeline.LocalPublic: {
+      case Timeline.LOCAL_PUBLIC: {
         const query = this.database('recipients')
           .leftJoin('statuses', 'recipients.statusId', 'statuses.id')
           .leftJoin('actors', 'statuses.actorId', 'actors.id')

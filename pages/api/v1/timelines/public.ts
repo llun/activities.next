@@ -15,7 +15,7 @@ export default async function handler(
   }
 
   const statuses = await storage.getTimeline({
-    timeline: Timeline.LocalPublic
+    timeline: Timeline.LOCAL_PUBLIC
   })
 
   if (statuses.length === 0) {

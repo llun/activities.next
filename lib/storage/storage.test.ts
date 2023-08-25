@@ -1006,7 +1006,7 @@ describe('Storage', () => {
 
         it('returns all public posts from all local actors in instances', async () => {
           const statuses = await storage.getTimeline({
-            timeline: Timeline.LocalPublic
+            timeline: Timeline.LOCAL_PUBLIC
           })
           for (const status of statuses) {
             expect(status.actorId).toContain(TEST_DOMAIN)
