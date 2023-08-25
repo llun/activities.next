@@ -25,7 +25,7 @@ alpha stage and has only few features supported.
 - [ ] Streaming
 - 🚧 Timelines
   - ✅ Main timeline
-  - [ ] Notifications timeline
+  - 🚧 Notifications timeline
   - [ ] Medias timeline
 - 🚧 OAuth Bearer
 - [ ] Mastodon API compatible and clients supports
