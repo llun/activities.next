@@ -3,11 +3,11 @@ import { Resend } from 'resend'
 
 import { getConfig } from '../../config'
 import { getAddressFromEmail } from './smtp'
-import { Message } from './types'
+import { BaseEmailSettings, Message } from './types'
 
 export const TYPE_RESEND = 'resend'
 
-export interface ResendConfig {
+export interface ResendConfig extends BaseEmailSettings {
   type: typeof TYPE_RESEND
   token: string
 }
@@ -22,7 +22,7 @@ export async function sendResendMail(message: Message) {
   if (config.email.type !== TYPE_RESEND) return
 
   const resend = getResend(config.email)
-  await resend.sendEmail({
+  await resend.emails.send({
     from: getAddressFromEmail(message.from),
     to: message.to.map((email) => getAddressFromEmail(email)),
     subject: message.subject,
