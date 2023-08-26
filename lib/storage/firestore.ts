@@ -1113,6 +1113,7 @@ export class FirestoreStorage implements Storage {
           .slice(0, PER_PAGE_LIMIT)
       }
       case Timeline.MAIN:
+      case Timeline.MENTION:
       case Timeline.NOANNOUNCE: {
         if (!actorId) return []
 

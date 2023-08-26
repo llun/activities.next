@@ -1140,6 +1140,7 @@ export class SqlStorage implements Storage {
         return statuses
       }
       case Timeline.MAIN:
+      case Timeline.MENTION:
       case Timeline.NOANNOUNCE: {
         if (!actorId) return []
         const limit = PER_PAGE_LIMIT
