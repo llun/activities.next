@@ -18,7 +18,7 @@ const getTransporter = memoize(() => {
   return nodemailer.createTransport(email)
 })
 
-const getAddressFromEmail = (email: Email) =>
+export const getAddressFromEmail = (email: Email) =>
   typeof email === 'string' ? email : `"${email.name}" <${email.email}>`
 
 export async function sendSMTPMail(message: Message) {

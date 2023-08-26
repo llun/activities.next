@@ -50,6 +50,7 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-modal": "^3.16.1",
+    "resend": "^1.0.0",
     "sanitize-html": "^2.11.0",
     "sass": "^1.66.1",
     "sharp": "^0.32.5",

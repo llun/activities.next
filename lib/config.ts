@@ -5,6 +5,7 @@ import memoize from 'lodash/memoize'
 import path from 'path'
 
 import { LambdaConfig } from './services/email/lambda'
+import { ResendConfig } from './services/email/resend'
 import { SMTPConfig } from './services/email/smtp'
 import { MediaStorageConfig } from './storage/types/media'
 
@@ -25,7 +26,7 @@ export interface Config {
       secret: string
     }
   }
-  email?: SMTPConfig | LambdaConfig
+  email?: SMTPConfig | LambdaConfig | ResendConfig
   mediaStorage?: MediaStorageConfig
 }
 
