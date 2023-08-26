@@ -47,6 +47,8 @@ ACTIVITIES_SECRET_PHASE='random-hash-for-cookie'
 ACTIVITIES_ALLOW_EMAILS='[]'
 ACTIVITIES_ALLOW_MEDIA_DOMAINS='[]'
 ACTIVITIES_AUTH='{"github":{"id":"GITHUB_APP_CLIENT_ID","secret":"GITHUB_APP_SECRET"}}'
+ACTIVITIES_EMAIL='{"type":"smtp","host":"email-smtp.eu-central-1.amazonaws.com","port":465,"secure":true,"debug":true,"serviceFromAddress":"Service <email@domain.tld>","auth":{"user":"username","pass":"password"}}'
+
 ```
 
 Change the database client to your database type e.g. pg and update
