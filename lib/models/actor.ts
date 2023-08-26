@@ -127,6 +127,10 @@ export class Actor {
     return `@${this.username}@${this.domain}`
   }
 
+  getActorPage(): string {
+    return `https://${this.domain}/@${this.username}`
+  }
+
   toProfile(): ActorProfile {
     return {
       id: this.data.id,
