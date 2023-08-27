@@ -1297,10 +1297,10 @@ export class SqlStorage implements Storage {
   async getAttachmentsForActor({
     actorId
   }: GetAttachmentsForActorParams): Promise<Attachment[]> {
-    const data = await this.database<AttachmentData>('attachments').where(
-      'actorId',
-      actorId
-    )
+    const data = await this.database<AttachmentData>('attachments')
+      .where('actorId', actorId)
+      .orderBy('createdAt')
+      .limit(20)
     return data.map((item) => new Attachment(item))
   }
 

@@ -46,6 +46,7 @@ Add below indexes into Firestore indexes.
 - Collection `timelines`, `timeline` Ascending, `createdAt` Descending
 - Collection group `accountProviders`, `provider` Ascending, `accountId` Ascending
 - Collection group `accountProviders`, `provider` Ascending, `providerAccountId` Ascending
+- Collection group `attachments`, `actorId` Ascending, `createdAt` Descending
 - Exemptions collection group `sessions`, `token` Ascending
 - Exemptions collection group `timeline`, `statusId` Ascending
 - Exemptions collection group `attachments`, `actorId` Descending

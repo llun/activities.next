@@ -1283,6 +1283,8 @@ export class FirestoreStorage implements Storage {
     const attachments = await this.db
       .collectionGroup('attachments')
       .where('actorId', '==', actorId)
+      .orderBy('createdAt', 'desc')
+      .limitToLast(20)
       .get()
     return attachments.docs.map(
       (item) => new Attachment(item.data() as AttachmentData)
