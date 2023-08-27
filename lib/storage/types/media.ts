@@ -44,6 +44,7 @@ export interface Media extends BaseMedia {
 export type CreateMediaParams = BaseMedia
 
 export type CreateAttachmentParams = {
+  actorId: string
   statusId: string
   mediaType: string
   url: string

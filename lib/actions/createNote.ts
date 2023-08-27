@@ -83,6 +83,7 @@ export const createNote = async ({
     ...attachments.map(async (attachment) => {
       if (attachment.type !== 'Document') return
       return storage.createAttachment({
+        actorId: compactNote.attributedTo,
         statusId: compactNote.id,
         mediaType: attachment.mediaType,
         height: attachment.height,
@@ -197,6 +198,7 @@ export const createNoteFromUserInput = async ({
     addStatusToTimelines(storage, createdStatus),
     ...attachments.map((attachment) =>
       storage.createAttachment({
+        actorId: currentActor.id,
         statusId,
         mediaType: attachment.mediaType,
         url: attachment.url,

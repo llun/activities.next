@@ -15,6 +15,7 @@ export type PostBoxAttachment = AppleGalleryAttachment
 
 export interface AttachmentData {
   id: string
+  actorId: string
   statusId: string
   type: 'Document'
   mediaType: string

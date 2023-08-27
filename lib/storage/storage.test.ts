@@ -521,6 +521,7 @@ describe('Storage', () => {
           cc: []
         })
         const attachment = await storage.createAttachment({
+          actorId: TEST_ID,
           statusId: id,
           mediaType: 'image/png',
           url: 'https://via.placeholder.com/150',

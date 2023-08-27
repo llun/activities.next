@@ -1235,6 +1235,7 @@ export class FirestoreStorage implements Storage {
 
   @Trace('db')
   async createAttachment({
+    actorId,
     statusId,
     mediaType,
     url,
@@ -1246,6 +1247,7 @@ export class FirestoreStorage implements Storage {
     const id = crypto.randomUUID()
     const data: AttachmentData = {
       id,
+      actorId,
       statusId,
       type: 'Document',
       mediaType,

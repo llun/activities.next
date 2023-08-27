@@ -1259,6 +1259,7 @@ export class SqlStorage implements Storage {
   }
 
   async createAttachment({
+    actorId,
     statusId,
     mediaType,
     url,
@@ -1269,6 +1270,7 @@ export class SqlStorage implements Storage {
     const currentTime = Date.now()
     const data: AttachmentData = {
       id: crypto.randomUUID(),
+      actorId,
       statusId,
       type: 'Document',
       mediaType,
