@@ -16,7 +16,7 @@ interface Props {
 
 export const TimelineTabs: FC<Props> = ({ currentTab, tabs, onClickTab }) => {
   return (
-    <ul className="nav nav-tabs">
+    <ul className={cn('nav', 'nav-tabs', 'mt-4')}>
       {tabs.map((tab) => (
         <li key={tab.name} className="nav-item">
           <a
