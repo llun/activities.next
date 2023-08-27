@@ -162,6 +162,7 @@ export class Status {
 
       attachments: attachments.map((attachment) => ({
         id: attachment.url,
+        actorId: note.attributedTo,
         statusId: note.id,
         type: 'Document',
         mediaType: attachment.mediaType,
