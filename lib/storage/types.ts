@@ -1,4 +1,3 @@
-import { Attachment } from '../models/attachment'
 import { Status } from '../models/status'
 import { Tag } from '../models/tag'
 import { Timeline } from '../timelines/types'
@@ -18,18 +17,6 @@ export type CreateTimelineStatusParams = {
   timeline: Timeline
   actorId: string
   status: Status
-}
-
-export type CreateAttachmentParams = {
-  statusId: string
-  mediaType: string
-  url: string
-  width?: number
-  height?: number
-  name?: string
-}
-export type GetAttachmentsParams = {
-  statusId: string
 }
 
 export type TagType = 'emoji' | 'mention'
@@ -52,9 +39,6 @@ export interface Storage
     StatusStorage {
   getTimeline(params: GetTimelineParams): Promise<Status[]>
   createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
-
-  createAttachment(params: CreateAttachmentParams): Promise<Attachment>
-  getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
 
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>

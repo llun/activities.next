@@ -1,3 +1,5 @@
+import { Attachment } from '../../models/attachment'
+
 export enum MediaStorageType {
   LocalFile = 'fs',
   ObjectStorage = 'object'
@@ -41,6 +43,21 @@ export interface Media extends BaseMedia {
 
 export type CreateMediaParams = BaseMedia
 
+export type CreateAttachmentParams = {
+  statusId: string
+  mediaType: string
+  url: string
+  width?: number
+  height?: number
+  name?: string
+}
+export type GetAttachmentsParams = {
+  statusId: string
+}
+
 export interface MediaStorage {
   createMedia(params: CreateMediaParams): Promise<Media | null>
+
+  createAttachment(params: CreateAttachmentParams): Promise<Attachment>
+  getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
 }
