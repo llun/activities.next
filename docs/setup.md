@@ -48,6 +48,7 @@ Add below indexes into Firestore indexes.
 - Collection group `accountProviders`, `provider` Ascending, `providerAccountId` Ascending
 - Exemptions collection group `sessions`, `token` Ascending
 - Exemptions collection group `timeline`, `statusId` Ascending
+- Exemptions collection group `attachments`, `actorId` Descending
 
 then go to `Service accounts` to create a private key for SDK access.
 
