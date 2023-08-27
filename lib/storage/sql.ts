@@ -66,6 +66,7 @@ import {
 import {
   CreateAttachmentParams,
   CreateMediaParams,
+  GetAttachmentsForActorParams,
   GetAttachmentsParams
 } from './types/media'
 import {
@@ -1289,6 +1290,16 @@ export class SqlStorage implements Storage {
     const data = await this.database<AttachmentData>('attachments').where(
       'statusId',
       statusId
+    )
+    return data.map((item) => new Attachment(item))
+  }
+
+  async getAttachmentsForActor({
+    actorId
+  }: GetAttachmentsForActorParams): Promise<Attachment[]> {
+    const data = await this.database<AttachmentData>('attachments').where(
+      'actorId',
+      actorId
     )
     return data.map((item) => new Attachment(item))
   }

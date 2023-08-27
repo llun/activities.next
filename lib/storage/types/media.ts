@@ -55,10 +55,16 @@ export type CreateAttachmentParams = {
 export type GetAttachmentsParams = {
   statusId: string
 }
+export type GetAttachmentsForActorParams = {
+  actorId: string
+}
 
 export interface MediaStorage {
   createMedia(params: CreateMediaParams): Promise<Media | null>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
+  getAttachmentsForActor(
+    params: GetAttachmentsForActorParams
+  ): Promise<Attachment[]>
 }

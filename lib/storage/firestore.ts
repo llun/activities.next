@@ -67,6 +67,7 @@ import {
 import {
   CreateAttachmentParams,
   CreateMediaParams,
+  GetAttachmentsForActorParams,
   GetAttachmentsParams,
   Media
 } from './types/media'
@@ -1271,6 +1272,19 @@ export class FirestoreStorage implements Storage {
       .collection(`statuses/${FirestoreStorage.urlToId(statusId)}/attachments`)
       .get()
     return snapshot.docs.map(
+      (item) => new Attachment(item.data() as AttachmentData)
+    )
+  }
+
+  @Trace('db')
+  async getAttachmentsForActor({
+    actorId
+  }: GetAttachmentsForActorParams): Promise<Attachment[]> {
+    const attachments = await this.db
+      .collectionGroup('attachments')
+      .where('actorId', '==', actorId)
+      .get()
+    return attachments.docs.map(
       (item) => new Attachment(item.data() as AttachmentData)
     )
   }
