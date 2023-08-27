@@ -19,40 +19,11 @@ import { Tag, TagData } from '../models/tag'
 import { Timeline } from '../timelines/types'
 import { Trace } from '../trace'
 import {
-  CreateActorParams,
-  CreateAnnounceParams,
-  CreateAttachmentParams,
-  CreateFollowParams,
-  CreateNoteParams,
-  CreatePollParams,
   CreateTagParams,
   CreateTimelineStatusParams,
-  DeleteActorParams,
-  DeleteStatusParams,
-  GetAcceptedOrRequestedFollowParams,
-  GetActorFollowersCountParams,
-  GetActorFollowingCountParams,
-  GetActorFromEmailParams,
-  GetActorFromIdParams,
-  GetActorFromUsernameParams,
-  GetActorStatusesCountParams,
-  GetActorStatusesParams,
-  GetAttachmentsParams,
-  GetFollowFromIdParams,
-  GetFollowersInboxParams,
-  GetLocalActorsFromFollowerUrlParams,
-  GetLocalFollowersForActorIdParams,
-  GetStatusParams,
-  GetStatusRepliesParams,
   GetTagsParams,
   GetTimelineParams,
-  HasActorAnnouncedStatusParams,
-  IsCurrentActorFollowingParams,
-  Storage,
-  UpdateActorParams,
-  UpdateFollowStatusParams,
-  UpdateNoteParams,
-  UpdatePollParams
+  Storage
 } from './types'
 import {
   CreateAccountParams,
@@ -69,11 +40,49 @@ import {
   VerifyAccountParams
 } from './types/acount'
 import {
+  CreateActorParams,
+  DeleteActorParams,
+  GetActorFollowersCountParams,
+  GetActorFollowingCountParams,
+  GetActorFromEmailParams,
+  GetActorFromIdParams,
+  GetActorFromUsernameParams,
+  IsCurrentActorFollowingParams,
+  UpdateActorParams
+} from './types/actor'
+import {
+  CreateFollowParams,
+  GetAcceptedOrRequestedFollowParams,
+  GetFollowFromIdParams,
+  GetFollowersInboxParams,
+  GetLocalActorsFromFollowerUrlParams,
+  GetLocalFollowersForActorIdParams,
+  UpdateFollowStatusParams
+} from './types/follower'
+import {
   CreateLikeParams,
   DeleteLikeParams,
   GetLikeCountParams
 } from './types/like'
-import { CreateMediaParams, Media } from './types/media'
+import {
+  CreateAttachmentParams,
+  CreateMediaParams,
+  GetAttachmentsParams,
+  Media
+} from './types/media'
+import {
+  CreateAnnounceParams,
+  CreateNoteParams,
+  CreatePollParams,
+  DeleteStatusParams,
+  GetActorStatusesCountParams,
+  GetActorStatusesParams,
+  GetStatusParams,
+  GetStatusRepliesParams,
+  HasActorAnnouncedStatusParams,
+  UpdateNoteParams,
+  UpdatePollParams
+} from './types/status'
 
 export interface FirestoreConfig extends Settings {
   type: 'firebase' | 'firestore'
