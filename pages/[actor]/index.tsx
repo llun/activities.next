@@ -11,6 +11,7 @@ import {
   getPublicProfileFromHandle
 } from '../../lib/activities'
 import { isFollowing } from '../../lib/client'
+import { ActorAttachments } from '../../lib/components/ActorAttachments'
 import { ActorTab, ActorTabs } from '../../lib/components/ActorTab'
 import { FollowAction } from '../../lib/components/FollowAction'
 import { Header } from '../../lib/components/Header'
@@ -89,7 +90,12 @@ const Page: NextPage<Props> = ({
             }}
           />
         )}
-        <Posts currentTime={new Date(serverTime)} statuses={statuses} />
+        {currentTab === ActorTab.Posts && (
+          <Posts currentTime={new Date(serverTime)} statuses={statuses} />
+        )}
+        {currentTab === ActorTab.Medias && (
+          <ActorAttachments attachments={attachments} />
+        )}
       </section>
     </main>
   )
