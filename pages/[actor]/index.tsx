@@ -11,11 +11,13 @@ import {
   getPublicProfileFromHandle
 } from '../../lib/activities'
 import { isFollowing } from '../../lib/client'
+import { ActorTab, ActorTabs } from '../../lib/components/ActorTab'
 import { FollowAction } from '../../lib/components/FollowAction'
 import { Header } from '../../lib/components/Header'
 import { Posts } from '../../lib/components/Posts/Posts'
 import { Profile } from '../../lib/components/Profile'
 import { headerHost } from '../../lib/guard'
+import { AttachmentData } from '../../lib/models/attachment'
 import { StatusData } from '../../lib/models/status'
 import { getFirstValueFromParsedQuery } from '../../lib/query'
 import { getStorage } from '../../lib/storage'
@@ -24,13 +26,20 @@ import styles from './index.module.scss'
 interface Props {
   person: PublicProfile
   statuses: StatusData[]
+  attachments: AttachmentData[]
   serverTime: number
 }
 
-const Page: NextPage<Props> = ({ person, statuses, serverTime }) => {
+const Page: NextPage<Props> = ({
+  person,
+  statuses,
+  attachments,
+  serverTime
+}) => {
   const { data: session } = useSession()
   const [followingStatus, setFollowingStatus] = useState<boolean | undefined>()
   const isLoggedIn = Boolean(session?.user?.email)
+  const [currentTab, setCurrentTab] = useState<ActorTab>(ActorTab.Posts)
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -72,6 +81,14 @@ const Page: NextPage<Props> = ({ person, statuses, serverTime }) => {
             />
           </div>
         </section>
+        {attachments.length > 0 && (
+          <ActorTabs
+            currentTab={currentTab}
+            onClickTab={async (tab) => {
+              setCurrentTab(tab)
+            }}
+          />
+        )}
         <Posts currentTime={new Date(serverTime)} statuses={statuses} />
       </section>
     </main>
@@ -109,11 +126,16 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
     return { notFound: true }
   }
 
-  const statuses = await getActorPosts({ postsUrl: person.urls?.posts })
+  const [statuses, attachments] = await Promise.all([
+    getActorPosts({ postsUrl: person.urls?.posts }),
+    storage.getAttachmentsForActor({ actorId: person.id })
+  ])
+
   return {
     props: {
       person,
       statuses,
+      attachments: attachments.map((item) => item.toJson()),
       serverTime: Date.now()
     }
   }
