@@ -16,7 +16,7 @@ export const ActorAttachments: FC<Props> = ({ attachments }) => {
     setModalMedia(attachment)
 
   return (
-    <div className={styles.medias}>
+    <div className={cn(styles.medias, 'mt-2')}>
       {attachments.map((attachment) => (
         <Media
           className={styles.media}
