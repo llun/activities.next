@@ -1284,7 +1284,7 @@ export class FirestoreStorage implements Storage {
       .collectionGroup('attachments')
       .where('actorId', '==', actorId)
       .orderBy('createdAt', 'desc')
-      .limitToLast(20)
+      .limitToLast(30)
       .get()
     return attachments.docs.map(
       (item) => new Attachment(item.data() as AttachmentData)

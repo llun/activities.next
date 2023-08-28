@@ -1300,7 +1300,7 @@ export class SqlStorage implements Storage {
     const data = await this.database<AttachmentData>('attachments')
       .where('actorId', actorId)
       .orderBy('createdAt')
-      .limit(20)
+      .limit(30)
     return data.map((item) => new Attachment(item))
   }
 
