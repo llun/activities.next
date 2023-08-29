@@ -20,6 +20,7 @@
 *.pem
 .idea
 uploads
+scripts/*.js
 
 # debug
 npm-debug.log*
