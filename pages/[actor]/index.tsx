@@ -91,10 +91,14 @@ const Page: NextPage<Props> = ({
           />
         )}
         {currentTab === ActorTab.Posts && (
-          <Posts currentTime={new Date(serverTime)} statuses={statuses} />
+          <Posts
+            className={attachments.length > 0 ? 'mt-2' : 'mt-4'}
+            currentTime={new Date(serverTime)}
+            statuses={statuses}
+          />
         )}
         {currentTab === ActorTab.Medias && (
-          <ActorAttachments attachments={attachments} />
+          <ActorAttachments className="mt-2" attachments={attachments} />
         )}
       </section>
     </main>

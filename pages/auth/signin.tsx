@@ -96,6 +96,7 @@ export default function SignIn({
             <div>
               <h2 className="mb-4">Local public timeline</h2>
               <Posts
+                className="mt-4"
                 currentTime={new Date(currentServerTime)}
                 statuses={statuses}
               />

@@ -34,7 +34,11 @@ const Page: NextPage<Props> = ({ status, replies, serverTime, previouses }) => {
       </Head>
       <Header session={session} />
       <section className="container pt-4">
-        <Posts currentTime={new Date(serverTime)} statuses={previouses} />
+        <Posts
+          className="mt-4"
+          currentTime={new Date(serverTime)}
+          statuses={previouses}
+        />
         <section className={styles.highlight}>
           <Post
             currentTime={new Date(serverTime)}
@@ -44,7 +48,11 @@ const Page: NextPage<Props> = ({ status, replies, serverTime, previouses }) => {
             }
           />
         </section>
-        <Posts currentTime={new Date(serverTime)} statuses={replies} />
+        <Posts
+          className="mt-4"
+          currentTime={new Date(serverTime)}
+          statuses={replies}
+        />
       </section>
       <Modal
         isOpen={Boolean(modalMedia)}

@@ -171,6 +171,7 @@ const Page: NextPage<Props> = ({
               }}
             />
             <Posts
+              className="mt-4"
               currentTime={new Date(currentTime)}
               statuses={currentStatuses}
               currentActor={profile}

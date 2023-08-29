@@ -7,16 +7,17 @@ import { Modal } from './Modal'
 import { Media } from './Posts/Media'
 
 interface Props {
+  className?: string
   attachments: AttachmentData[]
 }
 
-export const ActorAttachments: FC<Props> = ({ attachments }) => {
+export const ActorAttachments: FC<Props> = ({ className, attachments }) => {
   const [modalMedia, setModalMedia] = useState<AttachmentData>()
   const onShowAttachment = (attachment: AttachmentData) =>
     setModalMedia(attachment)
 
   return (
-    <div className={cn(styles.medias, 'mt-2')}>
+    <div className={cn(styles.medias, className)}>
       {attachments.map((attachment) => (
         <Media
           className={styles.media}
