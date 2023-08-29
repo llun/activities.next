@@ -15,24 +15,24 @@ export const Actor: FC<Props> = ({ actor, actorId, className }) => {
   if (actor) {
     return (
       <div className={className}>
-        <span
-          className={cn(
-            'd-inline-block',
-            'text-truncate',
-            'align-middle',
-            'overflow-hidden',
-            styles.handle
-          )}
-        >
-          <strong>@{actor.username}</strong>
-          <small>@{actor.domain}</small>
-        </span>
         <Link
           prefetch={false}
-          className="ms-2 align-middle"
           href={`/${ActorModel.getMentionFromProfile(actor, true)}`}
+          target="_blank"
         >
-          <i className="bi bi-person-badge"></i>
+          <span
+            className={cn(
+              'd-inline-block',
+              'text-truncate',
+              'align-middle',
+              'overflow-hidden',
+              styles.handle
+            )}
+          >
+            <strong>@{actor.username}</strong>
+            <small>@{actor.domain}</small>
+          </span>
+          <i className="ms-2 align-middle bi bi-person-badge"></i>
         </Link>
       </div>
     )
