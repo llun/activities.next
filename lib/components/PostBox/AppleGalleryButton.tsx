@@ -61,7 +61,7 @@ export const AppleGallerButton: FC<Props> = ({ profile, onSelectMedia }) => {
       <Modal isOpen={showGallery} onRequestClose={() => setShowGallery(false)}>
         <div className={styles.box}>
           <div className={styles.gallery}>
-            {medias.map((media) => {
+            {medias.slice(0, 20).map((media) => {
               const key =
                 media.type === 'video'
                   ? VideoPosterDerivative
