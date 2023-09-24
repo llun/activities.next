@@ -9,7 +9,7 @@ const handler = ApiGuard(async (req, res, context) => {
         actorId: currentActor.id,
         ...req.body
       })
-      res.status(301).redirect('/profile')
+      res.redirect(302, '/settings')
       return
     }
     default: {
