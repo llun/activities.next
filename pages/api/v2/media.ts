@@ -60,7 +60,7 @@ const handler = ApiTrace(
             ...Object.keys(fields).reduce((out, field) => {
               const values = fields[field]
               const value = (Array.isArray(values) ? values : [values])
-                .filter((item) => item.length > 0)
+                .filter((item) => item && item.length > 0)
                 .shift()
               return {
                 ...out,
@@ -70,7 +70,7 @@ const handler = ApiTrace(
             ...Object.keys(files).reduce((out, file) => {
               const values = files[file]
               const value = (Array.isArray(values) ? values : [values])
-                .filter((item) => item.size > 0)
+                .filter((item) => item && item.size > 0)
                 .shift()
               return {
                 ...out,
