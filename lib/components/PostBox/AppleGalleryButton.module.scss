@@ -11,6 +11,12 @@
   overflow: auto;
   overscroll-behavior: contain;
   max-height: 100%;
+
+  @media (max-width: 1025px) {
+    & {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
 }
 
 .media {
