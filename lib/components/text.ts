@@ -78,26 +78,34 @@ export const convertTextContent = (text: string, tags: TagData[]) => {
     .value()
 }
 
-export const cleanClassName = (text: string) =>
-  parse(text ?? '', {
-    replace: (domNode) => {
-      const node = domNode as replacingNode
-      if (node.name === 'span') {
-        if (node.attribs?.class === 'invisible') {
-          node.attribs.class = styles.invisible
+export const cleanClassName = (text: string) => {
+  try {
+    return parse(text ?? '', {
+      replace: (domNode) => {
+        const node = domNode as replacingNode
+        if (node.name === 'span') {
+          if (node.attribs?.class === 'invisible') {
+            node.attribs.class = styles.invisible
+          }
+          if (node.attribs?.class === 'ellipsis') {
+            node.attribs.class = styles.ellipsis
+          }
         }
-        if (node.attribs?.class === 'ellipsis') {
-          node.attribs.class = styles.ellipsis
+        if (node.attribs && node.name === 'a') {
+          node.attribs.target = '_blank'
+          return node
         }
-      }
-      if (node.attribs && node.name === 'a') {
-        node.attribs.target = '_blank'
-        return node
-      }
-      if (node.name === 'img' && node.attribs?.class === 'emoji') {
-        node.attribs.class = styles.emoji
-      }
+        if (node.name === 'img' && node.attribs?.class === 'emoji') {
+          node.attribs.class = styles.emoji
+        }
 
-      return domNode
-    }
-  })
+        return domNode
+      }
+    })
+  } catch (error: unknown) {
+    console.error(`Failed to parse text. "${text}"`)
+    console.error((error as Error).message)
+    console.error((error as Error).stack)
+    throw error
+  }
+}
