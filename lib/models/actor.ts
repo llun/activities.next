@@ -97,15 +97,20 @@ export class Actor {
   }
 
   static getMentionFromId(actorId: string, withDomain = false): string {
-    // This method assume that all actor id has a username in the end,
-    // however this might not be true especially for Misskey.io that use
-    // random id in the actor id instead of username.
-    const id = actorId.split('/').pop()
-    if (!withDomain) {
-      return `@${id}`
-    }
+    try {
+      // This method assume that all actor id has a username in the end,
+      // however this might not be true especially for Misskey.io that use
+      // random id in the actor id instead of username.
+      const id = actorId.split('/').pop()
+      if (!withDomain) {
+        return `@${id}`
+      }
 
-    return `@${id}${Actor.getMentionHostnameFromId(actorId)}`
+      return `@${id}${Actor.getMentionHostnameFromId(actorId)}`
+    } catch {
+      console.error(`Fail to split the actor id, "${actorId}"`)
+      return actorId
+    }
   }
 
   static getMentionFromProfile(
