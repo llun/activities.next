@@ -79,7 +79,7 @@ export const convertTextContent = (text: string, tags: TagData[]) => {
 }
 
 export const cleanClassName = (text: string) =>
-  parse(text, {
+  parse(text ?? '', {
     replace: (domNode) => {
       const node = domNode as replacingNode
       if (node.name === 'span') {
