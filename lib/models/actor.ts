@@ -108,7 +108,7 @@ export class Actor {
 
       return `@${id}${Actor.getMentionHostnameFromId(actorId)}`
     } catch {
-      console.error(`Fail to split the actor id, "${actorId}"`)
+      console.error(`Fail to split the actor id, (${JSON.stringify(actorId)})`)
       return actorId
     }
   }
