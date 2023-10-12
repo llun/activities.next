@@ -211,16 +211,20 @@ export const getPublicProfile = async ({
         ? (JSON.parse(res.body) as Promise<OrderedCollection>)
         : null
     ),
-    request({ url: person.following }).then((res) =>
-      res.statusCode === 200
-        ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-        : null
-    ),
-    request({ url: person.outbox }).then((res) =>
-      res.statusCode === 200
-        ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-        : null
-    )
+    person.following
+      ? request({ url: person.following }).then((res) =>
+          res.statusCode === 200
+            ? (JSON.parse(res.body) as Promise<OrderedCollection>)
+            : null
+        )
+      : null,
+    person.outbox
+      ? request({ url: person.outbox }).then((res) =>
+          res.statusCode === 200
+            ? (JSON.parse(res.body) as Promise<OrderedCollection>)
+            : null
+        )
+      : null
   ])
 
   span?.finish()
@@ -240,10 +244,10 @@ export const getPublicProfile = async ({
     totalPosts: posts?.totalItems || 0,
 
     endpoints: {
-      following: person.following,
+      following: person?.following ?? null,
       followers: person.followers,
       inbox: person.inbox,
-      outbox: person.outbox,
+      outbox: person?.outbox ?? null,
       sharedInbox: person.endpoints?.sharedInbox ?? person.outbox
     },
 
