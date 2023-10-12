@@ -34,7 +34,7 @@ export const Profile: FC<Props> = ({
         @{username}
       </Link>
     </h4>
-    {(totalPosts || followingCount || followersCount) && (
+    {totalPosts || followingCount || followersCount ? (
       <p>
         <span className="d-inline-block text-nowrap">{totalPosts} Posts</span>
         <span className="d-inline-block ms-2 text-nowrap">
@@ -44,9 +44,9 @@ export const Profile: FC<Props> = ({
           {followersCount} Followers
         </span>
       </p>
-    )}
-    {Number.isInteger(createdAt) && (
+    ) : null}
+    {Number.isInteger(createdAt) ? (
       <p>Joined {format(createdAt, 'd MMM yyyy')}</p>
-    )}
+    ) : null}
   </div>
 )
