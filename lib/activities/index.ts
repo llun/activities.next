@@ -206,11 +206,13 @@ export const getPublicProfile = async ({
   }
 
   const [followers, following, posts] = await Promise.all([
-    request({ url: person.followers }).then((res) =>
-      res.statusCode === 200
-        ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-        : null
-    ),
+    person.followers
+      ? request({ url: person.followers }).then((res) =>
+          res.statusCode === 200
+            ? (JSON.parse(res.body) as Promise<OrderedCollection>)
+            : null
+        )
+      : null,
     person.following
       ? request({ url: person.following }).then((res) =>
           res.statusCode === 200
@@ -233,7 +235,7 @@ export const getPublicProfile = async ({
     username: person.preferredUsername,
     domain: new URL(person.id).hostname,
     ...(person.icon ? { icon: person.icon } : null),
-    url: person.url,
+    url: person.url ?? person.id,
     name: person.name || '',
     summary: person.summary || '',
 
@@ -245,7 +247,7 @@ export const getPublicProfile = async ({
 
     endpoints: {
       following: person?.following ?? null,
-      followers: person.followers,
+      followers: person?.followers ?? null,
       inbox: person.inbox,
       outbox: person?.outbox ?? null,
       sharedInbox: person.endpoints?.sharedInbox ?? person.outbox
