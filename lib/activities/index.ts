@@ -310,8 +310,10 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
   }
 
   const json: OrderedCollectionPage = JSON.parse(body)
+  const items = json.orderedItems || []
+
   const statusData = await Promise.all(
-    json.orderedItems.map(async (item) => {
+    items.map(async (item) => {
       if (item.type === AnnounceAction) {
         const note = await getStatus({ statusId: item.object })
         if (!note) return null

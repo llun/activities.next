@@ -8,5 +8,5 @@ export interface OrderedCollectionPage extends ContextEntity {
   next: string
   prev?: string
   partOf?: string
-  orderedItems: (CreateStatus | AnnounceStatus)[]
+  orderedItems?: (CreateStatus | AnnounceStatus)[]
 }
