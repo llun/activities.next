@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { acceptContainsContentTypes } from './lib/accept'
+import { ACTIVITIES_HOST, FORWARDED_HOST } from './lib/constants'
 
 export const config = {
   matcher: ['/(@.*)']
@@ -46,7 +47,12 @@ export async function middleware(request: NextRequest) {
         .reduce((count, char) => (char === '@' ? count + 1 : count), 0)
       if (totalAt === 2) return NextResponse.next()
 
-      const host = request.headers.get('host') ?? request.nextUrl.host
+      const headers = request.headers
+      const host =
+        headers.get(ACTIVITIES_HOST) ??
+        headers.get(FORWARDED_HOST) ??
+        headers.get('host') ??
+        request.nextUrl.host
       const pathItems = pathname.split('/').slice(1)
       pathItems[0] = `${pathItems[0]}@${host}`
 

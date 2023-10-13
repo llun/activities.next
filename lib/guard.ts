@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth/next'
 
 import { authOptions } from '../pages/api/auth/[...nextauth]'
 import { getPublicProfile } from './activities'
+import { ACTIVITIES_HOST, FORWARDED_HOST } from './constants'
 import { ERROR_400, ERROR_500 } from './errors'
 import { Actor } from './models/actor'
 import { parse, verify } from './signature'
@@ -15,9 +16,6 @@ import { Storage } from './storage/types'
 import { getSpan } from './trace'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
-
-const ACTIVITIES_HOST = 'x-activity-next-host'
-const FORWARDED_HOST = 'x-forwarded-host'
 
 async function getSenderPublicKey(storage: Storage, actorId: string) {
   const span = getSpan('guard', 'getSenderPublicKey', { actorId })
