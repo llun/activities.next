@@ -7,53 +7,28 @@ export const config = {
 }
 
 export async function middleware(request: NextRequest) {
-  // Redirect actor with no host
-  if (request.nextUrl.pathname.startsWith('/@')) {
-    const pathname = request.nextUrl.pathname
-    const totalAt = pathname
-      .split('')
-      .reduce((count, char) => (char === '@' ? count + 1 : count), 0)
-    if (totalAt === 2) return NextResponse.next()
-
-    const host = request.headers.get('host') ?? request.nextUrl.host
-    const pathItems = pathname.split('/').slice(1)
-    pathItems[0] = `${pathItems[0]}@${host}`
-
-    const cloneUrl = request.nextUrl.clone()
-    cloneUrl.pathname = `/${pathItems.join('/')}`
-    return NextResponse.rewrite(cloneUrl)
-  }
-
   if (request.method === 'GET') {
     const pathname = request.nextUrl.pathname
     const acceptValue = request.headers.get('Accept')
 
-    // Actor route
-    if (/^\/@[\w\d]+$/.test(pathname) && acceptValue) {
-      if (
-        acceptContainsContentTypes(acceptValue, [
-          'application/activity+json',
-          'application/ld+json',
-          'application/json'
-        ])
-      ) {
+    if (
+      acceptValue &&
+      acceptContainsContentTypes(acceptValue, [
+        'application/activity+json',
+        'application/ld+json',
+        'application/json'
+      ])
+    ) {
+      // Actor route
+      if (/^\/@[\w\d]+$/.test(pathname)) {
         const matches = pathname.match(/^\/@(?<username>[\w\d]+)/)
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}`
         return NextResponse.rewrite(apiUrl)
       }
-      return NextResponse.next()
-    }
 
-    // Actor status route
-    if (/^\/@[\w\d]+\/[\w\d-]+$/.test(pathname) && acceptValue) {
-      if (
-        acceptContainsContentTypes(acceptValue, [
-          'application/activity+json',
-          'application/ld+json',
-          'application/json'
-        ])
-      ) {
+      // Actor status route
+      if (/^\/@[\w\d]+\/[\w\d-]+$/.test(pathname) && acceptValue) {
         const matches = pathname.match(
           /^\/@(?<username>[\w\d]+)\/(?<statusId>[\w\d-]+)/
         )
@@ -61,7 +36,23 @@ export async function middleware(request: NextRequest) {
         apiUrl.pathname = `/api/users/${matches?.groups?.username}/statuses/${matches?.groups?.statusId}`
         return NextResponse.rewrite(apiUrl)
       }
-      return NextResponse.next()
+    }
+
+    // Redirect actor with no host
+    if (request.nextUrl.pathname.startsWith('/@')) {
+      const pathname = request.nextUrl.pathname
+      const totalAt = pathname
+        .split('')
+        .reduce((count, char) => (char === '@' ? count + 1 : count), 0)
+      if (totalAt === 2) return NextResponse.next()
+
+      const host = request.headers.get('host') ?? request.nextUrl.host
+      const pathItems = pathname.split('/').slice(1)
+      pathItems[0] = `${pathItems[0]}@${host}`
+
+      const cloneUrl = request.nextUrl.clone()
+      cloneUrl.pathname = `/${pathItems.join('/')}`
+      return NextResponse.rewrite(cloneUrl)
     }
 
     return NextResponse.next()
