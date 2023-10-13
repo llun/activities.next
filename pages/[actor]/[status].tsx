@@ -1,5 +1,5 @@
 /* eslint-disable camelcase */
-import { GetServerSideProps, NextPage } from 'next'
+import { GetStaticPaths, GetStaticProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import { useState } from 'react'
@@ -9,7 +9,6 @@ import { Modal } from '../../lib/components/Modal'
 import { Media } from '../../lib/components/Posts/Media'
 import { Post } from '../../lib/components/Posts/Post'
 import { Posts } from '../../lib/components/Posts/Posts'
-import { headerHost } from '../../lib/guard'
 import { AttachmentData } from '../../lib/models/attachment'
 import { StatusData } from '../../lib/models/status'
 import { getFirstValueFromParsedQuery } from '../../lib/query'
@@ -69,26 +68,31 @@ type Params = {
   status: string
 }
 
-export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
-  req,
-  query
-}) => {
+export const getStaticProps: GetStaticProps<Props, Params> = async (
+  context
+) => {
+  const query = context.params
+  if (!query?.actor) return { notFound: true }
+  if (!query?.status) return { notFound: true }
+
   const storage = await getStorage()
   if (!storage) throw new Error('Storage is not available')
 
   const actor = getFirstValueFromParsedQuery(query.actor)
   const id = getFirstValueFromParsedQuery(query.status)
-  const host = getFirstValueFromParsedQuery(headerHost(req.headers))
 
-  if (!actor || !id || !host) return { notFound: true }
+  const parts = (actor as string).split('@').slice(1)
+  if (parts.length !== 2) {
+    return { notFound: true }
+  }
 
-  const statusId = `https://${host}/users/${actor.slice(1)}/statuses/${id}`
+  const statusId = `https://${parts[1]}/users/${parts[0]}/statuses/${id}`
   const [status, replies] = await Promise.all([
     storage.getStatus({ statusId, withReplies: false }),
     storage.getStatusReplies({ statusId })
   ])
   if (!status) {
-    return { notFound: true }
+    return { notFound: true, revalidate: 5 }
   }
 
   const previouses = []
@@ -116,7 +120,15 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
       previouses: previouses.reverse(),
       replies: replies.map((status) => status.toJson()),
       serverTime: Date.now()
-    }
+    },
+    revalidate: 30
+  }
+}
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  return {
+    paths: [],
+    fallback: 'blocking'
   }
 }
 
