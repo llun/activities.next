@@ -128,22 +128,25 @@ export const getStaticProps: GetStaticProps<Props, Params> = async (
   const [username, domain] = parts
   const person = await getPublicProfileFromHandle(`${username}@${domain}`, true)
   if (!person) {
-    return { notFound: true }
+    return { notFound: true, revalidate: 5 }
   }
 
-  const [statuses, attachments] = await Promise.all([
-    getActorPosts({ postsUrl: person.urls?.posts }),
-    storage.getAttachmentsForActor({ actorId: person.id })
-  ])
-
-  return {
-    props: {
-      person,
-      statuses,
-      attachments: attachments.map((item) => item.toJson()),
-      serverTime: Date.now()
-    },
-    revalidate: 30
+  try {
+    const [statuses, attachments] = await Promise.all([
+      getActorPosts({ postsUrl: person.urls?.posts }),
+      storage.getAttachmentsForActor({ actorId: person.id })
+    ])
+    return {
+      props: {
+        person,
+        statuses,
+        attachments: attachments.map((item) => item.toJson()),
+        serverTime: Date.now()
+      },
+      revalidate: 30
+    }
+  } catch {
+    return { notFound: true, revalidate: 5 }
   }
 }
 
