@@ -30,7 +30,7 @@ export const Profile: FC<Props> = ({
   <div className={cn(className, styles.profile)}>
     <h1 className="text-truncate">{name}</h1>
     <h4 className="text-truncate">
-      <Link prefetch={false} href={url} target={'_blank'}>
+      <Link prefetch={false} href={url} target="_blank">
         @{username}
       </Link>
     </h4>

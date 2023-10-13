@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
-import { GetServerSideProps, NextPage } from 'next'
+import { GetStaticPaths, GetStaticProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import { useEffect, useState } from 'react'
@@ -17,7 +17,6 @@ import { FollowAction } from '../../lib/components/FollowAction'
 import { Header } from '../../lib/components/Header'
 import { Posts } from '../../lib/components/Posts/Posts'
 import { Profile } from '../../lib/components/Profile'
-import { headerHost } from '../../lib/guard'
 import { AttachmentData } from '../../lib/models/attachment'
 import { StatusData } from '../../lib/models/status'
 import { getFirstValueFromParsedQuery } from '../../lib/query'
@@ -109,25 +108,21 @@ type Params = {
   actor: string
 }
 
-export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
-  req,
-  query
-}) => {
-  const actor = getFirstValueFromParsedQuery(query.actor)
+export const getStaticProps: GetStaticProps<Props, Params> = async (
+  context
+) => {
+  const query = context.params
+  if (!query?.actor) return { notFound: true }
+
+  const actor = getFirstValueFromParsedQuery(query?.actor)
   if (!actor) return { notFound: true }
 
   const storage = await getStorage()
   if (!storage) throw new Error('Storage is not available')
 
   const parts = (actor as string).split('@').slice(1)
-  if (parts.length < 1 || parts.length > 2) {
+  if (parts.length !== 2) {
     return { notFound: true }
-  }
-
-  if (parts.length === 1) {
-    const host = getFirstValueFromParsedQuery(headerHost(req.headers))
-    if (!host) return { notFound: true }
-    parts.push(host)
   }
 
   const [username, domain] = parts
@@ -147,7 +142,15 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
       statuses,
       attachments: attachments.map((item) => item.toJson()),
       serverTime: Date.now()
-    }
+    },
+    revalidate: 30
+  }
+}
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  return {
+    paths: [],
+    fallback: 'blocking'
   }
 }
 

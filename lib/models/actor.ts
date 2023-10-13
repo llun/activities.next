@@ -115,7 +115,7 @@ export class Actor {
 
   static getMentionFromProfile(
     profile: ActorProfile,
-    withDomain = false
+    withDomain = true
   ): string {
     if (!withDomain) {
       return `@${profile.username}`
