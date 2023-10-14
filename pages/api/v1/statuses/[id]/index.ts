@@ -1,11 +1,11 @@
 import z from 'zod'
 
-import { updateNoteFromUserInput } from '../../../../lib/actions/updateNote'
-import { errorResponse } from '../../../../lib/errors'
-import { ApiGuard } from '../../../../lib/guard'
-import { getFirstValueFromParsedQuery } from '../../../../lib/query'
-import { getISOTimeUTC } from '../../../../lib/time'
-import { ApiTrace } from '../../../../lib/trace'
+import { updateNoteFromUserInput } from '../../../../../lib/actions/updateNote'
+import { errorResponse } from '../../../../../lib/errors'
+import { ApiGuard } from '../../../../../lib/guard'
+import { getFirstValueFromParsedQuery } from '../../../../../lib/query'
+import { getISOTimeUTC } from '../../../../../lib/time'
+import { ApiTrace } from '../../../../../lib/trace'
 
 const EditNoteSchema = z.object({
   status: z.string(),
