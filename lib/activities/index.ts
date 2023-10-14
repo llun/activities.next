@@ -1,4 +1,5 @@
 import KeyvRedis from '@keyv/redis'
+import { KeyvRedisOptions } from '@keyv/redis/dist/types'
 import * as Sentry from '@sentry/nextjs'
 import crypto from 'crypto'
 import got, { Headers, Method } from 'got'
@@ -67,7 +68,9 @@ export interface RequestOptions {
 
 const getRequestCache = memoize(() => {
   if (!process.env.KV_URL) return false
-  return new KeyvRedis(process.env.KV_URL, { tls: {} })
+
+  const option = { tls: {} } as KeyvRedisOptions
+  return new KeyvRedis(process.env.KV_URL, option)
 })
 
 export const request = ({
