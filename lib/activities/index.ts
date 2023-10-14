@@ -1,6 +1,8 @@
+import KeyvRedis from '@keyv/redis'
 import * as Sentry from '@sentry/nextjs'
 import crypto from 'crypto'
 import got, { Headers, Method } from 'got'
+import { memoize } from 'lodash'
 
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -63,6 +65,11 @@ export interface RequestOptions {
   responseTimeout?: number
 }
 
+const getRequestCache = memoize(() => {
+  if (!process.env.KV_URL) return false
+  return new KeyvRedis(process.env.KV_URL, { tls: {} })
+})
+
 export const request = ({
   url,
   method = 'GET',
@@ -83,7 +90,8 @@ export const request = ({
     },
     throwHttpErrors: false,
     method,
-    body
+    body,
+    cache: getRequestCache()
   })
 }
 
