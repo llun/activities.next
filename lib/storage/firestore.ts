@@ -78,6 +78,7 @@ import {
   DeleteStatusParams,
   GetActorStatusesCountParams,
   GetActorStatusesParams,
+  GetFavouritedByParams,
   GetStatusParams,
   GetStatusRepliesParams,
   HasActorAnnouncedStatusParams,
@@ -1232,6 +1233,19 @@ export class FirestoreStorage implements Storage {
       ...statusInTimelines.docs.map((doc) => doc.ref.delete()),
       this.db.doc(`statuses/${FirestoreStorage.urlToId(statusId)}`).delete()
     ])
+  }
+
+  @Trace('db')
+  async getFavouritedBy({ statusId }: GetFavouritedByParams): Promise<Actor[]> {
+    const favouritedBySnapshot = await this.db
+      .collection(`statuses/${FirestoreStorage.urlToId(statusId)}/likes`)
+      .get()
+    const actors = await Promise.all(
+      favouritedBySnapshot.docs.map((doc) =>
+        this.getActorFromId({ id: doc.data().actorId })
+      )
+    )
+    return actors.filter((item): item is Actor => Boolean(item))
   }
 
   @Trace('db')

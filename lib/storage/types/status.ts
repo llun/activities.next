@@ -1,3 +1,4 @@
+import { Actor } from '../../models/actor'
 import { Status } from '../../models/status'
 
 interface BaseCreateStatusParams {
@@ -15,9 +16,13 @@ interface BaseCreateStatusParams {
 }
 
 export type CreateNoteParams = BaseCreateStatusParams
-export type UpdateNoteParams = Pick<CreateNoteParams, 'text' | 'summary'> & {
+
+type BaseStatusParams = {
   statusId: string
 }
+
+export type UpdateNoteParams = Pick<CreateNoteParams, 'text' | 'summary'> &
+  BaseStatusParams
 
 export type CreateAnnounceParams = Pick<
   BaseCreateStatusParams,
@@ -30,20 +35,20 @@ export type CreatePollParams = BaseCreateStatusParams & {
   choices: string[]
   endAt: number
 }
-export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> & {
-  statusId: string
-  choices: { title: string; totalVotes: number }[]
-}
+export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> &
+  BaseStatusParams & {
+    choices: { title: string; totalVotes: number }[]
+  }
 
-export type GetStatusParams = { statusId: string; withReplies?: boolean }
-export type GetStatusRepliesParams = { statusId: string }
+export type GetStatusParams = BaseStatusParams & { withReplies?: boolean }
+export type GetStatusRepliesParams = BaseStatusParams
 export type GetActorStatusesCountParams = { actorId: string }
 export type GetActorStatusesParams = { actorId: string }
-export type DeleteStatusParams = { statusId: string }
-export type HasActorAnnouncedStatusParams = {
-  statusId: string
+export type DeleteStatusParams = BaseStatusParams
+export type HasActorAnnouncedStatusParams = BaseStatusParams & {
   actorId?: string
 }
+export type GetFavouritedByParams = BaseStatusParams
 
 export interface StatusStorage {
   createNote(params: CreateNoteParams): Promise<Status>
@@ -63,4 +68,6 @@ export interface StatusStorage {
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
   deleteStatus(params: DeleteStatusParams): Promise<void>
+
+  getFavouritedBy(params: GetFavouritedByParams): Promise<Actor[]>
 }

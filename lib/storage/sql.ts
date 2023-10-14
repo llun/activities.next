@@ -76,6 +76,7 @@ import {
   DeleteStatusParams,
   GetActorStatusesCountParams,
   GetActorStatusesParams,
+  GetFavouritedByParams,
   GetStatusParams,
   GetStatusRepliesParams,
   HasActorAnnouncedStatusParams,
@@ -1257,6 +1258,14 @@ export class SqlStorage implements Storage {
         trx('timelines').where('statusId', statusId).delete()
       ])
     })
+  }
+
+  async getFavouritedBy({ statusId }: GetFavouritedByParams): Promise<Actor[]> {
+    const result = await this.database('likes').where({ statusId })
+    const actors = await Promise.all(
+      result.map((item) => this.getActorFromId({ id: item.actorId }))
+    )
+    return actors.filter((actor): actor is Actor => Boolean(actor))
   }
 
   async createAttachment({
