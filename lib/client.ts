@@ -106,10 +106,11 @@ export const createPoll = async ({
   })
 }
 
-export interface DeleteStatusParams {
+export interface DefaultStatusParams {
   statusId: string
 }
-export const deleteStatus = async ({ statusId }: DeleteStatusParams) => {
+
+export const deleteStatus = async ({ statusId }: DefaultStatusParams) => {
   const response = await fetch(`/api/v1/accounts/outbox`, {
     method: 'DELETE',
     headers: {
@@ -127,10 +128,7 @@ export const deleteStatus = async ({ statusId }: DeleteStatusParams) => {
   return true
 }
 
-export interface RepostStatusParams {
-  statusId: string
-}
-export const repostStatus = async ({ statusId }: RepostStatusParams) => {
+export const repostStatus = async ({ statusId }: DefaultStatusParams) => {
   await fetch('/api/v1/accounts/repost', {
     method: 'POST',
     headers: {
@@ -140,12 +138,7 @@ export const repostStatus = async ({ statusId }: RepostStatusParams) => {
   })
 }
 
-export interface UndoRepostStatusParams {
-  statusId: string
-}
-export const undoRepostStatus = async ({
-  statusId
-}: UndoRepostStatusParams) => {
+export const undoRepostStatus = async ({ statusId }: DefaultStatusParams) => {
   await fetch('/api/v1/accounts/repost', {
     method: 'DELETE',
     headers: {
@@ -155,10 +148,7 @@ export const undoRepostStatus = async ({
   })
 }
 
-interface LikeStatusParams {
-  statusId: string
-}
-export const likeStatus = async ({ statusId }: LikeStatusParams) => {
+export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
   await fetch('/api/v1/accounts/like', {
     method: 'POST',
     headers: {
@@ -168,10 +158,21 @@ export const likeStatus = async ({ statusId }: LikeStatusParams) => {
   })
 }
 
-interface UndoLikeStatusParams {
-  statusId: string
+interface DefaultUUIDStatusParams {
+  uuid: string
 }
-export const undoLikeStatus = async ({ statusId }: UndoLikeStatusParams) => {
+
+export const getStatusFavouritedBy = async ({
+  uuid
+}: DefaultUUIDStatusParams) => {
+  const response = await fetch(`/api/v1/statuses/${uuid}/favourited_by`, {
+    headers: { 'Content-Type': 'application/json' }
+  })
+  if (response.status !== 200) return []
+  return response.json()
+}
+
+export const undoLikeStatus = async ({ statusId }: DefaultStatusParams) => {
   await fetch('/api/v1/accounts/like', {
     method: 'DELETE',
     headers: {
