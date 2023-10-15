@@ -28,6 +28,7 @@ export interface Config {
   }
   email?: SMTPConfig | LambdaConfig | ResendConfig
   mediaStorage?: MediaStorageConfig
+  redis?: { url: string; tls?: boolean }
 }
 
 export const getConfig = memoize((): Config => {
@@ -47,6 +48,14 @@ export const getConfig = memoize((): Config => {
       auth: JSON.parse(process.env.ACTIVITIES_AUTH || '{}'),
       ...(process.env.ACTIVITIES_EMAIL
         ? { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
+        : null),
+      ...(process.env.ACTIVITIES_REDIS_URL
+        ? {
+            redis: {
+              url: JSON.parse(process.env.ACTIVITIES_REDIS_URL),
+              tls: Boolean(process.env.ACTIVITIES_REDIS_TLS)
+            }
+          }
         : null)
     }
   }
