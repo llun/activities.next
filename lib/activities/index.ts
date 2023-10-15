@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import got, { Headers, Method } from 'got'
 import { memoize } from 'lodash'
 
+import { getConfig } from '../config'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
@@ -67,10 +68,19 @@ export interface RequestOptions {
 }
 
 const getRequestCache = memoize(() => {
-  if (!process.env.KV_URL) return false
+  const config = getConfig()
+  if (config.redis) {
+    const { url, tls } = config.redis
+    const option = tls ? ({ tls: {} } as KeyvRedisOptions) : undefined
+    return new KeyvRedis(url, option)
+  }
 
-  const option = { tls: {} } as KeyvRedisOptions
-  return new KeyvRedis(process.env.KV_URL, option)
+  if (process.env.KV_URL) {
+    const option = { tls: {} } as KeyvRedisOptions
+    return new KeyvRedis(process.env.KV_URL, option)
+  }
+
+  return false
 })
 
 export const request = ({
