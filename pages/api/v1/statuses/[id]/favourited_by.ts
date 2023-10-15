@@ -5,8 +5,9 @@ import { ApiTrace } from '../../../../../lib/trace'
 
 const handler = ApiTrace(
   'v1/statuses/[id]/favourited_by',
-  ApiGuard(async (req, res) => {
+  ApiGuard(async (req, res, context) => {
     const { id } = req.query
+    const { storage, currentActor } = context
     switch (req.method) {
       case 'GET': {
         const uuid = getFirstValueFromParsedQuery(id)
@@ -14,7 +15,9 @@ const handler = ApiTrace(
           return errorResponse(res, 400)
         }
 
-        res.status(200).json([])
+        const statusId = `${currentActor.id}/statuses/${uuid}`
+        const actors = await storage.getFavouritedBy({ statusId })
+        res.status(200).json(actors.map((actor) => actor.toMastodonModel()))
         return
       }
       default:

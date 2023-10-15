@@ -1,3 +1,4 @@
+import { getISOTimeUTC } from '../time'
 import { Account } from './account'
 
 export interface ActorProfile {
@@ -157,6 +158,31 @@ export class Actor {
       sharedInboxUrl: this.data.sharedInboxUrl ?? '',
 
       createdAt: this.data.createdAt
+    }
+  }
+
+  toMastodonModel() {
+    return {
+      id: this.data.id,
+      username: this.data.username,
+      acct: `${this.data.username}@${this.data.domain}`,
+      display_name: this.data.name ?? '',
+      locked: false,
+      bot: false,
+      created_at: getISOTimeUTC(this.data.createdAt),
+      note: '',
+      url: this.data.id,
+      avatar: this.data.iconUrl ?? '',
+      avatar_static: this.data.iconUrl ?? '',
+      header: this.data.headerImageUrl ?? '',
+      header_static: this.data.headerImageUrl ?? '',
+      // Below are unsupported properties
+      followers_count: 0,
+      following_count: 0,
+      statuses_count: 0,
+      last_status_at: '',
+      emojis: [],
+      fields: []
     }
   }
 
