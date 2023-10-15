@@ -1,4 +1,21 @@
 .like-count {
   vertical-align: middle;
   color: var(--bs-blue);
+  cursor: pointer;
+}
+
+.like-info {
+  display: inline;
+  position: relative;
+}
+
+.favourited-by {
+  position: absolute;
+  left: 0;
+  width: 15rem;
+
+  @media screen and (max-width: 767px) {
+    left: -8rem;
+    width: 18rem;
+  }
 }

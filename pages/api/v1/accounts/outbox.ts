@@ -6,7 +6,7 @@ import { deleteStatusFromUserInput } from '../../../../lib/actions/deleteStatus'
 import {
   CreateNoteParams,
   CreatePollParams,
-  DeleteStatusParams
+  DefaultStatusParams
 } from '../../../../lib/client'
 import { DEFAULT_202, ERROR_404, ERROR_500 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
@@ -78,7 +78,7 @@ const handler = ApiGuard(async (req, res, context) => {
       }
     }
     case 'DELETE': {
-      const { statusId } = req.body as DeleteStatusParams
+      const { statusId } = req.body as DefaultStatusParams
       await deleteStatusFromUserInput({ currentActor, statusId, storage })
       span?.finish()
       res.status(202).json(DEFAULT_202)
