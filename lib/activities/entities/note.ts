@@ -51,6 +51,12 @@ export const getTags = (object: BaseNote) => {
 export const getContent = (object: BaseNote) => {
   if (object.content) return object.content
   if (object.contentMap) {
+    if (Array.isArray(object.contentMap)) {
+      // Wordpress uses array in contentMap instead of locale map.
+      // This is a temporary fixed to support it.
+      return object.contentMap[0]
+    }
+
     const keys = Object.keys(object.contentMap)
     if (keys.length === 0) return ''
 
