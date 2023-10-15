@@ -52,7 +52,7 @@ export const getConfig = memoize((): Config => {
       ...(process.env.ACTIVITIES_REDIS_URL
         ? {
             redis: {
-              url: JSON.parse(process.env.ACTIVITIES_REDIS_URL),
+              url: process.env.ACTIVITIES_REDIS_URL,
               tls: Boolean(process.env.ACTIVITIES_REDIS_TLS)
             }
           }
