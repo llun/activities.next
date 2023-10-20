@@ -133,8 +133,8 @@ export class Actor {
     return `@${this.username}@${this.domain}`
   }
 
-  getActorPage(): string {
-    return `https://${this.domain}/@${this.username}`
+  getActorPage(withDomain = false): string {
+    return `https://${this.domain}/${this.getMention(withDomain)}`
   }
 
   toProfile(): ActorProfile {

@@ -41,6 +41,10 @@ const handler = ApiGuard(async (req, res, context) => {
               return
             }
 
+            await Promise.all([
+              res.revalidate(`/${currentActor.getMention()}`),
+              res.revalidate(`/${currentActor.getMention(true)}`)
+            ])
             span?.finish()
             res.status(200).json({
               status: status?.toJson(),
@@ -80,6 +84,10 @@ const handler = ApiGuard(async (req, res, context) => {
     case 'DELETE': {
       const { statusId } = req.body as DefaultStatusParams
       await deleteStatusFromUserInput({ currentActor, statusId, storage })
+      await Promise.all([
+        res.revalidate(`/${currentActor.getMention()}`),
+        res.revalidate(`/${currentActor.getMention(true)}`)
+      ])
       span?.finish()
       res.status(202).json(DEFAULT_202)
       return
