@@ -143,7 +143,7 @@ export const getStaticProps: GetStaticProps<Props, Params> = async (
         attachments: attachments.map((item) => item.toJson()),
         serverTime: Date.now()
       },
-      revalidate: 30
+      revalidate: 600
     }
   } catch {
     return { notFound: true, revalidate: 5 }

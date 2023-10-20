@@ -121,7 +121,7 @@ export const getStaticProps: GetStaticProps<Props, Params> = async (
       replies: replies.map((status) => status.toJson()),
       serverTime: Date.now()
     },
-    revalidate: 30
+    revalidate: 600
   }
 }
 
