@@ -19,7 +19,7 @@ export const deleteStatusFromUserInput = async ({
     withReplies: false
   })
   if (!originalStatus) {
-    span?.finish()
+    span.end()
     return
   }
 
@@ -37,5 +37,5 @@ export const deleteStatusFromUserInput = async ({
       })
     })
   )
-  span?.finish()
+  span.end()
 }

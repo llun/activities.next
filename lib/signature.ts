@@ -40,7 +40,7 @@ export async function verify(
 
   const headerSignature = await parse(headers.signature as string)
   if (!headerSignature.headers) {
-    span?.finish()
+    span.end()
     return false
   }
 
@@ -58,10 +58,10 @@ export async function verify(
   const verifier = crypto.createVerify(headerSignature.algorithm)
   verifier.update(comparedSignedString)
   try {
-    span?.finish()
+    span.end()
     return verifier.verify(publicKey, signature, 'base64')
   } catch {
-    span?.finish()
+    span.end()
     return false
   }
 }

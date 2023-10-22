@@ -25,7 +25,7 @@ export const createPoll = async ({ question, storage }: CreatePollParams) => {
     withReplies: false
   })
   if (existingStatus) {
-    span?.finish()
+    span.end()
     return question
   }
 
@@ -34,7 +34,7 @@ export const createPoll = async ({ question, storage }: CreatePollParams) => {
     ...question
   })) as Question
   if (compactQuestion.type !== QuestionEntity) {
-    span?.finish()
+    span.end()
     return null
   }
 
@@ -87,7 +87,7 @@ export const createPoll = async ({ question, storage }: CreatePollParams) => {
       })
     })
   ])
-  span?.finish()
+  span.end()
   return question
 }
 
@@ -150,7 +150,7 @@ export const createPollFromUserInput = async ({
 
   const status = await storage.getStatus({ statusId, withReplies: false })
   if (!status) {
-    span?.finish()
+    span.end()
     return null
   }
 }

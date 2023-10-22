@@ -21,7 +21,7 @@ async function getSenderPublicKey(storage: Storage, actorId: string) {
   const span = getSpan('guard', 'getSenderPublicKey', { actorId })
   const localActor = await storage.getActorFromId({ id: actorId })
   if (localActor) {
-    span?.finish()
+    span.end()
     return localActor.publicKey
   }
 
@@ -31,12 +31,12 @@ async function getSenderPublicKey(storage: Storage, actorId: string) {
       withCollectionCount: false,
       withPublicKey: true
     })
-    span?.finish()
+    span.end()
     if (sender) return sender.publicKey || ''
     return ''
   } catch (error) {
     if (!(error instanceof HTTPError)) {
-      span?.finish()
+      span.end()
       throw error
     }
 
@@ -46,12 +46,12 @@ async function getSenderPublicKey(storage: Storage, actorId: string) {
         actorId: `${url.protocol}//${url.host}/actor#main-key`,
         withPublicKey: true
       })
-      span?.finish()
+      span.end()
       if (sender) return sender.publicKey || ''
       return ''
     }
 
-    span?.finish()
+    span.end()
     return ''
   }
 }

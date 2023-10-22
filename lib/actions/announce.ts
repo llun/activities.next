@@ -27,7 +27,7 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
   if (!existingStatus) {
     const boostedStatus = await getStatus({ statusId: object })
     if (!boostedStatus) {
-      span?.finish()
+      span.end()
       return
     }
 
@@ -39,7 +39,7 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     withReplies: false
   })
   if (existingAnnounce) {
-    span?.finish()
+    span.end()
     return
   }
   const [, announce] = await Promise.all([
@@ -57,11 +57,11 @@ export const announce = async ({ status, storage }: AnnounceParams) => {
     })
   ])
   if (!announce) {
-    span?.finish()
+    span.end()
     return
   }
   await addStatusToTimelines(storage, announce)
-  span?.finish()
+  span.end()
 }
 
 interface UserAnnounceParams {
@@ -83,7 +83,7 @@ export const userAnnounce = async ({
     storage.hasActorAnnouncedStatus({ statusId, actorId: currentActor.id })
   ])
   if (!originalStatus || hasActorAnnouncedStatus) {
-    span?.finish()
+    span.end()
     return null
   }
 
@@ -96,7 +96,7 @@ export const userAnnounce = async ({
     originalStatusId: originalStatus.id
   })
   if (!status) {
-    span?.finish()
+    span.end()
     return null
   }
   await addStatusToTimelines(storage, status)
@@ -112,6 +112,6 @@ export const userAnnounce = async ({
       })
     })
   )
-  span?.finish()
+  span.end()
   return status
 }

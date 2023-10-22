@@ -179,6 +179,6 @@ export const getMentions = async ({
       {} as { [key: string]: Mention }
     )
 
-  span?.finish()
+  span.end()
   return Object.values(mentionsMap)
 }

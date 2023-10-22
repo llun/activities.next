@@ -27,7 +27,7 @@ export const updateNote = async ({ note, storage }: UpdateNoteParams) => {
     withReplies: false
   })
   if (!existingStatus || existingStatus.type !== StatusType.Note) {
-    span?.finish()
+    span.end()
     return note
   }
 
@@ -36,7 +36,7 @@ export const updateNote = async ({ note, storage }: UpdateNoteParams) => {
     ...note
   })) as Note
   if (compactNote.type !== NoteEntity) {
-    span?.finish()
+    span.end()
     return null
   }
 
@@ -47,7 +47,7 @@ export const updateNote = async ({ note, storage }: UpdateNoteParams) => {
     summary,
     text
   })
-  span?.finish()
+  span.end()
   return note
 }
 
@@ -73,13 +73,13 @@ export const updateNoteFromUserInput = async ({
     status.type !== StatusType.Note ||
     status.actorId !== currentActor.id
   ) {
-    span?.finish()
+    span.end()
     return null
   }
 
   const updatedStatus = await storage.updateNote({ statusId, summary, text })
   if (!updatedStatus) {
-    span?.finish()
+    span.end()
     return null
   }
 
@@ -126,6 +126,6 @@ export const updateNoteFromUserInput = async ({
     })
   )
 
-  span?.finish()
+  span.end()
   return status
 }

@@ -62,5 +62,5 @@ export const addStatusToTimelines = async (
       })
       .flat()
   )
-  span?.finish()
+  span.end()
 }

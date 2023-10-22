@@ -32,11 +32,11 @@ export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
     statusId: status.id
   })
   if (status.type === StatusType.Announce) {
-    span?.finish()
+    span.end()
     return null
   }
   if (status.actorId === currentActor.id) {
-    span?.finish()
+    span.end()
     return Timeline.NOANNOUNCE
   }
   const isFollowing = await storage.isCurrentActorFollowing({
@@ -45,7 +45,7 @@ export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
   })
 
   if (!status.reply) {
-    span?.finish()
+    span.end()
     if (isFollowing) return Timeline.NOANNOUNCE
     return null
   }
@@ -56,15 +56,15 @@ export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
   })
   // Deleted parent status, don't show child status
   if (!repliedStatus) {
-    span?.finish()
+    span.end()
     return null
   }
   if (repliedStatus.actorId === currentActor.id) {
-    span?.finish()
+    span.end()
     return Timeline.NOANNOUNCE
   }
   if (!isFollowing) {
-    span?.finish()
+    span.end()
     return null
   }
   const value = await noannounceTimelineRule({
@@ -72,6 +72,6 @@ export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
     currentActor,
     status: repliedStatus.data
   })
-  span?.finish()
+  span.end()
   return value
 }

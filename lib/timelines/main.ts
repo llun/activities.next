@@ -36,7 +36,7 @@ export const mainTimelineRule: MainTimelineRule = async ({
       followingActorId: status.actorId
     })
     if (!isFollowing) {
-      span?.finish()
+      span.end()
       return null
     }
 
@@ -46,13 +46,13 @@ export const mainTimelineRule: MainTimelineRule = async ({
       currentActor,
       status: originalStatus
     })
-    span?.finish()
+    span.end()
     if (timeline === Timeline.MAIN) return null
     return Timeline.MAIN
   }
 
   if (status.actorId === currentActor.id) {
-    span?.finish()
+    span.end()
     return Timeline.MAIN
   }
   const isFollowing = await storage.isCurrentActorFollowing({
@@ -61,7 +61,7 @@ export const mainTimelineRule: MainTimelineRule = async ({
   })
 
   if (!status.reply) {
-    span?.finish()
+    span.end()
     if (isFollowing) return Timeline.MAIN
     return null
   }
@@ -72,15 +72,15 @@ export const mainTimelineRule: MainTimelineRule = async ({
   })
   // Deleted parent status, don't show child status
   if (!repliedStatus) {
-    span?.finish()
+    span.end()
     return null
   }
   if (repliedStatus.actorId === currentActor.id) {
-    span?.finish()
+    span.end()
     return Timeline.MAIN
   }
   if (!isFollowing) {
-    span?.finish()
+    span.end()
     return null
   }
   const value = await mainTimelineRule({
@@ -88,6 +88,6 @@ export const mainTimelineRule: MainTimelineRule = async ({
     currentActor,
     status: repliedStatus.data
   })
-  span?.finish()
+  span.end()
   return value
 }

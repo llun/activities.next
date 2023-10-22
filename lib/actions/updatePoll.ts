@@ -17,7 +17,7 @@ export const updatePoll = async ({ question, storage }: UpdatePollParams) => {
     withReplies: false
   })
   if (!existingStatus || existingStatus.type !== StatusType.Poll) {
-    span?.finish()
+    span.end()
     return question
   }
 
@@ -26,7 +26,7 @@ export const updatePoll = async ({ question, storage }: UpdatePollParams) => {
     ...question
   })) as Question
   if (compactQuestion.type !== QuestionEntity) {
-    span?.finish()
+    span.end()
     return null
   }
 
@@ -41,6 +41,6 @@ export const updatePoll = async ({ question, storage }: UpdatePollParams) => {
       totalVotes: answer.replies.totalItems
     }))
   })
-  span?.finish()
+  span.end()
   return question
 }

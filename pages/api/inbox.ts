@@ -105,7 +105,7 @@ const ApiHandler: NextApiHandler = activitiesGuard(
         const body = (await compact(requestBody)) as StatusActivity
 
         await handlePost(storage, body, res)
-        span?.finish()
+        span.end()
         return
       }
       default:

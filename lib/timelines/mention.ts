@@ -14,12 +14,12 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
   })
   const config = getConfig()
   if (status.type === StatusType.Announce) {
-    span?.finish()
+    span.end()
     return null
   }
 
   if (status.actorId === currentActor.id) {
-    span?.finish()
+    span.end()
     return Timeline.MENTION
   }
 
@@ -36,10 +36,10 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         }
       })
     }
-    span?.finish()
+    span.end()
     return Timeline.MENTION
   }
 
-  span?.finish()
+  span.end()
   return null
 }

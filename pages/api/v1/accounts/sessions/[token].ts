@@ -36,7 +36,7 @@ const handler = ApiGuard(async (req, res, context) => {
       res.status(404).json(ERROR_404)
     }
   }
-  span?.finish()
+  span.end()
 })
 
 export default handler

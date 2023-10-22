@@ -1,6 +1,5 @@
 import KeyvRedis from '@keyv/redis'
 import { KeyvRedisOptions } from '@keyv/redis/dist/types'
-import * as Sentry from '@sentry/nextjs'
 import crypto from 'crypto'
 import got, { Headers, Method } from 'got'
 import { memoize } from 'lodash'
@@ -121,20 +120,20 @@ export const getWebfingerSelf = async (account: string) => {
       }
     })
     if (statusCode !== 200) {
-      span?.finish()
+      span.end()
       return null
     }
 
     const json = JSON.parse(body) as WebFinger
     const item = json.links.find((item) => item.rel === 'self')
-    span?.finish()
+    span.end()
     if (!item || !('href' in item)) {
       return null
     }
     return item.href
   } catch (error) {
-    Sentry.captureException(error)
-    span?.finish()
+    span.recordException(error as Error)
+    span.end()
     return null
   }
 }
@@ -190,7 +189,7 @@ export const getPublicProfile = async ({
 
   const { statusCode, body } = await request({ url: actorId })
   if (statusCode !== 200) {
-    span?.finish()
+    span.end()
     return null
   }
 
@@ -198,7 +197,7 @@ export const getPublicProfile = async ({
   const person: Person = (await compact(data)) as Person
 
   if (!withCollectionCount) {
-    span?.finish()
+    span.end()
     return {
       id: person.id,
       username: person.preferredUsername,
@@ -250,7 +249,7 @@ export const getPublicProfile = async ({
       : null
   ])
 
-  span?.finish()
+  span.end()
   return {
     id: person.id,
     username: person.preferredUsername,
@@ -332,7 +331,7 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
 
   const { statusCode, body } = await request({ url: postsUrl })
   if (statusCode !== 200) {
-    span?.finish()
+    span.end()
     return []
   }
 
@@ -360,7 +359,7 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
     })
   )
 
-  span?.finish()
+  span.end()
   return statusData.filter((item): item is StatusData => item !== null)
 }
 
@@ -374,7 +373,7 @@ export const getStatus = async ({
     statusId
   })
   const { statusCode, body } = await request({ url: statusId })
-  span?.finish()
+  span.end()
   if (statusCode !== 200) return null
   return JSON.parse(body)
 }
@@ -413,7 +412,7 @@ export const sendNote = async ({
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
+  span.end()
 }
 
 interface SendUpdateNoteParams {
@@ -433,7 +432,7 @@ export const sendUpdateNote = async ({
 
   const note = status.toNote()
   if (!note) {
-    span?.finish()
+    span.end()
     return
   }
 
@@ -458,7 +457,7 @@ export const sendUpdateNote = async ({
     body: JSON.stringify(activity)
   })
   console.log('Update activity', activity)
-  span?.finish()
+  span.end()
 }
 
 interface SendAnnounceParams {
@@ -499,7 +498,7 @@ export const sendAnnounce = async ({
     method,
     body: JSON.stringify(activity)
   })
-  span?.finish()
+  span.end()
 }
 
 interface DeleteStatusParams {
@@ -537,7 +536,7 @@ export const deleteStatus = async ({
     method,
     body: JSON.stringify(activity)
   })
-  span?.finish()
+  span.end()
 }
 
 interface UndoAnnounceParams {
@@ -580,7 +579,7 @@ export const undoAnnounce = async ({
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
+  span.end()
 }
 
 export const follow = async (
@@ -603,7 +602,7 @@ export const follow = async (
   const publicProfile = await getPublicProfile({ actorId: targetActorId })
   const targetInbox = publicProfile?.endpoints.inbox
   if (!targetInbox) {
-    span?.finish()
+    span.end()
     return false
   }
 
@@ -622,7 +621,7 @@ export const follow = async (
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
+  span.end()
   return statusCode === 202
 }
 
@@ -665,7 +664,7 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
     method,
     body: JSON.stringify(activity)
   })
-  span?.finish()
+  span.end()
   return statusCode === 202
 }
 
@@ -705,7 +704,7 @@ export const acceptFollow = async (
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
+  span.end()
   return statusCode === 202
 }
 
@@ -746,7 +745,7 @@ export const sendLike = async ({ currentActor, status }: LikeParams) => {
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
+  span.end()
 }
 
 interface UndoLikeParams {
@@ -791,5 +790,5 @@ export const sendUndoLike = async ({
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
+  span.end()
 }

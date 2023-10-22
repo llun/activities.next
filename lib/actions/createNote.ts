@@ -40,7 +40,7 @@ export const createNote = async ({
     withReplies: false
   })
   if (existingStatus) {
-    span?.finish()
+    span.end()
     return note
   }
 
@@ -49,7 +49,7 @@ export const createNote = async ({
     ...note
   })) as Note
   if (compactNote.type !== StatusType.Note) {
-    span?.finish()
+    span.end()
     return null
   }
 
@@ -110,7 +110,7 @@ export const createNote = async ({
     })
   ])
 
-  span?.finish()
+  span.end()
   return note
 }
 
@@ -219,7 +219,7 @@ export const createNoteFromUserInput = async ({
 
   const status = await storage.getStatus({ statusId, withReplies: false })
   if (!status) {
-    span?.finish()
+    span.end()
     return null
   }
 
@@ -248,7 +248,7 @@ export const createNoteFromUserInput = async ({
   const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
   const note = status.toNote()
   if (!note) {
-    span?.finish()
+    span.end()
     return status
   }
 
@@ -266,6 +266,6 @@ export const createNoteFromUserInput = async ({
     })
   )
 
-  span?.finish()
+  span.end()
   return status
 }
