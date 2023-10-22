@@ -1,6 +1,9 @@
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
 import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
+import { HttpInstrumentation } from '@opentelemetry/instrumentation-http'
+import { IORedisInstrumentation } from '@opentelemetry/instrumentation-ioredis'
+import { KnexInstrumentation } from '@opentelemetry/instrumentation-knex'
 import { Resource } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
@@ -30,7 +33,12 @@ if (exporter) {
       [SemanticResourceAttributes.SERVICE_VERSION]: TRACE_APPLICATION_VERSION,
       [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV
     }),
-    spanProcessor: new SimpleSpanProcessor(exporter)
+    spanProcessor: new SimpleSpanProcessor(exporter),
+    instrumentations: [
+      new IORedisInstrumentation(),
+      new KnexInstrumentation(),
+      new HttpInstrumentation()
+    ]
   })
   sdk.start()
 
