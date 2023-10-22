@@ -12,6 +12,14 @@ import { MediaStorageConfig } from './storage/types/media'
 type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' | 'sql' | 'knex' }
 type FirebaseDatabase = FirestoreSetting & { type: 'firebase' | 'firestore' }
 
+type OpenTelemetryProtocol = 'grpc' | 'http/protobuf' | 'http/json'
+
+interface OpenTelemetryConfig {
+  endpoint: string
+  protocol?: OpenTelemetryProtocol
+  headers?: string
+}
+
 export interface Config {
   serviceName?: string
   host: string
@@ -29,6 +37,7 @@ export interface Config {
   email?: SMTPConfig | LambdaConfig | ResendConfig
   mediaStorage?: MediaStorageConfig
   redis?: { url: string; tls?: boolean }
+  openTelemetry?: OpenTelemetryConfig
 }
 
 export const getConfig = memoize((): Config => {
@@ -54,6 +63,22 @@ export const getConfig = memoize((): Config => {
             redis: {
               url: process.env.ACTIVITIES_REDIS_URL,
               tls: Boolean(process.env.ACTIVITIES_REDIS_TLS)
+            }
+          }
+        : null),
+      ...(process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+        ? {
+            openTelemetry: {
+              endpoint: process.env.OTEL_EXPORTER_OLTP_ENDPOINT as string,
+              ...(process.env.OTEL_EXPORTER_OLTP_PROTOCOL
+                ? {
+                    protocol: process.env
+                      .OTEL_EXPORTER_OLTP_PROTOCOL as OpenTelemetryProtocol
+                  }
+                : null),
+              ...(process.env.OTEL_EXPORTER_OLTP_HEADERS
+                ? { headers: process.env.OTEL_EXPORTER_OLTP_HEADERS }
+                : null)
             }
           }
         : null)

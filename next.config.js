@@ -5,6 +5,9 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   assetPrefix: '/activities',
+  experimental: {
+    instrumentationHook: true
+  },
 
   generateBuildId() {
     return `activities-${Date.now()}`

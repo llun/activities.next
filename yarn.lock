@@ -1724,7 +1724,7 @@
     "@opentelemetry/semantic-conventions" "1.17.1"
     jaeger-client "^3.15.0"
 
-"@opentelemetry/exporter-trace-otlp-grpc@0.44.0":
+"@opentelemetry/exporter-trace-otlp-grpc@0.44.0", "@opentelemetry/exporter-trace-otlp-grpc@^0.44.0":
   version "0.44.0"
   resolved "https://registry.yarnpkg.com/@opentelemetry/exporter-trace-otlp-grpc/-/exporter-trace-otlp-grpc-0.44.0.tgz#67a2ea03ddfe1ef70384780eea1479bec0ee5e18"
   integrity sha512-S1kT/9tVlgZDRYyVfCLYyWZoQTplPD9WcyX+qUPbhJTETORxzJVW9HN8mHwQsXaN7ngqwRLy5GW/nXHL8aqA0w==
@@ -1747,7 +1747,7 @@
     "@opentelemetry/resources" "1.17.1"
     "@opentelemetry/sdk-trace-base" "1.17.1"
 
-"@opentelemetry/exporter-trace-otlp-proto@0.44.0":
+"@opentelemetry/exporter-trace-otlp-proto@0.44.0", "@opentelemetry/exporter-trace-otlp-proto@^0.44.0":
   version "0.44.0"
   resolved "https://registry.yarnpkg.com/@opentelemetry/exporter-trace-otlp-proto/-/exporter-trace-otlp-proto-0.44.0.tgz#5726749e76def507475ec47cfb67a2099d3a2ae7"
   integrity sha512-yVW0FXxiLaQOyE3MGr6BtK7ml0DaJH4Qx3yvQYUd/hsJUSZBhYYw2TRaMsaW7XMpe1AvU81qt0l8uLYmcmcLJA==
