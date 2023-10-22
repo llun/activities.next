@@ -34,7 +34,6 @@ const handler = ApiGuard(async (req, res, context) => {
               storage
             })
             if (!status) {
-              span.end()
               res.status(500).json(ERROR_500)
               return
             }
@@ -43,7 +42,6 @@ const handler = ApiGuard(async (req, res, context) => {
               res.revalidate(`/${currentActor.getMention()}`),
               res.revalidate(`/${currentActor.getMention(true)}`)
             ])
-            span.end()
             res.status(200).json({
               status: status?.toJson(),
               note: status.toObject(),
@@ -72,9 +70,10 @@ const handler = ApiGuard(async (req, res, context) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
         span.recordException(e)
-        span.end()
         res.status(500).json(ERROR_500)
         return
+      } finally {
+        span.end()
       }
     }
     case 'DELETE': {

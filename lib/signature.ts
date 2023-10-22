@@ -58,11 +58,11 @@ export async function verify(
   const verifier = crypto.createVerify(headerSignature.algorithm)
   verifier.update(comparedSignedString)
   try {
-    span.end()
     return verifier.verify(publicKey, signature, 'base64')
   } catch {
-    span.end()
     return false
+  } finally {
+    span.end()
   }
 }
 

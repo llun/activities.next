@@ -120,21 +120,20 @@ export const getWebfingerSelf = async (account: string) => {
       }
     })
     if (statusCode !== 200) {
-      span.end()
       return null
     }
 
     const json = JSON.parse(body) as WebFinger
     const item = json.links.find((item) => item.rel === 'self')
-    span.end()
     if (!item || !('href' in item)) {
       return null
     }
     return item.href
   } catch (error) {
     span.recordException(error as Error)
-    span.end()
     return null
+  } finally {
+    span.end()
   }
 }
 
