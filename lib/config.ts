@@ -20,6 +20,15 @@ interface OpenTelemetryConfig {
   headers?: string
 }
 
+interface InternalApiConfig {
+  sharedKey: string
+}
+
+interface RedisConfig {
+  url: string
+  tls?: boolean
+}
+
 export interface Config {
   serviceName?: string
   host: string
@@ -36,8 +45,52 @@ export interface Config {
   }
   email?: SMTPConfig | LambdaConfig | ResendConfig
   mediaStorage?: MediaStorageConfig
-  redis?: { url: string; tls?: boolean }
+  redis?: RedisConfig
   openTelemetry?: OpenTelemetryConfig
+  internalApi?: InternalApiConfig
+}
+
+const matcher = (prefix: string) =>
+  Object.keys(process.env).some((key: string) => key.startsWith(prefix))
+
+const getOtelConfig = (): { openTelemetry: OpenTelemetryConfig } | null => {
+  const hasEnvironmentOtel = matcher('OTEL_EXPORTER_')
+  if (!hasEnvironmentOtel) return null
+  return {
+    openTelemetry: {
+      endpoint: process.env.OTEL_EXPORTER_OLTP_ENDPOINT as string,
+      ...(process.env.OTEL_EXPORTER_OLTP_PROTOCOL
+        ? {
+            protocol: process.env
+              .OTEL_EXPORTER_OLTP_PROTOCOL as OpenTelemetryProtocol
+          }
+        : null),
+      ...(process.env.OTEL_EXPORTER_OLTP_HEADERS
+        ? { headers: process.env.OTEL_EXPORTER_OLTP_HEADERS }
+        : null)
+    }
+  }
+}
+
+const getInternalApiConfig = (): { internalApi: InternalApiConfig } | null => {
+  const hasEnvironmentInternalApi = matcher('ACTIVITIES_INTERNAL_API_')
+  if (!hasEnvironmentInternalApi) return null
+  return {
+    internalApi: {
+      sharedKey: process.env.ACTIVITIES_INTERNAL_SHARED_KEY as string
+    }
+  }
+}
+
+const getRedisConfig = (): { redis: RedisConfig } | null => {
+  const hasEnvironmentRedis = matcher('ACTIVITIES_REDIS_')
+  if (!hasEnvironmentRedis) return null
+  return {
+    redis: {
+      url: process.env.ACTIVITIES_REDIS_URL as string,
+      tls: Boolean(process.env.ACTIVITIES_REDIS_TLS)
+    }
+  }
 }
 
 export const getConfig = memoize((): Config => {
@@ -58,30 +111,9 @@ export const getConfig = memoize((): Config => {
       ...(process.env.ACTIVITIES_EMAIL
         ? { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
         : null),
-      ...(process.env.ACTIVITIES_REDIS_URL
-        ? {
-            redis: {
-              url: process.env.ACTIVITIES_REDIS_URL,
-              tls: Boolean(process.env.ACTIVITIES_REDIS_TLS)
-            }
-          }
-        : null),
-      ...(process.env.OTEL_EXPORTER_OTLP_ENDPOINT
-        ? {
-            openTelemetry: {
-              endpoint: process.env.OTEL_EXPORTER_OLTP_ENDPOINT as string,
-              ...(process.env.OTEL_EXPORTER_OLTP_PROTOCOL
-                ? {
-                    protocol: process.env
-                      .OTEL_EXPORTER_OLTP_PROTOCOL as OpenTelemetryProtocol
-                  }
-                : null),
-              ...(process.env.OTEL_EXPORTER_OLTP_HEADERS
-                ? { headers: process.env.OTEL_EXPORTER_OLTP_HEADERS }
-                : null)
-            }
-          }
-        : null)
+      ...getRedisConfig(),
+      ...getOtelConfig(),
+      ...getInternalApiConfig()
     }
   }
 })
