@@ -6,6 +6,7 @@ import {
   CreatePollParams,
   DefaultStatusParams
 } from '../../../../lib/client'
+import { getConfig } from '../../../../lib/config'
 import { DEFAULT_202, ERROR_404, ERROR_500 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
 import { StatusNote } from '../../../../lib/models/status'
@@ -19,6 +20,7 @@ type PostRequest = CreateNoteRequest | CreatePollRequest
 const handler = ApiGuard(async (req, res, context) => {
   const span = getSpan('api', 'outbox', { method: req.method })
   const { currentActor, storage } = context
+  const config = getConfig()
   switch (req.method) {
     case 'POST': {
       const body = req.body as PostRequest
@@ -38,10 +40,14 @@ const handler = ApiGuard(async (req, res, context) => {
               return
             }
 
-            await Promise.all([
-              res.revalidate(`/${currentActor.getMention()}`),
-              res.revalidate(`/${currentActor.getMention(true)}`)
-            ])
+            // TODO: Remove the promise and change this to internal api
+            if (config.internalApi?.sharedKey) {
+              await Promise.all([
+                res.revalidate(`/${currentActor.getMention()}`),
+                res.revalidate(`/${currentActor.getMention(true)}`)
+              ])
+            }
+
             res.status(200).json({
               status: status?.toJson(),
               note: status.toObject(),
@@ -79,10 +85,14 @@ const handler = ApiGuard(async (req, res, context) => {
     case 'DELETE': {
       const { statusId } = req.body as DefaultStatusParams
       await deleteStatusFromUserInput({ currentActor, statusId, storage })
-      await Promise.all([
-        res.revalidate(`/${currentActor.getMention()}`),
-        res.revalidate(`/${currentActor.getMention(true)}`)
-      ])
+
+      // TODO: Remove the promise and change this to internal api
+      if (config.internalApi?.sharedKey) {
+        await Promise.all([
+          res.revalidate(`/${currentActor.getMention()}`),
+          res.revalidate(`/${currentActor.getMention(true)}`)
+        ])
+      }
       span.end()
       res.status(202).json(DEFAULT_202)
       return
