@@ -1,4 +1,5 @@
 /* eslint-disable camelcase */
+import { Exception } from '@opentelemetry/api'
 import { HTTPError } from 'got'
 import { IncomingHttpHeaders } from 'http'
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
@@ -37,7 +38,7 @@ async function getSenderPublicKey(storage: Storage, actorId: string) {
     if (sender) return sender.publicKey || ''
     return ''
   } catch (error) {
-    span.recordException(error as Error)
+    span.recordException(error as Exception)
     if (!(error instanceof HTTPError)) {
       throw error
     }
