@@ -7,8 +7,10 @@ import { getServerSession } from 'next-auth/next'
 
 import { authOptions } from '../pages/api/auth/[...nextauth]'
 import { getPublicProfile } from './activities'
+import { Error } from './activities/types'
+import { getConfig } from './config'
 import { ACTIVITIES_HOST, FORWARDED_HOST } from './constants'
-import { ERROR_400, ERROR_500 } from './errors'
+import { ERROR_400, ERROR_404, ERROR_500 } from './errors'
 import { Actor } from './models/actor'
 import { parse, verify } from './signature'
 import { getStorage } from './storage'
@@ -158,6 +160,19 @@ export const ApiGuard =
     }
 
     return handle(req, res, { storage, session, currentActor })
+  }
+
+export const SharedKeyApiGuard =
+  <T>(handle: NextApiHandler<T>): NextApiHandler<T | Error> =>
+  async (req, res) => {
+    const config = getConfig()
+    const sharedKey = config.internalApi?.sharedKey
+    if (!sharedKey) {
+      res.status(404).send(ERROR_404)
+      return
+    }
+
+    return handle(req, res)
   }
 
 export function headerHost(headers: IncomingHttpHeaders) {
