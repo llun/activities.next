@@ -1,12 +1,14 @@
 import { createNoteFromUserInput } from '../../../../lib/actions/createNote'
 import { createPollFromUserInput } from '../../../../lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '../../../../lib/actions/deleteStatus'
+import { request } from '../../../../lib/activities'
 import {
   CreateNoteParams,
   CreatePollParams,
   DefaultStatusParams
 } from '../../../../lib/client'
 import { getConfig } from '../../../../lib/config'
+import { ACTIVITIES_SHARED_KEY } from '../../../../lib/constants'
 import { DEFAULT_202, ERROR_404, ERROR_500 } from '../../../../lib/errors'
 import { ApiGuard } from '../../../../lib/guard'
 import { StatusNote } from '../../../../lib/models/status'
@@ -16,6 +18,18 @@ type CreateNoteRequest = { type: 'note' } & CreateNoteParams
 type CreatePollRequest = { type: 'poll' } & CreatePollParams
 
 type PostRequest = CreateNoteRequest | CreatePollRequest
+
+const revalidate = (url: string) => {
+  const config = getConfig()
+  if (!config.internalApi?.sharedKey) return
+  return request({
+    url,
+    method: 'GET',
+    headers: {
+      [ACTIVITIES_SHARED_KEY]: config.internalApi.sharedKey
+    }
+  })
+}
 
 const handler = ApiGuard(async (req, res, context) => {
   const span = getSpan('api', 'outbox', { method: req.method })
@@ -40,14 +54,9 @@ const handler = ApiGuard(async (req, res, context) => {
               return
             }
 
-            // TODO: Remove the promise and change this to internal api
-            if (config.internalApi?.sharedKey) {
-              await Promise.all([
-                res.revalidate(`/${currentActor.getMention()}`),
-                res.revalidate(`/${currentActor.getMention(true)}`)
-              ])
-            }
-
+            revalidate(
+              `https://${currentActor.domain}/api/users/${currentActor.username}/revalidate`
+            )
             res.status(200).json({
               status: status?.toJson(),
               note: status.toObject(),
