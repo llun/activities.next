@@ -112,17 +112,17 @@ export const getStaticProps: GetStaticProps<Props, Params> = async (
   context
 ) => {
   const query = context.params
-  if (!query?.actor) return { notFound: true }
+  if (!query?.actor) return { notFound: true, revalidate: 5 }
 
   const actor = getFirstValueFromParsedQuery(query?.actor)
-  if (!actor) return { notFound: true }
+  if (!actor) return { notFound: true, revalidate: 5 }
 
   const storage = await getStorage()
   if (!storage) throw new Error('Storage is not available')
 
   const parts = (actor as string).split('@').slice(1)
   if (parts.length !== 2) {
-    return { notFound: true }
+    return { notFound: true, revalidate: 5 }
   }
 
   const [username, domain] = parts
