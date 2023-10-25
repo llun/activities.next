@@ -50,7 +50,7 @@ import { Person } from './entities/person'
 import { WebFinger } from './types'
 
 const USER_AGENT = 'activities.next/0.1'
-const DEFAULT_RESPONSE_TIMEOUT = 2000
+const DEFAULT_RESPONSE_TIMEOUT = 4000
 const MAX_RETRY_LIMIT = 1
 
 const SHARED_HEADERS = {
