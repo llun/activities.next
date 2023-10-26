@@ -74,15 +74,15 @@ const getOtelConfig = (): { openTelemetry: OpenTelemetryConfig } | null => {
   if (!hasEnvironmentOtel) return null
   return {
     openTelemetry: {
-      endpoint: process.env.OTEL_EXPORTER_OLTP_ENDPOINT as string,
+      endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT as string,
       ...(process.env.OTEL_EXPORTER_OLTP_PROTOCOL
         ? {
             protocol: process.env
-              .OTEL_EXPORTER_OLTP_PROTOCOL as OpenTelemetryProtocol
+              .OTEL_EXPORTER_OTLP_PROTOCOL as OpenTelemetryProtocol
           }
         : null),
-      ...(process.env.OTEL_EXPORTER_OLTP_HEADERS
-        ? { headers: process.env.OTEL_EXPORTER_OLTP_HEADERS }
+      ...(process.env.OTEL_EXPORTER_OTLP_HEADERS
+        ? { headers: process.env.OTEL_EXPORTER_OTLP_HEADERS }
         : null)
     }
   }
