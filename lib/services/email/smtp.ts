@@ -10,7 +10,7 @@ export const TYPE_SMTP = 'smtp'
 
 export const SMTPConfig = BaseEmailSettings.extend({
   type: z.literal(TYPE_SMTP)
-})
+}).passthrough()
 export type SMTPConfig = z.infer<typeof SMTPConfig> & SMTPTransport.Options
 
 const getTransporter = memoize(() => {

@@ -10,13 +10,18 @@ import { ResendConfig } from './services/email/resend'
 import { SMTPConfig } from './services/email/smtp'
 import { MediaStorageConfig } from './storage/types/media'
 
-const KnexBaseDatabase = z.object({
-  type: z.union([z.literal('sqlite3'), z.literal('sql'), z.literal('knex')])
-})
+const KnexBaseDatabase = z
+  .object({
+    type: z.union([z.literal('sqlite3'), z.literal('sql'), z.literal('knex')])
+  })
+  .passthrough()
 export type KnexBaseDatabase = Knex.Config & z.infer<typeof KnexBaseDatabase>
-const FirebaseDatabase = z.object({
-  type: z.union([z.literal('firebase'), z.literal('firestore')])
-})
+
+const FirebaseDatabase = z
+  .object({
+    type: z.union([z.literal('firebase'), z.literal('firestore')])
+  })
+  .passthrough()
 export type FirebaseDatabase = FirestoreSetting &
   z.infer<typeof FirebaseDatabase>
 
