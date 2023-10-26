@@ -17,7 +17,7 @@ const getTransporter = memoize(() => {
   const { email } = getConfig()
   if (!email || email.type !== TYPE_SMTP) return null
 
-  return nodemailer.createTransport(email)
+  return nodemailer.createTransport(email as SMTPTransport.Options)
 })
 
 export const getAddressFromEmail = (email: Email) =>

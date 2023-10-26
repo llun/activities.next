@@ -1,6 +1,6 @@
 import memoize from 'lodash/memoize'
 
-import { getConfig } from '../config'
+import { KnexBaseDatabase, getConfig } from '../config'
 import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
@@ -13,7 +13,7 @@ export const getStorage = memoize(async (): Promise<Storage | null> => {
     case 'sqlite3':
     case 'knex':
     case 'sql':
-      return new SqlStorage(config.database)
+      return new SqlStorage(config.database as KnexBaseDatabase)
     case 'firebase':
     case 'firestore':
       return new FirestoreStorage(config.database)

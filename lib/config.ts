@@ -11,13 +11,14 @@ import { SMTPConfig } from './services/email/smtp'
 import { MediaStorageConfig } from './storage/types/media'
 
 const KnexBaseDatabase = z.object({
-  type: z.union([z.literal('sqlite'), z.literal('sql'), z.literal('knex')])
+  type: z.union([z.literal('sqlite3'), z.literal('sql'), z.literal('knex')])
 })
-type KnexBaseDatabase = Knex.Config & z.infer<typeof KnexBaseDatabase>
+export type KnexBaseDatabase = Knex.Config & z.infer<typeof KnexBaseDatabase>
 const FirebaseDatabase = z.object({
   type: z.union([z.literal('firebase'), z.literal('firestore')])
 })
-type FirebaseDatabase = FirestoreSetting & z.infer<typeof FirebaseDatabase>
+export type FirebaseDatabase = FirestoreSetting &
+  z.infer<typeof FirebaseDatabase>
 
 const OpenTelemetryProtocol = z.union([
   z.literal('grpc'),
