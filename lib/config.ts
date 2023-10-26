@@ -117,6 +117,13 @@ const getConfigFromFile = () => {
       )
     )
   } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    if (nodeError.code === 'ENOENT') {
+      console.error('Config file is not exists')
+      return null
+    }
+
+    console.error('Invalid file config')
     console.error((error as Error).message)
     return null
   }
@@ -141,6 +148,7 @@ const getConfigFromEnvironment = () => {
       ...getInternalApiConfig()
     })
   } catch (error) {
+    console.error('Invalid environment config')
     console.error((error as Error).message)
     return null
   }
