@@ -110,10 +110,13 @@ const getRedisConfig = (): { redis: RedisConfig } | null => {
 
 export const getConfig = memoize((): Config => {
   try {
-    return JSON.parse(
-      fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
+    return Config.parse(
+      JSON.parse(
+        fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
+      )
     )
-  } catch {
+  } catch (e) {
+    console.error((e as Error).message)
     return {
       host: process.env.ACTIVITIES_HOST || '',
       database: JSON.parse(process.env.ACTIVITIES_DATABASE || '{}'),
