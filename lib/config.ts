@@ -108,16 +108,22 @@ const getRedisConfig = (): { redis: RedisConfig } | null => {
   }
 }
 
-export const getConfig = memoize((): Config => {
+const getConfigFromFile = () => {
   try {
     return Config.parse(
       JSON.parse(
         fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
       )
     )
-  } catch (e) {
-    console.error((e as Error).message)
-    return {
+  } catch (error) {
+    console.error((error as Error).message)
+    return null
+  }
+}
+
+const getConfigFromEnvironment = () => {
+  try {
+    return Config.parse({
       host: process.env.ACTIVITIES_HOST || '',
       database: JSON.parse(process.env.ACTIVITIES_DATABASE || '{}'),
       secretPhase: process.env.ACTIVITIES_SECRET_PHASE || '',
@@ -132,6 +138,19 @@ export const getConfig = memoize((): Config => {
       ...getRedisConfig(),
       ...getOtelConfig(),
       ...getInternalApiConfig()
-    }
+    })
+  } catch (error) {
+    console.error((error as Error).message)
+    return null
   }
+}
+
+export const getConfig = memoize((): Config => {
+  const fileConfig = getConfigFromFile()
+  if (fileConfig) return fileConfig
+
+  const environmentConfig = getConfigFromEnvironment()
+  if (environmentConfig) return environmentConfig
+
+  throw new Error('Fail to read Activities.next config')
 })
