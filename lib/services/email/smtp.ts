@@ -1,15 +1,17 @@
 import memoize from 'lodash/memoize'
 import nodemailer from 'nodemailer'
 import SMTPTransport from 'nodemailer/lib/smtp-transport'
+import { z } from 'zod'
 
 import { getConfig } from '../../config'
 import { BaseEmailSettings, Email, Message } from './types'
 
 export const TYPE_SMTP = 'smtp'
 
-export interface SMTPConfig extends SMTPTransport.Options, BaseEmailSettings {
-  type: typeof TYPE_SMTP
-}
+export const SMTPConfig = BaseEmailSettings.extend({
+  type: z.literal(TYPE_SMTP)
+})
+export type SMTPConfig = z.infer<typeof SMTPConfig> & SMTPTransport.Options
 
 const getTransporter = memoize(() => {
   const { email } = getConfig()

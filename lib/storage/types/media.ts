@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { Attachment } from '../../models/attachment'
 
 export enum MediaStorageType {
@@ -5,15 +7,17 @@ export enum MediaStorageType {
   ObjectStorage = 'object'
 }
 
-export type MediaStorageConfig =
-  | {
-      type: MediaStorageType.LocalFile
-      path: string
-    }
-  | {
-      type: MediaStorageType.ObjectStorage
-      bucket: string
-    }
+export const MediaStorageConfig = z.union([
+  z.object({
+    type: z.literal(MediaStorageType.LocalFile),
+    path: z.string()
+  }),
+  z.object({
+    type: z.literal(MediaStorageType.ObjectStorage),
+    bucket: z.string()
+  })
+])
+export type MediaStorageConfig = z.infer<typeof MediaStorageConfig>
 
 interface MetaData {
   width: number

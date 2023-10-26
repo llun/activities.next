@@ -3,52 +3,67 @@ import fs from 'fs'
 import type { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 import path from 'path'
+import { z } from 'zod'
 
 import { LambdaConfig } from './services/email/lambda'
 import { ResendConfig } from './services/email/resend'
 import { SMTPConfig } from './services/email/smtp'
 import { MediaStorageConfig } from './storage/types/media'
 
-type KnexBaseDatabase = Knex.Config & { type: 'sqlite3' | 'sql' | 'knex' }
-type FirebaseDatabase = FirestoreSetting & { type: 'firebase' | 'firestore' }
+const KnexBaseDatabase = z.object({
+  type: z.union([z.literal('sqlite'), z.literal('sql'), z.literal('knex')])
+})
+type KnexBaseDatabase = Knex.Config & z.infer<typeof KnexBaseDatabase>
+const FirebaseDatabase = z.object({
+  type: z.union([z.literal('firebase'), z.literal('firestore')])
+})
+type FirebaseDatabase = FirestoreSetting & z.infer<typeof FirebaseDatabase>
 
-type OpenTelemetryProtocol = 'grpc' | 'http/protobuf' | 'http/json'
+const OpenTelemetryProtocol = z.union([
+  z.literal('grpc'),
+  z.literal('http/protobuf'),
+  z.literal('http/json')
+])
+type OpenTelemetryProtocol = z.infer<typeof OpenTelemetryProtocol>
 
-interface OpenTelemetryConfig {
-  endpoint: string
-  protocol?: OpenTelemetryProtocol
-  headers?: string
-}
+const OpenTelemetryConfig = z.object({
+  endpoint: z.string(),
+  protocol: OpenTelemetryProtocol.optional(),
+  headers: z.string().optional()
+})
+type OpenTelemetryConfig = z.infer<typeof OpenTelemetryConfig>
 
-interface InternalApiConfig {
-  sharedKey: string
-}
+const InternalApiConfig = z.object({
+  sharedKey: z.string()
+})
+type InternalApiConfig = z.infer<typeof InternalApiConfig>
 
-interface RedisConfig {
-  url: string
-  tls?: boolean
-}
+const RedisConfig = z.object({
+  url: z.string(),
+  tls: z.boolean().optional()
+})
+type RedisConfig = z.infer<typeof RedisConfig>
 
-export interface Config {
-  serviceName?: string
-  host: string
-  database: KnexBaseDatabase | FirebaseDatabase
-  allowEmails: string[]
-  secretPhase: string
-  allowMediaDomains?: string[]
-  auth?: {
-    enableStorageAdapter?: boolean
-    github?: {
-      id: string
-      secret: string
-    }
-  }
-  email?: SMTPConfig | LambdaConfig | ResendConfig
-  mediaStorage?: MediaStorageConfig
-  redis?: RedisConfig
-  openTelemetry?: OpenTelemetryConfig
-  internalApi?: InternalApiConfig
-}
+const Config = z.object({
+  serviceName: z.string().optional(),
+  host: z.string(),
+  database: z.union([KnexBaseDatabase, FirebaseDatabase]),
+  allowEmails: z.string().array(),
+  secretPhase: z.string(),
+  allowMediaDomains: z.string().array().optional(),
+  auth: z
+    .object({
+      enableStorageAdapter: z.boolean().optional(),
+      github: z.object({ id: z.string(), secret: z.string() }).optional()
+    })
+    .optional(),
+  email: z.union([SMTPConfig, LambdaConfig, ResendConfig]).optional(),
+  mediaStorage: MediaStorageConfig.optional(),
+  redis: RedisConfig.optional(),
+  openTelemetry: OpenTelemetryConfig.optional(),
+  internalApi: InternalApiConfig.optional()
+})
+export type Config = z.infer<typeof Config>
 
 const matcher = (prefix: string) =>
   Object.keys(process.env).some((key: string) => key.startsWith(prefix))
