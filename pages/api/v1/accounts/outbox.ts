@@ -95,13 +95,9 @@ const handler = ApiGuard(async (req, res, context) => {
       const { statusId } = req.body as DefaultStatusParams
       await deleteStatusFromUserInput({ currentActor, statusId, storage })
 
-      // TODO: Remove the promise and change this to internal api
-      if (config.internalApi?.sharedKey) {
-        await Promise.all([
-          res.revalidate(`/${currentActor.getMention()}`),
-          res.revalidate(`/${currentActor.getMention(true)}`)
-        ])
-      }
+      revalidate(
+        `https://${currentActor.domain}/api/users/${currentActor.username}/revalidate`
+      )
       span.end()
       res.status(202).json(DEFAULT_202)
       return
