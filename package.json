@@ -41,6 +41,7 @@
     "content-type": "^1.0.5",
     "date-fns": "^2.30.0",
     "date-fns-tz": "^2.0.0",
+    "eslint-plugin-import": "^2.29.0",
     "formidable": "^3.5.1",
     "got": "^12.6.1",
     "html-entities": "^2.4.0",
