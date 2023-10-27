@@ -16,8 +16,8 @@
     "migrate:make": "knex migrate:make -x ts"
   },
   "dependencies": {
-    "@aws-sdk/client-lambda": "^3.436.0",
-    "@aws-sdk/client-s3": "^3.436.0",
+    "@aws-sdk/client-lambda": "^3.437.0",
+    "@aws-sdk/client-s3": "^3.437.0",
     "@aws-sdk/util-utf8-node": "^3.259.0",
     "@google-cloud/firestore": "^7.1.0",
     "@keyv/redis": "^2.8.0",
@@ -51,7 +51,7 @@
     "linkifyjs": "^4.1.1",
     "lodash": "^4.17.21",
     "mime-types": "^2.1.35",
-    "next": "13.5.6",
+    "next": "14.0.0",
     "next-auth": "4.24.3",
     "nodemailer": "^6.9.7",
     "peggy": "^3.0.2",
@@ -89,10 +89,10 @@
     "@typescript-eslint/eslint-plugin": "^6.9.0",
     "@typescript-eslint/parser": "^6.9.0",
     "eslint": "^8.52.0",
-    "eslint-config-next": "13.5.6",
+    "eslint-config-next": "14.0.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-config-standard": "^17.1.0",
-    "eslint-plugin-jest": "^27.4.3",
+    "eslint-plugin-jest": "^27.6.0",
     "eslint-plugin-n": "^16.2.0",
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-unused-imports": "^3.0.0",
@@ -108,5 +108,6 @@
   },
   "resolutions": {
     "json5": "^2.2.2"
-  }
+  },
+  "packageManager": "yarn@4.0.0"
 }
