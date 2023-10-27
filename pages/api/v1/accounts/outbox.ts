@@ -34,7 +34,6 @@ const revalidate = (url: string) => {
 const handler = ApiGuard(async (req, res, context) => {
   const span = getSpan('api', 'outbox', { method: req.method })
   const { currentActor, storage } = context
-  const config = getConfig()
   switch (req.method) {
     case 'POST': {
       const body = req.body as PostRequest
