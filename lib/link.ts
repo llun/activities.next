@@ -1,7 +1,11 @@
 import * as linkify from 'linkifyjs'
+import _ from 'lodash'
+import { marked } from 'marked'
+import sanitizeHtml from 'sanitize-html'
 
 import { getPublicProfileFromHandle } from './activities'
 import { Mention } from './activities/entities/mention'
+import { getConfig } from './config'
 import './linkify-mention'
 import { Actor } from './models/actor'
 import { Status } from './models/status'
@@ -36,89 +40,65 @@ function linkBody(url = '') {
   }</a>`
 }
 
-export async function linkifyText(text: string, mock?: boolean) {
+export const linkifyText = (text: string) => {
   const tokens = linkify.tokenize(text)
-  const texts = await Promise.all(
-    tokens.map(async (item) => {
-      if (item.t === 'mention') {
-        if (mock) {
-          const mention = item.v
-          const fragments = mention.slice(1).split('@')
-          if (fragments.length === 2) {
-            const [user, domain] = fragments
-            return mentionBody(`https://${domain}/@${user}`, user)
-          }
+  const texts = tokens.map((item) => {
+    if (item.t === 'mention') {
+      return mentionBody(
+        `https://${getConfig().host}/${item.v}`,
+        item.v.slice(1)
+      )
+    }
 
-          return mentionBody(`/@${fragments[0]}`, fragments[0])
-        }
-        const profile = await getPublicProfileFromHandle(item.v)
-        return mentionBody(profile?.url, profile?.username)
-      }
-      if (item.t === 'url') {
-        return linkBody(item.v)
-      }
-      return item.v
-    })
-  )
+    if (item.t === 'url') {
+      return linkBody(item.v)
+    }
+
+    return item.v
+  })
   return texts.join('')
 }
 
-export function paragraphText(text: string) {
-  const texts = text.trim().split('\n')
-  const groups: string[][] = []
-  for (const text of texts) {
-    let lastGroup: string[] = groups[groups.length - 1]
-    if (!lastGroup) {
-      lastGroup = []
-      groups.push(lastGroup)
+export const convertMarkdownText = (text: string) =>
+  marked.parse(text, { gfm: false })
+
+// Support the same tags as Mastodon here
+// https://github.com/mastodon/mastodon/blob/eae5c7334ae61c463edd2e3cd03115b897f6e92b/lib/sanitize_ext/sanitize_config.rb
+export const sanitizeText = (text: string) =>
+  sanitizeHtml(text, {
+    allowedTags: [
+      'p',
+      'br',
+      'span',
+      'a',
+      'del',
+      'pre',
+      'blockquote',
+      'code',
+      'b',
+      'strong',
+      'u',
+      'i',
+      'em',
+      'ul',
+      'ol',
+      'li'
+    ],
+    allowedAttributes: {
+      a: ['href', 'rel', 'class', 'translate'],
+      span: ['class', 'translate'],
+      ol: ['start', 'reversed'],
+      li: ['value']
+    },
+    allowedSchemes: ['http', 'https', 'ftp', 'mailto', 'tel'],
+    textFilter: (text, tagName) => {
+      if (['code', 'pre', 'a'].includes(tagName)) return text
+      return linkifyText(text)
     }
+  })
 
-    const lastItem = lastGroup[lastGroup.length - 1]
-    if (lastItem === undefined) {
-      lastGroup.push(text)
-      continue
-    }
-
-    if (text.length > 0) {
-      if (lastItem.length > 0) {
-        lastGroup.push(text)
-        continue
-      }
-
-      lastGroup = []
-      groups.push(lastGroup)
-      lastGroup.push(text)
-      continue
-    }
-
-    if (lastItem.length === 0) {
-      lastGroup.push(text)
-      continue
-    }
-
-    lastGroup = []
-    groups.push(lastGroup)
-    lastGroup.push(text)
-  }
-
-  const messages = groups
-    .map((group) => {
-      const item = group[group.length - 1]
-      if (item.length === 0 && group.length === 1) {
-        return ''
-      }
-      if (item.length === 0 && group.length > 1) {
-        return group
-          .slice(1)
-          .map(() => '<br />')
-          .join('\n')
-      }
-      return `<p>${group.join('<br />')}</p>`
-    })
-    .filter((item) => item.length > 0)
-
-  return messages.join('\n')
-}
+export const paragraphText = (text: string) =>
+  _.chain(text).thru(convertMarkdownText).thru(sanitizeText).value().trim()
 
 interface GetMentionsParams {
   text: string

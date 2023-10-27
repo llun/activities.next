@@ -140,7 +140,7 @@ export const seedStorage = async (storage: Storage) => {
     actorId: actors[1].id,
     to: [ACTIVITY_STREAM_PUBLIC, actors[0].id],
     cc: [`${actors[1].id}/followers`],
-    text: await linkifyText('@test1@llun.test This is Actor1 post', true),
+    text: linkifyText('@test1@llun.test This is Actor1 post'),
     reply: `${actors[0].id}/statuses/post-1`
   })
   await storage.createTag({

@@ -1,5 +1,4 @@
 import crypto from 'crypto'
-import { encode } from 'html-entities'
 
 import { getPublicProfile, sendNote } from '../activities'
 import { Mention } from '../activities/entities/mention'
@@ -16,7 +15,7 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMACT,
   ACTIVITY_STREAM_URL
 } from '../jsonld/activitystream'
-import { getMentions, linkifyText, paragraphText } from '../link'
+import { getMentions, paragraphText } from '../link'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { Status, StatusType } from '../models/status'
@@ -185,7 +184,7 @@ export const createNoteFromUserInput = async ({
 
     actorId: currentActor.id,
 
-    text: paragraphText(await linkifyText(encode(text))),
+    text: paragraphText(text),
     summary: null,
 
     to,

@@ -3998,7 +3998,6 @@ __metadata:
     firebase-tools: "npm:^12.7.0"
     formidable: "npm:^3.5.1"
     got: "npm:^12.6.1"
-    html-entities: "npm:^2.4.0"
     html-react-parser: "npm:^4.2.9"
     jest: "npm:^29.7.0"
     jest-extended: "npm:^4.0.2"
@@ -4008,6 +4007,7 @@ __metadata:
     knex: "npm:3.0.1"
     linkifyjs: "npm:^4.1.1"
     lodash: "npm:^4.17.21"
+    marked: "npm:^9.1.2"
     mime-types: "npm:^2.1.35"
     next: "npm:14.0.0"
     next-auth: "npm:4.24.3"
@@ -8278,13 +8278,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"html-entities@npm:^2.4.0":
-  version: 2.4.0
-  resolution: "html-entities@npm:2.4.0"
-  checksum: 42bbd5d91f451625d7e35aaed41c8cd110054c0d0970764cb58df467b3f27f20199e8cf7b4aebc8d4eeaf17a27c0d1fb165f2852db85de200995d0f009c9011d
-  languageName: node
-  linkType: hard
-
 "html-escaper@npm:^2.0.0":
   version: 2.0.2
   resolution: "html-escaper@npm:2.0.2"
@@ -10602,6 +10595,15 @@ __metadata:
   bin:
     marked: bin/marked.js
   checksum: 0013463855e31b9c88d8bb2891a611d10ef1dc79f2e3cbff1bf71ba389e04c5971298c886af0be799d7fa9aa4593b086a136062d59f1210b0480b026a8c5dc47
+  languageName: node
+  linkType: hard
+
+"marked@npm:^9.1.2":
+  version: 9.1.2
+  resolution: "marked@npm:9.1.2"
+  bin:
+    marked: bin/marked.js
+  checksum: 3566a5925a3104eed01625cbd3727be309b08f1a29576e3ed91b61496c1b9da5bab68cb2928587220e5423f3720d979427c6b993e47e7a2e81d33c89fc97ce89
   languageName: node
   linkType: hard
 

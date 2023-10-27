@@ -1,4 +1,5 @@
-import { getMentions, linkifyText, paragraphText } from './link'
+import { getConfig } from './config'
+import { getMentions, linkifyText } from './link'
 import { Actor } from './models/actor'
 import { SqlStorage } from './storage/sql'
 import { mockRequests } from './stub/activities'
@@ -7,6 +8,8 @@ import { seedActor2 } from './stub/seed/actor2'
 import { seedStorage } from './stub/storage'
 
 describe('#linkifyText', () => {
+  const config = getConfig()
+
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
@@ -15,7 +18,9 @@ describe('#linkifyText', () => {
   it('links mention with user url', async () => {
     const message = await linkifyText('@test1@somewhere.test')
     expect(message).toEqual(
-      '<span class="h-card"><a href="https://somewhere.test/actors/test1" target="_blank" class="u-url mention">@<span>test1</span></a></span>'
+      `<span class="h-card"><a href="https://${
+        getConfig().host
+      }/@test1@somewhere.test" target="_blank" class="u-url mention">@<span>test1@somewhere.test</span></a></span>`
     )
   })
 
@@ -24,7 +29,7 @@ describe('#linkifyText', () => {
       'With multiple mentions @test1@somewhere.test and @test2@llun.test tags'
     )
     expect(message).toEqual(
-      'With multiple mentions <span class="h-card"><a href="https://somewhere.test/actors/test1" target="_blank" class="u-url mention">@<span>test1</span></a></span> and <span class="h-card"><a href="https://llun.test/@test2" target="_blank" class="u-url mention">@<span>test2</span></a></span> tags'
+      `With multiple mentions <span class="h-card"><a href="https://${config.host}/@test1@somewhere.test" target="_blank" class="u-url mention">@<span>test1@somewhere.test</span></a></span> and <span class="h-card"><a href="https://${config.host}/@test2@llun.test" target="_blank" class="u-url mention">@<span>test2@llun.test</span></a></span> tags`
     )
   })
 
@@ -79,113 +84,6 @@ describe('#linkifyText', () => {
     )
     expect(message).toEqual(
       'Linkify with long query <a href="https://www.google.com/search?q=noreferrer&sourceid=chrome&ie=UTF-8" target="_blank" rel="nofollow noopener noreferrer">google.com/search?q=noreferrer&sour…</a>'
-    )
-  })
-})
-
-describe('#paragraphText', () => {
-  it('returns single paragraph for single line text', () => {
-    expect(paragraphText('This is single line text')).toEqual(
-      `
-<p>This is single line text</p>
-`.trim()
-    )
-  })
-
-  it('returns two paragraph for two line text', () => {
-    expect(
-      paragraphText(
-        `
-This is first line text
-This is second line text
-`.trim()
-      )
-    ).toEqual(
-      `
-<p>This is first line text<br />This is second line text</p>
-`.trim()
-    )
-  })
-
-  it('adds br when text has empty line in between', () => {
-    expect(
-      paragraphText(
-        `
-This is first line text
-
-This is second line text
-`.trim()
-      )
-    ).toEqual(
-      `
-<p>This is first line text</p>
-<p>This is second line text</p>
-`.trim()
-    )
-  })
-
-  it('adds br when text has multple empty line in between', () => {
-    expect(
-      paragraphText(
-        `
-This is first line text
-
-
-This is second line text
-This is third line text
-`.trim()
-      )
-    ).toEqual(
-      `
-<p>This is first line text</p>
-<br />
-<p>This is second line text<br />This is third line text</p>
-`.trim()
-    )
-  })
-
-  it('adds multiple br when text has multple empty line in between', () => {
-    expect(
-      paragraphText(
-        `
-This is first line text
-
-
-
-This is second line text
-This is third line text
-`.trim()
-      )
-    ).toEqual(
-      `
-<p>This is first line text</p>
-<br />
-<br />
-<p>This is second line text<br />This is third line text</p>
-`.trim()
-    )
-  })
-
-  it('adds multiple br when text has multple empty line in between', () => {
-    expect(
-      paragraphText(
-        `
-This is first line text
-
-
-This is second line text
-This is third line text
-
-This is fourth line text
-`.trim()
-      )
-    ).toEqual(
-      `
-<p>This is first line text</p>
-<br />
-<p>This is second line text<br />This is third line text</p>
-<p>This is fourth line text</p>
-`.trim()
     )
   })
 })

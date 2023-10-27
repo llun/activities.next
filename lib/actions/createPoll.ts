@@ -1,11 +1,10 @@
 import crypto from 'crypto'
-import { encode } from 'html-entities'
 
 import { getContent, getSummary, getTags } from '../activities/entities/note'
 import { Question, QuestionEntity } from '../activities/entities/question'
 import { compact } from '../jsonld'
 import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
-import { getMentions, linkifyText, paragraphText } from '../link'
+import { getMentions, paragraphText } from '../link'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
@@ -127,7 +126,7 @@ export const createPollFromUserInput = async ({
       currentActor.domain
     }/${currentActor.getMention()}/${postId}`,
     actorId: currentActor.id,
-    text: paragraphText(await linkifyText(encode(text))),
+    text: paragraphText(text),
     summary: '',
     to,
     cc,
