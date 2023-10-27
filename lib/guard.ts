@@ -10,8 +10,12 @@ import { authOptions } from '../pages/api/auth/[...nextauth]'
 import { getPublicProfile } from './activities'
 import { Error } from './activities/types'
 import { getConfig } from './config'
-import { ACTIVITIES_HOST, FORWARDED_HOST } from './constants'
-import { ERROR_400, ERROR_404, ERROR_500 } from './errors'
+import {
+  ACTIVITIES_HOST,
+  ACTIVITIES_SHARED_KEY,
+  FORWARDED_HOST
+} from './constants'
+import { ERROR_400, ERROR_403, ERROR_500 } from './errors'
 import { Actor } from './models/actor'
 import { parse, verify } from './signature'
 import { getStorage } from './storage'
@@ -169,7 +173,15 @@ export const SharedKeyApiGuard =
     const config = getConfig()
     const sharedKey = config.internalApi?.sharedKey
     if (!sharedKey) {
-      res.status(404).send(ERROR_404)
+      res.status(403).send(ERROR_403)
+      return
+    }
+
+    if (
+      !req.headers[ACTIVITIES_SHARED_KEY] ||
+      req.headers[ACTIVITIES_SHARED_KEY] !== sharedKey
+    ) {
+      res.status(403).send(ERROR_403)
       return
     }
 
