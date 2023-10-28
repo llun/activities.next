@@ -127,5 +127,5 @@ export const updateNoteFromUserInput = async ({
   )
 
   span.end()
-  return status
+  return updatedStatus
 }

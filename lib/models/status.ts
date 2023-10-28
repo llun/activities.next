@@ -271,7 +271,7 @@ export class Status {
     const note: Note = {
       id: data.id,
       type: data.type,
-      summary: data.summary,
+      summary: data.summary || null,
       published: getISOTimeUTC(data.createdAt),
       updated: getISOTimeUTC(data.updatedAt),
       url: data.url,

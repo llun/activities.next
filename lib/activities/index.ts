@@ -393,7 +393,7 @@ export const sendNote = async ({
   })
   const activity: CreateStatus = {
     '@context': ACTIVITY_STREAM_URL,
-    id: `${note.id}/activity`,
+    id: note.id,
     type: CreateAction,
     actor: note.attributedTo,
     published: note.published,

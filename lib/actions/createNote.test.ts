@@ -172,7 +172,7 @@ describe('Create note action', () => {
       })
 
       expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
-        id: `${status?.id}/activity`,
+        id: status?.id,
         type: 'Create',
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -196,7 +196,7 @@ describe('Create note action', () => {
       })
 
       expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
-        id: `${status?.id}/activity`,
+        id: status?.id,
         type: 'Create',
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -235,7 +235,7 @@ How are you?
       })
 
       expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
-        id: `${status?.id}/activity`,
+        id: status?.id,
         type: 'Create',
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -295,7 +295,7 @@ How are you?
       expect(followersInboxCall[0]).toEqual('https://somewhere.test/inbox')
       expect(followersInboxCall[1]?.method).toEqual('POST')
       expect(body).toMatchObject({
-        id: `${status?.id}/activity`,
+        id: status?.id,
         type: 'Create',
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -325,7 +325,7 @@ How are you?
       })
 
       const matchObject = {
-        id: `${status?.id}/activity`,
+        id: status?.id,
         type: 'Create',
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
