@@ -81,7 +81,7 @@ describe('Update note action', () => {
       })
 
       expect(status?.data).toMatchObject({
-        text: 'This is markdown <strong>text</string> that should get format'
+        text: '<p>This is markdown <strong>text</strong> that should get format</p>'
       })
     })
   })

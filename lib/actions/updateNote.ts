@@ -11,6 +11,7 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMACT,
   ACTIVITY_STREAM_URL
 } from '../jsonld/activitystream'
+import { formatText } from '../link'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
@@ -77,7 +78,11 @@ export const updateNoteFromUserInput = async ({
     return null
   }
 
-  const updatedStatus = await storage.updateNote({ statusId, summary, text })
+  const updatedStatus = await storage.updateNote({
+    statusId,
+    summary,
+    text: formatText(text)
+  })
   if (!updatedStatus) {
     span.end()
     return null
