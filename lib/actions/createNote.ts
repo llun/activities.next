@@ -15,7 +15,7 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMACT,
   ACTIVITY_STREAM_URL
 } from '../jsonld/activitystream'
-import { getMentions, paragraphText } from '../link'
+import { formatText, getMentions } from '../link'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { Status, StatusType } from '../models/status'
@@ -184,7 +184,7 @@ export const createNoteFromUserInput = async ({
 
     actorId: currentActor.id,
 
-    text: paragraphText(text),
+    text: formatText(text),
     summary: null,
 
     to,

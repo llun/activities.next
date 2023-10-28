@@ -97,7 +97,7 @@ export const sanitizeText = (text: string) =>
     }
   })
 
-export const paragraphText = (text: string) =>
+export const formatText = (text: string) =>
   _.chain(text).thru(convertMarkdownText).thru(sanitizeText).value().trim()
 
 interface GetMentionsParams {
