@@ -3666,6 +3666,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/turndown@npm:^5.0.3":
+  version: 5.0.3
+  resolution: "@types/turndown@npm:5.0.3"
+  checksum: 27763d8ea349f9c1e166153207fcc87d621236dbc3b176afe83af43eef6d2fbdd2250ddc7630130fc6c70925f2b336817f31041b2c01b7c48698c64c1de0996d
+  languageName: node
+  linkType: hard
+
 "@types/yargs-parser@npm:*":
   version: 21.0.2
   resolution: "@types/yargs-parser@npm:21.0.2"
@@ -3976,6 +3983,7 @@ __metadata:
     "@types/react-dom": "npm:18.2.14"
     "@types/react-modal": "npm:^3.16.2"
     "@types/sanitize-html": "npm:^2.9.3"
+    "@types/turndown": "npm:^5.0.3"
     "@typescript-eslint/eslint-plugin": "npm:^6.9.0"
     "@typescript-eslint/parser": "npm:^6.9.0"
     bcrypt: "npm:^5.1.1"
