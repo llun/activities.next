@@ -455,7 +455,6 @@ export const sendUpdateNote = async ({
     },
     body: JSON.stringify(activity)
   })
-  console.log('Update activity', activity)
   span.end()
 }
 
