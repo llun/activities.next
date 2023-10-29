@@ -15,11 +15,12 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMACT,
   ACTIVITY_STREAM_URL
 } from '../jsonld/activitystream'
-import { formatText, getMentions } from '../link'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { Status, StatusType } from '../models/status'
 import { Storage } from '../storage/types'
+import { formatText } from '../text/formatText'
+import { getMentions } from '../text/getMentions'
 import { addStatusToTimelines } from '../timelines'
 import { getSpan } from '../trace'
 import { recordActorIfNeeded } from './utils'

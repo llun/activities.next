@@ -9,6 +9,10 @@ const nextConfig = {
     instrumentationHook: true
   },
 
+  publicRuntimeConfig: {
+    host: process.env.ACTIVITIES_HOST
+  },
+
   generateBuildId() {
     return `activities-${Date.now()}`
   },

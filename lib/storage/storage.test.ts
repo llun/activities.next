@@ -1,7 +1,7 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { FollowStatus } from '../models/follow'
 import { StatusNote, StatusType } from '../models/status'
-import { TEST_DOMAIN } from '../stub/const'
+import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '../stub/const'
 import { addStatusToTimelines } from '../timelines'
 import { Timeline } from '../timelines/types'
 import { FirestoreStorage } from './firestore'
@@ -10,59 +10,59 @@ import { Storage } from './types'
 
 jest.mock('../config')
 
-const TEST_SHARED_INBOX = 'https://llun.test/inbox'
+const TEST_SHARED_INBOX = `https://${TEST_DOMAIN}/inbox`
 const TEST_PASSWORD_HASH = 'password_hash'
 
 // For testing existing user
-const TEST_EMAIL = 'user@llun.dev'
+const TEST_EMAIL = `user@${TEST_DOMAIN}`
 const TEST_USERNAME = 'user'
-const TEST_ID = 'https://llun.test/users/user'
+const TEST_ID = `https://${TEST_DOMAIN}/users/user`
 
 // For testing create new account
-const TEST_EMAIL2 = 'user2@llun.dev'
+const TEST_EMAIL2 = `user2@${TEST_DOMAIN}`
 const TEST_USERNAME2 = 'user2'
 
 // User that follow other without any followers
-const TEST_ID3 = 'https://llun.test/users/user3'
+const TEST_ID3 = `https://${TEST_DOMAIN}/users/user3`
 
 // User that get someone follow them
-const TEST_ID4 = 'https://llun.test/users/user4'
+const TEST_ID4 = `https://${TEST_DOMAIN}/users/user4`
 
 // Get statuses test user
-const TEST_ID5 = 'https://llun.test/users/user5'
+const TEST_ID5 = `https://${TEST_DOMAIN}/users/user5`
 
 // Get Actor statuses test user
-const TEST_ID6 = 'https://llun.test/users/user6'
+const TEST_ID6 = `https://${TEST_DOMAIN}/users/user6`
 
 // Actor statuses with replies test user
-const TEST_ID7 = 'https://llun.test/users/user7'
+const TEST_ID7 = `https://${TEST_DOMAIN}/users/user7`
 
 // Statuses with replies test user
-const TEST_ID8 = 'https://llun.test/users/user8'
+const TEST_ID8 = `https://${TEST_DOMAIN}/users/user8`
 
 // Status with reply list
-const TEST_ID9 = 'https://llun.test/users/user9'
+const TEST_ID9 = `https://${TEST_DOMAIN}/users/user9`
 
 // Actor creation
-const TEST_ID10 = 'https://llun.test/users/user10'
+const TEST_ID10 = `https://${TEST_DOMAIN_2}/users/user10`
 const TEST_USERNAME10 = 'random10'
-const TEST_DOMAIN10 = 'llun.random'
+const TEST_DOMAIN10 = TEST_DOMAIN_2
 
 // Status with boost
-const TEST_ID11 = 'https://llun.test/users/user11'
+const TEST_ID11 = `https://${TEST_DOMAIN}/users/user11`
 
 // Likes
-const TEST_ID12 = 'https://llun.test/users/user12'
+const TEST_ID12 = `https://${TEST_DOMAIN}/users/user12`
 
 // Local public timeline
-const TEST_ID13 = 'https://llun.test/users/user13'
+const TEST_ID13 = `https://${TEST_DOMAIN}/users/user13`
 const TEST_USERNAME13 = 'user13'
 
 // Actor boosted test id 11 status
-const TEST_ID14 = 'https://llun.test/users/user14'
+const TEST_ID14 = `https://${TEST_DOMAIN}/users/user14`
 
 // Actor who follows Actor14 and see boost
-const TEST_ID15 = 'https://llun.test/users/user15'
+const TEST_ID15 = `https://${TEST_DOMAIN}/users/user15`
 
 type TestStorage = [string, Storage]
 
@@ -239,18 +239,18 @@ describe('Storage', () => {
       })
 
       it('following other actor', async () => {
-        const targetActorHost = 'llun.dev'
-        const targetActorId = 'https://llun.dev/users/null'
+        const targetActorHost = TEST_DOMAIN_2
+        const targetActorId = `https://${TEST_DOMAIN_2}/users/null`
         const inbox = `${TEST_ID3}/inbox`
         const sharedInbox = 'https://llun.test/inbox'
 
         await storage.createActor({
           actorId: targetActorId,
-          domain: 'llun.dev',
+          domain: TEST_DOMAIN_2,
           username: 'null',
-          followersUrl: 'https://llun.dev/f/null',
-          sharedInboxUrl: 'https://llun.dev/i/null',
-          inboxUrl: 'https://llun.dev/i/null',
+          followersUrl: `https://${TEST_DOMAIN_2}/f/null`,
+          sharedInboxUrl: `https://${TEST_DOMAIN_2}/i/null`,
+          inboxUrl: `https://${TEST_DOMAIN_2}/i/null`,
           publicKey: 'public-key',
           createdAt: Date.now()
         })
@@ -264,7 +264,7 @@ describe('Storage', () => {
           sharedInbox
         })
         expect(follow).toEqual({
-          actorHost: 'llun.test',
+          actorHost: TEST_DOMAIN,
           actorId: TEST_ID3,
           createdAt: expect.toBeNumber(),
           id: expect.toBeString(),
@@ -285,10 +285,10 @@ describe('Storage', () => {
         expect(
           await storage.getAcceptedOrRequestedFollow({
             actorId: TEST_ID3,
-            targetActorId: 'https://llun.dev/users/null'
+            targetActorId
           })
         ).toEqual({
-          actorHost: 'llun.test',
+          actorHost: TEST_DOMAIN,
           actorId: TEST_ID3,
           createdAt: expect.toBeNumber(),
           id: follow.id,
@@ -341,7 +341,7 @@ describe('Storage', () => {
             targetActorId
           })
         ).toEqual({
-          actorHost: 'llun.test',
+          actorHost: TEST_DOMAIN,
           actorId: TEST_ID3,
           createdAt: expect.toBeNumber(),
           id: secondFollow.id,
@@ -363,7 +363,7 @@ describe('Storage', () => {
             targetActorId
           })
         expect(secondFollowAfterUpdated).toEqual({
-          actorHost: 'llun.test',
+          actorHost: TEST_DOMAIN,
           actorId: TEST_ID3,
           createdAt: expect.toBeNumber(),
           id: secondFollow.id,
@@ -393,7 +393,7 @@ describe('Storage', () => {
         ])
 
         const actors = await storage.getLocalActorsFromFollowerUrl({
-          followerUrl: 'https://llun.dev/f/null'
+          followerUrl: `https://${TEST_DOMAIN_2}/f/null`
         })
         expect(actors.length).toEqual(1)
         expect(actors[0].id).toEqual(TEST_ID3)
@@ -401,9 +401,9 @@ describe('Storage', () => {
       })
 
       it('gets other actor follow (follower)', async () => {
-        const actorId = 'https://llun.dev/users/test2'
+        const actorId = `https://${TEST_DOMAIN_2}/users/test2`
         const inbox = `${actorId}/inbox`
-        const sharedInbox = 'https://llun.dev/inbox'
+        const sharedInbox = `https://${TEST_DOMAIN_2}/inbox`
 
         await storage.createFollow({
           actorId,
@@ -430,7 +430,7 @@ describe('Storage', () => {
           targetActorId: TEST_ID4,
           status: FollowStatus.Accepted,
           inbox: `${TEST_ID3}/inbox`,
-          sharedInbox: 'https://llun.test/inbox'
+          sharedInbox: `https://${TEST_DOMAIN}/inbox`
         })
         const followsAfterLocalFollow =
           await storage.getLocalFollowersForActorId({
@@ -438,14 +438,14 @@ describe('Storage', () => {
           })
         expect(followsAfterLocalFollow.length).toEqual(1)
 
-        const OUTSIDE_NETWORK_ID = 'https://someone.else/u/outside-network'
+        const OUTSIDE_NETWORK_ID = `https://${TEST_DOMAIN_3}/u/outside-network`
         await storage.createActor({
           actorId: OUTSIDE_NETWORK_ID,
-          domain: 'someone.else',
+          domain: TEST_DOMAIN_3,
           username: 'outside-network',
-          followersUrl: 'https://someone.else/f/outside-network',
-          inboxUrl: 'https://someone.else/i/outside-network',
-          sharedInboxUrl: 'https://someone.else/i/outside-network',
+          followersUrl: `https://${TEST_DOMAIN_3}/f/outside-network`,
+          inboxUrl: `https://${TEST_DOMAIN_3}/i/outside-network`,
+          sharedInboxUrl: `https://${TEST_DOMAIN_3}/i/outside-network`,
           publicKey: 'public-key',
           createdAt: Date.now()
         })
@@ -454,8 +454,8 @@ describe('Storage', () => {
           actorId: OUTSIDE_NETWORK_ID,
           targetActorId: TEST_ID4,
           status: FollowStatus.Accepted,
-          inbox: 'https://someone.else/i/outside-network',
-          sharedInbox: 'https://someone.else/i/outside-network'
+          inbox: `https://${TEST_DOMAIN_3}/i/outside-network`,
+          sharedInbox: `https://${TEST_DOMAIN_3}/i/outside-network`
         })
         const followsAfterOutsideFollow =
           await storage.getLocalFollowersForActorId({
@@ -547,14 +547,14 @@ describe('Storage', () => {
           url: id,
           actorId: TEST_ID,
 
-          text: '@<a href="https://llun.test/@test2">test2</a> Test mentions',
+          text: `@<a href="https://${TEST_DOMAIN}/@test2">test2</a> Test mentions`,
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
         })
         const tag = await storage.createTag({
           statusId: id,
-          name: '@test2@llun.test',
-          value: 'https://llun.test/@test2',
+          name: `@test2@${TEST_DOMAIN}`,
+          value: `https://${TEST_DOMAIN}/@test2`,
           type: 'mention'
         })
         const persistedStatus = await storage.getStatus({ statusId: id })

@@ -11,10 +11,10 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMACT,
   ACTIVITY_STREAM_URL
 } from '../jsonld/activitystream'
-import { formatText } from '../link'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
+import { formatText } from '../text/formatText'
 import { getSpan } from '../trace'
 
 interface UpdateNoteParams {

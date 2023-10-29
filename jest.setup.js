@@ -42,3 +42,12 @@ jest.mock('./lib/config', () => {
     })
   }
 })
+
+jest.mock('next/config', () => {
+  const host = jest.requireActual('./lib/stub/const').TEST_DOMAIN
+  return jest.fn().mockReturnValue({
+    publicRuntimeConfig: {
+      host
+    }
+  })
+})

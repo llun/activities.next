@@ -1,7 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
-import { formatText } from '../link'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { SqlStorage } from '../storage/sql'
@@ -11,6 +10,7 @@ import { MockLitepubNote, MockMastodonNote } from '../stub/note'
 import { seedActor1 } from '../stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
+import { formatText } from '../text/formatText'
 import { createNote, createNoteFromUserInput } from './createNote'
 
 enableFetchMocks()
