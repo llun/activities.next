@@ -1,18 +1,15 @@
-import fs from 'fs'
+import dotenvFlow from 'dotenv-flow'
 
-import { Config } from './lib/config'
+import { getConfig } from './lib/config'
 
-const sharedConfig = JSON.parse(
-  fs.readFileSync('./config.json', 'utf-8')
-) as Config
-
-if (!['knex', 'sqlite3', 'sql'].includes(sharedConfig.database.type)) {
+dotenvFlow.config()
+if (!['knex', 'sqlite3', 'sql'].includes(getConfig().database.type)) {
   console.error('Unsupported database type')
   process.exit(0)
 }
 
 const config = {
-  development: sharedConfig.database
+  development: getConfig().database
 }
 
 module.exports = config

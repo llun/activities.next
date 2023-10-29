@@ -1795,7 +1795,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@next/env@npm:14.0.0":
+"@next/env@npm:14.0.0, @next/env@npm:^14.0.0":
   version: 14.0.0
   resolution: "@next/env@npm:14.0.0"
   checksum: c43e81dbd162a29a4b380342e416209d69d731e8ced7688d09668ec8196f543e358ed65adad81a26e943c63a293d7a018552f8389b6b1ac95cd0f63f4ef257c0
@@ -3952,6 +3952,7 @@ __metadata:
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@google-cloud/firestore": "npm:^7.1.0"
     "@keyv/redis": "npm:^2.8.0"
+    "@next/env": "npm:^14.0.0"
     "@opentelemetry/api": "npm:^1.6.0"
     "@opentelemetry/exporter-trace-otlp-grpc": "npm:^0.44.0"
     "@opentelemetry/exporter-trace-otlp-http": "npm:^0.44.0"
@@ -3994,6 +3995,7 @@ __metadata:
     content-type: "npm:^1.0.5"
     date-fns: "npm:^2.30.0"
     date-fns-tz: "npm:^2.0.0"
+    dotenv-flow: "npm:^4.0.0"
     eslint: "npm:^8.52.0"
     eslint-config-next: "npm:14.0.0"
     eslint-config-prettier: "npm:^9.0.0"
@@ -6121,6 +6123,22 @@ __metadata:
   dependencies:
     is-obj: "npm:^2.0.0"
   checksum: 93f0d343ef87fe8869320e62f2459f7e70f49c6098d948cc47e060f4a3f827d0ad61e83cb82f2bd90cd5b9571b8d334289978a43c0f98fea4f0e99ee8faa0599
+  languageName: node
+  linkType: hard
+
+"dotenv-flow@npm:^4.0.0":
+  version: 4.0.0
+  resolution: "dotenv-flow@npm:4.0.0"
+  dependencies:
+    dotenv: "npm:^16.0.0"
+  checksum: 312633ac068d78a9a4216e2dae3f9e0ffb5659b52606be085ac535d90dbe47b8aa982845dadf9b142fd3c52d7d53053749b1b4891236716fd100acf427374839
+  languageName: node
+  linkType: hard
+
+"dotenv@npm:^16.0.0":
+  version: 16.3.1
+  resolution: "dotenv@npm:16.3.1"
+  checksum: b95ff1bbe624ead85a3cd70dbd827e8e06d5f05f716f2d0cbc476532d54c7c9469c3bc4dd93ea519f6ad711cb522c00ac9a62b6eb340d5affae8008facc3fbd7
   languageName: node
   linkType: hard
 

@@ -9,17 +9,15 @@ tested with SQLite only in development) and [Google Firestore/Firebase Firestore
 
 ### Using SQL
 
-Add database configuration into `config.json` file
+Set `ACTIVITIES_DATABASE` environment variable with JSON string below by stringify it with `JSON.stringify()` and use the string in variable.
 
 ```json
 {
-  "database": {
-    "type": "sql",
-    "client": "better-sqlite3",
-    "useNullAsDefault": true,
-    "connection": {
-      "filename": "./dev.sqlite3"
-    }
+  "type": "sql",
+  "client": "better-sqlite3",
+  "useNullAsDefault": true,
+  "connection": {
+    "filename": "./dev.sqlite3"
   }
 }
 ```
