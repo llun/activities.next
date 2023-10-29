@@ -9,6 +9,10 @@ import { Modal } from '../../lib/components/Modal'
 import { Media } from '../../lib/components/Posts/Media'
 import { Post } from '../../lib/components/Posts/Post'
 import { Posts } from '../../lib/components/Posts/Posts'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMACT
+} from '../../lib/jsonld/activitystream'
 import { AttachmentData } from '../../lib/models/attachment'
 import { StatusData } from '../../lib/models/status'
 import { getFirstValueFromParsedQuery } from '../../lib/query'
@@ -92,6 +96,15 @@ export const getStaticProps: GetStaticProps<Props, Params> = async (
     storage.getStatusReplies({ statusId })
   ])
   if (!status) {
+    return { notFound: true, revalidate: 5 }
+  }
+
+  if (
+    !(
+      status.to.includes(ACTIVITY_STREAM_PUBLIC) ||
+      status.to.includes(ACTIVITY_STREAM_PUBLIC_COMACT)
+    )
+  ) {
     return { notFound: true, revalidate: 5 }
   }
 
