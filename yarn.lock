@@ -4024,7 +4024,7 @@ __metadata:
     eslint-plugin-unused-imports: "npm:^3.0.0"
     firebase-tools: "npm:^12.7.0"
     formidable: "npm:^3.5.1"
-    got: "npm:^13.0.0"
+    got: "npm:^12.6.1"
     html-react-parser: "npm:^4.2.10"
     jest: "npm:^29.7.0"
     jest-extended: "npm:^4.0.2"
@@ -8119,9 +8119,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"got@npm:^13.0.0":
-  version: 13.0.0
-  resolution: "got@npm:13.0.0"
+"got@npm:^12.6.1":
+  version: 12.6.1
+  resolution: "got@npm:12.6.1"
   dependencies:
     "@sindresorhus/is": "npm:^5.2.0"
     "@szmarczak/http-timer": "npm:^5.0.1"
@@ -8134,7 +8134,7 @@ __metadata:
     lowercase-keys: "npm:^3.0.0"
     p-cancelable: "npm:^3.0.0"
     responselike: "npm:^3.0.0"
-  checksum: d6a4648dc46f1f9df2637b8730d4e664349a93cb6df62c66dfbb48f7887ba79742a1cc90739a4eb1c15f790ca838ff641c5cdecdc877993627274aeb0f02b92d
+  checksum: 2fe97fcbd7a9ffc7c2d0ecf59aca0a0562e73a7749cadada9770eeb18efbdca3086262625fb65590594edc220a1eca58fab0d26b0c93c2f9a008234da71ca66b
   languageName: node
   linkType: hard
 
