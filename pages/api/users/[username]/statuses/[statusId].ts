@@ -40,6 +40,6 @@ export default async function handler(
 
   res.status(200).json({
     '@context': ACTIVITY_STREAM_URL,
-    ...note
+    ...(note as Note)
   })
 }

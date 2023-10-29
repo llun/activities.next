@@ -2,10 +2,11 @@ import cn from 'classnames'
 import { FC } from 'react'
 
 import { StatusData, StatusType } from '../../models/status'
+import { cleanClassName } from '../../text/cleanClassName'
+import { convertTextContent } from '../../text/convertTextContent'
 import { CloseButton } from '../CloseButton'
 import { Actor } from '../Posts/Actor'
 import { Poll } from '../Posts/Poll'
-import { cleanClassName, convertTextContent } from '../text'
 import styles from './ReplyPreview.module.scss'
 
 interface Props {

@@ -3,8 +3,9 @@ import formatDistance from 'date-fns/formatDistance'
 import { FC, useState } from 'react'
 
 import { StatusData, StatusNote, StatusPoll } from '../../../models/status'
+import { cleanClassName } from '../../../text/cleanClassName'
+import { convertTextContent } from '../../../text/convertTextContent'
 import { Button } from '../../Button'
-import { cleanClassName, convertTextContent } from '../../text'
 import styles from './EditHistoryButton.module.scss'
 
 interface Props {
