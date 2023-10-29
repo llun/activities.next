@@ -121,14 +121,14 @@ export const statusRecipientsTo = (actor: Actor, replyStatus?: Status) => {
   }
 
   if (replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC)) {
-    return [ACTIVITY_STREAM_PUBLIC]
+    return [ACTIVITY_STREAM_PUBLIC, actor.followersUrl]
   }
 
   if (replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC_COMACT)) {
-    return [ACTIVITY_STREAM_PUBLIC]
+    return [ACTIVITY_STREAM_PUBLIC, actor.followersUrl]
   }
 
-  return [actor.followersUrl]
+  return [replyStatus.actorId]
 }
 
 export const statusRecipientsCC = (
@@ -140,15 +140,15 @@ export const statusRecipientsCC = (
     return [actor.followersUrl, ...mentions.map((item) => item.href)]
   }
 
-  if (replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC)) {
+  if (replyStatus.cc.includes(ACTIVITY_STREAM_PUBLIC)) {
     return [actor.followersUrl, ...mentions.map((item) => item.href)]
   }
 
-  if (replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC_COMACT)) {
+  if (replyStatus.cc.includes(ACTIVITY_STREAM_PUBLIC_COMACT)) {
     return [actor.followersUrl, ...mentions.map((item) => item.href)]
   }
 
-  return [ACTIVITY_STREAM_PUBLIC, ...mentions.map((item) => item.href)]
+  return mentions.map((item) => item.href)
 }
 
 interface CreateNoteFromUserInputParams {

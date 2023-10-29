@@ -199,8 +199,8 @@ describe('Create note action', () => {
         id: status?.id,
         type: 'Create',
         actor: actor1.id,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [actor1.followersUrl, ACTOR2_ID],
+        to: [ACTIVITY_STREAM_PUBLIC, actor1.followersUrl],
+        cc: [ACTOR2_ID],
         object: status?.toObject()
       })
     })

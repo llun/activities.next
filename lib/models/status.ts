@@ -265,6 +265,7 @@ export class Status {
   }
 
   toJson(): StatusData {
-    return this.data
+    // TODO: Find a better way to clean the data
+    return JSON.parse(JSON.stringify(this.data))
   }
 }
