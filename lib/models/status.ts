@@ -264,41 +264,6 @@ export class Status {
     } as Note
   }
 
-  toNote() {
-    if (this.data.type !== StatusType.Note) return null
-
-    const data = this.data
-    const note: Note = {
-      id: data.id,
-      type: data.type,
-      summary: data.summary || null,
-      published: getISOTimeUTC(data.createdAt),
-      updated: getISOTimeUTC(data.updatedAt),
-      url: data.url,
-      attributedTo: data.actorId,
-      to: data.to,
-      cc: data.cc,
-      inReplyTo: data.reply || null,
-      content: data.text,
-      attachment: data.attachments.map((attachment) =>
-        new Attachment(attachment).toObject()
-      ),
-      tag: data.tags.map((tag) => new Tag(tag).toObject()),
-      replies: {
-        id: `${data.id}/replies`,
-        type: 'Collection',
-        totalItems: data.replies.length,
-        items: data.replies
-          .map((reply) => {
-            const status = new Status(reply)
-            return status.toNote()
-          })
-          .filter((item): item is Note => item !== null)
-      }
-    }
-    return note
-  }
-
   toJson(): StatusData {
     return this.data
   }

@@ -429,7 +429,7 @@ export const sendUpdateNote = async ({
     inbox
   })
 
-  const note = status.toNote()
+  const note = status.toObject()
   if (!note) {
     span.end()
     return

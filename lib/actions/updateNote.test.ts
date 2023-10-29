@@ -66,7 +66,7 @@ describe('Update note action', () => {
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
-        object: status?.toNote()
+        object: status?.toObject()
       })
     })
 

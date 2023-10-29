@@ -32,7 +32,7 @@ export default async function handler(
     return
   }
 
-  const note = status.toNote()
+  const note = status.toObject()
   if (!note) {
     res.status(404).json(ERROR_404)
     return

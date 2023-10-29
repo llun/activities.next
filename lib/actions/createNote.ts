@@ -245,7 +245,7 @@ export const createNoteFromUserInput = async ({
   })
 
   const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
-  const note = status.toNote()
+  const note = status.toObject()
   if (!note) {
     span.end()
     return status
@@ -257,7 +257,7 @@ export const createNoteFromUserInput = async ({
         await sendNote({
           currentActor,
           inbox,
-          note
+          note: note as Note
         })
       } catch {
         console.error(`Fail to send note to ${inbox}`)
