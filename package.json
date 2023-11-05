@@ -42,7 +42,7 @@
     "date-fns-tz": "^2.0.0",
     "eslint-plugin-import": "^2.29.0",
     "formidable": "^3.5.1",
-    "got": "^13.0.0",
+    "got": "^12.6.1",
     "html-react-parser": "^5.0.6",
     "jsonld": "^8.3.1",
     "jsonwebtoken": "^9.0.2",
