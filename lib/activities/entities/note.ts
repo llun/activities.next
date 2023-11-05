@@ -23,7 +23,7 @@ export interface BaseNote extends ContextEntity {
   attributedTo: string
   to: string | string[]
   cc: string | string[]
-  content?: string
+  content?: string | string[]
   contentMap?: {
     [key in string]: string
   }
@@ -49,14 +49,15 @@ export const getTags = (object: BaseNote) => {
 }
 
 export const getContent = (object: BaseNote) => {
-  if (object.content) return object.content
-  if (object.contentMap) {
-    if (Array.isArray(object.contentMap)) {
-      // Wordpress uses array in contentMap instead of locale map.
-      // This is a temporary fixed to support it.
-      return object.contentMap[0]
+  if (object.content) {
+    // Wordpress uses array in contentMap instead of locale map.
+    // This is a temporary fixed to support it.
+    if (Array.isArray(object.content)) {
+      return object.content[0]
     }
-
+    return object.content
+  }
+  if (object.contentMap) {
     const keys = Object.keys(object.contentMap)
     if (keys.length === 0) return ''
 
