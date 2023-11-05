@@ -154,7 +154,7 @@ describe('Create note action', () => {
       })
     })
 
-    it.only('adds note with single content map when contentMap is array', async () => {
+    it('adds note with single content map when contentMap is array', async () => {
       const note = MockMastodonNote({
         content: '<p>Hello</p>',
         contentMap: ['<p>Hello</p>']
