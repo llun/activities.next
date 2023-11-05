@@ -153,6 +153,20 @@ describe('Create note action', () => {
         createdAt: expect.toBeNumber()
       })
     })
+
+    it.only('adds note with single content map when contentMap is array', async () => {
+      const note = MockMastodonNote({
+        content: '<p>Hello</p>',
+        contentMap: ['<p>Hello</p>']
+      })
+      expect(await createNote({ storage, note })).toEqual(note)
+
+      const status = await storage.getStatus({ statusId: note.id })
+      if (status?.data.type !== StatusType.Note) {
+        fail('Stauts type must be note')
+      }
+      expect(status.data.text).toEqual('<p>Hello</p>')
+    })
   })
 
   describe('#createNoteFromUserInput', () => {

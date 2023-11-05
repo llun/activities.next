@@ -15,6 +15,7 @@ export const stubNoteId = (id = crypto.randomBytes(8).toString('hex')) =>
 
 interface MockNoteParams {
   content: string
+  contentMap?: { [key: string]: string } | string[]
   published?: number
   id?: string
   url?: string
@@ -31,6 +32,7 @@ export const MockMastodonNote = ({
   id = stubNoteId(),
   published = Date.now(),
   content,
+  contentMap,
   from = ACTOR1_ID,
   to = [ACTIVITY_STREAM_PUBLIC],
   cc = [],
@@ -58,7 +60,7 @@ export const MockMastodonNote = ({
       conversation ??
       `tag:${TEST_DOMAIN},${Date.now()}:objectId=${crypto.randomUUID()}:objectType=Conversation`,
     content,
-    contentMap: { en: content },
+    contentMap: contentMap ?? { en: content },
     attachment: documents,
     tag: [],
     replies: {
