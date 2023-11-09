@@ -4112,7 +4112,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^6.10.0"
     "@typescript-eslint/parser": "npm:^6.10.0"
     bcrypt: "npm:^5.1.1"
-    better-sqlite3: "npm:^9.1.0"
+    better-sqlite3: "npm:^9.1.1"
     bootstrap: "npm:^5.3.2"
     bootstrap-icons: "npm:^1.11.1"
     classnames: "npm:^2.3.2"
@@ -4139,7 +4139,7 @@ __metadata:
     jsonld: "npm:^8.3.1"
     jsonwebtoken: "npm:^9.0.2"
     knex: "npm:3.0.1"
-    linkifyjs: "npm:^4.1.1"
+    linkifyjs: "npm:^4.1.2"
     lodash: "npm:^4.17.21"
     marked: "npm:^9.1.5"
     mime-types: "npm:^2.1.35"
@@ -4833,14 +4833,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"better-sqlite3@npm:^9.1.0":
-  version: 9.1.0
-  resolution: "better-sqlite3@npm:9.1.0"
+"better-sqlite3@npm:^9.1.1":
+  version: 9.1.1
+  resolution: "better-sqlite3@npm:9.1.1"
   dependencies:
     bindings: "npm:^1.5.0"
     node-gyp: "npm:latest"
     prebuild-install: "npm:^7.1.1"
-  checksum: 8734e982f557ab9deaf89a835a913112e55ce9ebf6a126d448c48b85a0f6b875fcd1d012c73374fa08ff6420a8946aeb9e7471963481182540fa25491775fad7
+  checksum: 2efb945ed741477401bd438db343db251702c7011eb1f4a5800c440afc89708ae6268c11a4331b18e0080a02fa1a2d6f48cef8df830710563fedb8b728f6d6da
   languageName: node
   linkType: hard
 
@@ -10317,10 +10317,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"linkifyjs@npm:^4.1.1":
-  version: 4.1.1
-  resolution: "linkifyjs@npm:4.1.1"
-  checksum: f50241a3ef90db0bbcb7adb4b7d06e88599d1710844713c58f81726249b3eb60100f3cb00a38bbcb46aa4146c1a69d780b344e745e0f2d9b44152d77e1073b61
+"linkifyjs@npm:^4.1.2":
+  version: 4.1.2
+  resolution: "linkifyjs@npm:4.1.2"
+  checksum: 3c49ff0f1a164652fc4ce55b40305c5cee60b3ef646a7d2d6610f979476de81154bcdc608d51da881711578c45853fdad50956489a6619dc5a651857414e946a
   languageName: node
   linkType: hard
 
