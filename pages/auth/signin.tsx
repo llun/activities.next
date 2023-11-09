@@ -38,7 +38,7 @@ export default function SignIn({
                       <input
                         name="csrfToken"
                         type="hidden"
-                        defaultValue={csrfToken}
+                        defaultValue={csrfToken ?? ''}
                       />
                       <div className="mb-3 row">
                         <label
