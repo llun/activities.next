@@ -125,7 +125,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
 
   return {
     props: {
-      csrfToken,
+      csrfToken: csrfToken ?? null,
       providers: providers ?? [],
       currentServerTime: Date.now(),
       statuses: statuses?.map((status) => status.toJson())
