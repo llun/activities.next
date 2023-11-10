@@ -7,7 +7,18 @@ const nextConfig = {
   assetPrefix: '/activities',
   experimental: {
     instrumentationHook: true,
-    serverComponentsExternalPackages: ['knex']
+    serverComponentsExternalPackages: [
+      '@aws-sdk/client-lambda',
+      '@aws-sdk/client-s3',
+      '@aws-sdk/util-utf8-node',
+      '@google-cloud/firestore',
+      '@keyv/redis',
+      'knex',
+      'bcrypt',
+      'better-sqlite3',
+      'got',
+      'nodemailer'
+    ]
   },
 
   publicRuntimeConfig: {
