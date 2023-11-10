@@ -17,7 +17,8 @@ const nextConfig = {
       'bcrypt',
       'better-sqlite3',
       'got',
-      'nodemailer'
+      'nodemailer',
+      'resend'
     ]
   },
 
