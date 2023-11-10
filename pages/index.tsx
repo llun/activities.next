@@ -7,7 +7,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { Reducer, useEffect, useReducer, useState } from 'react'
 
-import { authOptions } from '../app/api/auth/[...nextauth]/route'
+import { authOptions } from '../app/api/auth/[...nextauth]/authOptions'
 import { getTimeline } from '../lib/client'
 import { Header } from '../lib/components/Header'
 import { PostBox } from '../lib/components/PostBox/PostBox'

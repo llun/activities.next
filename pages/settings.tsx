@@ -11,7 +11,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
 
-import { authOptions } from '../app/api/auth/[...nextauth]/route'
+import { authOptions } from '../app/api/auth/[...nextauth]/authOptions'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { Profile as ProfileComponent } from '../lib/components/Profile'

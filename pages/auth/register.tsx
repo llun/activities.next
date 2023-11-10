@@ -2,7 +2,7 @@ import type { GetServerSidePropsContext } from 'next'
 import { getServerSession } from 'next-auth/next'
 import Head from 'next/head'
 
-import { authOptions } from '../../app/api/auth/[...nextauth]/route'
+import { authOptions } from '../../app/api/auth/[...nextauth]/authOptions'
 import { Button } from '../../lib/components/Button'
 import { Header } from '../../lib/components/Header'
 
