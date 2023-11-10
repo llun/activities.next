@@ -4092,7 +4092,6 @@ __metadata:
     jest-extended: "npm:^4.0.2"
     jest-fetch-mock: "npm:^3.0.3"
     jsonld: "npm:^8.3.1"
-    jsonwebtoken: "npm:^9.0.2"
     knex: "npm:3.0.1"
     linkifyjs: "npm:^4.1.2"
     lodash: "npm:^4.17.21"
@@ -9977,7 +9976,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jsonwebtoken@npm:^9.0.0, jsonwebtoken@npm:^9.0.2":
+"jsonwebtoken@npm:^9.0.0":
   version: 9.0.2
   resolution: "jsonwebtoken@npm:9.0.2"
   dependencies:
