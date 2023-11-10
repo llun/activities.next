@@ -1,14 +1,15 @@
 import bcrypt from 'bcrypt'
-import NextAuth, { NextAuthOptions } from 'next-auth'
+import { NextAuthOptions } from 'next-auth'
+import NextAuth from 'next-auth/next'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GithubProvider from 'next-auth/providers/github'
 
-import { getConfig } from '../../../lib/config'
+import { getConfig } from '../../../../lib/config'
 import {
   StorageAdapter,
   userFromAccount
-} from '../../../lib/services/auth/storageAdapter'
-import { getStorage } from '../../../lib/storage'
+} from '../../../../lib/services/auth/storageAdapter'
+import { getStorage } from '../../../../lib/storage'
 
 const { secretPhase, auth, serviceName, host } = getConfig()
 
@@ -66,4 +67,6 @@ export const authOptions: NextAuthOptions = {
   },
   adapter: StorageAdapter(secretPhase)
 }
-export default NextAuth(authOptions)
+
+const handler = NextAuth(authOptions)
+export { handler as GET, handler as POST }

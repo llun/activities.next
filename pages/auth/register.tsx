@@ -2,9 +2,9 @@ import type { GetServerSidePropsContext } from 'next'
 import { getServerSession } from 'next-auth/next'
 import Head from 'next/head'
 
+import { authOptions } from '../../app/api/auth/[...nextauth]/route'
 import { Button } from '../../lib/components/Button'
 import { Header } from '../../lib/components/Header'
-import { authOptions } from '../api/auth/[...nextauth]'
 
 export default function Register() {
   return (

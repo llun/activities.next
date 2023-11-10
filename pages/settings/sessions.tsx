@@ -9,6 +9,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
 
+import { authOptions } from '../../app/api/auth/[...nextauth]/route'
 import { deleteSession } from '../../lib/client'
 import { Button } from '../../lib/components/Button'
 import { Header } from '../../lib/components/Header'
@@ -17,7 +18,6 @@ import { getConfig } from '../../lib/config'
 import { Actor, ActorProfile } from '../../lib/models/actor'
 import { Session } from '../../lib/models/session'
 import { getStorage } from '../../lib/storage'
-import { authOptions } from '../api/auth/[...nextauth]'
 import styles from '../settings.module.scss'
 
 interface Props {

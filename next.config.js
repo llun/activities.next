@@ -6,7 +6,8 @@ const nextConfig = {
   swcMinify: true,
   assetPrefix: '/activities',
   experimental: {
-    instrumentationHook: true
+    instrumentationHook: true,
+    serverComponentsExternalPackages: ['knex']
   },
 
   publicRuntimeConfig: {

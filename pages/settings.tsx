@@ -11,13 +11,13 @@ import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
 
+import { authOptions } from '../app/api/auth/[...nextauth]/route'
 import { Button } from '../lib/components/Button'
 import { Header } from '../lib/components/Header'
 import { Profile as ProfileComponent } from '../lib/components/Profile'
 import { getConfig } from '../lib/config'
 import { Actor } from '../lib/models/actor'
 import { getStorage } from '../lib/storage'
-import { authOptions } from './api/auth/[...nextauth]'
 import styles from './settings.module.scss'
 
 export async function getServerSideProps({

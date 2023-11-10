@@ -7,12 +7,12 @@ import { getCsrfToken, getProviders, signIn } from 'next-auth/react'
 import Head from 'next/head'
 import Link from 'next/link'
 
+import { authOptions } from '../../app/api/auth/[...nextauth]/route'
 import { Button } from '../../lib/components/Button'
 import { Header } from '../../lib/components/Header'
 import { Posts } from '../../lib/components/Posts/Posts'
 import { getStorage } from '../../lib/storage'
 import { Timeline } from '../../lib/timelines/types'
-import { authOptions } from '../api/auth/[...nextauth]'
 
 export default function SignIn({
   csrfToken,

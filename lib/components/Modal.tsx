@@ -1,14 +1,17 @@
-import { FC, ReactNode } from 'react'
+import { FC, PropsWithChildren } from 'react'
 import ReactModal from 'react-modal'
 
 import styles from './Modal.module.scss'
 
 interface Props {
   isOpen: boolean
-  children: ReactNode
   onRequestClose: () => void
 }
-export const Modal: FC<Props> = ({ isOpen, children, onRequestClose }) => {
+export const Modal: FC<PropsWithChildren<Props>> = ({
+  isOpen,
+  children,
+  onRequestClose
+}) => {
   return (
     <ReactModal
       overlayClassName={styles.modalOverlay}

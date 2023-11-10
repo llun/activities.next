@@ -7,6 +7,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { Reducer, useEffect, useReducer, useState } from 'react'
 
+import { authOptions } from '../app/api/auth/[...nextauth]/route'
 import { getTimeline } from '../lib/client'
 import { Header } from '../lib/components/Header'
 import { PostBox } from '../lib/components/PostBox/PostBox'
@@ -19,7 +20,6 @@ import { Actor, ActorProfile } from '../lib/models/actor'
 import { EditableStatusData, StatusData } from '../lib/models/status'
 import { getStorage } from '../lib/storage'
 import { Timeline } from '../lib/timelines/types'
-import { authOptions } from './api/auth/[...nextauth]'
 import styles from './index.module.scss'
 
 interface Props {
