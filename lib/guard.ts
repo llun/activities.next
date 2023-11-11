@@ -188,8 +188,14 @@ export const SharedKeyApiGuard =
     return handle(req, res)
   }
 
-export function headerHost(headers: IncomingHttpHeaders) {
-  if (headers[ACTIVITIES_HOST]) return headers[ACTIVITIES_HOST]
-  if (headers[FORWARDED_HOST]) return headers[FORWARDED_HOST]
-  return headers.host
+export function headerHost(headers: IncomingHttpHeaders | Headers) {
+  if (headers.constructor.name === Headers.name) {
+    const standardHeaders = headers as Headers
+    return standardHeaders.get('host')
+  }
+
+  const nodeHeaders = headers as IncomingHttpHeaders
+  if (nodeHeaders[ACTIVITIES_HOST]) return nodeHeaders[ACTIVITIES_HOST]
+  if (nodeHeaders[FORWARDED_HOST]) return nodeHeaders[FORWARDED_HOST]
+  return nodeHeaders.host
 }
