@@ -201,9 +201,14 @@ export function headerHost(headers: IncomingHttpHeaders | Headers) {
   }
 
   const nodeHeaders = headers as IncomingHttpHeaders
-  const normalizedHeaders = Object.keys(nodeHeaders).reduce((out, key) => ({...out, [key.toLowerCase()]: nodeHeaders[key]}), {} as IncomingHttpHeaders)
+  const normalizedHeaders = Object.keys(nodeHeaders).reduce(
+    (out, key) => ({ ...out, [key.toLowerCase()]: nodeHeaders[key] }),
+    {} as IncomingHttpHeaders
+  )
 
-  if (normalizedHeaders[ACTIVITIES_HOST]) return normalizedHeaders[ACTIVITIES_HOST]
-  if (normalizedHeaders[FORWARDED_HOST]) return normalizedHeaders[FORWARDED_HOST]
+  if (normalizedHeaders[ACTIVITIES_HOST])
+    return normalizedHeaders[ACTIVITIES_HOST]
+  if (normalizedHeaders[FORWARDED_HOST])
+    return normalizedHeaders[FORWARDED_HOST]
   return normalizedHeaders.host
 }

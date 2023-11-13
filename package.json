@@ -104,7 +104,7 @@
     "jest-extended": "^4.0.2",
     "jest-fetch-mock": "^3.0.3",
     "postcss": "^8.4.31",
-    "prettier": "^3.1.0",
+    "prettier": "3.1.0",
     "sucrase": "^3.34.0",
     "typescript": "^5.2.2"
   },
