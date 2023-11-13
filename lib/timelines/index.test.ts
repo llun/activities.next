@@ -14,7 +14,7 @@ import { Timeline } from './types'
 
 describe('#addStatusToTimeline', () => {
   const storage = new SqlStorage({
-    client: 'sqlite3',
+    client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
       filename: ':memory:'

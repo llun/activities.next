@@ -15,7 +15,7 @@ jest.mock('../config')
 
 describe('Accept follow action', () => {
   const storage = new SqlStorage({
-    client: 'sqlite3',
+    client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
       filename: ':memory:'
