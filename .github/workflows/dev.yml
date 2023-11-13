@@ -13,6 +13,8 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
+      - name: corepack enable
+        run: corepack enable
       - name: Install dependencies
         run: yarn install
       - name: Test
