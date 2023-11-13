@@ -191,6 +191,12 @@ export const SharedKeyApiGuard =
 export function headerHost(headers: IncomingHttpHeaders | Headers) {
   if (headers.constructor.name === Headers.name) {
     const standardHeaders = headers as Headers
+    if (standardHeaders.get(ACTIVITIES_HOST)) {
+      return standardHeaders.get(ACTIVITIES_HOST)
+    }
+    if (standardHeaders.get(FORWARDED_HOST)) {
+      return standardHeaders.get(FORWARDED_HOST)
+    }
     return standardHeaders.get('host')
   }
 
