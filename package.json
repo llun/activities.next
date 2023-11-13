@@ -16,8 +16,8 @@
     "migrate:make": "knex migrate:make -x ts"
   },
   "dependencies": {
-    "@aws-sdk/client-lambda": "^3.448.0",
-    "@aws-sdk/client-s3": "^3.445.0",
+    "@aws-sdk/client-lambda": "^3.449.0",
+    "@aws-sdk/client-s3": "^3.449.0",
     "@aws-sdk/util-utf8-node": "^3.259.0",
     "@google-cloud/firestore": "^7.1.0",
     "@keyv/redis": "^2.8.0",
@@ -47,10 +47,10 @@
     "knex": "3.0.1",
     "linkifyjs": "^4.1.2",
     "lodash": "^4.17.21",
-    "marked": "^9.1.6",
+    "marked": "^10.0.0",
     "mime-types": "^2.1.35",
     "next": "14.0.2",
-    "next-auth": "4.24.4",
+    "next-auth": "4.24.5",
     "nodemailer": "^6.9.7",
     "peggy": "^3.0.2",
     "pino": "^8.16.1",
@@ -104,12 +104,12 @@
     "jest-extended": "^4.0.2",
     "jest-fetch-mock": "^3.0.3",
     "postcss": "^8.4.31",
-    "prettier": "^3.0.3",
+    "prettier": "^3.1.0",
     "sucrase": "^3.34.0",
     "typescript": "^5.2.2"
   },
   "resolutions": {
     "@types/react": "18.2.37"
   },
-  "packageManager": "yarn@4.0.0"
+  "packageManager": "yarn@4.0.1"
 }
