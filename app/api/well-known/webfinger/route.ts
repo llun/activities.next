@@ -1,17 +1,13 @@
-// Next.js API route support: https://nextjs.org/docs/api-routes/introduction
-import type { NextApiRequest, NextApiResponse } from 'next'
+import { type NextRequest } from 'next/server'
 
-import { Error, WebFinger } from '../../../lib/activities/types'
-import { ERROR_404 } from '../../../lib/errors'
-import { getStorage } from '../../../lib/storage'
+import { getStorage } from '../../../../lib/storage'
+import { ERROR_404 } from '../../../../lib/errors'
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<WebFinger | Error>
-) {
-  const { resource } = req.query
+export const GET = async (req: NextRequest) => {
+  const url = new URL(req.url)
+  const resource = url.searchParams.get('resource')
   if (!resource) {
-    return res.status(404).json(ERROR_404)
+    return Response.json(ERROR_404, { status: 404 })
   }
 
   const firstResource = Array.isArray(resource) ? resource[0] : resource
@@ -21,7 +17,7 @@ export default async function handler(
 
   const [username, domain] = account.split('@')
   if (!domain) {
-    return res.status(404).json(ERROR_404)
+    return Response.json(ERROR_404, { status: 404 })
   }
 
   const storage = await getStorage()
@@ -29,10 +25,10 @@ export default async function handler(
 
   // This is not local actors
   if (!actor?.privateKey) {
-    return res.status(404).json(ERROR_404)
+    return Response.json(ERROR_404, { status: 404 })
   }
 
-  res.status(200).json({
+  return Response.json({
     subject: `acct:${username}@${domain}`,
     aliases: [
       `https://${domain}/@${username}`,
