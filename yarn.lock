@@ -134,15 +134,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-lambda@npm:^3.449.0":
-  version: 3.449.0
-  resolution: "@aws-sdk/client-lambda@npm:3.449.0"
+"@aws-sdk/client-lambda@npm:^3.450.0":
+  version: 3.450.0
+  resolution: "@aws-sdk/client-lambda@npm:3.450.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:3.0.0"
     "@aws-crypto/sha256-js": "npm:3.0.0"
-    "@aws-sdk/client-sts": "npm:3.449.0"
+    "@aws-sdk/client-sts": "npm:3.450.0"
     "@aws-sdk/core": "npm:3.445.0"
-    "@aws-sdk/credential-provider-node": "npm:3.449.0"
+    "@aws-sdk/credential-provider-node": "npm:3.450.0"
     "@aws-sdk/middleware-host-header": "npm:3.449.0"
     "@aws-sdk/middleware-logger": "npm:3.449.0"
     "@aws-sdk/middleware-recursion-detection": "npm:3.449.0"
@@ -182,20 +182,20 @@ __metadata:
     "@smithy/util-utf8": "npm:^2.0.0"
     "@smithy/util-waiter": "npm:^2.0.12"
     tslib: "npm:^2.5.0"
-  checksum: 05458cccaa3a0bef36afe860deac9ae5698cc9f9b3e1a671a273ce9c671935b1b578bfbb421c0f105a4b12860b8983912eec172ce29dedc054d39b2984564500
+  checksum: 99b36ed22810b498d1c7bee6b6735e85fe4e0056fd9094a70708b07c7d1cdf7c4a5cdda49eded26e5e3bd0f2b087d1bf90b0712e38502003118a9698968195c3
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-s3@npm:^3.449.0":
-  version: 3.449.0
-  resolution: "@aws-sdk/client-s3@npm:3.449.0"
+"@aws-sdk/client-s3@npm:^3.450.0":
+  version: 3.450.0
+  resolution: "@aws-sdk/client-s3@npm:3.450.0"
   dependencies:
     "@aws-crypto/sha1-browser": "npm:3.0.0"
     "@aws-crypto/sha256-browser": "npm:3.0.0"
     "@aws-crypto/sha256-js": "npm:3.0.0"
-    "@aws-sdk/client-sts": "npm:3.449.0"
+    "@aws-sdk/client-sts": "npm:3.450.0"
     "@aws-sdk/core": "npm:3.445.0"
-    "@aws-sdk/credential-provider-node": "npm:3.449.0"
+    "@aws-sdk/credential-provider-node": "npm:3.450.0"
     "@aws-sdk/middleware-bucket-endpoint": "npm:3.449.0"
     "@aws-sdk/middleware-expect-continue": "npm:3.449.0"
     "@aws-sdk/middleware-flexible-checksums": "npm:3.449.0"
@@ -247,13 +247,13 @@ __metadata:
     "@smithy/util-waiter": "npm:^2.0.12"
     fast-xml-parser: "npm:4.2.5"
     tslib: "npm:^2.5.0"
-  checksum: 3cd98e219c257c501ce9da3c4372964434331379be7104ad66b5492a5f7a5b26f13f713915b3b8feb1784fb401cc5327e336d69925d8fc456343914bccd3f50e
+  checksum: f91cdf1aaf3fab6488f0e6091dd827cc62e432544907c9abcd38a3886e6d29064f6d0e8597dbccb630018fb4f7d3ab1929b324c9d3001774e7e8f52d8c8b845c
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-sso@npm:3.449.0":
-  version: 3.449.0
-  resolution: "@aws-sdk/client-sso@npm:3.449.0"
+"@aws-sdk/client-sso@npm:3.450.0":
+  version: 3.450.0
+  resolution: "@aws-sdk/client-sso@npm:3.450.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:3.0.0"
     "@aws-crypto/sha256-js": "npm:3.0.0"
@@ -291,18 +291,18 @@ __metadata:
     "@smithy/util-retry": "npm:^2.0.5"
     "@smithy/util-utf8": "npm:^2.0.0"
     tslib: "npm:^2.5.0"
-  checksum: 7cda42c63f4ada515c8e59aa2147dc8adfb4a173992a227fd6b04d05e049d0958eb2a510f5f9aa67e5994eddeb9cd82e20f2857b51cb80837bb88a7aacf68814
+  checksum: dececb23124947ce3fc4b37f9e369e86d5f7ddfa45cb60204afcef4feb9484ea26777d6b99bb074e1219daeeba5ed49af59882ffc42ed88ae1589baac73cadd1
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-sts@npm:3.449.0":
-  version: 3.449.0
-  resolution: "@aws-sdk/client-sts@npm:3.449.0"
+"@aws-sdk/client-sts@npm:3.450.0":
+  version: 3.450.0
+  resolution: "@aws-sdk/client-sts@npm:3.450.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:3.0.0"
     "@aws-crypto/sha256-js": "npm:3.0.0"
     "@aws-sdk/core": "npm:3.445.0"
-    "@aws-sdk/credential-provider-node": "npm:3.449.0"
+    "@aws-sdk/credential-provider-node": "npm:3.450.0"
     "@aws-sdk/middleware-host-header": "npm:3.449.0"
     "@aws-sdk/middleware-logger": "npm:3.449.0"
     "@aws-sdk/middleware-recursion-detection": "npm:3.449.0"
@@ -339,7 +339,7 @@ __metadata:
     "@smithy/util-utf8": "npm:^2.0.0"
     fast-xml-parser: "npm:4.2.5"
     tslib: "npm:^2.5.0"
-  checksum: 291856fed63b457a2ab27d2fe4649b4f2ac4365eb7028557f1349b27099972ec62edc3b2f08b7a9ae975e217be0981485f1afbd8ce68bf25016a289661ec2126
+  checksum: 1d98de81bd343f08ffb0cbe24dd2b76e93b773e177e713fb0e81bbf01bd78c4a83aedd60b881c49f1a23688c4ea24d166534d588c1cba7110f1aa8fbf2b5691c
   languageName: node
   linkType: hard
 
@@ -365,13 +365,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/credential-provider-ini@npm:3.449.0":
-  version: 3.449.0
-  resolution: "@aws-sdk/credential-provider-ini@npm:3.449.0"
+"@aws-sdk/credential-provider-ini@npm:3.450.0":
+  version: 3.450.0
+  resolution: "@aws-sdk/credential-provider-ini@npm:3.450.0"
   dependencies:
     "@aws-sdk/credential-provider-env": "npm:3.449.0"
     "@aws-sdk/credential-provider-process": "npm:3.449.0"
-    "@aws-sdk/credential-provider-sso": "npm:3.449.0"
+    "@aws-sdk/credential-provider-sso": "npm:3.450.0"
     "@aws-sdk/credential-provider-web-identity": "npm:3.449.0"
     "@aws-sdk/types": "npm:3.449.0"
     "@smithy/credential-provider-imds": "npm:^2.0.0"
@@ -379,18 +379,18 @@ __metadata:
     "@smithy/shared-ini-file-loader": "npm:^2.0.6"
     "@smithy/types": "npm:^2.4.0"
     tslib: "npm:^2.5.0"
-  checksum: 5e2f6cf31fe4bb384096ca110a5c236d7c55b0ad890ece2c1c7158d5afa7602ca9c4bcc6a67c335480a579856d99ecf606cb4d2d1e3a0182f38d0f9022f97c54
+  checksum: 42db0410457188f4b1125d63e502833d6b4d43803fd7846b577e69897f8d857bcecf0090178e84dcc4dd03fd84c50a530386ac4a67bbb5668e441865995de783
   languageName: node
   linkType: hard
 
-"@aws-sdk/credential-provider-node@npm:3.449.0":
-  version: 3.449.0
-  resolution: "@aws-sdk/credential-provider-node@npm:3.449.0"
+"@aws-sdk/credential-provider-node@npm:3.450.0":
+  version: 3.450.0
+  resolution: "@aws-sdk/credential-provider-node@npm:3.450.0"
   dependencies:
     "@aws-sdk/credential-provider-env": "npm:3.449.0"
-    "@aws-sdk/credential-provider-ini": "npm:3.449.0"
+    "@aws-sdk/credential-provider-ini": "npm:3.450.0"
     "@aws-sdk/credential-provider-process": "npm:3.449.0"
-    "@aws-sdk/credential-provider-sso": "npm:3.449.0"
+    "@aws-sdk/credential-provider-sso": "npm:3.450.0"
     "@aws-sdk/credential-provider-web-identity": "npm:3.449.0"
     "@aws-sdk/types": "npm:3.449.0"
     "@smithy/credential-provider-imds": "npm:^2.0.0"
@@ -398,7 +398,7 @@ __metadata:
     "@smithy/shared-ini-file-loader": "npm:^2.0.6"
     "@smithy/types": "npm:^2.4.0"
     tslib: "npm:^2.5.0"
-  checksum: a20de9b1397ef172898443c81d0625b490ef54d4b31c0f1dd40ea4d1411d055cd3f85517c42990b18b022e3e573b98f0b2fe3271b7e4d5030e8f8aa7bf077d02
+  checksum: 9c83ccd4f34a4b3a344dba57dc662a7651ccaccd28965153a2cf47eb3188512b19e9a41c65bcac85b2c6826a8f7d6ae2d9f55f3b41732f82ca2c689557277561
   languageName: node
   linkType: hard
 
@@ -415,18 +415,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/credential-provider-sso@npm:3.449.0":
-  version: 3.449.0
-  resolution: "@aws-sdk/credential-provider-sso@npm:3.449.0"
+"@aws-sdk/credential-provider-sso@npm:3.450.0":
+  version: 3.450.0
+  resolution: "@aws-sdk/credential-provider-sso@npm:3.450.0"
   dependencies:
-    "@aws-sdk/client-sso": "npm:3.449.0"
+    "@aws-sdk/client-sso": "npm:3.450.0"
     "@aws-sdk/token-providers": "npm:3.449.0"
     "@aws-sdk/types": "npm:3.449.0"
     "@smithy/property-provider": "npm:^2.0.0"
     "@smithy/shared-ini-file-loader": "npm:^2.0.6"
     "@smithy/types": "npm:^2.4.0"
     tslib: "npm:^2.5.0"
-  checksum: 1217b6f15cca6ec23d23e2bd42348938b700552cb398cca0a0827ab8015b735ce8d270f02194a4bd86d280335fb23e7e099e48152fe91fb6f9a62dbdad274041
+  checksum: f8429a2e20233ba6dc83c1c8e50de0e0baf81abab12e3906ed663d1fa03cf725b44e63c98fd89e0f0cd2b546f0b2a4b587e4da72e20bdfdf250c96e4e5cfb42a
   languageName: node
   linkType: hard
 
@@ -2086,33 +2086,33 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opentelemetry/instrumentation-ioredis@npm:^0.35.2":
-  version: 0.35.2
-  resolution: "@opentelemetry/instrumentation-ioredis@npm:0.35.2"
+"@opentelemetry/instrumentation-ioredis@npm:^0.35.3":
+  version: 0.35.3
+  resolution: "@opentelemetry/instrumentation-ioredis@npm:0.35.3"
   dependencies:
-    "@opentelemetry/instrumentation": "npm:^0.44.0"
+    "@opentelemetry/instrumentation": "npm:^0.45.1"
     "@opentelemetry/redis-common": "npm:^0.36.1"
     "@opentelemetry/semantic-conventions": "npm:^1.0.0"
     "@types/ioredis4": "npm:@types/ioredis@^4.28.10"
   peerDependencies:
     "@opentelemetry/api": ^1.3.0
-  checksum: f1a525ae33c112d98abd47ebecbfb4713dc52eb01994c6495e98c2d85b9bdbee4203568e5a144581204b59b710241f07f79a00b3c7f67445ac6b8e21eb47bb17
+  checksum: 7d12953429ed2a7f8be111dee7458567544da4533ae73da4a189a5862dd5251104eca8e4e8997f43399ede7934458b5826741d74e9837731b190385be4cb5817
   languageName: node
   linkType: hard
 
-"@opentelemetry/instrumentation-knex@npm:^0.32.2":
-  version: 0.32.2
-  resolution: "@opentelemetry/instrumentation-knex@npm:0.32.2"
+"@opentelemetry/instrumentation-knex@npm:^0.32.3":
+  version: 0.32.3
+  resolution: "@opentelemetry/instrumentation-knex@npm:0.32.3"
   dependencies:
-    "@opentelemetry/instrumentation": "npm:^0.44.0"
+    "@opentelemetry/instrumentation": "npm:^0.45.1"
     "@opentelemetry/semantic-conventions": "npm:^1.0.0"
   peerDependencies:
     "@opentelemetry/api": ^1.3.0
-  checksum: f57e2b4fcda75bc957af34c4f51842fb09bce2ef386141744ef6c98b92dca9711024637a20bbff6fc143e55eb91044fdc433d94ff6089e369335fa41b0c3cfd9
+  checksum: 494bb658d675c257cbba3fc02131d3d2aaebb496457df652573dd36eb5acdde105bb7f0681e5a6b0979d38a715821c3b2aa37cc7dc4d648f60d018182bfdebcd
   languageName: node
   linkType: hard
 
-"@opentelemetry/instrumentation@npm:0.45.1":
+"@opentelemetry/instrumentation@npm:0.45.1, @opentelemetry/instrumentation@npm:^0.45.1":
   version: 0.45.1
   resolution: "@opentelemetry/instrumentation@npm:0.45.1"
   dependencies:
@@ -2124,21 +2124,6 @@ __metadata:
   peerDependencies:
     "@opentelemetry/api": ^1.3.0
   checksum: 8546ba23eb3152e8f2f8afae2ae902e8160a6ef8825cb15a1fdf98a828da968c52c2cc26aced28d86a103fcbc519d59b2081700bc3d679cbb7a013202c2b67fc
-  languageName: node
-  linkType: hard
-
-"@opentelemetry/instrumentation@npm:^0.44.0":
-  version: 0.44.0
-  resolution: "@opentelemetry/instrumentation@npm:0.44.0"
-  dependencies:
-    "@types/shimmer": "npm:^1.0.2"
-    import-in-the-middle: "npm:1.4.2"
-    require-in-the-middle: "npm:^7.1.1"
-    semver: "npm:^7.5.2"
-    shimmer: "npm:^1.2.1"
-  peerDependencies:
-    "@opentelemetry/api": ^1.3.0
-  checksum: 37742e60be37c72ab42da18156c8c09444a61b9714ca7571f0b2a435f54c7d4b494d411a3c3537ec3f6064af30d9841bd36c0e2c7d27e499ddf81acaf9dc3870
   languageName: node
   linkType: hard
 
@@ -3740,15 +3725,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/eslint-plugin@npm:^6.10.0":
-  version: 6.10.0
-  resolution: "@typescript-eslint/eslint-plugin@npm:6.10.0"
+"@typescript-eslint/eslint-plugin@npm:^6.11.0":
+  version: 6.11.0
+  resolution: "@typescript-eslint/eslint-plugin@npm:6.11.0"
   dependencies:
     "@eslint-community/regexpp": "npm:^4.5.1"
-    "@typescript-eslint/scope-manager": "npm:6.10.0"
-    "@typescript-eslint/type-utils": "npm:6.10.0"
-    "@typescript-eslint/utils": "npm:6.10.0"
-    "@typescript-eslint/visitor-keys": "npm:6.10.0"
+    "@typescript-eslint/scope-manager": "npm:6.11.0"
+    "@typescript-eslint/type-utils": "npm:6.11.0"
+    "@typescript-eslint/utils": "npm:6.11.0"
+    "@typescript-eslint/visitor-keys": "npm:6.11.0"
     debug: "npm:^4.3.4"
     graphemer: "npm:^1.4.0"
     ignore: "npm:^5.2.4"
@@ -3761,11 +3746,11 @@ __metadata:
   peerDependenciesMeta:
     typescript:
       optional: true
-  checksum: f50b17cb753afbfc99549d38585eba8558949b977eb4661dd584e73ee946b3dbe944c9e3b12a233fa06b5e1c7d101730ac88a00c7a91b0a7f1e2c37a98e13c7a
+  checksum: 6645aa09b9d51c5e3ea781eaf74da75b94f83f3e2d7b3dd988d5ce7eb82dd87e3509471cf2ee8c6b2428d907df5f1b02f29dbd04f54c2653f9566c8c4ce98009
   languageName: node
   linkType: hard
 
-"@typescript-eslint/parser@npm:^5.4.2 || ^6.0.0, @typescript-eslint/parser@npm:^6.10.0":
+"@typescript-eslint/parser@npm:^5.4.2 || ^6.0.0":
   version: 6.10.0
   resolution: "@typescript-eslint/parser@npm:6.10.0"
   dependencies:
@@ -3780,6 +3765,24 @@ __metadata:
     typescript:
       optional: true
   checksum: fd86c31dfdde03636393a3a9cf16716856bb506923069f34d87af14fac363a33578f47476a15d272e4d7a764de00fd905ee11361cc06b81b302a9fa8ebe4c23c
+  languageName: node
+  linkType: hard
+
+"@typescript-eslint/parser@npm:^6.11.0":
+  version: 6.11.0
+  resolution: "@typescript-eslint/parser@npm:6.11.0"
+  dependencies:
+    "@typescript-eslint/scope-manager": "npm:6.11.0"
+    "@typescript-eslint/types": "npm:6.11.0"
+    "@typescript-eslint/typescript-estree": "npm:6.11.0"
+    "@typescript-eslint/visitor-keys": "npm:6.11.0"
+    debug: "npm:^4.3.4"
+  peerDependencies:
+    eslint: ^7.0.0 || ^8.0.0
+  peerDependenciesMeta:
+    typescript:
+      optional: true
+  checksum: e7caeb20069102e21f468fc0dbe7ff6fb6b1efa9e72f4c9f39d4a865ed0633f39130b593ef9ae8f394ca1d70563e15410faf30a482a97809951eaac6ed3a67da
   languageName: node
   linkType: hard
 
@@ -3803,12 +3806,22 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/type-utils@npm:6.10.0":
-  version: 6.10.0
-  resolution: "@typescript-eslint/type-utils@npm:6.10.0"
+"@typescript-eslint/scope-manager@npm:6.11.0":
+  version: 6.11.0
+  resolution: "@typescript-eslint/scope-manager@npm:6.11.0"
   dependencies:
-    "@typescript-eslint/typescript-estree": "npm:6.10.0"
-    "@typescript-eslint/utils": "npm:6.10.0"
+    "@typescript-eslint/types": "npm:6.11.0"
+    "@typescript-eslint/visitor-keys": "npm:6.11.0"
+  checksum: d8999e2d1a4cbde8a79df5e3ec416f0e3db9532d39f2f4bb5a0ebdf954ae75c183d3277579ba05268fe2c88e88ef87f0fa12f02bb8d95d9e67d92e411241f3a3
+  languageName: node
+  linkType: hard
+
+"@typescript-eslint/type-utils@npm:6.11.0":
+  version: 6.11.0
+  resolution: "@typescript-eslint/type-utils@npm:6.11.0"
+  dependencies:
+    "@typescript-eslint/typescript-estree": "npm:6.11.0"
+    "@typescript-eslint/utils": "npm:6.11.0"
     debug: "npm:^4.3.4"
     ts-api-utils: "npm:^1.0.1"
   peerDependencies:
@@ -3816,7 +3829,7 @@ __metadata:
   peerDependenciesMeta:
     typescript:
       optional: true
-  checksum: f7c425d4da4d53d78b3d6630216dc1f2809f8dcaed62dc3cf12252102a53103a2aa39a160b310ca1cedebf87b8c339013be0c2360710c7c836b775374730c10e
+  checksum: ff68f2e052b8d688f1dc1a0050746704c8e0ab6263b47f1f52da73a7d251678e4950af23a95e1cd8e3fcea2457e6e5294ddbe01d29dafa2fdfb5b11ed9452a3f
   languageName: node
   linkType: hard
 
@@ -3831,6 +3844,13 @@ __metadata:
   version: 6.10.0
   resolution: "@typescript-eslint/types@npm:6.10.0"
   checksum: 30f47de625405b3729db6d26a0376d98628bd966c70ca01fab1adcef91bba810d27ce643d844e42d1cc77bb2c6277e62efe278a090da63ba748dfe5710c4757b
+  languageName: node
+  linkType: hard
+
+"@typescript-eslint/types@npm:6.11.0":
+  version: 6.11.0
+  resolution: "@typescript-eslint/types@npm:6.11.0"
+  checksum: 23182813db39a5e9b9bcc1e85306c953f7b8b22d3885e41fcac0bd725c170fbcb70f4ce55633678cc5921dcf062fa0e55635eb39480c118a4411a00354820223
   languageName: node
   linkType: hard
 
@@ -3870,20 +3890,38 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/utils@npm:6.10.0":
-  version: 6.10.0
-  resolution: "@typescript-eslint/utils@npm:6.10.0"
+"@typescript-eslint/typescript-estree@npm:6.11.0":
+  version: 6.11.0
+  resolution: "@typescript-eslint/typescript-estree@npm:6.11.0"
+  dependencies:
+    "@typescript-eslint/types": "npm:6.11.0"
+    "@typescript-eslint/visitor-keys": "npm:6.11.0"
+    debug: "npm:^4.3.4"
+    globby: "npm:^11.1.0"
+    is-glob: "npm:^4.0.3"
+    semver: "npm:^7.5.4"
+    ts-api-utils: "npm:^1.0.1"
+  peerDependenciesMeta:
+    typescript:
+      optional: true
+  checksum: 3e183e554e1bc74f065da3015f7137eb40c262f989c547701b1e3f4f20134e574e56b749288cd00d77b9d1ddb705546613c2457661ffc63b6060ffa97ba3aac8
+  languageName: node
+  linkType: hard
+
+"@typescript-eslint/utils@npm:6.11.0":
+  version: 6.11.0
+  resolution: "@typescript-eslint/utils@npm:6.11.0"
   dependencies:
     "@eslint-community/eslint-utils": "npm:^4.4.0"
     "@types/json-schema": "npm:^7.0.12"
     "@types/semver": "npm:^7.5.0"
-    "@typescript-eslint/scope-manager": "npm:6.10.0"
-    "@typescript-eslint/types": "npm:6.10.0"
-    "@typescript-eslint/typescript-estree": "npm:6.10.0"
+    "@typescript-eslint/scope-manager": "npm:6.11.0"
+    "@typescript-eslint/types": "npm:6.11.0"
+    "@typescript-eslint/typescript-estree": "npm:6.11.0"
     semver: "npm:^7.5.4"
   peerDependencies:
     eslint: ^7.0.0 || ^8.0.0
-  checksum: 809a1d08b154f76ed7a99edddf872369f6ed93987cea19a18cb9f12b8390bddcff9138d9d94955545da54488d59e0001054bec13baf6d858a1761b059480b887
+  checksum: c91eb4578607959acc2b43ddc791571682e45601a19b25d5d120786ed4af607656f83c5c1fa71972e549ddfb5542acf2f7d443ae93b32ee28192c22c106b8883
   languageName: node
   linkType: hard
 
@@ -3922,6 +3960,16 @@ __metadata:
     "@typescript-eslint/types": "npm:6.10.0"
     eslint-visitor-keys: "npm:^3.4.1"
   checksum: f9223c148655ce00bb17db8aa92ee964e62c75d15095893e0b4d653c60a4033f456329b06de3eab4b404d8df359904f0dd6e3c8c842885c6d130e28ccd95ce03
+  languageName: node
+  linkType: hard
+
+"@typescript-eslint/visitor-keys@npm:6.11.0":
+  version: 6.11.0
+  resolution: "@typescript-eslint/visitor-keys@npm:6.11.0"
+  dependencies:
+    "@typescript-eslint/types": "npm:6.11.0"
+    eslint-visitor-keys: "npm:^3.4.1"
+  checksum: 5f48329422b7f286196661d39e93e9defd7c5cf80e6c84c8d03459853f5d9f86a5e91c5e80ea572dcdb907ebbe503bbcc77aeb8b468c294b2aa7b3ccfc81cb88
   languageName: node
   linkType: hard
 
@@ -3996,8 +4044,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "activities.next@workspace:."
   dependencies:
-    "@aws-sdk/client-lambda": "npm:^3.449.0"
-    "@aws-sdk/client-s3": "npm:^3.449.0"
+    "@aws-sdk/client-lambda": "npm:^3.450.0"
+    "@aws-sdk/client-s3": "npm:^3.450.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@google-cloud/firestore": "npm:^7.1.0"
     "@keyv/redis": "npm:^2.8.0"
@@ -4007,8 +4055,8 @@ __metadata:
     "@opentelemetry/exporter-trace-otlp-http": "npm:^0.45.1"
     "@opentelemetry/exporter-trace-otlp-proto": "npm:^0.45.1"
     "@opentelemetry/instrumentation-http": "npm:^0.45.1"
-    "@opentelemetry/instrumentation-ioredis": "npm:^0.35.2"
-    "@opentelemetry/instrumentation-knex": "npm:^0.32.2"
+    "@opentelemetry/instrumentation-ioredis": "npm:^0.35.3"
+    "@opentelemetry/instrumentation-knex": "npm:^0.32.3"
     "@opentelemetry/resources": "npm:^1.18.1"
     "@opentelemetry/sdk-node": "npm:^0.45.1"
     "@opentelemetry/sdk-trace-node": "npm:^1.18.1"
@@ -4034,8 +4082,8 @@ __metadata:
     "@types/react-modal": "npm:^3.16.3"
     "@types/sanitize-html": "npm:^2.9.4"
     "@types/turndown": "npm:^5.0.4"
-    "@typescript-eslint/eslint-plugin": "npm:^6.10.0"
-    "@typescript-eslint/parser": "npm:^6.10.0"
+    "@typescript-eslint/eslint-plugin": "npm:^6.11.0"
+    "@typescript-eslint/parser": "npm:^6.11.0"
     bcrypt: "npm:^5.1.1"
     better-sqlite3: "npm:^9.1.1"
     bootstrap: "npm:^5.3.2"

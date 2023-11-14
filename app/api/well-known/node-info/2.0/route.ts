@@ -1,10 +1,5 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  res.status(200).json({
+export const GET = async () => {
+  return Response.json({
     metadata: {
       accountActivationRequired: true,
       features: [],
@@ -39,7 +34,7 @@ export default async function handler(
       invitesEnabled: false,
       localBubbleInstances: [],
       mailerEnabled: false,
-      nodeDescription: 'Person ActivityPub server',
+      nodeDescription: 'Personal ActivityPub server',
       nodeName: 'miraiverse',
       pollLimits: {
         max_expiration: 31536000,
