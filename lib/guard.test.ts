@@ -24,6 +24,11 @@ describe('#headerHost', () => {
       ])
       expect(headerHost(headers)).toEqual('test-custom.llun.dev')
     })
+
+    it('returns config host if no host is specify', () => {
+      const headers = new Headers()
+      expect(headerHost(headers)).toEqual('test.llun.dev')
+    })
   })
 
   describe('node headers', () => {
@@ -48,6 +53,11 @@ describe('#headerHost', () => {
         'X-Activity-Next-Host': 'test-custom.llun.dev'
       } as IncomingHttpHeaders
       expect(headerHost(headers)).toEqual('test-custom.llun.dev')
+    })
+
+    it('returns config host if no host is specify', () => {
+      const headers = {} as IncomingHttpHeaders
+      expect(headerHost(headers)).toEqual('test.llun.dev')
     })
   })
 })

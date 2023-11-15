@@ -216,6 +216,8 @@ export const AppRouterSharedKeyGuard =
   }
 
 export function headerHost(headers: IncomingHttpHeaders | Headers) {
+  const config = getConfig()
+
   if (headers.constructor.name === Headers.name) {
     const standardHeaders = headers as Headers
     if (standardHeaders.get(ACTIVITIES_HOST)) {
@@ -224,7 +226,12 @@ export function headerHost(headers: IncomingHttpHeaders | Headers) {
     if (standardHeaders.get(FORWARDED_HOST)) {
       return standardHeaders.get(FORWARDED_HOST)
     }
-    return standardHeaders.get('host')
+
+    if (standardHeaders.get('host')) {
+      return standardHeaders.get('host')
+    }
+
+    return config.host
   }
 
   const nodeHeaders = headers as IncomingHttpHeaders
@@ -233,9 +240,17 @@ export function headerHost(headers: IncomingHttpHeaders | Headers) {
     {} as IncomingHttpHeaders
   )
 
-  if (normalizedHeaders[ACTIVITIES_HOST])
+  if (normalizedHeaders[ACTIVITIES_HOST]) {
     return normalizedHeaders[ACTIVITIES_HOST]
-  if (normalizedHeaders[FORWARDED_HOST])
+  }
+
+  if (normalizedHeaders[FORWARDED_HOST]) {
     return normalizedHeaders[FORWARDED_HOST]
-  return normalizedHeaders.host
+  }
+
+  if (normalizedHeaders.host) {
+    return normalizedHeaders.host
+  }
+
+  return config.host
 }
