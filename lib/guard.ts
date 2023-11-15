@@ -5,6 +5,7 @@ import { IncomingHttpHeaders } from 'http'
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
 import { Session } from 'next-auth'
 import { getServerSession } from 'next-auth/next'
+import { NextRequest } from 'next/server'
 
 import { authOptions } from '../app/api/auth/[...nextauth]/authOptions'
 import { getPublicProfile } from './activities'
@@ -186,6 +187,32 @@ export const SharedKeyApiGuard =
     }
 
     return handle(req, res)
+  }
+
+export type AppRouterParams<P> = { params: P }
+export type AppRouterApiHandle<P> = (
+  request: NextRequest,
+  params?: AppRouterParams<P>
+) => Promise<Response> | Response
+
+export const AppRouterSharedKeyGuard =
+  <P>(handle: AppRouterApiHandle<P>) =>
+  async (req: NextRequest, params?: AppRouterParams<P>) => {
+    const config = getConfig()
+    const sharedKey = config.internalApi?.sharedKey
+    if (!sharedKey) {
+      return Response.json(ERROR_403, { status: 403 })
+    }
+
+    const headers = req.headers
+    if (
+      !headers.get(ACTIVITIES_SHARED_KEY) ||
+      headers.get(ACTIVITIES_SHARED_KEY) !== sharedKey
+    ) {
+      return Response.json(ERROR_403, { status: 403 })
+    }
+
+    return handle(req, params)
   }
 
 export function headerHost(headers: IncomingHttpHeaders | Headers) {
