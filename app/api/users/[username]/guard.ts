@@ -1,19 +1,24 @@
 import { NextRequest } from 'next/server'
 
 import { ERROR_404, ERROR_500 } from '../../../../lib/errors'
-import {
-  AppRouterApiHandle,
-  AppRouterParams,
-  headerHost
-} from '../../../../lib/guard'
+import { AppRouterParams, headerHost } from '../../../../lib/guard'
+import { Actor } from '../../../../lib/models/actor'
 import { getStorage } from '../../../../lib/storage'
+import { Storage } from '../../../../lib/storage/types'
 
 type OnlyLocalUserGuardParams = {
   username: string
 }
 
+export type OnlyLocalUserGuardHandle = (
+  storage: Storage,
+  actor: Actor,
+  request: NextRequest,
+  params: AppRouterParams<OnlyLocalUserGuardParams>
+) => Promise<Response> | Response
+
 export const OnlyLocalUserGuard =
-  (handle: AppRouterApiHandle<OnlyLocalUserGuardParams>) =>
+  (handle: OnlyLocalUserGuardHandle) =>
   async (
     req: NextRequest,
     query: AppRouterParams<OnlyLocalUserGuardParams>
@@ -32,5 +37,5 @@ export const OnlyLocalUserGuard =
       return Response.json(ERROR_404, { status: 404 })
     }
 
-    return handle(req, query)
+    return handle(storage, actor, req, query)
   }
