@@ -6,7 +6,7 @@ import { Actor } from '../../../../lib/models/actor'
 import { getStorage } from '../../../../lib/storage'
 import { Storage } from '../../../../lib/storage/types'
 
-type OnlyLocalUserGuardParams = {
+export type OnlyLocalUserGuardParams = {
   username: string
 }
 
@@ -14,7 +14,7 @@ export type OnlyLocalUserGuardHandle = (
   storage: Storage,
   actor: Actor,
   request: NextRequest,
-  params: AppRouterParams<OnlyLocalUserGuardParams>
+  query: AppRouterParams<OnlyLocalUserGuardParams>
 ) => Promise<Response> | Response
 
 export const OnlyLocalUserGuard =
