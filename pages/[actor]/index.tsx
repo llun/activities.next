@@ -1,10 +1,12 @@
 /* eslint-disable camelcase */
 import cn from 'classnames'
-import { GetStaticPaths, GetStaticProps, NextPage } from 'next'
+import { GetServerSideProps, NextPage } from 'next'
+import { getServerSession } from 'next-auth'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import { useEffect, useState } from 'react'
 
+import { authOptions } from '../../app/api/auth/[...nextauth]/authOptions'
 import {
   PublicProfile,
   getActorPosts,
@@ -108,52 +110,51 @@ type Params = {
   actor: string
 }
 
-export const getStaticProps: GetStaticProps<Props, Params> = async (
-  context
-) => {
-  const query = context.params
-  if (!query?.actor) return { notFound: true, revalidate: 5 }
+export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
+  req,
+  res,
+  query
+}) => {
+  const actor = getFirstValueFromParsedQuery(query.actor)
+  if (!actor) return { notFound: true }
 
-  const actor = getFirstValueFromParsedQuery(query?.actor)
-  if (!actor) return { notFound: true, revalidate: 5 }
-
-  const storage = await getStorage()
+  const [storage, session] = await Promise.all([
+    getStorage(),
+    getServerSession(req, res, authOptions)
+  ])
   if (!storage) throw new Error('Storage is not available')
 
   const parts = (actor as string).split('@').slice(1)
   if (parts.length !== 2) {
-    return { notFound: true, revalidate: 5 }
+    return { notFound: true }
   }
 
   const [username, domain] = parts
+  const isLoggedIn = Boolean(session?.user?.email)
+  if (!isLoggedIn) {
+    const localActor = await storage.getActorFromUsername({ username, domain })
+    if (!localActor?.account) {
+      return { notFound: true }
+    }
+  }
+
   const person = await getPublicProfileFromHandle(`${username}@${domain}`, true)
   if (!person) {
-    return { notFound: true, revalidate: 5 }
+    return { notFound: true }
   }
 
-  try {
-    const [statuses, attachments] = await Promise.all([
-      getActorPosts({ postsUrl: person.urls?.posts }),
-      storage.getAttachmentsForActor({ actorId: person.id })
-    ])
-    return {
-      props: {
-        person,
-        statuses,
-        attachments: attachments.map((item) => item.toJson()),
-        serverTime: Date.now()
-      },
-      revalidate: 600
-    }
-  } catch {
-    return { notFound: true, revalidate: 5 }
-  }
-}
+  const [statuses, attachments] = await Promise.all([
+    getActorPosts({ postsUrl: person.urls?.posts }),
+    storage.getAttachmentsForActor({ actorId: person.id })
+  ])
 
-export const getStaticPaths: GetStaticPaths = async () => {
   return {
-    paths: [],
-    fallback: 'blocking'
+    props: {
+      person,
+      statuses,
+      attachments: attachments.map((item) => item.toJson()),
+      serverTime: Date.now()
+    }
   }
 }
 

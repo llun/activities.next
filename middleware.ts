@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { acceptContainsContentTypes } from './lib/accept'
 import { ACTIVITIES_HOST, FORWARDED_HOST } from './lib/constants'
-import { ERROR_404 } from './lib/errors'
 
 export const config = {
   matcher: ['/(@.*)']
@@ -10,10 +9,6 @@ export const config = {
 
 export async function middleware(request: NextRequest) {
   if (request.method === 'GET') {
-    if (request.headers.get('user-agent')?.includes('bot')) {
-      return NextResponse.json(ERROR_404, { status: 404 })
-    }
-
     const pathname = request.nextUrl.pathname
     const acceptValue = request.headers.get('Accept')
 
