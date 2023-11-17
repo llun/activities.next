@@ -1,3 +1,4 @@
+import { ACTIVITY_STREAM_URL } from '../../../../../lib/jsonld/activitystream'
 import { OnlyLocalUserGuard } from '../guard'
 
 export const GET = OnlyLocalUserGuard(async (storage, actor) => {
@@ -5,7 +6,7 @@ export const GET = OnlyLocalUserGuard(async (storage, actor) => {
 
   const totalItems = await storage.getActorFollowersCount({ actorId: actor.id })
   return Response.json({
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': ACTIVITY_STREAM_URL,
     id: followerId,
     type: 'OrderedCollection',
     totalItems
