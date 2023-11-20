@@ -1,42 +1,11 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
-
 import { Image } from '../../../../lib/activities/entities/image'
 import { Person } from '../../../../lib/activities/entities/person'
-import { ERROR_404, ERROR_500 } from '../../../../lib/errors'
-import { headerHost } from '../../../../lib/guard'
 import { ACTIVITY_STREAM_URL } from '../../../../lib/jsonld/activitystream'
 import { W3ID_URL } from '../../../../lib/jsonld/w3id'
-import { getStorage } from '../../../../lib/storage'
 import { getISOTimeUTC } from '../../../../lib/time'
+import { OnlyLocalUserGuard } from './guard'
 
-type Data =
-  | {
-      error?: string
-    }
-  | Person
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<Data>
-) {
-  const { username } = req.query
-
-  const storage = await getStorage()
-  if (!storage) {
-    res.status(500).json(ERROR_500)
-    return
-  }
-
-  const host = headerHost(req.headers)
-  const actor = await storage.getActorFromUsername({
-    username: username as string,
-    domain: host as string
-  })
-  if (!actor) {
-    res.status(404).json(ERROR_404)
-    return
-  }
-
+export const GET = OnlyLocalUserGuard(async (_, actor) => {
   const icon = actor.iconUrl
     ? {
         icon: {
@@ -80,5 +49,5 @@ export default async function handler(
     ...icon,
     ...headerImage
   }
-  res.status(200).json(user)
-}
+  return Response.json(user)
+})
