@@ -31,7 +31,6 @@ export const OnlyLocalUserGuard =
     const { username } = query.params
     const host = headerHost(req.headers)
     const id = `https://${host}/users/${username}`
-    console.log(id)
     const actor = await storage.getActorFromId({ id })
     if (!actor || !actor.account) {
       return Response.json(ERROR_404, { status: 404 })
