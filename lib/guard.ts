@@ -173,6 +173,33 @@ export type AppRouterApiHandle<P> = (
   params?: AppRouterParams<P>
 ) => Promise<Response> | Response
 
+export type AuthenticatedApiHandle<P> = (
+  request: NextRequest,
+  context: BaseContext & { currentActor: Actor },
+  params?: AppRouterParams<P>
+) => Promise<Response> | Response
+
+export const AuthenticatedGuard =
+  <P>(handle: AuthenticatedApiHandle<P>) =>
+  async (req: NextRequest, params?: AppRouterParams<P>) => {
+    const [storage, session] = await Promise.all([
+      getStorage(),
+      getServerSession(authOptions)
+    ])
+    if (!storage || !session?.user?.email) {
+      return Response.redirect('/signin', 307)
+    }
+
+    const currentActor = await storage.getActorFromEmail({
+      email: session.user.email
+    })
+    if (!currentActor) {
+      return Response.redirect('/signin', 307)
+    }
+
+    return handle(req, { currentActor, storage, session }, params)
+  }
+
 export const AppRouterSharedKeyGuard =
   <P>(handle: AppRouterApiHandle<P>) =>
   async (req: NextRequest, params?: AppRouterParams<P>) => {
