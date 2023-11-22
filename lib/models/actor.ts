@@ -1,3 +1,7 @@
+import { Image } from '../activities/entities/image'
+import { Person } from '../activities/entities/person'
+import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
+import { W3ID_URL } from '../jsonld/w3id'
 import { getISOTimeUTC } from '../time'
 import { Account } from './account'
 
@@ -158,6 +162,52 @@ export class Actor {
       sharedInboxUrl: this.data.sharedInboxUrl ?? '',
 
       createdAt: this.data.createdAt
+    }
+  }
+
+  toPerson(): Person {
+    const icon = this.data.iconUrl
+      ? {
+          icon: {
+            type: 'Image',
+            mediaType: 'image/jpeg',
+            url: this.data.iconUrl
+          } as Image
+        }
+      : null
+    const headerImage = this.data.headerImageUrl
+      ? {
+          image: {
+            type: 'Image',
+            mediaType: 'image/png',
+            url: this.data.headerImageUrl
+          } as Image
+        }
+      : null
+
+    return {
+      '@context': [ACTIVITY_STREAM_URL, W3ID_URL],
+      id: this.data.id,
+      type: 'Person',
+      following: `https://${this.data.domain}/users/${this.data.username}/following`,
+      followers: `https://${this.data.domain}/users/${this.data.username}/followers`,
+      inbox: `https://${this.data.domain}/users/${this.data.username}/inbox`,
+      outbox: `https://${this.data.domain}/users/${this.data.username}/outbox`,
+      preferredUsername: this.data.username,
+      name: this.data.name || '',
+      summary: this.data.summary || '',
+      url: `https://${this.data.domain}/@${this.data.username}`,
+      published: getISOTimeUTC(this.data.createdAt),
+      publicKey: {
+        id: `${this.data.id}#main-key`,
+        owner: this.data.id,
+        publicKeyPem: this.data.publicKey
+      },
+      endpoints: {
+        sharedInbox: `https://${this.data.domain}/inbox`
+      },
+      ...icon,
+      ...headerImage
     }
   }
 
