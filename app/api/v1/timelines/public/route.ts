@@ -1,17 +1,12 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
+import { ERROR_500 } from '../../../../../lib/errors'
+import { getStorage } from '../../../../../lib/storage'
+import { getISOTimeUTC } from '../../../../../lib/time'
+import { Timeline } from '../../../../../lib/timelines/types'
 
-import { errorResponse } from '../../../../lib/errors'
-import { getStorage } from '../../../../lib/storage'
-import { getISOTimeUTC } from '../../../../lib/time'
-import { Timeline } from '../../../../lib/timelines/types'
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export const GET = async () => {
   const storage = await getStorage()
   if (!storage) {
-    return errorResponse(res, 500)
+    return Response.json(ERROR_500, { status: 500 })
   }
 
   const statuses = await storage.getTimeline({
@@ -19,8 +14,7 @@ export default async function handler(
   })
 
   if (statuses.length === 0) {
-    res.status(200).json([])
-    return
+    return Response.json([])
   }
 
   // TODO: Add last actor status
@@ -89,5 +83,5 @@ export default async function handler(
     }))
   )
 
-  res.status(200).json(loadedStatuses)
+  return Response.json(loadedStatuses)
 }
