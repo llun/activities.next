@@ -11,7 +11,7 @@ import { StatusStorage } from './types/status'
 export type GetTimelineParams = {
   timeline: Timeline
   actorId?: string
-  startAfterStatusId?: string
+  startAfterStatusId?: string | null
 }
 export type CreateTimelineStatusParams = {
   timeline: Timeline
