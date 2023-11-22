@@ -2105,9 +2105,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opentelemetry/instrumentation-ioredis@npm:^0.35.3":
-  version: 0.35.3
-  resolution: "@opentelemetry/instrumentation-ioredis@npm:0.35.3"
+"@opentelemetry/instrumentation-ioredis@npm:^0.36.0":
+  version: 0.36.0
+  resolution: "@opentelemetry/instrumentation-ioredis@npm:0.36.0"
   dependencies:
     "@opentelemetry/instrumentation": "npm:^0.45.1"
     "@opentelemetry/redis-common": "npm:^0.36.1"
@@ -2115,7 +2115,7 @@ __metadata:
     "@types/ioredis4": "npm:@types/ioredis@^4.28.10"
   peerDependencies:
     "@opentelemetry/api": ^1.3.0
-  checksum: 7d12953429ed2a7f8be111dee7458567544da4533ae73da4a189a5862dd5251104eca8e4e8997f43399ede7934458b5826741d74e9837731b190385be4cb5817
+  checksum: 99df9363aa57a61a419ab61052bddf76f0c3c0393b2e4ff68d8fe0b5f64024ca1b9d2afa4cc34b79e90e9025a35c71a55a8762c42f3a71a5272d5d55249b724d
   languageName: node
   linkType: hard
 
@@ -4180,7 +4180,7 @@ __metadata:
     "@opentelemetry/exporter-trace-otlp-http": "npm:^0.45.1"
     "@opentelemetry/exporter-trace-otlp-proto": "npm:^0.45.1"
     "@opentelemetry/instrumentation-http": "npm:^0.45.1"
-    "@opentelemetry/instrumentation-ioredis": "npm:^0.35.3"
+    "@opentelemetry/instrumentation-ioredis": "npm:^0.36.0"
     "@opentelemetry/instrumentation-knex": "npm:^0.32.3"
     "@opentelemetry/resources": "npm:^1.18.1"
     "@opentelemetry/sdk-node": "npm:^0.45.1"
