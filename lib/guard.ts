@@ -9,7 +9,6 @@ import { NextRequest } from 'next/server'
 
 import { authOptions } from '../app/api/auth/[...nextauth]/authOptions'
 import { getPublicProfile } from './activities'
-import { Error } from './activities/types'
 import { getConfig } from './config'
 import {
   ACTIVITIES_HOST,
@@ -166,27 +165,6 @@ export const ApiGuard =
     }
 
     return handle(req, res, { storage, session, currentActor })
-  }
-
-export const SharedKeyApiGuard =
-  <T>(handle: NextApiHandler<T>): NextApiHandler<T | Error> =>
-  async (req, res) => {
-    const config = getConfig()
-    const sharedKey = config.internalApi?.sharedKey
-    if (!sharedKey) {
-      res.status(403).send(ERROR_403)
-      return
-    }
-
-    if (
-      !req.headers[ACTIVITIES_SHARED_KEY] ||
-      req.headers[ACTIVITIES_SHARED_KEY] !== sharedKey
-    ) {
-      res.status(403).send(ERROR_403)
-      return
-    }
-
-    return handle(req, res)
   }
 
 export type AppRouterParams<P> = { params: P }
