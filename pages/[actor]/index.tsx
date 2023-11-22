@@ -152,7 +152,7 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
           followingCount,
           totalPosts: statusCount
         }),
-        statuses: statuses.map((item) => item.data),
+        statuses: statuses.map((item) => item.toJson()),
         attachments: attachments.map((item) => item.toJson()),
         serverTime: Date.now()
       }
