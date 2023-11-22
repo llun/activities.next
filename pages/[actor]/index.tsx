@@ -131,10 +131,31 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
 
   const [username, domain] = parts
   const isLoggedIn = Boolean(session?.user?.email)
-  if (!isLoggedIn) {
-    const localActor = await storage.getActorFromUsername({ username, domain })
-    if (!localActor?.account) {
-      return { notFound: true }
+  const localActor = await storage.getActorFromUsername({ username, domain })
+  if (!isLoggedIn && !localActor?.account) {
+    return { notFound: true }
+  }
+
+  if (localActor?.account) {
+    const [statuses, statusCount, attachments, followingCount, followersCount] =
+      await Promise.all([
+        storage.getActorStatuses({ actorId: localActor.id }),
+        storage.getActorStatusesCount({ actorId: localActor.id }),
+        storage.getAttachmentsForActor({ actorId: localActor.id }),
+        storage.getActorFollowingCount({ actorId: localActor.id }),
+        storage.getActorFollowersCount({ actorId: localActor.id })
+      ])
+    return {
+      props: {
+        person: localActor.toPublicProfile({
+          followersCount,
+          followingCount,
+          totalPosts: statusCount
+        }),
+        statuses: statuses.map((item) => item.data),
+        attachments: attachments.map((item) => item.toJson()),
+        serverTime: Date.now()
+      }
     }
   }
 

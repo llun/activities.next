@@ -1,3 +1,4 @@
+import { PublicProfile } from '../activities'
 import { Image } from '../activities/entities/image'
 import { Person } from '../activities/entities/person'
 import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
@@ -208,6 +209,42 @@ export class Actor {
       },
       ...icon,
       ...headerImage
+    }
+  }
+
+  toPublicProfile(params?: {
+    followingCount: number
+    followersCount: number
+    totalPosts: number
+  }): PublicProfile {
+    const person = this.toPerson()
+    const { followersCount, followingCount, totalPosts } = params ?? {
+      followersCount: 0,
+      followingCount: 0,
+      totalPosts: 0
+    }
+    return {
+      id: person.id,
+      username: person.preferredUsername,
+      domain: new URL(person.id).hostname,
+      ...(person.icon ? { icon: person.icon } : null),
+      url: person.url,
+      name: person.name || '',
+      summary: person.summary || '',
+
+      followersCount,
+      followingCount,
+      totalPosts,
+
+      endpoints: {
+        following: person.following,
+        followers: person.followers,
+        inbox: person.inbox,
+        outbox: person.outbox,
+        sharedInbox: person.endpoints?.sharedInbox ?? person.inbox
+      },
+
+      createdAt: new Date(person.published).getTime()
     }
   }
 
