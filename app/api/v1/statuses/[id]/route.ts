@@ -9,12 +9,12 @@ interface Params {
   id: string
 }
 
-export const EditNoteSchema = z.object({
+const EditNoteSchema = z.object({
   status: z.string(),
   spoiler_text: z.string().optional()
 })
 
-export type EditNoteSchema = z.infer<typeof EditNoteSchema>
+type EditNoteSchema = z.infer<typeof EditNoteSchema>
 
 export const PUT = AuthenticatedGuard<Params>(async (req, context, params) => {
   const id = params?.params.id

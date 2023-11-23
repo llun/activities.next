@@ -5,14 +5,14 @@ import { ERROR_400, ERROR_422 } from '../../../../lib/errors'
 import { AuthenticatedGuard } from '../../../../lib/guard'
 import { getISOTimeUTC } from '../../../../lib/time'
 
-export const NoteSchema = z.object({
+const NoteSchema = z.object({
   status: z.string(),
   in_reply_to_id: z.string().optional(),
   spoiler_text: z.string().optional(),
   media_ids: z.array(z.string()).optional()
 })
 
-export type NoteSchema = z.infer<typeof NoteSchema>
+type NoteSchema = z.infer<typeof NoteSchema>
 
 export const POST = AuthenticatedGuard(async (req, context) => {
   const { currentActor, storage } = context
