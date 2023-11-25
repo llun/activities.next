@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 interface Derivative {
   fileSize: string
   checksum: string
@@ -40,21 +42,23 @@ export interface Stream {
   photos: Photo[]
 }
 
-export interface Assets {
-  items: {
-    [checksum: string]: {
-      url_expiry: string
-      url_location: string
-      url_path: string
-    }
-  }
-  locations: {
-    [host: string]: {
-      hosts: string[]
-      scheme: string
-    }
-  }
-}
+export const Assets = z.object({
+  items: z.record(
+    z.object({
+      url_expiry: z.string(),
+      url_location: z.string(),
+      url_path: z.string()
+    })
+  ),
+  locations: z.record(
+    z.object({
+      hosts: z.string().array(),
+      scheme: z.string()
+    })
+  )
+})
+
+export type Assets = z.infer<typeof Assets>
 
 export const VideoPosterDerivative = 'PosterFrame'
 export const Video720p = '720p'
@@ -108,7 +112,7 @@ export async function fetchStream(token: string): Promise<Stream | null> {
 export async function fetchAssetsUrl(
   token: string,
   photoGuids: string[]
-): Promise<Response | null> {
+): Promise<Assets | null> {
   const response = await fetch(
     `${getStreamBaseUrl(token)}/${token}/sharedstreams/webasseturls`,
     {
@@ -122,5 +126,10 @@ export async function fetchAssetsUrl(
     }
   )
   if (response.status !== 200) return null
-  return response
+
+  try {
+    return Assets.parse(await response.json())
+  } catch {
+    return null
+  }
 }
