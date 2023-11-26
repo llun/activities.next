@@ -1,10 +1,5 @@
-import KeyvRedis from '@keyv/redis'
-import { KeyvRedisOptions } from '@keyv/redis/dist/types'
 import crypto from 'crypto'
-import got, { Headers, Method } from 'got'
-import { memoize } from 'lodash'
 
-import { getConfig } from '../config'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
@@ -22,6 +17,7 @@ import {
 import { signedHeaders } from '../signature'
 import { getISOTimeUTC } from '../time'
 import { getSpan } from '../trace'
+import { request } from '../utils/request'
 import { AcceptFollow } from './actions/acceptFollow'
 import { AnnounceStatus } from './actions/announceStatus'
 import { CreateStatus } from './actions/createStatus'
@@ -49,63 +45,7 @@ import { OrderedCollectionPage } from './entities/orderedCollectionPage'
 import { Person } from './entities/person'
 import { WebFinger } from './types'
 
-const USER_AGENT = 'activities.next/0.1'
-const DEFAULT_RESPONSE_TIMEOUT = 4000
-const MAX_RETRY_LIMIT = 1
-
-const SHARED_HEADERS = {
-  Accept: 'application/activity+json, application/ld+json',
-  'User-Agent': USER_AGENT
-}
-
-export interface RequestOptions {
-  url: string
-  method?: Method
-  headers?: Headers
-  body?: string
-  responseTimeout?: number
-}
-
-const getRequestCache = memoize(() => {
-  const config = getConfig()
-  if (config.redis) {
-    const { url, tls } = config.redis
-    const option = tls ? ({ tls: {} } as KeyvRedisOptions) : undefined
-    return new KeyvRedis(url, option)
-  }
-
-  if (process.env.KV_URL) {
-    const option = { tls: {} } as KeyvRedisOptions
-    return new KeyvRedis(process.env.KV_URL, option)
-  }
-
-  return false
-})
-
-export const request = ({
-  url,
-  method = 'GET',
-  headers,
-  body,
-  responseTimeout = DEFAULT_RESPONSE_TIMEOUT
-}: RequestOptions) => {
-  return got(url, {
-    headers: {
-      ...SHARED_HEADERS,
-      ...headers
-    },
-    timeout: {
-      response: responseTimeout
-    },
-    retry: {
-      limit: MAX_RETRY_LIMIT
-    },
-    throwHttpErrors: false,
-    method,
-    body,
-    cache: getRequestCache()
-  })
-}
+const DEFAULT_ACCEPT = 'application/activity+json, application/ld+json'
 
 export const getWebfingerSelf = async (account: string) => {
   const [user, domain] = account.split('@')
@@ -115,8 +55,7 @@ export const getWebfingerSelf = async (account: string) => {
     const { statusCode, body } = await request({
       url: `https://${domain}/.well-known/webfinger?resource=acct:${account}`,
       headers: {
-        Accept: 'application/json',
-        'User-Agent': USER_AGENT
+        Accept: 'application/json'
       }
     })
     if (statusCode !== 200) {
@@ -186,7 +125,10 @@ export const getPublicProfile = async ({
     withPublicKey
   })
 
-  const { statusCode, body } = await request({ url: actorId })
+  const { statusCode, body } = await request({
+    url: actorId,
+    headers: { Accept: DEFAULT_ACCEPT }
+  })
   if (statusCode !== 200) {
     span.end()
     return null
@@ -226,21 +168,30 @@ export const getPublicProfile = async ({
 
   const [followers, following, posts] = await Promise.all([
     person.followers
-      ? request({ url: person.followers }).then((res) =>
+      ? request({
+          url: person.followers,
+          headers: { Accept: DEFAULT_ACCEPT }
+        }).then((res) =>
           res.statusCode === 200
             ? (JSON.parse(res.body) as Promise<OrderedCollection>)
             : null
         )
       : null,
     person.following
-      ? request({ url: person.following }).then((res) =>
+      ? request({
+          url: person.following,
+          headers: { Accept: DEFAULT_ACCEPT }
+        }).then((res) =>
           res.statusCode === 200
             ? (JSON.parse(res.body) as Promise<OrderedCollection>)
             : null
         )
       : null,
     person.outbox
-      ? request({ url: person.outbox }).then((res) =>
+      ? request({
+          url: person.outbox,
+          headers: { Accept: DEFAULT_ACCEPT }
+        }).then((res) =>
           res.statusCode === 200
             ? (JSON.parse(res.body) as Promise<OrderedCollection>)
             : null
@@ -328,7 +279,10 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
     postsUrl
   })
 
-  const { statusCode, body } = await request({ url: postsUrl })
+  const { statusCode, body } = await request({
+    url: postsUrl,
+    headers: { Accept: DEFAULT_ACCEPT }
+  })
   if (statusCode !== 200) {
     span.end()
     return []
@@ -371,7 +325,10 @@ export const getStatus = async ({
   const span = getSpan('activities', 'getStatus', {
     statusId
   })
-  const { statusCode, body } = await request({ url: statusId })
+  const { statusCode, body } = await request({
+    url: statusId,
+    headers: { Accept: DEFAULT_ACCEPT }
+  })
   span.end()
   if (statusCode !== 200) return null
   return JSON.parse(body)
@@ -407,7 +364,7 @@ export const sendNote = async ({
     method,
     headers: {
       ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-      'User-Agent': USER_AGENT
+      Accept: DEFAULT_ACCEPT
     },
     body: JSON.stringify(activity)
   })
@@ -451,7 +408,7 @@ export const sendUpdateNote = async ({
     method,
     headers: {
       ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-      'User-Agent': USER_AGENT
+      Accept: DEFAULT_ACCEPT
     },
     body: JSON.stringify(activity)
   })
@@ -491,7 +448,7 @@ export const sendAnnounce = async ({
     url: inbox,
     headers: {
       ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-      'User-Agent': USER_AGENT
+      Accept: DEFAULT_ACCEPT
     },
     method,
     body: JSON.stringify(activity)
@@ -529,7 +486,7 @@ export const deleteStatus = async ({
     url: inbox,
     headers: {
       ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-      'User-Agent': USER_AGENT
+      Accept: DEFAULT_ACCEPT
     },
     method,
     body: JSON.stringify(activity)
@@ -573,7 +530,7 @@ export const undoAnnounce = async ({
     method,
     headers: {
       ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-      'User-Agent': USER_AGENT
+      Accept: DEFAULT_ACCEPT
     },
     body: JSON.stringify(activity)
   })
@@ -615,7 +572,7 @@ export const follow = async (
         targetInbox,
         activity
       ),
-      'User-Agent': USER_AGENT
+      Accept: DEFAULT_ACCEPT
     },
     body: JSON.stringify(activity)
   })
@@ -657,7 +614,7 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
         targetInbox,
         activity
       ),
-      'User-Agent': USER_AGENT
+      Accept: DEFAULT_ACCEPT
     },
     method,
     body: JSON.stringify(activity)
@@ -698,7 +655,7 @@ export const acceptFollow = async (
         followingInbox,
         activity
       ),
-      'User-Agent': USER_AGENT
+      Accept: DEFAULT_ACCEPT
     },
     body: JSON.stringify(activity)
   })
@@ -739,7 +696,7 @@ export const sendLike = async ({ currentActor, status }: LikeParams) => {
         status.actor.inboxUrl,
         activity
       ),
-      'User-Agent': USER_AGENT
+      Accept: DEFAULT_ACCEPT
     },
     body: JSON.stringify(activity)
   })
@@ -784,7 +741,7 @@ export const sendUndoLike = async ({
         status.actor.inboxUrl,
         activity
       ),
-      'User-Agent': USER_AGENT
+      Accept: DEFAULT_ACCEPT
     },
     body: JSON.stringify(activity)
   })
