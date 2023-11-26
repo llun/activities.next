@@ -1,9 +1,9 @@
-import { Actor } from '../models/actor'
-import { SqlStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
-import { seedActor2 } from '../stub/seed/actor2'
-import { seedStorage } from '../stub/storage'
+import { Actor } from '../../models/actor'
+import { SqlStorage } from '../../storage/sql'
+import { mockRequests } from '../../stub/activities'
+import { ACTOR1_ID, seedActor1 } from '../../stub/seed/actor1'
+import { seedActor2 } from '../../stub/seed/actor2'
+import { seedStorage } from '../../stub/storage'
 import { getMentions } from './getMentions'
 
 describe('#getMentions', () => {

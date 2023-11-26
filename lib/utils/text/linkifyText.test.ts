@@ -1,4 +1,4 @@
-import { getConfig } from '../config'
+import { getConfig } from '../../config'
 import { linkifyText } from './linkifyText'
 
 describe('#linkifyText', () => {

@@ -1,10 +1,10 @@
 import * as linkify from 'linkifyjs'
 
-import { getPublicProfileFromHandle } from '../activities'
-import { Mention } from '../activities/entities/mention'
-import { Actor } from '../models/actor'
-import { Status } from '../models/status'
-import { getSpan } from '../trace'
+import { getPublicProfileFromHandle } from '../../activities'
+import { Mention } from '../../activities/entities/mention'
+import { Actor } from '../../models/actor'
+import { Status } from '../../models/status'
+import { getSpan } from '../../trace'
 
 interface GetMentionsParams {
   text: string

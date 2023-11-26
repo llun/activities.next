@@ -1,6 +1,6 @@
 import _ from 'lodash'
 
-import { TagData } from '../models/tag'
+import { TagData } from '../../models/tag'
 import { convertEmojisToImages } from './convertEmojisToImages'
 import { convertQuoteToCode } from './convertQuoteToCode'
 
