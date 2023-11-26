@@ -80,7 +80,7 @@
     "@types/jsonld": "^1.5.13",
     "@types/lodash": "^4.14.202",
     "@types/mime-types": "^2.1.4",
-    "@types/node": "^20.9.4",
+    "@types/node": "^20.10.0",
     "@types/nodemailer": "^6.4.14",
     "@types/react": "18.2.38",
     "@types/react-dom": "18.2.17",
