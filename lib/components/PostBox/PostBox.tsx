@@ -11,8 +11,6 @@ import sanitizeHtml from 'sanitize-html'
 import Turndown from 'turndown'
 
 import { createNote, createPoll, updateNote } from '../../client'
-import { Media } from '../../medias/apple/media'
-import { Video720p, VideoPosterDerivative } from '../../medias/apple/webstream'
 import { Actor, ActorProfile } from '../../models/actor'
 import { AppleGalleryAttachment, Attachment } from '../../models/attachment'
 import {
@@ -21,6 +19,11 @@ import {
   StatusNote,
   StatusType
 } from '../../models/status'
+import { Media } from '../../services/apple/media'
+import {
+  Video720p,
+  VideoPosterDerivative
+} from '../../services/apple/webstream'
 import { Button } from '../Button'
 import { AppleGallerButton } from './AppleGalleryButton'
 import { Duration, PollChoices } from './PollChoices'

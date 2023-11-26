@@ -1,9 +1,13 @@
 import { FC, MouseEvent, useState } from 'react'
 
 import { getAppleSharedAlbumAssets, getAppleSharedGallery } from '../../client'
-import { Media, getMediaList, mergeMediaAssets } from '../../medias/apple/media'
-import { VideoPosterDerivative } from '../../medias/apple/webstream'
 import { ActorProfile } from '../../models/actor'
+import {
+  Media,
+  getMediaList,
+  mergeMediaAssets
+} from '../../services/apple/media'
+import { VideoPosterDerivative } from '../../services/apple/webstream'
 import { Button } from '../Button'
 import { Modal } from '../Modal'
 import styles from './AppleGalleryButton.module.scss'
@@ -56,7 +60,7 @@ export const AppleGallerButton: FC<Props> = ({ profile, onSelectMedia }) => {
   return (
     <>
       <Button variant="link" onClick={onOpenGallery}>
-        <i className="bi bi-image" />
+        <i className="bi bi-apple" />
       </Button>
       <Modal isOpen={showGallery} onRequestClose={() => setShowGallery(false)}>
         <div className={styles.box}>

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { ERROR_404 } from '../../../../../../../lib/errors'
 import { AppRouterParams } from '../../../../../../../lib/guard'
-import { fetchAssetsUrl } from '../../../../../../../lib/medias/apple/webstream'
+import { fetchAssetsUrl } from '../../../../../../../lib/services/apple/webstream'
 
 interface Params {
   token: string

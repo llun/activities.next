@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { ERROR_404 } from '../../../../../../../lib/errors'
 import { AppRouterParams } from '../../../../../../../lib/guard'
-import { fetchAssetsUrl } from '../../../../../../../lib/medias/apple/webstream'
+import { fetchAssetsUrl } from '../../../../../../../lib/services/apple/webstream'
 import { allowOrigin } from '../utils'
 
 const AssetsRequest = z.object({

@@ -1,8 +1,8 @@
 import { Duration } from './components/PostBox/PollChoices'
-import { Assets, Stream } from './medias/apple/webstream'
 import { Attachment, PostBoxAttachment } from './models/attachment'
 import { Follow, FollowStatus } from './models/follow'
 import { StatusData } from './models/status'
+import { Assets, Stream } from './services/apple/webstream'
 import { Timeline } from './timelines/types'
 
 export interface CreateNoteParams {
