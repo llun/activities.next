@@ -94,6 +94,7 @@ function getStreamBaseUrl(token: string) {
  *  https://www.icloud.com/sharedalbum/#B125ON9t3mbLNC id is B125ON9t3mbLNC
  */
 export async function fetchStream(token: string): Promise<Stream | null> {
+  // Fetch is used here instead of request in utils because this library uses in the browser.
   const response = await fetch(
     `${getStreamBaseUrl(token)}/${token}/sharedstreams/webstream`,
     {
@@ -113,6 +114,7 @@ export async function fetchAssetsUrl(
   token: string,
   photoGuids: string[]
 ): Promise<Assets | null> {
+  // Fetch is used here instead of request in utils because this library uses in the browser.
   const response = await fetch(
     `${getStreamBaseUrl(token)}/${token}/sharedstreams/webasseturls`,
     {
