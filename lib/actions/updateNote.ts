@@ -14,8 +14,8 @@ import {
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
-import { formatText } from '../text/formatText'
 import { getSpan } from '../trace'
+import { formatText } from '../utils/text/formatText'
 
 interface UpdateNoteParams {
   note: Note

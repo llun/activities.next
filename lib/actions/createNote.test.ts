@@ -10,7 +10,7 @@ import { MockLitepubNote, MockMastodonNote } from '../stub/note'
 import { seedActor1 } from '../stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
-import { formatText } from '../text/formatText'
+import { formatText } from '../utils/text/formatText'
 import { createNote, createNoteFromUserInput } from './createNote'
 
 enableFetchMocks()

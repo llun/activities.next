@@ -19,10 +19,10 @@ import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { Status, StatusType } from '../models/status'
 import { Storage } from '../storage/types'
-import { formatText } from '../text/formatText'
-import { getMentions } from '../text/getMentions'
 import { addStatusToTimelines } from '../timelines'
 import { getSpan } from '../trace'
+import { formatText } from '../utils/text/formatText'
+import { getMentions } from '../utils/text/getMentions'
 import { recordActorIfNeeded } from './utils'
 
 interface CreateNoteParams {
