@@ -1,6 +1,7 @@
 import memoize from 'lodash/memoize'
 
-import { KnexBaseDatabase, getConfig } from '../config'
+import { getConfig } from '../config'
+import { KnexBaseDatabase } from '../config/database'
 import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
