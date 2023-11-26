@@ -29,6 +29,7 @@ import { AppleGallerButton } from './AppleGalleryButton'
 import { Duration, PollChoices } from './PollChoices'
 import styles from './PostBox.module.scss'
 import { ReplyPreview } from './ReplyPreview'
+import { UploadMediaButton } from './UploadMediaButton'
 import {
   DEFAULT_STATE,
   addPollChoice,
@@ -311,6 +312,7 @@ export const PostBox: FC<Props> = ({
               profile={profile}
               onSelectMedia={onSelectAppleMedia}
             />
+            <UploadMediaButton />
             <Button
               variant="link"
               onClick={() =>
