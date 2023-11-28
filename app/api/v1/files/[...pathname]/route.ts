@@ -4,9 +4,9 @@ import { NextRequest } from 'next/server'
 import path from 'path'
 
 import { getConfig } from '../../../../../lib/config'
+import { MediaStorageType } from '../../../../../lib/config/mediaStorage'
 import { ERROR_404 } from '../../../../../lib/errors'
 import { AppRouterParams } from '../../../../../lib/guard'
-import { MediaStorageType } from '../../../../../lib/storage/types/media'
 
 interface Params {
   pathname: string

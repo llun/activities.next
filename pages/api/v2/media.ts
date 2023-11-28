@@ -7,9 +7,9 @@ import sharp from 'sharp'
 import z from 'zod'
 
 import { getConfig } from '../../../lib/config'
+import { MediaStorageType } from '../../../lib/config/mediaStorage'
 import { errorResponse } from '../../../lib/errors'
 import { ApiGuard } from '../../../lib/guard'
-import { MediaStorageType } from '../../../lib/storage/types/media'
 import { ApiTrace } from '../../../lib/trace'
 
 const FormidableFile = z.object({
