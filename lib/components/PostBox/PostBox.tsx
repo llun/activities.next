@@ -46,6 +46,7 @@ interface Props {
   profile: ActorProfile
   replyStatus?: StatusData
   editStatus?: EditableStatusData
+  isMediaUploadEnabled?: boolean
   onDiscardReply: () => void
   onPostCreated: (status: StatusData, attachments: Attachment[]) => void
   onPostUpdated: (status: StatusData) => void
@@ -56,6 +57,7 @@ export const PostBox: FC<Props> = ({
   profile,
   replyStatus,
   editStatus,
+  isMediaUploadEnabled,
   onPostCreated,
   onPostUpdated,
   onDiscardReply
@@ -312,7 +314,7 @@ export const PostBox: FC<Props> = ({
               profile={profile}
               onSelectMedia={onSelectAppleMedia}
             />
-            <UploadMediaButton />
+            <UploadMediaButton isMediaUploadEnabled={isMediaUploadEnabled} />
             <Button
               variant="link"
               onClick={() =>

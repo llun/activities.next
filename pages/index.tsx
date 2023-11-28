@@ -25,6 +25,7 @@ import styles from './index.module.scss'
 interface Props {
   host: string
   currentServerTime: number
+  isMediaUploadEnabled: boolean
   statuses: StatusData[]
   profile: ActorProfile
 }
@@ -66,7 +67,8 @@ const Page: NextPage<Props> = ({
   host,
   profile,
   statuses,
-  currentServerTime
+  currentServerTime,
+  isMediaUploadEnabled
 }) => {
   const { data: session } = useSession()
   const [currentTab, setCurrentTab] = useState<Tab>(TIMELINES_TABS[0])
@@ -135,6 +137,7 @@ const Page: NextPage<Props> = ({
               profile={profile}
               replyStatus={statusActionState.replyStatus}
               editStatus={statusActionState.editStatus}
+              isMediaUploadEnabled={isMediaUploadEnabled}
               onDiscardReply={() => dispatchStatusAction(clearAction())}
               onPostCreated={(status: StatusData) => {
                 setCurrentStatuses((previousValue) => [
@@ -254,7 +257,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({
       host: config.host,
       statuses: statuses.map((item) => item.toJson()),
       currentServerTime: Date.now(),
-      profile: actor.toProfile()
+      profile: actor.toProfile(),
+      isMediaUploadEnabled: Boolean(config.mediaStorage)
     }
   }
 }
