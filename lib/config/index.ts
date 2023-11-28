@@ -6,9 +6,9 @@ import { z } from 'zod'
 import { LambdaConfig } from '../services/email/lambda'
 import { ResendConfig } from '../services/email/resend'
 import { SMTPConfig } from '../services/email/smtp'
-import { MediaStorageConfig } from '../storage/types/media'
 import { FirebaseDatabase, KnexBaseDatabase } from './database'
 import { InternalApiConfig, getInternalApiConfig } from './internalApi'
+import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
 import { RedisConfig, getRedisConfig } from './redis'
 
@@ -67,6 +67,7 @@ const getConfigFromEnvironment = () => {
       ...(process.env.ACTIVITIES_EMAIL
         ? { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
         : null),
+      ...getMediaStorageConfig(),
       ...getRedisConfig(),
       ...getOtelConfig(),
       ...getInternalApiConfig()
