@@ -8,15 +8,10 @@ import { ERROR_400, ERROR_422 } from '../../../../lib/errors'
 import { AuthenticatedGuard } from '../../../../lib/guard'
 
 // Maximum file size is 1 MB
-export const MAX_FILE_SIZE = 1_048_576
-export const ACCEPTED_FILE_TYPES = [
-  'image/jpg',
-  'image/png',
-  'video/mp4',
-  'audio/mp4'
-]
+const MAX_FILE_SIZE = 1_048_576
+const ACCEPTED_FILE_TYPES = ['image/jpg', 'image/png', 'video/mp4', 'audio/mp4']
 
-export const FileSchema = z
+const FileSchema = z
   .custom<File>()
   .refine(
     (file) => file.size <= MAX_FILE_SIZE,
@@ -27,7 +22,7 @@ export const FileSchema = z
     `Only ${ACCEPTED_FILE_TYPES.join(',')} are accepted`
   )
 
-export const MediaSchema = z.object({
+const MediaSchema = z.object({
   file: FileSchema,
   thumbnail: FileSchema.optional(),
   description: z.string().optional()
