@@ -1,5 +1,6 @@
 import { FC, SyntheticEvent, useRef } from 'react'
 
+import { uploadMedias } from '../../client'
 import { Button } from '../Button'
 
 interface Props {
@@ -13,8 +14,13 @@ export const UploadMediaButton: FC<Props> = ({ isMediaUploadEnabled }) => {
     if (!input) return
     input.click()
   }
-  const onSelectFile = (event: SyntheticEvent<HTMLInputElement, Event>) => {
-    alert(event.currentTarget.value)
+  const onSelectFile = async (
+    event: SyntheticEvent<HTMLInputElement, Event>
+  ) => {
+    if (!event.currentTarget.files) return
+    if (!event.currentTarget.files.length) return
+
+    await uploadMedias({ medias: event.currentTarget.files })
   }
 
   if (!isMediaUploadEnabled) {
@@ -25,9 +31,11 @@ export const UploadMediaButton: FC<Props> = ({ isMediaUploadEnabled }) => {
     <>
       <input
         ref={fileInputRef}
+        name="file"
         type="file"
+        accept="image/jpg,image/png,video/mp4,audio/mp4"
         className="d-none"
-        accept="image/jpg,video/mp4,audio/mp4"
+        multiple
         onChange={onSelectFile}
       />
       <Button variant="link" onClick={onOpenFile}>

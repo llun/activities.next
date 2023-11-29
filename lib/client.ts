@@ -288,3 +288,19 @@ export const deleteSession = async ({ token }: DeleteSessionParams) => {
   if (response.status !== 200) return false
   return true
 }
+
+interface UploadMediaParams {
+  medias: FileList
+}
+export const uploadMedias = async ({ medias }: UploadMediaParams) => {
+  const path = '/api/v2/media'
+  const form = new FormData()
+  for (const file of medias) {
+    form.append('file', file)
+  }
+  const response = await fetch(path, {
+    method: 'POST',
+    body: form
+  })
+  console.log(response)
+}
