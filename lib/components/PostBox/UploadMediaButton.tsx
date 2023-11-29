@@ -1,6 +1,6 @@
 import { FC, SyntheticEvent, useRef } from 'react'
 
-import { uploadMedias } from '../../client'
+import { uploadMedia } from '../../client'
 import { Button } from '../Button'
 
 interface Props {
@@ -20,7 +20,11 @@ export const UploadMediaButton: FC<Props> = ({ isMediaUploadEnabled }) => {
     if (!event.currentTarget.files) return
     if (!event.currentTarget.files.length) return
 
-    await uploadMedias({ medias: event.currentTarget.files })
+    await Promise.all(
+      Array.from(event.currentTarget.files).map((file) =>
+        uploadMedia({ media: file })
+      )
+    )
   }
 
   if (!isMediaUploadEnabled) {

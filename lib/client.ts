@@ -290,14 +290,20 @@ export const deleteSession = async ({ token }: DeleteSessionParams) => {
 }
 
 interface UploadMediaParams {
-  medias: FileList
+  media: File
+  thumbnail?: File
+  description?: string
 }
-export const uploadMedias = async ({ medias }: UploadMediaParams) => {
+export const uploadMedia = async ({
+  media,
+  thumbnail,
+  description
+}: UploadMediaParams) => {
   const path = '/api/v2/media'
   const form = new FormData()
-  for (const file of medias) {
-    form.append('file', file)
-  }
+  form.append('file', media)
+  if (thumbnail) form.append('thumbnail', thumbnail)
+  if (description) form.append('description', description)
   const response = await fetch(path, {
     method: 'POST',
     body: form
