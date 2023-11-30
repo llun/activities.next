@@ -7,7 +7,6 @@ import { AttachmentData } from '../../models/attachment'
 import { EditableStatusData, StatusData, StatusType } from '../../models/status'
 import { cleanClassName } from '../../utils/text/cleanClassName'
 import { convertTextContent } from '../../utils/text/convertTextContent'
-import { sanitizeText } from '../../utils/text/sanitizeText'
 import { Actions } from './Actions'
 import { Actor } from './Actor'
 import { Attachments } from './Attachments'
@@ -75,7 +74,7 @@ export const Post: FC<PostProps> = (props) => {
       </div>
       <div className={'me-1 text-break'}>
         {cleanClassName(
-          convertTextContent(sanitizeText(actualStatus.text), actualStatus.tags)
+          convertTextContent(actualStatus.text, actualStatus.tags)
         )}
       </div>
       <Poll status={actualStatus} currentTime={currentTime} />
