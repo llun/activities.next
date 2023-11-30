@@ -2,7 +2,7 @@ import { Document } from '../activities/entities/document'
 
 export interface AppleGalleryAttachment {
   type: 'apple'
-  guid: string
+  id: string
   mediaType: string
   url: string
   width: number
@@ -11,7 +11,18 @@ export interface AppleGalleryAttachment {
   name?: string
 }
 
-export type PostBoxAttachment = AppleGalleryAttachment
+export interface UploadedAttachment {
+  type: 'upload'
+  id: string
+  mediaType: string
+  url: string
+  width: number
+  height: number
+  posterUrl?: string
+  name?: string
+}
+
+export type PostBoxAttachment = AppleGalleryAttachment | UploadedAttachment
 
 export interface AttachmentData {
   id: string

@@ -1,13 +1,18 @@
 import { FC, SyntheticEvent, useRef } from 'react'
 
 import { uploadMedia } from '../../client'
+import { UploadedAttachment } from '../../models/attachment'
 import { Button } from '../Button'
 
 interface Props {
   isMediaUploadEnabled?: boolean
+  onSelectMedias: (medias: UploadedAttachment[]) => void
 }
 
-export const UploadMediaButton: FC<Props> = ({ isMediaUploadEnabled }) => {
+export const UploadMediaButton: FC<Props> = ({
+  isMediaUploadEnabled,
+  onSelectMedias
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onOpenFile = () => {
     const input = fileInputRef.current
@@ -25,7 +30,16 @@ export const UploadMediaButton: FC<Props> = ({ isMediaUploadEnabled }) => {
         uploadMedia({ media: file })
       )
     )
-    console.log(medias)
+    onSelectMedias(
+      medias.map((media) => ({
+        type: 'upload',
+        id: media.id,
+        mediaType: media.type,
+        url: media.url,
+        width: media.meta.original.width,
+        height: media.meta.original.height
+      }))
+    )
   }
 
   if (!isMediaUploadEnabled) {

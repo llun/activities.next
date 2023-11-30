@@ -1,9 +1,6 @@
 import { Reducer } from 'react'
 
-import {
-  AppleGalleryAttachment,
-  PostBoxAttachment
-} from '../../models/attachment'
+import { PostBoxAttachment } from '../../models/attachment'
 import { Choice, DEFAULT_DURATION, Duration } from './PollChoices'
 
 interface StatusExtension {
@@ -18,7 +15,7 @@ interface StatusExtension {
 export const resetExtension = () => ({ type: 'resetExtension' as const })
 type ActionReset = ReturnType<typeof resetExtension>
 
-export const setAttachments = (attachments: AppleGalleryAttachment[]) => ({
+export const setAttachments = (attachments: PostBoxAttachment[]) => ({
   type: 'setAttachments' as const,
   attachments
 })

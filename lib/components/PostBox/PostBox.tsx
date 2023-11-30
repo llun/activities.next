@@ -12,7 +12,11 @@ import Turndown from 'turndown'
 
 import { createNote, createPoll, updateNote } from '../../client'
 import { Actor, ActorProfile } from '../../models/actor'
-import { AppleGalleryAttachment, Attachment } from '../../models/attachment'
+import {
+  AppleGalleryAttachment,
+  Attachment,
+  UploadedAttachment
+} from '../../models/attachment'
 import {
   EditableStatusData,
   StatusData,
@@ -136,7 +140,7 @@ export const PostBox: FC<Props> = ({
       const video = media.derivatives[Video720p]
       const attachment: AppleGalleryAttachment = {
         type: 'apple',
-        guid: media.guid,
+        id: media.guid,
         mediaType: 'video/mp4',
         name: media.caption,
         url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${video.checksum}`,
@@ -154,7 +158,7 @@ export const PostBox: FC<Props> = ({
     const bestDerivatives = media.derivatives[biggestDerivatives]
     const attachment: AppleGalleryAttachment = {
       type: 'apple',
-      guid: media.guid,
+      id: media.guid,
       mediaType: 'image/jpeg',
       name: media.caption,
       url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${bestDerivatives.checksum}`,
@@ -163,6 +167,9 @@ export const PostBox: FC<Props> = ({
     }
     dispatch(setAttachments([...postExtension.attachments, attachment]))
   }
+
+  const onSelectUploadedMedias = (medias: UploadedAttachment[]) =>
+    dispatch(setAttachments([...postExtension.attachments, ...medias]))
 
   const onRemoveAttachment = (attachmentIndex: number) => {
     dispatch(
@@ -314,7 +321,10 @@ export const PostBox: FC<Props> = ({
               profile={profile}
               onSelectMedia={onSelectAppleMedia}
             />
-            <UploadMediaButton isMediaUploadEnabled={isMediaUploadEnabled} />
+            <UploadMediaButton
+              isMediaUploadEnabled={isMediaUploadEnabled}
+              onSelectMedias={onSelectUploadedMedias}
+            />
             <Button
               variant="link"
               onClick={() =>
@@ -332,7 +342,7 @@ export const PostBox: FC<Props> = ({
           {postExtension.attachments.map((item, index) => (
             <div
               className={styles.attachment}
-              key={item.guid}
+              key={item.id}
               style={{ backgroundImage: `url(${item.posterUrl || item.url})` }}
               onClick={() => onRemoveAttachment(index)}
             />
