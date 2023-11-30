@@ -308,5 +308,6 @@ export const uploadMedia = async ({
     method: 'POST',
     body: form
   })
-  console.log(response)
+  if (response.status !== 200) return null
+  return response.json()
 }

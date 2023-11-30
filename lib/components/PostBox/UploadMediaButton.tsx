@@ -20,11 +20,12 @@ export const UploadMediaButton: FC<Props> = ({ isMediaUploadEnabled }) => {
     if (!event.currentTarget.files) return
     if (!event.currentTarget.files.length) return
 
-    await Promise.all(
+    const medias = await Promise.all(
       Array.from(event.currentTarget.files).map((file) =>
         uploadMedia({ media: file })
       )
     )
+    console.log(medias)
   }
 
   if (!isMediaUploadEnabled) {

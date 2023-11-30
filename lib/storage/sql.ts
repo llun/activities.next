@@ -1412,7 +1412,7 @@ export class SqlStorage implements Storage {
     const ids = await this.database('medias').insert(content, ['id'])
     if (ids.length === 0) return null
     return {
-      id: ids[0],
+      id: ids[0].id,
       actorId,
       original,
       thumbnail,

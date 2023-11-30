@@ -91,7 +91,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
       }
 
       return Response.json({
-        id: 1,
+        id: storedMedia.id,
         type: media.file.type.startsWith('image') ? 'image' : 'binary',
         // TODO: Add config for base image domain?
         url: `https://${host}/api/v1/files/${storedMedia.original.path
@@ -126,7 +126,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
       })
     }
 
-    return Response.json(ERROR_400, { status: 400 })
+    return Response.json(ERROR_422, { status: 422 })
   } catch (e) {
     const error = e as NodeJS.ErrnoException
     console.error(error.message)
