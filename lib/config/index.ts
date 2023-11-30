@@ -43,7 +43,6 @@ const getConfigFromFile = () => {
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     if (nodeError.code === 'ENOENT') {
-      console.error('Config file is not exists')
       return null
     }
 

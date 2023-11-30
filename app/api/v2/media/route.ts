@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import fs from 'fs/promises'
 import sharp from 'sharp'
 import { z } from 'zod'
@@ -38,11 +39,12 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     const { storage, currentActor } = context
     const form = await req.formData()
     const media = MediaSchema.parse(Object.fromEntries(form.entries()))
+    const randomPrefix = crypto.randomBytes(8).toString('hex')
 
     if (mediaStorage.type === MediaStorageType.LocalFile) {
-      const filePath = `${mediaStorage.path}/${media.file.name}`
+      const filePath = `${mediaStorage.path}/${randomPrefix}-${media.file.name}`
       const thumbnailPath = media.thumbnail
-        ? `${mediaStorage.path}/${media.thumbnail.name}`
+        ? `${mediaStorage.path}/${randomPrefix}-${media.thumbnail.name}`
         : null
 
       await fs.writeFile(filePath, Buffer.from(await media.file.arrayBuffer()))
@@ -125,7 +127,10 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     }
 
     return Response.json(ERROR_400, { status: 400 })
-  } catch {
+  } catch (e) {
+    const error = e as NodeJS.ErrnoException
+    console.error(error.message)
+    console.error(error.stack)
     return Response.json(ERROR_422, { status: 422 })
   }
 })
