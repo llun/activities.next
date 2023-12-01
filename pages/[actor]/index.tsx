@@ -19,6 +19,7 @@ import { FollowAction } from '../../lib/components/FollowAction'
 import { Header } from '../../lib/components/Header'
 import { Posts } from '../../lib/components/Posts/Posts'
 import { Profile } from '../../lib/components/Profile'
+import { CACHE_KEY_ACTOR } from '../../lib/constants'
 import { AttachmentData } from '../../lib/models/attachment'
 import { StatusData } from '../../lib/models/status'
 import { getFirstValueFromParsedQuery } from '../../lib/query'
@@ -139,10 +140,8 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
     return { notFound: true }
   }
 
-  const cacheKey = `${CACHE_KEY_PREFIX}_${actor}`
-
   if (localActor?.account) {
-    const props = await cache(cacheKey, async () => {
+    const props = await cache(CACHE_KEY_ACTOR, async () => {
       const [
         statuses,
         statusCount,
@@ -175,12 +174,12 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
     }
   }
 
-  const person = await getPublicProfileFromHandle(`${username}@${domain}`, true)
+  const person = await getPublicProfileFromHandle(actor, true)
   if (!person) {
     return { notFound: true }
   }
 
-  const props = await cache(cacheKey, async () => {
+  const props = await cache(CACHE_KEY_ACTOR, async () => {
     const [statuses, attachments] = await Promise.all([
       getActorPosts({ postsUrl: person.urls?.posts }),
       storage.getAttachmentsForActor({ actorId: person.id })

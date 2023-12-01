@@ -1,6 +1,5 @@
 import crypto from 'crypto'
 
-import { CACHE_KEY_PREFIX } from '../../pages/[actor]'
 import { getPublicProfile, sendNote } from '../activities'
 import { Mention } from '../activities/entities/mention'
 import {
@@ -10,6 +9,7 @@ import {
   getSummary,
   getTags
 } from '../activities/entities/note'
+import { CACHE_KEY_ACTOR } from '../constants'
 import { compact } from '../jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -254,7 +254,7 @@ export const createNoteFromUserInput = async ({
     return status
   }
 
-  invalidate(`${CACHE_KEY_PREFIX}_${currentActor.getMention(true)}`)
+  invalidate(`${CACHE_KEY_ACTOR}_${currentActor.getMention(true)}`)
   await Promise.all(
     inboxes.map(async (inbox) => {
       try {
