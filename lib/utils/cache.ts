@@ -15,18 +15,19 @@ const getKeyv = memoize(() => {
   return new KeyvRedis(url, option)
 })
 
-export const cache = (
+export const cache = async <P>(
   key: string,
-  content: unknown,
+  contentFetcher: () => Promise<P>,
   ttl: number = 86400000
-) => {
+): Promise<P> => {
   const keyv = getKeyv()
-  if (!keyv) return content
+  if (!keyv) return contentFetcher()
   if (!keyv.get(key)) {
+    const content = await contentFetcher()
     keyv.set(key, content, ttl)
     return content
   }
-  return keyv.get(key)
+  return keyv.get(key) as P
 }
 
 export const invalidate = (key: string) => {
