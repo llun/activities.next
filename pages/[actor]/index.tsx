@@ -26,7 +26,7 @@ import { getStorage } from '../../lib/storage'
 import { cache } from '../../lib/utils/cache'
 import styles from './index.module.scss'
 
-const CACHE_KEY_PREFIX = 'actor'
+export const CACHE_KEY_PREFIX = 'actor'
 
 interface Props {
   person: PublicProfile

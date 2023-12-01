@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 
+import { CACHE_KEY_PREFIX } from '../../pages/[actor]'
 import { getPublicProfile, sendNote } from '../activities'
 import { Mention } from '../activities/entities/mention'
 import {
@@ -21,6 +22,7 @@ import { Status, StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
 import { getSpan } from '../trace'
+import { invalidate } from '../utils/cache'
 import { formatText } from '../utils/text/formatText'
 import { getMentions } from '../utils/text/getMentions'
 import { recordActorIfNeeded } from './utils'
@@ -252,6 +254,7 @@ export const createNoteFromUserInput = async ({
     return status
   }
 
+  invalidate(`${CACHE_KEY_PREFIX}_${currentActor.getMention(true)}`)
   await Promise.all(
     inboxes.map(async (inbox) => {
       try {
