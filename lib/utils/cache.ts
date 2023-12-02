@@ -24,10 +24,11 @@ export const cache = async <P>(
   if (!keyv) return contentFetcher()
   if (!keyv.get(key)) {
     const content = await contentFetcher()
-    keyv.set(key, content, ttl)
+    await keyv.set(key, content, ttl)
     return content
   }
-  return keyv.get(key) as P
+  const data = await keyv.get(key)
+  return data as P
 }
 
 export const invalidate = (key: string) => {
