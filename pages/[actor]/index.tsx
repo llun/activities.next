@@ -148,14 +148,16 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
         storage.getActorFollowersCount({ actorId: localActor.id })
       ])
     return {
-      person: localActor.toPublicProfile({
-        followersCount,
-        followingCount,
-        totalPosts: statusCount
-      }),
-      statuses: statuses.map((item) => item.toJson()),
-      attachments: attachments.map((item) => item.toJson()),
-      serverTime: Date.now()
+      props: {
+        person: localActor.toPublicProfile({
+          followersCount,
+          followingCount,
+          totalPosts: statusCount
+        }),
+        statuses: statuses.map((item) => item.toJson()),
+        attachments: attachments.map((item) => item.toJson()),
+        serverTime: Date.now()
+      }
     }
   }
 
@@ -170,10 +172,12 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
   ])
 
   return {
-    person,
-    statuses,
-    attachments: attachments.map((item) => item.toJson()),
-    serverTime: Date.now()
+    props: {
+      person,
+      statuses,
+      attachments: attachments.map((item) => item.toJson()),
+      serverTime: Date.now()
+    }
   }
 }
 
