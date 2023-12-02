@@ -19,7 +19,7 @@ import { FollowAction } from '../../lib/components/FollowAction'
 import { Header } from '../../lib/components/Header'
 import { Posts } from '../../lib/components/Posts/Posts'
 import { Profile } from '../../lib/components/Profile'
-import { CACHE_KEY_ACTOR, CACHE_KEY_LOCAL_ACTOR } from '../../lib/constants'
+import { CACHE_KEY_ACTOR } from '../../lib/constants'
 import { AttachmentData } from '../../lib/models/attachment'
 import { StatusData } from '../../lib/models/status'
 import { getFirstValueFromParsedQuery } from '../../lib/query'
@@ -135,9 +135,7 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
 
   const [username, domain] = parts
   const isLoggedIn = Boolean(session?.user?.email)
-  const localActor = await cache(CACHE_KEY_LOCAL_ACTOR, async () => {
-    return storage.getActorFromUsername({ username, domain })
-  })
+  const localActor = await storage.getActorFromUsername({ username, domain })
   if (!isLoggedIn && !localActor?.account) {
     return { notFound: true }
   }
