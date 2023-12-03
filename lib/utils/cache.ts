@@ -1,28 +1,28 @@
-import KeyvRedis from '@keyv/redis'
-import { KeyvRedisOptions } from '@keyv/redis/dist/types'
+import Keyv from 'keyv'
 import { memoize } from 'lodash'
 
 import { getConfig } from '../config'
 
-const getKeyv = memoize(() => {
+const getKeyv = memoize((namespace: string) => {
   const config = getConfig()
   if (!config.redis) {
     return null
   }
 
   const { url, tls } = config.redis
-  const option = tls ? ({ tls: {} } as KeyvRedisOptions) : undefined
-  return new KeyvRedis(url, option)
+  const option = tls ? { tls: true } : undefined
+  return new Keyv(url, { ...option, namespace })
 })
 
 export const cache = async <P>(
+  namespace: string,
   key: string,
   contentFetcher: () => Promise<P>,
   ttl: number = 86400000
 ): Promise<P> => {
-  const keyv = getKeyv()
+  const keyv = getKeyv(namespace)
   if (!keyv) return contentFetcher()
-  if (!keyv.get(key)) {
+  if (!(await keyv.has(key))) {
     const content = await contentFetcher()
     await keyv.set(key, content, ttl)
     return content
@@ -31,8 +31,8 @@ export const cache = async <P>(
   return data as P
 }
 
-export const invalidate = (key: string) => {
-  const keyv = getKeyv()
+export const invalidate = (namespace: string, key: string) => {
+  const keyv = getKeyv(namespace)
   if (!keyv) return
   keyv.delete(key)
 }

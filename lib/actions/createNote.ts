@@ -9,7 +9,7 @@ import {
   getSummary,
   getTags
 } from '../activities/entities/note'
-import { CACHE_KEY_ACTOR } from '../constants'
+import { CACHE_KEY_PREFIX_ACTOR, CACHE_NAMESPACE_ACTORS } from '../constants'
 import { compact } from '../jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -254,7 +254,10 @@ export const createNoteFromUserInput = async ({
     return status
   }
 
-  invalidate(`${CACHE_KEY_ACTOR}_${currentActor.getMention(true)}`)
+  invalidate(
+    CACHE_NAMESPACE_ACTORS,
+    `${CACHE_KEY_PREFIX_ACTOR}_${currentActor.getMention(true)}`
+  )
   await Promise.all(
     inboxes.map(async (inbox) => {
       try {

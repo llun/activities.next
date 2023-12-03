@@ -19,13 +19,16 @@ import { FollowAction } from '../../lib/components/FollowAction'
 import { Header } from '../../lib/components/Header'
 import { Posts } from '../../lib/components/Posts/Posts'
 import { Profile } from '../../lib/components/Profile'
+import {
+  CACHE_KEY_PREFIX_ACTOR,
+  CACHE_NAMESPACE_ACTORS
+} from '../../lib/constants'
 import { AttachmentData } from '../../lib/models/attachment'
 import { StatusData } from '../../lib/models/status'
 import { getFirstValueFromParsedQuery } from '../../lib/query'
 import { getStorage } from '../../lib/storage'
+import { cache } from '../../lib/utils/cache'
 import styles from './index.module.scss'
-
-export const CACHE_KEY_PREFIX = 'actor'
 
 interface Props {
   person: PublicProfile
@@ -139,26 +142,36 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
   }
 
   if (localActor?.account) {
-    const [statuses, statusCount, attachments, followingCount, followersCount] =
-      await Promise.all([
-        storage.getActorStatuses({ actorId: localActor.id }),
-        storage.getActorStatusesCount({ actorId: localActor.id }),
-        storage.getAttachmentsForActor({ actorId: localActor.id }),
-        storage.getActorFollowingCount({ actorId: localActor.id }),
-        storage.getActorFollowersCount({ actorId: localActor.id })
-      ])
-    return {
-      props: {
-        person: localActor.toPublicProfile({
-          followersCount,
+    const props = await cache(
+      CACHE_NAMESPACE_ACTORS,
+      `${CACHE_KEY_PREFIX_ACTOR}_${actor}`,
+      async () => {
+        const [
+          statuses,
+          statusCount,
+          attachments,
           followingCount,
-          totalPosts: statusCount
-        }),
-        statuses: statuses.map((item) => item.toJson()),
-        attachments: attachments.map((item) => item.toJson()),
-        serverTime: Date.now()
+          followersCount
+        ] = await Promise.all([
+          storage.getActorStatuses({ actorId: localActor.id }),
+          storage.getActorStatusesCount({ actorId: localActor.id }),
+          storage.getAttachmentsForActor({ actorId: localActor.id }),
+          storage.getActorFollowingCount({ actorId: localActor.id }),
+          storage.getActorFollowersCount({ actorId: localActor.id })
+        ])
+        return {
+          person: localActor.toPublicProfile({
+            followersCount,
+            followingCount,
+            totalPosts: statusCount
+          }),
+          statuses: statuses.map((item) => item.toJson()),
+          attachments: attachments.map((item) => item.toJson()),
+          serverTime: Date.now()
+        }
       }
-    }
+    )
+    return { props: { ...props, serverTime: Date.now() } }
   }
 
   const person = await getPublicProfileFromHandle(actor, true)
@@ -166,18 +179,24 @@ export const getServerSideProps: GetServerSideProps<Props, Params> = async ({
     return { notFound: true }
   }
 
-  const [statuses, attachments] = await Promise.all([
-    getActorPosts({ postsUrl: person.urls?.posts }),
-    storage.getAttachmentsForActor({ actorId: person.id })
-  ])
-
-  return {
-    props: {
-      person,
-      statuses,
-      attachments: attachments.map((item) => item.toJson()),
-      serverTime: Date.now()
+  const props = await cache(
+    CACHE_NAMESPACE_ACTORS,
+    `${CACHE_KEY_PREFIX_ACTOR}_${actor}`,
+    async () => {
+      const [statuses, attachments] = await Promise.all([
+        getActorPosts({ postsUrl: person.urls?.posts }),
+        storage.getAttachmentsForActor({ actorId: person.id })
+      ])
+      return {
+        person,
+        statuses,
+        attachments: attachments.map((item) => item.toJson()),
+        serverTime: Date.now()
+      }
     }
+  )
+  return {
+    props: { ...props, serverTime: Date.now() }
   }
 }
 
