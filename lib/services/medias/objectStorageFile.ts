@@ -7,7 +7,7 @@ import {
   MediaStorageObjectConfig,
   MediaStorageType
 } from '../../config/mediaStorage'
-import { MAX_HEIGHT, MAX_WIDTH, MediaStorageService } from './constants'
+import { MAX_HEIGHT, MAX_WIDTH, MediaStorageSaveFile } from './constants'
 
 const uploadFileToS3 = async (
   currentTime: number,
@@ -33,7 +33,7 @@ const uploadFileToS3 = async (
   return { image: resizedImage, path }
 }
 
-export const saveObjectStorageFile: MediaStorageService = async (
+export const saveObjectStorageFile: MediaStorageSaveFile = async (
   config,
   host,
   storage,

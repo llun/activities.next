@@ -40,7 +40,7 @@ interface MediaMeta {
   size: `${number}x${number}`
   aspect: number
 }
-export type MediaStorageOutput = {
+export interface MediaStorageSaveFileOutput {
   id: string
   type: 'image' | 'video'
   url: string
@@ -53,10 +53,20 @@ export type MediaStorageOutput = {
   }
   description: string
 }
-export type MediaStorageService = (
+export type MediaStorageSaveFile = (
   config: MediaStorageConfig,
   host: string,
   storage: Storage,
   actor: Actor,
   media: MediaSchema
-) => Promise<MediaStorageOutput | null>
+) => Promise<MediaStorageSaveFileOutput | null>
+
+export interface MediaStorageGetFileOutput {
+  buffer: Buffer
+  contentType: string
+}
+
+export type MediaStorageGetFile = (
+  config: MediaStorageConfig,
+  filePath: string
+) => Promise<MediaStorageGetFileOutput | null>

@@ -1,11 +1,13 @@
 import crypto from 'crypto'
 import fs from 'fs/promises'
+import mime from 'mime-types'
+import path from 'path'
 import sharp from 'sharp'
 
 import { MediaStorageType } from '../../config/mediaStorage'
-import { MediaStorageService } from './constants'
+import { MediaStorageGetFile, MediaStorageSaveFile } from './constants'
 
-export const saveLocalFile: MediaStorageService = async (
+export const saveLocalFile: MediaStorageSaveFile = async (
   config,
   host,
   storage,
@@ -97,5 +99,25 @@ export const saveLocalFile: MediaStorageService = async (
         : null)
     },
     description: media?.description ?? ''
+  }
+}
+
+export const getLocalFile: MediaStorageGetFile = async (config, filePath) => {
+  if (config.type !== MediaStorageType.LocalFile) return null
+
+  const fullPath = path.resolve(config.path, filePath)
+  const contentType = mime.contentType(path.extname(fullPath))
+  if (!contentType) return null
+
+  try {
+    return {
+      buffer: await fs.readFile(fullPath),
+      contentType
+    }
+  } catch (e) {
+    const error = e as NodeJS.ErrnoException
+    console.error(error.message)
+    console.error(error.stack)
+    return null
   }
 }
