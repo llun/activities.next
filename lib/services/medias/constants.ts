@@ -6,6 +6,8 @@ import { Storage } from '../../storage/types'
 
 // Maximum file size is 1 MB
 export const MAX_FILE_SIZE = 1_048_576
+export const MAX_WIDTH = 2048
+export const MAX_HEIGHT = 2048
 export const ACCEPTED_FILE_TYPES = [
   'image/jpg',
   'image/png',
