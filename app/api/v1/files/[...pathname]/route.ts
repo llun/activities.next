@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import path from 'path'
 
-import { getConfig } from '../../../../../lib/config'
 import { ERROR_404 } from '../../../../../lib/errors'
 import { AppRouterParams } from '../../../../../lib/guard'
 import { getMedia } from '../../../../../lib/services/medias'
@@ -14,11 +13,6 @@ export const GET = async (
   req: NextRequest,
   params: AppRouterParams<Params>
 ) => {
-  const { mediaStorage } = getConfig()
-  if (!mediaStorage) {
-    return Response.json(ERROR_404, { status: 404 })
-  }
-
   const { pathname } = params.params
   const userPath = path
     .normalize(Array.isArray(pathname) ? pathname.join('/') : pathname)
