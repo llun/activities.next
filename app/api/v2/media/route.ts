@@ -9,6 +9,9 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     const form = await req.formData()
     const media = MediaSchema.parse(Object.fromEntries(form.entries()))
     const response = await saveMedia(storage, currentActor, media)
+    if (!response) {
+      return Response.json(ERROR_422, { status: 422 })
+    }
     return Response.json(response)
   } catch (e) {
     const error = e as NodeJS.ErrnoException

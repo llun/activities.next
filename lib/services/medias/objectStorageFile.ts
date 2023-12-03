@@ -23,4 +23,5 @@ export const saveObjectStorageFile = async (
     Body: media.file.stream()
   })
   await s3client.send(command)
+  return null
 }
