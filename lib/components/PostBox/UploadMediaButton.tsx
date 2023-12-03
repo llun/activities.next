@@ -31,14 +31,16 @@ export const UploadMediaButton: FC<Props> = ({
       )
     )
     onSelectMedias(
-      medias.map((media) => ({
-        type: 'upload',
-        id: media.id,
-        mediaType: media.type,
-        url: media.url,
-        width: media.meta.original.width,
-        height: media.meta.original.height
-      }))
+      medias
+        .filter((media) => media)
+        .map((media) => ({
+          type: 'upload',
+          id: media.id,
+          mediaType: media.type,
+          url: media.url,
+          width: media.meta.original.width,
+          height: media.meta.original.height
+        }))
     )
   }
 
