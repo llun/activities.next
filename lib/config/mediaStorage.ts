@@ -7,15 +7,22 @@ export enum MediaStorageType {
   ObjectStorage = 'object'
 }
 
+export const MediaStorageFileConfig = z.object({
+  type: z.literal(MediaStorageType.LocalFile),
+  path: z.string()
+})
+export type MediaStorageFileConfig = z.infer<typeof MediaStorageFileConfig>
+
+export const MediaStorageObjectConfig = z.object({
+  type: z.literal(MediaStorageType.ObjectStorage),
+  bucket: z.string(),
+  region: z.string()
+})
+export type MediaStorageObjectConfig = z.infer<typeof MediaStorageObjectConfig>
+
 export const MediaStorageConfig = z.union([
-  z.object({
-    type: z.literal(MediaStorageType.LocalFile),
-    path: z.string()
-  }),
-  z.object({
-    type: z.literal(MediaStorageType.ObjectStorage),
-    bucket: z.string()
-  })
+  MediaStorageFileConfig,
+  MediaStorageObjectConfig
 ])
 export type MediaStorageConfig = z.infer<typeof MediaStorageConfig>
 
@@ -37,7 +44,8 @@ export const getMediaStorageConfig = (): {
       return {
         mediaStorage: {
           type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
-          bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET as string
+          bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET as string,
+          region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION as string
         }
       }
     }

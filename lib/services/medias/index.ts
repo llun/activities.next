@@ -11,13 +11,13 @@ export const saveMedia = async (
   actor: Actor,
   media: MediaSchema
 ) => {
-  const { mediaStorage } = getConfig()
+  const { mediaStorage, host } = getConfig()
   if (!mediaStorage) return null
   switch (mediaStorage.type) {
     case MediaStorageType.LocalFile:
-      return saveLocalFile(storage, actor, media)
+      return saveLocalFile(mediaStorage, host, storage, actor, media)
     case MediaStorageType.ObjectStorage:
-      return saveObjectStorageFile(storage, actor, media)
+      return saveObjectStorageFile(mediaStorage, host, storage, actor, media)
     default:
       return null
   }

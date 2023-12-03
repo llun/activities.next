@@ -2,26 +2,23 @@ import crypto from 'crypto'
 import fs from 'fs/promises'
 import sharp from 'sharp'
 
-import { getConfig } from '../../config'
 import { MediaStorageType } from '../../config/mediaStorage'
-import { Actor } from '../../models/actor'
-import { Storage } from '../../storage/types'
-import { MediaSchema } from './constants'
+import { MediaStorageService } from './constants'
 
-export const saveLocalFile = async (
-  storage: Storage,
-  actor: Actor,
-  media: MediaSchema
+export const saveLocalFile: MediaStorageService = async (
+  config,
+  host,
+  storage,
+  actor,
+  media
 ) => {
-  const { mediaStorage, host } = getConfig()
-  if (!mediaStorage) return null
-  if (mediaStorage.type !== MediaStorageType.LocalFile) return null
+  if (config.type !== MediaStorageType.LocalFile) return null
 
   const randomPrefix = crypto.randomBytes(8).toString('hex')
 
-  const filePath = `${mediaStorage.path}/${randomPrefix}-${media.file.name}`
+  const filePath = `${config.path}/${randomPrefix}-${media.file.name}`
   const thumbnailPath = media.thumbnail
-    ? `${mediaStorage.path}/${randomPrefix}-${media.thumbnail.name}`
+    ? `${config.path}/${randomPrefix}-${media.thumbnail.name}`
     : null
 
   await fs.writeFile(filePath, Buffer.from(await media.file.arrayBuffer()))
@@ -69,7 +66,7 @@ export const saveLocalFile = async (
 
   return {
     id: storedMedia.id,
-    type: media.file.type.startsWith('image') ? 'image' : 'binary',
+    type: media.file.type.startsWith('image') ? 'image' : 'video',
     // TODO: Add config for base image domain?
     url: `https://${host}/api/v1/files/${storedMedia.original.path
       .split('/')
