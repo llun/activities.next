@@ -24,6 +24,10 @@ export const GET = async (
   }
 
   const { contentType, buffer } = media
-  const headers = new Headers([['Content-Type', contentType]])
+  const headers = new Headers([
+    ['Content-Type', contentType],
+    // Make media cache for 1 year
+    ['Cache-Control', 'public, max-age=31536000, immutable']
+  ])
   return new Response(buffer, { headers })
 }
