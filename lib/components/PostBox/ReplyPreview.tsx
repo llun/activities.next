@@ -15,7 +15,6 @@ interface Props {
 }
 
 const getText = (statusData: StatusData) => {
-  console.log('Status data = ', statusData)
   switch (statusData.type) {
     case StatusType.Note:
     case StatusType.Poll:

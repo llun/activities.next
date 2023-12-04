@@ -4,7 +4,10 @@ import { Actor } from '../../models/actor'
 import { Storage } from '../../storage/types'
 import { MediaSchema } from './constants'
 import { getLocalFile, saveLocalFile } from './localFile'
-import { saveObjectStorageFile } from './objectStorageFile'
+import {
+  getObjectStorageFile,
+  saveObjectStorageFile
+} from './objectStorageFile'
 
 export const saveMedia = async (
   storage: Storage,
@@ -29,6 +32,8 @@ export const getMedia = async (path: string) => {
   switch (mediaStorage.type) {
     case MediaStorageType.LocalFile:
       return getLocalFile(mediaStorage, path)
+    case MediaStorageType.ObjectStorage:
+      return getObjectStorageFile(mediaStorage, path)
     default:
       return null
   }

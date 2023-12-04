@@ -3839,12 +3839,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:^20.10.2":
-  version: 20.10.2
-  resolution: "@types/node@npm:20.10.2"
+"@types/node@npm:^20.10.3":
+  version: 20.10.3
+  resolution: "@types/node@npm:20.10.3"
   dependencies:
     undici-types: "npm:~5.26.4"
-  checksum: c24630d6bdd237f538d69886868fc29abba8c59f58996b6a6267c42e2253a84a18834c09408b3d887ec74f69e6828e25e3d23cf6fa0daac5902afccaf0568d7e
+  checksum: 7c8a0327a29d68a0bb152ae30e8c4738638515dd599064821c9d0c1884a1efa103021cd8f8c91e690cd56b0602bb6fe0e6651a5df2337bdc85e0c0f66054b2ce
   languageName: node
   linkType: hard
 
@@ -4357,7 +4357,7 @@ __metadata:
     "@types/jsonld": "npm:^1.5.13"
     "@types/lodash": "npm:^4.14.202"
     "@types/mime-types": "npm:^2.1.4"
-    "@types/node": "npm:^20.10.2"
+    "@types/node": "npm:^20.10.3"
     "@types/nodemailer": "npm:^6.4.14"
     "@types/react": "npm:18.2.41"
     "@types/react-dom": "npm:18.2.17"
@@ -4387,7 +4387,7 @@ __metadata:
     firebase-tools: "npm:^12.9.1"
     formidable: "npm:^3.5.1"
     got: "npm:^12.6.1"
-    html-react-parser: "npm:^5.0.6"
+    html-react-parser: "npm:^5.0.7"
     jest: "npm:^29.7.0"
     jest-extended: "npm:^4.0.2"
     jest-fetch-mock: "npm:^3.0.3"
@@ -8631,17 +8631,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"html-react-parser@npm:^5.0.6":
-  version: 5.0.6
-  resolution: "html-react-parser@npm:5.0.6"
+"html-react-parser@npm:^5.0.7":
+  version: 5.0.7
+  resolution: "html-react-parser@npm:5.0.7"
   dependencies:
     domhandler: "npm:5.0.3"
     html-dom-parser: "npm:5.0.4"
     react-property: "npm:2.0.2"
-    style-to-js: "npm:1.1.9"
+    style-to-js: "npm:1.1.10"
   peerDependencies:
     react: 0.14 || 15 || 16 || 17 || 18
-  checksum: f7f19f47f03cee8eb69367c00fcf4f3fa4451c2ef2c9fed44dea2dea12bdc7f55bb82bf1d5040798e783eeea1b8433e72c955b3d4d23922df7851b041b442024
+  checksum: 4f72386bd4d93a30cf5c1422c48bb5e9caa3168ffb19bbbd5860ab5d9f68a280611902acfd44c832dd08c05582f8b132cbe68f544db26da7d56b524e061f3ec7
   languageName: node
   linkType: hard
 
@@ -14026,21 +14026,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"style-to-js@npm:1.1.9":
-  version: 1.1.9
-  resolution: "style-to-js@npm:1.1.9"
+"style-to-js@npm:1.1.10":
+  version: 1.1.10
+  resolution: "style-to-js@npm:1.1.10"
   dependencies:
-    style-to-object: "npm:1.0.4"
-  checksum: bc498a7e22cead1d524db4a63d745b3db23a32b3cddcb7cce5a7d52435bd2edde9baca4daa6ab828f84b3a28b780f9ec4a0376eaa81341409c17c12e077e3652
+    style-to-object: "npm:1.0.5"
+  checksum: bb0603f50be1ac19cb2b1acd1175d9203ca9858112a851aa05ed6af2cf64f4f2dfe765e2fefce5e64f59b5993e7d8411cdb5eae6812c0f2992b0f04cfd52fbc8
   languageName: node
   linkType: hard
 
-"style-to-object@npm:1.0.4":
-  version: 1.0.4
-  resolution: "style-to-object@npm:1.0.4"
+"style-to-object@npm:1.0.5":
+  version: 1.0.5
+  resolution: "style-to-object@npm:1.0.5"
   dependencies:
     inline-style-parser: "npm:0.2.2"
-  checksum: 7f659384878e5b89ad2accb48f34843c4305fed7c4432c24d159d3ebf1b36727664744304e1cd9c9d67793cf99713c7e09e33e2b96ae21d3bcb389650b39ac5b
+  checksum: 39bbc5e9f82a80d6a84c134bf49ba50402bf90304af4281fdd317c9792436c166b2f3a2a3d9a65e3f2a3360b35fe4e352932ec9a51513b9864bfd80b7f5a82e1
   languageName: node
   linkType: hard
 

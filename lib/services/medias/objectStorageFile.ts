@@ -1,13 +1,26 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import {
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client
+} from '@aws-sdk/client-s3'
 import crypto from 'crypto'
 import format from 'date-fns-tz/format'
+import { IncomingMessage } from 'http'
+import { memoize } from 'lodash'
 import shape from 'sharp'
 
 import {
   MediaStorageObjectConfig,
   MediaStorageType
 } from '../../config/mediaStorage'
-import { MAX_HEIGHT, MAX_WIDTH, MediaStorageSaveFile } from './constants'
+import {
+  MAX_HEIGHT,
+  MAX_WIDTH,
+  MediaStorageGetFile,
+  MediaStorageSaveFile
+} from './constants'
+
+const getS3Client = memoize((region: string) => new S3Client({ region }))
 
 const uploadFileToS3 = async (
   currentTime: number,
@@ -17,20 +30,28 @@ const uploadFileToS3 = async (
   const { bucket, region } = mediaStorageConfig
   const randomPrefix = crypto.randomBytes(8).toString('hex')
 
-  const resizedImage = shape(Buffer.from(await file.arrayBuffer()))
-    .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
-    .jpeg({ quality: 80 })
+  const resizedImage = shape(Buffer.from(await file.arrayBuffer())).resize(
+    MAX_WIDTH,
+    MAX_HEIGHT,
+    { fit: 'inside' }
+  )
+
+  const [metaData, buffer] = await Promise.all([
+    resizedImage.metadata(),
+    resizedImage.toBuffer()
+  ])
 
   const timeDirectory = format(currentTime, 'yyyy-MM-dd')
   const path = `medias/${timeDirectory}/${randomPrefix}-${file.name}`
-  const s3client = new S3Client({ region })
+  const s3client = getS3Client(region)
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: path,
-    Body: await resizedImage.toBuffer()
+    ContentType: file.type,
+    Body: buffer
   })
   await s3client.send(command)
-  return { image: resizedImage, path }
+  return { image: resizedImage, metaData, path, contentType: file.type }
 }
 
 export const saveObjectStorageFile: MediaStorageSaveFile = async (
@@ -44,8 +65,7 @@ export const saveObjectStorageFile: MediaStorageSaveFile = async (
 
   const { file } = media
   const currentTime = Date.now()
-  const { image, path } = await uploadFileToS3(currentTime, config, file)
-  const metaData = await image.metadata()
+  const { metaData, path } = await uploadFileToS3(currentTime, config, file)
   const storedMedia = await storage.createMedia({
     actorId: actor.id,
     original: {
@@ -66,9 +86,7 @@ export const saveObjectStorageFile: MediaStorageSaveFile = async (
     id: storedMedia.id,
     type: media.file.type.startsWith('image') ? 'image' : 'video',
     // TODO: Add config for base image domain?
-    url: `https://${host}/api/v1/files/${storedMedia.original.path
-      .split('/')
-      .pop()}`,
+    url: `https://${host}/api/v1/files/${storedMedia.original.path}`,
     preview_url: '',
     text_url: '',
     remote_Url: '',
@@ -95,5 +113,27 @@ export const saveObjectStorageFile: MediaStorageSaveFile = async (
         : null)
     },
     description: media?.description ?? ''
+  }
+}
+
+export const getObjectStorageFile: MediaStorageGetFile = async (
+  config,
+  path
+) => {
+  if (config.type !== MediaStorageType.ObjectStorage) return null
+
+  const { bucket, region } = config
+  const s3client = getS3Client(region)
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: path
+  })
+  const object = await s3client.send(command)
+  if (!object.Body) return null
+
+  const message = object.Body
+  return {
+    contentType: (message as IncomingMessage).headers['content-type'] as string,
+    buffer: Buffer.from(await message.transformToByteArray())
   }
 }
