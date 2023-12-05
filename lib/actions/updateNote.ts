@@ -5,7 +5,6 @@ import {
   getContent,
   getSummary
 } from '../activities/entities/note'
-import { CACHE_KEY_PREFIX_ACTOR, CACHE_NAMESPACE_ACTORS } from '../constants'
 import { compact } from '../jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -16,7 +15,6 @@ import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { getSpan } from '../trace'
-import { invalidate } from '../utils/cache'
 import { formatText } from '../utils/text/formatText'
 
 interface UpdateNoteParams {
@@ -130,11 +128,7 @@ export const updateNoteFromUserInput = async ({
       } catch {
         console.error(`Fail to update note to ${inbox}`)
       }
-    }),
-    invalidate(
-      CACHE_NAMESPACE_ACTORS,
-      `${CACHE_KEY_PREFIX_ACTOR}_${currentActor.getMention(true)}`
-    )
+    })
   ])
 
   span.end()
