@@ -30,28 +30,28 @@ const uploadFileToS3 = async (
   const { bucket, region } = mediaStorageConfig
   const randomPrefix = crypto.randomBytes(8).toString('hex')
 
-  const resizedImage = shape(Buffer.from(await file.arrayBuffer())).resize(
-    MAX_WIDTH,
-    MAX_HEIGHT,
-    { fit: 'inside' }
-  )
+  const resizedImage = shape(Buffer.from(await file.arrayBuffer()))
+    .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
+    .rotate()
+    .jpeg({ quality: 90 })
 
   const [metaData, buffer] = await Promise.all([
     resizedImage.metadata(),
     resizedImage.toBuffer()
   ])
 
+  const contentType = 'image/jpeg'
   const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-  const path = `medias/${timeDirectory}/${randomPrefix}-${file.name}`
+  const path = `medias/${timeDirectory}/${randomPrefix}.jpg`
   const s3client = getS3Client(region)
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: path,
-    ContentType: file.type,
+    ContentType: contentType,
     Body: buffer
   })
   await s3client.send(command)
-  return { image: resizedImage, metaData, path, contentType: file.type }
+  return { image: resizedImage, metaData, path, contentType }
 }
 
 export const saveObjectStorageFile: MediaStorageSaveFile = async (
@@ -62,6 +62,8 @@ export const saveObjectStorageFile: MediaStorageSaveFile = async (
   media
 ) => {
   if (config.type !== MediaStorageType.ObjectStorage) return null
+  // TODO: Support video later
+  if (!media.file.type.startsWith('image')) return null
 
   const { file } = media
   const currentTime = Date.now()

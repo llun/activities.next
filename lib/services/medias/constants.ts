@@ -4,13 +4,16 @@ import { MediaStorageConfig } from '../../config/mediaStorage'
 import { Actor } from '../../models/actor'
 import { Storage } from '../../storage/types'
 
-// Maximum file size is 1 MB
-export const MAX_FILE_SIZE = 1_048_576
+// Maximum file size is 10 MB
+export const MAX_FILE_SIZE = 10_485_760
 export const MAX_WIDTH = 2048
 export const MAX_HEIGHT = 2048
 export const ACCEPTED_FILE_TYPES = [
   'image/jpg',
+  'image/jpeg',
   'image/png',
+  'image/heic',
+  'image/heif',
   'video/mp4',
   'audio/mp4'
 ]
