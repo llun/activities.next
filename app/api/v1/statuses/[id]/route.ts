@@ -24,7 +24,7 @@ export const PUT = AuthenticatedGuard<Params>(async (req, context, params) => {
 
   const { storage, currentActor } = context
   const statusId = `${currentActor.id}/statuses/${id}`
-  const changes = EditNoteSchema.parse(req.body)
+  const changes = EditNoteSchema.parse(await req.json())
   const updatedNote = await updateNoteFromUserInput({
     statusId,
     currentActor,

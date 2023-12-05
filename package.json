@@ -33,7 +33,7 @@
     "@opentelemetry/sdk-trace-node": "^1.18.1",
     "@opentelemetry/semantic-conventions": "^1.18.1",
     "bcrypt": "^5.1.1",
-    "better-sqlite3": "^9.2.0",
+    "better-sqlite3": "^9.2.2",
     "bootstrap": "^5.3.2",
     "bootstrap-icons": "^1.11.2",
     "classnames": "^2.3.2",
