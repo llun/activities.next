@@ -29,11 +29,6 @@ export const getRequestCache = memoize(() => {
     return new KeyvRedis(url, option)
   }
 
-  if (process.env.KV_URL) {
-    const option = { tls: {} } as KeyvRedisOptions
-    return new KeyvRedis(process.env.KV_URL, option)
-  }
-
   return false
 })
 
