@@ -1,3 +1,4 @@
+import '@keyv/redis'
 import Keyv from 'keyv'
 import { memoize } from 'lodash'
 
