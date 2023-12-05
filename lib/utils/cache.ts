@@ -31,8 +31,8 @@ export const cache = async <P>(
   return data as P
 }
 
-export const invalidate = (namespace: string, key: string) => {
+export const invalidate = async (namespace: string, key: string) => {
   const keyv = getKeyv(namespace)
   if (!keyv) return
-  keyv.delete(key)
+  return keyv.delete(key)
 }

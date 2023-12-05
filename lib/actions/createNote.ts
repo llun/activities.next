@@ -254,12 +254,8 @@ export const createNoteFromUserInput = async ({
     return status
   }
 
-  invalidate(
-    CACHE_NAMESPACE_ACTORS,
-    `${CACHE_KEY_PREFIX_ACTOR}_${currentActor.getMention(true)}`
-  )
-  await Promise.all(
-    inboxes.map(async (inbox) => {
+  await Promise.all([
+    ...inboxes.map(async (inbox) => {
       try {
         await sendNote({
           currentActor,
@@ -269,8 +265,12 @@ export const createNoteFromUserInput = async ({
       } catch {
         console.error(`Fail to send note to ${inbox}`)
       }
-    })
-  )
+    }),
+    invalidate(
+      CACHE_NAMESPACE_ACTORS,
+      `${CACHE_KEY_PREFIX_ACTOR}_${currentActor.getMention(true)}`
+    )
+  ])
 
   span.end()
   return status
