@@ -89,9 +89,9 @@ export const saveObjectStorageFile: MediaStorageSaveFile = async (
     type: media.file.type.startsWith('image') ? 'image' : 'video',
     // TODO: Add config for base image domain?
     url: `https://${host}/api/v1/files/${storedMedia.original.path}`,
-    preview_url: '',
+    preview_url: `https://${host}/api/v1/files/${storedMedia.original.path}`,
     text_url: '',
-    remote_Url: '',
+    remote_url: '',
     meta: {
       original: {
         width: storedMedia.original.metaData.width,

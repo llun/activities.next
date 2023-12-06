@@ -49,7 +49,7 @@ export interface MediaStorageSaveFileOutput {
   url: string
   preview_url: string
   text_url: string
-  remote_Url: string
+  remote_url: string
   meta: {
     original: MediaMeta
     small?: MediaMeta

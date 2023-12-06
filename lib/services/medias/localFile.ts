@@ -66,16 +66,18 @@ export const saveLocalFile: MediaStorageSaveFile = async (
     throw new Error('Fail to store media')
   }
 
+  const url = `https://${host}/api/v1/files/${storedMedia.original.path
+    .split('/')
+    .pop()}`
+
   return {
     id: storedMedia.id,
     type: media.file.type.startsWith('image') ? 'image' : 'video',
     // TODO: Add config for base image domain?
-    url: `https://${host}/api/v1/files/${storedMedia.original.path
-      .split('/')
-      .pop()}`,
-    preview_url: '',
+    url,
+    preview_url: url,
     text_url: '',
-    remote_Url: '',
+    remote_url: '',
     meta: {
       original: {
         width: storedMedia.original.metaData.width,
