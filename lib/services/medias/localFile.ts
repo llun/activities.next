@@ -73,6 +73,7 @@ export const saveLocalFile: MediaStorageSaveFile = async (
   return {
     id: storedMedia.id,
     type: media.file.type.startsWith('image') ? 'image' : 'video',
+    mime_type: media.file.type,
     // TODO: Add config for base image domain?
     url,
     preview_url: url,

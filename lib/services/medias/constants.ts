@@ -46,6 +46,8 @@ interface MediaMeta {
 export interface MediaStorageSaveFileOutput {
   id: string
   type: 'image' | 'video'
+  // Non-mastodon property
+  mime_type: string
   url: string
   preview_url: string
   text_url: string

@@ -36,7 +36,7 @@ export const UploadMediaButton: FC<Props> = ({
         .map((media) => ({
           type: 'upload',
           id: media.id,
-          mediaType: media.type,
+          mediaType: media.mime_type,
           url: media.url,
           width: media.meta.original.width,
           height: media.meta.original.height
