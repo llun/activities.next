@@ -91,8 +91,7 @@ export function signedHeaders(
   currentActor: Actor,
   method: string,
   targetUrl: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  content: any
+  content: unknown
 ) {
   const url = new URL(targetUrl)
   const digest = `SHA-256=${crypto
