@@ -2,12 +2,12 @@ import { getConfig } from '../../config'
 import { MediaStorageType } from '../../config/mediaStorage'
 import { Actor } from '../../models/actor'
 import { Storage } from '../../storage/types'
-import { MediaSchema } from './constants'
 import { getLocalFile, saveLocalFile } from './localFile'
 import {
   getObjectStorageFile,
   saveObjectStorageFile
 } from './objectStorageFile'
+import { MediaSchema } from './types'
 
 export const saveMedia = async (
   storage: Storage,

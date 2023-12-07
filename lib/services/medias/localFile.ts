@@ -5,7 +5,7 @@ import path from 'path'
 import sharp from 'sharp'
 
 import { MediaStorageType } from '../../config/mediaStorage'
-import { MediaStorageGetFile, MediaStorageSaveFile } from './constants'
+import { MediaStorageGetFile, MediaStorageSaveFile } from './types'
 
 export const saveLocalFile: MediaStorageSaveFile = async (
   config,

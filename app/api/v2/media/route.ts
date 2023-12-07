@@ -1,7 +1,7 @@
 import { ERROR_422 } from '../../../../lib/errors'
 import { AuthenticatedGuard } from '../../../../lib/guard'
 import { saveMedia } from '../../../../lib/services/medias'
-import { MediaSchema } from '../../../../lib/services/medias/constants'
+import { MediaSchema } from '../../../../lib/services/medias/types'
 
 export const POST = AuthenticatedGuard(async (req, context) => {
   try {

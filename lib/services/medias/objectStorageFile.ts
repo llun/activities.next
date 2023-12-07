@@ -16,13 +16,14 @@ import {
   MediaStorageType
 } from '../../config/mediaStorage'
 import { Media } from '../../storage/types/media'
+import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import {
-  MAX_HEIGHT,
-  MAX_WIDTH,
+  FFProbe,
   MediaStorageGetFile,
   MediaStorageSaveFile,
-  MediaStorageSaveFileOutput
-} from './constants'
+  MediaStorageSaveFileOutput,
+  VideoProbe
+} from './types'
 
 const getS3Client = memoize((region: string) => new S3Client({ region }))
 
@@ -71,7 +72,12 @@ const uploadVideoToS3 = async (
       resolve(data)
     })
   })
-  console.log(probe)
+  const videoStream = (probe as FFProbe).streams.find(
+    (stream): stream is VideoProbe => stream.codec_type === 'video'
+  )
+  const metaData = videoStream
+    ? { width: videoStream.width, height: videoStream.height }
+    : { width: 0, height: 0 }
 
   const { bucket, region } = mediaStorageConfig
   const randomPrefix = crypto.randomBytes(8).toString('hex')
@@ -84,8 +90,8 @@ const uploadVideoToS3 = async (
     ContentType: file.type,
     Body: buffer
   })
-  // await s3client.send(command)
-  return { path, metaData: { width: 0, height: 0 } }
+  await s3client.send(command)
+  return { path, metaData }
 }
 
 const getSaveFileOutput = (
