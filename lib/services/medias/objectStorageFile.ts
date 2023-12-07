@@ -5,24 +5,28 @@ import {
 } from '@aws-sdk/client-s3'
 import crypto from 'crypto'
 import format from 'date-fns-tz/format'
+import ffmpeg from 'fluent-ffmpeg'
 import { IncomingMessage } from 'http'
 import { memoize } from 'lodash'
 import shape from 'sharp'
+import { Readable } from 'stream'
 
 import {
   MediaStorageObjectConfig,
   MediaStorageType
 } from '../../config/mediaStorage'
+import { Media } from '../../storage/types/media'
 import {
   MAX_HEIGHT,
   MAX_WIDTH,
   MediaStorageGetFile,
-  MediaStorageSaveFile
+  MediaStorageSaveFile,
+  MediaStorageSaveFileOutput
 } from './constants'
 
 const getS3Client = memoize((region: string) => new S3Client({ region }))
 
-const uploadFileToS3 = async (
+const uploadImageToS3 = async (
   currentTime: number,
   mediaStorageConfig: MediaStorageObjectConfig,
   file: File
@@ -33,16 +37,16 @@ const uploadFileToS3 = async (
   const resizedImage = shape(Buffer.from(await file.arrayBuffer()))
     .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
     .rotate()
-    .jpeg({ quality: 90 })
+    .webp({ quality: 90 })
 
   const [metaData, buffer] = await Promise.all([
     resizedImage.metadata(),
     resizedImage.toBuffer()
   ])
 
-  const contentType = 'image/jpeg'
+  const contentType = 'image/webp'
   const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-  const path = `medias/${timeDirectory}/${randomPrefix}.jpg`
+  const path = `medias/${timeDirectory}/${randomPrefix}.webp`
   const s3client = getS3Client(region)
   const command = new PutObjectCommand({
     Bucket: bucket,
@@ -54,6 +58,74 @@ const uploadFileToS3 = async (
   return { image: resizedImage, metaData, path, contentType }
 }
 
+const uploadVideoToS3 = async (
+  currentTime: number,
+  mediaStorageConfig: MediaStorageObjectConfig,
+  file: File
+) => {
+  const buffer = Buffer.from(await file.arrayBuffer())
+
+  const probe = await new Promise((resolve, reject) => {
+    ffmpeg(Readable.from(Buffer.from(buffer))).ffprobe((error, data) => {
+      if (error) return reject(error)
+      resolve(data)
+    })
+  })
+  console.log(probe)
+
+  const { bucket, region } = mediaStorageConfig
+  const randomPrefix = crypto.randomBytes(8).toString('hex')
+  const timeDirectory = format(currentTime, 'yyyy-MM-dd')
+  const path = `medias/${timeDirectory}/${randomPrefix}-${file.name}`
+  const s3client = getS3Client(region)
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: path,
+    ContentType: file.type,
+    Body: buffer
+  })
+  // await s3client.send(command)
+  return { path, metaData: { width: 0, height: 0 } }
+}
+
+const getSaveFileOutput = (
+  host: string,
+  media: Media
+): MediaStorageSaveFileOutput => {
+  const mimeType = media.original.mimeType
+  const type = mimeType.startsWith('video') ? 'video' : 'image'
+  return {
+    id: media.id,
+    type,
+    mime_type: mimeType,
+    // TODO: Add config for base image domain?
+    url: `https://${host}/api/v1/files/${media.original.path}`,
+    preview_url: `https://${host}/api/v1/files/${media.original.path}`,
+    text_url: '',
+    remote_url: '',
+    meta: {
+      original: {
+        width: media.original.metaData.width,
+        height: media.original.metaData.height,
+        size: `${media.original.metaData.width}x${media.original.metaData.height}`,
+        aspect: media.original.metaData.width / media.original.metaData.height
+      },
+      ...(media.thumbnail
+        ? {
+            small: {
+              width: media.thumbnail.metaData.width,
+              height: media.thumbnail.metaData.height,
+              size: `${media.thumbnail.metaData.width}x${media.thumbnail.metaData.height}`,
+              aspect:
+                media.thumbnail.metaData.width / media.thumbnail.metaData.height
+            }
+          }
+        : null)
+    },
+    description: media?.description ?? ''
+  }
+}
+
 export const saveObjectStorageFile: MediaStorageSaveFile = async (
   config,
   host,
@@ -62,18 +134,42 @@ export const saveObjectStorageFile: MediaStorageSaveFile = async (
   media
 ) => {
   if (config.type !== MediaStorageType.ObjectStorage) return null
-  // TODO: Support video later
-  if (!media.file.type.startsWith('image')) return null
 
   const { file } = media
   const currentTime = Date.now()
-  const { metaData, path } = await uploadFileToS3(currentTime, config, file)
+  if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
+    return null
+  }
+
+  if (file.type.startsWith('video')) {
+    const { path, metaData } = await uploadVideoToS3(currentTime, config, file)
+
+    const storedMedia = await storage.createMedia({
+      actorId: actor.id,
+      original: {
+        path,
+        bytes: file.size,
+        mimeType: file.type,
+        metaData: {
+          width: metaData.width ?? 0,
+          height: metaData.height ?? 0
+        }
+      },
+      ...(media.description ? { description: media.description } : null)
+    })
+    if (!storedMedia) {
+      throw new Error('Fail to store media')
+    }
+    return getSaveFileOutput(host, storedMedia)
+  }
+
+  const { metaData, path } = await uploadImageToS3(currentTime, config, file)
   const storedMedia = await storage.createMedia({
     actorId: actor.id,
     original: {
       path,
-      bytes: media.file.size,
-      mimeType: media.file.type,
+      bytes: file.size,
+      mimeType: file.type,
       metaData: {
         width: metaData.width ?? 0,
         height: metaData.height ?? 0
@@ -84,39 +180,7 @@ export const saveObjectStorageFile: MediaStorageSaveFile = async (
   if (!storedMedia) {
     throw new Error('Fail to store media')
   }
-  return {
-    id: storedMedia.id,
-    type: media.file.type.startsWith('image') ? 'image' : 'video',
-    mime_type: media.file.type,
-    // TODO: Add config for base image domain?
-    url: `https://${host}/api/v1/files/${storedMedia.original.path}`,
-    preview_url: `https://${host}/api/v1/files/${storedMedia.original.path}`,
-    text_url: '',
-    remote_url: '',
-    meta: {
-      original: {
-        width: storedMedia.original.metaData.width,
-        height: storedMedia.original.metaData.height,
-        size: `${storedMedia.original.metaData.width}x${storedMedia.original.metaData.height}`,
-        aspect:
-          storedMedia.original.metaData.width /
-          storedMedia.original.metaData.height
-      },
-      ...(storedMedia.thumbnail
-        ? {
-            small: {
-              width: storedMedia.thumbnail.metaData.width,
-              height: storedMedia.thumbnail.metaData.height,
-              size: `${storedMedia.thumbnail.metaData.width}x${storedMedia.thumbnail.metaData.height}`,
-              aspect:
-                storedMedia.thumbnail.metaData.width /
-                storedMedia.thumbnail.metaData.height
-            }
-          }
-        : null)
-    },
-    description: media?.description ?? ''
-  }
+  return getSaveFileOutput(host, storedMedia)
 }
 
 export const getObjectStorageFile: MediaStorageGetFile = async (

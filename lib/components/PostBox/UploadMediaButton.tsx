@@ -2,6 +2,7 @@ import { FC, SyntheticEvent, useRef } from 'react'
 
 import { uploadMedia } from '../../client'
 import { UploadedAttachment } from '../../models/attachment'
+import { ACCEPTED_FILE_TYPES } from '../../services/medias/constants'
 import { Button } from '../Button'
 
 interface Props {
@@ -54,7 +55,7 @@ export const UploadMediaButton: FC<Props> = ({
         ref={fileInputRef}
         name="file"
         type="file"
-        accept="image/jpg,image/png,video/mp4,audio/mp4"
+        accept={ACCEPTED_FILE_TYPES.join(',')}
         className="d-none"
         multiple
         onChange={onSelectFile}

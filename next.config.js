@@ -16,6 +16,7 @@ const nextConfig = {
       'knex',
       'bcrypt',
       'better-sqlite3',
+      'fluent-ffmpeg',
       'got',
       'jsonld',
       'nodemailer',

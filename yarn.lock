@@ -3504,6 +3504,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/fluent-ffmpeg@npm:^2":
+  version: 2.1.24
+  resolution: "@types/fluent-ffmpeg@npm:2.1.24"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 73a32f2313a0225452b5acdf7a341b9860ffcb88490ee726a1241887111cf4f2f7259d7491cf4e9b6be8316ababdd9064e085437f0b768adcfb0becc0733973c
+  languageName: node
+  linkType: hard
+
 "@types/formidable@npm:^3.4.5":
   version: 3.4.5
   resolution: "@types/formidable@npm:3.4.5"
@@ -4169,6 +4178,7 @@ __metadata:
     "@trivago/prettier-plugin-sort-imports": "npm:^4.3.0"
     "@types/bcrypt": "npm:^5.0.2"
     "@types/content-type": "npm:^1.1.8"
+    "@types/fluent-ffmpeg": "npm:^2"
     "@types/formidable": "npm:^3.4.5"
     "@types/jest": "npm:^29.5.11"
     "@types/jsonld": "npm:^1.5.13"
@@ -4202,6 +4212,7 @@ __metadata:
     eslint-plugin-promise: "npm:^6.1.1"
     eslint-plugin-unused-imports: "npm:^3.0.0"
     firebase-tools: "npm:^13.0.0"
+    fluent-ffmpeg: "npm:^2.1.2"
     formidable: "npm:^3.5.1"
     got: "npm:^12.6.1"
     html-react-parser: "npm:^5.0.7"
@@ -4673,19 +4684,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"async@npm:>=0.2.9, async@npm:^3.2.3, async@npm:^3.2.4":
+  version: 3.2.5
+  resolution: "async@npm:3.2.5"
+  checksum: 1408287b26c6db67d45cb346e34892cee555b8b59e6c68e6f8c3e495cad5ca13b4f218180e871f3c2ca30df4ab52693b66f2f6ff43644760cab0b2198bda79c1
+  languageName: node
+  linkType: hard
+
 "async@npm:^2.6.4":
   version: 2.6.4
   resolution: "async@npm:2.6.4"
   dependencies:
     lodash: "npm:^4.17.14"
   checksum: 0ebb3273ef96513389520adc88e0d3c45e523d03653cc9b66f5c46f4239444294899bfd13d2b569e7dbfde7da2235c35cf5fd3ece9524f935d41bbe4efccdad0
-  languageName: node
-  linkType: hard
-
-"async@npm:^3.2.3, async@npm:^3.2.4":
-  version: 3.2.5
-  resolution: "async@npm:3.2.5"
-  checksum: 1408287b26c6db67d45cb346e34892cee555b8b59e6c68e6f8c3e495cad5ca13b4f218180e871f3c2ca30df4ab52693b66f2f6ff43644760cab0b2198bda79c1
   languageName: node
   linkType: hard
 
@@ -7484,6 +7495,16 @@ __metadata:
   version: 3.2.9
   resolution: "flatted@npm:3.2.9"
   checksum: 5c91c5a0a21bbc0b07b272231e5b4efe6b822bcb4ad317caf6bb06984be4042a9e9045026307da0fdb4583f1f545e317a67ef1231a59e71f7fced3cc429cfc53
+  languageName: node
+  linkType: hard
+
+"fluent-ffmpeg@npm:^2.1.2":
+  version: 2.1.2
+  resolution: "fluent-ffmpeg@npm:2.1.2"
+  dependencies:
+    async: "npm:>=0.2.9"
+    which: "npm:^1.1.1"
+  checksum: 6f64cd86ecb8cce2c0f13ff256b35b8282f451e5e9e5bbac8c89201e1fa7f5d5c122e905a677bfd23ea9563c04ec978b95b0c3188ae5c089d0c4376e06661749
   languageName: node
   linkType: hard
 
@@ -14502,7 +14523,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"which@npm:^1.2.9":
+"which@npm:^1.1.1, which@npm:^1.2.9":
   version: 1.3.1
   resolution: "which@npm:1.3.1"
   dependencies:
