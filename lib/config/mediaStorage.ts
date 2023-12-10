@@ -16,7 +16,8 @@ export type MediaStorageFileConfig = z.infer<typeof MediaStorageFileConfig>
 export const MediaStorageObjectConfig = z.object({
   type: z.literal(MediaStorageType.ObjectStorage),
   bucket: z.string(),
-  region: z.string()
+  region: z.string(),
+  hostname: z.string().optional()
 })
 export type MediaStorageObjectConfig = z.infer<typeof MediaStorageObjectConfig>
 
@@ -45,7 +46,9 @@ export const getMediaStorageConfig = (): {
         mediaStorage: {
           type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
           bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET as string,
-          region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION as string
+          region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION as string,
+          hostname:
+            (process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME as string) ?? ''
         }
       }
     }
