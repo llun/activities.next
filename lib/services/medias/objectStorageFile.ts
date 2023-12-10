@@ -195,7 +195,14 @@ export const getObjectStorageFile: MediaStorageGetFile = async (
 ) => {
   if (config.type !== MediaStorageType.ObjectStorage) return null
 
-  const { bucket, region } = config
+  const { bucket, region, hostname } = config
+  if (hostname) {
+    return {
+      type: 'redirect',
+      redirectUrl: `https://${hostname}/${path}`
+    }
+  }
+
   const s3client = getS3Client(region)
   const command = new GetObjectCommand({
     Bucket: bucket,
