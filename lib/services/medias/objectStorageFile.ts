@@ -206,6 +206,7 @@ export const getObjectStorageFile: MediaStorageGetFile = async (
 
   const message = object.Body
   return {
+    type: 'buffer',
     contentType: (message as IncomingMessage).headers['content-type'] as string,
     buffer: Buffer.from(await message.transformToByteArray())
   }

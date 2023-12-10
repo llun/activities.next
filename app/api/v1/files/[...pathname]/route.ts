@@ -23,11 +23,22 @@ export const GET = async (
     return Response.json(ERROR_404, { status: 404 })
   }
 
-  const { contentType, buffer } = media
-  const headers = new Headers([
-    ['Content-Type', contentType],
-    // Make media cache for 1 year
-    ['Cache-Control', 'public, max-age=31536000, immutable']
-  ])
-  return new Response(buffer, { headers })
+  switch (media.type) {
+    case 'buffer': {
+      const { contentType, buffer } = media
+      const headers = new Headers([
+        ['Content-Type', contentType],
+        // Make media cache for 1 year
+        ['Cache-Control', 'public, max-age=31536000, immutable']
+      ])
+      return new Response(buffer, { headers })
+    }
+    case 'redirect': {
+      const { redirectUrl } = media
+      return Response.redirect(redirectUrl, 308)
+    }
+    default: {
+      return Response.json(ERROR_404, { status: 404 })
+    }
+  }
 }

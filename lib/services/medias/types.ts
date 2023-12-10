@@ -156,11 +156,17 @@ export type MediaStorageSaveFile = (
 ) => Promise<MediaStorageSaveFileOutput | null>
 
 export interface MediaStorageGetFileOutput {
+  type: 'buffer'
   buffer: Buffer
   contentType: string
+}
+
+export interface MediaStorageGetRedirectOutput {
+  type: 'redirect'
+  redirectUrl: string
 }
 
 export type MediaStorageGetFile = (
   config: MediaStorageConfig,
   filePath: string
-) => Promise<MediaStorageGetFileOutput | null>
+) => Promise<MediaStorageGetFileOutput | MediaStorageGetRedirectOutput | null>

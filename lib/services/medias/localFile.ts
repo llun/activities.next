@@ -114,6 +114,7 @@ export const getLocalFile: MediaStorageGetFile = async (config, filePath) => {
 
   try {
     return {
+      type: 'buffer',
       buffer: await fs.readFile(fullPath),
       contentType
     }
