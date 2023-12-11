@@ -23,7 +23,6 @@ export const deleteStatusFromUserInput = async ({
     return
   }
 
-  await storage.deleteStatus({ statusId })
   // TODO: Get inboxes from status, instead of followers?
   const inboxes = await storage.getFollowersInbox({
     targetActorId: currentActor.id
@@ -37,5 +36,6 @@ export const deleteStatusFromUserInput = async ({
       })
     })
   )
+  await storage.deleteStatus({ statusId })
   span.end()
 }
