@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Document } from '../activities/entities/document'
 import { Note, getContent, getSummary } from '../activities/entities/note'
@@ -8,80 +10,91 @@ import { Attachment, AttachmentData } from './attachment'
 import { PollChoiceData } from './pollChoice'
 import { Tag, TagData } from './tag'
 
-export enum StatusType {
-  Note = 'Note',
-  Announce = 'Announce',
-  Poll = 'Poll'
-}
+export const StatusType = z.enum(['Note', 'Announce', 'Poll'])
+export type StatusType = z.infer<typeof StatusType>
 
-export interface Edited {
-  text: string
-  summary: string | null
-  createdAt: number
-}
+export const Edited = z.object({
+  text: z.string(),
+  summary: z.string().nullable(),
+  createdAt: z.number()
+})
 
-interface StatusBase {
-  id: string
-  actorId: string
-  actor: ActorProfile | null
+export type Edited = z.infer<typeof Edited>
 
-  to: string[]
-  cc: string[]
+const StatusBase = z
+  .object({
+    id: z.string(),
+    actorId: z.string(),
+    actor: ActorProfile.nullable(),
 
-  edits: Edited[]
+    to: z.string().array(),
+    cc: z.string().array(),
 
-  createdAt: number
-  updatedAt: number
-}
+    edits: Edited.array(),
 
-export interface StatusNote extends StatusBase {
-  type: StatusType.Note
-  url: string
-  text: string
-  summary: string | null
-  reply: string
-  replies: StatusNote[]
+    createdAt: z.number(),
+    updatedAt: z.number()
+  })
+  .passthrough()
 
-  isActorAnnounced: boolean
-  isActorLiked: boolean
-  totalLikes: number
+type StatusBase = z.infer<typeof StatusBase>
 
-  attachments: AttachmentData[]
-  tags: TagData[]
-}
+export const StatusNote = StatusBase.extend({
+  type: z.literal(StatusType.enum.Note),
+  url: z.string(),
+  text: z.string(),
+  summary: z.string().nullable(),
+  reply: z.string(),
+  replies: StatusBase.array(),
 
-export interface StatusAnnounce extends StatusBase {
-  type: StatusType.Announce
+  isActorAnnounced: z.boolean(),
+  isActorLiked: z.boolean(),
+  totalLikes: z.number(),
 
+  attachments: AttachmentData.array(),
+  tags: TagData.array()
+})
+
+export type StatusNote = z.infer<typeof StatusNote>
+
+export const StatusAnnounce = StatusBase.extend({
+  type: z.literal(StatusType.enum.Announce),
   originalStatus: StatusNote
-}
+})
 
-export interface StatusPoll extends StatusBase {
-  type: StatusType.Poll
-  url: string
-  text: string
-  summary: string | null
-  reply: string
-  replies: StatusNote[]
+export type StatusAnnounce = z.infer<typeof StatusAnnounce>
 
-  isActorAnnounced: boolean
-  isActorLiked: boolean
-  totalLikes: number
+export const StatusPoll = StatusBase.extend({
+  type: z.literal(StatusType.enum.Poll),
+  url: z.string(),
+  text: z.string(),
+  summary: z.string().nullable(),
+  reply: z.string(),
+  replies: StatusBase.array(),
 
-  tags: TagData[]
-  choices: PollChoiceData[]
+  isActorAnnounced: z.boolean(),
+  isActorLiksed: z.boolean(),
+  totalLikes: z.number(),
 
-  endAt: number
-}
+  tags: TagData.array(),
+  choices: PollChoiceData.array(),
 
-export type StatusData = StatusNote | StatusAnnounce | StatusPoll
-export type EditableStatusData = StatusNote | StatusPoll
+  endAt: z.number()
+})
+
+export type StatusPoll = z.infer<typeof StatusPoll>
+
+export const StatusData = z.union([StatusNote, StatusAnnounce, StatusPoll])
+export type StatusData = z.infer<typeof StatusData>
+
+export const EditableStatusData = z.union([StatusNote, StatusPoll])
+export type EditableStatusData = z.infer<typeof EditableStatusData>
 
 export class Status {
   readonly data: StatusData
 
   constructor(params: StatusData) {
-    this.data = params
+    this.data = StatusData.parse(params)
   }
 
   get id() {
@@ -109,22 +122,22 @@ export class Status {
   }
 
   get reply() {
-    if (this.data.type === StatusType.Note) return this.data.reply
+    if (this.data.type === StatusType.enum.Note) return this.data.reply
     return null
   }
 
   get url() {
-    if (this.data.type === StatusType.Note) return this.data.url
+    if (this.data.type === StatusType.enum.Note) return this.data.url
     return null
   }
 
   get content() {
-    if (this.data.type === StatusType.Note) return this.data.text
+    if (this.data.type === StatusType.enum.Note) return this.data.text
     return null
   }
 
   get attachments() {
-    if (this.data.type === StatusType.Note) return this.data.attachments
+    if (this.data.type === StatusType.enum.Note) return this.data.attachments
     return []
   }
 
@@ -148,7 +161,7 @@ export class Status {
       actorId: note.attributedTo,
       actor: null,
 
-      type: StatusType.Note,
+      type: StatusType.enum.Note,
 
       text: getContent(note),
       summary: getSummary(note),
@@ -190,7 +203,7 @@ export class Status {
       actorId: announce.actor,
       actor: null,
 
-      type: StatusType.Announce,
+      type: StatusType.enum.Announce,
 
       to: Array.isArray(announce.to) ? announce.to : [announce.to],
       cc: Array.isArray(announce.cc) ? announce.cc : [announce.cc],
@@ -204,7 +217,7 @@ export class Status {
   }
 
   toObject(): Note | Question {
-    if (this.data.type === StatusType.Poll) {
+    if (this.data.type === StatusType.enum.Poll) {
       const data = this.data
       return {
         id: data.id,
@@ -233,7 +246,7 @@ export class Status {
     }
 
     const data =
-      this.data.type === StatusType.Announce
+      this.data.type === StatusType.enum.Announce
         ? this.data.originalStatus
         : this.data
 

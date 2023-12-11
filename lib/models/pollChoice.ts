@@ -1,17 +1,21 @@
-export interface PollChoiceData {
-  statusId: string
-  title: string
-  totalVotes: number
+import { z } from 'zod'
 
-  createdAt: number
-  updatedAt: number
-}
+export const PollChoiceData = z.object({
+  statusId: z.string(),
+  title: z.string(),
+  totalVotes: z.number(),
+
+  createdAt: z.number(),
+  updatedAt: z.number()
+})
+
+export type PollChoiceData = z.infer<typeof PollChoiceData>
 
 export class PollChoice {
   readonly data: PollChoiceData
 
   constructor(data: PollChoiceData) {
-    this.data = data
+    this.data = PollChoiceData.parse(data)
   }
 
   get statusId() {

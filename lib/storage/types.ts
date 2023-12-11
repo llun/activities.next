@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { Status } from '../models/status'
 import { Tag } from '../models/tag'
 import { Timeline } from '../timelines/types'
@@ -19,7 +21,9 @@ export type CreateTimelineStatusParams = {
   status: Status
 }
 
-export type TagType = 'emoji' | 'mention'
+export const TagType = z.enum(['emoji', 'mention'])
+export type TagType = z.infer<typeof TagType>
+
 export type CreateTagParams = {
   statusId: string
   name: string

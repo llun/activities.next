@@ -1,10 +1,14 @@
-export interface Account {
-  id: string
-  email: string
-  passwordHash: string
-  verificationCode?: string
+import { z } from 'zod'
 
-  createdAt: number
-  updatedAt: number
-  verifiedAt?: number
-}
+export const Account = z.object({
+  id: z.string(),
+  email: z.string(),
+  passwordHash: z.string(),
+  verificationCode: z.string().optional(),
+
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  verifiedAt: z.number().optional()
+})
+
+export type Account = z.infer<typeof Account>

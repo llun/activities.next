@@ -1,21 +1,25 @@
+import { z } from 'zod'
+
 import { Mention } from '../activities/entities/mention'
 import { TagType } from '../storage/types'
 
-export interface TagData {
-  id: string
-  statusId: string
-  type: TagType
-  name: string
-  value: string
+export const TagData = z.object({
+  id: z.string(),
+  statusId: z.string(),
+  type: TagType,
+  name: z.string(),
+  value: z.string(),
 
-  createdAt: number
-  updatedAt: number
-}
+  createdAt: z.number(),
+  updatedAt: z.number()
+})
+
+export type TagData = z.infer<typeof TagData>
 
 export class Tag {
   readonly data: TagData
   constructor(params: TagData) {
-    this.data = params
+    this.data = TagData.parse(params)
   }
 
   toObject() {

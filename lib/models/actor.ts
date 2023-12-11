@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { PublicProfile } from '../activities'
 import { Image } from '../activities/entities/image'
 import { Person } from '../activities/entities/person'
@@ -6,35 +8,39 @@ import { W3ID_URL } from '../jsonld/w3id'
 import { getISOTimeUTC } from '../time'
 import { Account } from './account'
 
-export interface ActorProfile {
-  id: string
-  username: string
-  domain: string
-  name?: string
-  summary?: string
-  iconUrl?: string
-  headerImageUrl?: string
-  appleSharedAlbumToken?: string
+export const ActorProfile = z.object({
+  id: z.string(),
+  username: z.string(),
+  domain: z.string(),
+  name: z.string().optional(),
+  summary: z.string().optional(),
+  iconUrl: z.string().optional(),
+  headerImageUrl: z.string().optional(),
+  appleSharedAlbumToken: z.string().optional(),
 
-  followersUrl: string
-  inboxUrl: string
-  sharedInboxUrl: string
+  followersUrl: z.string(),
+  inboxUrl: z.string(),
+  sharedInboxUrl: z.string(),
 
-  createdAt: number
-}
+  createdAt: z.number()
+})
 
-export type ActorData = ActorProfile & {
-  privateKey?: string
-  publicKey: string
-  account?: Account
-  updatedAt: number
-}
+export type ActorProfile = z.infer<typeof ActorProfile>
+
+export const ActorData = ActorProfile.extend({
+  privateKey: z.string().optional(),
+  publicKey: z.string(),
+  account: Account.optional(),
+  updatedAt: z.number()
+})
+
+export type ActorData = z.infer<typeof ActorData>
 
 export class Actor {
   readonly data: ActorData
 
   constructor(data: ActorData) {
-    this.data = data
+    this.data = ActorData.parse(data)
   }
 
   get id(): string {

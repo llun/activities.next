@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { Document } from '../activities/entities/document'
 
 export interface AppleGalleryAttachment {
@@ -24,26 +26,28 @@ export interface UploadedAttachment {
 
 export type PostBoxAttachment = AppleGalleryAttachment | UploadedAttachment
 
-export interface AttachmentData {
-  id: string
-  actorId: string
-  statusId: string
-  type: 'Document'
-  mediaType: string
-  url: string
-  width?: number
-  height?: number
-  name: string
+export const AttachmentData = z.object({
+  id: z.string(),
+  actorId: z.string(),
+  statusId: z.string(),
+  type: z.literal('Document'),
+  mediaType: z.string(),
+  url: z.string(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  name: z.string(),
 
-  createdAt: number
-  updatedAt: number
-}
+  createdAt: z.number(),
+  updatedAt: z.number()
+})
+
+export type AttachmentData = z.infer<typeof AttachmentData>
 
 export class Attachment {
   readonly data: AttachmentData
 
   constructor(params: AttachmentData) {
-    this.data = params
+    this.data = AttachmentData.parse(params)
   }
 
   toObject() {
