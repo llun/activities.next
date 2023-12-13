@@ -2,29 +2,38 @@ import { z } from 'zod'
 
 import { Document } from '../activities/entities/document'
 
-export interface AppleGalleryAttachment {
-  type: 'apple'
-  id: string
-  mediaType: string
-  url: string
-  width: number
-  height: number
-  posterUrl?: string
-  name?: string
-}
+export const AppleGalleryAttachment = z.object({
+  type: z.literal('apple'),
+  id: z.string(),
+  mediaType: z.string(),
+  url: z.string(),
+  width: z.number(),
+  height: z.number(),
+  posterUrl: z.string().optional(),
+  name: z.string().optional()
+})
 
-export interface UploadedAttachment {
-  type: 'upload'
-  id: string
-  mediaType: string
-  url: string
-  width: number
-  height: number
-  posterUrl?: string
-  name?: string
-}
+export type AppleGalleryAttachment = z.infer<typeof AppleGalleryAttachment>
 
-export type PostBoxAttachment = AppleGalleryAttachment | UploadedAttachment
+export const UploadedAttachment = z.object({
+  type: z.literal('upload'),
+  id: z.string(),
+  mediaType: z.string(),
+  url: z.string(),
+  width: z.number(),
+  height: z.number(),
+  posterUrl: z.string().optional(),
+  name: z.string().optional()
+})
+
+export type UploadedAttachment = z.infer<typeof UploadedAttachment>
+
+export const PostBoxAttachment = z.union([
+  AppleGalleryAttachment,
+  UploadedAttachment
+])
+
+export type PostBoxAttachment = z.infer<typeof PostBoxAttachment>
 
 export const AttachmentData = z.object({
   id: z.string(),
