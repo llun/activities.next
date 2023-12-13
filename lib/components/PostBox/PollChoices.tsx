@@ -5,7 +5,7 @@ import { Button } from '../Button'
 
 export const DEFAULT_DURATION = 21_600
 
-const SecondsToDurationText = {
+export const SecondsToDurationText = {
   300: '5 Minutes',
   1_800: '30 Minutes',
   3_600: '1 Hour',
