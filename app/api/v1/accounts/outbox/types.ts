@@ -7,11 +7,12 @@ import { StatusData } from '../../../../../lib/models/status'
 export const CreateNoteRequest = z.object({
   type: z.literal('note'),
   message: z.string(),
-  replyStatus: StatusData.array().optional(),
+  replyStatus: StatusData.optional(),
   attachments: PostBoxAttachment.array().optional()
 })
+export type CreateNoteRequest = z.infer<typeof CreateNoteRequest>
 
-export const CreatePollParams = z.object({
+export const CreatePollRequest = z.object({
   type: z.literal('poll'),
   message: z.string(),
   choices: z.string().array(),
@@ -21,5 +22,15 @@ export const CreatePollParams = z.object({
       (value) =>
         Object.keys(SecondsToDurationText).map(parseInt).includes(value),
       `Supported duration are ${Object.keys(SecondsToDurationText).join(',')}`
-    )
+    ),
+  replyStatus: StatusData.optional()
 })
+export type CreatePollRequest = z.infer<typeof CreatePollRequest>
+
+export const PostRequest = z.union([CreateNoteRequest, CreatePollRequest])
+export type PostRequest = z.infer<typeof PostRequest>
+
+export const DeleteStatusRequest = z.object({
+  statusId: z.string()
+})
+export type DeleteStatusRequest = z.infer<typeof DeleteStatusRequest>
