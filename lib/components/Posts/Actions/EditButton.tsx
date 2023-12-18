@@ -14,7 +14,7 @@ interface Props {
 }
 
 export const EditButton: FC<Props> = ({ className, status, onEdit }) => {
-  if (status.type === StatusType.Announce) return null
+  if (status.type === StatusType.enum.Announce) return null
   return (
     <Button
       className={className}

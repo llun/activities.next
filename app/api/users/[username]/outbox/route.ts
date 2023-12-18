@@ -27,7 +27,7 @@ export const GET = OnlyLocalUserGuard(async (storage, actor, req) => {
 
   const statuses = await storage.getActorStatuses({ actorId: actor.id })
   const items = statuses.map((status) => {
-    if (status.data.type === StatusType.Announce) {
+    if (status.data.type === StatusType.enum.Announce) {
       return {
         id: status.id,
         type: AnnounceAction,

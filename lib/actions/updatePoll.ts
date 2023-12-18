@@ -16,7 +16,7 @@ export const updatePoll = async ({ question, storage }: UpdatePollParams) => {
     statusId: question.id,
     withReplies: false
   })
-  if (!existingStatus || existingStatus.type !== StatusType.Poll) {
+  if (!existingStatus || existingStatus.type !== StatusType.enum.Poll) {
     span.end()
     return question
   }

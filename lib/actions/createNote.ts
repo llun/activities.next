@@ -50,7 +50,7 @@ export const createNote = async ({
     '@context': ACTIVITY_STREAM_URL,
     ...note
   })) as Note
-  if (compactNote.type !== StatusType.Note) {
+  if (compactNote.type !== StatusType.enum.Note) {
     span.end()
     return null
   }

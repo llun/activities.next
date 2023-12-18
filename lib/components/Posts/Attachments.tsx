@@ -12,7 +12,7 @@ interface Props {
 }
 
 export const Attachments: FC<Props> = ({ status, onClickMedia }) => {
-  if (status.type !== StatusType.Note) return null
+  if (status.type !== StatusType.enum.Note) return null
   if (!status.attachments.length) return null
 
   return (

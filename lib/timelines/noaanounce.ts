@@ -31,7 +31,7 @@ export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
     actorId: currentActor.id,
     statusId: status.id
   })
-  if (status.type === StatusType.Announce) {
+  if (status.type === StatusType.enum.Announce) {
     span.end()
     return null
   }

@@ -59,7 +59,7 @@ describe('Create note action', () => {
       expect(await createNote({ storage, note })).toEqual(note)
 
       const status = await storage.getStatus({ statusId: note.id })
-      if (status?.data.type !== StatusType.Note) {
+      if (status?.data.type !== StatusType.enum.Note) {
         fail('Stauts type must be note')
       }
       expect(status).toBeDefined()
@@ -68,7 +68,7 @@ describe('Create note action', () => {
       expect(status?.data.actorId).toEqual(note.attributedTo)
       expect(status?.data.to).toEqual(note.to)
       expect(status?.data.cc).toEqual(note.cc)
-      expect(status?.data.type).toEqual(StatusType.Note)
+      expect(status?.data.type).toEqual(StatusType.enum.Note)
       expect(status?.data.createdAt).toEqual(new Date(note.published).getTime())
     })
 
@@ -77,7 +77,7 @@ describe('Create note action', () => {
       expect(await createNote({ storage, note })).toEqual(note)
 
       const status = await storage.getStatus({ statusId: note.id })
-      if (status?.data.type !== StatusType.Note) {
+      if (status?.data.type !== StatusType.enum.Note) {
         fail('Stauts type must be note')
       }
       expect(status).toBeDefined()
@@ -86,7 +86,7 @@ describe('Create note action', () => {
       expect(status?.data.actorId).toEqual(note.attributedTo)
       expect(status?.data.to).toEqual(note.to)
       expect(status?.data.cc).toEqual(note.cc)
-      expect(status?.data.type).toEqual(StatusType.Note)
+      expect(status?.data.type).toEqual(StatusType.enum.Note)
       expect(status?.data.createdAt).toEqual(new Date(note.published).getTime())
     })
 
@@ -103,7 +103,7 @@ describe('Create note action', () => {
       })
       expect(await createNote({ storage, note })).toEqual(note)
       const status = await storage.getStatus({ statusId: note.id })
-      if (status?.data.type !== StatusType.Note) {
+      if (status?.data.type !== StatusType.enum.Note) {
         fail('Stauts type must be note')
       }
       expect(status?.data.attachments.length).toEqual(2)
@@ -162,7 +162,7 @@ describe('Create note action', () => {
       expect(await createNote({ storage, note })).toEqual(note)
 
       const status = await storage.getStatus({ statusId: note.id })
-      if (status?.data.type !== StatusType.Note) {
+      if (status?.data.type !== StatusType.enum.Note) {
         fail('Stauts type must be note')
       }
       expect(status.data.text).toEqual('<p>Hello</p>')

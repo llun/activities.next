@@ -13,7 +13,7 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
     statusId: status.id
   })
   const config = getConfig()
-  if (status.type === StatusType.Announce) {
+  if (status.type === StatusType.enum.Announce) {
     span.end()
     return null
   }

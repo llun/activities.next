@@ -28,7 +28,7 @@ export interface PostProps {
 
 const getActualStatus = (status: StatusData) => {
   switch (status.type) {
-    case StatusType.Announce:
+    case StatusType.enum.Announce:
       return status.originalStatus
     default:
       return status
@@ -39,7 +39,7 @@ interface BoostStatusProps {
   status: StatusData
 }
 const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
-  if (status.type !== StatusType.Announce) return null
+  if (status.type !== StatusType.enum.Announce) return null
   return (
     <div className={cn('d-flex', 'mb-1', 'align-items-center')}>
       <i className="bi bi-repeat me-2"></i>

@@ -27,7 +27,7 @@ export const updateNote = async ({ note, storage }: UpdateNoteParams) => {
     statusId: note.id,
     withReplies: false
   })
-  if (!existingStatus || existingStatus.type !== StatusType.Note) {
+  if (!existingStatus || existingStatus.type !== StatusType.enum.Note) {
     span.end()
     return note
   }
@@ -71,7 +71,7 @@ export const updateNoteFromUserInput = async ({
   const status = await storage.getStatus({ statusId })
   if (
     !status ||
-    status.type !== StatusType.Note ||
+    status.type !== StatusType.enum.Note ||
     status.actorId !== currentActor.id
   ) {
     span.end()

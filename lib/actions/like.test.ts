@@ -51,7 +51,7 @@ describe('Accept follow action', () => {
       const status = await storage.getStatus({
         statusId: `${ACTOR1_ID}/statuses/post-1`
       })
-      if (status?.data.type !== StatusType.Note) {
+      if (status?.data.type !== StatusType.enum.Note) {
         fail('Status type must be note')
       }
 
@@ -74,7 +74,7 @@ describe('Accept follow action', () => {
       const afterLikeStatus = await storage.getStatus({
         statusId: `${ACTOR2_ID}/statuses/post-2`
       })
-      if (afterLikeStatus?.data.type !== StatusType.Note) {
+      if (afterLikeStatus?.data.type !== StatusType.enum.Note) {
         fail('Status type must be note')
       }
 

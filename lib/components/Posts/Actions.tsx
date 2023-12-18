@@ -28,7 +28,7 @@ export const Actions: FC<Props> = ({
   if (!showActions) return null
   if (!currentActor) return null
 
-  if (status.type === StatusType.Announce) {
+  if (status.type === StatusType.enum.Announce) {
     return (
       <div>
         <ReplyButton onReply={onReply} status={status.originalStatus} />

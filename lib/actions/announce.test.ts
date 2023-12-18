@@ -64,7 +64,7 @@ describe('Announce action', () => {
         statusId: announceStatusId
       })
       const statusData = status?.toJson()
-      if (statusData?.type !== StatusType.Announce) {
+      if (statusData?.type !== StatusType.enum.Announce) {
         fail('Status type must be announce')
       }
       expect(statusData.originalStatus).toEqual(boostedStatus?.toJson())
@@ -85,7 +85,7 @@ describe('Announce action', () => {
       const boostedStatus = await storage.getStatus({
         statusId: announceStatusId
       })
-      if (boostedStatus?.data.type !== StatusType.Note) {
+      if (boostedStatus?.data.type !== StatusType.enum.Note) {
         fail('Status type must be note')
       }
       expect(boostedStatus?.data.attachments).toHaveLength(2)
@@ -112,7 +112,7 @@ describe('Announce action', () => {
         statusId: announceStatusId
       })
       expect(boostedStatus).toBeDefined()
-      if (boostedStatus?.data.type !== StatusType.Note) {
+      if (boostedStatus?.data.type !== StatusType.enum.Note) {
         fail('Boost status must be note')
       }
       expect(boostedStatus.data.text).toEqual('This is litepub status')
@@ -183,7 +183,7 @@ describe('Announce action', () => {
         statusId: `${actor1.id}/statuses/post-2`
       })
       expect(status?.data).toMatchObject({
-        type: StatusType.Announce,
+        type: StatusType.enum.Announce,
         originalStatus: originalStatus?.data
       })
 

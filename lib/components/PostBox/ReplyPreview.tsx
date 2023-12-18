@@ -16,10 +16,10 @@ interface Props {
 
 const getText = (statusData: StatusData) => {
   switch (statusData.type) {
-    case StatusType.Note:
-    case StatusType.Poll:
+    case StatusType.enum.Note:
+    case StatusType.enum.Poll:
       return statusData.text
-    case StatusType.Announce:
+    case StatusType.enum.Announce:
       return statusData.originalStatus.text
     default:
       return ''
@@ -28,8 +28,8 @@ const getText = (statusData: StatusData) => {
 
 const getTags = (statusData: StatusData) => {
   switch (statusData.type) {
-    case StatusType.Note:
-    case StatusType.Poll:
+    case StatusType.enum.Note:
+    case StatusType.enum.Poll:
       return statusData.tags
     default:
       return []

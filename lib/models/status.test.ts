@@ -53,7 +53,7 @@ describe('Status', () => {
         url: note.url,
         actorId: ACTOR1_ID,
         actor: null,
-        type: StatusType.Note,
+        type: StatusType.enum.Note,
         text: 'Hello',
         summary: '',
         to: ['as:Public'],
@@ -83,7 +83,7 @@ describe('Status', () => {
         url: note.url,
         actorId: ACTOR1_ID,
         actor: null,
-        type: StatusType.Note,
+        type: StatusType.enum.Note,
         text: 'Hello',
         summary: '',
         to: ['as:Public'],
@@ -124,12 +124,12 @@ describe('Status', () => {
           statusId
         })
         const note = status?.toObject()
-        if (status?.data.type !== StatusType.Note) {
+        if (status?.data.type !== StatusType.enum.Note) {
           fail('Status type must be Note')
         }
         expect(note).toEqual({
           id: statusId,
-          type: StatusType.Note,
+          type: StatusType.enum.Note,
           summary: null,
           inReplyTo: null,
           published: getISOTimeUTC(status?.data.createdAt ?? 0),

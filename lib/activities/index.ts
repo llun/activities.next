@@ -425,7 +425,7 @@ export const sendAnnounce = async ({
   inbox,
   status
 }: SendAnnounceParams) => {
-  if (status.data.type !== StatusType.Announce) {
+  if (status.data.type !== StatusType.enum.Announce) {
     return null
   }
 

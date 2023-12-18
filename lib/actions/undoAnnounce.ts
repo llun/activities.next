@@ -16,7 +16,7 @@ export const userUndoAnnounce = async ({
   // TODO: Find announce status from current actor and statusId
   const status = await storage.getStatus({ statusId, withReplies: false })
   if (!status) return null
-  if (status.data.type !== StatusType.Announce) return
+  if (status.data.type !== StatusType.enum.Announce) return
 
   await storage.deleteStatus({ statusId })
   // TODO: Get inboxes from status, instead of followers?

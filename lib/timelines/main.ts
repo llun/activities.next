@@ -30,7 +30,7 @@ export const mainTimelineRule: MainTimelineRule = async ({
     actorId: currentActor.id,
     statusId: status.id
   })
-  if (status.type === StatusType.Announce) {
+  if (status.type === StatusType.enum.Announce) {
     const isFollowing = await storage.isCurrentActorFollowing({
       currentActorId: currentActor.id,
       followingActorId: status.actorId

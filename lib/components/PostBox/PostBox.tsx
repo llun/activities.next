@@ -273,7 +273,7 @@ export const PostBox: FC<Props> = ({
 
     if (!replyStatus) return
 
-    if (replyStatus.type !== StatusType.Note) {
+    if (replyStatus.type !== StatusType.enum.Note) {
       postBox.focus()
       return
     }

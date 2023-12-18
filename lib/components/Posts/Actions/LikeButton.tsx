@@ -50,7 +50,7 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
           })}
         />
       </Button>
-      {status.type === StatusType.Note &&
+      {status.type === StatusType.enum.Note &&
         status.actorId === currentActor?.id &&
         status.totalLikes > 0 && (
           <div className={styles['like-info']}>

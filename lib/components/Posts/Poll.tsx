@@ -9,7 +9,7 @@ interface Props {
 }
 
 export const Poll: FC<Props> = ({ status, currentTime }) => {
-  if (status.type !== StatusType.Poll) return null
+  if (status.type !== StatusType.enum.Poll) return null
   if (!status.choices) return null
 
   const isPollClosed = currentTime.getTime() > status.endAt

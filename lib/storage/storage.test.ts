@@ -485,7 +485,7 @@ describe('Storage', () => {
           url: id,
           actorId: actor?.id,
           actor: actor?.toProfile(),
-          type: StatusType.Note,
+          type: StatusType.enum.Note,
 
           text: 'Test Status',
           summary: '',
@@ -530,7 +530,7 @@ describe('Storage', () => {
         })
 
         const persistedStatus = await storage.getStatus({ statusId: id })
-        if (persistedStatus?.data.type !== StatusType.Note) {
+        if (persistedStatus?.data.type !== StatusType.enum.Note) {
           fail('status type must be Note')
         }
         expect(persistedStatus?.data.attachments).toHaveLength(1)
@@ -558,7 +558,7 @@ describe('Storage', () => {
           type: 'mention'
         })
         const persistedStatus = await storage.getStatus({ statusId: id })
-        if (persistedStatus?.data.type !== StatusType.Note) {
+        if (persistedStatus?.data.type !== StatusType.enum.Note) {
           fail('status type must be Note')
         }
         expect(persistedStatus?.data.tags).toHaveLength(1)
@@ -831,7 +831,7 @@ describe('Storage', () => {
           statusId: statusWithRepliesId,
           withReplies: true
         })
-        if (status?.data.type !== StatusType.Note) {
+        if (status?.data.type !== StatusType.enum.Note) {
           fail('Status type must be Note')
         }
         expect(status?.data.replies).toHaveLength(2)
@@ -907,7 +907,7 @@ describe('Storage', () => {
           actorId: TEST_ID15
         })
         const announceStatus = test15Statuses.shift()
-        if (announceStatus?.data.type !== StatusType.Announce) {
+        if (announceStatus?.data.type !== StatusType.enum.Announce) {
           fail('Status must be announce')
         }
 
