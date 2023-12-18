@@ -643,7 +643,7 @@ export class SqlStorage implements Storage {
       await trx('statuses').insert({
         id,
         actorId,
-        type: StatusType.Note,
+        type: StatusType.enum.Note,
         content: JSON.stringify({
           url,
           text,
@@ -688,7 +688,7 @@ export class SqlStorage implements Storage {
       url,
       actorId,
       actor: actor?.toProfile() || null,
-      type: StatusType.Note,
+      type: StatusType.enum.Note,
       text,
       summary,
       reply,
@@ -715,7 +715,7 @@ export class SqlStorage implements Storage {
     if (!status) return
 
     const data = status.data
-    if (data.type !== StatusType.Note) return
+    if (data.type !== StatusType.enum.Note) return
 
     const previousData = {
       text: data.text,
@@ -759,7 +759,7 @@ export class SqlStorage implements Storage {
       await trx('statuses').insert({
         id,
         actorId,
-        type: StatusType.Announce,
+        type: StatusType.enum.Announce,
         reply: '',
         content: originalStatusId,
         createdAt: statusCreatedAt,
@@ -805,7 +805,7 @@ export class SqlStorage implements Storage {
       to,
       cc,
       edits: [],
-      type: StatusType.Announce,
+      type: StatusType.enum.Announce,
       originalStatus: originalStatus?.data as StatusNote,
 
       createdAt: statusUpdatedAt,
@@ -836,7 +836,7 @@ export class SqlStorage implements Storage {
       await trx('statuses').insert({
         id,
         actorId,
-        type: StatusType.Poll,
+        type: StatusType.enum.Poll,
         content: JSON.stringify({
           url,
           text,
@@ -893,7 +893,7 @@ export class SqlStorage implements Storage {
       url,
       actorId,
       actor: actor?.toProfile() || null,
-      type: StatusType.Poll,
+      type: StatusType.enum.Poll,
       text,
       summary,
       reply,
@@ -979,7 +979,7 @@ export class SqlStorage implements Storage {
         .andWhere('type', 'cc')
     ])
 
-    if (data.type === StatusType.Announce) {
+    if (data.type === StatusType.enum.Announce) {
       const originalStatusId = data.content
       const [actor, originalStatus] = await Promise.all([
         this.getActorFromId({ id: data.actorId }),
@@ -990,7 +990,7 @@ export class SqlStorage implements Storage {
         id: data.id,
         actorId: data.actorId,
         actor: actor?.toProfile() || null,
-        type: StatusType.Announce,
+        type: StatusType.enum.Announce,
         to: to.map((item) => item.actorId),
         cc: cc.map((item) => item.actorId),
         edits: [],
@@ -1041,7 +1041,9 @@ export class SqlStorage implements Storage {
     )
       .map((item) =>
         item?.data.type &&
-        [StatusType.Note, StatusType.Poll].includes(item?.data.type)
+        [StatusType.enum.Note, StatusType.enum.Poll].includes(
+          item?.data.type as any // eslint-disable-line @typescript-eslint/no-explicit-any
+        )
           ? item.data
           : null
       )
@@ -1077,7 +1079,7 @@ export class SqlStorage implements Storage {
         }
       }),
 
-      ...(data.type === StatusType.Poll
+      ...(data.type === StatusType.enum.Poll
         ? {
             choices: pollChoices.map((choice) => choice.toJson()),
             endAt: content.endAt
@@ -1116,7 +1118,7 @@ export class SqlStorage implements Storage {
     if (!actorId) return false
 
     const result = await this.database('statuses')
-      .where('type', StatusType.Announce)
+      .where('type', StatusType.enum.Announce)
       .where('content', statusId)
       .where('actorId', actorId)
       .count<{ count: number }>('* as count')

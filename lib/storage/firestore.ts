@@ -716,7 +716,7 @@ export class FirestoreStorage implements Storage {
       id,
       url,
       actorId,
-      type: StatusType.Note,
+      type: StatusType.enum.Note,
       text,
       summary,
       to,
@@ -724,7 +724,7 @@ export class FirestoreStorage implements Storage {
       reply,
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
-    } as StatusNote
+    }
     await this.db.doc(`statuses/${FirestoreStorage.urlToId(id)}`).set(status)
 
     const actor = await this.getActorFromId({ id: actorId })
@@ -751,7 +751,7 @@ export class FirestoreStorage implements Storage {
     if (!status) return
 
     const data = status.data
-    if (data.type !== StatusType.Note) return
+    if (data.type !== StatusType.enum.Note) return
 
     const currentTime = Date.now()
     const previousData = {
@@ -785,7 +785,7 @@ export class FirestoreStorage implements Storage {
     const status = {
       id,
       actorId,
-      type: StatusType.Announce,
+      type: StatusType.enum.Announce,
       to,
       cc,
       originalStatusId,
@@ -800,15 +800,15 @@ export class FirestoreStorage implements Storage {
       withReplies: false
     })
     if (!originalStatus) return
-    if (originalStatus.data.type !== StatusType.Note) return
+    if (originalStatus.data.type !== StatusType.enum.Note) return
 
-    const announceData: StatusAnnounce = {
+    const announceData = StatusAnnounce.parse({
       ...status,
       ...(originalStatus?.data && { originalStatus: originalStatus.data }),
       edits: [],
-      type: StatusType.Announce,
+      type: StatusType.enum.Announce,
       actor: null
-    }
+    })
     return new Status(announceData)
   }
 
@@ -846,7 +846,7 @@ export class FirestoreStorage implements Storage {
       id,
       url,
       actorId,
-      type: StatusType.Poll as StatusType.Poll,
+      type: StatusType.enum.Poll,
       text,
       summary,
       to,
@@ -939,7 +939,7 @@ export class FirestoreStorage implements Storage {
   ): Promise<Status | undefined> {
     if (!data) return
 
-    if (data.type === StatusType.Announce) {
+    if (data.type === StatusType.enum.Announce) {
       if (!data.originalStatusId) {
         console.error(
           'Announce status original status id is undefined',
@@ -954,7 +954,7 @@ export class FirestoreStorage implements Storage {
       const originalStatusData = snapshot.data()
       if (!originalStatusData) return
 
-      if (originalStatusData.type === StatusType.Announce) {
+      if (originalStatusData.type === StatusType.enum.Announce) {
         console.error(
           'Announce status announce another status',
           data.id,
@@ -1032,7 +1032,7 @@ export class FirestoreStorage implements Storage {
       updatedAt: data.updatedAt,
 
       edits,
-      ...(data.type === StatusType.Poll
+      ...(data.type === StatusType.enum.Poll
         ? {
             choices: pollChoices.map((choice) => choice.toJson()),
             endAt: data.endAt
@@ -1349,7 +1349,7 @@ export class FirestoreStorage implements Storage {
         const data = item.data()
         const status = await this.getStatusFromData(data, false)
         if (!status) return null
-        if (status.data.type !== StatusType.Note) return null
+        if (status.data.type !== StatusType.enum.Note) return null
         return status.data
       })
     )
