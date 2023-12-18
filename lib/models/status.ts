@@ -238,7 +238,7 @@ export class Status {
           type: 'Collection',
           totalItems: data.replies.length,
           items: data.replies.map((reply) => {
-            const status = new Status(reply)
+            const status = new Status(StatusData.parse(reply))
             return status.toObject()
           })
         }
@@ -270,7 +270,7 @@ export class Status {
         type: 'Collection',
         totalItems: data.replies.length,
         items: data.replies.map((reply) => {
-          const status = new Status(reply)
+          const status = new Status(StatusData.parse(reply))
           return status.toObject()
         })
       }
