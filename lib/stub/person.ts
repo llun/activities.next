@@ -15,6 +15,7 @@ export const MockPerson = ({ id, url, createdAt = Date.now() }: Params) => {
     id,
     username,
     url: url ?? `https://${userUrl.host}/@${username}`,
+    domain: userUrl.host,
 
     endpoints: {
       following: `${id}/following`,

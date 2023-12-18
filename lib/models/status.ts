@@ -15,7 +15,7 @@ export type StatusType = z.infer<typeof StatusType>
 
 export const Edited = z.object({
   text: z.string(),
-  summary: z.string().nullable(),
+  summary: z.string().nullable().optional(),
   createdAt: z.number()
 })
 
@@ -43,7 +43,7 @@ export const StatusNote = StatusBase.extend({
   type: z.literal(StatusType.enum.Note),
   url: z.string(),
   text: z.string(),
-  summary: z.string().nullable(),
+  summary: z.string().nullable().optional(),
   reply: z.string(),
   replies: StatusBase.array(),
 
@@ -68,7 +68,7 @@ export const StatusPoll = StatusBase.extend({
   type: z.literal(StatusType.enum.Poll),
   url: z.string(),
   text: z.string(),
-  summary: z.string().nullable(),
+  summary: z.string().nullable().optional(),
   reply: z.string(),
   replies: StatusBase.array(),
 
