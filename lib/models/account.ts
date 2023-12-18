@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const Account = z.object({
   id: z.string(),
   email: z.string(),
-  passwordHash: z.string(),
+  passwordHash: z.string().optional(),
   verificationCode: z.string().optional(),
 
   createdAt: z.number(),

@@ -163,6 +163,8 @@ export class FirestoreStorage implements Storage {
       followersUrl: `${actorId}/followers`,
       publicKey,
       privateKey,
+      inboxUrl: `${actorId}/inbox`,
+      sharedInboxUrl: `https://${domain}/inbox`,
       createdAt: currentTime,
       updatedAt: currentTime
     })
