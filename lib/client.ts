@@ -229,10 +229,10 @@ export const getAppleSharedAlbumAssets = async ({
   return data.assets as Assets
 }
 
-interface IsFollowingParams {
+interface FollowParams {
   targetActorId: string
 }
-export const isFollowing = async ({ targetActorId }: IsFollowingParams) => {
+export const isFollowing = async ({ targetActorId }: FollowParams) => {
   const searchParams = new URLSearchParams({ targetActorId })
   const response = await fetch(`/api/v1/accounts/follow?${searchParams}`, {
     method: 'GET',
@@ -248,6 +248,30 @@ export const isFollowing = async ({ targetActorId }: IsFollowingParams) => {
   if (!data.follow) return false
   const follow = data.follow as Follow
   return follow.status === FollowStatus.Accepted
+}
+
+export const follow = async ({ targetActorId }: FollowParams) => {
+  const response = await fetch(`/api/v1/accounts/follow`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ target: targetActorId })
+  })
+  if (response.status !== 202) return false
+  return true
+}
+
+export const unfollow = async ({ targetActorId }: FollowParams) => {
+  const response = await fetch(`/api/v1/accounts/follow`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ target: targetActorId })
+  })
+  if (response.status !== 202) return false
+  return true
 }
 
 interface GetTimelineParams {

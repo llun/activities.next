@@ -4,7 +4,7 @@ import { GetServerSideProps, NextPage } from 'next'
 import { getServerSession } from 'next-auth'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import { authOptions } from '../../app/api/auth/[...nextauth]/authOptions'
 import {
@@ -12,7 +12,6 @@ import {
   getActorPosts,
   getPublicProfileFromHandle
 } from '../../lib/activities'
-import { isFollowing } from '../../lib/client'
 import { ActorAttachments } from '../../lib/components/ActorAttachments'
 import { ActorTab, ActorTabs } from '../../lib/components/ActorTab'
 import { FollowAction } from '../../lib/components/FollowAction'
@@ -44,15 +43,8 @@ const Page: NextPage<Props> = ({
   serverTime
 }) => {
   const { data: session } = useSession()
-  const [followingStatus, setFollowingStatus] = useState<boolean | undefined>()
   const isLoggedIn = Boolean(session?.user?.email)
   const [currentTab, setCurrentTab] = useState<ActorTab>(ActorTab.Posts)
-
-  useEffect(() => {
-    if (isLoggedIn) {
-      isFollowing({ targetActorId: person.id }).then(setFollowingStatus)
-    }
-  }, [person, isLoggedIn])
 
   return (
     <main>
@@ -81,11 +73,7 @@ const Page: NextPage<Props> = ({
               followingCount={person.followingCount}
               createdAt={person.createdAt}
             />
-            <FollowAction
-              targetActorId={person.id}
-              isLoggedIn={isLoggedIn}
-              followingStatus={followingStatus}
-            />
+            <FollowAction targetActorId={person.id} isLoggedIn={isLoggedIn} />
           </div>
         </section>
         {attachments.length > 0 && (

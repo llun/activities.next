@@ -16,8 +16,8 @@
     "migrate:make": "knex migrate:make -x ts"
   },
   "dependencies": {
-    "@aws-sdk/client-lambda": "^3.476.0",
-    "@aws-sdk/client-s3": "^3.476.0",
+    "@aws-sdk/client-lambda": "^3.478.0",
+    "@aws-sdk/client-s3": "^3.478.0",
     "@aws-sdk/util-utf8-node": "^3.259.0",
     "@google-cloud/firestore": "^7.1.0",
     "@keyv/redis": "^2.8.1",
@@ -43,7 +43,7 @@
     "fluent-ffmpeg": "^2.1.2",
     "formidable": "^3.5.1",
     "got": "^12.6.1",
-    "html-react-parser": "^5.0.10",
+    "html-react-parser": "^5.0.11",
     "jsonld": "^8.3.2",
     "keyv": "^4.5.4",
     "knex": "3.1.0",
@@ -99,7 +99,7 @@
     "eslint-config-standard": "^17.1.0",
     "eslint-plugin-import": "^2.29.1",
     "eslint-plugin-jest": "^27.6.0",
-    "eslint-plugin-n": "^16.4.0",
+    "eslint-plugin-n": "^16.5.0",
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-unused-imports": "^3.0.0",
     "firebase-tools": "^13.0.2",

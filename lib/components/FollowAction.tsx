@@ -1,38 +1,54 @@
-import { FC } from 'react'
+import { FC, useEffect, useState } from 'react'
 
+import { follow, isFollowing, unfollow } from '../client'
 import { Button } from './Button'
 
 export interface FollowActionProps {
   targetActorId: string
   isLoggedIn: boolean
-  followingStatus?: boolean
 }
 export const FollowAction: FC<FollowActionProps> = ({
   targetActorId,
-  isLoggedIn,
-  followingStatus
+  isLoggedIn
 }) => {
+  const [followingStatus, setFollowingStatus] = useState<boolean | undefined>()
+  useEffect(() => {
+    isFollowing({ targetActorId }).then(setFollowingStatus)
+  }, [targetActorId])
+
+  const onFollow = async (targetActorId: string) => {
+    const followResult = await follow({ targetActorId })
+    if (!followResult) return
+    setFollowingStatus(true)
+  }
+
+  const onUnfollow = async (targetActorId: string) => {
+    const unfollowResult = await unfollow({ targetActorId })
+    if (!unfollowResult) return
+    setFollowingStatus(false)
+  }
+
   if (!isLoggedIn) return null
   if (followingStatus === undefined) return null
 
   if (followingStatus === false) {
     return (
       <div className="flex-shrink-0">
-        <form action="/api/v1/accounts/follow" method="post">
-          <input type="hidden" name="target" value={targetActorId} />
-          <Button type="submit">Follow</Button>
-        </form>
+        <Button type="button" onClick={() => onFollow(targetActorId)}>
+          Follow
+        </Button>
       </div>
     )
   }
   return (
     <div className="flex-shrink-0">
-      <form action="/api/v1/accounts/unfollow" method="post">
-        <input type="hidden" name="target" value={targetActorId} />
-        <Button variant="danger" type="submit">
-          Unfollow
-        </Button>
-      </form>
+      <Button
+        variant="danger"
+        type="button"
+        onClick={() => onUnfollow(targetActorId)}
+      >
+        Unfollow
+      </Button>
     </div>
   )
 }
