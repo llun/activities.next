@@ -5,8 +5,8 @@ import { NextRequest } from 'next/server'
 import { getConfig } from '@/lib/config'
 import { ERROR_500 } from '@/lib/errors'
 import { sendMail } from '@/lib/services/email'
-import { generateKeyPair } from '@/lib/signature'
 import { getStorage } from '@/lib/storage'
+import { generateKeyPair } from '@/lib/utils/signature'
 
 import { CreateAccountRequest } from './types'
 

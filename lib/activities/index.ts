@@ -14,10 +14,10 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/models/status'
-import { signedHeaders } from '@/lib/signature'
 import { getSpan } from '@/lib/trace'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { request } from '@/lib/utils/request'
+import { signedHeaders } from '@/lib/utils/signature'
 
 import { AcceptFollow } from './actions/acceptFollow'
 import { AnnounceStatus } from './actions/announceStatus'

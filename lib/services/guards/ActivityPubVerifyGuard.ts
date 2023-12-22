@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { ERROR_400, ERROR_500 } from '@/lib/errors'
-import { parse, verify } from '@/lib/signature'
 import { getStorage } from '@/lib/storage'
+import { parse, verify } from '@/lib/utils/signature'
 
 import { getSenderPublicKey } from './getSenderPublicKey'
 import { headerHost } from './headerHost'

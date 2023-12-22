@@ -1,6 +1,6 @@
 import { parse, verify } from './signature'
 
-jest.mock('./config')
+jest.mock('../config')
 
 describe('#parse', () => {
   test('split signature into parts', async () => {
