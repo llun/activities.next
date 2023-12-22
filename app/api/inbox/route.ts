@@ -1,5 +1,3 @@
-import type { NextApiHandler, NextApiResponse } from 'next'
-
 import { announce } from '@/lib/actions/announce'
 import { createNote } from '@/lib/actions/createNote'
 import { createPoll } from '@/lib/actions/createPoll'
@@ -15,18 +13,14 @@ import {
 } from '@/lib/activities/actions/types'
 import { NoteEntity } from '@/lib/activities/entities/note'
 import { QuestionEntity } from '@/lib/activities/entities/question'
-import { ERROR_404, ERROR_500 } from '@/lib/errors'
+import { DEFAULT_202, ERROR_404 } from '@/lib/errors'
 import { compact } from '@/lib/jsonld'
-import { ActivityPubVerifyGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
-import { getStorage } from '@/lib/storage'
-import { Storage } from '@/lib/storage/types'
-import { getSpan } from '@/lib/trace'
+import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 
-const handlePost = async (
-  storage: Storage,
-  activity: StatusActivity,
-  res: NextApiResponse
-) => {
+export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
+  const { storage } = context
+  const body = await request.json()
+  const activity = (await compact(body)) as StatusActivity
   switch (activity.type) {
     case CreateAction: {
       switch (activity.object.type) {
@@ -39,8 +33,7 @@ const handlePost = async (
           break
         }
       }
-      res.status(202).send('')
-      return
+      return Response.json(DEFAULT_202, { status: 202 })
     }
     case UpdateAction: {
       switch (activity.object.type) {
@@ -53,13 +46,11 @@ const handlePost = async (
           break
         }
       }
-      res.status(202).send('')
-      return
+      return Response.json(DEFAULT_202, { status: 202 })
     }
     case AnnounceAction: {
       await announce({ storage, status: activity })
-      res.status(202).send('')
-      return
+      return Response.json(DEFAULT_202, { status: 202 })
     }
     case UndoAction: {
       switch (activity.object.type) {
@@ -69,50 +60,19 @@ const handlePost = async (
           break
         }
       }
-      res.status(202).send('')
-      return
+      return Response.json(DEFAULT_202, { status: 202 })
     }
     case DeleteAction: {
       // TODO: Handle delete object type string
       if (typeof activity.object === 'string') {
-        res.status(202).send('')
-        return
+        return Response.json(DEFAULT_202, { status: 202 })
       }
 
       const id = activity.object.id
       await storage.deleteStatus({ statusId: id })
-      res.status(202).send('')
-      return
+      return Response.json(DEFAULT_202, { status: 202 })
     }
     default:
-      res.status(404).send(ERROR_404)
+      return Response.json(ERROR_404, { status: 404 })
   }
-}
-
-const ApiHandler: NextApiHandler = ActivityPubVerifyGuard(
-  async (req, res) => {
-    const storage = await getStorage()
-    if (!storage) {
-      res.status(500).send(ERROR_500)
-      return
-    }
-
-    switch (req.method) {
-      case 'POST': {
-        const span = getSpan('api', 'handlePost')
-        const requestBody =
-          typeof req.body === 'string' ? JSON.parse(req.body) : req.body
-        const body = (await compact(requestBody)) as StatusActivity
-
-        await handlePost(storage, body, res)
-        span.end()
-        return
-      }
-      default:
-        res.status(404).send(ERROR_404)
-    }
-  },
-  ['POST']
-)
-
-export default ApiHandler
+})

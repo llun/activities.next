@@ -20,3 +20,9 @@ export type AuthenticatedApiHandle<P> = (
   context: BaseContext & { currentActor: Actor },
   params?: AppRouterParams<P>
 ) => Promise<Response> | Response
+
+export type ActivityPubVerifiedSenderHandle<P> = (
+  request: NextRequest,
+  context: { storage: Storage },
+  params?: AppRouterParams<P>
+) => Promise<Response> | Response

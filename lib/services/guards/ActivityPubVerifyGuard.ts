@@ -1,56 +1,43 @@
-import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
+import { NextRequest } from 'next/server'
 
 import { ERROR_400, ERROR_500 } from '@/lib/errors'
 import { parse, verify } from '@/lib/signature'
 import { getStorage } from '@/lib/storage'
 
 import { getSenderPublicKey } from './getSenderPublicKey'
+import { headerHost } from './headerHost'
+import { ActivityPubVerifiedSenderHandle, AppRouterParams } from './types'
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
-
-export const ActivityPubVerifyGuard = <T>(
-  handle: NextApiHandler<T>,
-  guardMethods?: HttpMethod[]
-) => {
-  return async (
-    req: NextApiRequest,
-    res: NextApiResponse<T | { error: string }>
-  ) => {
-    if (!guardMethods) return handle(req, res)
-    if (!guardMethods.includes(req.method as HttpMethod)) {
-      return handle(req, res)
-    }
-
+export const ActivityPubVerifySenderGuard =
+  <P>(handle: ActivityPubVerifiedSenderHandle<P>) =>
+  async (request: NextRequest, params?: AppRouterParams<P>) => {
     const storage = await getStorage()
     if (!storage) {
-      return res.status(500).send(ERROR_500)
+      return Response.json(ERROR_500, { status: 500 })
     }
 
-    const headerSignature = req.headers.signature
-    if (!headerSignature) {
-      return res.status(400).send(ERROR_400)
+    const requestSignature = request.headers.get('signature')
+    if (!requestSignature) {
+      return Response.json(ERROR_400, { status: 400 })
     }
 
-    const signatureParts = await parse(headerSignature as string)
+    const signatureParts = await parse(requestSignature)
     if (!signatureParts.keyId) {
-      return res.status(400).send(ERROR_400)
+      return Response.json(ERROR_400, { status: 400 })
     }
 
-    if (!req.url) {
-      return res.status(400).send(ERROR_400)
-    }
-    const requestUrl = new URL(req.url, `http://${req.headers.host}`)
+    const host = headerHost(request.headers)
+    const requestUrl = new URL(request.url, `http://${host}`)
     const publicKey = await getSenderPublicKey(storage, signatureParts.keyId)
     if (
       !verify(
-        `${req.method?.toLowerCase()} ${requestUrl.pathname}`,
-        req.headers,
+        `${request.method.toLowerCase()} ${requestUrl.pathname}`,
+        request.headers,
         publicKey
       )
     ) {
-      return res.status(400).send(ERROR_400)
+      return Response.json(ERROR_400, { status: 400 })
     }
 
-    return handle(req, res)
+    return handle(request, { storage }, params)
   }
-}
