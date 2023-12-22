@@ -19,6 +19,7 @@ const nextConfig = {
       'fluent-ffmpeg',
       'got',
       'jsonld',
+      'keyv',
       'nodemailer',
       'resend'
     ]
