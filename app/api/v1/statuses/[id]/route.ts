@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { ERROR_400, ERROR_403 } from '@/lib/errors'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { getISOTimeUTC } from '@/lib/time'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 interface Params {
   id: string

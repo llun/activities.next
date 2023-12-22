@@ -1,6 +1,7 @@
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+
 import { CreateStatus } from '../activities/actions/createStatus'
 import { Document } from '../activities/entities/document'
-import { getISOTimeUTC } from '../time'
 import { MockMastodonNote } from './note'
 import { ACTOR1_ID } from './seed/actor1'
 

@@ -1,5 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+
 import { Note } from '../activities/entities/note'
 import { compact } from '../jsonld'
 import { SqlStorage } from '../storage/sql'
@@ -8,7 +10,6 @@ import { MockMastodonNote } from '../stub/note'
 import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
-import { getISOTimeUTC } from '../time'
 import { Actor } from './actor'
 import { Status, StatusType } from './status'
 

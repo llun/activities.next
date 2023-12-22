@@ -3,21 +3,22 @@ import crypto from 'crypto'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
-} from '../jsonld/activitystream'
-import { compact } from '../jsonld/index'
-import { Actor, ActorProfile } from '../models/actor'
-import { Follow } from '../models/follow'
+} from '@/lib/jsonld/activitystream'
+import { compact } from '@/lib/jsonld/index'
+import { Actor, ActorProfile } from '@/lib/models/actor'
+import { Follow } from '@/lib/models/follow'
 import {
   Status,
   StatusAnnounce,
   StatusData,
   StatusNote,
   StatusType
-} from '../models/status'
-import { signedHeaders } from '../signature'
-import { getISOTimeUTC } from '../time'
-import { getSpan } from '../trace'
-import { request } from '../utils/request'
+} from '@/lib/models/status'
+import { signedHeaders } from '@/lib/signature'
+import { getSpan } from '@/lib/trace'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { request } from '@/lib/utils/request'
+
 import { AcceptFollow } from './actions/acceptFollow'
 import { AnnounceStatus } from './actions/announceStatus'
 import { CreateStatus } from './actions/createStatus'

@@ -1,7 +1,8 @@
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+
 import { Person } from '../activities/entities/person'
 import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
 import { W3ID_URL } from '../jsonld/w3id'
-import { getISOTimeUTC } from '../time'
 
 interface Params {
   id: string

@@ -1,7 +1,8 @@
 import * as jsonld from 'jsonld'
 
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+
 import { Status } from '../../models/status'
-import { getISOTimeUTC } from '../../time'
 import { ContextEntity } from '../entities/base'
 import { Note } from '../entities/note'
 import { Question } from '../entities/question'
