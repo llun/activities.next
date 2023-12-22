@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { acceptContainsContentTypes } from './lib/accept'
-import { ACTIVITIES_HOST, FORWARDED_HOST } from './lib/constants'
+import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
+import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 
 export const config = {
   matcher: ['/(@.*)']

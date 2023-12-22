@@ -1,11 +1,4 @@
-import contentType from 'content-type'
-
-export const acceptContentTypes = (acceptHeaderValue: string) => {
-  return acceptHeaderValue
-    .split(',')
-    .map((item) => item.trim())
-    .map((item) => contentType.parse(item).type)
-}
+import { acceptContentTypes } from './acceptContentTypes'
 
 export const acceptContainsContentTypes = (
   acceptHeaderValue: string,
