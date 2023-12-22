@@ -33,7 +33,10 @@ export const POST = AuthenticatedGuard(async (req, context) => {
         return Response.json(ERROR_404, { status: 404 })
       }
     }
-  } catch {
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
     return Response.json(ERROR_400, { status: 400 })
   }
 })
