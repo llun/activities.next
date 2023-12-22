@@ -1,8 +1,9 @@
 import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 
-import { authOptions } from '../../../app/api/auth/[...nextauth]/authOptions'
-import { getStorage } from '../../storage'
+import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getStorage } from '@/lib/storage'
+
 import { AppRouterParams, AuthenticatedApiHandle } from './types'
 
 export const AuthenticatedGuard =

@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '../../config'
-import { ACTIVITIES_SHARED_KEY } from '../../constants'
-import { ERROR_403 } from '../../errors'
+import { getConfig } from '@/lib/config'
+import { ACTIVITIES_SHARED_KEY } from '@/lib/constants'
+import { ERROR_403 } from '@/lib/errors'
+
 import { AppRouterApiHandle, AppRouterParams } from './types'
 
 export const AppRouterSharedKeyGuard =

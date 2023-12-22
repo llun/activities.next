@@ -1,7 +1,7 @@
 import { IncomingHttpHeaders } from 'http'
 
-import { getConfig } from '../../config'
-import { ACTIVITIES_HOST, FORWARDED_HOST } from '../../constants'
+import { getConfig } from '@/lib/config'
+import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 
 export function headerHost(headers: IncomingHttpHeaders | Headers) {
   const config = getConfig()

@@ -1,8 +1,8 @@
 import { Session } from 'next-auth'
 import { NextRequest } from 'next/server'
 
-import { Actor } from '../../models/actor'
-import { Storage } from '../../storage/types'
+import { Actor } from '@/lib/models/actor'
+import { Storage } from '@/lib/storage/types'
 
 export type BaseContext = {
   storage: Storage
