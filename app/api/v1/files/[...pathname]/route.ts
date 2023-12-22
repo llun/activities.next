@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import path from 'path'
 
 import { ERROR_404 } from '../../../../../lib/errors'
-import { AppRouterParams } from '../../../../../lib/guard'
+import { AppRouterParams } from '../../../../../lib/services/guards/types'
 import { getMedia } from '../../../../../lib/services/medias'
 
 interface Params {

@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { ERROR_404 } from '../../../../../../../lib/errors'
-import { AppRouterParams } from '../../../../../../../lib/guard'
 import { fetchAssetsUrl } from '../../../../../../../lib/services/apple/webstream'
+import { AppRouterParams } from '../../../../../../../lib/services/guards/types'
 import { allowOrigin } from '../utils'
 
 const AssetsRequest = z.object({

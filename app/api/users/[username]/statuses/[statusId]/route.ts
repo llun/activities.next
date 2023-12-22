@@ -1,6 +1,6 @@
 import { ERROR_404 } from '../../../../../../lib/errors'
-import { AppRouterParams } from '../../../../../../lib/guard'
 import { ACTIVITY_STREAM_URL } from '../../../../../../lib/jsonld/activitystream'
+import { AppRouterParams } from '../../../../../../lib/services/guards/types'
 import { OnlyLocalUserGuard, OnlyLocalUserGuardHandle } from '../../guard'
 
 type StatusParams = OnlyLocalUserGuardHandle & {

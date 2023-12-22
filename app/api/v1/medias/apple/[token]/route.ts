@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { ERROR_404 } from '../../../../../../lib/errors'
-import { AppRouterParams } from '../../../../../../lib/guard'
 import { fetchStream } from '../../../../../../lib/services/apple/webstream'
+import { AppRouterParams } from '../../../../../../lib/services/guards/types'
 import { allowOrigin } from './utils'
 
 interface Params {
