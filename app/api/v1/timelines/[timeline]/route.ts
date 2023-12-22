@@ -1,5 +1,5 @@
 import { ERROR_400, ERROR_404 } from '../../../../../lib/errors'
-import { AuthenticatedGuard } from '../../../../../lib/guard'
+import { AuthenticatedGuard } from '../../../../../lib/services/guards/AuthenticatedGuard'
 import { Timeline } from '../../../../../lib/timelines/types'
 
 const UNSUPPORTED_TIMELINE = [Timeline.LOCAL_PUBLIC]

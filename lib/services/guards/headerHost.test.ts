@@ -1,6 +1,6 @@
 import { IncomingHttpHeaders } from 'http'
 
-import { headerHost } from './guard'
+import { headerHost } from './headerHost'
 
 describe('#headerHost', () => {
   describe('standard headers', () => {

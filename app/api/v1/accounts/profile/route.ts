@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { AuthenticatedGuard } from '../../../../../lib/guard'
+import { AuthenticatedGuard } from '../../../../../lib/services/guards/AuthenticatedGuard'
 
 const ProfileRequest = z.object({
   name: z.string().optional(),

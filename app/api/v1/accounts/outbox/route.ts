@@ -6,7 +6,7 @@ import {
   ERROR_404,
   ERROR_500
 } from '../../../../../lib/errors'
-import { AuthenticatedGuard } from '../../../../../lib/guard'
+import { AuthenticatedGuard } from '../../../../../lib/services/guards/AuthenticatedGuard'
 import { DeleteStatusRequest, PostRequest } from './types'
 
 export const POST = AuthenticatedGuard(async (req, context) => {

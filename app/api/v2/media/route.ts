@@ -1,5 +1,5 @@
 import { ERROR_422 } from '../../../../lib/errors'
-import { AuthenticatedGuard } from '../../../../lib/guard'
+import { AuthenticatedGuard } from '../../../../lib/services/guards/AuthenticatedGuard'
 import { saveMedia } from '../../../../lib/services/medias'
 import { MediaSchema } from '../../../../lib/services/medias/types'
 

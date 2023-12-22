@@ -1,22 +1,10 @@
 /* eslint-disable camelcase */
 import { Exception } from '@opentelemetry/api'
 import { HTTPError } from 'got'
-import { IncomingHttpHeaders } from 'http'
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next'
-import { Session } from 'next-auth'
-import { getServerSession } from 'next-auth/next'
-import { NextRequest } from 'next/server'
 
-import { authOptions } from '../app/api/auth/[...nextauth]/authOptions'
 import { getPublicProfile } from './activities'
-import { getConfig } from './config'
-import {
-  ACTIVITIES_HOST,
-  ACTIVITIES_SHARED_KEY,
-  FORWARDED_HOST
-} from './constants'
-import { ERROR_400, ERROR_403, ERROR_500 } from './errors'
-import { Actor } from './models/actor'
+import { ERROR_400, ERROR_500 } from './errors'
 import { parse, verify } from './signature'
 import { getStorage } from './storage'
 import { Storage } from './storage/types'
@@ -109,102 +97,4 @@ export function activitiesGuard<T>(
 
     return handle(req, res)
   }
-}
-
-export type BaseContext = {
-  storage: Storage
-  session: Session
-}
-
-export type AppRouterParams<P> = { params: P }
-export type AppRouterApiHandle<P> = (
-  request: NextRequest,
-  params?: AppRouterParams<P>
-) => Promise<Response> | Response
-
-export type AuthenticatedApiHandle<P> = (
-  request: NextRequest,
-  context: BaseContext & { currentActor: Actor },
-  params?: AppRouterParams<P>
-) => Promise<Response> | Response
-
-export const AuthenticatedGuard =
-  <P>(handle: AuthenticatedApiHandle<P>) =>
-  async (req: NextRequest, params?: AppRouterParams<P>) => {
-    const [storage, session] = await Promise.all([
-      getStorage(),
-      getServerSession(authOptions)
-    ])
-    if (!storage || !session?.user?.email) {
-      return Response.redirect('/signin', 307)
-    }
-
-    const currentActor = await storage.getActorFromEmail({
-      email: session.user.email
-    })
-    if (!currentActor) {
-      return Response.redirect('/signin', 307)
-    }
-
-    return handle(req, { currentActor, storage, session }, params)
-  }
-
-export const AppRouterSharedKeyGuard =
-  <P>(handle: AppRouterApiHandle<P>) =>
-  async (req: NextRequest, params?: AppRouterParams<P>) => {
-    const config = getConfig()
-    const sharedKey = config.internalApi?.sharedKey
-    if (!sharedKey) {
-      return Response.json(ERROR_403, { status: 403 })
-    }
-
-    const headers = req.headers
-    if (
-      !headers.get(ACTIVITIES_SHARED_KEY) ||
-      headers.get(ACTIVITIES_SHARED_KEY) !== sharedKey
-    ) {
-      return Response.json(ERROR_403, { status: 403 })
-    }
-
-    return handle(req, params)
-  }
-
-export function headerHost(headers: IncomingHttpHeaders | Headers) {
-  const config = getConfig()
-
-  if (headers.constructor.name === Headers.name) {
-    const standardHeaders = headers as Headers
-    if (standardHeaders.get(ACTIVITIES_HOST)) {
-      return standardHeaders.get(ACTIVITIES_HOST)
-    }
-    if (standardHeaders.get(FORWARDED_HOST)) {
-      return standardHeaders.get(FORWARDED_HOST)
-    }
-
-    if (standardHeaders.get('host')) {
-      return standardHeaders.get('host')
-    }
-
-    return config.host
-  }
-
-  const nodeHeaders = headers as IncomingHttpHeaders
-  const normalizedHeaders = Object.keys(nodeHeaders).reduce(
-    (out, key) => ({ ...out, [key.toLowerCase()]: nodeHeaders[key] }),
-    {} as IncomingHttpHeaders
-  )
-
-  if (normalizedHeaders[ACTIVITIES_HOST]) {
-    return normalizedHeaders[ACTIVITIES_HOST]
-  }
-
-  if (normalizedHeaders[FORWARDED_HOST]) {
-    return normalizedHeaders[FORWARDED_HOST]
-  }
-
-  if (normalizedHeaders.host) {
-    return normalizedHeaders.host
-  }
-
-  return config.host
 }

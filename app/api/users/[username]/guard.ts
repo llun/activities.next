@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
 
 import { ERROR_404, ERROR_500 } from '../../../../lib/errors'
-import { AppRouterParams, headerHost } from '../../../../lib/guard'
 import { Actor } from '../../../../lib/models/actor'
+import { headerHost } from '../../../../lib/services/guards/headerHost'
+import { AppRouterParams } from '../../../../lib/services/guards/types'
 import { getStorage } from '../../../../lib/storage'
 import { Storage } from '../../../../lib/storage/types'
 

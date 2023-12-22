@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { createNoteFromUserInput } from '../../../../lib/actions/createNote'
 import { ERROR_400, ERROR_422 } from '../../../../lib/errors'
-import { AuthenticatedGuard } from '../../../../lib/guard'
+import { AuthenticatedGuard } from '../../../../lib/services/guards/AuthenticatedGuard'
 import { getISOTimeUTC } from '../../../../lib/time'
 
 const NoteSchema = z.object({

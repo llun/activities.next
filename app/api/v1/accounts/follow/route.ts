@@ -4,8 +4,8 @@ import {
   unfollow
 } from '../../../../../lib/activities'
 import { DEFAULT_202, ERROR_404 } from '../../../../../lib/errors'
-import { AuthenticatedGuard } from '../../../../../lib/guard'
 import { FollowStatus } from '../../../../../lib/models/follow'
+import { AuthenticatedGuard } from '../../../../../lib/services/guards/AuthenticatedGuard'
 import { FollowRequest } from './types'
 
 export const GET = AuthenticatedGuard(async (req, context) => {
