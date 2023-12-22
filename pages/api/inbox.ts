@@ -1,26 +1,26 @@
 import type { NextApiHandler, NextApiResponse } from 'next'
 
-import { announce } from '../../lib/actions/announce'
-import { createNote } from '../../lib/actions/createNote'
-import { createPoll } from '../../lib/actions/createPoll'
-import { updateNote } from '../../lib/actions/updateNote'
-import { updatePoll } from '../../lib/actions/updatePoll'
-import { StatusActivity } from '../../lib/activities/actions/status'
+import { announce } from '@/lib/actions/announce'
+import { createNote } from '@/lib/actions/createNote'
+import { createPoll } from '@/lib/actions/createPoll'
+import { updateNote } from '@/lib/actions/updateNote'
+import { updatePoll } from '@/lib/actions/updatePoll'
+import { StatusActivity } from '@/lib/activities/actions/status'
 import {
   AnnounceAction,
   CreateAction,
   DeleteAction,
   UndoAction,
   UpdateAction
-} from '../../lib/activities/actions/types'
-import { NoteEntity } from '../../lib/activities/entities/note'
-import { QuestionEntity } from '../../lib/activities/entities/question'
-import { ERROR_404, ERROR_500 } from '../../lib/errors'
-import { activitiesGuard } from '../../lib/guard'
-import { compact } from '../../lib/jsonld'
-import { getStorage } from '../../lib/storage'
-import { Storage } from '../../lib/storage/types'
-import { getSpan } from '../../lib/trace'
+} from '@/lib/activities/actions/types'
+import { NoteEntity } from '@/lib/activities/entities/note'
+import { QuestionEntity } from '@/lib/activities/entities/question'
+import { ERROR_404, ERROR_500 } from '@/lib/errors'
+import { compact } from '@/lib/jsonld'
+import { ActivityPubVerifyGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
+import { getStorage } from '@/lib/storage'
+import { Storage } from '@/lib/storage/types'
+import { getSpan } from '@/lib/trace'
 
 const handlePost = async (
   storage: Storage,
@@ -89,7 +89,7 @@ const handlePost = async (
   }
 }
 
-const ApiHandler: NextApiHandler = activitiesGuard(
+const ApiHandler: NextApiHandler = ActivityPubVerifyGuard(
   async (req, res) => {
     const storage = await getStorage()
     if (!storage) {
