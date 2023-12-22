@@ -1,7 +1,10 @@
-import { ERROR_404 } from '../../../../../../lib/errors'
-import { ACTIVITY_STREAM_URL } from '../../../../../../lib/jsonld/activitystream'
-import { AppRouterParams } from '../../../../../../lib/services/guards/types'
-import { OnlyLocalUserGuard, OnlyLocalUserGuardHandle } from '../../guard'
+import { ERROR_404 } from '@/lib/errors'
+import { ACTIVITY_STREAM_URL } from '@/lib/jsonld/activitystream'
+import {
+  OnlyLocalUserGuard,
+  OnlyLocalUserGuardHandle
+} from '@/lib/services/guards/OnlyLocalUserGuard'
+import { AppRouterParams } from '@/lib/services/guards/types'
 
 type StatusParams = OnlyLocalUserGuardHandle & {
   statusId: string

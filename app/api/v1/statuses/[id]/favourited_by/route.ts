@@ -1,5 +1,5 @@
-import { ERROR_400 } from '../../../../../../lib/errors'
-import { AuthenticatedGuard } from '../../../../../../lib/services/guards/AuthenticatedGuard'
+import { ERROR_400 } from '@/lib/errors'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 
 interface Params {
   id: string

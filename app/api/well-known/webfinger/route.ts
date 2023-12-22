@@ -1,7 +1,7 @@
 import { type NextRequest } from 'next/server'
 
-import { getStorage } from '../../../../lib/storage'
-import { ERROR_404 } from '../../../../lib/errors'
+import { ERROR_404 } from '@/lib/errors'
+import { getStorage } from '@/lib/storage'
 
 export const GET = async (req: NextRequest) => {
   const url = new URL(req.url)

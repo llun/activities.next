@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server'
 
-import { ERROR_404, ERROR_500 } from '../../../../lib/errors'
-import { Actor } from '../../../../lib/models/actor'
-import { headerHost } from '../../../../lib/services/guards/headerHost'
-import { AppRouterParams } from '../../../../lib/services/guards/types'
-import { getStorage } from '../../../../lib/storage'
-import { Storage } from '../../../../lib/storage/types'
+import { ERROR_404, ERROR_500 } from '@/lib/errors'
+import { Actor } from '@/lib/models/actor'
+import { getStorage } from '@/lib/storage'
+import { Storage } from '@/lib/storage/types'
+
+import { headerHost } from './headerHost'
+import { AppRouterParams } from './types'
 
 export type OnlyLocalUserGuardParams = {
   username: string

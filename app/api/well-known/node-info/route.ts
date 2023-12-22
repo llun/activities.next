@@ -1,4 +1,4 @@
-import { getConfig } from '../../../../lib/config'
+import { getConfig } from '@/lib/config'
 
 export const GET = async () => {
   const config = getConfig()

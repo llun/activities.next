@@ -2,11 +2,12 @@ import * as bcrypt from 'bcrypt'
 import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '../../../../lib/config'
-import { ERROR_500 } from '../../../../lib/errors'
-import { sendMail } from '../../../../lib/services/email'
-import { generateKeyPair } from '../../../../lib/signature'
-import { getStorage } from '../../../../lib/storage'
+import { getConfig } from '@/lib/config'
+import { ERROR_500 } from '@/lib/errors'
+import { sendMail } from '@/lib/services/email'
+import { generateKeyPair } from '@/lib/signature'
+import { getStorage } from '@/lib/storage'
+
 import { CreateAccountRequest } from './types'
 
 const BCRYPT_ROUND = 10

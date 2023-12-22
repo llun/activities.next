@@ -1,5 +1,5 @@
-import { ACTIVITY_STREAM_URL } from '../../../../../lib/jsonld/activitystream'
-import { OnlyLocalUserGuard } from '../guard'
+import { ACTIVITY_STREAM_URL } from '@/lib/jsonld/activitystream'
+import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 
 export const GET = OnlyLocalUserGuard(async (storage, actor) => {
   const followerId = `${actor.id}/followers`

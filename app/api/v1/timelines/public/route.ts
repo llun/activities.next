@@ -1,7 +1,7 @@
-import { ERROR_500 } from '../../../../../lib/errors'
-import { getStorage } from '../../../../../lib/storage'
-import { getISOTimeUTC } from '../../../../../lib/time'
-import { Timeline } from '../../../../../lib/timelines/types'
+import { ERROR_500 } from '@/lib/errors'
+import { getStorage } from '@/lib/storage'
+import { getISOTimeUTC } from '@/lib/time'
+import { Timeline } from '@/lib/timelines/types'
 
 export const GET = async () => {
   const storage = await getStorage()

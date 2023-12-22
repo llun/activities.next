@@ -1,7 +1,7 @@
 import getConfig from 'next/config'
 import { NextRequest } from 'next/server'
 
-import { headerHost } from '../../../../../../lib/services/guards/headerHost'
+import { headerHost } from '@/lib/services/guards/headerHost'
 
 export const allowOrigin = (request: NextRequest) => {
   if (process.env.NODE_ENV !== 'production') return '*'

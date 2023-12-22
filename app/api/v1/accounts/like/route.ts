@@ -1,6 +1,7 @@
-import { sendLike, sendUndoLike } from '../../../../../lib/activities'
-import { DEFAULT_202, ERROR_404 } from '../../../../../lib/errors'
-import { AuthenticatedGuard } from '../../../../../lib/services/guards/AuthenticatedGuard'
+import { sendLike, sendUndoLike } from '@/lib/activities'
+import { DEFAULT_202, ERROR_404 } from '@/lib/errors'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+
 import { LikeStatusRequest } from './types'
 
 export const POST = AuthenticatedGuard(async (req, context) => {

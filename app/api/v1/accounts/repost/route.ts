@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
-import { userAnnounce } from '../../../../../lib/actions/announce'
-import { userUndoAnnounce } from '../../../../../lib/actions/undoAnnounce'
-import { DEFAULT_202 } from '../../../../../lib/errors'
-import { AuthenticatedGuard } from '../../../../../lib/services/guards/AuthenticatedGuard'
+import { userAnnounce } from '@/lib/actions/announce'
+import { userUndoAnnounce } from '@/lib/actions/undoAnnounce'
+import { DEFAULT_202 } from '@/lib/errors'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 
 const RepostRequest = z.object({ statusId: z.string() })
 type RepostRequest = z.infer<typeof RepostRequest>

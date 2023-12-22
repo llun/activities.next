@@ -1,11 +1,8 @@
-import {
-  AnnounceAction,
-  CreateAction
-} from '../../../../../lib/activities/actions/types'
-import { ACTIVITY_STREAM_URL } from '../../../../../lib/jsonld/activitystream'
-import { StatusType } from '../../../../../lib/models/status'
-import { getISOTimeUTC } from '../../../../../lib/time'
-import { OnlyLocalUserGuard } from '../guard'
+import { AnnounceAction, CreateAction } from '@/lib/activities/actions/types'
+import { ACTIVITY_STREAM_URL } from '@/lib/jsonld/activitystream'
+import { StatusType } from '@/lib/models/status'
+import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
+import { getISOTimeUTC } from '@/lib/time'
 
 export const GET = OnlyLocalUserGuard(async (storage, actor, req) => {
   const url = new URL(req.url)

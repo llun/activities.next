@@ -1,11 +1,8 @@
-import {
-  follow,
-  getPublicProfile,
-  unfollow
-} from '../../../../../lib/activities'
-import { DEFAULT_202, ERROR_404 } from '../../../../../lib/errors'
-import { FollowStatus } from '../../../../../lib/models/follow'
-import { AuthenticatedGuard } from '../../../../../lib/services/guards/AuthenticatedGuard'
+import { follow, getPublicProfile, unfollow } from '@/lib/activities'
+import { DEFAULT_202, ERROR_404 } from '@/lib/errors'
+import { FollowStatus } from '@/lib/models/follow'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+
 import { FollowRequest } from './types'
 
 export const GET = AuthenticatedGuard(async (req, context) => {

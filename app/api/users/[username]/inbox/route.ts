@@ -1,16 +1,16 @@
 import { Accept, Follow, Like, Reject, Undo } from '@llun/activities.schema'
 import { z } from 'zod'
 
-import { acceptFollowRequest } from '../../../../../lib/actions/acceptFollowRequest'
-import { createFollower } from '../../../../../lib/actions/createFollower'
-import { likeRequest } from '../../../../../lib/actions/like'
-import { rejectFollowRequest } from '../../../../../lib/actions/rejectFollowRequest'
-import { FollowRequest } from '../../../../../lib/activities/actions/follow'
-import { UndoFollow } from '../../../../../lib/activities/actions/undoFollow'
-import { UndoLike } from '../../../../../lib/activities/actions/undoLike'
-import { DEFAULT_202, ERROR_400, ERROR_404 } from '../../../../../lib/errors'
-import { FollowStatus } from '../../../../../lib/models/follow'
-import { OnlyLocalUserGuard } from '../guard'
+import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
+import { createFollower } from '@/lib/actions/createFollower'
+import { likeRequest } from '@/lib/actions/like'
+import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
+import { FollowRequest } from '@/lib/activities/actions/follow'
+import { UndoFollow } from '@/lib/activities/actions/undoFollow'
+import { UndoLike } from '@/lib/activities/actions/undoLike'
+import { DEFAULT_202, ERROR_400, ERROR_404 } from '@/lib/errors'
+import { FollowStatus } from '@/lib/models/follow'
+import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 
 const Activity = z.union([Accept, Reject, Follow, Like, Undo])
 

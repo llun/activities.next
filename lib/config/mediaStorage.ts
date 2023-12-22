@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { matcher } from './utils'
+import { matcher } from '@/lib/config/utils'
 
 export enum MediaStorageType {
   LocalFile = 'fs',

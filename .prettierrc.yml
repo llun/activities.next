@@ -7,10 +7,11 @@ importOrderSeparation: true
 importOrderSortSpecifiers: true
 importOrder:
   - <THIRD_PARTY_MODULES>
+  - ^@/(.*)$
   - ^[./]
 importOrderParserPlugins:
   - typescript
   - decorators-legacy
   - jsx
 plugins:
-  - "@trivago/prettier-plugin-sort-imports"
+  - '@trivago/prettier-plugin-sort-imports'

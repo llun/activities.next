@@ -1,5 +1,5 @@
-import { DEFAULT_202, ERROR_400 } from '../../../../../../lib/errors'
-import { AuthenticatedGuard } from '../../../../../../lib/services/guards/AuthenticatedGuard'
+import { DEFAULT_202, ERROR_400 } from '@/lib/errors'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 
 interface Params {
   token: string

@@ -1,12 +1,8 @@
-import { createNoteFromUserInput } from '../../../../../lib/actions/createNote'
-import { deleteStatusFromUserInput } from '../../../../../lib/actions/deleteStatus'
-import {
-  DEFAULT_202,
-  ERROR_400,
-  ERROR_404,
-  ERROR_500
-} from '../../../../../lib/errors'
-import { AuthenticatedGuard } from '../../../../../lib/services/guards/AuthenticatedGuard'
+import { createNoteFromUserInput } from '@/lib/actions/createNote'
+import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
+import { DEFAULT_202, ERROR_400, ERROR_404, ERROR_500 } from '@/lib/errors'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+
 import { DeleteStatusRequest, PostRequest } from './types'
 
 export const POST = AuthenticatedGuard(async (req, context) => {
