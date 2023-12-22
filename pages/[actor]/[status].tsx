@@ -4,19 +4,20 @@ import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import { useState } from 'react'
 
-import { Header } from '../../lib/components/Header'
-import { Modal } from '../../lib/components/Modal'
-import { Media } from '../../lib/components/Posts/Media'
-import { Post } from '../../lib/components/Posts/Post'
-import { Posts } from '../../lib/components/Posts/Posts'
+import { Header } from '@/lib/components/Header'
+import { Modal } from '@/lib/components/Modal'
+import { Media } from '@/lib/components/Posts/Media'
+import { Post } from '@/lib/components/Posts/Post'
+import { Posts } from '@/lib/components/Posts/Posts'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
-} from '../../lib/jsonld/activitystream'
-import { AttachmentData } from '../../lib/models/attachment'
-import { StatusData } from '../../lib/models/status'
-import { getFirstValueFromParsedQuery } from '../../lib/query'
-import { getStorage } from '../../lib/storage'
+} from '@/lib/jsonld/activitystream'
+import { AttachmentData } from '@/lib/models/attachment'
+import { StatusData } from '@/lib/models/status'
+import { getStorage } from '@/lib/storage'
+import { getFirstValueFromParsedQuery } from '@/lib/utils/getFirstValueFromParsedQuery'
+
 import styles from './[status].module.scss'
 
 interface Props {

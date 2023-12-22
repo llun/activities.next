@@ -6,27 +6,25 @@ import { useSession } from 'next-auth/react'
 import Head from 'next/head'
 import { useState } from 'react'
 
-import { authOptions } from '../../app/api/auth/[...nextauth]/authOptions'
+import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import {
   PublicProfile,
   getActorPosts,
   getPublicProfileFromHandle
-} from '../../lib/activities'
-import { ActorAttachments } from '../../lib/components/ActorAttachments'
-import { ActorTab, ActorTabs } from '../../lib/components/ActorTab'
-import { FollowAction } from '../../lib/components/FollowAction'
-import { Header } from '../../lib/components/Header'
-import { Posts } from '../../lib/components/Posts/Posts'
-import { Profile } from '../../lib/components/Profile'
-import {
-  CACHE_KEY_PREFIX_ACTOR,
-  CACHE_NAMESPACE_ACTORS
-} from '../../lib/constants'
-import { AttachmentData } from '../../lib/models/attachment'
-import { StatusData } from '../../lib/models/status'
-import { getFirstValueFromParsedQuery } from '../../lib/query'
-import { getStorage } from '../../lib/storage'
-import { cache } from '../../lib/utils/cache'
+} from '@/lib/activities'
+import { ActorAttachments } from '@/lib/components/ActorAttachments'
+import { ActorTab, ActorTabs } from '@/lib/components/ActorTab'
+import { FollowAction } from '@/lib/components/FollowAction'
+import { Header } from '@/lib/components/Header'
+import { Posts } from '@/lib/components/Posts/Posts'
+import { Profile } from '@/lib/components/Profile'
+import { CACHE_KEY_PREFIX_ACTOR, CACHE_NAMESPACE_ACTORS } from '@/lib/constants'
+import { AttachmentData } from '@/lib/models/attachment'
+import { StatusData } from '@/lib/models/status'
+import { getStorage } from '@/lib/storage'
+import { cache } from '@/lib/utils/cache'
+import { getFirstValueFromParsedQuery } from '@/lib/utils/getFirstValueFromParsedQuery'
+
 import styles from './index.module.scss'
 
 interface Props {
