@@ -116,57 +116,6 @@ export type BaseContext = {
   session: Session
 }
 
-export type SetupHandle = (
-  req: NextApiRequest,
-  res: NextApiResponse,
-  context: BaseContext & {
-    email: string
-  }
-) => unknown | Promise<unknown>
-
-export function SetupGuard(handle: SetupHandle) {
-  return async (req: NextApiRequest, res: NextApiResponse) => {
-    const [storage, session] = await Promise.all([
-      getStorage(),
-      getServerSession(req, res, authOptions)
-    ])
-    if (!storage || !session?.user?.email) {
-      return res.status(302).redirect('/singin')
-    }
-
-    return handle(req, res, { storage, session, email: session.user.email })
-  }
-}
-
-export type ApiHandle = (
-  req: NextApiRequest,
-  res: NextApiResponse,
-  context: BaseContext & {
-    currentActor: Actor
-  }
-) => unknown | Promise<unknown>
-
-export const ApiGuard =
-  (handle: ApiHandle): NextApiHandler<unknown> =>
-  async (req, res) => {
-    const [storage, session] = await Promise.all([
-      getStorage(),
-      getServerSession(req, res, authOptions)
-    ])
-    if (!storage || !session?.user?.email) {
-      return res.status(302).redirect('/singin')
-    }
-
-    const currentActor = await storage.getActorFromEmail({
-      email: session.user.email
-    })
-    if (!currentActor) {
-      return res.status(302).redirect('/singin')
-    }
-
-    return handle(req, res, { storage, session, currentActor })
-  }
-
 export type AppRouterParams<P> = { params: P }
 export type AppRouterApiHandle<P> = (
   request: NextRequest,
