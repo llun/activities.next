@@ -3,9 +3,10 @@ import { IncomingHttpHeaders } from 'http'
 import { generate } from 'peggy'
 import util from 'util'
 
-import { getConfig } from './config'
-import { Actor } from './models/actor'
-import { getSpan } from './trace'
+import { getConfig } from '@/lib/config'
+import { Actor } from '@/lib/models/actor'
+import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
+import { getSpan } from '@/lib/trace'
 
 export const SIGNATURE_GRAMMAR = `
 pairs = (","? pair:pair { return pair })+
@@ -31,31 +32,32 @@ export async function parse(signature: string): Promise<StringMap> {
 
 export async function verify(
   requestTarget: string,
-  headers: IncomingHttpHeaders,
+  headers: IncomingHttpHeaders | Headers,
   publicKey: string
 ) {
   const span = getSpan('signature', 'verify', {
     requestTarget
   })
 
-  const headerSignature = await parse(headers.signature as string)
-  if (!headerSignature.headers) {
+  const requestSignature = getHeadersValue(headers, 'signature')
+  const parsedSignature = await parse(requestSignature as string)
+  if (!parsedSignature.headers) {
     span.end()
     return false
   }
 
-  const comparedSignedString = headerSignature.headers
+  const comparedSignedString = parsedSignature.headers
     .split(' ')
     .map((item) => {
       if (item === '(request-target)') {
         return `(request-target): ${requestTarget}`
       }
-      return `${item}: ${headers[item]}`
+      return `${item}: ${getHeadersValue(headers, item)}`
     })
     .join('\n')
 
-  const signature = headerSignature.signature
-  const verifier = crypto.createVerify(headerSignature.algorithm)
+  const signature = parsedSignature.signature
+  const verifier = crypto.createVerify(parsedSignature.algorithm)
   verifier.update(comparedSignedString)
   try {
     return verifier.verify(publicKey, signature, 'base64')
