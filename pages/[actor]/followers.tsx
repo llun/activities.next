@@ -3,14 +3,12 @@ import cn from 'classnames'
 import { GetStaticProps, NextPage } from 'next'
 import { useSession } from 'next-auth/react'
 import Head from 'next/head'
-import { useEffect, useState } from 'react'
 
 import {
   PublicProfile,
   getPublicProfile,
   getWebfingerSelf
 } from '../../lib/activities'
-import { isFollowing } from '../../lib/client'
 import { FollowAction } from '../../lib/components/FollowAction'
 import { Header } from '../../lib/components/Header'
 import { Profile } from '../../lib/components/Profile'
@@ -24,11 +22,7 @@ interface Props {
 
 const Page: NextPage<Props> = ({ person }) => {
   const { data: session } = useSession()
-  const [followingStatus, setFollowingStatus] = useState<boolean | undefined>()
   const isLoggedIn = Boolean(session?.user?.email)
-  useEffect(() => {
-    isFollowing({ targetActorId: person.id }).then(setFollowingStatus)
-  }, [person])
 
   return (
     <main>
@@ -57,11 +51,7 @@ const Page: NextPage<Props> = ({ person }) => {
               followingCount={person.followingCount}
               createdAt={person.createdAt}
             />
-            <FollowAction
-              targetActorId={person.id}
-              isLoggedIn={isLoggedIn}
-              followingStatus={followingStatus}
-            />
+            <FollowAction targetActorId={person.id} isLoggedIn={isLoggedIn} />
           </div>
         </section>
       </section>
