@@ -36,7 +36,7 @@
     "better-sqlite3": "^9.2.2",
     "bootstrap": "^5.3.2",
     "bootstrap-icons": "^1.11.2",
-    "classnames": "^2.3.2",
+    "classnames": "^2.3.3",
     "content-type": "^1.0.5",
     "date-fns": "^2.30.0",
     "date-fns-tz": "^2.0.0",
@@ -90,8 +90,8 @@
     "@types/react-modal": "^3.16.3",
     "@types/sanitize-html": "^2.9.5",
     "@types/turndown": "^5.0.4",
-    "@typescript-eslint/eslint-plugin": "^6.15.0",
-    "@typescript-eslint/parser": "^6.15.0",
+    "@typescript-eslint/eslint-plugin": "^6.16.0",
+    "@typescript-eslint/parser": "^6.16.0",
     "dotenv-flow": "^4.0.1",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.0.4",
@@ -108,7 +108,7 @@
     "jest-fetch-mock": "^3.0.3",
     "postcss": "^8.4.32",
     "prettier": "3.1.1",
-    "sucrase": "^3.34.0",
+    "sucrase": "^3.35.0",
     "typescript": "^5.3.3"
   },
   "resolutions": {
