@@ -8,7 +8,6 @@ import {
   useState
 } from 'react'
 import sanitizeHtml from 'sanitize-html'
-import Turndown from 'turndown'
 
 import { createNote, createPoll, updateNote } from '../../client'
 import { Actor, ActorProfile } from '../../models/actor'
@@ -264,7 +263,7 @@ export const PostBox: FC<Props> = ({
     const postBox = postBoxRef.current
 
     if (editStatus) {
-      postBox.value = sanitizeHtml(new Turndown().turndown(editStatus.text), {
+      postBox.value = sanitizeHtml(editStatus.text, {
         allowedTags: []
       })
       postBox.focus()
