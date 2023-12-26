@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 
 const ProfileRequest = z.object({
   name: z.string().optional(),
@@ -19,10 +20,15 @@ type ProfileRequest = z.infer<typeof ProfileRequest>
 
 export const POST = AuthenticatedGuard(async (req, context) => {
   const { currentActor, storage } = context
-  const body = await req.json()
+  const body = await req.formData()
+  const json = Object.fromEntries(body.entries())
+
   await storage.updateActor({
     actorId: currentActor.id,
-    ...ProfileRequest.parse(body)
+    ...ProfileRequest.parse(json)
   })
-  return Response.redirect('/settings', 307)
+
+  const host = headerHost(req.headers)
+  const url = new URL('/settings', `https://${host}`)
+  return Response.redirect(url.toString(), 307)
 })
