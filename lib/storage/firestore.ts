@@ -382,8 +382,8 @@ export class FirestoreStorage implements Storage {
       publicKey: data.publicKey,
       ...(data.privateKey ? { privateKey: data.privateKey } : null),
       ...(account ? { account } : null),
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt
+      createdAt: Number.isNaN(data.createdAt) ? 0 : data.createdAt,
+      updatedAt: Number.isNaN(data.updatedAt) ? 0 : data.updatedAt
     })
   }
 
