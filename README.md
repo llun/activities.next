@@ -21,7 +21,7 @@ alpha stage and has only few features supported.
   - ✅ View poll and poll result
   - [ ] Vote on the poll
   - [ ] Create a poll
-- 🚧 Image storage via Object Storage(S3, GCS, etc)
+- ✅ Image storage via Object Storage(S3, GCS, etc)
 - [ ] Streaming
 - 🚧 Timelines
   - ✅ Main timeline
