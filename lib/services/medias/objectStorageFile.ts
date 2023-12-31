@@ -38,7 +38,7 @@ const uploadImageToS3 = async (
   const resizedImage = shape(Buffer.from(await file.arrayBuffer()))
     .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
     .rotate()
-    .webp({ quality: 90 })
+    .webp({ quality: 95 })
 
   const [metaData, buffer] = await Promise.all([
     resizedImage.metadata(),
