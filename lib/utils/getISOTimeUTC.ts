@@ -1,4 +1,5 @@
-import formatInTimeZone from 'date-fns-tz/formatInTimeZone'
+import { UTCDate } from '@date-fns/utc'
+import { format } from 'date-fns'
 
 export const getISOTimeUTC = (timestamp: number) =>
-  formatInTimeZone(timestamp, 'GMT+0', "yyyy-MM-dd'T'HH:mm:ss'Z'")
+  format(new UTCDate(timestamp), `yyyy-MM-dd'T'HH:mm:ss'Z'`)

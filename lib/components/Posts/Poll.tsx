@@ -1,4 +1,4 @@
-import formatDistance from 'date-fns/formatDistance'
+import { formatDistance } from 'date-fns'
 import { FC } from 'react'
 
 import { StatusData, StatusType } from '../../models/status'

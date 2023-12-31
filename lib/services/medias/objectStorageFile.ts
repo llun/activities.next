@@ -4,7 +4,7 @@ import {
   S3Client
 } from '@aws-sdk/client-s3'
 import crypto from 'crypto'
-import format from 'date-fns-tz/format'
+import { format } from 'date-fns'
 import ffmpeg from 'fluent-ffmpeg'
 import { IncomingMessage } from 'http'
 import { memoize } from 'lodash'

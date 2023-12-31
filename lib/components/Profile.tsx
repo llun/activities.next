@@ -1,5 +1,5 @@
 import cn from 'classnames'
-import format from 'date-fns/format'
+import { format } from 'date-fns'
 import Link from 'next/link'
 import { FC } from 'react'
 

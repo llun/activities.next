@@ -1,5 +1,5 @@
 import cn from 'classnames'
-import formatDistance from 'date-fns/formatDistance'
+import { formatDistance } from 'date-fns'
 import { FC } from 'react'
 
 import { ActorProfile } from '../../models/actor'

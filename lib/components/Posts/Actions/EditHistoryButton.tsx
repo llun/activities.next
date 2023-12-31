@@ -1,5 +1,5 @@
 import cn from 'classnames'
-import formatDistance from 'date-fns/formatDistance'
+import { formatDistance } from 'date-fns'
 import { FC, useState } from 'react'
 
 import { StatusData, StatusNote, StatusPoll } from '../../../models/status'
