@@ -1,3 +1,5 @@
+'use client'
+
 import { FC, useEffect, useState } from 'react'
 
 import { follow, isFollowing, unfollow } from '../client'
