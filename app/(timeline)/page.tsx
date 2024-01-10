@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
@@ -8,6 +9,10 @@ import { Timeline } from '@/lib/timelines/types'
 import { authOptions } from '../api/auth/[...nextauth]/authOptions'
 import { MainPageTimeline } from './MainPageTimeline'
 import { getActorFromSession } from './getActorFromSession'
+
+export const metadata: Metadata = {
+  title: 'Activities.next: Timeline'
+}
 
 const Page = async () => {
   const { host, mediaStorage } = getConfig()

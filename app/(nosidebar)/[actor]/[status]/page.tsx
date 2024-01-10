@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
@@ -13,6 +14,14 @@ import styles from './[status].module.scss'
 
 interface Props {
   params: { actor: string; status: string }
+}
+
+export const generateMetadata = async ({
+  params
+}: Props): Promise<Metadata> => {
+  return {
+    title: `Activities.next: ${decodeURIComponent(params.actor)} status`
+  }
 }
 
 const Page: FC<Props> = async ({ params }) => {

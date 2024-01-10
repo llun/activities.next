@@ -1,4 +1,5 @@
 import cn from 'classnames'
+import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
@@ -14,6 +15,14 @@ import { getActorProfile } from './getActorProfile'
 
 interface Props {
   params: { actor: string }
+}
+
+export const generateMetadata = async ({
+  params
+}: Props): Promise<Metadata> => {
+  return {
+    title: `Activities.next: ${decodeURIComponent(params.actor)}`
+  }
 }
 
 const Page: FC<Props> = async ({ params }) => {
