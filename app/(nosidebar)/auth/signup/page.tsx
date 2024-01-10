@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
@@ -5,6 +6,10 @@ import { FC } from 'react'
 import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/Button'
 import { getStorage } from '@/lib/storage'
+
+export const metadata: Metadata = {
+  title: 'Activities.next: Sign up'
+}
 
 const Page: FC = async () => {
   const [storage, session] = await Promise.all([

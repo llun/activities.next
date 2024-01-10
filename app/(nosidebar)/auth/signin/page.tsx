@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { getCsrfToken, getProviders } from 'next-auth/react'
 import Link from 'next/link'
@@ -11,6 +12,10 @@ import { getStorage } from '@/lib/storage'
 import { Timeline } from '@/lib/timelines/types'
 
 import { SigninButton } from './SigninButton'
+
+export const metadata: Metadata = {
+  title: 'Activities.next: Sign in'
+}
 
 const Page: FC = async () => {
   const [storage, providers, session, csrfToken] = await Promise.all([
