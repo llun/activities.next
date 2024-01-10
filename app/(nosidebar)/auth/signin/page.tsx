@@ -84,7 +84,7 @@ const Page: FC = async () => {
 
           return <SigninButton key={provider.name} provider={provider} />
         })}
-        <Link href="/auth/register">Register</Link>
+        <Link href="/auth/signup">Signup</Link>
       </div>
 
       {statuses && statuses.length > 0 && (

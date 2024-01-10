@@ -129,6 +129,6 @@ Personally, I use [Cloudflare Tunnel](https://www.cloudflare.com/products/tunnel
 any tunnel should work including [ngrok](https://ngrok.com/)
 
 Point the tunnel to localhost at port 3000 and start the service with `yarn dev` then
-register your personal account at `https://{host}/auth/register` then login. after this
+sign up your personal account at `https://{host}/auth/signup` then login. after this
 you should be able to use your ActivityPub server to follow other or post to other in
 Fediverse.
