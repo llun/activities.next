@@ -37,18 +37,24 @@ export const request = ({
   method = 'GET',
   headers,
   body,
-  responseTimeout = DEFAULT_RESPONSE_TIMEOUT
+  responseTimeout
 }: RequestOptions) => {
+  const config = getConfig()
+  const retryLimit = config.request?.numberOfRetry ?? MAX_RETRY_LIMIT
+  const defaultResponseTimeout =
+    responseTimeout ||
+    config.request?.timeoutInMilliseconds ||
+    DEFAULT_RESPONSE_TIMEOUT
   return got(url, {
     headers: {
       ...SHARED_HEADERS,
       ...headers
     },
     timeout: {
-      response: responseTimeout
+      response: defaultResponseTimeout
     },
     retry: {
-      limit: MAX_RETRY_LIMIT
+      limit: retryLimit
     },
     throwHttpErrors: false,
     method,

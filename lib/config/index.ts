@@ -11,6 +11,7 @@ import { InternalApiConfig, getInternalApiConfig } from './internalApi'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
 import { RedisConfig, getRedisConfig } from './redis'
+import { RequestConfig, getRequestConfig } from './request'
 
 const Config = z.object({
   serviceName: z.string().optional(),
@@ -29,7 +30,8 @@ const Config = z.object({
   mediaStorage: MediaStorageConfig.optional(),
   redis: RedisConfig.optional(),
   openTelemetry: OpenTelemetryConfig.optional(),
-  internalApi: InternalApiConfig.optional()
+  internalApi: InternalApiConfig.optional(),
+  request: RequestConfig.optional()
 })
 export type Config = z.infer<typeof Config>
 
@@ -69,7 +71,8 @@ const getConfigFromEnvironment = () => {
       ...getMediaStorageConfig(),
       ...getRedisConfig(),
       ...getOtelConfig(),
-      ...getInternalApiConfig()
+      ...getInternalApiConfig(),
+      ...getRequestConfig()
     })
   } catch (error) {
     console.error('Invalid environment config')
