@@ -483,15 +483,20 @@ export const deleteStatus = async ({
     }
   }
   const method = 'POST'
-  await request({
-    url: inbox,
-    headers: {
-      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-      Accept: DEFAULT_ACCEPT
-    },
-    method,
-    body: JSON.stringify(activity)
-  })
+  try {
+    await request({
+      url: inbox,
+      headers: {
+        ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+        Accept: DEFAULT_ACCEPT
+      },
+      method,
+      body: JSON.stringify(activity)
+    })
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+  }
   span.end()
 }
 
