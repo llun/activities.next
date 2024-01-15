@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getStorage } from '@/lib/storage'
 
+import { getRedirectUrl } from './getRedirectUrl'
 import { AppRouterParams, AuthenticatedApiHandle } from './types'
 
 export const AuthenticatedGuard =
@@ -14,14 +15,14 @@ export const AuthenticatedGuard =
       getServerSession(authOptions)
     ])
     if (!storage || !session?.user?.email) {
-      return Response.redirect('/signin', 307)
+      return Response.redirect(getRedirectUrl(req, '/signin'), 307)
     }
 
     const currentActor = await storage.getActorFromEmail({
       email: session.user.email
     })
     if (!currentActor) {
-      return Response.redirect('/signin', 307)
+      return Response.redirect(getRedirectUrl(req, '/signin'), 307)
     }
 
     return handle(req, { currentActor, storage, session }, params)
