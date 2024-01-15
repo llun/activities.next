@@ -44,21 +44,21 @@ export const seedStorage = async (storage: Storage) => {
     targetActorId: EXTERNAL_ACTOR1,
     inbox: `${actors[0].id}/indbox`,
     sharedInbox: TEST_SHARED_INBOX,
-    status: FollowStatus.Accepted
+    status: FollowStatus.enum.Accepted
   })
   await storage.createFollow({
     actorId: actors[0].id,
     targetActorId: 'https://llun.dev/users/test2',
     inbox: `${actors[0].id}/indbox`,
     sharedInbox: TEST_SHARED_INBOX,
-    status: FollowStatus.Accepted
+    status: FollowStatus.enum.Accepted
   })
   await storage.createFollow({
     actorId: actors[0].id,
     targetActorId: 'https://somewhere.test/actors/request-following',
     inbox: `${actors[0].id}/indbox`,
     sharedInbox: TEST_SHARED_INBOX,
-    status: FollowStatus.Requested
+    status: FollowStatus.enum.Requested
   })
 
   // Actor1 followers
@@ -67,7 +67,7 @@ export const seedStorage = async (storage: Storage) => {
     targetActorId: actors[0].id,
     inbox: 'https://somewhere.test/inbox/friend',
     sharedInbox: 'https://somewhere.test/inbox',
-    status: FollowStatus.Accepted
+    status: FollowStatus.enum.Accepted
   })
 
   // Actor2 following
@@ -76,7 +76,7 @@ export const seedStorage = async (storage: Storage) => {
     targetActorId: 'https://llun.dev/users/test2',
     inbox: `${actors[1].id}/indbox`,
     sharedInbox: TEST_SHARED_INBOX,
-    status: FollowStatus.Accepted
+    status: FollowStatus.enum.Accepted
   })
   // Actor2 followers
   await storage.createFollow({
@@ -84,7 +84,7 @@ export const seedStorage = async (storage: Storage) => {
     targetActorId: actors[1].id,
     inbox: EXTERNAL_ACTOR1_INBOX,
     sharedInbox: EXTERNAL_ACTOR1_INBOX,
-    status: FollowStatus.Accepted
+    status: FollowStatus.enum.Accepted
   })
 
   // Actor3 follows Actor2
@@ -93,7 +93,7 @@ export const seedStorage = async (storage: Storage) => {
     targetActorId: actors[1].id,
     inbox: `${actors[2]}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
-    status: FollowStatus.Accepted
+    status: FollowStatus.enum.Accepted
   })
 
   // Actor3 follows Actor4
@@ -102,7 +102,7 @@ export const seedStorage = async (storage: Storage) => {
     targetActorId: actors[3].id,
     inbox: `${actors[2]}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
-    status: FollowStatus.Accepted
+    status: FollowStatus.enum.Accepted
   })
 
   // Actor1 status

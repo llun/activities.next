@@ -35,7 +35,7 @@ export const createFollower = async ({
     storage.createFollow({
       actorId: followerActor.id,
       targetActorId: targetActor.id,
-      status: FollowStatus.Accepted,
+      status: FollowStatus.enum.Accepted,
       inbox: followerActor.inboxUrl,
       sharedInbox: followerActor.sharedInboxUrl
     }),

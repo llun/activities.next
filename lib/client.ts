@@ -246,8 +246,8 @@ export const isFollowing = async ({ targetActorId }: FollowParams) => {
 
   const data = await response.json()
   if (!data.follow) return false
-  const follow = data.follow as Follow
-  return follow.status === FollowStatus.Accepted
+  const follow = Follow.parse(data.follow)
+  return follow.status === FollowStatus.enum.Accepted
 }
 
 export const follow = async ({ targetActorId }: FollowParams) => {

@@ -17,7 +17,7 @@ export const rejectFollowRequest = async ({
   if (!follow) return null
   await storage.updateFollowStatus({
     followId,
-    status: FollowStatus.Rejected
+    status: FollowStatus.enum.Rejected
   })
   return follow
 }

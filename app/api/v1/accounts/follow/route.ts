@@ -32,7 +32,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   const followItem = await storage.createFollow({
     actorId: currentActor.id,
     targetActorId: target,
-    status: FollowStatus.Requested,
+    status: FollowStatus.enum.Requested,
     inbox: `${currentActor.id}/inbox`,
     sharedInbox: `https://${currentActor.domain}/inbox`
   })
@@ -59,7 +59,7 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
     unfollow(currentActor, follow),
     storage.updateFollowStatus({
       followId: follow.id,
-      status: FollowStatus.Undo
+      status: FollowStatus.enum.Undo
     })
   ])
   return Response.json(DEFAULT_202, { status: 202 })

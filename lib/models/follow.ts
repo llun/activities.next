@@ -1,23 +1,28 @@
-export enum FollowStatus {
-  Requested = 'Requested',
-  Accepted = 'Accepted',
-  Undo = 'Undo',
-  Rejected = 'Rejected'
-}
+import { z } from 'zod'
 
-export interface Follow {
-  id: string
-  actorId: string
-  actorHost: string
+export const FollowStatus = z.enum([
+  'Requested',
+  'Accepted',
+  'Undo',
+  'Rejected'
+])
+export type FollowStatus = z.infer<typeof FollowStatus>
 
-  targetActorId: string
-  targetActorHost: string
+export const Follow = z.object({
+  id: z.string(),
+  actorId: z.string(),
+  actorHost: z.string(),
 
-  status: FollowStatus
+  targetActorId: z.string(),
+  targetActorHost: z.string(),
 
-  inbox: string
-  sharedInbox?: string
+  status: FollowStatus,
 
-  createdAt: number
-  updatedAt: number
-}
+  inbox: z.string(),
+  sharedInbox: z.string().optional(),
+
+  createdAt: z.number(),
+  updatedAt: z.number()
+})
+
+export type Follow = z.infer<typeof Follow>

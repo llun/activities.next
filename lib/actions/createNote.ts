@@ -247,13 +247,13 @@ export const createNoteFromUserInput = async ({
     targetActorId: currentActor.id
   })
 
-  const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
   const note = status.toObject()
   if (!note) {
     span.end()
     return status
   }
 
+  const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
   await Promise.all([
     ...inboxes.map(async (inbox) => {
       try {
