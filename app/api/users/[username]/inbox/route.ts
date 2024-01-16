@@ -60,7 +60,7 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
             }
             await storage.updateFollowStatus({
               followId: follow.id,
-              status: FollowStatus.Undo
+              status: FollowStatus.enum.Undo
             })
             return Response.json(
               { target: undoRequest.object.object },
