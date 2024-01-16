@@ -28,3 +28,8 @@ export const errorResponse = (
   }
   res.status(code).json(ERROR_500)
 }
+
+export const UNFOLLOW_NETWORK_ERROR_CODES = [
+  'ENOTFOUND',
+  'DEPTH_ZERO_SELF_SIGNED_CERT'
+]
