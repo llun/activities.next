@@ -18,6 +18,7 @@ import {
 } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
+import { FollowStatus } from '../models/follow'
 import { Status, StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
@@ -264,6 +265,18 @@ export const createNoteFromUserInput = async ({
         })
       } catch {
         console.error(`Fail to send note to ${inbox}`)
+        const follows = await storage.getLocalFollowsFromInboxUrl({
+          followerInboxUrl: inbox,
+          targetActorId: currentActor.id
+        })
+        await Promise.all(
+          follows.map((follow) =>
+            storage.updateFollowStatus({
+              followId: follow.id,
+              status: FollowStatus.enum.Rejected
+            })
+          )
+        )
       }
     }),
     invalidate(
