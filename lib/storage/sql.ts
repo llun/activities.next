@@ -56,6 +56,7 @@ import {
   GetFollowersInboxParams,
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
+  GetLocalFollowsFromInboxUrlParams,
   UpdateFollowStatusParams
 } from './types/follower'
 import {
@@ -548,7 +549,7 @@ export class SqlStorage implements Storage {
     if (!actor?.privateKey) {
       return this.database<Follow>('follows')
         .where('targetActorId', targetActorId)
-        .whereIn('status', [FollowStatus.Accepted])
+        .whereIn('status', [FollowStatus.enum.Accepted])
         .orderBy('createdAt', 'desc')
     }
 
@@ -562,8 +563,28 @@ export class SqlStorage implements Storage {
     return this.database<Follow>('follows')
       .where('targetActorId', targetActorId)
       .whereIn('actorHost', domains)
-      .whereIn('status', [FollowStatus.Accepted])
+      .whereIn('status', [FollowStatus.enum.Accepted])
       .orderBy('createdAt', 'desc')
+  }
+
+  async getLocalFollowsFromInboxUrl({
+    targetActorId,
+    followerInboxUrl
+  }: GetLocalFollowsFromInboxUrlParams) {
+    const [followsFromInbox, followsFromSharedInbox] = await Promise.all([
+      this.database<Follow>('follows')
+        .where('targetActorId', targetActorId)
+        .where('inbox', followerInboxUrl),
+      this.database<Follow>('follows')
+        .where('targetActorId', targetActorId)
+        .where('sharedInbox', followerInboxUrl)
+    ])
+    const uniqueFollows: Record<string, Follow> = {}
+    for (const follow of [...followsFromInbox, ...followsFromSharedInbox]) {
+      uniqueFollows[follow.id] = follow
+    }
+
+    return Object.values(uniqueFollows)
   }
 
   async getLocalActorsFromFollowerUrl({
@@ -579,7 +600,7 @@ export class SqlStorage implements Storage {
     const localActors = await this.database('actors')
       .leftJoin('follows', 'follows.actorId', 'actors.id')
       .where('follows.targetActorId', actor.id)
-      .where('follows.status', FollowStatus.Accepted)
+      .where('follows.status', FollowStatus.enum.Accepted)
       .where('actors.privateKey', '<>', '')
       .select('actors.*')
     return Promise.all(
@@ -599,7 +620,10 @@ export class SqlStorage implements Storage {
     return this.database<Follow>('follows')
       .where('actorId', actorId)
       .where('targetActorId', targetActorId)
-      .whereIn('status', [FollowStatus.Accepted, FollowStatus.Requested])
+      .whereIn('status', [
+        FollowStatus.enum.Accepted,
+        FollowStatus.enum.Requested
+      ])
       .orderBy('createdAt', 'desc')
       .first()
   }
@@ -607,7 +631,7 @@ export class SqlStorage implements Storage {
   async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {
     const follows = await this.database<Follow>('follows')
       .where('targetActorId', targetActorId)
-      .where('status', FollowStatus.Accepted)
+      .where('status', FollowStatus.enum.Accepted)
     return Array.from(
       follows.reduce((inboxes, follow) => {
         if (follow.sharedInbox) inboxes.add(follow.sharedInbox)

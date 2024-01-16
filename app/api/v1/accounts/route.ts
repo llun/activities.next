@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server'
 import { getConfig } from '@/lib/config'
 import { ERROR_500 } from '@/lib/errors'
 import { sendMail } from '@/lib/services/email'
+import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { getStorage } from '@/lib/storage'
 import { generateKeyPair } from '@/lib/utils/signature'
 
@@ -122,5 +123,5 @@ export const POST = async (request: NextRequest) => {
     }
   }
 
-  return Response.redirect('/auth/signin', 307)
+  return Response.redirect(getRedirectUrl(request, '/auth/signin'), 307)
 }

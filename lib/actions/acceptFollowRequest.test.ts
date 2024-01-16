@@ -58,7 +58,7 @@ describe('Accept follow action', () => {
       const acceptedRequest = await storage.getFollowFromId({
         followId: followRequest.id
       })
-      expect(acceptedRequest?.status).toEqual(FollowStatus.Accepted)
+      expect(acceptedRequest?.status).toEqual(FollowStatus.enum.Accepted)
     })
 
     it('returns null when follow request is not found', async () => {

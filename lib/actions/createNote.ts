@@ -10,6 +10,7 @@ import {
   getTags
 } from '../activities/entities/note'
 import { CACHE_KEY_PREFIX_ACTOR, CACHE_NAMESPACE_ACTORS } from '../constants'
+import { UNFOLLOW_NETWORK_ERROR_CODES } from '../errors'
 import { compact } from '../jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -18,6 +19,7 @@ import {
 } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
+import { FollowStatus } from '../models/follow'
 import { Status, StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
@@ -247,13 +249,13 @@ export const createNoteFromUserInput = async ({
     targetActorId: currentActor.id
   })
 
-  const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
   const note = status.toObject()
   if (!note) {
     span.end()
     return status
   }
 
+  const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
   await Promise.all([
     ...inboxes.map(async (inbox) => {
       try {
@@ -262,8 +264,23 @@ export const createNoteFromUserInput = async ({
           inbox,
           note: note as Note
         })
-      } catch {
+      } catch (e) {
         console.error(`Fail to send note to ${inbox}`)
+        const nodeError = e as NodeJS.ErrnoException
+        if (UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code ?? '')) {
+          const follows = await storage.getLocalFollowsFromInboxUrl({
+            followerInboxUrl: inbox,
+            targetActorId: currentActor.id
+          })
+          await Promise.all(
+            follows.map((follow) =>
+              storage.updateFollowStatus({
+                followId: follow.id,
+                status: FollowStatus.enum.Rejected
+              })
+            )
+          )
+        }
       }
     }),
     invalidate(

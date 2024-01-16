@@ -258,7 +258,7 @@ describe('Storage', () => {
         const follow = await storage.createFollow({
           actorId: TEST_ID3,
           targetActorId,
-          status: FollowStatus.Requested,
+          status: FollowStatus.enum.Requested,
           // Inbox is always for actor, not targetActor
           inbox,
           sharedInbox
@@ -270,7 +270,7 @@ describe('Storage', () => {
           id: expect.toBeString(),
           inbox,
           sharedInbox,
-          status: FollowStatus.Requested,
+          status: FollowStatus.enum.Requested,
           targetActorHost,
           targetActorId,
           updatedAt: expect.toBeNumber()
@@ -294,7 +294,7 @@ describe('Storage', () => {
           id: follow.id,
           inbox,
           sharedInbox,
-          status: FollowStatus.Requested,
+          status: FollowStatus.enum.Requested,
           targetActorHost,
           targetActorId,
           updatedAt: expect.toBeNumber()
@@ -306,7 +306,7 @@ describe('Storage', () => {
 
         await storage.updateFollowStatus({
           followId: follow.id,
-          status: FollowStatus.Rejected
+          status: FollowStatus.enum.Rejected
         })
         expect(
           await storage.isCurrentActorFollowing({
@@ -327,7 +327,7 @@ describe('Storage', () => {
         const secondFollow = await storage.createFollow({
           actorId: TEST_ID3,
           targetActorId,
-          status: FollowStatus.Requested,
+          status: FollowStatus.enum.Requested,
           inbox,
           sharedInbox
         })
@@ -347,7 +347,7 @@ describe('Storage', () => {
           id: secondFollow.id,
           inbox,
           sharedInbox,
-          status: FollowStatus.Requested,
+          status: FollowStatus.enum.Requested,
           targetActorHost,
           targetActorId,
           updatedAt: expect.toBeNumber()
@@ -355,7 +355,7 @@ describe('Storage', () => {
 
         await storage.updateFollowStatus({
           followId: secondFollow.id,
-          status: FollowStatus.Accepted
+          status: FollowStatus.enum.Accepted
         })
         const secondFollowAfterUpdated =
           await storage.getAcceptedOrRequestedFollow({
@@ -369,7 +369,7 @@ describe('Storage', () => {
           id: secondFollow.id,
           inbox,
           sharedInbox,
-          status: FollowStatus.Accepted,
+          status: FollowStatus.enum.Accepted,
           targetActorHost,
           targetActorId,
           updatedAt: expect.toBeNumber()
@@ -408,7 +408,7 @@ describe('Storage', () => {
         await storage.createFollow({
           actorId,
           targetActorId: TEST_ID4,
-          status: FollowStatus.Accepted,
+          status: FollowStatus.enum.Accepted,
           inbox,
           sharedInbox
         })
@@ -428,7 +428,7 @@ describe('Storage', () => {
         await storage.createFollow({
           actorId: TEST_ID3,
           targetActorId: TEST_ID4,
-          status: FollowStatus.Accepted,
+          status: FollowStatus.enum.Accepted,
           inbox: `${TEST_ID3}/inbox`,
           sharedInbox: `https://${TEST_DOMAIN}/inbox`
         })
@@ -453,7 +453,7 @@ describe('Storage', () => {
         await storage.createFollow({
           actorId: OUTSIDE_NETWORK_ID,
           targetActorId: TEST_ID4,
-          status: FollowStatus.Accepted,
+          status: FollowStatus.enum.Accepted,
           inbox: `https://${TEST_DOMAIN_3}/i/outside-network`,
           sharedInbox: `https://${TEST_DOMAIN_3}/i/outside-network`
         })
@@ -462,6 +462,35 @@ describe('Storage', () => {
             targetActorId: TEST_ID4
           })
         expect(followsAfterOutsideFollow.length).toEqual(1)
+      })
+
+      it('returns actor follows from inbox', async () => {
+        const actorId = `https://${TEST_DOMAIN_2}/users/test2`
+        const inbox = `${actorId}/inbox`
+        const sharedInbox = `https://${TEST_DOMAIN_2}/inbox`
+
+        const createdFollow = await storage.createFollow({
+          actorId,
+          targetActorId: TEST_ID5,
+          status: FollowStatus.enum.Accepted,
+          inbox,
+          sharedInbox
+        })
+
+        const followsFromInbox = await storage.getLocalFollowsFromInboxUrl({
+          followerInboxUrl: inbox,
+          targetActorId: TEST_ID5
+        })
+        expect(followsFromInbox).toHaveLength(1)
+        expect(followsFromInbox[0]).toEqual(createdFollow)
+
+        const followsFromSharedInbox =
+          await storage.getLocalFollowsFromInboxUrl({
+            followerInboxUrl: sharedInbox,
+            targetActorId: TEST_ID5
+          })
+        expect(followsFromSharedInbox).toHaveLength(1)
+        expect(followsFromSharedInbox[0]).toEqual(createdFollow)
       })
     })
 
@@ -570,7 +599,7 @@ describe('Storage', () => {
         await storage.createFollow({
           actorId: TEST_ID5,
           targetActorId: sender,
-          status: FollowStatus.Accepted,
+          status: FollowStatus.enum.Accepted,
           inbox: `${TEST_ID5}/inbox`,
           sharedInbox: `${TEST_ID5}/inbox`
         })
@@ -625,14 +654,14 @@ describe('Storage', () => {
         await storage.createFollow({
           actorId: TEST_ID8,
           targetActorId: 'https://other.server/u/user1',
-          status: FollowStatus.Accepted,
+          status: FollowStatus.enum.Accepted,
           inbox: 'https://other.server/u/user1/inbox',
           sharedInbox: 'https://other.server/u/user1/inbox'
         })
         await storage.createFollow({
           actorId: TEST_ID8,
           targetActorId: 'https://other.mars/u/test2',
-          status: FollowStatus.Accepted,
+          status: FollowStatus.enum.Accepted,
           inbox: 'https://other.mars/u/test2/inbox',
           sharedInbox: 'https://other.mars/shared/inbox'
         })
@@ -859,14 +888,14 @@ describe('Storage', () => {
         await storage.createFollow({
           actorId: TEST_ID14,
           targetActorId: TEST_ID11,
-          status: FollowStatus.Accepted,
+          status: FollowStatus.enum.Accepted,
           inbox: `${TEST_ID14}/inbox`,
           sharedInbox: `${TEST_ID14}/inbox`
         })
         await storage.createFollow({
           actorId: TEST_ID15,
           targetActorId: TEST_ID14,
-          status: FollowStatus.Accepted,
+          status: FollowStatus.enum.Accepted,
           inbox: `${TEST_ID15}/inbox`,
           sharedInbox: `${TEST_ID15}/inbox`
         })

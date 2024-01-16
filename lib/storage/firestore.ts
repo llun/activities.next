@@ -57,6 +57,7 @@ import {
   GetFollowersInboxParams,
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
+  GetLocalFollowsFromInboxUrlParams,
   UpdateFollowStatusParams
 } from './types/follower'
 import {
@@ -504,7 +505,7 @@ export class FirestoreStorage implements Storage {
     const snapshot = await follows
       .where('actorId', '==', currentActorId)
       .where('targetActorId', '==', followingActorId)
-      .where('status', '==', FollowStatus.Accepted)
+      .where('status', '==', FollowStatus.enum.Accepted)
       .count()
       .get()
     return snapshot.data().count > 0
@@ -515,7 +516,7 @@ export class FirestoreStorage implements Storage {
     const follows = this.db.collection('follows')
     const snapshot = await follows
       .where('actorId', '==', actorId)
-      .where('status', '==', FollowStatus.Accepted)
+      .where('status', '==', FollowStatus.enum.Accepted)
       .count()
       .get()
     return snapshot.data().count
@@ -526,7 +527,7 @@ export class FirestoreStorage implements Storage {
     const follows = this.db.collection('follows')
     const snapshot = await follows
       .where('targetActorId', '==', actorId)
-      .where('status', '==', FollowStatus.Accepted)
+      .where('status', '==', FollowStatus.enum.Accepted)
       .count()
       .get()
     return snapshot.data().count
@@ -575,12 +576,12 @@ export class FirestoreStorage implements Storage {
     if (!snapshot) return
 
     const data = snapshot.data()
-    return {
+    return Follow.parse({
       id: followId,
       actorHost: new URL(data?.actorId).host,
       targetActorHost: new URL(data?.targetActorId).host,
       ...data
-    } as Follow
+    })
   }
 
   @Trace('db')
@@ -593,9 +594,11 @@ export class FirestoreStorage implements Storage {
       const follows = this.db.collection('follows')
       const snapshot = await follows
         .where('targetActorId', '==', targetActorId)
-        .where('status', '==', FollowStatus.Accepted)
+        .where('status', '==', FollowStatus.enum.Accepted)
         .get()
-      return snapshot.docs.map((doc) => doc.data() as Follow)
+      return snapshot.docs.map((doc) =>
+        Follow.parse({ id: doc.id, ...doc.data() })
+      )
     }
 
     // Internal actor, returns only local followers
@@ -610,10 +613,12 @@ export class FirestoreStorage implements Storage {
     const follows = this.db.collection('follows')
     const snapshot = await follows
       .where('targetActorId', '==', targetActorId)
-      .where('status', '==', FollowStatus.Accepted)
+      .where('status', '==', FollowStatus.enum.Accepted)
       .where('actorHost', 'in', domains)
       .get()
-    return snapshot.docs.map((doc) => doc.data() as Follow)
+    return snapshot.docs.map((doc) =>
+      Follow.parse({ id: doc.id, ...doc.data() })
+    )
   }
 
   @Trace('db')
@@ -630,7 +635,7 @@ export class FirestoreStorage implements Storage {
     const follows = await this.db
       .collection('follows')
       .where('targetActorId', '==', id)
-      .where('status', '==', FollowStatus.Accepted)
+      .where('status', '==', FollowStatus.enum.Accepted)
       .get()
     if (!follows.size) return []
     const followers = follows.docs
@@ -649,6 +654,40 @@ export class FirestoreStorage implements Storage {
   }
 
   @Trace('db')
+  async getLocalFollowsFromInboxUrl({
+    targetActorId,
+    followerInboxUrl
+  }: GetLocalFollowsFromInboxUrlParams) {
+    const [followsFromInboxSnapshot, followsFromSharedInboxSnapshot] =
+      await Promise.all([
+        this.db
+          .collection('follows')
+          .where('targetActorId', '==', targetActorId)
+          .where('inbox', '==', followerInboxUrl)
+          .get(),
+        this.db
+          .collection('follows')
+          .where('targetActorId', '==', targetActorId)
+          .where('sharedInbox', '==', followerInboxUrl)
+          .get()
+      ])
+    const followsFromInboxData = followsFromInboxSnapshot.docs.map((doc) =>
+      Follow.parse({ id: doc.id, ...doc.data() })
+    )
+    const followsFromSharedInboxData = followsFromSharedInboxSnapshot.docs.map(
+      (doc) => Follow.parse({ id: doc.id, ...doc.data() })
+    )
+    const uniqueFollows: Record<string, Follow> = {}
+    for (const follow of [
+      ...followsFromInboxData,
+      ...followsFromSharedInboxData
+    ]) {
+      uniqueFollows[follow.id] = follow
+    }
+    return Object.values(uniqueFollows)
+  }
+
+  @Trace('db')
   async getAcceptedOrRequestedFollow({
     actorId,
     targetActorId
@@ -657,19 +696,22 @@ export class FirestoreStorage implements Storage {
     const snapshot = await follows
       .where('actorId', '==', actorId)
       .where('targetActorId', '==', targetActorId)
-      .where('status', 'in', [FollowStatus.Accepted, FollowStatus.Requested])
+      .where('status', 'in', [
+        FollowStatus.enum.Accepted,
+        FollowStatus.enum.Requested
+      ])
       .orderBy('createdAt', 'desc')
       .limit(1)
       .get()
     if (snapshot.docs.length !== 1) return
     const document = snapshot.docs[0]
     const data = document.data()
-    return {
+    return Follow.parse({
       ...data,
       id: document.id,
       actorHost: new URL(data.actorId).host,
       targetActorHost: new URL(data.targetActorId).host
-    } as Follow
+    })
   }
 
   @Trace('db')
@@ -677,7 +719,7 @@ export class FirestoreStorage implements Storage {
     const follows = this.db.collection('follows')
     const snapshot = await follows
       .where('targetActorId', '==', targetActorId)
-      .where('status', '==', FollowStatus.Accepted)
+      .where('status', '==', FollowStatus.enum.Accepted)
       .get()
     return Array.from(
       snapshot.docs.reduce((uniqueInboxes, document) => {
