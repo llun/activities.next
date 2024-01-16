@@ -596,7 +596,9 @@ export class FirestoreStorage implements Storage {
         .where('targetActorId', '==', targetActorId)
         .where('status', '==', FollowStatus.enum.Accepted)
         .get()
-      return snapshot.docs.map((doc) => Follow.parse(doc.data()))
+      return snapshot.docs.map((doc) =>
+        Follow.parse({ id: doc.id, ...doc.data() })
+      )
     }
 
     // Internal actor, returns only local followers
@@ -614,7 +616,9 @@ export class FirestoreStorage implements Storage {
       .where('status', '==', FollowStatus.enum.Accepted)
       .where('actorHost', 'in', domains)
       .get()
-    return snapshot.docs.map((doc) => Follow.parse(doc.data()))
+    return snapshot.docs.map((doc) =>
+      Follow.parse({ id: doc.id, ...doc.data() })
+    )
   }
 
   @Trace('db')
@@ -668,10 +672,10 @@ export class FirestoreStorage implements Storage {
           .get()
       ])
     const followsFromInboxData = followsFromInboxSnapshot.docs.map((doc) =>
-      Follow.parse(doc.data())
+      Follow.parse({ id: doc.id, ...doc.data() })
     )
     const followsFromSharedInboxData = followsFromSharedInboxSnapshot.docs.map(
-      (doc) => Follow.parse(doc.data())
+      (doc) => Follow.parse({ id: doc.id, ...doc.data() })
     )
     const uniqueFollows: Record<string, Follow> = {}
     for (const follow of [

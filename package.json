@@ -20,7 +20,7 @@
     "@aws-sdk/client-s3": "^3.490.0",
     "@aws-sdk/util-utf8-node": "^3.259.0",
     "@date-fns/utc": "^1.1.1",
-    "@google-cloud/firestore": "^7.1.0",
+    "@google-cloud/firestore": "^7.2.0",
     "@keyv/redis": "^2.8.3",
     "@llun/activities.schema": "^0.0.6",
     "@opentelemetry/api": "^1.7.0",
@@ -83,7 +83,7 @@
     "@types/jsonld": "^1.5.13",
     "@types/lodash": "^4.14.202",
     "@types/mime-types": "^2.1.4",
-    "@types/node": "^20.11.3",
+    "@types/node": "^20.11.4",
     "@types/nodemailer": "^6.4.14",
     "@types/react": "18.2.48",
     "@types/react-dom": "18.2.18",
@@ -110,9 +110,6 @@
     "prettier": "3.2.2",
     "sucrase": "^3.35.0",
     "typescript": "^5.3.3"
-  },
-  "resolutions": {
-    "@types/react": "18.2.37"
   },
   "packageManager": "yarn@4.0.2"
 }
