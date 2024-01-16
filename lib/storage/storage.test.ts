@@ -463,6 +463,35 @@ describe('Storage', () => {
           })
         expect(followsAfterOutsideFollow.length).toEqual(1)
       })
+
+      it('returns actor follows from inbox', async () => {
+        const actorId = `https://${TEST_DOMAIN_2}/users/test2`
+        const inbox = `${actorId}/inbox`
+        const sharedInbox = `https://${TEST_DOMAIN_2}/inbox`
+
+        const createdFollow = await storage.createFollow({
+          actorId,
+          targetActorId: TEST_ID5,
+          status: FollowStatus.enum.Accepted,
+          inbox,
+          sharedInbox
+        })
+
+        const followsFromInbox = await storage.getLocalFollowsFromInboxUrl({
+          followerInboxUrl: inbox,
+          targetActorId: TEST_ID5
+        })
+        expect(followsFromInbox).toHaveLength(1)
+        expect(followsFromInbox[0]).toEqual(createdFollow)
+
+        const followsFromSharedInbox =
+          await storage.getLocalFollowsFromInboxUrl({
+            followerInboxUrl: sharedInbox,
+            targetActorId: TEST_ID5
+          })
+        expect(followsFromSharedInbox).toHaveLength(1)
+        expect(followsFromSharedInbox[0]).toEqual(createdFollow)
+      })
     })
 
     describe('statuses', () => {
