@@ -25,7 +25,7 @@ import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
 import { getSpan } from '../trace'
 import { invalidate } from '../utils/cache'
-import { formatText } from '../utils/text/formatText'
+import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
 import { getMentions } from '../utils/text/getMentions'
 import { recordActorIfNeeded } from './utils'
 
@@ -189,7 +189,7 @@ export const createNoteFromUserInput = async ({
 
     actorId: currentActor.id,
 
-    text: formatText(text),
+    text,
     summary: null,
 
     to,
@@ -249,7 +249,7 @@ export const createNoteFromUserInput = async ({
     targetActorId: currentActor.id
   })
 
-  const note = status.toObject()
+  const note = getNoteFromStatusData(status.data)
   if (!note) {
     span.end()
     return status
