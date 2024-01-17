@@ -10,6 +10,7 @@ import { MockLitepubNote, MockMastodonNote } from '../stub/note'
 import { seedActor1 } from '../stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
+import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
 import { formatText } from '../utils/text/formatText'
 import { createNote, createNoteFromUserInput } from './createNote'
 
@@ -178,9 +179,11 @@ describe('Create note action', () => {
         currentActor: actor1,
         storage
       })
-      expect(status?.data).toMatchObject({
+      if (!status) fail('Fail to create status')
+
+      expect(status.data).toMatchObject({
         actorId: actor1.id,
-        text: '<p>Hello</p>',
+        text: 'Hello',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [`${actor1.id}/followers`]
       })
@@ -191,7 +194,7 @@ describe('Create note action', () => {
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [actor1.followersUrl],
-        object: status?.toObject()
+        object: getNoteFromStatusData(status.data)
       })
     })
 
@@ -204,7 +207,9 @@ describe('Create note action', () => {
         replyNoteId: `${actor2?.id}/statuses/post-2`,
         storage
       })
-      expect(status?.data).toMatchObject({
+      if (!status) fail('Fail to create status')
+
+      expect(status.data).toMatchObject({
         reply: `${actor2?.id}/statuses/post-2`,
         cc: expect.toContainValue(actor2?.id)
       })
@@ -215,7 +220,7 @@ describe('Create note action', () => {
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC, actor1.followersUrl],
         cc: [ACTOR2_ID],
-        object: status?.toObject()
+        object: getNoteFromStatusData(status.data)
       })
     })
 
@@ -232,14 +237,15 @@ How are you?
         currentActor: actor1,
         storage
       })
-      expect(status?.data).toMatchObject({
+      if (!status) fail('Fail to create status')
+      expect(status.data).toMatchObject({
         actorId: actor1.id,
-        text: formatText(text),
+        text,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [`${actor1.id}/followers`, ACTOR2_ID]
       })
 
-      const note = status?.toObject()
+      const note = getNoteFromStatusData(status.data)
       expect(note?.content).toEqual(formatText(text))
       expect(note?.tag).toHaveLength(1)
       expect(note?.tag).toContainValue({
@@ -254,7 +260,7 @@ How are you?
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [actor1.followersUrl, ACTOR2_ID],
-        object: status?.toObject()
+        object: getNoteFromStatusData(status.data)
       })
     })
 
@@ -271,18 +277,19 @@ How are you?
         currentActor: actor1,
         storage
       })
-      expect(status?.data).toMatchObject({
+      if (!status) fail('Fail to create status')
+      expect(status.data).toMatchObject({
         actorId: actor1.id,
-        text: formatText(text),
+        text,
         to: [ACTIVITY_STREAM_PUBLIC]
       })
-      expect(status?.data.cc).toContainAllValues([
+      expect(status.data.cc).toContainAllValues([
         `${actor1.id}/followers`,
         'https://somewhere.test/actors/test3',
         ACTOR2_ID
       ])
 
-      const note = status?.toObject()
+      const note = getNoteFromStatusData(status.data)
       expect(note?.content).toEqual(formatText(text))
       expect(note?.tag).toHaveLength(2)
       expect(note?.tag).toContainValue({
@@ -318,7 +325,7 @@ How are you?
           ACTOR2_ID,
           'https://somewhere.test/actors/test3'
         ]),
-        object: status?.toObject()
+        object: getNoteFromStatusData(status.data)
       })
     })
 
@@ -337,9 +344,10 @@ How are you?
         currentActor: actor1,
         storage
       })
+      if (!status) fail('Fail to create status')
 
       const matchObject = {
-        id: status?.id,
+        id: status.id,
         type: 'Create',
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -350,7 +358,7 @@ How are you?
           'https://no.shared.inbox/users/test4',
           'https://somewhere.test/actors/test5'
         ]),
-        object: status?.toObject()
+        object: getNoteFromStatusData(status.data)
       }
 
       expectCall(

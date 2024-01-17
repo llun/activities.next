@@ -1,5 +1,4 @@
-import { Note } from '@llun/activities.schema'
-
+import { Note } from '../activities/entities/note'
 import { Attachment } from '../models/attachment'
 import { StatusData, StatusType } from '../models/status'
 import { Tag } from '../models/tag'
@@ -12,7 +11,7 @@ export const getNoteFromStatusData = (status: StatusData): Note | null => {
   const actualStatus =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
 
-  return Note.parse({
+  return <Note>{
     id: actualStatus.id,
     type: actualStatus.type,
     ...(actualStatus.summary ? { summary: actualStatus.summary } : null),
@@ -35,5 +34,5 @@ export const getNoteFromStatusData = (status: StatusData): Note | null => {
         getNoteFromStatusData(StatusData.parse(reply))
       )
     }
-  })
+  }
 }
