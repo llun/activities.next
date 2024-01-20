@@ -34,8 +34,6 @@ export const acceptFollowRequest = async ({
       storage.getActorFromId({ id: follow.targetActorId })
     ])
 
-    console.log(targetActor, actor)
-
     if (targetActor?.account && actor) {
       await sendMail({
         from: config.email.serviceFromAddress,
