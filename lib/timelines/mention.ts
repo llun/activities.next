@@ -1,6 +1,11 @@
 import { getConfig } from '../config'
 import { StatusType } from '../models/status'
 import { sendMail } from '../services/email'
+import {
+  getHTMLContent,
+  getSubject,
+  getTextContent
+} from '../services/email/templates/mention'
 import { getSpan } from '../trace'
 import { MentionTimelineRule, Timeline } from './types'
 
@@ -25,14 +30,14 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
 
   if (status.text.includes(currentActor.getActorPage())) {
     const account = currentActor.account
-    if (config.email && account) {
+    if (config.email && account && status.actor) {
       await sendMail({
         from: config.email.serviceFromAddress,
         to: [account.email],
-        subject: `@${status.actor?.username} mentions you in ${config.host}`,
+        subject: getSubject(status.actor),
         content: {
-          text: `Message: ${status.text}`.trim(),
-          html: status.text
+          text: getTextContent(status),
+          html: getHTMLContent(status)
         }
       })
     }
