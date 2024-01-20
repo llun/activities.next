@@ -70,6 +70,15 @@ export const seedStorage = async (storage: Storage) => {
     status: FollowStatus.enum.Accepted
   })
 
+  // Actor5 requests to follow Actor1
+  await storage.createFollow({
+    actorId: actors[4].id,
+    targetActorId: actors[0].id,
+    inbox: `${actors[4]}/inbox`,
+    sharedInbox: TEST_SHARED_INBOX,
+    status: FollowStatus.enum.Requested
+  })
+
   // Actor2 following
   await storage.createFollow({
     actorId: actors[1].id,
