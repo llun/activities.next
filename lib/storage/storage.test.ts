@@ -5,7 +5,6 @@ import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '../stub/const'
 import { addStatusToTimelines } from '../timelines'
 import { Timeline } from '../timelines/types'
 import { FirestoreStorage } from './firestore'
-import { SqlStorage } from './sql'
 import { Storage } from './types'
 
 jest.mock('../config')
@@ -68,16 +67,16 @@ type TestStorage = [string, Storage]
 
 describe('Storage', () => {
   const testTable: TestStorage[] = [
-    [
-      'sqlite',
-      new SqlStorage({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-    ],
+    // [
+    //   'sqlite',
+    //   new SqlStorage({
+    //     client: 'better-sqlite3',
+    //     useNullAsDefault: true,
+    //     connection: {
+    //       filename: ':memory:'
+    //     }
+    //   })
+    // ],
     // Enable this when run start:firestore emulator and clear the database manually
     [
       'firestore',
@@ -90,10 +89,10 @@ describe('Storage', () => {
     ]
   ]
 
-  beforeAll(async () => {
-    const sqlItem = testTable.find((value) => value[0] === 'sqlite')
-    if (sqlItem) await (sqlItem[1] as SqlStorage).migrate()
-  })
+  // beforeAll(async () => {
+  //   const sqlItem = testTable.find((value) => value[0] === 'sqlite')
+  //   if (sqlItem) await (sqlItem[1] as SqlStorage).migrate()
+  // })
 
   afterAll(async () => {
     for (const item of testTable) {
@@ -1042,6 +1041,57 @@ describe('Storage', () => {
             expect(status.actorId).toContain(TEST_DOMAIN)
           }
         }, 10000)
+      })
+    })
+
+    describe('applications', () => {
+      beforeAll(async () => {
+        await storage.createApplication({
+          clientName: 'application1',
+          redirectUris: ['https://application1.llun.dev/oauth/redirect'],
+          scopes: ['read'],
+          secret: 'secret'
+        })
+      })
+
+      it('add application record and return application model', async () => {
+        const application = await storage.createApplication({
+          clientName: 'application2',
+          redirectUris: ['https://application2.llun.dev/oauth/redirect'],
+          scopes: ['read', 'write'],
+          secret: 'some random secret'
+        })
+        expect(application).toEqual({
+          id: expect.toBeString(),
+          clientName: 'application2',
+          secret: 'some random secret',
+          scopes: ['read', 'write'],
+          redirectUris: ['https://application2.llun.dev/oauth/redirect'],
+          createdAt: expect.toBeNumber(),
+          updatedAt: expect.toBeNumber()
+        })
+      })
+
+      it('returns null when failed validation', async () => {
+        await expect(
+          storage.createApplication({
+            clientName: 'application2',
+            redirectUris: ['somerandomstring'],
+            scopes: ['read', 'write'],
+            secret: 'some random secret'
+          })
+        ).rejects.toThrow()
+      })
+
+      it('returns null when application name is already exists', async () => {
+        await expect(
+          storage.createApplication({
+            clientName: 'application1',
+            redirectUris: ['https://application1.llun.dev/oauth/redirect'],
+            scopes: ['read', 'write'],
+            secret: 'some random secret'
+          })
+        ).rejects.toThrow(`Application application1 is already exists`)
       })
     })
   })

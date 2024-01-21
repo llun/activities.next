@@ -1,16 +1,14 @@
 import { z } from 'zod'
 
+import { Scopes } from '@/lib/storage/types/oauth2'
+
 export const OAuth2Application = z.object({
-  name: z.string(),
-  uid: z.string(),
+  id: z.string(),
+  clientName: z.string(),
   secret: z.string(),
-  redirectUri: z.string().array(),
-  scopes: z.string().array(),
-
-  ownerId: z.string(),
-  ownerType: z.string(),
-
-  credential: z.boolean().default(true),
+  redirectUris: z.string().url().array(),
+  scopes: Scopes.array(),
+  website: z.string().optional(),
 
   createdAt: z.number(),
   updatedAt: z.number()
