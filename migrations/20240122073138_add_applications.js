@@ -4,8 +4,8 @@
  */
 exports.up = function (knex) {
   return knex.schema.createTable('applications', function (table) {
-    table.increments('id').primary()
-    table.string('clientName')
+    table.string('id').primary()
+    table.string('clientName').unique()
     table.string('secret')
     table.text('redirectUris')
     table.text('scopes')

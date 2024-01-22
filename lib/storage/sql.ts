@@ -1450,7 +1450,39 @@ export class SqlStorage implements Storage {
 
   async createApplication(
     params: CreateApplicationparams
-  ): Promise<OAuth2Application | null> {
-    return null
+  ): Promise<OAuth2Application> {
+    const { clientName, redirectUris, secret, scopes, website } =
+      CreateApplicationparams.parse(params)
+    const clientNameCountResult = await this.database('applications')
+      .where('clientName', clientName)
+      .count<{ count: number }>('id as count')
+      .first()
+    if (
+      Boolean(clientNameCountResult?.count && clientNameCountResult?.count > 0)
+    ) {
+      throw new Error(`Application ${clientName} is already exists`)
+    }
+
+    const id = crypto.randomUUID()
+    const currentTime = Date.now()
+    const application = OAuth2Application.parse({
+      id,
+      clientName,
+      secret,
+
+      scopes,
+      redirectUris,
+
+      ...(website ? { website } : null),
+
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+    await this.database('applications').insert({
+      ...application,
+      scopes: JSON.stringify(scopes),
+      redirectUris: JSON.stringify(redirectUris)
+    })
+    return application
   }
 }
