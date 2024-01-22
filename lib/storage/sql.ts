@@ -7,6 +7,7 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
+import { OAuth2Application } from '../models/oauth2/application'
 import { PollChoice } from '../models/pollChoice'
 import { Session } from '../models/session'
 import {
@@ -70,6 +71,7 @@ import {
   GetAttachmentsForActorParams,
   GetAttachmentsParams
 } from './types/media'
+import { CreateApplicationparams } from './types/oauth2'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -1444,5 +1446,11 @@ export class SqlStorage implements Storage {
       thumbnail,
       description
     }
+  }
+
+  async createApplication(
+    params: CreateApplicationparams
+  ): Promise<OAuth2Application | null> {
+    return null
   }
 }

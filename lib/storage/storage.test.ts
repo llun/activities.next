@@ -5,6 +5,7 @@ import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '../stub/const'
 import { addStatusToTimelines } from '../timelines'
 import { Timeline } from '../timelines/types'
 import { FirestoreStorage } from './firestore'
+import { SqlStorage } from './sql'
 import { Storage } from './types'
 
 jest.mock('../config')
@@ -67,16 +68,16 @@ type TestStorage = [string, Storage]
 
 describe('Storage', () => {
   const testTable: TestStorage[] = [
-    // [
-    //   'sqlite',
-    //   new SqlStorage({
-    //     client: 'better-sqlite3',
-    //     useNullAsDefault: true,
-    //     connection: {
-    //       filename: ':memory:'
-    //     }
-    //   })
-    // ],
+    [
+      'sqlite',
+      new SqlStorage({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+    ],
     // Enable this when run start:firestore emulator and clear the database manually
     [
       'firestore',
@@ -89,10 +90,10 @@ describe('Storage', () => {
     ]
   ]
 
-  // beforeAll(async () => {
-  //   const sqlItem = testTable.find((value) => value[0] === 'sqlite')
-  //   if (sqlItem) await (sqlItem[1] as SqlStorage).migrate()
-  // })
+  beforeAll(async () => {
+    const sqlItem = testTable.find((value) => value[0] === 'sqlite')
+    if (sqlItem) await (sqlItem[1] as SqlStorage).migrate()
+  })
 
   afterAll(async () => {
     for (const item of testTable) {
