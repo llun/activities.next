@@ -1,6 +1,8 @@
-import { Knex } from 'knex'
-
-export async function up(knex: Knex): Promise<void> {
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.up = (knex) => {
   return knex.schema.alterTable('attachments', function (table) {
     table.string('actorId')
 
@@ -8,7 +10,11 @@ export async function up(knex: Knex): Promise<void> {
   })
 }
 
-export async function down(knex: Knex): Promise<void> {
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.down = (knex) => {
   return knex.schema.alterTable('attachments', function (table) {
     table.dropIndex(['actorId'], 'attachments_actorId_idx')
     table.dropColumns('actorId')

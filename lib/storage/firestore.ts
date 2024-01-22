@@ -6,6 +6,7 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
+import { OAuth2Application } from '../models/oauth2/application'
 import { PollChoice, PollChoiceData } from '../models/pollChoice'
 import { Session } from '../models/session'
 import {
@@ -72,6 +73,7 @@ import {
   GetAttachmentsParams,
   Media
 } from './types/media'
+import { CreateApplicationparams } from './types/oauth2'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -1480,5 +1482,47 @@ export class FirestoreStorage implements Storage {
     }
     await this.db.doc(`medias/${id}`).set(media)
     return media
+  }
+
+  @Trace('db')
+  async createApplication({
+    clientName,
+    redirectUris,
+    secret,
+    scopes,
+    website
+  }: CreateApplicationparams): Promise<OAuth2Application> {
+    const id = crypto.randomUUID()
+    const currentTime = Date.now()
+    const application = OAuth2Application.parse({
+      id,
+      clientName,
+      secret,
+
+      scopes,
+      redirectUris,
+
+      ...(website ? { website } : null),
+
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+
+    const existApplication = await this.db
+      .collection('applications')
+      .where('clientName', '==', clientName)
+      .count()
+      .get()
+    if (existApplication.data().count) {
+      throw new Error(`Application ${clientName} is already exists`)
+    }
+
+    await this.db.doc(`applications/${id}`).set({
+      ...application,
+      scopes: JSON.stringify(scopes),
+      redirectUris: JSON.stringify(redirectUris)
+    })
+
+    return application
   }
 }
