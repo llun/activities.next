@@ -1458,7 +1458,7 @@ export class SqlStorage implements Storage {
       .count<{ count: number }>('id as count')
       .first()
     if (
-      Boolean(clientNameCountResult?.count && clientNameCountResult?.count > 0)
+      clientNameCountResult?.count && clientNameCountResult?.count > 0
     ) {
       throw new Error(`Application ${clientName} is already exists`)
     }
