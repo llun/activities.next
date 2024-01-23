@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { ERROR_404, ERROR_422, ERROR_500 } from '@/lib/errors'
+import { ERROR_422, ERROR_500 } from '@/lib/errors'
 
 import { PostRequest } from './types'
 import { createApplication } from './createApplication'
