@@ -71,7 +71,7 @@ import {
   GetAttachmentsForActorParams,
   GetAttachmentsParams
 } from './types/media'
-import { CreateApplicationparams } from './types/oauth2'
+import { CreateApplicationParams, GetApplicationParams } from './types/oauth2'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -1449,10 +1449,10 @@ export class SqlStorage implements Storage {
   }
 
   async createApplication(
-    params: CreateApplicationparams
+    params: CreateApplicationParams
   ): Promise<OAuth2Application> {
     const { clientName, redirectUris, secret, scopes, website } =
-      CreateApplicationparams.parse(params)
+      CreateApplicationParams.parse(params)
     const clientNameCountResult = await this.database('applications')
       .where('clientName', clientName)
       .count<{ count: number }>('id as count')
@@ -1480,6 +1480,20 @@ export class SqlStorage implements Storage {
       ...application,
       scopes: JSON.stringify(scopes),
       redirectUris: JSON.stringify(redirectUris)
+    })
+    return application
+  }
+
+  async getApplication({ clientName }: GetApplicationParams) {
+    const { website, ...clientData } = await this.database('applications')
+      .where('clientName', clientName)
+      .first()
+    if (!clientData) return null
+    const application = OAuth2Application.parse({
+      ...clientData,
+      ...(clientData.website ? { website } : null),
+      scopes: JSON.parse(clientData.scopes),
+      redirectUris: JSON.parse(clientData.redirectUris)
     })
     return application
   }

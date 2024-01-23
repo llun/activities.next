@@ -1094,6 +1094,21 @@ describe('Storage', () => {
           })
         ).rejects.toThrow(`Application application1 is already exists`)
       })
+
+      it('returns existing application in storage', async () => {
+        const application = await storage.getApplication({
+          clientName: 'application1'
+        })
+        expect(application).toEqual({
+          id: expect.toBeString(),
+          clientName: 'application1',
+          secret: 'secret',
+          scopes: ['read'],
+          redirectUris: ['https://application1.llun.dev/oauth/redirect'],
+          createdAt: expect.toBeNumber(),
+          updatedAt: expect.toBeNumber()
+        })
+      })
     })
   })
 })

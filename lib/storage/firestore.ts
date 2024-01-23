@@ -73,7 +73,7 @@ import {
   GetAttachmentsParams,
   Media
 } from './types/media'
-import { CreateApplicationparams } from './types/oauth2'
+import { CreateApplicationParams, GetApplicationParams } from './types/oauth2'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -1491,7 +1491,7 @@ export class FirestoreStorage implements Storage {
     secret,
     scopes,
     website
-  }: CreateApplicationparams): Promise<OAuth2Application> {
+  }: CreateApplicationParams): Promise<OAuth2Application> {
     const id = crypto.randomUUID()
     const currentTime = Date.now()
     const application = OAuth2Application.parse({
@@ -1524,5 +1524,19 @@ export class FirestoreStorage implements Storage {
     })
 
     return application
+  }
+
+  async getApplication({ clientName }: GetApplicationParams) {
+    const snapshot = await this.db
+      .collection('applications')
+      .where('clientName', '==', clientName)
+      .get()
+    if (snapshot.size === 0) return null
+    const data = snapshot.docs[0].data()
+    return OAuth2Application.parse({
+      ...data,
+      scopes: JSON.parse(data.scopes),
+      redirectUris: JSON.parse(data.redirectUris)
+    })
   }
 }
