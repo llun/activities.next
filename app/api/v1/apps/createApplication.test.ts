@@ -31,12 +31,13 @@ describe('createApplication', () => {
 
   test('it generates secret and create application in storage and returns application response', async () => {
     const response = (await createApplication(storage, {
-      client_name: 'client1',
       redirect_uris: 'https://test.llun.dev/apps/redirect',
+      client_name: 'client1',
       scopes: 'read write',
       website: 'https://test.llun.dev'
     })) as SuccessResponse
     expect(response).toEqual({
+      type: 'success',
       id: expect.toBeString(),
       client_id: expect.toBeString(),
       client_secret: expect.toBeString(),
@@ -55,7 +56,7 @@ describe('createApplication', () => {
       website: 'https://test.llun.dev'
     })
     expect(response).toEqual({
-      code: 422,
+      type: 'error',
       error: 'Application existsClient is already exists'
     })
   })

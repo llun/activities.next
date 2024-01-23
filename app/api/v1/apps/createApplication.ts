@@ -20,11 +20,12 @@ export const createApplication = async (
     })
     if (!application) {
       return {
-        code: 422,
+        type: 'error',
         error: 'Failed to create application'
       }
     }
     return {
+      type: 'success',
       id: application.id,
       client_id: application.id,
       client_secret: application.secret,
@@ -35,7 +36,7 @@ export const createApplication = async (
   } catch (e) {
     const nodeError = e as NodeJS.ErrnoException
     return {
-      code: 422,
+      type: 'error',
       error: nodeError.message
     }
   }

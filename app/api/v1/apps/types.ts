@@ -9,6 +9,7 @@ export const PostRequest = z.object({
 export type PostRequest = z.infer<typeof PostRequest>
 
 export const SuccessResponse = z.object({
+  type: z.literal('success'),
   id: z.string(),
   name: z.string(),
   website: z.string().optional(),
@@ -19,7 +20,7 @@ export const SuccessResponse = z.object({
 export type SuccessResponse = z.infer<typeof SuccessResponse>
 
 export const ErrorResponse = z.object({
-  code: z.number(),
+  type: z.literal('error'),
   error: z.string()
 })
 export type ErrorResponse = z.infer<typeof ErrorResponse>
