@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { OAuth2Application } from '@/lib/models/oauth2/application'
 
-export const Scopes = z.enum(['read', 'write'])
+export const Scopes = z.enum(['read', 'write', 'follow', 'push'])
 export type Scopes = z.infer<typeof Scopes>
 
 export const CreateApplicationparams = z.object({

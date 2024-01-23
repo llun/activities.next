@@ -48,7 +48,7 @@ describe('createApplication', () => {
     expect(response.id).toEqual(response.client_id)
   })
 
-  test('it returns applications already exists error', async () => {
+  test('it updates existing app and returns application information', async () => {
     const response = await createApplication(storage, {
       client_name: 'existsClient',
       redirect_uris: 'https://test.llun.dev/apps/redirect',
@@ -56,8 +56,26 @@ describe('createApplication', () => {
       website: 'https://test.llun.dev'
     })
     expect(response).toEqual({
+      type: 'success',
+      id: expect.toBeString(),
+      client_id: expect.toBeString(),
+      client_secret: expect.toBeString(),
+      name: 'client1',
+      website: 'https://test.llun.dev',
+      redirect_uri: 'https://test.llun.dev/apps/redirect'
+    })
+  })
+
+  test('it errors with message validation failed when scope is not valid', async () => {
+    const response = await createApplication(storage, {
+      client_name: 'existsClient',
+      redirect_uris: 'https://test.llun.dev/apps/redirect',
+      scopes: 'read write something else',
+      website: 'https://test.llun.dev'
+    })
+    expect(response).toEqual({
       type: 'error',
-      error: 'Application existsClient is already exists'
+      error: 'Invalid scopes'
     })
   })
 })
