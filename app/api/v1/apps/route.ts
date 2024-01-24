@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { ERROR_422, ERROR_500 } from '@/lib/errors'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { getStorage } from '@/lib/storage'
 
 import { createApplication } from './createApplication'
@@ -21,12 +22,20 @@ export const POST = async (req: NextRequest) => {
 
   const { type, ...rest } = response
   if (type === 'error') {
-    console.log(rest)
     return Response.json(ERROR_422, {
       status: 422,
       statusText: 'Unprocessable Content'
     })
   }
 
-  return Response.json(rest, { status: 200, statusText: 'OK' })
+  const host = headerHost(req.headers)
+  return Response.json(rest, {
+    status: 200,
+    statusText: 'OK',
+    headers: {
+      'Access-Control-Allow-Methods': 'POST',
+      'Access-Control-Allow-Origin':
+        req.headers.get('origin') ?? `https://${host}`
+    }
+  })
 }
