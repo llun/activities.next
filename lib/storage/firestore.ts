@@ -73,7 +73,11 @@ import {
   GetAttachmentsParams,
   Media
 } from './types/media'
-import { CreateApplicationParams, GetApplicationParams } from './types/oauth2'
+import {
+  CreateApplicationParams,
+  GetApplicationParams,
+  UpdateApplicationParams
+} from './types/oauth2'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -1538,5 +1542,36 @@ export class FirestoreStorage implements Storage {
       scopes: JSON.parse(data.scopes),
       redirectUris: JSON.parse(data.redirectUris)
     })
+  }
+
+  async updateApplication(params: UpdateApplicationParams) {
+    const { id, clientName, secret, website, scopes, redirectUris } =
+      UpdateApplicationParams.parse(params)
+    const path = `applications/${id}`
+    const doc = await this.db.doc(path).get()
+    if (!doc.exists) return null
+
+    const currentTime = Date.now()
+    const data = doc.data()
+    const updatedApplication = OAuth2Application.parse({
+      ...data,
+      clientName,
+      secret,
+
+      scopes,
+      redirectUris,
+
+      ...(website ? { website } : null),
+
+      updatedAt: currentTime
+    })
+    await this.db
+      .doc(path)
+      .update({
+        ...updatedApplication,
+        scopes: JSON.stringify(scopes),
+        redirectUris: JSON.stringify(redirectUris)
+      })
+    return updatedApplication
   }
 }

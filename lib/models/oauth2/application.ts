@@ -6,8 +6,8 @@ export const OAuth2Application = z.object({
   id: z.string(),
   clientName: z.string(),
   secret: z.string(),
-  redirectUris: z.string().url().array(),
-  scopes: Scopes.array(),
+  redirectUris: z.string().url().array().min(1),
+  scopes: Scopes.array().default(['read']),
   website: z.string().optional(),
 
   createdAt: z.number(),

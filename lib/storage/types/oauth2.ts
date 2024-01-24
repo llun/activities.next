@@ -19,11 +19,19 @@ export const GetApplicationParams = z.object({
 })
 export type GetApplicationParams = z.infer<typeof GetApplicationParams>
 
+export const UpdateApplicationParams = CreateApplicationParams.extend({
+  id: z.string()
+})
+export type UpdateApplicationParams = z.infer<typeof UpdateApplicationParams>
+
 export interface OAuth2ApplicationStorage {
   createApplication(
     params: CreateApplicationParams
   ): Promise<OAuth2Application | null>
   getApplication(
     params: GetApplicationParams
+  ): Promise<OAuth2Application | null>
+  updateApplication(
+    params: UpdateApplicationParams
   ): Promise<OAuth2Application | null>
 }

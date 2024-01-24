@@ -1053,21 +1053,28 @@ describe('Storage', () => {
           scopes: ['read'],
           secret: 'secret'
         })
+
+        await storage.createApplication({
+          clientName: 'application2',
+          redirectUris: ['https://application2.llun.dev/oauth/redirect'],
+          scopes: ['read', 'write'],
+          secret: 'secret'
+        })
       })
 
       it('add application record and return application model', async () => {
         const application = await storage.createApplication({
-          clientName: 'application2',
-          redirectUris: ['https://application2.llun.dev/oauth/redirect'],
+          clientName: 'application3',
+          redirectUris: ['https://application3.llun.dev/oauth/redirect'],
           scopes: ['read', 'write'],
           secret: 'some random secret'
         })
         expect(application).toEqual({
           id: expect.toBeString(),
-          clientName: 'application2',
+          clientName: 'application3',
           secret: 'some random secret',
           scopes: ['read', 'write'],
-          redirectUris: ['https://application2.llun.dev/oauth/redirect'],
+          redirectUris: ['https://application3.llun.dev/oauth/redirect'],
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
@@ -1108,6 +1115,28 @@ describe('Storage', () => {
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
+      })
+
+      it('updates application and returns the updated application', async () => {
+        const existingApplication = await storage.getApplication({
+          clientName: 'application2'
+        })
+        if (!existingApplication) fail('Application must exists')
+
+        const application = await storage.updateApplication({
+          id: existingApplication.id,
+          clientName: 'application2',
+          redirectUris: ['https://application2.llun.dev/oauth/redirect'],
+          scopes: ['read'],
+          secret: 'secret'
+        })
+        const updatedExistingApplication = await storage.getApplication({
+          clientName: 'application2'
+        })
+
+        if (!application) fail('Application must exists')
+        expect(application).toEqual(updatedExistingApplication)
+        expect(application.scopes).toEqual(['read'])
       })
     })
   })
