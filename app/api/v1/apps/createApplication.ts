@@ -11,6 +11,21 @@ export const createApplication = async (
 ): Promise<PostResponse> => {
   const scopes = request.scopes ?? 'read'
   try {
+    const existingApplication = await storage.getApplication({
+      clientName: request.client_name
+    })
+    if (existingApplication) {
+      return {
+        type: 'success',
+        id: existingApplication.id,
+        client_id: existingApplication.id,
+        client_secret: existingApplication.secret,
+        name: existingApplication.clientName,
+        website: existingApplication.website,
+        redirect_uri: existingApplication.redirectUris[0]
+      }
+    }
+
     const application = await storage.createApplication({
       clientName: request.client_name,
       redirectUris: request.redirect_uris.split(' '),
@@ -33,11 +48,10 @@ export const createApplication = async (
       website: application.website,
       redirect_uri: application.redirectUris[0]
     }
-  } catch (e) {
-    const nodeError = e as NodeJS.ErrnoException
+  } catch {
     return {
       type: 'error',
-      error: nodeError.message
+      error: 'Failed to validate request'
     }
   }
 }

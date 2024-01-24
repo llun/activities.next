@@ -1453,7 +1453,7 @@ export class SqlStorage implements Storage {
   }
 
   async createApplication(params: CreateApplicationParams) {
-    const { clientName, redirectUris, secret, scopes, website } =
+    const { clientName, redirectUris, secret, scopes, ...rest } =
       CreateApplicationParams.parse(params)
     const clientNameCountResult = await this.database('applications')
       .where('clientName', clientName)
@@ -1473,7 +1473,7 @@ export class SqlStorage implements Storage {
       scopes,
       redirectUris,
 
-      ...(website ? { website } : null),
+      ...(rest.website ? { website: rest.website } : null),
 
       createdAt: currentTime,
       updatedAt: currentTime
@@ -1487,13 +1487,13 @@ export class SqlStorage implements Storage {
   }
 
   async getApplication({ clientName }: GetApplicationParams) {
-    const { website, ...clientData } = await this.database('applications')
+    const clientData = await this.database('applications')
       .where('clientName', clientName)
       .first()
     if (!clientData) return null
     const application = OAuth2Application.parse({
       ...clientData,
-      ...(clientData.website ? { website } : null),
+      ...(clientData.website ? { website: clientData.website } : null),
       scopes: JSON.parse(clientData.scopes),
       redirectUris: JSON.parse(clientData.redirectUris)
     })
@@ -1501,7 +1501,7 @@ export class SqlStorage implements Storage {
   }
 
   async updateApplication(params: UpdateApplicationParams) {
-    const { id, clientName, secret, scopes, redirectUris, website } =
+    const { id, clientName, secret, scopes, redirectUris, ...rest } =
       UpdateApplicationParams.parse(params)
     const application = await this.database('applications')
       .where('id', id)
@@ -1515,7 +1515,7 @@ export class SqlStorage implements Storage {
       secret,
       scopes,
       redirectUris,
-      ...(website ? { website } : null),
+      ...(rest.website ? { website: rest.website } : null),
       updatedAt: currentTime,
       createdAt: application.createdAt
     })
