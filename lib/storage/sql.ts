@@ -1492,10 +1492,14 @@ export class SqlStorage implements Storage {
       .first()
     if (!clientData) return null
     const application = OAuth2Application.parse({
-      ...clientData,
-      ...(clientData.website ? { website: clientData.website } : null),
+      id: clientData.id,
+      clientName: clientData.clientName,
+      secret: clientData.secret,
       scopes: JSON.parse(clientData.scopes),
-      redirectUris: JSON.parse(clientData.redirectUris)
+      redirectUris: JSON.parse(clientData.redirectUris),
+      ...(clientData.website ? { website: clientData.website } : null),
+      updatedAt: clientData.updatedAt,
+      createdAt: clientData.createdAt
     })
     return application
   }
