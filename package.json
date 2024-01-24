@@ -23,6 +23,7 @@
     "@google-cloud/firestore": "^7.2.0",
     "@keyv/redis": "^2.8.3",
     "@llun/activities.schema": "^0.0.6",
+    "@node-oauth/oauth2-server": "^5.1.0",
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.47.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.47.0",

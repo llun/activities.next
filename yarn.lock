@@ -1897,6 +1897,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@node-oauth/formats@npm:1.0.0":
+  version: 1.0.0
+  resolution: "@node-oauth/formats@npm:1.0.0"
+  checksum: cd89946031636feebc6b07bf44bb79841915d63a9908d5eb86f990d9fe7fa18d962645b1b8aab688dc62d796810b792ad871e2545dc04f449d358d382cc34fae
+  languageName: node
+  linkType: hard
+
+"@node-oauth/oauth2-server@npm:^5.1.0":
+  version: 5.1.0
+  resolution: "@node-oauth/oauth2-server@npm:5.1.0"
+  dependencies:
+    "@node-oauth/formats": "npm:1.0.0"
+    basic-auth: "npm:2.0.1"
+    type-is: "npm:1.6.18"
+  checksum: d78c4954ee79591b4bb5c8b40923b3a69ea7d9a6ab38416b122c494272b228cf1243d0efc0f551e101c055aeb29889b712a6b7eea0ccd5085b055f1427c9a926
+  languageName: node
+  linkType: hard
+
 "@nodelib/fs.scandir@npm:2.1.5":
   version: 2.1.5
   resolution: "@nodelib/fs.scandir@npm:2.1.5"
@@ -3955,6 +3973,7 @@ __metadata:
     "@keyv/redis": "npm:^2.8.3"
     "@llun/activities.schema": "npm:^0.0.6"
     "@next/env": "npm:^14.1.0"
+    "@node-oauth/oauth2-server": "npm:^5.1.0"
     "@opentelemetry/api": "npm:^1.7.0"
     "@opentelemetry/exporter-trace-otlp-grpc": "npm:^0.47.0"
     "@opentelemetry/exporter-trace-otlp-http": "npm:^0.47.0"
@@ -4615,7 +4634,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"basic-auth@npm:~2.0.1":
+"basic-auth@npm:2.0.1, basic-auth@npm:~2.0.1":
   version: 2.0.1
   resolution: "basic-auth@npm:2.0.1"
   dependencies:
@@ -13541,7 +13560,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"type-is@npm:~1.6.18":
+"type-is@npm:1.6.18, type-is@npm:~1.6.18":
   version: 1.6.18
   resolution: "type-is@npm:1.6.18"
   dependencies:
