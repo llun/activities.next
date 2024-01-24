@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { ERROR_422, ERROR_500 } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/errors'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getStorage } from '@/lib/storage'
 
@@ -10,10 +10,7 @@ import { PostRequest } from './types'
 export const POST = async (req: NextRequest) => {
   const [storage, body] = await Promise.all([getStorage(), req.formData()])
   if (!storage) {
-    return Response.json(ERROR_500, {
-      status: 500,
-      statusText: 'Internal Server Error'
-    })
+    return apiErrorResponse(500)
   }
 
   const json = Object.fromEntries(body.entries())
@@ -22,10 +19,7 @@ export const POST = async (req: NextRequest) => {
 
   const { type, ...rest } = response
   if (type === 'error') {
-    return Response.json(ERROR_422, {
-      status: 422,
-      statusText: 'Unprocessable Content'
-    })
+    return apiErrorResponse(422)
   }
 
   const host = headerHost(req.headers)

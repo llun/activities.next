@@ -33,3 +33,17 @@ export const UNFOLLOW_NETWORK_ERROR_CODES = [
   'ENOTFOUND',
   'DEPTH_ZERO_SELF_SIGNED_CERT'
 ]
+
+export const apiErrorResponse = (code: keyof typeof errorCodeMap) => {
+  if (!errorCodeMap[code]) {
+    return Response.json(ERROR_500, {
+      status: code,
+      statusText: ERROR_500.error
+    })
+  }
+
+  return Response.json(errorCodeMap[code], {
+    status: code,
+    statusText: errorCodeMap[code].error
+  })
+}
