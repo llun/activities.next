@@ -9,13 +9,14 @@ import { FC, ReactNode } from 'react'
 
 import { Header } from '@/lib/components/Header'
 import { Profile as ProfileComponent } from '@/lib/components/Profile'
+import { getConfig } from '@/lib/config'
 import { Actor } from '@/lib/models/actor'
 import { getStorage } from '@/lib/storage'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { Modal } from '../Modal'
 import { authOptions } from '../api/auth/[...nextauth]/authOptions'
 import styles from './(timeline).module.scss'
-import { getActorFromSession } from './getActorFromSession'
 
 export const viewport = {
   width: 'device-width',
@@ -42,7 +43,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
 
   const actor = await getActorFromSession(storage, session)
   if (!actor) {
-    return redirect('/auth/signin')
+    return redirect(`https://${getConfig().host}/auth/signin`)
   }
 
   const profile = actor.toProfile()

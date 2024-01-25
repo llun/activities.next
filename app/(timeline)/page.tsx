@@ -5,10 +5,10 @@ import { redirect } from 'next/navigation'
 import { getConfig } from '@/lib/config'
 import { getStorage } from '@/lib/storage'
 import { Timeline } from '@/lib/timelines/types'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { authOptions } from '../api/auth/[...nextauth]/authOptions'
 import { MainPageTimeline } from './MainPageTimeline'
-import { getActorFromSession } from './getActorFromSession'
 
 export const metadata: Metadata = {
   title: 'Activities.next: Timeline'
@@ -27,7 +27,7 @@ const Page = async () => {
 
   const actor = await getActorFromSession(storage, session)
   if (!actor) {
-    return redirect('/auth/signin')
+    return redirect(`https://${host}/auth/signin`)
   }
 
   const statuses = await storage.getTimeline({

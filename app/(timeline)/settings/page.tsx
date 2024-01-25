@@ -5,9 +5,10 @@ import { redirect } from 'next/navigation'
 
 import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/Button'
+import { getConfig } from '@/lib/config'
 import { getStorage } from '@/lib/storage'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { getActorFromSession } from '../getActorFromSession'
 import { AuthenticationProviders } from './AuthenticationProviders'
 
 export const metadata: Metadata = {
@@ -27,7 +28,7 @@ const Page = async () => {
 
   const actor = await getActorFromSession(storage, session)
   if (!actor) {
-    return redirect('/auth/signin')
+    return redirect(`https://${getConfig().host}/auth/signin`)
   }
 
   const profile = actor.toProfile()

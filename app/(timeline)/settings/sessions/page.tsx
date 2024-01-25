@@ -4,9 +4,10 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
 import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getConfig } from '@/lib/config'
 import { getStorage } from '@/lib/storage'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { getActorFromSession } from '../../getActorFromSession'
 import { DeleteSessionButton } from './DeleteSessionButton'
 
 export const metadata: Metadata = {
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
 }
 
 const Page = async () => {
+  const { host } = getConfig()
   const [storage, session] = await Promise.all([
     getStorage(),
     getServerSession(authOptions)
@@ -25,7 +27,7 @@ const Page = async () => {
 
   const actor = await getActorFromSession(storage, session)
   if (!actor || !actor.account) {
-    return redirect('/auth/signin')
+    return redirect(`https://${host}/auth/signin`)
   }
 
   const currentTime = Date.now()
