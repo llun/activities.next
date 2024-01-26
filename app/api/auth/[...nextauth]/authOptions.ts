@@ -8,9 +8,10 @@ import {
   StorageAdapter,
   userFromAccount
 } from '@/lib/services/auth/storageAdapter'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { getStorage } from '@/lib/storage'
 
-const { secretPhase, auth, serviceName, host } = getConfig()
+const { secretPhase, auth, serviceName } = getConfig()
 
 export const authOptions: NextAuthOptions = {
   secret: secretPhase,
@@ -21,14 +22,15 @@ export const authOptions: NextAuthOptions = {
         username: { label: 'Username', type: 'text' },
         password: { label: 'Password', type: 'password' }
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
+        const hostname = headerHost(request.headers)
         if (!credentials) return null
 
         const storage = await getStorage()
         const { username, password } = credentials
         const actor = await storage?.getActorFromUsername({
           username,
-          domain: host
+          domain: hostname
         })
         if (!actor) return null
 
