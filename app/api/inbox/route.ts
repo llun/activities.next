@@ -17,6 +17,8 @@ import { DEFAULT_202, ERROR_404 } from '@/lib/errors'
 import { compact } from '@/lib/jsonld'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 
+export const maxDuration = 60
+
 export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
   const { storage } = context
   const body = await request.json()
