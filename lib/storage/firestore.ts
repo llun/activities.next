@@ -75,6 +75,7 @@ import {
 } from './types/media'
 import {
   CreateApplicationParams,
+  GetApplicationFromIdParams,
   GetApplicationFromNameParams,
   UpdateApplicationParams
 } from './types/oauth2'
@@ -1537,6 +1538,19 @@ export class FirestoreStorage implements Storage {
       .get()
     if (snapshot.size === 0) return null
     const data = snapshot.docs[0].data()
+    return OAuth2Application.parse({
+      ...data,
+      scopes: JSON.parse(data.scopes),
+      redirectUris: JSON.parse(data.redirectUris)
+    })
+  }
+
+  async getApplicationFromId({ clientId }: GetApplicationFromIdParams) {
+    const snapshot = await this.db.doc(`applications/${clientId}`).get()
+    if (!snapshot.exists) return null
+    const data = snapshot.data()
+    if (!data) return null
+
     return OAuth2Application.parse({
       ...data,
       scopes: JSON.parse(data.scopes),

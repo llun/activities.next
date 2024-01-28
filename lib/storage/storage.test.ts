@@ -1,5 +1,6 @@
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { FollowStatus } from '../models/follow'
+import { OAuth2Application } from '../models/oauth2/application'
 import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '../stub/const'
 import { addStatusToTimelines } from '../timelines'
@@ -1046,13 +1047,16 @@ describe('Storage', () => {
     })
 
     describe('applications', () => {
+      let application1Id: string
+
       beforeAll(async () => {
-        await storage.createApplication({
+        const application1 = (await storage.createApplication({
           clientName: 'application1',
           redirectUris: ['https://application1.llun.dev/oauth/redirect'],
           scopes: ['read'],
           secret: 'secret'
-        })
+        })) as OAuth2Application
+        application1Id = application1.id
 
         await storage.createApplication({
           clientName: 'application2',
@@ -1102,9 +1106,24 @@ describe('Storage', () => {
         ).rejects.toThrow(`Application application1 is already exists`)
       })
 
-      it('returns existing application in storage', async () => {
+      it('returns existing application in storage when get it from name', async () => {
         const application = await storage.getApplicationFromName({
           clientName: 'application1'
+        })
+        expect(application).toEqual({
+          id: expect.toBeString(),
+          clientName: 'application1',
+          secret: 'secret',
+          scopes: ['read'],
+          redirectUris: ['https://application1.llun.dev/oauth/redirect'],
+          createdAt: expect.toBeNumber(),
+          updatedAt: expect.toBeNumber()
+        })
+      })
+
+      it('returns existing application in storage when get it from id', async () => {
+        const application = await storage.getApplicationFromId({
+          clientId: application1Id
         })
         expect(application).toEqual({
           id: expect.toBeString(),
