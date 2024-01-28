@@ -19,7 +19,7 @@ describe('#getSigninCallbackUrl', () => {
 
   it('returns provider callback url with redirectBack path', () => {
     const url = new URL(MOCK_PROVIDER.callbackUrl)
-    url.searchParams.append('redirectBack', '/somewhere-else')
+    url.searchParams.append('callbackUrl', '/somewhere-else')
     expect(
       getSigninCallbackUrl(
         MOCK_PROVIDER,

@@ -8,6 +8,6 @@ export const getSigninCallbackUrl = (
   if (!redirectBack) return provider.callbackUrl
 
   const url = new URL(provider.callbackUrl)
-  url.searchParams.append('redirectBack', redirectBack)
+  url.searchParams.append('callbackUrl', redirectBack)
   return url.toString()
 }
