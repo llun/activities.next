@@ -19,7 +19,9 @@ const Page: FC = async () => {
 
   const actor = await getActorFromSession(storage, session)
   if (!actor || !actor.account) {
-    return redirect(`https://${getConfig().host}/auth/signin`)
+    const url = new URL('/auth/signin', `https://${getConfig().host}`)
+    url.searchParams.append('redirectBack', '/oauth/authorize')
+    return redirect(url.toString())
   }
 
   return <div>Authorize page</div>
