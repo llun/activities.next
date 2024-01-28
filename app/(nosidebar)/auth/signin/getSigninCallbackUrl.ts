@@ -1,14 +1,13 @@
 import { ClientSafeProvider } from 'next-auth/react'
-import { ReadonlyURLSearchParams } from 'next/navigation'
 
 export const getSigninCallbackUrl = (
   provider: ClientSafeProvider,
-  searchParams: ReadonlyURLSearchParams
+  searchParams: URLSearchParams
 ) => {
   const redirectBack = searchParams.get('redirectBack')
   if (!redirectBack) return provider.callbackUrl
 
   const url = new URL(provider.callbackUrl)
-  url.searchParams.append('callbackUrl', redirectBack)
+  url.searchParams.append('redirectBack', redirectBack)
   return url.toString()
 }
