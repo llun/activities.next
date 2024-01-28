@@ -126,111 +126,121 @@ export const getPublicProfile = async ({
     withPublicKey
   })
 
-  const { statusCode, body } = await request({
-    url: actorId,
-    headers: { Accept: DEFAULT_ACCEPT }
-  })
-  if (statusCode !== 200) {
-    span.end()
-    return null
-  }
+  try {
+    const { statusCode, body } = await request({
+      url: actorId,
+      headers: { Accept: DEFAULT_ACCEPT }
+    })
+    if (statusCode !== 200) {
+      span.end()
+      return null
+    }
 
-  const data = JSON.parse(body)
-  const person: Person = (await compact(data)) as Person
+    const data = JSON.parse(body)
+    const person: Person = (await compact(data)) as Person
 
-  if (!withCollectionCount) {
+    if (!withCollectionCount) {
+      span.end()
+      return {
+        id: person.id,
+        username: person.preferredUsername,
+        domain: new URL(person.id).hostname,
+        ...(person.icon ? { icon: person.icon } : null),
+        url: person.url,
+        name: person.name || '',
+        summary: person.summary || '',
+
+        followersCount: 0,
+        followingCount: 0,
+        totalPosts: 0,
+
+        ...(withPublicKey
+          ? { publicKey: person.publicKey.publicKeyPem }
+          : null),
+
+        endpoints: {
+          following: person.following,
+          followers: person.followers,
+          inbox: person.inbox,
+          outbox: person.outbox,
+          sharedInbox: person.endpoints?.sharedInbox ?? person.inbox
+        },
+
+        createdAt: new Date(person.published).getTime()
+      }
+    }
+
+    const [followers, following, posts] = await Promise.all([
+      person.followers
+        ? request({
+            url: person.followers,
+            headers: { Accept: DEFAULT_ACCEPT }
+          }).then((res) =>
+            res.statusCode === 200
+              ? (JSON.parse(res.body) as Promise<OrderedCollection>)
+              : null
+          )
+        : null,
+      person.following
+        ? request({
+            url: person.following,
+            headers: { Accept: DEFAULT_ACCEPT }
+          }).then((res) =>
+            res.statusCode === 200
+              ? (JSON.parse(res.body) as Promise<OrderedCollection>)
+              : null
+          )
+        : null,
+      person.outbox
+        ? request({
+            url: person.outbox,
+            headers: { Accept: DEFAULT_ACCEPT }
+          }).then((res) =>
+            res.statusCode === 200
+              ? (JSON.parse(res.body) as Promise<OrderedCollection>)
+              : null
+          )
+        : null
+    ])
+
     span.end()
     return {
       id: person.id,
       username: person.preferredUsername,
       domain: new URL(person.id).hostname,
       ...(person.icon ? { icon: person.icon } : null),
-      url: person.url,
+      url: person.url ?? person.id,
       name: person.name || '',
       summary: person.summary || '',
 
-      followersCount: 0,
-      followingCount: 0,
-      totalPosts: 0,
-
       ...(withPublicKey ? { publicKey: person.publicKey.publicKeyPem } : null),
 
+      followersCount: followers?.totalItems || 0,
+      followingCount: following?.totalItems || 0,
+      totalPosts: posts?.totalItems || 0,
+
       endpoints: {
-        following: person.following,
-        followers: person.followers,
+        following: person?.following ?? null,
+        followers: person?.followers ?? null,
         inbox: person.inbox,
-        outbox: person.outbox,
-        sharedInbox: person.endpoints?.sharedInbox ?? person.inbox
+        outbox: person?.outbox ?? null,
+        sharedInbox: person.endpoints?.sharedInbox ?? person.outbox
+      },
+
+      urls: {
+        followers: getOrderCollectionFirstPage(followers),
+        following: getOrderCollectionFirstPage(following),
+        posts: getOrderCollectionFirstPage(posts)
       },
 
       createdAt: new Date(person.published).getTime()
     }
-  }
-
-  const [followers, following, posts] = await Promise.all([
-    person.followers
-      ? request({
-          url: person.followers,
-          headers: { Accept: DEFAULT_ACCEPT }
-        }).then((res) =>
-          res.statusCode === 200
-            ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-            : null
-        )
-      : null,
-    person.following
-      ? request({
-          url: person.following,
-          headers: { Accept: DEFAULT_ACCEPT }
-        }).then((res) =>
-          res.statusCode === 200
-            ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-            : null
-        )
-      : null,
-    person.outbox
-      ? request({
-          url: person.outbox,
-          headers: { Accept: DEFAULT_ACCEPT }
-        }).then((res) =>
-          res.statusCode === 200
-            ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-            : null
-        )
-      : null
-  ])
-
-  span.end()
-  return {
-    id: person.id,
-    username: person.preferredUsername,
-    domain: new URL(person.id).hostname,
-    ...(person.icon ? { icon: person.icon } : null),
-    url: person.url ?? person.id,
-    name: person.name || '',
-    summary: person.summary || '',
-
-    ...(withPublicKey ? { publicKey: person.publicKey.publicKeyPem } : null),
-
-    followersCount: followers?.totalItems || 0,
-    followingCount: following?.totalItems || 0,
-    totalPosts: posts?.totalItems || 0,
-
-    endpoints: {
-      following: person?.following ?? null,
-      followers: person?.followers ?? null,
-      inbox: person.inbox,
-      outbox: person?.outbox ?? null,
-      sharedInbox: person.endpoints?.sharedInbox ?? person.outbox
-    },
-
-    urls: {
-      followers: getOrderCollectionFirstPage(followers),
-      following: getOrderCollectionFirstPage(following),
-      posts: getOrderCollectionFirstPage(posts)
-    },
-
-    createdAt: new Date(person.published).getTime()
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
+    span.end()
+    return null
   }
 }
 
@@ -280,41 +290,49 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
     postsUrl
   })
 
-  const { statusCode, body } = await request({
-    url: postsUrl,
-    headers: { Accept: DEFAULT_ACCEPT }
-  })
-  if (statusCode !== 200) {
+  try {
+    const { statusCode, body } = await request({
+      url: postsUrl,
+      headers: { Accept: DEFAULT_ACCEPT }
+    })
+    if (statusCode !== 200) {
+      span.end()
+      return []
+    }
+
+    const json: OrderedCollectionPage = JSON.parse(body)
+    const items = json.orderedItems || []
+
+    const statusData = await Promise.all(
+      items.map(async (item) => {
+        if (item.type === AnnounceAction) {
+          const note = await getStatus({ statusId: item.object })
+          if (!note) return null
+          const originalStatus = Status.fromNote(note)
+          return Status.fromAnnoucne(
+            item,
+            originalStatus.data as StatusNote
+          ).toJson()
+        }
+
+        // Unsupported activity
+        if (item.type !== CreateAction) return null
+        // Unsupported Object
+        if (item.object.type !== 'Note') return null
+
+        return Status.fromNote(item.object).toJson()
+      })
+    )
+
+    span.end()
+    return statusData.filter((item): item is StatusData => item !== null)
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
     span.end()
     return []
   }
-
-  const json: OrderedCollectionPage = JSON.parse(body)
-  const items = json.orderedItems || []
-
-  const statusData = await Promise.all(
-    items.map(async (item) => {
-      if (item.type === AnnounceAction) {
-        const note = await getStatus({ statusId: item.object })
-        if (!note) return null
-        const originalStatus = Status.fromNote(note)
-        return Status.fromAnnoucne(
-          item,
-          originalStatus.data as StatusNote
-        ).toJson()
-      }
-
-      // Unsupported activity
-      if (item.type !== CreateAction) return null
-      // Unsupported Object
-      if (item.object.type !== 'Note') return null
-
-      return Status.fromNote(item.object).toJson()
-    })
-  )
-
-  span.end()
-  return statusData.filter((item): item is StatusData => item !== null)
 }
 
 interface GetStatusParams {
@@ -326,13 +344,20 @@ export const getStatus = async ({
   const span = getSpan('activities', 'getStatus', {
     statusId
   })
-  const { statusCode, body } = await request({
-    url: statusId,
-    headers: { Accept: DEFAULT_ACCEPT }
-  })
-  span.end()
-  if (statusCode !== 200) return null
-  return JSON.parse(body)
+  try {
+    const { statusCode, body } = await request({
+      url: statusId,
+      headers: { Accept: DEFAULT_ACCEPT }
+    })
+    span.end()
+    if (statusCode !== 200) return null
+    return JSON.parse(body)
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
+    return null
+  }
 }
 
 interface SendNoteParams {
@@ -360,16 +385,23 @@ export const sendNote = async ({
     object: note
   }
   const method = 'POST'
-  await request({
-    url: inbox,
-    method,
-    headers: {
-      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-      Accept: DEFAULT_ACCEPT
-    },
-    body: JSON.stringify(activity)
-  })
-  span.end()
+  try {
+    await request({
+      url: inbox,
+      method,
+      headers: {
+        ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+        Accept: DEFAULT_ACCEPT
+      },
+      body: JSON.stringify(activity)
+    })
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
+  } finally {
+    span.end()
+  }
 }
 
 interface SendUpdateNoteParams {
@@ -404,16 +436,23 @@ export const sendUpdateNote = async ({
     object: note
   }
   const method = 'POST'
-  await request({
-    url: inbox,
-    method,
-    headers: {
-      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-      Accept: DEFAULT_ACCEPT
-    },
-    body: JSON.stringify(activity)
-  })
-  span.end()
+  try {
+    await request({
+      url: inbox,
+      method,
+      headers: {
+        ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+        Accept: DEFAULT_ACCEPT
+      },
+      body: JSON.stringify(activity)
+    })
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
+  } finally {
+    span.end()
+  }
 }
 
 interface SendAnnounceParams {
@@ -445,16 +484,23 @@ export const sendAnnounce = async ({
     object: status.data.originalStatus.id
   }
   const method = 'POST'
-  await request({
-    url: inbox,
-    headers: {
-      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-      Accept: DEFAULT_ACCEPT
-    },
-    method,
-    body: JSON.stringify(activity)
-  })
-  span.end()
+  try {
+    await request({
+      url: inbox,
+      headers: {
+        ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+        Accept: DEFAULT_ACCEPT
+      },
+      method,
+      body: JSON.stringify(activity)
+    })
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
+  } finally {
+    span.end()
+  }
 }
 
 interface DeleteStatusParams {
@@ -496,8 +542,10 @@ export const deleteStatus = async ({
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     console.error(nodeError.message)
+    console.error(nodeError.stack)
+  } finally {
+    span.end()
   }
-  span.end()
 }
 
 interface UndoAnnounceParams {
@@ -531,16 +579,23 @@ export const undoAnnounce = async ({
     }
   }
   const method = 'POST'
-  await request({
-    url: inbox,
-    method,
-    headers: {
-      ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
-      Accept: DEFAULT_ACCEPT
-    },
-    body: JSON.stringify(activity)
-  })
-  span.end()
+  try {
+    await request({
+      url: inbox,
+      method,
+      headers: {
+        ...signedHeaders(currentActor, method.toLowerCase(), inbox, activity),
+        Accept: DEFAULT_ACCEPT
+      },
+      body: JSON.stringify(activity)
+    })
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
+  } finally {
+    span.end()
+  }
 }
 
 export const follow = async (
@@ -568,22 +623,30 @@ export const follow = async (
   }
 
   const method = 'POST'
-  const { statusCode } = await request({
-    url: targetInbox,
-    method,
-    headers: {
-      ...signedHeaders(
-        currentActor,
-        method.toLowerCase(),
-        targetInbox,
-        activity
-      ),
-      Accept: DEFAULT_ACCEPT
-    },
-    body: JSON.stringify(activity)
-  })
-  span.end()
-  return statusCode === 202
+  try {
+    const { statusCode } = await request({
+      url: targetInbox,
+      method,
+      headers: {
+        ...signedHeaders(
+          currentActor,
+          method.toLowerCase(),
+          targetInbox,
+          activity
+        ),
+        Accept: DEFAULT_ACCEPT
+      },
+      body: JSON.stringify(activity)
+    })
+    return statusCode === 202
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
+    return false
+  } finally {
+    span.end()
+  }
 }
 
 export const unfollow = async (currentActor: Actor, follow: Follow) => {
@@ -611,22 +674,30 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
     publicProfile?.endpoints.inbox ?? `${follow.targetActorId}/inbox`
 
   const method = 'POST'
-  const { statusCode } = await request({
-    url: targetInbox,
-    headers: {
-      ...signedHeaders(
-        currentActor,
-        method.toLowerCase(),
-        targetInbox,
-        activity
-      ),
-      Accept: DEFAULT_ACCEPT
-    },
-    method,
-    body: JSON.stringify(activity)
-  })
-  span.end()
-  return statusCode === 202
+  try {
+    const { statusCode } = await request({
+      url: targetInbox,
+      headers: {
+        ...signedHeaders(
+          currentActor,
+          method.toLowerCase(),
+          targetInbox,
+          activity
+        ),
+        Accept: DEFAULT_ACCEPT
+      },
+      method,
+      body: JSON.stringify(activity)
+    })
+    return statusCode === 202
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
+    return false
+  } finally {
+    span.end()
+  }
 }
 
 export const acceptFollow = async (
@@ -651,22 +722,30 @@ export const acceptFollow = async (
     }
   }
   const method = 'POST'
-  const { statusCode } = await request({
-    url: followingInbox,
-    method,
-    headers: {
-      ...signedHeaders(
-        currentActor,
-        method.toLowerCase(),
-        followingInbox,
-        activity
-      ),
-      Accept: DEFAULT_ACCEPT
-    },
-    body: JSON.stringify(activity)
-  })
-  span.end()
-  return statusCode === 202
+  try {
+    const { statusCode } = await request({
+      url: followingInbox,
+      method,
+      headers: {
+        ...signedHeaders(
+          currentActor,
+          method.toLowerCase(),
+          followingInbox,
+          activity
+        ),
+        Accept: DEFAULT_ACCEPT
+      },
+      body: JSON.stringify(activity)
+    })
+    return statusCode === 202
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
+    return false
+  } finally {
+    span.end()
+  }
 }
 
 const statusIdHash = (statusId: string) =>
@@ -692,21 +771,28 @@ export const sendLike = async ({ currentActor, status }: LikeParams) => {
     object: status.id
   }
   const method = 'POST'
-  await request({
-    method,
-    url: status.actor.inboxUrl,
-    headers: {
-      ...signedHeaders(
-        currentActor,
-        method.toLowerCase(),
-        status.actor.inboxUrl,
-        activity
-      ),
-      Accept: DEFAULT_ACCEPT
-    },
-    body: JSON.stringify(activity)
-  })
-  span.end()
+  try {
+    await request({
+      method,
+      url: status.actor.inboxUrl,
+      headers: {
+        ...signedHeaders(
+          currentActor,
+          method.toLowerCase(),
+          status.actor.inboxUrl,
+          activity
+        ),
+        Accept: DEFAULT_ACCEPT
+      },
+      body: JSON.stringify(activity)
+    })
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
+  } finally {
+    span.end()
+  }
 }
 
 interface UndoLikeParams {
@@ -737,19 +823,26 @@ export const sendUndoLike = async ({
     }
   }
   const method = 'POST'
-  await request({
-    method,
-    url: status.actor.inboxUrl,
-    headers: {
-      ...signedHeaders(
-        currentActor,
-        method.toLowerCase(),
-        status.actor.inboxUrl,
-        activity
-      ),
-      Accept: DEFAULT_ACCEPT
-    },
-    body: JSON.stringify(activity)
-  })
-  span.end()
+  try {
+    await request({
+      method,
+      url: status.actor.inboxUrl,
+      headers: {
+        ...signedHeaders(
+          currentActor,
+          method.toLowerCase(),
+          status.actor.inboxUrl,
+          activity
+        ),
+        Accept: DEFAULT_ACCEPT
+      },
+      body: JSON.stringify(activity)
+    })
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    console.error(nodeError.message)
+    console.error(nodeError.stack)
+  } finally {
+    span.end()
+  }
 }
