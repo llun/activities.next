@@ -73,7 +73,7 @@ import {
 } from './types/media'
 import {
   CreateApplicationParams,
-  GetApplicationParams,
+  GetApplicationFromNameParams,
   UpdateApplicationParams
 } from './types/oauth2'
 import {
@@ -1486,7 +1486,7 @@ export class SqlStorage implements Storage {
     return application
   }
 
-  async getApplication({ clientName }: GetApplicationParams) {
+  async getApplicationFromName({ clientName }: GetApplicationFromNameParams) {
     const clientData = await this.database('applications')
       .where('clientName', clientName)
       .first()

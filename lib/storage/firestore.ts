@@ -75,7 +75,7 @@ import {
 } from './types/media'
 import {
   CreateApplicationParams,
-  GetApplicationParams,
+  GetApplicationFromNameParams,
   UpdateApplicationParams
 } from './types/oauth2'
 import {
@@ -1530,7 +1530,7 @@ export class FirestoreStorage implements Storage {
     return application
   }
 
-  async getApplication({ clientName }: GetApplicationParams) {
+  async getApplicationFromName({ clientName }: GetApplicationFromNameParams) {
     const snapshot = await this.db
       .collection('applications')
       .where('clientName', '==', clientName)
@@ -1565,13 +1565,11 @@ export class FirestoreStorage implements Storage {
 
       updatedAt: currentTime
     })
-    await this.db
-      .doc(path)
-      .update({
-        ...updatedApplication,
-        scopes: JSON.stringify(scopes),
-        redirectUris: JSON.stringify(redirectUris)
-      })
+    await this.db.doc(path).update({
+      ...updatedApplication,
+      scopes: JSON.stringify(scopes),
+      redirectUris: JSON.stringify(redirectUris)
+    })
     return updatedApplication
   }
 }

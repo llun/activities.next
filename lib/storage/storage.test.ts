@@ -1103,7 +1103,7 @@ describe('Storage', () => {
       })
 
       it('returns existing application in storage', async () => {
-        const application = await storage.getApplication({
+        const application = await storage.getApplicationFromName({
           clientName: 'application1'
         })
         expect(application).toEqual({
@@ -1118,7 +1118,7 @@ describe('Storage', () => {
       })
 
       it('updates application and returns the updated application', async () => {
-        const existingApplication = await storage.getApplication({
+        const existingApplication = await storage.getApplicationFromName({
           clientName: 'application2'
         })
         if (!existingApplication) fail('Application must exists')
@@ -1130,9 +1130,11 @@ describe('Storage', () => {
           scopes: ['read'],
           secret: 'secret'
         })
-        const updatedExistingApplication = await storage.getApplication({
-          clientName: 'application2'
-        })
+        const updatedExistingApplication = await storage.getApplicationFromName(
+          {
+            clientName: 'application2'
+          }
+        )
 
         if (!application) fail('Application must exists')
         expect(application).toEqual(updatedExistingApplication)
