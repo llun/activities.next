@@ -2,6 +2,7 @@
 
 import { FC } from 'react'
 
+import { Button } from '@/lib/components/Button'
 import { OAuth2Application } from '@/lib/models/oauth2/application'
 
 import { SearchParams } from './types'
@@ -25,14 +26,27 @@ export const AuthorizeCard: FC<Props> = ({ searchParams, application }) => {
           </strong>
         </p>
         <h6 className="mb-2 text-body-secondary">Review permissions</h6>
-        <ul>
+        <div className="mb-2">
           {requestedScopes.map((scope) => (
-            <li key={scope}>
-              <input type="checkbox" />
-              {scope}
-            </li>
+            <div key={scope} className="form-check">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                value={scope}
+                id="flexCheckDefault"
+              />
+              <label className="form-check-label" htmlFor="flexCheckDefault">
+                {scope}
+              </label>
+            </div>
           ))}
-        </ul>
+        </div>
+        <div className="row gap-2 px-2">
+          <Button className="col">Approve</Button>
+          <Button className="col" variant="danger">
+            Deny
+          </Button>
+        </div>
       </div>
     </div>
   )
