@@ -14,10 +14,19 @@ export const CreateApplicationParams = z.object({
 })
 export type CreateApplicationParams = z.infer<typeof CreateApplicationParams>
 
-export const GetApplicationParams = z.object({
+export const GetApplicationFromNameParams = z.object({
   clientName: z.string()
 })
-export type GetApplicationParams = z.infer<typeof GetApplicationParams>
+export type GetApplicationFromNameParams = z.infer<
+  typeof GetApplicationFromNameParams
+>
+
+export const GetApplicationFromIdParams = z.object({
+  clientId: z.string()
+})
+export type GetApplicationFromIdParams = z.infer<
+  typeof GetApplicationFromIdParams
+>
 
 export const UpdateApplicationParams = CreateApplicationParams.extend({
   id: z.string()
@@ -28,8 +37,11 @@ export interface OAuth2ApplicationStorage {
   createApplication(
     params: CreateApplicationParams
   ): Promise<OAuth2Application | null>
-  getApplication(
-    params: GetApplicationParams
+  getApplicationFromName(
+    params: GetApplicationFromNameParams
+  ): Promise<OAuth2Application | null>
+  getApplicationFromId(
+    params: GetApplicationFromIdParams
   ): Promise<OAuth2Application | null>
   updateApplication(
     params: UpdateApplicationParams

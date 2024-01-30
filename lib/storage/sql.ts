@@ -73,7 +73,8 @@ import {
 } from './types/media'
 import {
   CreateApplicationParams,
-  GetApplicationParams,
+  GetApplicationFromIdParams,
+  GetApplicationFromNameParams,
   UpdateApplicationParams
 } from './types/oauth2'
 import {
@@ -1486,9 +1487,27 @@ export class SqlStorage implements Storage {
     return application
   }
 
-  async getApplication({ clientName }: GetApplicationParams) {
+  async getApplicationFromName({ clientName }: GetApplicationFromNameParams) {
     const clientData = await this.database('applications')
       .where('clientName', clientName)
+      .first()
+    if (!clientData) return null
+    const application = OAuth2Application.parse({
+      id: clientData.id,
+      clientName: clientData.clientName,
+      secret: clientData.secret,
+      scopes: JSON.parse(clientData.scopes),
+      redirectUris: JSON.parse(clientData.redirectUris),
+      ...(clientData.website ? { website: clientData.website } : null),
+      updatedAt: clientData.updatedAt,
+      createdAt: clientData.createdAt
+    })
+    return application
+  }
+
+  async getApplicationFromId({ clientId }: GetApplicationFromIdParams) {
+    const clientData = await this.database('applications')
+      .where('id', clientId)
       .first()
     if (!clientData) return null
     const application = OAuth2Application.parse({

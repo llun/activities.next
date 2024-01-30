@@ -70,7 +70,9 @@ export const getWebfingerSelf = async (account: string) => {
     }
     return item.href
   } catch (error) {
-    span.recordException(error as Error)
+    const nodeError = error as NodeJS.ErrnoException
+    span.recordException(nodeError)
+    console.error(`[getWebfingerSelf] ${nodeError.message}`)
     return null
   } finally {
     span.end()
@@ -203,7 +205,6 @@ export const getPublicProfile = async ({
         : null
     ])
 
-    span.end()
     return {
       id: person.id,
       username: person.preferredUsername,
@@ -237,10 +238,11 @@ export const getPublicProfile = async ({
     }
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
-    span.end()
+    span.recordException(nodeError)
+    console.error(`[getPublicProfile] ${nodeError.message}`)
     return null
+  } finally {
+    span.end()
   }
 }
 
@@ -324,14 +326,14 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
       })
     )
 
-    span.end()
     return statusData.filter((item): item is StatusData => item !== null)
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
-    span.end()
+    span.recordException(nodeError)
+    console.error(`[getActorPosts] ${nodeError.message}`)
     return []
+  } finally {
+    span.end()
   }
 }
 
@@ -349,14 +351,15 @@ export const getStatus = async ({
       url: statusId,
       headers: { Accept: DEFAULT_ACCEPT }
     })
-    span.end()
     if (statusCode !== 200) return null
     return JSON.parse(body)
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    span.recordException(nodeError)
+    console.error(`[getStatus] ${nodeError.message}`)
     return null
+  } finally {
+    span.end()
   }
 }
 
@@ -397,8 +400,8 @@ export const sendNote = async ({
     })
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    span.recordException(nodeError)
+    console.error(`[sendNote] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -448,8 +451,8 @@ export const sendUpdateNote = async ({
     })
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    span.recordException(nodeError)
+    console.error(`[sendUpdateNote] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -496,8 +499,8 @@ export const sendAnnounce = async ({
     })
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    span.recordException(nodeError)
+    console.error(`[sendAnnounce] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -541,8 +544,8 @@ export const deleteStatus = async ({
     })
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    span.recordException(nodeError)
+    console.error(`[deleteStatus] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -591,8 +594,8 @@ export const undoAnnounce = async ({
     })
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    span.recordException(nodeError)
+    console.error(`[undoAnnounce] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -641,8 +644,8 @@ export const follow = async (
     return statusCode === 202
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    span.recordException(nodeError)
+    console.error(`[follow] ${nodeError.message}`)
     return false
   } finally {
     span.end()
@@ -692,8 +695,8 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
     return statusCode === 202
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    span.recordException(nodeError)
+    console.error(`[unfollow] ${nodeError.message}`)
     return false
   } finally {
     span.end()
@@ -740,8 +743,8 @@ export const acceptFollow = async (
     return statusCode === 202
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    span.recordException(nodeError)
+    console.error(`[acceptFollow] ${nodeError.message}`)
     return false
   } finally {
     span.end()
@@ -788,8 +791,8 @@ export const sendLike = async ({ currentActor, status }: LikeParams) => {
     })
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    span.recordException(nodeError)
+    console.error(`[sendLike] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -840,8 +843,8 @@ export const sendUndoLike = async ({
     })
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    span.recordException(nodeError)
+    console.error(`[sendUndoLike] ${nodeError.message}`)
   } finally {
     span.end()
   }

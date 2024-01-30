@@ -11,7 +11,7 @@ export const createApplication = async (
 ): Promise<PostResponse> => {
   const scopes = request.scopes ?? 'read'
   try {
-    const existingApplication = await storage.getApplication({
+    const existingApplication = await storage.getApplicationFromName({
       clientName: request.client_name
     })
     if (existingApplication) {

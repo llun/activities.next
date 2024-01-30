@@ -75,7 +75,8 @@ import {
 } from './types/media'
 import {
   CreateApplicationParams,
-  GetApplicationParams,
+  GetApplicationFromIdParams,
+  GetApplicationFromNameParams,
   UpdateApplicationParams
 } from './types/oauth2'
 import {
@@ -1530,13 +1531,26 @@ export class FirestoreStorage implements Storage {
     return application
   }
 
-  async getApplication({ clientName }: GetApplicationParams) {
+  async getApplicationFromName({ clientName }: GetApplicationFromNameParams) {
     const snapshot = await this.db
       .collection('applications')
       .where('clientName', '==', clientName)
       .get()
     if (snapshot.size === 0) return null
     const data = snapshot.docs[0].data()
+    return OAuth2Application.parse({
+      ...data,
+      scopes: JSON.parse(data.scopes),
+      redirectUris: JSON.parse(data.redirectUris)
+    })
+  }
+
+  async getApplicationFromId({ clientId }: GetApplicationFromIdParams) {
+    const snapshot = await this.db.doc(`applications/${clientId}`).get()
+    if (!snapshot.exists) return null
+    const data = snapshot.data()
+    if (!data) return null
+
     return OAuth2Application.parse({
       ...data,
       scopes: JSON.parse(data.scopes),
@@ -1565,13 +1579,11 @@ export class FirestoreStorage implements Storage {
 
       updatedAt: currentTime
     })
-    await this.db
-      .doc(path)
-      .update({
-        ...updatedApplication,
-        scopes: JSON.stringify(scopes),
-        redirectUris: JSON.stringify(redirectUris)
-      })
+    await this.db.doc(path).update({
+      ...updatedApplication,
+      scopes: JSON.stringify(scopes),
+      redirectUris: JSON.stringify(redirectUris)
+    })
     return updatedApplication
   }
 }
