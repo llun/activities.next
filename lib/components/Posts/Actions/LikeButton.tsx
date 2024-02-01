@@ -83,7 +83,11 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
                       'align-items-start'
                     )}
                   >
-                    <a href={actor.url} target="_blank">
+                    <a
+                      href={actor.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       @{actor.acct}
                     </a>
                   </li>
