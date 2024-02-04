@@ -6,7 +6,7 @@ export const Scopes = z.enum(['read', 'write', 'follow', 'push'])
 export type Scopes = z.infer<typeof Scopes>
 
 export const CreateApplicationParams = z.object({
-  clientName: z.string(),
+  name: z.string(),
   redirectUris: z.string().array(),
   secret: z.string(),
   scopes: Scopes.array(),
@@ -15,7 +15,7 @@ export const CreateApplicationParams = z.object({
 export type CreateApplicationParams = z.infer<typeof CreateApplicationParams>
 
 export const GetApplicationFromNameParams = z.object({
-  clientName: z.string()
+  name: z.string()
 })
 export type GetApplicationFromNameParams = z.infer<
   typeof GetApplicationFromNameParams

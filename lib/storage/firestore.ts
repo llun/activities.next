@@ -1491,7 +1491,7 @@ export class FirestoreStorage implements Storage {
 
   @Trace('db')
   async createApplication({
-    clientName,
+    name,
     redirectUris,
     secret,
     scopes,
@@ -1501,7 +1501,7 @@ export class FirestoreStorage implements Storage {
     const currentTime = Date.now()
     const application = OAuth2Application.parse({
       id,
-      clientName,
+      name,
       secret,
 
       scopes,
@@ -1515,11 +1515,11 @@ export class FirestoreStorage implements Storage {
 
     const existApplication = await this.db
       .collection('applications')
-      .where('clientName', '==', clientName)
+      .where('name', '==', name)
       .count()
       .get()
     if (existApplication.data().count) {
-      throw new Error(`Application ${clientName} is already exists`)
+      throw new Error(`Application ${name} is already exists`)
     }
 
     await this.db.doc(`applications/${id}`).set({
@@ -1531,10 +1531,10 @@ export class FirestoreStorage implements Storage {
     return application
   }
 
-  async getApplicationFromName({ clientName }: GetApplicationFromNameParams) {
+  async getApplicationFromName({ name }: GetApplicationFromNameParams) {
     const snapshot = await this.db
       .collection('applications')
-      .where('clientName', '==', clientName)
+      .where('name', '==', name)
       .get()
     if (snapshot.size === 0) return null
     const data = snapshot.docs[0].data()
@@ -1559,7 +1559,7 @@ export class FirestoreStorage implements Storage {
   }
 
   async updateApplication(params: UpdateApplicationParams) {
-    const { id, clientName, secret, website, scopes, redirectUris } =
+    const { id, name, secret, website, scopes, redirectUris } =
       UpdateApplicationParams.parse(params)
     const path = `applications/${id}`
     const doc = await this.db.doc(path).get()
@@ -1569,7 +1569,7 @@ export class FirestoreStorage implements Storage {
     const data = doc.data()
     const updatedApplication = OAuth2Application.parse({
       ...data,
-      clientName,
+      name,
       secret,
 
       scopes,

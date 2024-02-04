@@ -1454,21 +1454,21 @@ export class SqlStorage implements Storage {
   }
 
   async createApplication(params: CreateApplicationParams) {
-    const { clientName, redirectUris, secret, scopes, ...rest } =
+    const { name, redirectUris, secret, scopes, ...rest } =
       CreateApplicationParams.parse(params)
     const clientNameCountResult = await this.database('applications')
-      .where('clientName', clientName)
+      .where('name', name)
       .count<{ count: number }>('id as count')
       .first()
     if (clientNameCountResult?.count && clientNameCountResult?.count > 0) {
-      throw new Error(`Application ${clientName} is already exists`)
+      throw new Error(`Application ${name} is already exists`)
     }
 
     const id = crypto.randomUUID()
     const currentTime = Date.now()
     const application = OAuth2Application.parse({
       id,
-      clientName,
+      name,
       secret,
 
       scopes,
@@ -1487,14 +1487,14 @@ export class SqlStorage implements Storage {
     return application
   }
 
-  async getApplicationFromName({ clientName }: GetApplicationFromNameParams) {
+  async getApplicationFromName({ name }: GetApplicationFromNameParams) {
     const clientData = await this.database('applications')
-      .where('clientName', clientName)
+      .where('name', name)
       .first()
     if (!clientData) return null
     const application = OAuth2Application.parse({
       id: clientData.id,
-      clientName: clientData.clientName,
+      name: clientData.name,
       secret: clientData.secret,
       scopes: JSON.parse(clientData.scopes),
       redirectUris: JSON.parse(clientData.redirectUris),
@@ -1512,7 +1512,7 @@ export class SqlStorage implements Storage {
     if (!clientData) return null
     const application = OAuth2Application.parse({
       id: clientData.id,
-      clientName: clientData.clientName,
+      name: clientData.name,
       secret: clientData.secret,
       scopes: JSON.parse(clientData.scopes),
       redirectUris: JSON.parse(clientData.redirectUris),
@@ -1524,7 +1524,7 @@ export class SqlStorage implements Storage {
   }
 
   async updateApplication(params: UpdateApplicationParams) {
-    const { id, clientName, secret, scopes, redirectUris, ...rest } =
+    const { id, name, secret, scopes, redirectUris, ...rest } =
       UpdateApplicationParams.parse(params)
     const application = await this.database('applications')
       .where('id', id)
@@ -1534,7 +1534,7 @@ export class SqlStorage implements Storage {
     const currentTime = Date.now()
     const updatedApplication = OAuth2Application.parse({
       id: application.id,
-      clientName,
+      name,
       secret,
       scopes,
       redirectUris,

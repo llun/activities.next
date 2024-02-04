@@ -1051,7 +1051,7 @@ describe('Storage', () => {
 
       beforeAll(async () => {
         const application1 = (await storage.createApplication({
-          clientName: 'application1',
+          name: 'application1',
           redirectUris: ['https://application1.llun.dev/oauth/redirect'],
           scopes: ['read'],
           secret: 'secret'
@@ -1059,7 +1059,7 @@ describe('Storage', () => {
         application1Id = application1.id
 
         await storage.createApplication({
-          clientName: 'application2',
+          name: 'application2',
           redirectUris: ['https://application2.llun.dev/oauth/redirect'],
           scopes: ['read', 'write'],
           secret: 'secret'
@@ -1068,14 +1068,14 @@ describe('Storage', () => {
 
       it('add application record and return application model', async () => {
         const application = await storage.createApplication({
-          clientName: 'application3',
+          name: 'application3',
           redirectUris: ['https://application3.llun.dev/oauth/redirect'],
           scopes: ['read', 'write'],
           secret: 'some random secret'
         })
         expect(application).toEqual({
           id: expect.toBeString(),
-          clientName: 'application3',
+          name: 'application3',
           secret: 'some random secret',
           scopes: ['read', 'write'],
           redirectUris: ['https://application3.llun.dev/oauth/redirect'],
@@ -1087,7 +1087,7 @@ describe('Storage', () => {
       it('returns null when failed validation', async () => {
         await expect(
           storage.createApplication({
-            clientName: 'application2',
+            name: 'application2',
             redirectUris: ['somerandomstring'],
             scopes: ['read', 'write'],
             secret: 'some random secret'
@@ -1098,7 +1098,7 @@ describe('Storage', () => {
       it('returns null when application name is already exists', async () => {
         await expect(
           storage.createApplication({
-            clientName: 'application1',
+            name: 'application1',
             redirectUris: ['https://application1.llun.dev/oauth/redirect'],
             scopes: ['read', 'write'],
             secret: 'some random secret'
@@ -1108,11 +1108,11 @@ describe('Storage', () => {
 
       it('returns existing application in storage when get it from name', async () => {
         const application = await storage.getApplicationFromName({
-          clientName: 'application1'
+          name: 'application1'
         })
         expect(application).toEqual({
           id: expect.toBeString(),
-          clientName: 'application1',
+          name: 'application1',
           secret: 'secret',
           scopes: ['read'],
           redirectUris: ['https://application1.llun.dev/oauth/redirect'],
@@ -1127,7 +1127,7 @@ describe('Storage', () => {
         })
         expect(application).toEqual({
           id: expect.toBeString(),
-          clientName: 'application1',
+          name: 'application1',
           secret: 'secret',
           scopes: ['read'],
           redirectUris: ['https://application1.llun.dev/oauth/redirect'],
@@ -1138,20 +1138,20 @@ describe('Storage', () => {
 
       it('updates application and returns the updated application', async () => {
         const existingApplication = await storage.getApplicationFromName({
-          clientName: 'application2'
+          name: 'application2'
         })
         if (!existingApplication) fail('Application must exists')
 
         const application = await storage.updateApplication({
           id: existingApplication.id,
-          clientName: 'application2',
+          name: 'application2',
           redirectUris: ['https://application2.llun.dev/oauth/redirect'],
           scopes: ['read'],
           secret: 'secret'
         })
         const updatedExistingApplication = await storage.getApplicationFromName(
           {
-            clientName: 'application2'
+            name: 'application2'
           }
         )
 
