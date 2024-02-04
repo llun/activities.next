@@ -5,6 +5,15 @@ import { OAuth2Application } from '@/lib/models/oauth2/application'
 export const Scopes = z.enum(['read', 'write', 'follow', 'push'])
 export type Scopes = z.infer<typeof Scopes>
 
+export const GrantIdentifiers = z.enum([
+  'authorization_code',
+  'client_credentials',
+  'refresh_token',
+  'password',
+  'implicit'
+])
+export type GrantIdentifiers = z.infer<typeof GrantIdentifiers>
+
 export const CreateApplicationParams = z.object({
   name: z.string(),
   redirectUris: z.string().array(),

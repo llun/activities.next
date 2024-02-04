@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { Scopes } from '@/lib/storage/types/oauth2'
+import { GrantIdentifiers, Scopes } from '@/lib/storage/types/oauth2'
 
 export const OAuth2Application = z.object({
   id: z.string(),
@@ -10,6 +10,10 @@ export const OAuth2Application = z.object({
   scopes: Scopes.array()
     .default(['read'])
     .transform((value) => value.map((scope) => ({ name: scope }))),
+  allowedGrants: GrantIdentifiers.array().default([
+    'authorization_code',
+    'refresh_token'
+  ]),
   website: z.string().optional(),
 
   createdAt: z.number(),
