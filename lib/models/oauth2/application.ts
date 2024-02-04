@@ -4,10 +4,12 @@ import { Scopes } from '@/lib/storage/types/oauth2'
 
 export const OAuth2Application = z.object({
   id: z.string(),
-  clientName: z.string(),
+  name: z.string(),
   secret: z.string(),
   redirectUris: z.string().url().array().min(1),
-  scopes: Scopes.array().default(['read']),
+  scopes: Scopes.array()
+    .default(['read'])
+    .transform((value) => value.map((scope) => ({ name: scope }))),
   website: z.string().optional(),
 
   createdAt: z.number(),
