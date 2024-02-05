@@ -1,17 +1,21 @@
 import { z } from 'zod'
 
+import { Scopes } from '@/lib/storage/types/oauth2'
+
 export const OAuth2Token = z.object({
-  ownerId: z.string(),
-  ownerType: z.string(),
-  applicationUid: z.string(),
-  tenantName: z.string(),
+  accessToken: z.string(),
+  accessTokenExpiresAt: z.number().transform((value) => new Date(value)),
 
-  scopes: z.string().array(),
-  token: z.string(),
-  refreshToken: z.string(),
-  previousRefreshToken: z.string(),
+  refreshToken: z.string().nullish(),
+  refreshTokenExpiresAt: z
+    .number()
+    .nullish()
+    .transform((value) => (value ? new Date(value) : null)),
 
-  expiresIn: z.number(),
+  applicationId: z.string(),
+  accountId: z.string(),
+  scopes: Scopes.array(),
+
   createdAt: z.number(),
-  revokedAt: z.number()
+  updatedAt: z.number()
 })
