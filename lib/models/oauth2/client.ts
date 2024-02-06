@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
-import { GrantIdentifiers, Scopes } from '@/lib/storage/types/oauth2'
+import { GrantIdentifiers, Scopes } from '@/lib/storage/types/oauth'
 
-export const OAuth2Application = z.object({
+export const Client = z.object({
   id: z.string(),
   name: z.string(),
   secret: z.string(),
@@ -20,4 +20,4 @@ export const OAuth2Application = z.object({
   updatedAt: z.number()
 })
 
-export type OAuth2Application = z.infer<typeof OAuth2Application>
+export type Client = z.infer<typeof Client>

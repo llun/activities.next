@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import crypto from 'crypto'
 import { Knex, knex } from 'knex'
+import omit from 'lodash/omit'
 
 import { PER_PAGE_LIMIT } from '.'
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
@@ -7,7 +9,7 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
-import { OAuth2Application } from '../models/oauth2/application'
+import { Client } from '../models/oauth2/client'
 import { PollChoice } from '../models/pollChoice'
 import { Session } from '../models/session'
 import {
@@ -72,11 +74,11 @@ import {
   GetAttachmentsParams
 } from './types/media'
 import {
-  CreateApplicationParams,
-  GetApplicationFromIdParams,
-  GetApplicationFromNameParams,
-  UpdateApplicationParams
-} from './types/oauth2'
+  CreateClientParams,
+  GetClientFromIdParams,
+  GetClientFromNameParams,
+  UpdateClientParams
+} from './types/oauth'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -1453,20 +1455,20 @@ export class SqlStorage implements Storage {
     }
   }
 
-  async createApplication(params: CreateApplicationParams) {
+  async createClient(params: CreateClientParams) {
     const { name, redirectUris, secret, scopes, ...rest } =
-      CreateApplicationParams.parse(params)
-    const clientNameCountResult = await this.database('applications')
+      CreateClientParams.parse(params)
+    const clientNameCountResult = await this.database('clients')
       .where('name', name)
       .count<{ count: number }>('id as count')
       .first()
     if (clientNameCountResult?.count && clientNameCountResult?.count > 0) {
-      throw new Error(`Application ${name} is already exists`)
+      throw new Error(`Client ${name} is already exists`)
     }
 
     const id = crypto.randomUUID()
     const currentTime = Date.now()
-    const application = OAuth2Application.parse({
+    const client = Client.parse({
       id,
       name,
       secret,
@@ -1479,20 +1481,20 @@ export class SqlStorage implements Storage {
       createdAt: currentTime,
       updatedAt: currentTime
     })
-    await this.database('applications').insert({
-      ...application,
+    await this.database('clients').insert({
+      ...omit(client, ['allowedGrants']),
       scopes: JSON.stringify(scopes),
       redirectUris: JSON.stringify(redirectUris)
     })
-    return application
+    return client
   }
 
-  async getApplicationFromName({ name }: GetApplicationFromNameParams) {
-    const clientData = await this.database('applications')
+  async getClientFromName({ name }: GetClientFromNameParams) {
+    const clientData = await this.database('clients')
       .where('name', name)
       .first()
     if (!clientData) return null
-    const application = OAuth2Application.parse({
+    const client = Client.parse({
       id: clientData.id,
       name: clientData.name,
       secret: clientData.secret,
@@ -1502,15 +1504,15 @@ export class SqlStorage implements Storage {
       updatedAt: clientData.updatedAt,
       createdAt: clientData.createdAt
     })
-    return application
+    return client
   }
 
-  async getApplicationFromId({ clientId }: GetApplicationFromIdParams) {
-    const clientData = await this.database('applications')
+  async getClientFromId({ clientId }: GetClientFromIdParams) {
+    const clientData = await this.database('clients')
       .where('id', clientId)
       .first()
     if (!clientData) return null
-    const application = OAuth2Application.parse({
+    const client = Client.parse({
       id: clientData.id,
       name: clientData.name,
       secret: clientData.secret,
@@ -1520,35 +1522,33 @@ export class SqlStorage implements Storage {
       updatedAt: clientData.updatedAt,
       createdAt: clientData.createdAt
     })
-    return application
+    return client
   }
 
-  async updateApplication(params: UpdateApplicationParams) {
+  async updateClient(params: UpdateClientParams) {
     const { id, name, secret, scopes, redirectUris, ...rest } =
-      UpdateApplicationParams.parse(params)
-    const application = await this.database('applications')
-      .where('id', id)
-      .first()
-    if (!application) return null
+      UpdateClientParams.parse(params)
+    const client = await this.database('clients').where('id', id).first()
+    if (!client) return null
 
     const currentTime = Date.now()
-    const updatedApplication = OAuth2Application.parse({
-      id: application.id,
+    const updatedClient = Client.parse({
+      id: client.id,
       name,
       secret,
       scopes,
       redirectUris,
       ...(rest.website ? { website: rest.website } : null),
       updatedAt: currentTime,
-      createdAt: application.createdAt
+      createdAt: client.createdAt
     })
-    await this.database('applications')
+    await this.database('clients')
       .where('id', id)
       .update({
-        ...updatedApplication,
-        scopes: JSON.stringify(updatedApplication.scopes),
-        redirectUris: JSON.stringify(updatedApplication.redirectUris)
+        ...omit(updatedClient, ['allowedGrants']),
+        scopes: JSON.stringify(updatedClient.scopes.map((scope) => scope.name)),
+        redirectUris: JSON.stringify(updatedClient.redirectUris)
       })
-    return updatedApplication
+    return updatedClient
   }
 }

@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
-import { Scopes } from '@/lib/storage/types/oauth2'
+import { Scopes } from '@/lib/storage/types/oauth'
 
-export const OAuth2Token = z.object({
+export const Token = z.object({
   accessToken: z.string(),
   accessTokenExpiresAt: z.number().transform((value) => new Date(value)),
 

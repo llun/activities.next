@@ -22,6 +22,7 @@ exports.up = function (knex) {
       table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
       table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
     })
+    .renameTable('applications', 'clients')
 }
 
 /**
@@ -30,6 +31,7 @@ exports.up = function (knex) {
  */
 exports.down = function (knex) {
   return knex.schema
+    .renameTable('clients', 'applications')
     .alterTable('applications', function (table) {
       table.renameColumn('name', 'clientName')
     })

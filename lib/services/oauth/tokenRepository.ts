@@ -1,11 +1,14 @@
 import {
+  DateInterval,
   OAuthClient,
   OAuthScope,
   OAuthToken,
   OAuthTokenRepository,
-  OAuthUser
+  OAuthUser,
+  generateRandomToken
 } from '@jmondi/oauth2-server'
 
+import { Token } from '@/lib/models/oauth2/token'
 import { Storage } from '@/lib/storage/types'
 
 export class TokenRepository implements OAuthTokenRepository {
@@ -25,7 +28,16 @@ export class TokenRepository implements OAuthTokenRepository {
     scopes: OAuthScope[],
     user?: OAuthUser
   ): Promise<OAuthToken> {
-    console.log('issueToken', client, scopes, user)
+    const token = Token.parse({
+      accessToken: generateRandomToken(),
+      accessTokenExpiresAt: new DateInterval('30d').getEndDate(),
+      refreshToken: null,
+      refreshTokenExpiresAt: null,
+      clientId: client.id,
+      accountId: user?.id,
+      scopes: scopes.map((scope) => scope.name)
+    })
+    console.log('issueToken', token)
     throw new Error('No implementation')
   }
 

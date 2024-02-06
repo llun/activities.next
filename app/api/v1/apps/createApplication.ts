@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 
 import { Storage } from '@/lib/storage/types'
-import { Scopes } from '@/lib/storage/types/oauth2'
+import { Scopes } from '@/lib/storage/types/oauth'
 
 import { PostRequest, PostResponse } from './types'
 

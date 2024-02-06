@@ -3,7 +3,7 @@
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/Button'
-import { OAuth2Application } from '@/lib/models/oauth2/application'
+import { OAuth2Application } from '@/lib/models/oauth2/client'
 
 import { SearchParams } from './types'
 
