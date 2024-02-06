@@ -4,7 +4,6 @@ import {
   OAuthScope,
   OAuthToken,
   OAuthTokenRepository,
-  OAuthUser,
   generateRandomToken
 } from '@jmondi/oauth2-server'
 
@@ -25,20 +24,19 @@ export class TokenRepository implements OAuthTokenRepository {
 
   async issueToken(
     client: OAuthClient,
-    scopes: OAuthScope[],
-    user?: OAuthUser
+    scopes: OAuthScope[]
   ): Promise<OAuthToken> {
-    const token = Token.parse({
+    const currentTime = Date.now()
+    return Token.parse({
       accessToken: generateRandomToken(),
       accessTokenExpiresAt: new DateInterval('30d').getEndDate(),
       refreshToken: null,
       refreshTokenExpiresAt: null,
-      clientId: client.id,
-      accountId: user?.id,
-      scopes: scopes.map((scope) => scope.name)
+      client,
+      scopes: scopes.map((scope) => scope.name),
+      createdAt: currentTime,
+      updatedAt: currentTime
     })
-    console.log('issueToken', token)
-    throw new Error('No implementation')
   }
 
   async getByRefreshToken(refreshToken: string): Promise<OAuthToken> {
