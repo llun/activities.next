@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { Client } from '@/lib/models/oauth2/client'
+import { Token } from '@/lib/models/oauth2/token'
 
 export const Scopes = z.enum(['read', 'write', 'follow', 'push'])
 export type Scopes = z.infer<typeof Scopes>
@@ -38,9 +39,33 @@ export const UpdateClientParams = CreateClientParams.extend({
 })
 export type UpdateClientParams = z.infer<typeof UpdateClientParams>
 
+export const GetAccessTokenParams = z.object({
+  accessToken: z.string()
+})
+
+export type GetAccessTokenParams = z.infer<typeof GetAccessTokenParams>
+
+export const CreateAccessTokenParams = z.object({
+  accessToken: z.string(),
+  accessTokenExpiresAt: z.number(),
+
+  refreshToken: z.string().nullish(),
+  refreshTokenExpiresAt: z.string().nullish(),
+
+  clientId: z.string(),
+  scopes: Scopes.array(),
+
+  actorId: z.string(),
+  accountId: z.string()
+})
+export type CreateAccessTokenParams = z.infer<typeof CreateAccessTokenParams>
+
 export interface OAuthStorage {
   createClient(params: CreateClientParams): Promise<Client | null>
   getClientFromName(params: GetClientFromNameParams): Promise<Client | null>
   getClientFromId(params: GetClientFromIdParams): Promise<Client | null>
   updateClient(params: UpdateClientParams): Promise<Client | null>
+
+  getAccessToken(params: GetAccessTokenParams): Promise<Token | null>
+  createAccessToken(params: CreateAccessTokenParams): Promise<Token | null>
 }

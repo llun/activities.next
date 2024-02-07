@@ -10,6 +10,8 @@ import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
 import { Client } from '../models/oauth2/client'
+import { Token } from '../models/oauth2/token'
+import { User } from '../models/oauth2/user'
 import { PollChoice } from '../models/pollChoice'
 import { Session } from '../models/session'
 import {
@@ -74,7 +76,9 @@ import {
   GetAttachmentsParams
 } from './types/media'
 import {
+  CreateAccessTokenParams,
   CreateClientParams,
+  GetAccessTokenParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
   UpdateClientParams
@@ -1550,5 +1554,74 @@ export class SqlStorage implements Storage {
         redirectUris: JSON.stringify(updatedClient.redirectUris)
       })
     return updatedClient
+  }
+
+  async getAccessToken({ accessToken }: GetAccessTokenParams) {
+    const data = await this.database('tokens')
+      .where('accessToken', accessToken)
+      .first()
+    if (!data) return null
+
+    const [client, actor, account] = await Promise.all([
+      this.getClientFromId({ clientId: data.clientId }),
+      this.getActorFromId({ id: data.actorId }),
+      this.getAccountFromId({ id: data.accountId })
+    ])
+
+    return Token.parse({
+      accessToken: data.accessToken,
+      accessTokenExpiresAt: data.accessTokenExpiresAt,
+
+      ...(data.refreshToken ? { refreshToken: data.refreshToken } : null),
+      ...(data.refreshTokenExpiresAt
+        ? { refreshTokenExpiresAt: data.refreshTokenExpiresAt }
+        : null),
+
+      scopes: JSON.parse(data.scopes),
+
+      client,
+      user: User.parse({
+        id: account?.id,
+        actor,
+        account
+      }),
+
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt
+    })
+  }
+
+  async createAccessToken(params: CreateAccessTokenParams) {
+    const {
+      accessToken,
+      accessTokenExpiresAt,
+      refreshToken,
+      refreshTokenExpiresAt,
+      clientId,
+      scopes,
+      actorId,
+      accountId
+    } = CreateAccessTokenParams.parse(params)
+    const currentTime = Date.now()
+    const tokenCountResult = await this.database('tokens')
+      .where('accessToken', accessToken)
+      .count<{ count: number }>('id as count')
+      .first()
+    if (tokenCountResult?.count && tokenCountResult?.count > 0) return null
+
+    const token = {
+      accessToken,
+      accessTokenExpiresAt,
+      ...(refreshToken ? { refreshToken } : null),
+      ...(refreshTokenExpiresAt ? { refreshTokenExpiresAt } : null),
+      scopes: JSON.stringify(scopes),
+      clientId,
+      actorId,
+      accountId,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
+    await this.database('tokens').insert(token)
+    return this.getAccessToken({ accessToken })
   }
 }

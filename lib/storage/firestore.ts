@@ -7,6 +7,8 @@ import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
 import { Client } from '../models/oauth2/client'
+import { Token } from '../models/oauth2/token'
+import { User } from '../models/oauth2/user'
 import { PollChoice, PollChoiceData } from '../models/pollChoice'
 import { Session } from '../models/session'
 import {
@@ -74,7 +76,9 @@ import {
   Media
 } from './types/media'
 import {
+  CreateAccessTokenParams,
   CreateClientParams,
+  GetAccessTokenParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
   UpdateClientParams
@@ -1588,5 +1592,72 @@ export class FirestoreStorage implements Storage {
       redirectUris: JSON.stringify(redirectUris)
     })
     return updatedApplication
+  }
+
+  @Trace('db')
+  async getAccessToken({ accessToken }: GetAccessTokenParams) {
+    const snapshot = await this.db.doc(`accessTokens/${accessToken}`).get()
+    if (!snapshot.exists) return null
+    const data = snapshot.data()
+    if (!data) return null
+
+    const [client, actor, account] = await Promise.all([
+      this.getClientFromId({ clientId: data.clientId }),
+      this.getActorFromId({ id: data.actorId }),
+      this.getAccountFromId({ id: data.accountId })
+    ])
+
+    return Token.parse({
+      accessToken: data.accessToken,
+      accessTokenExpiresAt: data.accessTokenExpiresAt,
+
+      ...(data.refreshToken ? { refreshToken: data.refreshToken } : null),
+      ...(data.refreshTokenExpiresAt
+        ? { refreshTokenExpiresAt: data.refreshTokenExpiresAt }
+        : null),
+
+      scopes: JSON.parse(data.scopes),
+
+      client,
+      user: User.parse({
+        id: account?.id,
+        actor,
+        account
+      }),
+
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt
+    })
+  }
+
+  @Trace('db')
+  async createAccessToken(params: CreateAccessTokenParams) {
+    const {
+      accessToken,
+      accessTokenExpiresAt,
+      refreshToken,
+      refreshTokenExpiresAt,
+      clientId,
+      scopes,
+      actorId,
+      accountId
+    } = CreateAccessTokenParams.parse(params)
+    const currentTime = Date.now()
+    const snapshot = await this.db.doc(`accessTokens/${accessToken}`).get()
+    if (!snapshot.exists) return null
+
+    await this.db.doc(`accessTokens/${accessToken}`).set({
+      accessToken,
+      accessTokenExpiresAt,
+      ...(refreshToken ? { refreshToken } : null),
+      ...(refreshTokenExpiresAt ? { refreshTokenExpiresAt } : null),
+      scopes: JSON.stringify(scopes),
+      clientId,
+      actorId,
+      accountId,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+    return this.getAccessToken({ accessToken })
   }
 }
