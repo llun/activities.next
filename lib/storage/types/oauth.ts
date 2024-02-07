@@ -50,7 +50,7 @@ export const CreateAccessTokenParams = z.object({
   accessTokenExpiresAt: z.number(),
 
   refreshToken: z.string().nullish(),
-  refreshTokenExpiresAt: z.string().nullish(),
+  refreshTokenExpiresAt: z.number().nullish(),
 
   clientId: z.string(),
   scopes: Scopes.array(),
