@@ -14,7 +14,8 @@ exports.up = function (knex) {
       table.timestamp('accessTokenExpiresAt', { useTz: true })
       table.timestamp('refreshTokenExpiresAt', { useTz: true }).nullable()
 
-      table.string('applicationId')
+      table.string('clientId')
+      table.string('actorId')
       table.string('accountId')
 
       table.json('scopes')
