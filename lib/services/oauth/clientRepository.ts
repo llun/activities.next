@@ -14,7 +14,7 @@ export class ClientRepository implements OAuthClientRepository {
   }
 
   async getByIdentifier(clientId: string): Promise<OAuthClient> {
-    const application = await this.storage.getApplicationFromId({ clientId })
+    const application = await this.storage.getClientFromId({ clientId })
     if (!application) {
       throw new Error('Application is not exists')
     }

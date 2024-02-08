@@ -29,12 +29,12 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return notFound()
   }
 
-  const [actor, application] = await Promise.all([
+  const [actor, client] = await Promise.all([
     getActorFromSession(storage, session),
-    storage.getApplicationFromId({ clientId: searchParams.client_id })
+    storage.getClientFromId({ clientId: searchParams.client_id })
   ])
 
-  if (!application) {
+  if (!client) {
     return notFound()
   }
 
@@ -49,7 +49,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
 
   return (
     <div>
-      <AuthorizeCard searchParams={searchParams} application={application} />
+      <AuthorizeCard searchParams={searchParams} client={client} />
     </div>
   )
 }
