@@ -5,6 +5,7 @@ import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '../stub/const'
 import { addStatusToTimelines } from '../timelines'
 import { Timeline } from '../timelines/types'
+import { waitFor } from '../utils/waitFor'
 import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
@@ -113,17 +114,35 @@ describe('Storage', () => {
         privateKey: 'privateKey1',
         publicKey: 'publicKey1'
       })
+
       const idWithAccounts = [3, 4, 5, 6, 7, 8, 11, 12, 14, 15]
-      for (const id of idWithAccounts) {
-        await storage.createAccount({
-          email: `user${id}@llun.dev`,
-          username: `user${id}`,
-          passwordHash: TEST_PASSWORD_HASH,
-          domain: TEST_DOMAIN,
-          privateKey: `privateKey${id}`,
-          publicKey: `publicKey${id}`
+      await Promise.all(
+        idWithAccounts.map((id) =>
+          storage.createAccount({
+            email: `user${id}@llun.dev`,
+            username: `user${id}`,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: `privateKey${id}`,
+            publicKey: `publicKey${id}`
+          })
+        )
+      )
+
+      await Promise.all([
+        storage.createClient({
+          name: 'application1',
+          redirectUris: ['https://application1.llun.dev/oauth/redirect'],
+          scopes: ['read'],
+          secret: 'secret'
+        }),
+        storage.createClient({
+          name: 'application2',
+          redirectUris: ['https://application2.llun.dev/oauth/redirect'],
+          scopes: ['read', 'write'],
+          secret: 'secret'
         })
-      }
+      ])
     })
 
     describe('accounts', () => {
@@ -354,6 +373,8 @@ describe('Storage', () => {
           updatedAt: expect.toBeNumber()
         })
 
+        // Artificial wait because test is too fast, so the updated time is equal to insert sometime.
+        await waitFor(100)
         await storage.updateFollowStatus({
           followId: secondFollow.id,
           status: FollowStatus.enum.Accepted
@@ -616,6 +637,8 @@ describe('Storage', () => {
             cc: [TEST_ID5]
           })
           await addStatusToTimelines(storage, status)
+          // Making sure the timeline is in order.
+          await waitFor(1)
         }
         const statuses = await storage.getTimeline({
           timeline: Timeline.MAIN,
@@ -1047,25 +1070,6 @@ describe('Storage', () => {
     })
 
     describe('clients', () => {
-      let client1Id: string
-
-      beforeAll(async () => {
-        const client1 = (await storage.createClient({
-          name: 'application1',
-          redirectUris: ['https://application1.llun.dev/oauth/redirect'],
-          scopes: ['read'],
-          secret: 'secret'
-        })) as Client
-        client1Id = client1.id
-
-        await storage.createClient({
-          name: 'application2',
-          redirectUris: ['https://application2.llun.dev/oauth/redirect'],
-          scopes: ['read', 'write'],
-          secret: 'secret'
-        })
-      })
-
       it('add client record and return client model', async () => {
         const client = await storage.createClient({
           name: 'application3',
@@ -1107,10 +1111,14 @@ describe('Storage', () => {
         ).rejects.toThrow(`Client application1 is already exists`)
       })
 
-      it('returns existing client in storage when get it from name', async () => {
+      it('returns existing client in storage', async () => {
         const application = await storage.getClientFromName({
           name: 'application1'
         })
+        const withIdApplication = await storage.getClientFromId({
+          clientId: (application as Client).id
+        })
+
         expect(application).toEqual({
           id: expect.toBeString(),
           name: 'application1',
@@ -1121,13 +1129,7 @@ describe('Storage', () => {
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
-      })
-
-      it('returns existing client in storage when get it from id', async () => {
-        const application = await storage.getClientFromId({
-          clientId: client1Id
-        })
-        expect(application).toEqual({
+        expect(withIdApplication).toEqual({
           id: expect.toBeString(),
           name: 'application1',
           secret: 'secret',
