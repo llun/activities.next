@@ -18,7 +18,7 @@ export const Actions: FC<Props> = ({
   host,
   currentActor,
   status,
-  showDeleteAction = false,
+  editable = false,
   showActions = false,
   onReply,
   onEdit,
@@ -61,7 +61,7 @@ export const Actions: FC<Props> = ({
       />
       <LikeButton currentActor={currentActor} status={status} />
       <DeleteButton
-        className={cn({ 'd-none': !showDeleteAction })}
+        className={cn({ 'd-none': !editable })}
         status={status}
         onPostDeleted={onPostDeleted}
       />
@@ -72,7 +72,7 @@ export const Actions: FC<Props> = ({
       />
       <EditButton
         status={status}
-        className={cn({ 'd-none': !showDeleteAction })}
+        className={cn({ 'd-none': !editable })}
         onEdit={onEdit}
       />
     </div>

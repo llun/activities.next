@@ -2,11 +2,13 @@ import cn from 'classnames'
 import { formatDistance } from 'date-fns'
 import { FC } from 'react'
 
+import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
+import { formatText } from '@/lib/utils/text/formatText'
+
 import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
 import { EditableStatusData, StatusData, StatusType } from '../../models/status'
 import { cleanClassName } from '../../utils/text/cleanClassName'
-import { convertTextContent } from '../../utils/text/convertTextContent'
 import { Actions } from './Actions'
 import { Actor } from './Actor'
 import { Attachments } from './Attachments'
@@ -18,7 +20,7 @@ export interface PostProps {
   currentActor?: ActorProfile
   currentTime: Date
   status: StatusData
-  showDeleteAction?: boolean
+  editable?: boolean
   showActions?: boolean
   onReply?: (status: StatusData) => void
   onEdit?: (status: EditableStatusData) => void
@@ -75,7 +77,9 @@ export const Post: FC<PostProps> = (props) => {
       </div>
       <div className={'me-1 text-break'}>
         {cleanClassName(
-          convertTextContent(host, actualStatus.text, actualStatus.tags)
+          status.isLocalActor
+            ? formatText(host, actualStatus.text)
+            : convertEmojisToImages(actualStatus.text, actualStatus.tags)
         )}
       </div>
       <Poll status={actualStatus} currentTime={currentTime} />

@@ -1,9 +1,11 @@
 import cn from 'classnames'
 import { FC } from 'react'
 
+import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
+import { formatText } from '@/lib/utils/text/formatText'
+
 import { StatusData, StatusType } from '../../models/status'
 import { cleanClassName } from '../../utils/text/cleanClassName'
-import { convertTextContent } from '../../utils/text/convertTextContent'
 import { CloseButton } from '../CloseButton'
 import { Actor } from '../Posts/Actor'
 import { Poll } from '../Posts/Poll'
@@ -53,7 +55,9 @@ export const ReplyPreview: FC<Props> = ({ host, status, onClose }) => {
       <div>
         <Actor actorId={status.actorId || ''} />
         {cleanClassName(
-          convertTextContent(host, getText(status), getTags(status))
+          status.isLocalActor
+            ? formatText(host, getText(status))
+            : convertEmojisToImages(getText(status), getTags(status))
         )}
         <Poll status={status} currentTime={new Date()} />
       </div>

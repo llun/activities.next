@@ -793,6 +793,7 @@ export class FirestoreStorage implements Storage {
       totalLikes: 0,
       isActorLiked: false,
       isActorAnnounced: false,
+      isLocalActor: Boolean(actor?.account),
       tags: [],
       replies: [],
       edits: []
@@ -1084,6 +1085,7 @@ export class FirestoreStorage implements Storage {
       totalLikes,
       isActorLiked: isActorLikedStatus,
       isActorAnnounced: isActorAnnouncedStatus,
+      isLocalActor: Boolean(actor?.account),
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,

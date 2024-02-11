@@ -50,6 +50,7 @@ export const StatusNote = StatusBase.extend({
 
   isActorAnnounced: z.boolean(),
   isActorLiked: z.boolean(),
+  isLocalActor: z.boolean(),
   totalLikes: z.number(),
 
   attachments: AttachmentData.array(),
@@ -190,6 +191,7 @@ export class Status {
 
       isActorAnnounced: false,
       isActorLiked: false,
+      isLocalActor: false,
       totalLikes: 0,
 
       createdAt: new Date(note.published).getTime(),

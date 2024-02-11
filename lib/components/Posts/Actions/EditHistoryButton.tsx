@@ -2,9 +2,11 @@ import cn from 'classnames'
 import { formatDistance } from 'date-fns'
 import { FC, useState } from 'react'
 
+import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
+import { formatText } from '@/lib/utils/text/formatText'
+
 import { StatusData, StatusNote, StatusPoll } from '../../../models/status'
 import { cleanClassName } from '../../../utils/text/cleanClassName'
-import { convertTextContent } from '../../../utils/text/convertTextContent'
 import { Button } from '../../Button'
 import styles from './EditHistoryButton.module.scss'
 
@@ -49,7 +51,9 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
                   </div>
                   <div className="me-auto text-start">
                     {cleanClassName(
-                      convertTextContent(host, edit.text, status.tags)
+                      status.isLocalActor
+                        ? formatText(host, edit.text)
+                        : convertEmojisToImages(edit.text, status.tags)
                     )}
                   </div>
                 </li>

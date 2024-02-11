@@ -38,6 +38,7 @@ export const Posts: FC<Props> = ({
 
   if (statuses.length === 0) return null
 
+  console.log(statuses)
   return (
     <section className={cn('w-full', 'grid', 'grid-cols-1', className)}>
       {statuses.map((status, index) => (
@@ -48,7 +49,7 @@ export const Posts: FC<Props> = ({
             currentActor={currentActor}
             status={status}
             showActions={showActions}
-            showDeleteAction={currentActor?.id === status.actorId}
+            editable={currentActor?.id === status.actorId}
             onReply={onReply}
             onEdit={onEdit}
             onPostDeleted={onPostDeleted}

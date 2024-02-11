@@ -741,6 +741,7 @@ export class SqlStorage implements Storage {
       totalLikes: 0,
       isActorLiked: false,
       isActorAnnounced: false,
+      isLocalActor: Boolean(actor?.account),
       createdAt: statusCreatedAt,
       updatedAt: statusUpdatedAt
     })
@@ -1105,6 +1106,7 @@ export class SqlStorage implements Storage {
       totalLikes: totalLikes?.count ?? 0,
       isActorLiked: isActorLikedStatus,
       isActorAnnounced: isActorAnnouncedStatus,
+      isLocalActor: Boolean(actor?.account),
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
       createdAt: data.createdAt,
