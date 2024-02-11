@@ -5,6 +5,7 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { FollowStatus } from '../models/follow'
 import { Client } from '../models/oauth2/client'
+import { Token } from '../models/oauth2/token'
 import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '../stub/const'
 import { addStatusToTimelines } from '../timelines'
@@ -1167,26 +1168,68 @@ describe('Storage', () => {
         expect(client.scopes).toEqual([{ name: 'read' }])
       })
 
-      describe.only('tokens', () => {
-        it('adds token to the repository', async () => {
-          const actor = (await storage.getActorFromEmail({
-            email: TEST_EMAIL
-          })) as Actor
-          const client = (await storage.getClientFromName({
-            name: 'application1'
-          })) as Client
+      describe('tokens', () => {
+        let token: Token | null, actor: Actor | undefined, client: Client | null
 
+        beforeAll(async () => {
+          ;[actor, client] = await Promise.all([
+            storage.getActorFromEmail({
+              email: TEST_EMAIL
+            }),
+            storage.getClientFromName({ name: 'application1' })
+          ])
+
+          token = await storage.createAccessToken({
+            accessToken: generateRandomToken(),
+            accessTokenExpiresAt: new DateInterval('30d')
+              .getEndDate()
+              .getTime(),
+            accountId: (actor?.account as Account).id,
+            actorId: actor?.id as string,
+            clientId: client?.id as string,
+            scopes: ['read']
+          })
+        })
+
+        it('adds token to the repository', async () => {
           const token = await storage.createAccessToken({
             accessToken: generateRandomToken(),
             accessTokenExpiresAt: new DateInterval('30d')
               .getEndDate()
               .getTime(),
-            accountId: (actor.account as Account).id,
-            actorId: actor.id,
-            clientId: client.id,
+            accountId: (actor?.account as Account).id,
+            actorId: actor?.id as string,
+            clientId: client?.id as string,
             scopes: ['read']
           })
-          console.log(token)
+          expect(token?.client).toEqual(client)
+          expect(token?.user?.actor).toEqual(actor?.data)
+          expect(token?.user?.id).toEqual(actor?.account?.id)
+        })
+
+        it('add refresh token to access token', async () => {
+          const refreshToken = generateRandomToken()
+          const refreshTokenExpiresAt = new DateInterval('2d')
+            .getEndDate()
+            .getTime()
+
+          await storage.updateRefreshToken({
+            accessToken: token?.accessToken as string,
+            refreshToken,
+            refreshTokenExpiresAt
+          })
+
+          token = await storage.getAccessToken({
+            accessToken: token?.accessToken as string
+          })
+          expect(token?.refreshToken).toEqual(refreshToken)
+          expect(token?.refreshTokenExpiresAt).toEqual(refreshTokenExpiresAt)
+
+          const tokenFromRefreshToken =
+            await storage.getAccessTokenByRefreshToken({
+              refreshToken
+            })
+          expect(tokenFromRefreshToken).toEqual(token)
         })
       })
     })

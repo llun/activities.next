@@ -1518,7 +1518,7 @@ export class SqlStorage implements Storage {
       .where('id', clientId)
       .first()
     if (!clientData) return null
-    const client = Client.parse({
+    return Client.parse({
       id: clientData.id,
       name: clientData.name,
       secret: clientData.secret,
@@ -1528,7 +1528,6 @@ export class SqlStorage implements Storage {
       updatedAt: clientData.updatedAt,
       createdAt: clientData.createdAt
     })
-    return client
   }
 
   async updateClient(params: UpdateClientParams) {
@@ -1581,10 +1580,13 @@ export class SqlStorage implements Storage {
 
       scopes: JSON.parse(data.scopes),
 
-      client,
+      client: {
+        ...client,
+        scopes: client?.scopes.map((scope) => scope.name)
+      },
       user: User.parse({
         id: account?.id,
-        actor,
+        actor: actor?.data,
         account
       }),
 
@@ -1615,7 +1617,7 @@ export class SqlStorage implements Storage {
     const currentTime = Date.now()
     const tokenCountResult = await this.database('tokens')
       .where('accessToken', accessToken)
-      .count<{ count: number }>('id as count')
+      .count<{ count: number }>('accessToken as count')
       .first()
     if (tokenCountResult?.count && tokenCountResult?.count > 0) return null
 

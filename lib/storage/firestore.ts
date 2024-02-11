@@ -1619,11 +1619,13 @@ export class FirestoreStorage implements Storage {
         : null),
 
       scopes: JSON.parse(data.scopes),
-
-      client,
+      client: {
+        ...client,
+        scopes: client?.scopes.map((scope) => scope.name)
+      },
       user: User.parse({
         id: account?.id,
-        actor,
+        actor: actor?.data,
         account
       }),
 
@@ -1655,7 +1657,7 @@ export class FirestoreStorage implements Storage {
     } = CreateAccessTokenParams.parse(params)
     const currentTime = Date.now()
     const snapshot = await this.db.doc(`accessTokens/${accessToken}`).get()
-    if (!snapshot.exists) return null
+    if (snapshot.exists) return null
 
     await this.db.doc(`accessTokens/${accessToken}`).set({
       accessToken,
