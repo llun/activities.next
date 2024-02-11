@@ -9,16 +9,18 @@ import { AttachmentData } from '@/lib/models/attachment'
 import { StatusData } from '@/lib/models/status'
 
 interface Props {
+  host: string
   currentTime: Date
   status: StatusData
 }
 
-export const StatusBox: FC<Props> = ({ currentTime, status }) => {
+export const StatusBox: FC<Props> = ({ host, currentTime, status }) => {
   const [modalMedia, setModalMedia] = useState<AttachmentData>()
 
   return (
     <>
       <Post
+        host={host}
         currentTime={currentTime}
         status={status}
         onShowAttachment={(attachment: AttachmentData) =>

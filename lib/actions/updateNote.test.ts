@@ -9,7 +9,6 @@ import { seedStorage } from '../stub/storage'
 import { updateNoteFromUserInput } from './updateNote'
 
 enableFetchMocks()
-jest.mock('../config')
 
 describe('Update note action', () => {
   const storage = new SqlStorage({

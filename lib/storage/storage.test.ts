@@ -15,8 +15,6 @@ import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
 
-jest.mock('../config')
-
 const TEST_SHARED_INBOX = `https://${TEST_DOMAIN}/inbox`
 const TEST_PASSWORD_HASH = 'password_hash'
 

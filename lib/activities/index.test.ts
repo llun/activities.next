@@ -18,7 +18,6 @@ import { TEST_SHARED_INBOX, seedStorage } from '../stub/storage'
 import { CreateStatus } from './actions/createStatus'
 
 enableFetchMocks()
-jest.mock('../config')
 
 describe('activities', () => {
   const storage = new SqlStorage({

@@ -5,6 +5,7 @@ import {
   getContent,
   getSummary
 } from '../activities/entities/note'
+import { getConfig } from '../config'
 import { compact } from '../jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -67,6 +68,7 @@ export const updateNoteFromUserInput = async ({
   summary,
   storage
 }: UpdateNoteFromUserInput) => {
+  const config = getConfig()
   const span = getSpan('actions', 'updateNoteFromUser', { statusId })
   const status = await storage.getStatus({ statusId })
   if (
@@ -81,7 +83,7 @@ export const updateNoteFromUserInput = async ({
   const updatedStatus = await storage.updateNote({
     statusId,
     summary,
-    text: formatText(text)
+    text: formatText(config.host, text)
   })
   if (!updatedStatus) {
     span.end()

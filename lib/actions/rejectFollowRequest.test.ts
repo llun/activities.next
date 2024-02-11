@@ -11,8 +11,6 @@ import { rejectFollowRequest } from './rejectFollowRequest'
 
 enableFetchMocks()
 
-jest.mock('../config')
-
 describe('Accept follow action', () => {
   const storage = new SqlStorage({
     client: 'better-sqlite3',

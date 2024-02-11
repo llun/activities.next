@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { Posts } from '@/lib/components/Posts/Posts'
+import { getConfig } from '@/lib/config'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
@@ -25,6 +26,7 @@ export const generateMetadata = async ({
 }
 
 const Page: FC<Props> = async ({ params }) => {
+  const { host } = getConfig()
   const storage = await getStorage()
   if (!storage) throw new Error('Storage is not available')
 
@@ -74,13 +76,23 @@ const Page: FC<Props> = async ({ params }) => {
 
   return (
     <>
-      <Posts className="mt-4" currentTime={currentTime} statuses={previouses} />
+      <Posts
+        className="mt-4"
+        currentTime={currentTime}
+        host={host}
+        statuses={previouses}
+      />
       <section className={styles.highlight}>
-        <StatusBox currentTime={currentTime} status={status.toJson()} />
+        <StatusBox
+          host={host}
+          currentTime={currentTime}
+          status={status.toJson()}
+        />
       </section>
       <Posts
         className="mt-4"
         currentTime={currentTime}
+        host={host}
         statuses={replies.map((reply) => reply.toJson())}
       />
     </>

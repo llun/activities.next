@@ -9,11 +9,12 @@ import { Button } from '../../Button'
 import styles from './EditHistoryButton.module.scss'
 
 interface Props {
+  host: string
   status: StatusNote | StatusPoll
   onShowEdits?: (status: StatusData) => void
 }
 
-export const EditHistoryButton: FC<Props> = ({ status, onShowEdits }) => {
+export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
   const [showHistory, setShowHistory] = useState<boolean>(false)
 
   if (status.edits.length === 0) return null
@@ -47,7 +48,9 @@ export const EditHistoryButton: FC<Props> = ({ status, onShowEdits }) => {
                     {formatDistance(edit.createdAt, Date.now())}
                   </div>
                   <div className="me-auto text-start">
-                    {cleanClassName(convertTextContent(edit.text, status.tags))}
+                    {cleanClassName(
+                      convertTextContent(host, edit.text, status.tags)
+                    )}
                   </div>
                 </li>
               )

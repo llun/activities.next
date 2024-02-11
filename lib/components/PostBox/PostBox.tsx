@@ -292,7 +292,7 @@ export const PostBox: FC<Props> = ({
 
   return (
     <div>
-      <ReplyPreview status={replyStatus} onClose={onCloseReply} />
+      <ReplyPreview host={host} status={replyStatus} onClose={onCloseReply} />
       <form ref={formRef} onSubmit={onPost}>
         <div className="mb-3">
           <textarea

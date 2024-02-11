@@ -9,12 +9,14 @@ import { AttachmentData } from '@/lib/models/attachment'
 import { StatusData } from '@/lib/models/status'
 
 interface Props {
+  host: string
   currentTime: Date
   statuses: StatusData[]
   attachments: AttachmentData[]
 }
 
 export const ActorTimelines: FC<Props> = ({
+  host,
   currentTime,
   statuses,
   attachments
@@ -31,6 +33,7 @@ export const ActorTimelines: FC<Props> = ({
       )}
       {currentTab === ActorTab.Posts && (
         <Posts
+          host={host}
           className={attachments.length > 0 ? 'mt-2' : 'mt-4'}
           currentTime={currentTime}
           statuses={statuses}

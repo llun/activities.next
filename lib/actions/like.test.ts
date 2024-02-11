@@ -11,8 +11,6 @@ import { likeRequest } from './like'
 
 enableFetchMocks()
 
-jest.mock('../config')
-
 describe('Accept follow action', () => {
   const storage = new SqlStorage({
     client: 'better-sqlite3',

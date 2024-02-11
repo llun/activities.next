@@ -10,6 +10,7 @@ import { Poll } from '../Posts/Poll'
 import styles from './ReplyPreview.module.scss'
 
 interface Props {
+  host: string
   status?: StatusData
   onClose?: () => void
 }
@@ -36,7 +37,7 @@ const getTags = (statusData: StatusData) => {
   }
 }
 
-export const ReplyPreview: FC<Props> = ({ status, onClose }) => {
+export const ReplyPreview: FC<Props> = ({ host, status, onClose }) => {
   if (!status) return null
   return (
     <section
@@ -51,7 +52,9 @@ export const ReplyPreview: FC<Props> = ({ status, onClose }) => {
     >
       <div>
         <Actor actorId={status.actorId || ''} />
-        {cleanClassName(convertTextContent(getText(status), getTags(status)))}
+        {cleanClassName(
+          convertTextContent(host, getText(status), getTags(status))
+        )}
         <Poll status={status} currentTime={new Date()} />
       </div>
       <CloseButton className={cn(styles.close)} onClick={() => onClose?.()} />

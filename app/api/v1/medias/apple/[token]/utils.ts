@@ -1,6 +1,6 @@
-import getConfig from 'next/config'
 import { NextRequest } from 'next/server'
 
+import { getConfig } from '@/lib/config'
 import { headerHost } from '@/lib/services/guards/headerHost'
 
 export const allowOrigin = (request: NextRequest) => {

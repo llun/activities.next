@@ -2,6 +2,7 @@ import crypto from 'crypto'
 
 import { getContent, getSummary, getTags } from '../activities/entities/note'
 import { Question, QuestionEntity } from '../activities/entities/question'
+import { getConfig } from '../config'
 import { compact } from '../jsonld'
 import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
@@ -107,6 +108,7 @@ export const createPollFromUserInput = async ({
   storage,
   endAt
 }: CreatePollFromUserInputParams) => {
+  const config = getConfig()
   const span = getSpan('actions', 'createPollFromUser', {
     replyStatusId
   })
@@ -127,7 +129,7 @@ export const createPollFromUserInput = async ({
       currentActor.domain
     }/${currentActor.getMention()}/${postId}`,
     actorId: currentActor.id,
-    text: formatText(text),
+    text: formatText(config.host, text),
     summary: '',
     to,
     cc,

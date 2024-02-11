@@ -38,16 +38,10 @@ jest.mock('./lib/config', () => {
     getConfig: jest.fn().mockReturnValue({
       serviceName: 'activities.next',
       host,
-      secretPhase
+      secretPhase,
+      email: {
+        serviceFromAddress: 'test@llun.dev'
+      }
     })
   }
-})
-
-jest.mock('next/config', () => {
-  const host = jest.requireActual('./lib/stub/const').TEST_DOMAIN
-  return jest.fn().mockReturnValue({
-    publicRuntimeConfig: {
-      host
-    }
-  })
 })

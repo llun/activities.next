@@ -13,8 +13,6 @@ import { announce, userAnnounce } from './announce'
 
 enableFetchMocks()
 
-jest.mock('../config')
-
 describe('Announce action', () => {
   const storage = new SqlStorage({
     client: 'better-sqlite3',
