@@ -14,7 +14,11 @@ export const linkifyText = (host: string) => (text: string) => {
     }
 
     if (item.t === 'url') {
-      return linkBody(item.v)
+      try {
+        return linkBody(item.v)
+      } catch {
+        return item.v
+      }
     }
 
     return item.v

@@ -13,9 +13,9 @@ export const convertTextContent = (
   tags: TagData[] = []
 ) =>
   _.chain(text)
+    .thru(linkifyText(host))
     .thru((text) => sanitizeHtml(text, SANITIZED_OPTION))
     .thru(convertMarkdownText)
-    .thru(linkifyText(host))
     .thru(_.curryRight(convertEmojisToImages)(tags))
     .value()
     .trim()
