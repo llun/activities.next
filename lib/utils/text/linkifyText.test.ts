@@ -1,3 +1,5 @@
+import { TEST_DOMAIN } from '@/lib/stub/const'
+
 import { getConfig } from '../../config'
 import { linkifyText } from './linkifyText'
 
@@ -5,7 +7,7 @@ describe('#linkifyText', () => {
   const config = getConfig()
 
   it('links mention with user url', async () => {
-    const message = linkifyText('@test1@somewhere.test')
+    const message = linkifyText(TEST_DOMAIN)('@test1@somewhere.test')
     expect(message).toEqual(
       `<span class="h-card"><a href="https://${
         getConfig().host
@@ -14,7 +16,7 @@ describe('#linkifyText', () => {
   })
 
   it('links multiple mentions with user url', async () => {
-    const message = linkifyText(
+    const message = linkifyText(TEST_DOMAIN)(
       'With multiple mentions @test1@somewhere.test and @test2@llun.test tags'
     )
     expect(message).toEqual(
@@ -23,7 +25,7 @@ describe('#linkifyText', () => {
   })
 
   it('linkify http link', async () => {
-    const message = linkifyText(
+    const message = linkifyText(TEST_DOMAIN)(
       'Test linkify string https://www.llun.me/posts/dev/2023-01-07-my-wrong-assumptions-with-activity-pub/ with url'
     )
     expect(message).toEqual(
@@ -32,7 +34,7 @@ describe('#linkifyText', () => {
   })
 
   it('linkify link without protocol and pathname', async () => {
-    const message = linkifyText(
+    const message = linkifyText(TEST_DOMAIN)(
       'Test linkify string llun.me, without protocol and pathname'
     )
     expect(message).toEqual(
@@ -41,7 +43,7 @@ describe('#linkifyText', () => {
   })
 
   it('linkify link without protocol', async () => {
-    const message = linkifyText(
+    const message = linkifyText(TEST_DOMAIN)(
       'Test linkify string llun.me/pathname, without pathname'
     )
     expect(message).toEqual(
@@ -50,7 +52,7 @@ describe('#linkifyText', () => {
   })
 
   it('linkify link without protocol with very long pathname', async () => {
-    const message = linkifyText(
+    const message = linkifyText(TEST_DOMAIN)(
       'Test linkify string www.llun.me/posts/dev/2023-01-07-my-wrong-assumptions-with-activity-pub/, without pathname'
     )
     expect(message).toEqual(
@@ -59,7 +61,7 @@ describe('#linkifyText', () => {
   })
 
   it('linkify link include query', async () => {
-    const message = linkifyText(
+    const message = linkifyText(TEST_DOMAIN)(
       'Test linkify with query in url https://www.youtube.com/watch?v=mroK84Y2GwM'
     )
     expect(message).toEqual(
@@ -68,7 +70,7 @@ describe('#linkifyText', () => {
   })
 
   it('linkify cuts query short', async () => {
-    const message = linkifyText(
+    const message = linkifyText(TEST_DOMAIN)(
       'Linkify with long query https://www.google.com/search?q=noreferrer&sourceid=chrome&ie=UTF-8'
     )
     expect(message).toEqual(

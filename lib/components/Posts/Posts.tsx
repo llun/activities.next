@@ -12,6 +12,7 @@ import { Post } from './Post'
 import styles from './Posts.module.scss'
 
 interface Props {
+  host: string
   className?: string
   currentActor?: ActorProfile
   showActions?: boolean
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export const Posts: FC<Props> = ({
+  host,
   className,
   currentActor,
   showActions = false,
@@ -41,6 +43,7 @@ export const Posts: FC<Props> = ({
       {statuses.map((status, index) => (
         <div key={`${index}-${status.id}`} className={cn(styles.block)}>
           <Post
+            host={host}
             currentTime={currentTime}
             currentActor={currentActor}
             status={status}

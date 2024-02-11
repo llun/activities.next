@@ -1,4 +1,5 @@
 import { Note } from '../activities/entities/note'
+import { getConfig } from '../config'
 import { Attachment } from '../models/attachment'
 import { StatusData, StatusType } from '../models/status'
 import { Tag } from '../models/tag'
@@ -21,7 +22,7 @@ export const getNoteFromStatusData = (status: StatusData): Note | null => {
     to: actualStatus.to,
     cc: actualStatus.cc,
     inReplyTo: actualStatus.reply || null,
-    content: formatText(actualStatus.text),
+    content: formatText(getConfig().host, actualStatus.text),
     attachment: actualStatus.attachments.map((attachment) =>
       new Attachment(attachment).toObject()
     ),

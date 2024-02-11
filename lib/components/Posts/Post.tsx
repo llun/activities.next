@@ -14,6 +14,7 @@ import { Poll } from './Poll'
 import styles from './Post.module.scss'
 
 export interface PostProps {
+  host: string
   currentActor?: ActorProfile
   currentTime: Date
   status: StatusData
@@ -54,7 +55,7 @@ const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
 }
 
 export const Post: FC<PostProps> = (props) => {
-  const { status, currentTime, onShowAttachment } = props
+  const { host, status, currentTime, onShowAttachment } = props
   const actualStatus = getActualStatus(status)
 
   return (
@@ -74,7 +75,7 @@ export const Post: FC<PostProps> = (props) => {
       </div>
       <div className={'me-1 text-break'}>
         {cleanClassName(
-          convertTextContent(actualStatus.text, actualStatus.tags)
+          convertTextContent(host, actualStatus.text, actualStatus.tags)
         )}
       </div>
       <Poll status={actualStatus} currentTime={currentTime} />

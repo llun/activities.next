@@ -7,11 +7,15 @@ import { convertMarkdownText } from './convertMarkdownText'
 import { linkifyText } from './linkifyText'
 import { SANITIZED_OPTION } from './sanitizeText'
 
-export const convertTextContent = (text: string, tags: TagData[] = []) =>
+export const convertTextContent = (
+  host: string,
+  text: string,
+  tags: TagData[] = []
+) =>
   _.chain(text)
     .thru((text) => sanitizeHtml(text, SANITIZED_OPTION))
     .thru(convertMarkdownText)
-    .thru(linkifyText)
+    .thru(linkifyText(host))
     .thru(_.curryRight(convertEmojisToImages)(tags))
     .value()
     .trim()

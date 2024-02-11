@@ -1,13 +1,10 @@
 import * as linkify from 'linkifyjs'
-import getConfig from 'next/config'
 
 import { linkBody } from './linkBody'
 import './linkify-mention'
 import { mentionBody } from './mentionBody'
 
-export const linkifyText = (text: string) => {
-  const { publicRuntimeConfig } = getConfig()
-  const { host } = publicRuntimeConfig
+export const linkifyText = (host: string) => (text: string) => {
   const tokens = linkify.tokenize(text)
   const texts = tokens.map((item) => {
     if (item.t === 'mention') {

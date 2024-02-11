@@ -105,6 +105,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         }}
       />
       <Posts
+        host={host}
         className="mt-4"
         currentTime={new Date()}
         statuses={currentStatuses}

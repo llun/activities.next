@@ -7,6 +7,7 @@ import { FC } from 'react'
 import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { FollowAction } from '@/lib/components/FollowAction'
 import { Profile } from '@/lib/components/Profile'
+import { getConfig } from '@/lib/config'
 import { getStorage } from '@/lib/storage'
 
 import { ActorTimelines } from './ActorTimelines'
@@ -26,6 +27,7 @@ export const generateMetadata = async ({
 }
 
 const Page: FC<Props> = async ({ params }) => {
+  const { host } = getConfig()
   const [storage, session] = await Promise.all([
     getStorage(),
     getServerSession(authOptions)
@@ -78,6 +80,7 @@ const Page: FC<Props> = async ({ params }) => {
         </div>
       </section>
       <ActorTimelines
+        host={host}
         currentTime={new Date()}
         statuses={statuses}
         attachments={attachments}

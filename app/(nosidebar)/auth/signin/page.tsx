@@ -7,6 +7,7 @@ import { FC } from 'react'
 
 import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Posts } from '@/lib/components/Posts/Posts'
+import { getConfig } from '@/lib/config'
 import { getStorage } from '@/lib/storage'
 import { Timeline } from '@/lib/timelines/types'
 
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
 }
 
 const Page: FC = async () => {
+  const { host } = getConfig()
   const [storage, providers, session] = await Promise.all([
     getStorage(),
     getProviders(),
@@ -51,6 +53,7 @@ const Page: FC = async () => {
         <div>
           <h2 className="mb-4">Local public timeline</h2>
           <Posts
+            host={host}
             className="mt-4"
             currentTime={new Date()}
             statuses={statuses?.map((status) => status.toJson())}

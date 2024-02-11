@@ -18,16 +18,6 @@ import { acceptFollowRequest } from './acceptFollowRequest'
 
 enableFetchMocks()
 
-jest.mock('../config', () => {
-  return {
-    getConfig: jest.fn().mockReturnValue({
-      serviceName: 'activities.next',
-      email: {
-        serviceFromAddress: 'test@llun.dev'
-      }
-    })
-  }
-})
 jest.mock('../services/email', () => ({
   sendMail: jest.fn()
 }))

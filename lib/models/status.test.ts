@@ -14,7 +14,6 @@ import { Actor } from './actor'
 import { Status, StatusType } from './status'
 
 enableFetchMocks()
-jest.mock('../config')
 
 describe('Status', () => {
   const storage = new SqlStorage({

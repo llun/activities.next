@@ -15,6 +15,7 @@ interface Props extends PostProps {
 }
 
 export const Actions: FC<Props> = ({
+  host,
   currentActor,
   status,
   showDeleteAction = false,
@@ -42,6 +43,7 @@ export const Actions: FC<Props> = ({
           status={status.originalStatus}
         />
         <EditHistoryButton
+          host={host}
           status={status.originalStatus}
           onShowEdits={onShowEdits}
         />
@@ -63,7 +65,11 @@ export const Actions: FC<Props> = ({
         status={status}
         onPostDeleted={onPostDeleted}
       />
-      <EditHistoryButton status={status} onShowEdits={onShowEdits} />
+      <EditHistoryButton
+        status={status}
+        host={host}
+        onShowEdits={onShowEdits}
+      />
       <EditButton
         status={status}
         className={cn({ 'd-none': !showDeleteAction })}

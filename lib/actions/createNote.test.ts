@@ -5,6 +5,7 @@ import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { SqlStorage } from '../storage/sql'
 import { expectCall, mockRequests } from '../stub/activities'
+import { TEST_DOMAIN } from '../stub/const'
 import { MockImageDocument } from '../stub/imageDocument'
 import { MockLitepubNote, MockMastodonNote } from '../stub/note'
 import { seedActor1 } from '../stub/seed/actor1'
@@ -15,7 +16,6 @@ import { formatText } from '../utils/text/formatText'
 import { createNote, createNoteFromUserInput } from './createNote'
 
 enableFetchMocks()
-jest.mock('../config')
 
 // Actor id for testing pulling actor information when create status
 const FRIEND_ACTOR_ID = 'https://somewhere.test/actors/friend'
@@ -246,7 +246,7 @@ How are you?
       })
 
       const note = getNoteFromStatusData(status.data)
-      expect(note?.content).toEqual(formatText(text))
+      expect(note?.content).toEqual(formatText(TEST_DOMAIN, text))
       expect(note?.tag).toHaveLength(1)
       expect(note?.tag).toContainValue({
         type: 'Mention',
@@ -290,7 +290,7 @@ How are you?
       ])
 
       const note = getNoteFromStatusData(status.data)
-      expect(note?.content).toEqual(formatText(text))
+      expect(note?.content).toEqual(formatText(TEST_DOMAIN, text))
       expect(note?.tag).toHaveLength(2)
       expect(note?.tag).toContainValue({
         type: 'Mention',
