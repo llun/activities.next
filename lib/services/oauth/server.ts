@@ -1,28 +1,30 @@
-import { OAuth2Server } from '@node-oauth/oauth2-server'
+import { AuthorizationServer, DateInterval } from '@jmondi/oauth2-server'
 import { memoize } from 'lodash'
 
-export const getOAuthServer = memoize(() => {
-  return new OAuth2Server({
-    model: {
-      async getAccessToken() {
-        throw new Error('No implementation')
-      },
+import { getStorage } from '@/lib/storage'
 
-      async getAuthorizationCode() {
-        throw new Error('No implementation')
-      },
+import { AuthCodeRepository } from './authCodeRepository'
+import { ClientRepository } from './clientRepository'
+import { ScopeRepository } from './scopeRepository'
+import { TokenRepository } from './tokenRepository'
+import { UserRepository } from './userRepository'
 
-      async saveToken() {
-        throw new Error('No implementation')
-      },
+export const getOAuth2Server = memoize(async () => {
+  const storage = await getStorage()
+  if (!storage) throw new Error('Fail to get storage')
 
-      async getClient() {
-        throw new Error('No implementation')
-      },
+  const authorizationServer = new AuthorizationServer(
+    new ClientRepository(storage),
+    new TokenRepository(storage),
+    new ScopeRepository(),
+    'secretKey'
+  )
 
-      async getUser() {
-        throw new Error('No implementation')
-      }
-    }
-  })
+  const userRepository = new UserRepository(storage)
+  const authCodeRepository = new AuthCodeRepository(storage)
+  authorizationServer.enableGrantTypes(
+    ['refresh_token', new DateInterval('30d')],
+    { grant: 'authorization_code', authCodeRepository, userRepository }
+  )
+  return authorizationServer
 })

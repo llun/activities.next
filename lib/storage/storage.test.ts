@@ -1,10 +1,16 @@
+import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
+
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
+import { Account } from '../models/account'
+import { Actor } from '../models/actor'
 import { FollowStatus } from '../models/follow'
-import { OAuth2Application } from '../models/oauth2/application'
+import { Client } from '../models/oauth2/client'
+import { Token } from '../models/oauth2/token'
 import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '../stub/const'
 import { addStatusToTimelines } from '../timelines'
 import { Timeline } from '../timelines/types'
+import { waitFor } from '../utils/waitFor'
 import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
@@ -113,17 +119,35 @@ describe('Storage', () => {
         privateKey: 'privateKey1',
         publicKey: 'publicKey1'
       })
+
       const idWithAccounts = [3, 4, 5, 6, 7, 8, 11, 12, 14, 15]
-      for (const id of idWithAccounts) {
-        await storage.createAccount({
-          email: `user${id}@llun.dev`,
-          username: `user${id}`,
-          passwordHash: TEST_PASSWORD_HASH,
-          domain: TEST_DOMAIN,
-          privateKey: `privateKey${id}`,
-          publicKey: `publicKey${id}`
+      await Promise.all(
+        idWithAccounts.map((id) =>
+          storage.createAccount({
+            email: `user${id}@llun.dev`,
+            username: `user${id}`,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: `privateKey${id}`,
+            publicKey: `publicKey${id}`
+          })
+        )
+      )
+
+      await Promise.all([
+        storage.createClient({
+          name: 'application1',
+          redirectUris: ['https://application1.llun.dev/oauth/redirect'],
+          scopes: ['read'],
+          secret: 'secret'
+        }),
+        storage.createClient({
+          name: 'application2',
+          redirectUris: ['https://application2.llun.dev/oauth/redirect'],
+          scopes: ['read', 'write'],
+          secret: 'secret'
         })
-      }
+      ])
     })
 
     describe('accounts', () => {
@@ -354,6 +378,8 @@ describe('Storage', () => {
           updatedAt: expect.toBeNumber()
         })
 
+        // Artificial wait because test is too fast, so the updated time is equal to insert sometime.
+        await waitFor(100)
         await storage.updateFollowStatus({
           followId: secondFollow.id,
           status: FollowStatus.enum.Accepted
@@ -616,6 +642,8 @@ describe('Storage', () => {
             cc: [TEST_ID5]
           })
           await addStatusToTimelines(storage, status)
+          // Making sure the timeline is in order.
+          await waitFor(1)
         }
         const statuses = await storage.getTimeline({
           timeline: Timeline.MAIN,
@@ -1046,39 +1074,21 @@ describe('Storage', () => {
       })
     })
 
-    describe('applications', () => {
-      let application1Id: string
-
-      beforeAll(async () => {
-        const application1 = (await storage.createApplication({
-          clientName: 'application1',
-          redirectUris: ['https://application1.llun.dev/oauth/redirect'],
-          scopes: ['read'],
-          secret: 'secret'
-        })) as OAuth2Application
-        application1Id = application1.id
-
-        await storage.createApplication({
-          clientName: 'application2',
-          redirectUris: ['https://application2.llun.dev/oauth/redirect'],
-          scopes: ['read', 'write'],
-          secret: 'secret'
-        })
-      })
-
-      it('add application record and return application model', async () => {
-        const application = await storage.createApplication({
-          clientName: 'application3',
+    describe('clients', () => {
+      it('add client record and return client model', async () => {
+        const client = await storage.createClient({
+          name: 'application3',
           redirectUris: ['https://application3.llun.dev/oauth/redirect'],
           scopes: ['read', 'write'],
           secret: 'some random secret'
         })
-        expect(application).toEqual({
+        expect(client).toEqual({
           id: expect.toBeString(),
-          clientName: 'application3',
+          name: 'application3',
           secret: 'some random secret',
-          scopes: ['read', 'write'],
+          scopes: [{ name: 'read' }, { name: 'write' }],
           redirectUris: ['https://application3.llun.dev/oauth/redirect'],
+          allowedGrants: ['authorization_code', 'refresh_token'],
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
@@ -1086,8 +1096,8 @@ describe('Storage', () => {
 
       it('returns null when failed validation', async () => {
         await expect(
-          storage.createApplication({
-            clientName: 'application2',
+          storage.createClient({
+            name: 'application2',
             redirectUris: ['somerandomstring'],
             scopes: ['read', 'write'],
             secret: 'some random secret'
@@ -1097,67 +1107,143 @@ describe('Storage', () => {
 
       it('returns null when application name is already exists', async () => {
         await expect(
-          storage.createApplication({
-            clientName: 'application1',
+          storage.createClient({
+            name: 'application1',
             redirectUris: ['https://application1.llun.dev/oauth/redirect'],
             scopes: ['read', 'write'],
             secret: 'some random secret'
           })
-        ).rejects.toThrow(`Application application1 is already exists`)
+        ).rejects.toThrow(`Client application1 is already exists`)
       })
 
-      it('returns existing application in storage when get it from name', async () => {
-        const application = await storage.getApplicationFromName({
-          clientName: 'application1'
+      it('returns existing client in storage', async () => {
+        const application = await storage.getClientFromName({
+          name: 'application1'
         })
+        const withIdApplication = await storage.getClientFromId({
+          clientId: (application as Client).id
+        })
+
         expect(application).toEqual({
           id: expect.toBeString(),
-          clientName: 'application1',
+          name: 'application1',
           secret: 'secret',
-          scopes: ['read'],
+          scopes: [{ name: 'read' }],
           redirectUris: ['https://application1.llun.dev/oauth/redirect'],
+          allowedGrants: ['authorization_code', 'refresh_token'],
+          createdAt: expect.toBeNumber(),
+          updatedAt: expect.toBeNumber()
+        })
+        expect(withIdApplication).toEqual({
+          id: expect.toBeString(),
+          name: 'application1',
+          secret: 'secret',
+          scopes: [{ name: 'read' }],
+          redirectUris: ['https://application1.llun.dev/oauth/redirect'],
+          allowedGrants: ['authorization_code', 'refresh_token'],
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
       })
 
-      it('returns existing application in storage when get it from id', async () => {
-        const application = await storage.getApplicationFromId({
-          clientId: application1Id
+      it('updates client and returns the updated client', async () => {
+        const existingClient = await storage.getClientFromName({
+          name: 'application2'
         })
-        expect(application).toEqual({
-          id: expect.toBeString(),
-          clientName: 'application1',
-          secret: 'secret',
-          scopes: ['read'],
-          redirectUris: ['https://application1.llun.dev/oauth/redirect'],
-          createdAt: expect.toBeNumber(),
-          updatedAt: expect.toBeNumber()
-        })
-      })
+        if (!existingClient) fail('Client must exists')
 
-      it('updates application and returns the updated application', async () => {
-        const existingApplication = await storage.getApplicationFromName({
-          clientName: 'application2'
-        })
-        if (!existingApplication) fail('Application must exists')
-
-        const application = await storage.updateApplication({
-          id: existingApplication.id,
-          clientName: 'application2',
+        const client = await storage.updateClient({
+          id: existingClient.id,
+          name: 'application2',
           redirectUris: ['https://application2.llun.dev/oauth/redirect'],
           scopes: ['read'],
           secret: 'secret'
         })
-        const updatedExistingApplication = await storage.getApplicationFromName(
-          {
-            clientName: 'application2'
-          }
-        )
+        const updatedExistingClient = await storage.getClientFromName({
+          name: 'application2'
+        })
 
-        if (!application) fail('Application must exists')
-        expect(application).toEqual(updatedExistingApplication)
-        expect(application.scopes).toEqual(['read'])
+        if (!client) fail('Client must exists')
+        expect(client).toEqual(updatedExistingClient)
+        expect(client.scopes).toEqual([{ name: 'read' }])
+      })
+
+      describe('tokens', () => {
+        let token: Token | null, actor: Actor | undefined, client: Client | null
+
+        beforeAll(async () => {
+          ;[actor, client] = await Promise.all([
+            storage.getActorFromEmail({
+              email: TEST_EMAIL
+            }),
+            storage.getClientFromName({ name: 'application1' })
+          ])
+
+          token = await storage.createAccessToken({
+            accessToken: generateRandomToken(),
+            accessTokenExpiresAt: new DateInterval('30d')
+              .getEndDate()
+              .getTime(),
+            accountId: (actor?.account as Account).id,
+            actorId: actor?.id as string,
+            clientId: client?.id as string,
+            scopes: ['read']
+          })
+        })
+
+        it('adds token to the repository', async () => {
+          const token = await storage.createAccessToken({
+            accessToken: generateRandomToken(),
+            accessTokenExpiresAt: new DateInterval('30d')
+              .getEndDate()
+              .getTime(),
+            accountId: (actor?.account as Account).id,
+            actorId: actor?.id as string,
+            clientId: client?.id as string,
+            scopes: ['read']
+          })
+          expect(token?.client).toEqual(client)
+          expect(token?.user?.actor).toEqual(actor?.data)
+          expect(token?.user?.id).toEqual(actor?.account?.id)
+        })
+
+        it('add refresh token to access token', async () => {
+          const refreshToken = generateRandomToken()
+          const refreshTokenExpiresAt = new DateInterval('2d')
+            .getEndDate()
+            .getTime()
+
+          await storage.updateRefreshToken({
+            accessToken: token?.accessToken as string,
+            refreshToken,
+            refreshTokenExpiresAt
+          })
+
+          token = await storage.getAccessToken({
+            accessToken: token?.accessToken as string
+          })
+          expect(token?.refreshToken).toEqual(refreshToken)
+          expect(token?.refreshTokenExpiresAt?.getTime()).toEqual(
+            refreshTokenExpiresAt
+          )
+
+          const tokenFromRefreshToken =
+            await storage.getAccessTokenByRefreshToken({
+              refreshToken
+            })
+          expect(tokenFromRefreshToken).toEqual(token)
+        })
+
+        it('sets expires at for both accessToken and refreshToken to null when revoke accessToken', async () => {
+          const revokedToken = await storage.revokeAccessToken({
+            accessToken: token?.accessToken as string
+          })
+          expect(revokedToken?.accessTokenExpiresAt).toBeDefined()
+          expect(revokedToken?.refreshTokenExpiresAt).toBeDefined()
+          expect(revokedToken?.accessTokenExpiresAt.getTime()).toEqual(
+            revokedToken?.refreshTokenExpiresAt?.getTime()
+          )
+        })
       })
     })
   })

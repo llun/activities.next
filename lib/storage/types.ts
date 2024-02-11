@@ -8,7 +8,7 @@ import { ActorStorage } from './types/actor'
 import { FollowerStorage } from './types/follower'
 import { LikeStorage } from './types/like'
 import { MediaStorage } from './types/media'
-import { OAuth2ApplicationStorage } from './types/oauth2'
+import { OAuthStorage } from './types/oauth'
 import { StatusStorage } from './types/status'
 
 export type GetTimelineParams = {
@@ -42,7 +42,7 @@ export interface Storage
     LikeStorage,
     MediaStorage,
     StatusStorage,
-    OAuth2ApplicationStorage {
+    OAuthStorage {
   getTimeline(params: GetTimelineParams): Promise<Status[]>
   createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
 

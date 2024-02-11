@@ -6,7 +6,9 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
-import { OAuth2Application } from '../models/oauth2/application'
+import { Client } from '../models/oauth2/client'
+import { Token } from '../models/oauth2/token'
+import { User } from '../models/oauth2/user'
 import { PollChoice, PollChoiceData } from '../models/pollChoice'
 import { Session } from '../models/session'
 import {
@@ -74,11 +76,16 @@ import {
   Media
 } from './types/media'
 import {
-  CreateApplicationParams,
-  GetApplicationFromIdParams,
-  GetApplicationFromNameParams,
-  UpdateApplicationParams
-} from './types/oauth2'
+  CreateAccessTokenParams,
+  CreateClientParams,
+  GetAccessTokenByRefreshTokenParams,
+  GetAccessTokenParams,
+  GetClientFromIdParams,
+  GetClientFromNameParams,
+  RevokeAccessTokenParams,
+  UpdateClientParams,
+  UpdateRefreshTokenParams
+} from './types/oauth'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -1490,18 +1497,18 @@ export class FirestoreStorage implements Storage {
   }
 
   @Trace('db')
-  async createApplication({
-    clientName,
+  async createClient({
+    name,
     redirectUris,
     secret,
     scopes,
     website
-  }: CreateApplicationParams): Promise<OAuth2Application> {
+  }: CreateClientParams): Promise<Client> {
     const id = crypto.randomUUID()
     const currentTime = Date.now()
-    const application = OAuth2Application.parse({
+    const application = Client.parse({
       id,
-      clientName,
+      name,
       secret,
 
       scopes,
@@ -1513,16 +1520,16 @@ export class FirestoreStorage implements Storage {
       updatedAt: currentTime
     })
 
-    const existApplication = await this.db
-      .collection('applications')
-      .where('clientName', '==', clientName)
+    const existClient = await this.db
+      .collection('clients')
+      .where('name', '==', name)
       .count()
       .get()
-    if (existApplication.data().count) {
-      throw new Error(`Application ${clientName} is already exists`)
+    if (existClient.data().count) {
+      throw new Error(`Client ${name} is already exists`)
     }
 
-    await this.db.doc(`applications/${id}`).set({
+    await this.db.doc(`clients/${id}`).set({
       ...application,
       scopes: JSON.stringify(scopes),
       redirectUris: JSON.stringify(redirectUris)
@@ -1531,45 +1538,48 @@ export class FirestoreStorage implements Storage {
     return application
   }
 
-  async getApplicationFromName({ clientName }: GetApplicationFromNameParams) {
+  @Trace('db')
+  async getClientFromName({ name }: GetClientFromNameParams) {
     const snapshot = await this.db
-      .collection('applications')
-      .where('clientName', '==', clientName)
+      .collection('clients')
+      .where('name', '==', name)
       .get()
     if (snapshot.size === 0) return null
     const data = snapshot.docs[0].data()
-    return OAuth2Application.parse({
+    return Client.parse({
       ...data,
       scopes: JSON.parse(data.scopes),
       redirectUris: JSON.parse(data.redirectUris)
     })
   }
 
-  async getApplicationFromId({ clientId }: GetApplicationFromIdParams) {
-    const snapshot = await this.db.doc(`applications/${clientId}`).get()
+  @Trace('db')
+  async getClientFromId({ clientId }: GetClientFromIdParams) {
+    const snapshot = await this.db.doc(`clients/${clientId}`).get()
     if (!snapshot.exists) return null
     const data = snapshot.data()
     if (!data) return null
 
-    return OAuth2Application.parse({
+    return Client.parse({
       ...data,
       scopes: JSON.parse(data.scopes),
       redirectUris: JSON.parse(data.redirectUris)
     })
   }
 
-  async updateApplication(params: UpdateApplicationParams) {
-    const { id, clientName, secret, website, scopes, redirectUris } =
-      UpdateApplicationParams.parse(params)
-    const path = `applications/${id}`
+  @Trace('db')
+  async updateClient(params: UpdateClientParams) {
+    const { id, name, secret, website, scopes, redirectUris } =
+      UpdateClientParams.parse(params)
+    const path = `clients/${id}`
     const doc = await this.db.doc(path).get()
     if (!doc.exists) return null
 
     const currentTime = Date.now()
     const data = doc.data()
-    const updatedApplication = OAuth2Application.parse({
+    const updatedApplication = Client.parse({
       ...data,
-      clientName,
+      name,
       secret,
 
       scopes,
@@ -1585,5 +1595,134 @@ export class FirestoreStorage implements Storage {
       redirectUris: JSON.stringify(redirectUris)
     })
     return updatedApplication
+  }
+
+  @Trace('db')
+  async getAccessToken({ accessToken }: GetAccessTokenParams) {
+    const snapshot = await this.db.doc(`accessTokens/${accessToken}`).get()
+    if (!snapshot.exists) return null
+    const data = snapshot.data()
+    if (!data) return null
+
+    const [client, actor, account] = await Promise.all([
+      this.getClientFromId({ clientId: data.clientId }),
+      this.getActorFromId({ id: data.actorId }),
+      this.getAccountFromId({ id: data.accountId })
+    ])
+
+    return Token.parse({
+      accessToken: data.accessToken,
+      accessTokenExpiresAt: data.accessTokenExpiresAt,
+
+      ...(data.refreshToken ? { refreshToken: data.refreshToken } : null),
+      ...(data.refreshTokenExpiresAt
+        ? { refreshTokenExpiresAt: data.refreshTokenExpiresAt }
+        : null),
+
+      scopes: JSON.parse(data.scopes),
+      client: {
+        ...client,
+        scopes: client?.scopes.map((scope) => scope.name)
+      },
+      user: User.parse({
+        id: account?.id,
+        actor: actor?.data,
+        account
+      }),
+
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt
+    })
+  }
+
+  @Trace('db')
+  async getAccessTokenByRefreshToken(
+    params: GetAccessTokenByRefreshTokenParams
+  ) {
+    const { refreshToken } = GetAccessTokenByRefreshTokenParams.parse(params)
+    const result = await this.db
+      .collection('accessTokens')
+      .where('refreshToken', '==', refreshToken)
+      .get()
+    if (result.size === 0) return null
+
+    const { accessToken } = result.docs[0].data()
+    return this.getAccessToken({ accessToken })
+  }
+
+  @Trace('db')
+  async createAccessToken(params: CreateAccessTokenParams) {
+    const {
+      accessToken,
+      accessTokenExpiresAt,
+      refreshToken,
+      refreshTokenExpiresAt,
+      clientId,
+      scopes,
+      actorId,
+      accountId
+    } = CreateAccessTokenParams.parse(params)
+    const currentTime = Date.now()
+    const snapshot = await this.db.doc(`accessTokens/${accessToken}`).get()
+    if (snapshot.exists) return null
+
+    await this.db.doc(`accessTokens/${accessToken}`).set({
+      accessToken,
+      accessTokenExpiresAt,
+      ...(refreshToken ? { refreshToken } : null),
+      ...(refreshTokenExpiresAt ? { refreshTokenExpiresAt } : null),
+      scopes: JSON.stringify(scopes),
+      clientId,
+      actorId,
+      accountId,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+    return this.getAccessToken({ accessToken })
+  }
+
+  @Trace('db')
+  async updateRefreshToken(params: UpdateRefreshTokenParams) {
+    const { accessToken, refreshToken, refreshTokenExpiresAt } =
+      UpdateRefreshTokenParams.parse(params)
+    const path = `accessTokens/${accessToken}`
+
+    const [doc, totalRefreshTokens] = await Promise.all([
+      this.db.doc(path).get(),
+      this.db
+        .collection('accessTokens')
+        .where('refreshToken', '==', refreshToken)
+        .count()
+        .get()
+    ])
+
+    if (!doc.exists) return null
+    if (totalRefreshTokens.data().count !== 0) return null
+
+    await this.db.doc(path).set({
+      ...doc.data(),
+      refreshToken,
+      refreshTokenExpiresAt,
+
+      updatedAt: Date.now()
+    })
+
+    return this.getAccessToken({ accessToken })
+  }
+
+  @Trace('db')
+  async revokeAccessToken(params: RevokeAccessTokenParams) {
+    const { accessToken } = RevokeAccessTokenParams.parse(params)
+    const path = `accessTokens/${accessToken}`
+    const result = await this.db.doc(path).get()
+    if (!result.exists) return null
+
+    const currentTime = Date.now()
+    await this.db.doc(path).update({
+      accessTokenExpiresAt: currentTime,
+      refreshTokenExpiresAt: currentTime
+    })
+
+    return this.getAccessToken({ accessToken })
   }
 }

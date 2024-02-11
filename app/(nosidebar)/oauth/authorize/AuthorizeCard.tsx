@@ -3,24 +3,24 @@
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/Button'
-import { OAuth2Application } from '@/lib/models/oauth2/application'
+import { Client } from '@/lib/models/oauth2/client'
 
 import { SearchParams } from './types'
 
 interface Props {
-  application: OAuth2Application
+  client: Client
   searchParams: SearchParams
 }
 
-export const AuthorizeCard: FC<Props> = ({ searchParams, application }) => {
+export const AuthorizeCard: FC<Props> = ({ searchParams, client }) => {
   const requestedScopes = searchParams.scope.split(' ')
   return (
     <div className="card">
       <div className="card-body">
         <h5 className="card-title mb-2">Authorization required</h5>
         <p className="card-text mb-2">
-          <strong>{application.clientName}</strong> would like permission to
-          access your account. It is a third-party application.{' '}
+          <strong>{client.name}</strong> would like permission to access your
+          account. It is a third-party application.{' '}
           <strong>
             If you do not trust it, then you should not authorize it.
           </strong>

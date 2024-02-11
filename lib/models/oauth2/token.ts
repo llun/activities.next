@@ -1,17 +1,28 @@
 import { z } from 'zod'
 
-export const OAuth2Token = z.object({
-  ownerId: z.string(),
-  ownerType: z.string(),
-  applicationUid: z.string(),
-  tenantName: z.string(),
+import { Scopes } from '@/lib/storage/types/oauth'
 
-  scopes: z.string().array(),
-  token: z.string(),
-  refreshToken: z.string(),
-  previousRefreshToken: z.string(),
+import { Client } from './client'
+import { User } from './user'
 
-  expiresIn: z.number(),
+export const Token = z.object({
+  accessToken: z.string(),
+  accessTokenExpiresAt: z.number().transform((value) => new Date(value)),
+
+  refreshToken: z.string().nullish(),
+  refreshTokenExpiresAt: z
+    .number()
+    .nullish()
+    .transform((value) => (value ? new Date(value) : null)),
+
+  client: Client,
+  scopes: Scopes.array().transform((scopes) =>
+    scopes.map((name) => ({ name }))
+  ),
+  user: User.nullish(),
+
   createdAt: z.number(),
-  revokedAt: z.number()
+  updatedAt: z.number()
 })
+
+export type Token = z.infer<typeof Token>
