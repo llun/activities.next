@@ -82,6 +82,7 @@ import {
   GetAccessTokenParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
+  RevokeAccessTokenParams,
   UpdateClientParams,
   UpdateRefreshTokenParams
 } from './types/oauth'
@@ -1660,6 +1661,16 @@ export class SqlStorage implements Storage {
       refreshToken,
       refreshTokenExpiresAt,
       updatedAt: Date.now()
+    })
+    return this.getAccessToken({ accessToken })
+  }
+
+  async revokeAccessToken(params: RevokeAccessTokenParams) {
+    const { accessToken } = RevokeAccessTokenParams.parse(params)
+    const currentTime = Date.now()
+    await this.database('tokens').where('accessToken', accessToken).update({
+      accessTokenExpiresAt: currentTime,
+      refreshTokenExpiresAt: currentTime
     })
     return this.getAccessToken({ accessToken })
   }

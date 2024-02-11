@@ -1233,6 +1233,17 @@ describe('Storage', () => {
             })
           expect(tokenFromRefreshToken).toEqual(token)
         })
+
+        it('sets expires at for both accessToken and refreshToken to null when revoke accessToken', async () => {
+          const revokedToken = await storage.revokeAccessToken({
+            accessToken: token?.accessToken as string
+          })
+          expect(revokedToken?.accessTokenExpiresAt).toBeDefined()
+          expect(revokedToken?.refreshTokenExpiresAt).toBeDefined()
+          expect(revokedToken?.accessTokenExpiresAt.getTime()).toEqual(
+            revokedToken?.refreshTokenExpiresAt?.getTime()
+          )
+        })
       })
     })
   })

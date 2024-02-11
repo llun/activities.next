@@ -83,8 +83,7 @@ export class TokenRepository implements OAuthTokenRepository {
     })
   }
 
-  async revoke(accessToken: OAuthToken): Promise<void> {
-    console.log('revoke', accessToken)
-    throw new Error('No implementation')
+  async revoke(token: OAuthToken): Promise<void> {
+    await this.storage.revokeAccessToken({ accessToken: token.accessToken })
   }
 }

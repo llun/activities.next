@@ -82,6 +82,7 @@ import {
   GetAccessTokenParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
+  RevokeAccessTokenParams,
   UpdateClientParams,
   UpdateRefreshTokenParams
 } from './types/oauth'
@@ -1704,6 +1705,22 @@ export class FirestoreStorage implements Storage {
       refreshTokenExpiresAt,
 
       updatedAt: Date.now()
+    })
+
+    return this.getAccessToken({ accessToken })
+  }
+
+  @Trace('db')
+  async revokeAccessToken(params: RevokeAccessTokenParams) {
+    const { accessToken } = RevokeAccessTokenParams.parse(params)
+    const path = `accessTokens/${accessToken}`
+    const result = await this.db.doc(path).get()
+    if (!result.exists) return null
+
+    const currentTime = Date.now()
+    await this.db.doc(path).update({
+      accessTokenExpiresAt: currentTime,
+      refreshTokenExpiresAt: currentTime
     })
 
     return this.getAccessToken({ accessToken })
