@@ -1638,9 +1638,15 @@ export class FirestoreStorage implements Storage {
   async getAccessTokenByRefreshToken(
     params: GetAccessTokenByRefreshTokenParams
   ) {
-    console.log(params)
-    throw new Error('No implementation')
-    return null
+    const { refreshToken } = GetAccessTokenByRefreshTokenParams.parse(params)
+    const result = await this.db
+      .collection('accessTokens')
+      .where('refreshToken', '==', refreshToken)
+      .get()
+    if (result.size === 0) return null
+
+    const { accessToken } = result.docs[0].data()
+    return this.getAccessToken({ accessToken })
   }
 
   @Trace('db')
@@ -1676,8 +1682,30 @@ export class FirestoreStorage implements Storage {
 
   @Trace('db')
   async updateRefreshToken(params: UpdateRefreshTokenParams) {
-    console.log(params)
-    throw new Error('No implementation')
-    return null
+    const { accessToken, refreshToken, refreshTokenExpiresAt } =
+      UpdateRefreshTokenParams.parse(params)
+    const path = `accessTokens/${accessToken}`
+
+    const [doc, totalRefreshTokens] = await Promise.all([
+      this.db.doc(path).get(),
+      this.db
+        .collection('accessTokens')
+        .where('refreshToken', '==', refreshToken)
+        .count()
+        .get()
+    ])
+
+    if (!doc.exists) return null
+    if (totalRefreshTokens.data().count !== 0) return null
+
+    await this.db.doc(path).set({
+      ...doc.data(),
+      refreshToken,
+      refreshTokenExpiresAt,
+
+      updatedAt: Date.now()
+    })
+
+    return this.getAccessToken({ accessToken })
   }
 }

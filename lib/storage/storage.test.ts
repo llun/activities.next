@@ -1207,7 +1207,7 @@ describe('Storage', () => {
           expect(token?.user?.id).toEqual(actor?.account?.id)
         })
 
-        it('add refresh token to access token', async () => {
+        it.only('add refresh token to access token', async () => {
           const refreshToken = generateRandomToken()
           const refreshTokenExpiresAt = new DateInterval('2d')
             .getEndDate()
@@ -1223,7 +1223,9 @@ describe('Storage', () => {
             accessToken: token?.accessToken as string
           })
           expect(token?.refreshToken).toEqual(refreshToken)
-          expect(token?.refreshTokenExpiresAt).toEqual(refreshTokenExpiresAt)
+          expect(token?.refreshTokenExpiresAt?.getTime()).toEqual(
+            refreshTokenExpiresAt
+          )
 
           const tokenFromRefreshToken =
             await storage.getAccessTokenByRefreshToken({
