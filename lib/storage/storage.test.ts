@@ -1207,7 +1207,7 @@ describe('Storage', () => {
           expect(token?.user?.id).toEqual(actor?.account?.id)
         })
 
-        it.only('add refresh token to access token', async () => {
+        it('add refresh token to access token', async () => {
           const refreshToken = generateRandomToken()
           const refreshTokenExpiresAt = new DateInterval('2d')
             .getEndDate()

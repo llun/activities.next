@@ -45,40 +45,42 @@ export class TokenRepository implements OAuthTokenRepository {
   }
 
   async getByRefreshToken(refreshToken: string): Promise<OAuthToken> {
-    console.log('getByRefreshToken', refreshToken)
-    throw new Error('No implementation')
+    const token = await this.storage.getAccessTokenByRefreshToken({
+      refreshToken
+    })
+    if (!token) throw new Error('Fail to find refresh token')
+    return token
   }
 
   async isRefreshTokenRevoked(token: OAuthToken): Promise<boolean> {
     return Date.now() > (token.refreshTokenExpiresAt?.getTime() ?? 0)
   }
 
-  async issueRefreshToken(
-    token: OAuthToken,
-    client: OAuthClient
-  ): Promise<OAuthToken> {
-    console.log('issueRefreshToken', token, client)
-    throw new Error('No implementation')
+  async issueRefreshToken(token: OAuthToken): Promise<OAuthToken> {
+    const updatedToken = await this.storage.updateRefreshToken({
+      accessToken: token.accessToken,
+      refreshToken: generateRandomToken(),
+      refreshTokenExpiresAt: new DateInterval('2h').getEndDate().getTime()
+    })
+    if (!updatedToken) throw new Error('Fail to issue refresh token')
+    return updatedToken
   }
 
   async persist(token: OAuthToken): Promise<void> {
     const existingToken = await this.storage.getAccessToken({
       accessToken: token.accessToken
     })
-    if (!existingToken) {
-      await this.storage.createAccessToken({
-        accessToken: token.accessToken,
-        accessTokenExpiresAt: token.accessTokenExpiresAt.getTime(),
-        refreshToken: token.refreshToken,
-        refreshTokenExpiresAt: token.refreshTokenExpiresAt?.getTime(),
-        accountId: token.user?.accountId,
-        actorId: token.user?.userId,
-        clientId: token.client.id,
-        scopes: token.scopes.map((scope) => scope.name as Scopes)
-      })
-      return
-    }
-    throw new Error('No implementation')
+    if (existingToken) return
+    await this.storage.createAccessToken({
+      accessToken: token.accessToken,
+      accessTokenExpiresAt: token.accessTokenExpiresAt.getTime(),
+      refreshToken: token.refreshToken,
+      refreshTokenExpiresAt: token.refreshTokenExpiresAt?.getTime(),
+      accountId: token.user?.accountId,
+      actorId: token.user?.userId,
+      clientId: token.client.id,
+      scopes: token.scopes.map((scope) => scope.name as Scopes)
+    })
   }
 
   async revoke(accessToken: OAuthToken): Promise<void> {

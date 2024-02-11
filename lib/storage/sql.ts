@@ -1598,9 +1598,11 @@ export class SqlStorage implements Storage {
   async getAccessTokenByRefreshToken(
     params: GetAccessTokenByRefreshTokenParams
   ) {
-    console.log(params)
-    throw new Error('No implementation')
-    return null
+    const { refreshToken } = GetAccessTokenByRefreshTokenParams.parse(params)
+    const result = await this.database('tokens')
+      .where('refreshToken', refreshToken)
+      .first()
+    return this.getAccessToken({ accessToken: result.accessToken })
   }
 
   async createAccessToken(params: CreateAccessTokenParams) {
@@ -1638,8 +1640,27 @@ export class SqlStorage implements Storage {
   }
 
   async updateRefreshToken(params: UpdateRefreshTokenParams) {
-    console.log(params)
-    throw new Error('No implementation')
-    return null
+    const { accessToken, refreshToken, refreshTokenExpiresAt } =
+      UpdateRefreshTokenParams.parse(params)
+    const [tokenCount, refreshTokenCount] = await Promise.all([
+      this.database('tokens')
+        .where('accessToken', accessToken)
+        .count<{ count: number }>('* as count')
+        .first(),
+      this.database('tokens')
+        .where('refreshToken', refreshToken)
+        .count<{ count: number }>('* as count')
+        .first()
+    ])
+    if (!tokenCount?.count) return null
+    if (refreshTokenCount !== undefined && refreshTokenCount?.count > 0) {
+      return null
+    }
+    await this.database('tokens').where('accessToken', accessToken).update({
+      refreshToken,
+      refreshTokenExpiresAt,
+      updatedAt: Date.now()
+    })
+    return this.getAccessToken({ accessToken })
   }
 }
