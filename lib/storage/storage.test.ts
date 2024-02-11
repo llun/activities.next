@@ -1,4 +1,8 @@
+import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
+
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
+import { Account } from '../models/account'
+import { Actor } from '../models/actor'
 import { FollowStatus } from '../models/follow'
 import { Client } from '../models/oauth2/client'
 import { StatusNote, StatusType } from '../models/status'
@@ -1161,6 +1165,29 @@ describe('Storage', () => {
         if (!client) fail('Client must exists')
         expect(client).toEqual(updatedExistingClient)
         expect(client.scopes).toEqual([{ name: 'read' }])
+      })
+
+      describe.only('tokens', () => {
+        it('adds token to the repository', async () => {
+          const actor = (await storage.getActorFromEmail({
+            email: TEST_EMAIL
+          })) as Actor
+          const client = (await storage.getClientFromName({
+            name: 'application1'
+          })) as Client
+
+          const token = await storage.createAccessToken({
+            accessToken: generateRandomToken(),
+            accessTokenExpiresAt: new DateInterval('30d')
+              .getEndDate()
+              .getTime(),
+            accountId: (actor.account as Account).id,
+            actorId: actor.id,
+            clientId: client.id,
+            scopes: ['read']
+          })
+          console.log(token)
+        })
       })
     })
   })

@@ -78,10 +78,12 @@ import {
 import {
   CreateAccessTokenParams,
   CreateClientParams,
+  GetAccessTokenByRefreshTokenParams,
   GetAccessTokenParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
-  UpdateClientParams
+  UpdateClientParams,
+  UpdateRefreshTokenParams
 } from './types/oauth'
 import {
   CreateAnnounceParams,
@@ -1631,6 +1633,15 @@ export class FirestoreStorage implements Storage {
   }
 
   @Trace('db')
+  async getAccessTokenByRefreshToken(
+    params: GetAccessTokenByRefreshTokenParams
+  ) {
+    console.log(params)
+    throw new Error('No implementation')
+    return null
+  }
+
+  @Trace('db')
   async createAccessToken(params: CreateAccessTokenParams) {
     const {
       accessToken,
@@ -1659,5 +1670,12 @@ export class FirestoreStorage implements Storage {
       updatedAt: currentTime
     })
     return this.getAccessToken({ accessToken })
+  }
+
+  @Trace('db')
+  async updateRefreshToken(params: UpdateRefreshTokenParams) {
+    console.log(params)
+    throw new Error('No implementation')
+    return null
   }
 }

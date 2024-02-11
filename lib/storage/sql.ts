@@ -78,10 +78,12 @@ import {
 import {
   CreateAccessTokenParams,
   CreateClientParams,
+  GetAccessTokenByRefreshTokenParams,
   GetAccessTokenParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
-  UpdateClientParams
+  UpdateClientParams,
+  UpdateRefreshTokenParams
 } from './types/oauth'
 import {
   CreateAnnounceParams,
@@ -1591,6 +1593,14 @@ export class SqlStorage implements Storage {
     })
   }
 
+  async getAccessTokenByRefreshToken(
+    params: GetAccessTokenByRefreshTokenParams
+  ) {
+    console.log(params)
+    throw new Error('No implementation')
+    return null
+  }
+
   async createAccessToken(params: CreateAccessTokenParams) {
     const {
       accessToken,
@@ -1623,5 +1633,11 @@ export class SqlStorage implements Storage {
     }
     await this.database('tokens').insert(token)
     return this.getAccessToken({ accessToken })
+  }
+
+  async updateRefreshToken(params: UpdateRefreshTokenParams) {
+    console.log(params)
+    throw new Error('No implementation')
+    return null
   }
 }

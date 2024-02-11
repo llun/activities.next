@@ -42,8 +42,14 @@ export type UpdateClientParams = z.infer<typeof UpdateClientParams>
 export const GetAccessTokenParams = z.object({
   accessToken: z.string()
 })
-
 export type GetAccessTokenParams = z.infer<typeof GetAccessTokenParams>
+
+export const GetAccessTokenByRefreshTokenParams = z.object({
+  refreshToken: z.string()
+})
+export type GetAccessTokenByRefreshTokenParams = z.infer<
+  typeof GetAccessTokenByRefreshTokenParams
+>
 
 export const CreateAccessTokenParams = z.object({
   accessToken: z.string(),
@@ -60,6 +66,14 @@ export const CreateAccessTokenParams = z.object({
 })
 export type CreateAccessTokenParams = z.infer<typeof CreateAccessTokenParams>
 
+export const UpdateRefreshTokenParams = z.object({
+  accessToken: z.string(),
+
+  refreshToken: z.string(),
+  refreshTokenExpiresAt: z.number().nullish()
+})
+export type UpdateRefreshTokenParams = z.infer<typeof UpdateRefreshTokenParams>
+
 export interface OAuthStorage {
   createClient(params: CreateClientParams): Promise<Client | null>
   getClientFromName(params: GetClientFromNameParams): Promise<Client | null>
@@ -67,5 +81,9 @@ export interface OAuthStorage {
   updateClient(params: UpdateClientParams): Promise<Client | null>
 
   getAccessToken(params: GetAccessTokenParams): Promise<Token | null>
+  getAccessTokenByRefreshToken(
+    params: GetAccessTokenByRefreshTokenParams
+  ): Promise<Token | null>
   createAccessToken(params: CreateAccessTokenParams): Promise<Token | null>
+  updateRefreshToken(params: UpdateRefreshTokenParams): Promise<Token | null>
 }
