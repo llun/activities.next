@@ -38,7 +38,6 @@ export const Posts: FC<Props> = ({
 
   if (statuses.length === 0) return null
 
-  console.log(statuses)
   return (
     <section className={cn('w-full', 'grid', 'grid-cols-1', className)}>
       {statuses.map((status, index) => (

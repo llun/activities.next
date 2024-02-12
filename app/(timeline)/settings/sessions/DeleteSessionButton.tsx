@@ -14,7 +14,6 @@ export const DeleteSessionButton: FC<Props> = ({ existingSession }) => (
   <Button
     variant="link"
     onClick={async () => {
-      console.log('Deleting session')
       await deleteSession({ token: existingSession.token })
       window.location.reload()
     }}

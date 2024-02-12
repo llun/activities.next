@@ -1,9 +1,13 @@
+'use client'
+
 import cn from 'classnames'
 import { formatDistance } from 'date-fns'
+import _ from 'lodash'
 import { FC } from 'react'
 
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { formatText } from '@/lib/utils/text/formatText'
+import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
@@ -79,7 +83,11 @@ export const Post: FC<PostProps> = (props) => {
         {cleanClassName(
           status.isLocalActor
             ? formatText(host, actualStatus.text)
-            : convertEmojisToImages(actualStatus.text, actualStatus.tags)
+            : _.chain(actualStatus.text)
+                .thru(sanitizeText(host))
+                .thru(_.curryRight(convertEmojisToImages)(actualStatus.tags))
+                .value()
+                .trim()
         )}
       </div>
       <Poll status={actualStatus} currentTime={currentTime} />
