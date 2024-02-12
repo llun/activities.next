@@ -1,13 +1,12 @@
-'use client'
-
 import cn from 'classnames'
 import { formatDistance } from 'date-fns'
 import _ from 'lodash'
 import { FC } from 'react'
+import sanitizeHtml from 'sanitize-html'
 
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { formatText } from '@/lib/utils/text/formatText'
-import { sanitizeText } from '@/lib/utils/text/sanitizeText'
+import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 
 import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
@@ -80,15 +79,16 @@ export const Post: FC<PostProps> = (props) => {
         </div>
       </div>
       <div className={'me-1 text-break'}>
-        {cleanClassName(
-          status.isLocalActor
-            ? formatText(host, actualStatus.text)
-            : _.chain(actualStatus.text)
-                .thru(sanitizeText(host))
-                .thru(_.curryRight(convertEmojisToImages)(actualStatus.tags))
-                .value()
-                .trim()
-        )}
+        {_.chain(actualStatus.text)
+          .thru(
+            status.isLocalActor
+              ? _.curry(formatText)(host)
+              : (text) => sanitizeHtml(text, SANITIZED_OPTION)
+          )
+          .thru(_.curryRight(convertEmojisToImages)(actualStatus.tags))
+          .thru(_.trim)
+          .thru(cleanClassName)
+          .value()}
       </div>
       <Poll status={actualStatus} currentTime={currentTime} />
       <Attachments status={actualStatus} onClickMedia={onShowAttachment} />
