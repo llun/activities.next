@@ -550,6 +550,7 @@ describe('Storage', () => {
           totalLikes: 0,
           isActorLiked: false,
           isActorAnnounced: false,
+          isLocalActor: true,
           tags: [],
           reply: '',
           replies: [],
