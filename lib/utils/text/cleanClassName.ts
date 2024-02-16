@@ -11,8 +11,7 @@ interface replacingNode {
 
 export const cleanClassName = (text: string) =>
   parse(text, {
-    replace: (domNode) => {
-      const node = domNode as replacingNode
+    replace: (node: replacingNode) => {
       if (node.name === 'span') {
         if (node.attribs?.class === 'invisible') {
           node.attribs.class = styles.invisible
@@ -29,6 +28,6 @@ export const cleanClassName = (text: string) =>
         node.attribs.class = styles.emoji
       }
 
-      return domNode
+      return node
     }
   })
