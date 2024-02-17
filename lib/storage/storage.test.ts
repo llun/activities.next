@@ -650,9 +650,8 @@ describe('Storage', () => {
         })
         expect(statuses.length).toEqual(30)
         for (const index in statuses) {
-          const statusId = `https://llun.dev/users/null/statuses/post-${
-            50 - parseInt(index, 10)
-          }`
+          const statusId = `https://llun.dev/users/null/statuses/post-${50 - parseInt(index, 10)
+            }`
           const expectedStatus = await storage.getStatus({ statusId })
           expect(statuses[index].toJson()).toEqual(expectedStatus?.toJson())
         }
@@ -1243,6 +1242,10 @@ describe('Storage', () => {
             revokedToken?.refreshTokenExpiresAt?.getTime()
           )
         })
+      })
+
+      describe('authCode', () => {
+
       })
     })
   })

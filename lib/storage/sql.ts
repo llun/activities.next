@@ -81,6 +81,7 @@ import {
   CreateClientParams,
   GetAccessTokenByRefreshTokenParams,
   GetAccessTokenParams,
+  GetAuthCodeParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
   RevokeAccessTokenParams,
@@ -1680,6 +1681,11 @@ export class SqlStorage implements Storage {
 
   async createAuthCode(params: CreateAuthCodeParams) {
     CreateAuthCodeParams.parse(params)
+    return null
+  }
+
+  async getAuthCode(params: GetAuthCodeParams) {
+    GetAuthCodeParams.parse(params)
     return null
   }
 }

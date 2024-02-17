@@ -95,6 +95,11 @@ export const CreateAuthCodeParams = z.object({
 })
 export type CreateAuthCodeParams = z.infer<typeof CreateAuthCodeParams>
 
+export const GetAuthCodeParams = z.object({
+  code: z.string()
+})
+export type GetAuthCodeParams = z.infer<typeof GetAuthCodeParams>
+
 export interface OAuthStorage {
   createClient(params: CreateClientParams): Promise<Client | null>
   getClientFromName(params: GetClientFromNameParams): Promise<Client | null>
@@ -110,4 +115,5 @@ export interface OAuthStorage {
   revokeAccessToken(params: RevokeAccessTokenParams): Promise<Token | null>
 
   createAuthCode(params: CreateAuthCodeParams): Promise<AuthCode | null>
+  getAuthCode(params: GetAuthCodeParams): Promise<AuthCode | null>
 }

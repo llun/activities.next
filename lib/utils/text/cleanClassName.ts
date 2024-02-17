@@ -1,4 +1,4 @@
-import parse from 'html-react-parser'
+import parse, { DOMNode } from 'html-react-parser'
 
 import styles from './cleanClassName.module.scss'
 
@@ -11,23 +11,24 @@ interface replacingNode {
 
 export const cleanClassName = (text: string) =>
   parse(text, {
-    replace: (node: replacingNode) => {
-      if (node.name === 'span') {
-        if (node.attribs?.class === 'invisible') {
-          node.attribs.class = styles.invisible
+    replace: (node: DOMNode) => {
+      const replacingNode = node as replacingNode
+      if (replacingNode.name === 'span') {
+        if (replacingNode.attribs?.class === 'invisible') {
+          replacingNode.attribs.class = styles.invisible
         }
-        if (node.attribs?.class === 'ellipsis') {
-          node.attribs.class = styles.ellipsis
+        if (replacingNode.attribs?.class === 'ellipsis') {
+          replacingNode.attribs.class = styles.ellipsis
         }
       }
-      if (node.attribs && node.name === 'a') {
-        node.attribs.target = '_blank'
-        return node
+      if (replacingNode.attribs && replacingNode.name === 'a') {
+        replacingNode.attribs.target = '_blank'
+        return replacingNode
       }
-      if (node.name === 'img' && node.attribs?.class === 'emoji') {
-        node.attribs.class = styles.emoji
+      if (replacingNode.name === 'img' && replacingNode.attribs?.class === 'emoji') {
+        replacingNode.attribs.class = styles.emoji
       }
 
-      return node
+      return replacingNode
     }
   })
