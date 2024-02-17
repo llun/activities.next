@@ -20,7 +20,7 @@ export const AuthCode = z.object({
     scopes.map((name) => ({ name }))
   ),
 
-  expiresAt: z.number(),
+  expiresAt: z.number().transform((value) => new Date(value)),
   createdAt: z.number(),
   updatedAt: z.number()
 })

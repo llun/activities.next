@@ -7,6 +7,8 @@ import {
 } from '@jmondi/oauth2-server'
 
 import { Storage } from '@/lib/storage/types'
+import { AuthCode } from '@/lib/models/oauth2/authCode'
+import { DateInterval, generateRandomToken } from 'node_modules/@jmondi/oauth2-server/dist/index.cjs'
 
 export class AuthCodeRepository implements OAuthAuthCodeRepository {
   storage: Storage
@@ -29,8 +31,19 @@ export class AuthCodeRepository implements OAuthAuthCodeRepository {
     user: OAuthUser | undefined,
     scopes: OAuthScope[]
   ): OAuthAuthCode {
-    console.log('issueAuthCode', client, user, scopes)
-    throw new Error('No implementations')
+    return AuthCode.parse({
+      code: generateRandomToken(),
+      redirectUri: null,
+      codeChallenge: null,
+      codeChallengeMethod: "S256",
+      expiresAt: new DateInterval("15m").getEndDate(),
+      client,
+      clientId: client.id,
+      user,
+      userId: user?.id ?? null,
+      scopes,
+    })
+
   }
 
   async persist(authCodeCode: OAuthAuthCode): Promise<void> {
