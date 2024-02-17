@@ -77,6 +77,7 @@ import {
 } from './types/media'
 import {
   CreateAccessTokenParams,
+  CreateAuthCodeParams,
   CreateClientParams,
   GetAccessTokenByRefreshTokenParams,
   GetAccessTokenParams,
@@ -1094,9 +1095,9 @@ export class FirestoreStorage implements Storage {
       edits,
       ...(data.type === StatusType.enum.Poll
         ? {
-            choices: pollChoices.map((choice) => choice.toJson()),
-            endAt: data.endAt
-          }
+          choices: pollChoices.map((choice) => choice.toJson()),
+          endAt: data.endAt
+        }
         : null)
     })
   }
@@ -1726,5 +1727,11 @@ export class FirestoreStorage implements Storage {
     })
 
     return this.getAccessToken({ accessToken })
+  }
+
+  @Trace('db')
+  async createAuthCode(params: CreateAuthCodeParams) {
+    CreateAuthCodeParams.parse(params)
+    return null
   }
 }

@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { Client } from '@/lib/models/oauth2/client'
 import { Token } from '@/lib/models/oauth2/token'
+import { AuthCode } from '@/lib/models/oauth2/authCode'
 
 export const Scopes = z.enum(['read', 'write', 'follow', 'push'])
 export type Scopes = z.infer<typeof Scopes>
@@ -79,6 +80,21 @@ export const RevokeAccessTokenParams = z.object({
 })
 export type RevokeAccessTokenParams = z.infer<typeof RevokeAccessTokenParams>
 
+export const CreateAuthCodeParams = z.object({
+  code: z.string(),
+  redirectUri: z.string().nullish(),
+  codeChallenge: z.string().nullish(),
+  codeChallengeMethod: z.string().nullish(),
+
+  actorId: z.string(),
+  accountId: z.string(),
+  clientId: z.string(),
+  scopes: Scopes.array(),
+
+  expiresAt: z.number(),
+})
+export type CreateAuthCodeParams = z.infer<typeof CreateAuthCodeParams>
+
 export interface OAuthStorage {
   createClient(params: CreateClientParams): Promise<Client | null>
   getClientFromName(params: GetClientFromNameParams): Promise<Client | null>
@@ -92,4 +108,6 @@ export interface OAuthStorage {
   createAccessToken(params: CreateAccessTokenParams): Promise<Token | null>
   updateRefreshToken(params: UpdateRefreshTokenParams): Promise<Token | null>
   revokeAccessToken(params: RevokeAccessTokenParams): Promise<Token | null>
+
+  createAuthCode(params: CreateAuthCodeParams): Promise<AuthCode | null>
 }
