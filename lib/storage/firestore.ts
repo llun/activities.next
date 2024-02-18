@@ -85,6 +85,7 @@ import {
   GetClientFromIdParams,
   GetClientFromNameParams,
   RevokeAccessTokenParams,
+  RevokeAuthCodeParams,
   UpdateClientParams,
   UpdateRefreshTokenParams
 } from './types/oauth'
@@ -1796,5 +1797,20 @@ export class FirestoreStorage implements Storage {
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
     })
+  }
+
+  @Trace('db')
+  async revokeAuthCode(params: RevokeAuthCodeParams) {
+    const { code } = RevokeAuthCodeParams.parse(params)
+    const path = `authCodes/${code}`
+    const result = await this.db.doc(path).get()
+    if (!result.exists) return null
+
+    const currentTime = Date.now()
+    await this.db.doc(path).update({
+      expiresAt: currentTime,
+    })
+
+    return this.getAuthCode({ code })
   }
 }

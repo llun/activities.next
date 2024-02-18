@@ -63,7 +63,6 @@ export class AuthCodeRepository implements OAuthAuthCodeRepository {
   }
 
   async revoke(authCodeCode: string): Promise<void> {
-    console.log('revoke', authCodeCode)
-    throw new Error('No implementation')
+    await this.storage.revokeAuthCode({ code: authCodeCode })
   }
 }

@@ -1233,7 +1233,7 @@ describe('Storage', () => {
           expect(tokenFromRefreshToken).toEqual(token)
         })
 
-        it('sets expires at for both accessToken and refreshToken to null when revoke accessToken', async () => {
+        it('sets expires at for both accessToken and refreshToken when revoke accessToken', async () => {
           const revokedToken = await storage.revokeAccessToken({
             accessToken: token?.accessToken as string
           })
@@ -1296,6 +1296,13 @@ describe('Storage', () => {
         it('returns authCode from storage', async () => {
           const codeFromStorage = await storage.getAuthCode({ code: code?.code as string })
           expect(codeFromStorage).toEqual(code)
+        })
+
+        it('sets expires at when revoke authCode', async () => {
+          const revokedAuthCode = await storage.revokeAuthCode({
+            code: code?.code as string
+          })
+          expect(revokedAuthCode?.expiresAt).toBeDefined()
         })
       })
     })

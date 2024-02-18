@@ -85,6 +85,7 @@ import {
   GetClientFromIdParams,
   GetClientFromNameParams,
   RevokeAccessTokenParams,
+  RevokeAuthCodeParams,
   UpdateClientParams,
   UpdateRefreshTokenParams
 } from './types/oauth'
@@ -1746,5 +1747,14 @@ export class SqlStorage implements Storage {
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
     })
+  }
+
+  async revokeAuthCode(params: RevokeAuthCodeParams) {
+    const { code } = RevokeAuthCodeParams.parse(params)
+    const currentTime = Date.now()
+    await this.database('auth_codes').where('code', code).update({
+      expiresAt: currentTime,
+    })
+    return this.getAuthCode({ code })
   }
 }
