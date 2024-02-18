@@ -14,6 +14,7 @@ import { waitFor } from '../utils/waitFor'
 import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
+import { AuthCode } from '../models/oauth2/authCode'
 
 const TEST_SHARED_INBOX = `https://${TEST_DOMAIN}/inbox`
 const TEST_PASSWORD_HASH = 'password_hash'
@@ -1245,7 +1246,57 @@ describe('Storage', () => {
       })
 
       describe('authCode', () => {
+        let actor: Actor | undefined, client: Client | null, code: AuthCode | null
 
+        beforeAll(async () => {
+          ;[actor, client] = await Promise.all([
+            storage.getActorFromEmail({
+              email: TEST_EMAIL
+            }),
+            storage.getClientFromName({ name: 'application1' })
+          ])
+
+          code = await storage.createAuthCode({
+            code: generateRandomToken(),
+            redirectUri: 'https://application1.llun.dev/oauth/redirect',
+            codeChallenge: 'challenge',
+            codeChallengeMethod: 'plain',
+
+            clientId: client?.id as string,
+            accountId: actor?.account?.id as string,
+            actorId: actor?.id as string,
+
+            scopes: ['read'],
+
+            expiresAt: new DateInterval('50m').getEndDate().getTime(),
+          })
+        })
+
+        it('adds authCode to the repository', async () => {
+          const code = await storage.createAuthCode({
+            code: generateRandomToken(),
+            redirectUri: null,
+            codeChallenge: null,
+            codeChallengeMethod: 'S256',
+
+            clientId: client?.id as string,
+            accountId: actor?.account?.id as string,
+            actorId: actor?.id as string,
+
+            scopes: ['read'],
+
+            expiresAt: new DateInterval('50m').getEndDate().getTime(),
+          })
+
+          expect(code?.client).toEqual(client)
+          expect(code?.user?.actor).toEqual(actor?.data)
+          expect(code?.user?.id).toEqual(actor?.account?.id)
+        })
+
+        it('returns authCode from storage', async () => {
+          const codeFromStorage = await storage.getAuthCode({ code: code?.code as string })
+          expect(codeFromStorage).toEqual(code)
+        })
       })
     })
   })
