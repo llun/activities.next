@@ -8,6 +8,7 @@ import { ClientRepository } from './clientRepository'
 import { ScopeRepository } from './scopeRepository'
 import { TokenRepository } from './tokenRepository'
 import { UserRepository } from './userRepository'
+import { getConfig } from '@/lib/config'
 
 export const getOAuth2Server = memoize(async () => {
   const storage = await getStorage()
@@ -17,7 +18,7 @@ export const getOAuth2Server = memoize(async () => {
     new ClientRepository(storage),
     new TokenRepository(storage),
     new ScopeRepository(),
-    'secretKey'
+    getConfig().secretPhase
   )
 
   const userRepository = new UserRepository(storage)

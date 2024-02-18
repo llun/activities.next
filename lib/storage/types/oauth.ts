@@ -75,9 +75,7 @@ export const UpdateRefreshTokenParams = z.object({
 })
 export type UpdateRefreshTokenParams = z.infer<typeof UpdateRefreshTokenParams>
 
-export const RevokeAccessTokenParams = z.object({
-  accessToken: z.string()
-})
+export const RevokeAccessTokenParams = z.object({ accessToken: z.string() })
 export type RevokeAccessTokenParams = z.infer<typeof RevokeAccessTokenParams>
 
 export const CreateAuthCodeParams = z.object({
@@ -95,10 +93,11 @@ export const CreateAuthCodeParams = z.object({
 })
 export type CreateAuthCodeParams = z.infer<typeof CreateAuthCodeParams>
 
-export const GetAuthCodeParams = z.object({
-  code: z.string()
-})
+export const GetAuthCodeParams = z.object({ code: z.string() })
 export type GetAuthCodeParams = z.infer<typeof GetAuthCodeParams>
+
+export const RevokeAuthCodeParams = z.object({ code: z.string() })
+export type RevokeAuthCodeParams = z.infer<typeof RevokeAuthCodeParams>
 
 export interface OAuthStorage {
   createClient(params: CreateClientParams): Promise<Client | null>
@@ -116,4 +115,5 @@ export interface OAuthStorage {
 
   createAuthCode(params: CreateAuthCodeParams): Promise<AuthCode | null>
   getAuthCode(params: GetAuthCodeParams): Promise<AuthCode | null>
+  revokeAuthCode(params: RevokeAuthCodeParams): Promise<AuthCode | null>
 }

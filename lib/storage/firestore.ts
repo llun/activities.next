@@ -85,6 +85,7 @@ import {
   GetClientFromIdParams,
   GetClientFromNameParams,
   RevokeAccessTokenParams,
+  RevokeAuthCodeParams,
   UpdateClientParams,
   UpdateRefreshTokenParams
 } from './types/oauth'
@@ -102,6 +103,7 @@ import {
   UpdateNoteParams,
   UpdatePollParams
 } from './types/status'
+import { AuthCode } from '../models/oauth2/authCode'
 
 export interface FirestoreConfig extends Settings {
   type: 'firebase' | 'firestore'
@@ -1670,6 +1672,9 @@ export class FirestoreStorage implements Storage {
     const snapshot = await this.db.doc(`accessTokens/${accessToken}`).get()
     if (snapshot.exists) return null
 
+    const actor = await this.getActorFromId({ id: actorId })
+    if (!actor?.account || actor.account.id !== accountId) return null
+
     await this.db.doc(`accessTokens/${accessToken}`).set({
       accessToken,
       accessTokenExpiresAt,
@@ -1732,13 +1737,80 @@ export class FirestoreStorage implements Storage {
 
   @Trace('db')
   async createAuthCode(params: CreateAuthCodeParams) {
-    CreateAuthCodeParams.parse(params)
-    return null
+    const { code, redirectUri, codeChallenge, codeChallengeMethod, actorId, accountId, clientId, scopes, expiresAt } = CreateAuthCodeParams.parse(params)
+    const currentTime = Date.now()
+    const snapshot = await this.db.doc(`authCodes/${code}`).get()
+    if (snapshot.exists) return null
+
+    const actor = await this.getActorFromId({ id: actorId })
+    if (!actor?.account || actor.account.id !== accountId) return null
+
+    await this.db.doc(`authCodes/${code}`).set({
+      code,
+      ...(redirectUri ? { redirectUri } : null),
+      ...(codeChallenge ? { codeChallenge } : null),
+      ...(codeChallengeMethod ? { codeChallengeMethod } : null),
+      scopes: JSON.stringify(scopes),
+      clientId,
+      actorId,
+      accountId,
+      expiresAt,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+    return this.getAuthCode({ code })
   }
 
   @Trace('db')
   async getAuthCode(params: GetAuthCodeParams) {
-    GetAuthCodeParams.parse(params)
-    return null
+    const { code } = GetAuthCodeParams.parse(params)
+    const snapshot = await this.db.doc(`authCodes/${code}`).get()
+    if (!snapshot.exists) return null
+
+    const data = snapshot.data()
+    if (!data) return null
+
+    const [client, actor, account] = await Promise.all([
+      this.getClientFromId({ clientId: data.clientId }),
+      this.getActorFromId({ id: data.actorId }),
+      this.getAccountFromId({ id: data.accountId })
+    ])
+
+    return AuthCode.parse({
+      code: data.code,
+      ...(data.redirectUri ? { redirectUri: data.redirectUri } : null),
+      ...(data.codeChallenge ? { codeChallenge: data.codeChallenge } : null),
+      ...(data.codeChallengeMethod ? { codeChallengeMethod: data.codeChallengeMethod } : null),
+
+      scopes: JSON.parse(data.scopes),
+      client: {
+        ...client,
+        scopes: client?.scopes.map((scope) => scope.name)
+      },
+      user: User.parse({
+        id: account?.id,
+        actor: actor?.data,
+        account
+      }),
+
+      expiresAt: data.expiresAt,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt
+    })
+  }
+
+  @Trace('db')
+  async revokeAuthCode(params: RevokeAuthCodeParams) {
+    const { code } = RevokeAuthCodeParams.parse(params)
+    const path = `authCodes/${code}`
+    const result = await this.db.doc(path).get()
+    if (!result.exists) return null
+
+    const currentTime = Date.now()
+    await this.db.doc(path).update({
+      expiresAt: currentTime,
+    })
+
+    return this.getAuthCode({ code })
   }
 }

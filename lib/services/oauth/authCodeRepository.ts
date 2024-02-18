@@ -9,6 +9,7 @@ import {
 import { Storage } from '@/lib/storage/types'
 import { AuthCode } from '@/lib/models/oauth2/authCode'
 import { DateInterval, generateRandomToken } from 'node_modules/@jmondi/oauth2-server/dist/index.cjs'
+import { Scopes } from '@/lib/storage/types/oauth'
 
 export class AuthCodeRepository implements OAuthAuthCodeRepository {
   storage: Storage
@@ -17,13 +18,14 @@ export class AuthCodeRepository implements OAuthAuthCodeRepository {
   }
 
   async getByIdentifier(authCodeCode: string): Promise<OAuthAuthCode> {
-    console.log('getByIdentifier', authCodeCode)
-    throw new Error('No implementation')
+    const authCode = await this.storage.getAuthCode({ code: authCodeCode })
+    if (!authCode) throw new Error('Fail to find auth code')
+    return authCode
   }
 
   async isRevoked(authCodeCode: string): Promise<boolean> {
-    console.log('isRevoked', authCodeCode)
-    throw new Error('No implementation')
+    const authCode = await this.getByIdentifier(authCodeCode);
+    return Date.now() > authCode.expiresAt.getTime();
   }
 
   issueAuthCode(
@@ -47,12 +49,20 @@ export class AuthCodeRepository implements OAuthAuthCodeRepository {
   }
 
   async persist(authCodeCode: OAuthAuthCode): Promise<void> {
-    console.log('persist', authCodeCode)
-    throw new Error('No implementation')
+    await this.storage.createAuthCode({
+      code: authCodeCode.code,
+      redirectUri: authCodeCode.redirectUri,
+      codeChallenge: authCodeCode.codeChallenge,
+      codeChallengeMethod: authCodeCode.codeChallengeMethod,
+      clientId: authCodeCode.client.id,
+      actorId: authCodeCode.user?.userId,
+      accountId: authCodeCode.user?.accountId,
+      scopes: authCodeCode.scopes.map((scope) => scope.name as Scopes),
+      expiresAt: authCodeCode.expiresAt.getTime(),
+    })
   }
 
   async revoke(authCodeCode: string): Promise<void> {
-    console.log('revoke', authCodeCode)
-    throw new Error('No implementation')
+    await this.storage.revokeAuthCode({ code: authCodeCode })
   }
 }
