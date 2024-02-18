@@ -102,6 +102,7 @@ import {
   UpdateNoteParams,
   UpdatePollParams
 } from './types/status'
+import { AuthCode } from '../models/oauth2/authCode'
 
 interface ActorSettings {
   iconUrl?: string
@@ -1628,6 +1629,9 @@ export class SqlStorage implements Storage {
       .first()
     if (tokenCountResult?.count && tokenCountResult?.count > 0) return null
 
+    const actor = await this.getActorFromId({ id: actorId })
+    if (!actor?.account || actor.account.id !== accountId) return null
+
     const token = {
       accessToken,
       accessTokenExpiresAt,
@@ -1680,12 +1684,67 @@ export class SqlStorage implements Storage {
   }
 
   async createAuthCode(params: CreateAuthCodeParams) {
-    CreateAuthCodeParams.parse(params)
-    return null
+    const { code, redirectUri, codeChallenge, codeChallengeMethod, actorId, accountId, clientId, scopes, expiresAt } = CreateAuthCodeParams.parse(params)
+    const currentTime = Date.now()
+    const codeCountResult = await this.database('auth_codes')
+      .where('code', code)
+      .count<{ count: number }>('* as count')
+      .first()
+    if (codeCountResult?.count && codeCountResult?.count > 0) return null
+
+    const actor = await this.getActorFromId({ id: actorId })
+    if (!actor?.account || actor.account.id !== accountId) return null
+
+    const authCode = {
+      code,
+      ...(redirectUri ? { redirectUri } : null),
+      ...(codeChallenge ? { codeChallenge } : null),
+      ...(codeChallengeMethod ? { codeChallengeMethod } : null),
+      scopes: JSON.stringify(scopes),
+      clientId,
+      actorId,
+      accountId,
+      expiresAt,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
+    await this.database('auth_codes').insert(authCode)
+    return this.getAuthCode({ code })
   }
 
   async getAuthCode(params: GetAuthCodeParams) {
-    GetAuthCodeParams.parse(params)
-    return null
+    const { code } = GetAuthCodeParams.parse(params)
+    const data = await this.database('auth_codes')
+      .where('code', code)
+      .first()
+    if (!data) return null
+
+    const [client, actor, account] = await Promise.all([
+      this.getClientFromId({ clientId: data.clientId }),
+      this.getActorFromId({ id: data.actorId }),
+      this.getAccountFromId({ id: data.accountId })
+    ])
+
+    return AuthCode.parse({
+      code: data.code,
+      ...(data.redirectUri ? { redirectUri: data.redirectUri } : null),
+      ...(data.codeChallenge ? { codeChallenge: data.codeChallenge } : null),
+      ...(data.codeChallengeMethod ? { codeChallengeMethod: data.codeChallengeMethod } : null),
+
+      scopes: JSON.parse(data.scopes),
+      client: {
+        ...client,
+        scopes: client?.scopes.map((scope) => scope.name)
+      },
+      user: User.parse({
+        id: account?.id,
+        actor: actor?.data,
+        account
+      }),
+
+      expiresAt: data.expiresAt,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt
+    })
   }
 }
