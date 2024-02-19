@@ -1,10 +1,6 @@
-import {
-  GrantIdentifier,
-  OAuthClient,
-  OAuthUser,
-  OAuthUserRepository
-} from '@jmondi/oauth2-server'
+import { OAuthUser, OAuthUserRepository } from '@jmondi/oauth2-server'
 
+import { User } from '@/lib/models/oauth2/user'
 import { Storage } from '@/lib/storage/types'
 
 export class UserRepository implements OAuthUserRepository {
@@ -14,13 +10,13 @@ export class UserRepository implements OAuthUserRepository {
     this.storage = storage
   }
 
-  async getUserByCredentials(
-    identifier: string,
-    password?: string,
-    grantType?: GrantIdentifier,
-    client?: OAuthClient
-  ): Promise<OAuthUser> {
-    console.log('getUserByCredentials', identifier, password, grantType, client)
-    throw new Error('No implementation')
+  async getUserByCredentials(identifier: string): Promise<OAuthUser> {
+    const actor = await this.storage.getActorFromId({ id: identifier })
+    if (!actor || !actor.account) throw new Error('Fail to find actor')
+    return User.parse({
+      id: actor.id,
+      actor: actor.data,
+      account: actor.account
+    })
   }
 }

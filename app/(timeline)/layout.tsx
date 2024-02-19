@@ -49,7 +49,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   const profile = actor.toProfile()
   return (
     <html lang="en">
-      <body>
+      <body className=''>
         <Header session={session} />
         <section className="container pt-4">
           <div className="row">

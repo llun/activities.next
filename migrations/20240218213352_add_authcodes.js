@@ -2,8 +2,8 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function(knex) {
-  return knex.schema.createTable('auth_codes', function(table) {
+exports.up = function (knex) {
+  return knex.schema.createTable('auth_codes', function (table) {
     table.string('code').primary()
 
     table.string('redirectUri').nullable()
@@ -20,12 +20,12 @@ exports.up = function(knex) {
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
   })
-};
+}
 
 /**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = function(knex) {
+exports.down = function (knex) {
   return knex.schema.dropTable('auth_codes')
-};
+}

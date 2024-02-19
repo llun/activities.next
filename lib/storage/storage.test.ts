@@ -4,6 +4,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { FollowStatus } from '../models/follow'
+import { AuthCode } from '../models/oauth2/authCode'
 import { Client } from '../models/oauth2/client'
 import { Token } from '../models/oauth2/token'
 import { StatusNote, StatusType } from '../models/status'
@@ -14,7 +15,6 @@ import { waitFor } from '../utils/waitFor'
 import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
-import { AuthCode } from '../models/oauth2/authCode'
 
 const TEST_SHARED_INBOX = `https://${TEST_DOMAIN}/inbox`
 const TEST_PASSWORD_HASH = 'password_hash'
@@ -643,7 +643,7 @@ describe('Storage', () => {
           })
           await addStatusToTimelines(storage, status)
           // Making sure the timeline is in order.
-          await waitFor(1)
+          await waitFor(2)
         }
         const statuses = await storage.getTimeline({
           timeline: Timeline.MAIN,
@@ -651,8 +651,7 @@ describe('Storage', () => {
         })
         expect(statuses.length).toEqual(30)
         for (const index in statuses) {
-          const statusId = `https://llun.dev/users/null/statuses/post-${50 - parseInt(index, 10)
-            }`
+          const statusId = `https://llun.dev/users/null/statuses/post-${50 - parseInt(index, 10)}`
           const expectedStatus = await storage.getStatus({ statusId })
           expect(statuses[index].toJson()).toEqual(expectedStatus?.toJson())
         }
@@ -1203,7 +1202,7 @@ describe('Storage', () => {
           })
           expect(token?.client).toEqual(client)
           expect(token?.user?.actor).toEqual(actor?.data)
-          expect(token?.user?.id).toEqual(actor?.account?.id)
+          expect(token?.user?.id).toEqual(actor?.id)
         })
 
         it('add refresh token to access token', async () => {
@@ -1246,7 +1245,9 @@ describe('Storage', () => {
       })
 
       describe('authCode', () => {
-        let actor: Actor | undefined, client: Client | null, code: AuthCode | null
+        let actor: Actor | undefined,
+          client: Client | null,
+          code: AuthCode | null
 
         beforeAll(async () => {
           ;[actor, client] = await Promise.all([
@@ -1268,7 +1269,7 @@ describe('Storage', () => {
 
             scopes: ['read'],
 
-            expiresAt: new DateInterval('50m').getEndDate().getTime(),
+            expiresAt: new DateInterval('50m').getEndDate().getTime()
           })
         })
 
@@ -1285,16 +1286,18 @@ describe('Storage', () => {
 
             scopes: ['read'],
 
-            expiresAt: new DateInterval('50m').getEndDate().getTime(),
+            expiresAt: new DateInterval('50m').getEndDate().getTime()
           })
 
           expect(code?.client).toEqual(client)
           expect(code?.user?.actor).toEqual(actor?.data)
-          expect(code?.user?.id).toEqual(actor?.account?.id)
+          expect(code?.user?.id).toEqual(actor?.id)
         })
 
         it('returns authCode from storage', async () => {
-          const codeFromStorage = await storage.getAuthCode({ code: code?.code as string })
+          const codeFromStorage = await storage.getAuthCode({
+            code: code?.code as string
+          })
           expect(codeFromStorage).toEqual(code)
         })
 
