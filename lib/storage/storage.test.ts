@@ -4,6 +4,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { FollowStatus } from '../models/follow'
+import { AuthCode } from '../models/oauth2/authCode'
 import { Client } from '../models/oauth2/client'
 import { Token } from '../models/oauth2/token'
 import { StatusNote, StatusType } from '../models/status'
@@ -14,7 +15,6 @@ import { waitFor } from '../utils/waitFor'
 import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
-import { AuthCode } from '../models/oauth2/authCode'
 
 const TEST_SHARED_INBOX = `https://${TEST_DOMAIN}/inbox`
 const TEST_PASSWORD_HASH = 'password_hash'
@@ -1245,7 +1245,9 @@ describe('Storage', () => {
       })
 
       describe('authCode', () => {
-        let actor: Actor | undefined, client: Client | null, code: AuthCode | null
+        let actor: Actor | undefined,
+          client: Client | null,
+          code: AuthCode | null
 
         beforeAll(async () => {
           ;[actor, client] = await Promise.all([
@@ -1267,7 +1269,7 @@ describe('Storage', () => {
 
             scopes: ['read'],
 
-            expiresAt: new DateInterval('50m').getEndDate().getTime(),
+            expiresAt: new DateInterval('50m').getEndDate().getTime()
           })
         })
 
@@ -1284,7 +1286,7 @@ describe('Storage', () => {
 
             scopes: ['read'],
 
-            expiresAt: new DateInterval('50m').getEndDate().getTime(),
+            expiresAt: new DateInterval('50m').getEndDate().getTime()
           })
 
           expect(code?.client).toEqual(client)
@@ -1293,7 +1295,9 @@ describe('Storage', () => {
         })
 
         it('returns authCode from storage', async () => {
-          const codeFromStorage = await storage.getAuthCode({ code: code?.code as string })
+          const codeFromStorage = await storage.getAuthCode({
+            code: code?.code as string
+          })
           expect(codeFromStorage).toEqual(code)
         })
 

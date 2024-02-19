@@ -25,7 +25,10 @@ export const cleanClassName = (text: string) =>
         replacingNode.attribs.target = '_blank'
         return replacingNode
       }
-      if (replacingNode.name === 'img' && replacingNode.attribs?.class === 'emoji') {
+      if (
+        replacingNode.name === 'img' &&
+        replacingNode.attribs?.class === 'emoji'
+      ) {
         replacingNode.attribs.class = styles.emoji
       }
 

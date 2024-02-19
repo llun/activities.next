@@ -1,8 +1,8 @@
-import { User } from "@/lib/models/oauth2/user"
-import { AuthenticatedGuard } from "@/lib/services/guards/AuthenticatedGuard"
-import { getOAuth2Server } from "@/lib/services/oauth/server"
+import { User } from '@/lib/models/oauth2/user'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { getOAuth2Server } from '@/lib/services/oauth/server'
 
-export const POST = AuthenticatedGuard(async (req, context, params) => {
+export const POST = AuthenticatedGuard(async (req, context) => {
   const { currentActor } = context
   const server = await getOAuth2Server()
   const form = await req.formData()

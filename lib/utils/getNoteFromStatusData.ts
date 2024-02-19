@@ -12,7 +12,7 @@ export const getNoteFromStatusData = (status: StatusData): Note | null => {
   const actualStatus =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
 
-  return <Note>{
+  return {
     id: actualStatus.id,
     type: actualStatus.type,
     ...(actualStatus.summary ? { summary: actualStatus.summary } : null),
@@ -35,5 +35,5 @@ export const getNoteFromStatusData = (status: StatusData): Note | null => {
         getNoteFromStatusData(StatusData.parse(reply))
       )
     }
-  }
+  } as Note
 }

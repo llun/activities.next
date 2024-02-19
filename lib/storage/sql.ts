@@ -9,6 +9,7 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
+import { AuthCode } from '../models/oauth2/authCode'
 import { Client } from '../models/oauth2/client'
 import { Token } from '../models/oauth2/token'
 import { User } from '../models/oauth2/user'
@@ -103,7 +104,6 @@ import {
   UpdateNoteParams,
   UpdatePollParams
 } from './types/status'
-import { AuthCode } from '../models/oauth2/authCode'
 
 interface ActorSettings {
   iconUrl?: string
@@ -1086,9 +1086,9 @@ export class SqlStorage implements Storage {
     )
       .map((item) =>
         item?.data.type &&
-          [StatusType.enum.Note, StatusType.enum.Poll].includes(
-            item?.data.type as any // eslint-disable-line @typescript-eslint/no-explicit-any
-          )
+        [StatusType.enum.Note, StatusType.enum.Poll].includes(
+          item?.data.type as any // eslint-disable-line @typescript-eslint/no-explicit-any
+        )
           ? item.data
           : null
       )
@@ -1127,9 +1127,9 @@ export class SqlStorage implements Storage {
 
       ...(data.type === StatusType.enum.Poll
         ? {
-          choices: pollChoices.map((choice) => choice.toJson()),
-          endAt: content.endAt
-        }
+            choices: pollChoices.map((choice) => choice.toJson()),
+            endAt: content.endAt
+          }
         : null)
     })
   }
@@ -1204,29 +1204,29 @@ export class SqlStorage implements Storage {
         const limit = PER_PAGE_LIMIT
         const startAfterId = startAfterStatusId
           ? (
-            await this.database('timelines')
-              .where('actorId', actorId)
-              .where('timeline', timeline)
-              .where('statusId', startAfterStatusId)
-              .select('id')
-              .first<{ id: number }>()
-          ).id
+              await this.database('timelines')
+                .where('actorId', actorId)
+                .where('timeline', timeline)
+                .where('statusId', startAfterStatusId)
+                .select('id')
+                .first<{ id: number }>()
+            ).id
           : 0
 
         const statusesId = await (startAfterStatusId
           ? this.database('timelines')
-            .where('actorId', actorId)
-            .where('timeline', timeline)
-            .where('id', '<', startAfterId)
-            .select('statusId')
-            .orderBy('createdAt', 'desc')
-            .limit(limit)
+              .where('actorId', actorId)
+              .where('timeline', timeline)
+              .where('id', '<', startAfterId)
+              .select('statusId')
+              .orderBy('createdAt', 'desc')
+              .limit(limit)
           : this.database('timelines')
-            .where('actorId', actorId)
-            .where('timeline', timeline)
-            .select('statusId')
-            .orderBy('createdAt', 'desc')
-            .limit(limit))
+              .where('actorId', actorId)
+              .where('timeline', timeline)
+              .select('statusId')
+              .orderBy('createdAt', 'desc')
+              .limit(limit))
 
         const statuses = await Promise.all(
           statusesId
@@ -1448,11 +1448,11 @@ export class SqlStorage implements Storage {
       originalMetaData: JSON.stringify(original.metaData),
       ...(thumbnail
         ? {
-          thumbnail: thumbnail.path,
-          thumbnailBytes: thumbnail.bytes,
-          thumbnailMimeType: thumbnail.mimeType,
-          thumbnailMetaData: JSON.stringify(thumbnail.metaData)
-        }
+            thumbnail: thumbnail.path,
+            thumbnailBytes: thumbnail.bytes,
+            thumbnailMimeType: thumbnail.mimeType,
+            thumbnailMetaData: JSON.stringify(thumbnail.metaData)
+          }
         : null),
       ...(description ? { description } : null)
     }
@@ -1685,7 +1685,17 @@ export class SqlStorage implements Storage {
   }
 
   async createAuthCode(params: CreateAuthCodeParams) {
-    const { code, redirectUri, codeChallenge, codeChallengeMethod, actorId, accountId, clientId, scopes, expiresAt } = CreateAuthCodeParams.parse(params)
+    const {
+      code,
+      redirectUri,
+      codeChallenge,
+      codeChallengeMethod,
+      actorId,
+      accountId,
+      clientId,
+      scopes,
+      expiresAt
+    } = CreateAuthCodeParams.parse(params)
     const currentTime = Date.now()
     const codeCountResult = await this.database('auth_codes')
       .where('code', code)
@@ -1715,9 +1725,7 @@ export class SqlStorage implements Storage {
 
   async getAuthCode(params: GetAuthCodeParams) {
     const { code } = GetAuthCodeParams.parse(params)
-    const data = await this.database('auth_codes')
-      .where('code', code)
-      .first()
+    const data = await this.database('auth_codes').where('code', code).first()
     if (!data) return null
 
     const [client, actor, account] = await Promise.all([
@@ -1730,7 +1738,9 @@ export class SqlStorage implements Storage {
       code: data.code,
       ...(data.redirectUri ? { redirectUri: data.redirectUri } : null),
       ...(data.codeChallenge ? { codeChallenge: data.codeChallenge } : null),
-      ...(data.codeChallengeMethod ? { codeChallengeMethod: data.codeChallengeMethod } : null),
+      ...(data.codeChallengeMethod
+        ? { codeChallengeMethod: data.codeChallengeMethod }
+        : null),
 
       scopes: JSON.parse(data.scopes),
       client: {
@@ -1753,7 +1763,7 @@ export class SqlStorage implements Storage {
     const { code } = RevokeAuthCodeParams.parse(params)
     const currentTime = Date.now()
     await this.database('auth_codes').where('code', code).update({
-      expiresAt: currentTime,
+      expiresAt: currentTime
     })
     return this.getAuthCode({ code })
   }

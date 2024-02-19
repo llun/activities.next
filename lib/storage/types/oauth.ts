@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
+import { AuthCode } from '@/lib/models/oauth2/authCode'
 import { Client } from '@/lib/models/oauth2/client'
 import { Token } from '@/lib/models/oauth2/token'
-import { AuthCode } from '@/lib/models/oauth2/authCode'
 
 export const Scopes = z.enum(['read', 'write', 'follow', 'push'])
 export type Scopes = z.infer<typeof Scopes>
@@ -89,7 +89,7 @@ export const CreateAuthCodeParams = z.object({
   clientId: z.string(),
   scopes: Scopes.array(),
 
-  expiresAt: z.number(),
+  expiresAt: z.number()
 })
 export type CreateAuthCodeParams = z.infer<typeof CreateAuthCodeParams>
 

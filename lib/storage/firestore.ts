@@ -6,6 +6,7 @@ import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'
 import { Follow, FollowStatus } from '../models/follow'
+import { AuthCode } from '../models/oauth2/authCode'
 import { Client } from '../models/oauth2/client'
 import { Token } from '../models/oauth2/token'
 import { User } from '../models/oauth2/user'
@@ -103,7 +104,6 @@ import {
   UpdateNoteParams,
   UpdatePollParams
 } from './types/status'
-import { AuthCode } from '../models/oauth2/authCode'
 
 export interface FirestoreConfig extends Settings {
   type: 'firebase' | 'firestore'
@@ -1098,9 +1098,9 @@ export class FirestoreStorage implements Storage {
       edits,
       ...(data.type === StatusType.enum.Poll
         ? {
-          choices: pollChoices.map((choice) => choice.toJson()),
-          endAt: data.endAt
-        }
+            choices: pollChoices.map((choice) => choice.toJson()),
+            endAt: data.endAt
+          }
         : null)
     })
   }
@@ -1737,7 +1737,17 @@ export class FirestoreStorage implements Storage {
 
   @Trace('db')
   async createAuthCode(params: CreateAuthCodeParams) {
-    const { code, redirectUri, codeChallenge, codeChallengeMethod, actorId, accountId, clientId, scopes, expiresAt } = CreateAuthCodeParams.parse(params)
+    const {
+      code,
+      redirectUri,
+      codeChallenge,
+      codeChallengeMethod,
+      actorId,
+      accountId,
+      clientId,
+      scopes,
+      expiresAt
+    } = CreateAuthCodeParams.parse(params)
     const currentTime = Date.now()
     const snapshot = await this.db.doc(`authCodes/${code}`).get()
     if (snapshot.exists) return null
@@ -1780,7 +1790,9 @@ export class FirestoreStorage implements Storage {
       code: data.code,
       ...(data.redirectUri ? { redirectUri: data.redirectUri } : null),
       ...(data.codeChallenge ? { codeChallenge: data.codeChallenge } : null),
-      ...(data.codeChallengeMethod ? { codeChallengeMethod: data.codeChallengeMethod } : null),
+      ...(data.codeChallengeMethod
+        ? { codeChallengeMethod: data.codeChallengeMethod }
+        : null),
 
       scopes: JSON.parse(data.scopes),
       client: {
@@ -1808,7 +1820,7 @@ export class FirestoreStorage implements Storage {
 
     const currentTime = Date.now()
     await this.db.doc(path).update({
-      expiresAt: currentTime,
+      expiresAt: currentTime
     })
 
     return this.getAuthCode({ code })

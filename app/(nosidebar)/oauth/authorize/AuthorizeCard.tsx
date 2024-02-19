@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/Button'
@@ -14,6 +15,7 @@ interface Props {
 
 export const AuthorizeCard: FC<Props> = ({ searchParams, client }) => {
   const requestedScopes = searchParams.scope.split(' ')
+  const router = useRouter()
   return (
     <form className="card" action="/api/oauth/authorize" method="post">
       <div className="card-body">
@@ -43,17 +45,36 @@ export const AuthorizeCard: FC<Props> = ({ searchParams, client }) => {
           ))}
         </div>
         <div className="row gap-2 px-2">
-          <input type="hidden" name="client_id" value={searchParams.client_id} />
-          <input type="hidden" name="redirect_uri" value={searchParams.redirect_uri} />
-          <input type="hidden" name="response_type" value={searchParams.response_type} />
-          {searchParams.state && <input type="hidden" name="state" value={searchParams.state} />}
+          <input
+            type="hidden"
+            name="client_id"
+            value={searchParams.client_id}
+          />
+          <input
+            type="hidden"
+            name="redirect_uri"
+            value={searchParams.redirect_uri}
+          />
+          <input
+            type="hidden"
+            name="response_type"
+            value={searchParams.response_type}
+          />
 
-          <Button className="col" type="submit">Approve</Button>
-          <Button className="col" variant="danger">
+          <Button className="col" type="submit">
+            Approve
+          </Button>
+          <Button
+            className="col"
+            variant="danger"
+            onClick={() => {
+              router.push(client.website ?? '/')
+            }}
+          >
             Deny
           </Button>
         </div>
       </div>
-    </form >
+    </form>
   )
 }
