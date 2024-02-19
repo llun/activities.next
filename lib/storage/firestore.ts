@@ -1631,7 +1631,7 @@ export class FirestoreStorage implements Storage {
         scopes: client?.scopes.map((scope) => scope.name)
       },
       user: User.parse({
-        id: account?.id,
+        id: actor?.id,
         actor: actor?.data,
         account
       }),
@@ -1788,7 +1788,7 @@ export class FirestoreStorage implements Storage {
         scopes: client?.scopes.map((scope) => scope.name)
       },
       user: User.parse({
-        id: account?.id,
+        id: actor?.id,
         actor: actor?.data,
         account
       }),

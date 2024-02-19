@@ -643,7 +643,7 @@ describe('Storage', () => {
           })
           await addStatusToTimelines(storage, status)
           // Making sure the timeline is in order.
-          await waitFor(1)
+          await waitFor(2)
         }
         const statuses = await storage.getTimeline({
           timeline: Timeline.MAIN,
@@ -651,8 +651,7 @@ describe('Storage', () => {
         })
         expect(statuses.length).toEqual(30)
         for (const index in statuses) {
-          const statusId = `https://llun.dev/users/null/statuses/post-${50 - parseInt(index, 10)
-            }`
+          const statusId = `https://llun.dev/users/null/statuses/post-${50 - parseInt(index, 10)}`
           const expectedStatus = await storage.getStatus({ statusId })
           expect(statuses[index].toJson()).toEqual(expectedStatus?.toJson())
         }
@@ -1203,7 +1202,7 @@ describe('Storage', () => {
           })
           expect(token?.client).toEqual(client)
           expect(token?.user?.actor).toEqual(actor?.data)
-          expect(token?.user?.id).toEqual(actor?.account?.id)
+          expect(token?.user?.id).toEqual(actor?.id)
         })
 
         it('add refresh token to access token', async () => {
@@ -1290,7 +1289,7 @@ describe('Storage', () => {
 
           expect(code?.client).toEqual(client)
           expect(code?.user?.actor).toEqual(actor?.data)
-          expect(code?.user?.id).toEqual(actor?.account?.id)
+          expect(code?.user?.id).toEqual(actor?.id)
         })
 
         it('returns authCode from storage', async () => {
