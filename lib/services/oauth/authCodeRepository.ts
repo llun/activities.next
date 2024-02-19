@@ -33,19 +33,24 @@ export class AuthCodeRepository implements OAuthAuthCodeRepository {
     user: OAuthUser | undefined,
     scopes: OAuthScope[]
   ): OAuthAuthCode {
+    const currentTime = Date.now()
     return AuthCode.parse({
       code: generateRandomToken(),
       redirectUri: null,
       codeChallenge: null,
       codeChallengeMethod: "S256",
-      expiresAt: new DateInterval("15m").getEndDate(),
-      client,
-      clientId: client.id,
-      user,
-      userId: user?.id ?? null,
-      scopes,
-    })
 
+      user,
+      client: {
+        ...client,
+        scopes: client.scopes.map(scope => scope.name)
+      },
+      scopes: scopes.map(scope => scope.name),
+
+      expiresAt: new DateInterval("15m").getEndDate().getTime(),
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
   }
 
   async persist(authCodeCode: OAuthAuthCode): Promise<void> {
@@ -55,8 +60,8 @@ export class AuthCodeRepository implements OAuthAuthCodeRepository {
       codeChallenge: authCodeCode.codeChallenge,
       codeChallengeMethod: authCodeCode.codeChallengeMethod,
       clientId: authCodeCode.client.id,
-      actorId: authCodeCode.user?.userId,
-      accountId: authCodeCode.user?.accountId,
+      actorId: authCodeCode.user?.id as string,
+      accountId: authCodeCode.user?.account.id,
       scopes: authCodeCode.scopes.map((scope) => scope.name as Scopes),
       expiresAt: authCodeCode.expiresAt.getTime(),
     })

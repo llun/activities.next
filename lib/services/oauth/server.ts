@@ -18,7 +18,9 @@ export const getOAuth2Server = memoize(async () => {
     new ClientRepository(storage),
     new TokenRepository(storage),
     new ScopeRepository(),
-    getConfig().secretPhase
+    getConfig().secretPhase, {
+    requiresPKCE: false
+  }
   )
 
   const userRepository = new UserRepository(storage)
