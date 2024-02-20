@@ -1,6 +1,13 @@
-import { headerHost } from "../services/guards/headerHost"
+import { headerHost } from '../services/guards/headerHost'
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD'
+type HttpMethod =
+  | 'GET'
+  | 'POST'
+  | 'PUT'
+  | 'DELETE'
+  | 'PATCH'
+  | 'OPTIONS'
+  | 'HEAD'
 
 export const getCORSHeaders = (method: HttpMethod, headers: Headers) => ({
   'Access-Control-Allow-Methods': method,
