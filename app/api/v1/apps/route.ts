@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server'
 
 import { apiErrorResponse } from '@/lib/errors'
-import { headerHost } from '@/lib/services/guards/headerHost'
 import { getStorage } from '@/lib/storage'
 
 import { createApplication } from './createApplication'
 import { PostRequest } from './types'
+import { getCORSHeaders } from '@/lib/utils/getCORSHeaders'
 
 export const POST = async (req: NextRequest) => {
   const [storage, body] = await Promise.all([getStorage(), req.formData()])
@@ -22,14 +22,9 @@ export const POST = async (req: NextRequest) => {
     return apiErrorResponse(422)
   }
 
-  const host = headerHost(req.headers)
   return Response.json(rest, {
     status: 200,
     statusText: 'OK',
-    headers: {
-      'Access-Control-Allow-Methods': 'POST',
-      'Access-Control-Allow-Origin':
-        req.headers.get('origin') ?? `https://${host}`
-    }
+    headers: getCORSHeaders('POST', req.headers)
   })
 }
