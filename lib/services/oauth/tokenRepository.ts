@@ -33,10 +33,13 @@ export class TokenRepository implements OAuthTokenRepository {
     const currentTime = Date.now()
     return Token.parse({
       accessToken: generateRandomToken(),
-      accessTokenExpiresAt: new DateInterval('30d').getEndDate(),
+      accessTokenExpiresAt: new DateInterval('30d').getEndDate().getTime(),
       refreshToken: null,
       refreshTokenExpiresAt: null,
-      client,
+      client: {
+        ...client,
+        scopes: client.scopes.map((scope) => scope.name)
+      },
       user,
       scopes: scopes.map((scope) => scope.name),
       createdAt: currentTime,
@@ -71,13 +74,14 @@ export class TokenRepository implements OAuthTokenRepository {
       accessToken: token.accessToken
     })
     if (existingToken) return
+
     await this.storage.createAccessToken({
       accessToken: token.accessToken,
       accessTokenExpiresAt: token.accessTokenExpiresAt.getTime(),
       refreshToken: token.refreshToken,
       refreshTokenExpiresAt: token.refreshTokenExpiresAt?.getTime(),
-      accountId: token.user?.accountId,
-      actorId: token.user?.userId,
+      accountId: token.user?.account.id,
+      actorId: token.user?.actor.id,
       clientId: token.client.id,
       scopes: token.scopes.map((scope) => scope.name as Scopes)
     })

@@ -63,7 +63,7 @@ export class AuthCodeRepository implements OAuthAuthCodeRepository {
       codeChallenge: authCodeCode.codeChallenge,
       codeChallengeMethod: authCodeCode.codeChallengeMethod,
       clientId: authCodeCode.client.id,
-      actorId: authCodeCode.user?.id as string,
+      actorId: authCodeCode.user?.actor.id,
       accountId: authCodeCode.user?.account.id,
       scopes: authCodeCode.scopes.map((scope) => scope.name as Scopes),
       expiresAt: authCodeCode.expiresAt.getTime()
