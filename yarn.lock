@@ -134,9 +134,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-lambda@npm:^3.516.0":
-  version: 3.516.0
-  resolution: "@aws-sdk/client-lambda@npm:3.516.0"
+"@aws-sdk/client-lambda@npm:^3.518.0":
+  version: 3.518.0
+  resolution: "@aws-sdk/client-lambda@npm:3.518.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:3.0.0"
     "@aws-crypto/sha256-js": "npm:3.0.0"
@@ -183,7 +183,7 @@ __metadata:
     "@smithy/util-utf8": "npm:^2.1.1"
     "@smithy/util-waiter": "npm:^2.1.1"
     tslib: "npm:^2.5.0"
-  checksum: 10c0/905b9fa1b9437c77ce12cff8acb12c9393f4bad65dfa4be06af1bfc55454e12739007f1b8b6af71be734aafd784eec0df368b20f1787448483bc30a413f51224
+  checksum: 10c0/3506740f6ba5be3d5d49dcbd9d4ab68af166c25d7475c38d72a2f505dbae270f22afbb2ba51a7bb9eeac5c66ae359de00377f1bec7034078a595fde7c93a4955
   languageName: node
   linkType: hard
 
@@ -4247,7 +4247,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "activities.next@workspace:."
   dependencies:
-    "@aws-sdk/client-lambda": "npm:^3.516.0"
+    "@aws-sdk/client-lambda": "npm:^3.518.0"
     "@aws-sdk/client-s3": "npm:^3.515.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@date-fns/utc": "npm:^1.1.1"
@@ -4290,7 +4290,7 @@ __metadata:
     "@typescript-eslint/parser": "npm:^7.0.2"
     bcrypt: "npm:^5.1.1"
     better-sqlite3: "npm:^9.4.1"
-    bootstrap: "npm:^5.3.2"
+    bootstrap: "npm:^5.3.3"
     bootstrap-icons: "npm:^1.11.3"
     classnames: "npm:^2.5.1"
     content-type: "npm:^1.0.5"
@@ -5048,12 +5048,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"bootstrap@npm:^5.3.2":
-  version: 5.3.2
-  resolution: "bootstrap@npm:5.3.2"
+"bootstrap@npm:^5.3.3":
+  version: 5.3.3
+  resolution: "bootstrap@npm:5.3.3"
   peerDependencies:
     "@popperjs/core": ^2.11.8
-  checksum: 10c0/0c108d90cee90247db571f07a0fc3718beda58eed2ffed3f2f8ccff66b25a349830dfbeb5e55e6e6fe484fad96c4edb19cb4c5fa5a68b771b2e0f3c400e42dda
+  checksum: 10c0/bb68ca7b763977b9cce40cb5b8c676ae19a716d2f5d15009fa7bdbcec9dea426968e3cb748fbed7592fbf10edd7c749aea841c2920996a7c1aa5e0a6e2d4c2ad
   languageName: node
   linkType: hard
 

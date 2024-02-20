@@ -25,6 +25,6 @@ export const POST = async (req: NextRequest) => {
   return Response.json(rest, {
     status: 200,
     statusText: 'OK',
-    headers: getCORSHeaders('POST', req.headers)
+    headers: new Headers(getCORSHeaders('POST', req.headers))
   })
 }

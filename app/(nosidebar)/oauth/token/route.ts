@@ -15,11 +15,11 @@ export const POST = async (req: NextRequest) => {
     body
   }
   const oauthResponse = await server.respondToAccessTokenRequest(request);
-  console.log(oauthResponse)
-
-  return Response.json({ message: 'hello, world' }, {
-    status: 200,
-    statusText: 'OK',
-    headers: getCORSHeaders('POST', req.headers)
+  return Response.json(oauthResponse.body, {
+    status: oauthResponse.status,
+    headers: new Headers({
+      ...getCORSHeaders('POST', req.headers),
+      ...Object.entries(oauthResponse.headers)
+    })
   })
 }

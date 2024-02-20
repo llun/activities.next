@@ -16,7 +16,7 @@
     "migrate:make": "knex migrate:make"
   },
   "dependencies": {
-    "@aws-sdk/client-lambda": "^3.516.0",
+    "@aws-sdk/client-lambda": "^3.518.0",
     "@aws-sdk/client-s3": "^3.515.0",
     "@aws-sdk/util-utf8-node": "^3.259.0",
     "@date-fns/utc": "^1.1.1",
@@ -36,7 +36,7 @@
     "@opentelemetry/semantic-conventions": "^1.21.0",
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^9.4.1",
-    "bootstrap": "^5.3.2",
+    "bootstrap": "^5.3.3",
     "bootstrap-icons": "^1.11.3",
     "classnames": "^2.5.1",
     "content-type": "^1.0.5",
