@@ -1,3 +1,4 @@
+import { StatusCode, statusText } from "@/lib/errors"
 import { getOAuth2Server } from "@/lib/services/oauth/server"
 import { getCORSHeaders } from "@/lib/utils/getCORSHeaders"
 import { NextRequest } from "next/server"
@@ -17,6 +18,7 @@ export const POST = async (req: NextRequest) => {
   const oauthResponse = await server.respondToAccessTokenRequest(request);
   return Response.json(oauthResponse.body, {
     status: oauthResponse.status,
+    statusText: statusText(oauthResponse.status as StatusCode),
     headers: new Headers({
       ...getCORSHeaders('POST', req.headers),
       ...Object.entries(oauthResponse.headers)

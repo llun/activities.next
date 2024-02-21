@@ -1,4 +1,7 @@
+import { getConfig } from "@/lib/config"
+
 export const GET = async () => {
+  const config = getConfig()
   return Response.json({
     metadata: {
       accountActivationRequired: true,
@@ -34,8 +37,8 @@ export const GET = async () => {
       invitesEnabled: false,
       localBubbleInstances: [],
       mailerEnabled: false,
-      nodeDescription: 'Personal ActivityPub server',
-      nodeName: 'miraiverse',
+      nodeDescription: config.serviceDescription ?? 'Personal activity pub server with Next.js',
+      nodeName: config.host,
       pollLimits: {
         max_expiration: 31536000,
         max_option_chars: 200,
@@ -84,7 +87,7 @@ export const GET = async () => {
         'null'
       ],
       skipThreadContainment: true,
-      staffAccounts: ['https://llun.dev/users/null'],
+      staffAccounts: [],
       suggestions: { enabled: false },
       uploadLimits: {
         avatar: 2000000,
@@ -96,7 +99,7 @@ export const GET = async () => {
     openRegistrations: false,
     protocols: ['activitypub'],
     services: { inbound: [], outbound: [] },
-    software: { name: 'mastodon', version: 'activities.next-0.1' },
+    software: { name: 'mastodon', version: 'activities.next-0.1.5' },
     usage: { localPosts: 150, users: { total: 1 } },
     version: '2.0'
   })

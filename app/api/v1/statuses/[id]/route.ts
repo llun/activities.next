@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
-import { ERROR_400, ERROR_403 } from '@/lib/errors'
+import { ERROR_400, ERROR_403, defaultStatusOption } from '@/lib/errors'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
@@ -19,7 +19,7 @@ type EditNoteSchema = z.infer<typeof EditNoteSchema>
 export const PUT = AuthenticatedGuard<Params>(async (req, context, params) => {
   const id = params?.params.id
   if (!id) {
-    return Response.json(ERROR_400, { status: 400 })
+    return Response.json(ERROR_400, defaultStatusOption(400))
   }
 
   const { storage, currentActor } = context
@@ -34,7 +34,7 @@ export const PUT = AuthenticatedGuard<Params>(async (req, context, params) => {
   })
 
   if (!updatedNote) {
-    return Response.json(ERROR_403, { status: 403 })
+    return Response.json(ERROR_403, defaultStatusOption(403))
   }
   return Response.json({
     id: updatedNote.id,

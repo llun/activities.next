@@ -8,7 +8,7 @@ import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
 import { FollowRequest } from '@/lib/activities/actions/follow'
 import { UndoFollow } from '@/lib/activities/actions/undoFollow'
 import { UndoLike } from '@/lib/activities/actions/undoLike'
-import { DEFAULT_202, ERROR_400, ERROR_404 } from '@/lib/errors'
+import { DEFAULT_202, ERROR_400, ERROR_404, defaultStatusOption } from '@/lib/errors'
 import { FollowStatus } from '@/lib/models/follow'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 
@@ -21,16 +21,16 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
       case 'Accept': {
         const follow = await acceptFollowRequest({ activity, storage })
         if (!follow) {
-          return Response.json(ERROR_404, { status: 404 })
+          return Response.json(ERROR_404, defaultStatusOption(404))
         }
-        return Response.json(DEFAULT_202, { status: 202 })
+        return Response.json(DEFAULT_202, defaultStatusOption(202))
       }
       case 'Reject': {
         const follow = await rejectFollowRequest({ activity, storage })
         if (!follow) {
-          return Response.json(ERROR_404, { status: 404 })
+          return Response.json(ERROR_404, defaultStatusOption(404))
         }
-        return Response.json(DEFAULT_202, { status: 202 })
+        return Response.json(DEFAULT_202, defaultStatusOption(202))
       }
       case 'Follow': {
         const follow = await createFollower({
@@ -38,13 +38,13 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
           storage
         })
         if (!follow) {
-          return Response.json(ERROR_404, { status: 404 })
+          return Response.json(ERROR_404, defaultStatusOption(404))
         }
-        return Response.json({ target: follow.object }, { status: 202 })
+        return Response.json({ target: follow.object }, defaultStatusOption(202))
       }
       case 'Like': {
         await likeRequest({ activity, storage })
-        return Response.json(DEFAULT_202, { status: 202 })
+        return Response.json(DEFAULT_202, defaultStatusOption(202))
       }
       case 'Undo': {
         const undoRequest = activity as UndoFollow | UndoLike
@@ -56,7 +56,7 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
             })
             if (!follow) {
               console.error('Fail to find follow', undoRequest)
-              return Response.json(ERROR_404, { status: 404 })
+              return Response.json(ERROR_404, defaultStatusOption(404))
             }
             await storage.updateFollowStatus({
               followId: follow.id,
@@ -64,7 +64,7 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
             })
             return Response.json(
               { target: undoRequest.object.object },
-              { status: 202 }
+              defaultStatusOption(202)
             )
           }
           case 'Like': {
@@ -75,19 +75,19 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
                   ? undoRequest.object.object
                   : undoRequest.object.object.id
             })
-            return Response.json(DEFAULT_202, { status: 202 })
+            return Response.json(DEFAULT_202, defaultStatusOption(202))
           }
           default: {
-            return Response.json(DEFAULT_202, { status: 202 })
+            return Response.json(DEFAULT_202, defaultStatusOption(202))
           }
         }
       }
       default:
-        return Response.json(DEFAULT_202, { status: 202 })
+        return Response.json(DEFAULT_202, defaultStatusOption(202))
     }
   } catch (e) {
     const error = e as NodeJS.ErrnoException
     console.error(error.message)
-    return Response.json(ERROR_400, { status: 400 })
+    return Response.json(ERROR_400, defaultStatusOption(400))
   }
 })

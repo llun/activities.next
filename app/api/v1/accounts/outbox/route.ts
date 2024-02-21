@@ -1,6 +1,6 @@
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
-import { DEFAULT_202, ERROR_400, ERROR_404, ERROR_500 } from '@/lib/errors'
+import { DEFAULT_202, ERROR_400, ERROR_404, ERROR_500, defaultStatusOption } from '@/lib/errors'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 
 import { DeleteStatusRequest, PostRequest } from './types'
@@ -21,7 +21,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
           storage
         })
         if (!status) {
-          return Response.json(ERROR_500, { status: 500 })
+          return Response.json(ERROR_500, defaultStatusOption(500))
         }
         return Response.json({
           status: status.toJson(),
@@ -30,14 +30,14 @@ export const POST = AuthenticatedGuard(async (req, context) => {
         })
       }
       default: {
-        return Response.json(ERROR_404, { status: 404 })
+        return Response.json(ERROR_404, defaultStatusOption(404))
       }
     }
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     console.error(nodeError.message)
     console.error(nodeError.stack)
-    return Response.json(ERROR_400, { status: 400 })
+    return Response.json(ERROR_400, defaultStatusOption(400))
   }
 })
 
@@ -51,8 +51,8 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
       storage,
       statusId: request.statusId
     })
-    return Response.json(DEFAULT_202, { status: 202 })
+    return Response.json(DEFAULT_202, defaultStatusOption(202))
   } catch {
-    return Response.json(ERROR_400, { status: 400 })
+    return Response.json(ERROR_400, defaultStatusOption(400))
   }
 })

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
-import { ERROR_400, ERROR_422 } from '@/lib/errors'
+import { ERROR_400, ERROR_422, defaultStatusOption } from '@/lib/errors'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
@@ -27,7 +27,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
       storage
     })
     if (!status) {
-      return Response.json(ERROR_422, { status: 422 })
+      return Response.json(ERROR_422, defaultStatusOption(422))
     }
     return Response.json({
       id: status.id,
@@ -35,6 +35,6 @@ export const POST = AuthenticatedGuard(async (req, context) => {
       content: status.content
     })
   } catch {
-    return Response.json(ERROR_400, { status: 400 })
+    return Response.json(ERROR_400, defaultStatusOption(400))
   }
 })

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { apiErrorResponse } from '@/lib/errors'
+import { apiErrorResponse, defaultStatusOption } from '@/lib/errors'
 import { getStorage } from '@/lib/storage'
 
 import { createApplication } from './createApplication'
@@ -23,8 +23,7 @@ export const POST = async (req: NextRequest) => {
   }
 
   return Response.json(rest, {
-    status: 200,
-    statusText: 'OK',
+    ...defaultStatusOption(200),
     headers: new Headers(getCORSHeaders('POST', req.headers))
   })
 }

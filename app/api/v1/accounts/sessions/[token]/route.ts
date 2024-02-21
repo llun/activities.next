@@ -1,4 +1,4 @@
-import { DEFAULT_202, ERROR_400 } from '@/lib/errors'
+import { DEFAULT_202, ERROR_400, defaultStatusOption } from '@/lib/errors'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 
 interface Params {
@@ -10,14 +10,14 @@ export const DELETE = AuthenticatedGuard<Params>(
     const { storage, currentActor } = context
     const { token } = query?.params ?? { token: undefined }
     if (!token) {
-      return Response.json(ERROR_400, { status: 400 })
+      return Response.json(ERROR_400, defaultStatusOption(400))
     }
 
     const accountSession = await storage.getAccountSession({
       token
     })
     if (!accountSession) {
-      return Response.json(ERROR_400, { status: 400 })
+      return Response.json(ERROR_400, defaultStatusOption(400))
     }
 
     if (accountSession.account.id !== currentActor.account?.id) {
@@ -25,6 +25,6 @@ export const DELETE = AuthenticatedGuard<Params>(
     }
 
     await storage.deleteAccountSession({ token })
-    return Response.json(DEFAULT_202, { status: 202 })
+    return Response.json(DEFAULT_202, defaultStatusOption(202))
   }
 )

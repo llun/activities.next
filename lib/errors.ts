@@ -1,16 +1,22 @@
 import { NextApiResponse } from 'next'
 
-export const ERROR_500 = { error: 'Internal Server Error' }
+export const ERROR_500 = { status: 'Internal Server Error' }
 
-export const ERROR_400 = { error: 'Bad Request' }
-export const ERROR_403 = { error: 'Forbidden' }
-export const ERROR_404 = { error: 'Not Found' }
-export const ERROR_422 = { error: 'Unprocessable entity' }
+export const ERROR_400 = { status: 'Bad Request' }
+export const ERROR_401 = { status: 'Unauthorized' }
+export const ERROR_403 = { status: 'Forbidden' }
+export const ERROR_404 = { status: 'Not Found' }
+export const ERROR_422 = { status: 'Unprocessable entity' }
 
+export const DEFAULT_200 = { status: 'OK' }
 export const DEFAULT_202 = { status: 'Accepted' }
 
-const errorCodeMap = {
+export const codeMap = {
+  200: DEFAULT_200,
+  202: DEFAULT_202,
+
   400: ERROR_400,
+  401: ERROR_401,
   403: ERROR_403,
   404: ERROR_404,
   422: ERROR_422,
@@ -18,12 +24,14 @@ const errorCodeMap = {
   500: ERROR_500
 }
 
+export type StatusCode = keyof typeof codeMap
+
 export const errorResponse = (
   res: NextApiResponse,
-  code: keyof typeof errorCodeMap
+  code: keyof typeof codeMap
 ) => {
-  if (errorCodeMap[code]) {
-    res.status(code).json(errorCodeMap[code])
+  if (codeMap[code]) {
+    res.status(code).json(codeMap[code])
     return
   }
   res.status(code).json(ERROR_500)
@@ -34,16 +42,20 @@ export const UNFOLLOW_NETWORK_ERROR_CODES = [
   'DEPTH_ZERO_SELF_SIGNED_CERT'
 ]
 
-export const apiErrorResponse = (code: keyof typeof errorCodeMap) => {
-  if (!errorCodeMap[code]) {
+export const apiErrorResponse = (code: StatusCode) => {
+  if (!codeMap[code]) {
     return Response.json(ERROR_500, {
       status: code,
-      statusText: ERROR_500.error
+      statusText: ERROR_500.status
     })
   }
 
-  return Response.json(errorCodeMap[code], {
+  return Response.json(codeMap[code], {
     status: code,
-    statusText: errorCodeMap[code].error
+    statusText: codeMap[code].status
   })
 }
+
+
+export const statusText = (code: StatusCode) => codeMap[code].status
+export const defaultStatusOption = (code: StatusCode) => ({ status: code, statusText: statusText(code) })
