@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { apiErrorResponse } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/response'
 import { fetchAssetsUrl } from '@/lib/services/apple/webstream'
 import { AppRouterParams } from '@/lib/services/guards/types'
 

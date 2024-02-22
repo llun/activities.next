@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server'
 
-import { apiErrorResponse, defaultStatusOption } from '@/lib/errors'
+import { apiErrorResponse, defaultStatusOption } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
+import { getCORSHeaders } from '@/lib/utils/getCORSHeaders'
 
 import { createApplication } from './createApplication'
 import { PostRequest } from './types'
-import { getCORSHeaders } from '@/lib/utils/getCORSHeaders'
 
 export const POST = async (req: NextRequest) => {
   const [storage, body] = await Promise.all([getStorage(), req.formData()])

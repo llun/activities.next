@@ -1,4 +1,4 @@
-import { apiErrorResponse } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { Timeline } from '@/lib/timelines/types'
 

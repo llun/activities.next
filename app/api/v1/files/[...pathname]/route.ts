@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import path from 'path'
 
-import { apiErrorResponse } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/response'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { getMedia } from '@/lib/services/medias'
 

@@ -10,7 +10,6 @@ import {
   getTags
 } from '../activities/entities/note'
 import { CACHE_KEY_PREFIX_ACTOR, CACHE_NAMESPACE_ACTORS } from '../constants'
-import { UNFOLLOW_NETWORK_ERROR_CODES } from '../errors'
 import { compact } from '../jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -21,6 +20,7 @@ import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { FollowStatus } from '../models/follow'
 import { Status, StatusType } from '../models/status'
+import { UNFOLLOW_NETWORK_ERROR_CODES } from '../response'
 import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
 import { getSpan } from '../trace'

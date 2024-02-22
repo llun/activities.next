@@ -1,5 +1,5 @@
-import { apiErrorResponse } from '@/lib/errors'
 import { ACTIVITY_STREAM_URL } from '@/lib/jsonld/activitystream'
+import { apiErrorResponse } from '@/lib/response'
 import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardHandle

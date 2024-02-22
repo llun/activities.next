@@ -1,8 +1,8 @@
 import { trace } from '@opentelemetry/api'
 import { NextApiHandler } from 'next'
 
-import { errorResponse } from './errors'
 import { logger } from './logger'
+import { errorResponse } from './response'
 
 export const TRACE_APPLICATION_SCOPE = 'activities.next'
 export const TRACE_APPLICATION_VERSION = '0.1.0'

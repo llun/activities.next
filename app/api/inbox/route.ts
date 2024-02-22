@@ -13,12 +13,12 @@ import {
 } from '@/lib/activities/actions/types'
 import { NoteEntity } from '@/lib/activities/entities/note'
 import { QuestionEntity } from '@/lib/activities/entities/question'
+import { compact } from '@/lib/jsonld'
 import {
   DEFAULT_202,
   apiErrorResponse,
   defaultStatusOption
-} from '@/lib/errors'
-import { compact } from '@/lib/jsonld'
+} from '@/lib/response'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 
 export const maxDuration = 60

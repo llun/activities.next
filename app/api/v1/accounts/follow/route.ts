@@ -1,10 +1,10 @@
 import { follow, getPublicProfile, unfollow } from '@/lib/activities'
+import { FollowStatus } from '@/lib/models/follow'
 import {
   DEFAULT_202,
   apiErrorResponse,
   defaultStatusOption
-} from '@/lib/errors'
-import { FollowStatus } from '@/lib/models/follow'
+} from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 
 import { FollowRequest } from './types'

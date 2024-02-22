@@ -3,7 +3,7 @@ import {
   DEFAULT_202,
   apiErrorResponse,
   defaultStatusOption
-} from '@/lib/errors'
+} from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 
 import { LikeStatusRequest } from './types'

@@ -4,8 +4,8 @@ import { NextRequest } from 'next/server'
 import { generate } from 'peggy'
 
 import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
-import { apiErrorResponse } from '@/lib/errors'
 import { Actor } from '@/lib/models/actor'
+import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
 import { Scope } from '@/lib/storage/types/oauth'
 

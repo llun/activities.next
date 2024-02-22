@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { userAnnounce } from '@/lib/actions/announce'
 import { userUndoAnnounce } from '@/lib/actions/undoAnnounce'
-import { DEFAULT_202, defaultStatusOption } from '@/lib/errors'
+import { DEFAULT_202, defaultStatusOption } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 
 const RepostRequest = z.object({ statusId: z.string() })

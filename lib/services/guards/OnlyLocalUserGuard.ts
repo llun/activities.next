@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { apiErrorResponse } from '@/lib/errors'
 import { Actor } from '@/lib/models/actor'
+import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
 import { Storage } from '@/lib/storage/types'
 

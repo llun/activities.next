@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
-import { apiErrorResponse } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 

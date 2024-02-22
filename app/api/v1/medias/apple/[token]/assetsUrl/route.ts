@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import { apiErrorResponse, defaultStatusOption } from '@/lib/errors'
+import { apiErrorResponse, defaultStatusOption } from '@/lib/response'
 import { fetchAssetsUrl } from '@/lib/services/apple/webstream'
 import { AppRouterParams } from '@/lib/services/guards/types'
 

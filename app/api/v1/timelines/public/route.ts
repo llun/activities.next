@@ -1,4 +1,4 @@
-import { apiErrorResponse } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
 import { Timeline } from '@/lib/timelines/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'

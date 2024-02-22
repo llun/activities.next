@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { apiErrorResponse } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
 import { parse, verify } from '@/lib/utils/signature'
 

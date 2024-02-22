@@ -8,12 +8,12 @@ import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
 import { FollowRequest } from '@/lib/activities/actions/follow'
 import { UndoFollow } from '@/lib/activities/actions/undoFollow'
 import { UndoLike } from '@/lib/activities/actions/undoLike'
+import { FollowStatus } from '@/lib/models/follow'
 import {
   DEFAULT_202,
   apiErrorResponse,
   defaultStatusOption
-} from '@/lib/errors'
-import { FollowStatus } from '@/lib/models/follow'
+} from '@/lib/response'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 
 const Activity = z.union([Accept, Reject, Follow, Like, Undo])
