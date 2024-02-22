@@ -25,7 +25,7 @@ export const getTokenFromHeader = (authorizationHeader: string | null) => {
 }
 
 export const OAuthGuard =
-  <P>(scopes: Scope[], handle: AppRouterApiHandle<P>) =>
+  <P>(scope: Scope, handle: AppRouterApiHandle<P>) =>
   async (req: NextRequest, params?: AppRouterParams<P>) => {
     const storage = await getStorage()
     if (!storage) {
@@ -33,11 +33,17 @@ export const OAuthGuard =
     }
 
     const token = getTokenFromHeader(req.headers.get('Authorization'))
-    if (!token) {
-      return apiErrorResponse(401)
-    }
+    if (!token) return apiErrorResponse(401)
 
     const accessToken = await storage.getAccessToken(token)
+    if (!accessToken) return apiErrorResponse(401)
+
+    const currentTime = Date.now()
+    const tokenScopes = accessToken.scopes.map((scope) => scope.name)
+    if (!tokenScopes.includes(scope)) return apiErrorResponse(401)
+    if (accessToken.accessTokenExpiresAt.getTime() < currentTime) {
+      return apiErrorResponse(401)
+    }
 
     return handle(req, params)
   }
