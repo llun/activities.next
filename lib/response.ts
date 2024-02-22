@@ -1,4 +1,7 @@
 import { NextApiResponse } from 'next'
+import { NextRequest } from 'next/server'
+
+import { HttpMethod, getCORSHeaders } from './utils/getCORSHeaders'
 
 export const ERROR_500 = { status: 'Internal Server Error' }
 
@@ -56,6 +59,16 @@ export const apiErrorResponse = (code: StatusCode) => {
   })
 }
 
-
 export const statusText = (code: StatusCode) => codeMap[code].status
-export const defaultStatusOption = (code: StatusCode) => ({ status: code, statusText: statusText(code) })
+export const defaultStatusOption = (code: StatusCode) => ({
+  status: code,
+  statusText: statusText(code)
+})
+
+export const defaultOptions =
+  (methods: HttpMethod[]) => async (req: NextRequest) => {
+    return new Response(null, {
+      ...defaultStatusOption(200),
+      headers: new Headers(Object.entries(getCORSHeaders(methods, req.headers)))
+    })
+  }

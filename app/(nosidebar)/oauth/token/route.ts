@@ -1,8 +1,12 @@
 import { NextRequest } from 'next/server'
 
-import { StatusCode, statusText } from '@/lib/response'
+import { StatusCode, defaultOptions, statusText } from '@/lib/response'
 import { getOAuth2Server } from '@/lib/services/oauth/server'
-import { getCORSHeaders } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod, getCORSHeaders } from '@/lib/utils/getCORSHeaders'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = async (req: NextRequest) => {
   const server = await getOAuth2Server()
@@ -21,7 +25,7 @@ export const POST = async (req: NextRequest) => {
     status: oauthResponse.status,
     statusText: statusText(oauthResponse.status as StatusCode),
     headers: new Headers({
-      ...getCORSHeaders('POST', req.headers),
+      ...getCORSHeaders(CORS_HEADERS, req.headers),
       ...Object.entries(oauthResponse.headers)
     })
   })

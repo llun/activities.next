@@ -1,11 +1,19 @@
 import { NextRequest } from 'next/server'
 
-import { apiErrorResponse, defaultStatusOption } from '@/lib/response'
+import {
+  apiErrorResponse,
+  defaultOptions,
+  defaultStatusOption
+} from '@/lib/response'
 import { getStorage } from '@/lib/storage'
-import { getCORSHeaders } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod, getCORSHeaders } from '@/lib/utils/getCORSHeaders'
 
 import { createApplication } from './createApplication'
 import { PostRequest } from './types'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = async (req: NextRequest) => {
   const [storage, body] = await Promise.all([getStorage(), req.formData()])
@@ -24,6 +32,6 @@ export const POST = async (req: NextRequest) => {
 
   return Response.json(rest, {
     ...defaultStatusOption(200),
-    headers: new Headers(getCORSHeaders('POST', req.headers))
+    headers: new Headers(getCORSHeaders(CORS_HEADERS, req.headers))
   })
 }
