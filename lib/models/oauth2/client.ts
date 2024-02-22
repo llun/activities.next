@@ -1,13 +1,13 @@
 import { z } from 'zod'
 
-import { GrantIdentifiers, Scopes } from '@/lib/storage/types/oauth'
+import { GrantIdentifiers, Scope } from '@/lib/storage/types/oauth'
 
 export const Client = z.object({
   id: z.string(),
   name: z.string(),
   secret: z.string(),
   redirectUris: z.string().url().array().min(1),
-  scopes: Scopes.array()
+  scopes: Scope.array()
     .default(['read'])
     .transform((value) => value.map((scope) => ({ name: scope }))),
   allowedGrants: GrantIdentifiers.array().default([

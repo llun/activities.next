@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { Scopes } from '@/lib/storage/types/oauth'
+import { Scope } from '@/lib/storage/types/oauth'
 
 import { Client } from './client'
 import { User } from './user'
@@ -16,9 +16,7 @@ export const AuthCode = z.object({
 
   user: User.nullish(),
   client: Client,
-  scopes: Scopes.array().transform((scopes) =>
-    scopes.map((name) => ({ name }))
-  ),
+  scopes: Scope.array().transform((scopes) => scopes.map((name) => ({ name }))),
 
   expiresAt: z.number().transform((value) => new Date(value)),
   createdAt: z.number(),

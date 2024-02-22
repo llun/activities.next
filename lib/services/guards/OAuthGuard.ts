@@ -1,6 +1,10 @@
 import { NextRequest } from 'next/server'
 import { generate } from 'peggy'
 
+import { apiErrorResponse } from '@/lib/errors'
+import { getStorage } from '@/lib/storage'
+import { Scope } from '@/lib/storage/types/oauth'
+
 import { AppRouterApiHandle, AppRouterParams } from './types'
 
 const BEARER_GRAMMAR = `
@@ -12,20 +16,28 @@ other = [-._~+/]
 `
 const BEARER_PARSER = generate(BEARER_GRAMMAR)
 
-export const getTokenFromHeader = (authorizationHeader: string) => {
+export const getTokenFromHeader = (authorizationHeader: string | null) => {
   try {
-    return BEARER_PARSER.parse(authorizationHeader)
+    return BEARER_PARSER.parse(authorizationHeader ?? '')
   } catch {
     return null
   }
 }
 
 export const OAuthGuard =
-  <P>(handle: AppRouterApiHandle<P>) =>
+  <P>(scopes: Scope[], handle: AppRouterApiHandle<P>) =>
   async (req: NextRequest, params?: AppRouterParams<P>) => {
-    const authorizationHeader = req.headers.get('Authorization')
-    if (!authorizationHeader) {
-      return new Response('Unauthorized', { status: 401 })
+    const storage = await getStorage()
+    if (!storage) {
+      return apiErrorResponse(500)
     }
+
+    const token = getTokenFromHeader(req.headers.get('Authorization'))
+    if (!token) {
+      return apiErrorResponse(401)
+    }
+
+    const accessToken = await storage.getAccessToken(token)
+
     return handle(req, params)
   }

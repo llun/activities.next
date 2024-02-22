@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 
 import { Storage } from '@/lib/storage/types'
-import { Scopes } from '@/lib/storage/types/oauth'
+import { Scope } from '@/lib/storage/types/oauth'
 
 import { PostRequest, PostResponse } from './types'
 
@@ -29,7 +29,7 @@ export const createApplication = async (
     const application = await storage.createClient({
       name: request.client_name,
       redirectUris: request.redirect_uris.split(' '),
-      scopes: scopes.split(' ').map((scope) => Scopes.parse(scope)),
+      scopes: scopes.split(' ').map((scope) => Scope.parse(scope)),
       secret: crypto.randomBytes(16).toString('hex'),
       website: request.website
     })

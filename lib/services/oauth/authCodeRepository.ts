@@ -12,7 +12,7 @@ import {
 
 import { AuthCode } from '@/lib/models/oauth2/authCode'
 import { Storage } from '@/lib/storage/types'
-import { Scopes } from '@/lib/storage/types/oauth'
+import { Scope } from '@/lib/storage/types/oauth'
 
 export class AuthCodeRepository implements OAuthAuthCodeRepository {
   storage: Storage
@@ -65,7 +65,7 @@ export class AuthCodeRepository implements OAuthAuthCodeRepository {
       clientId: authCodeCode.client.id,
       actorId: authCodeCode.user?.actor.id,
       accountId: authCodeCode.user?.account.id,
-      scopes: authCodeCode.scopes.map((scope) => scope.name as Scopes),
+      scopes: authCodeCode.scopes.map((scope) => scope.name as Scope),
       expiresAt: authCodeCode.expiresAt.getTime()
     })
   }

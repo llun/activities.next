@@ -10,7 +10,7 @@ import {
 
 import { Token } from '@/lib/models/oauth2/token'
 import { Storage } from '@/lib/storage/types'
-import { Scopes } from '@/lib/storage/types/oauth'
+import { Scope } from '@/lib/storage/types/oauth'
 
 export class TokenRepository implements OAuthTokenRepository {
   storage: Storage
@@ -83,7 +83,7 @@ export class TokenRepository implements OAuthTokenRepository {
       accountId: token.user?.account.id,
       actorId: token.user?.actor.id,
       clientId: token.client.id,
-      scopes: token.scopes.map((scope) => scope.name as Scopes)
+      scopes: token.scopes.map((scope) => scope.name as Scope)
     })
   }
 

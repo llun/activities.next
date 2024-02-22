@@ -4,8 +4,8 @@ import { AuthCode } from '@/lib/models/oauth2/authCode'
 import { Client } from '@/lib/models/oauth2/client'
 import { Token } from '@/lib/models/oauth2/token'
 
-export const Scopes = z.enum(['read', 'write', 'follow', 'push'])
-export type Scopes = z.infer<typeof Scopes>
+export const Scope = z.enum(['read', 'write', 'follow', 'push'])
+export type Scope = z.infer<typeof Scope>
 
 export const GrantIdentifiers = z.enum([
   'authorization_code',
@@ -20,7 +20,7 @@ export const CreateClientParams = z.object({
   name: z.string(),
   redirectUris: z.string().array(),
   secret: z.string(),
-  scopes: Scopes.array(),
+  scopes: Scope.array(),
   website: z.string().optional()
 })
 export type CreateClientParams = z.infer<typeof CreateClientParams>
@@ -60,7 +60,7 @@ export const CreateAccessTokenParams = z.object({
   refreshTokenExpiresAt: z.number().nullish(),
 
   clientId: z.string(),
-  scopes: Scopes.array(),
+  scopes: Scope.array(),
 
   actorId: z.string(),
   accountId: z.string()
@@ -87,7 +87,7 @@ export const CreateAuthCodeParams = z.object({
   actorId: z.string(),
   accountId: z.string(),
   clientId: z.string(),
-  scopes: Scopes.array(),
+  scopes: Scope.array(),
 
   expiresAt: z.number()
 })

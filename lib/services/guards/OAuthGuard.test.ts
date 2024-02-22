@@ -21,4 +21,9 @@ describe('#getTokenFromHeader', () => {
     const token = getTokenFromHeader('')
     expect(token).toBeNull()
   })
+
+  test('it returns null if header is null', () => {
+    const token = getTokenFromHeader(null)
+    expect(token).toBeNull()
+  })
 })
