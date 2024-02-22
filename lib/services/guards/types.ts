@@ -1,13 +1,7 @@
-import { Session } from 'next-auth'
 import { NextRequest } from 'next/server'
 
 import { Actor } from '@/lib/models/actor'
 import { Storage } from '@/lib/storage/types'
-
-export type BaseContext = {
-  storage: Storage
-  session: Session
-}
 
 export type AppRouterParams<P> = { params: P }
 export type AppRouterApiHandle<P> = (
@@ -17,7 +11,7 @@ export type AppRouterApiHandle<P> = (
 
 export type AuthenticatedApiHandle<P> = (
   request: NextRequest,
-  context: BaseContext & { currentActor: Actor },
+  context: { storage: Storage; currentActor: Actor },
   params?: AppRouterParams<P>
 ) => Promise<Response> | Response
 

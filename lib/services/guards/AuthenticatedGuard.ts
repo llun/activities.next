@@ -9,21 +9,21 @@ import { AppRouterParams, AuthenticatedApiHandle } from './types'
 
 export const AuthenticatedGuard =
   <P>(handle: AuthenticatedApiHandle<P>) =>
-    async (req: NextRequest, params?: AppRouterParams<P>) => {
-      const [storage, session] = await Promise.all([
-        getStorage(),
-        getServerSession(authOptions)
-      ])
-      if (!storage || !session?.user?.email) {
-        return Response.redirect(getRedirectUrl(req, '/signin'), 307)
-      }
-
-      const currentActor = await storage.getActorFromEmail({
-        email: session.user.email
-      })
-      if (!currentActor) {
-        return Response.redirect(getRedirectUrl(req, '/signin'), 307)
-      }
-
-      return handle(req, { currentActor, storage, session }, params)
+  async (req: NextRequest, params?: AppRouterParams<P>) => {
+    const [storage, session] = await Promise.all([
+      getStorage(),
+      getServerSession(authOptions)
+    ])
+    if (!storage || !session?.user?.email) {
+      return Response.redirect(getRedirectUrl(req, '/signin'), 307)
     }
+
+    const currentActor = await storage.getActorFromEmail({
+      email: session.user.email
+    })
+    if (!currentActor) {
+      return Response.redirect(getRedirectUrl(req, '/signin'), 307)
+    }
+
+    return handle(req, { currentActor, storage }, params)
+  }

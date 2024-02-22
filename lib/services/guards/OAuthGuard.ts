@@ -1,11 +1,14 @@
+import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 import { generate } from 'peggy'
 
+import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { apiErrorResponse } from '@/lib/errors'
+import { Actor } from '@/lib/models/actor'
 import { getStorage } from '@/lib/storage'
 import { Scope } from '@/lib/storage/types/oauth'
 
-import { AppRouterApiHandle, AppRouterParams } from './types'
+import { AppRouterParams, AuthenticatedApiHandle } from './types'
 
 const BEARER_GRAMMAR = `
 value = "Bearer" " " token:base64 { return token }
@@ -25,11 +28,23 @@ export const getTokenFromHeader = (authorizationHeader: string | null) => {
 }
 
 export const OAuthGuard =
-  <P>(scope: Scope, handle: AppRouterApiHandle<P>) =>
+  <P>(scope: Scope, handle: AuthenticatedApiHandle<P>) =>
   async (req: NextRequest, params?: AppRouterParams<P>) => {
-    const storage = await getStorage()
+    const [storage, session] = await Promise.all([
+      getStorage(),
+      getServerSession(authOptions)
+    ])
+
     if (!storage) {
       return apiErrorResponse(500)
+    }
+
+    if (session?.user?.email) {
+      const currentActor = await storage.getActorFromEmail({
+        email: session.user.email
+      })
+      if (!currentActor) return apiErrorResponse(401)
+      return handle(req, { currentActor, storage }, params)
     }
 
     const token = getTokenFromHeader(req.headers.get('Authorization'))
@@ -45,5 +60,9 @@ export const OAuthGuard =
       return apiErrorResponse(401)
     }
 
-    return handle(req, params)
+    return handle(
+      req,
+      { currentActor: new Actor(accessToken.user.actor), storage },
+      params
+    )
   }
