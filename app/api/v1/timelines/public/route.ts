@@ -1,13 +1,11 @@
-import { ERROR_500, defaultStatusOption } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/errors'
 import { getStorage } from '@/lib/storage'
 import { Timeline } from '@/lib/timelines/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const GET = async () => {
   const storage = await getStorage()
-  if (!storage) {
-    return Response.json(ERROR_500, defaultStatusOption(500))
-  }
+  if (!storage) return apiErrorResponse(500)
 
   const statuses = await storage.getTimeline({
     timeline: Timeline.LOCAL_PUBLIC
@@ -68,8 +66,9 @@ export const GET = async () => {
         statuses_count: await storage.getActorStatusesCount({
           actorId: status.actorId
         }),
-        last_status_at: `${lastStatusDate.getUTCFullYear()}-${lastStatusDate.getUTCMonth() + 1
-          }-${lastStatusDate.getUTCDate()}`,
+        last_status_at: `${lastStatusDate.getUTCFullYear()}-${
+          lastStatusDate.getUTCMonth() + 1
+        }-${lastStatusDate.getUTCDate()}`,
         emojis: [],
         fields: []
       },

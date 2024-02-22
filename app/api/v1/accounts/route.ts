@@ -3,7 +3,7 @@ import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { ERROR_500, defaultStatusOption } from '@/lib/errors'
+import { apiErrorResponse, defaultStatusOption } from '@/lib/errors'
 import { sendMail } from '@/lib/services/email'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { getStorage } from '@/lib/storage'
@@ -18,7 +18,7 @@ export const POST = async (request: NextRequest) => {
   const config = getConfig()
   const storage = await getStorage()
   if (!storage) {
-    return Response.json(ERROR_500, defaultStatusOption(500))
+    return apiErrorResponse(500)
   }
 
   const { host: domain, allowEmails } = config

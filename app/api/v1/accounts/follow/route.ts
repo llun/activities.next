@@ -1,5 +1,9 @@
 import { follow, getPublicProfile, unfollow } from '@/lib/activities'
-import { DEFAULT_202, ERROR_404, defaultStatusOption } from '@/lib/errors'
+import {
+  DEFAULT_202,
+  apiErrorResponse,
+  defaultStatusOption
+} from '@/lib/errors'
 import { FollowStatus } from '@/lib/models/follow'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 
@@ -9,9 +13,7 @@ export const GET = AuthenticatedGuard(async (req, context) => {
   const { storage, currentActor } = context
   const params = new URL(req.url).searchParams
   const targetActorId = params.get('targetActorId')
-  if (!targetActorId) {
-    return Response.json(ERROR_404, defaultStatusOption(404))
-  }
+  if (!targetActorId) return apiErrorResponse(404)
 
   const follow = await storage.getAcceptedOrRequestedFollow({
     actorId: currentActor.id,
@@ -25,9 +27,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   const body = await req.json()
   const { target } = FollowRequest.parse(body)
   const profile = await getPublicProfile({ actorId: target })
-  if (!profile) {
-    return Response.json(ERROR_404, defaultStatusOption(404))
-  }
+  if (!profile) return apiErrorResponse(404)
 
   const followItem = await storage.createFollow({
     actorId: currentActor.id,
@@ -45,16 +45,12 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
   const body = await req.json()
   const { target } = FollowRequest.parse(body)
   const profile = await getPublicProfile({ actorId: target })
-  if (!profile) {
-    return Response.json(ERROR_404, defaultStatusOption(404))
-  }
+  if (!profile) return apiErrorResponse(404)
   const follow = await storage.getAcceptedOrRequestedFollow({
     actorId: currentActor.id,
     targetActorId: target
   })
-  if (!follow) {
-    return Response.json(ERROR_404, defaultStatusOption(404))
-  }
+  if (!follow) return apiErrorResponse(404)
   await Promise.all([
     unfollow(currentActor, follow),
     storage.updateFollowStatus({

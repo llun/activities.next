@@ -1,4 +1,4 @@
-import { ERROR_404, defaultStatusOption } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/errors'
 import { ACTIVITY_STREAM_URL } from '@/lib/jsonld/activitystream'
 import {
   OnlyLocalUserGuard,
@@ -15,14 +15,10 @@ export const GET = OnlyLocalUserGuard(
     const { statusId } = (query as AppRouterParams<StatusParams>).params
     const id = `${actor.id}/statuses/${statusId}`
     const status = await storage.getStatus({ statusId: id, withReplies: true })
-    if (!status) {
-      return Response.json(ERROR_404, defaultStatusOption(404))
-    }
+    if (!status) return apiErrorResponse(404)
 
     const note = status.toObject()
-    if (!note) {
-      return Response.json(ERROR_404, defaultStatusOption(404))
-    }
+    if (!note) return apiErrorResponse(404)
 
     return Response.json({ '@context': ACTIVITY_STREAM_URL, ...note })
   }

@@ -13,7 +13,11 @@ import {
 } from '@/lib/activities/actions/types'
 import { NoteEntity } from '@/lib/activities/entities/note'
 import { QuestionEntity } from '@/lib/activities/entities/question'
-import { DEFAULT_202, ERROR_404, defaultStatusOption } from '@/lib/errors'
+import {
+  DEFAULT_202,
+  apiErrorResponse,
+  defaultStatusOption
+} from '@/lib/errors'
 import { compact } from '@/lib/jsonld'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 
@@ -75,6 +79,6 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
       return Response.json(DEFAULT_202, defaultStatusOption(202))
     }
     default:
-      return Response.json(ERROR_404, defaultStatusOption(404))
+      return apiErrorResponse(404)
   }
 })

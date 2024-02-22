@@ -1,4 +1,4 @@
-import { ERROR_422, defaultStatusOption } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/errors'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaSchema } from '@/lib/services/medias/types'
@@ -9,14 +9,9 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     const form = await req.formData()
     const media = MediaSchema.parse(Object.fromEntries(form.entries()))
     const response = await saveMedia(storage, currentActor, media)
-    if (!response) {
-      return Response.json(ERROR_422, defaultStatusOption(422))
-    }
+    if (!response) return apiErrorResponse(422)
     return Response.json(response)
-  } catch (e) {
-    const error = e as NodeJS.ErrnoException
-    console.error(error.message)
-    console.error(error.stack)
-    return Response.json(ERROR_422, defaultStatusOption(422))
+  } catch {
+    return apiErrorResponse(422)
   }
 })

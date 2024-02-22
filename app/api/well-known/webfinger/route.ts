@@ -1,14 +1,12 @@
 import { type NextRequest } from 'next/server'
 
-import { ERROR_404, defaultStatusOption } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/errors'
 import { getStorage } from '@/lib/storage'
 
 export const GET = async (req: NextRequest) => {
   const url = new URL(req.url)
   const resource = url.searchParams.get('resource')
-  if (!resource) {
-    return Response.json(ERROR_404, defaultStatusOption(404))
-  }
+  if (!resource) return apiErrorResponse(404)
 
   const firstResource = Array.isArray(resource) ? resource[0] : resource
   const account = firstResource.startsWith('acct:')
@@ -16,17 +14,13 @@ export const GET = async (req: NextRequest) => {
     : firstResource
 
   const [username, domain] = account.split('@')
-  if (!domain) {
-    return Response.json(ERROR_404, defaultStatusOption(404))
-  }
+  if (!domain) return apiErrorResponse(404)
 
   const storage = await getStorage()
   const actor = await storage?.getActorFromUsername({ username, domain })
 
   // This is not local actors
-  if (!actor?.privateKey) {
-    return Response.json(ERROR_404, defaultStatusOption(404))
-  }
+  if (!actor?.privateKey) return apiErrorResponse(404)
 
   return Response.json({
     subject: `acct:${username}@${domain}`,
