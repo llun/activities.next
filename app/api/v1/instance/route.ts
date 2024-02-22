@@ -1,14 +1,19 @@
-import { getConfig } from "@/lib/config"
-import { VERSION } from "@/lib/constants"
-import { ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from "@/lib/services/medias/constants"
+import { getConfig } from '@/lib/config'
+import { VERSION } from '@/lib/constants'
+import {
+  ACCEPTED_FILE_TYPES,
+  MAX_FILE_SIZE
+} from '@/lib/services/medias/constants'
 
 export const GET = async () => {
   const config = getConfig()
   const data = {
     uri: config.host,
     title: config.serviceName ?? 'Activities.next',
-    short_description: config.serviceDescription ?? 'Personal activity pub server with Next.js',,
-    description: config.serviceDescription ?? 'Personal activity pub server with Next.js',,
+    short_description:
+      config.serviceDescription ?? 'Personal activity pub server with Next.js',
+    description:
+      config.serviceDescription ?? 'Personal activity pub server with Next.js',
     email: '-',
     version: VERSION,
     thumbnail: '',
