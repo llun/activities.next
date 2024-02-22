@@ -1,12 +1,19 @@
-import { NextRequest } from "next/server";
+import { NextRequest } from 'next/server'
 
-import { AppRouterApiHandle, AppRouterParams } from "./types";
+import { AppRouterApiHandle, AppRouterParams } from './types'
 
-export const OAuthGuard = <P>(handle: AppRouterApiHandle<P>) =>
+const BEARER_GRAMMAR = `
+
+`
+
+export const getTokenFromHeader = (authorizationHeader: string) => {}
+
+export const OAuthGuard =
+  <P>(handle: AppRouterApiHandle<P>) =>
   async (req: NextRequest, params?: AppRouterParams<P>) => {
     const authorizationHeader = req.headers.get('Authorization')
     if (!authorizationHeader) {
       return new Response('Unauthorized', { status: 401 })
     }
-    return handle(req, params);
+    return handle(req, params)
   }
