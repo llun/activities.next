@@ -1,5 +1,6 @@
 import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
 
+import { DEFAULT_OAUTH_TOKEN_LENGTH } from '../constants'
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
@@ -15,6 +16,7 @@ import { waitFor } from '../utils/waitFor'
 import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
+import { Scope } from './types/oauth'
 
 const TEST_SHARED_INBOX = `https://${TEST_DOMAIN}/inbox`
 const TEST_PASSWORD_HASH = 'password_hash'
@@ -137,13 +139,13 @@ describe('Storage', () => {
         storage.createClient({
           name: 'application1',
           redirectUris: ['https://application1.llun.dev/oauth/redirect'],
-          scopes: ['read'],
+          scopes: [Scope.enum.read],
           secret: 'secret'
         }),
         storage.createClient({
           name: 'application2',
           redirectUris: ['https://application2.llun.dev/oauth/redirect'],
-          scopes: ['read', 'write'],
+          scopes: [Scope.enum.read, Scope.enum.write],
           secret: 'secret'
         })
       ])
@@ -1077,7 +1079,7 @@ describe('Storage', () => {
         const client = await storage.createClient({
           name: 'application3',
           redirectUris: ['https://application3.llun.dev/oauth/redirect'],
-          scopes: ['read', 'write'],
+          scopes: [Scope.enum.read, Scope.enum.write],
           secret: 'some random secret'
         })
         expect(client).toEqual({
@@ -1097,7 +1099,7 @@ describe('Storage', () => {
           storage.createClient({
             name: 'application2',
             redirectUris: ['somerandomstring'],
-            scopes: ['read', 'write'],
+            scopes: [Scope.enum.read, Scope.enum.write],
             secret: 'some random secret'
           })
         ).rejects.toThrow()
@@ -1108,7 +1110,7 @@ describe('Storage', () => {
           storage.createClient({
             name: 'application1',
             redirectUris: ['https://application1.llun.dev/oauth/redirect'],
-            scopes: ['read', 'write'],
+            scopes: [Scope.enum.read, Scope.enum.write],
             secret: 'some random secret'
           })
         ).rejects.toThrow(`Client application1 is already exists`)
@@ -1154,7 +1156,7 @@ describe('Storage', () => {
           id: existingClient.id,
           name: 'application2',
           redirectUris: ['https://application2.llun.dev/oauth/redirect'],
-          scopes: ['read'],
+          scopes: [Scope.enum.read],
           secret: 'secret'
         })
         const updatedExistingClient = await storage.getClientFromName({
@@ -1178,27 +1180,27 @@ describe('Storage', () => {
           ])
 
           token = await storage.createAccessToken({
-            accessToken: generateRandomToken(),
+            accessToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             accessTokenExpiresAt: new DateInterval('30d')
               .getEndDate()
               .getTime(),
             accountId: (actor?.account as Account).id,
             actorId: actor?.id as string,
             clientId: client?.id as string,
-            scopes: ['read']
+            scopes: [Scope.enum.read]
           })
         })
 
         it('adds token to the repository', async () => {
           const token = await storage.createAccessToken({
-            accessToken: generateRandomToken(),
+            accessToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             accessTokenExpiresAt: new DateInterval('30d')
               .getEndDate()
               .getTime(),
             accountId: (actor?.account as Account).id,
             actorId: actor?.id as string,
             clientId: client?.id as string,
-            scopes: ['read']
+            scopes: [Scope.enum.read]
           })
           expect(token?.client).toEqual(client)
           expect(token?.user?.actor).toEqual(actor?.data)
@@ -1206,7 +1208,7 @@ describe('Storage', () => {
         })
 
         it('add refresh token to access token', async () => {
-          const refreshToken = generateRandomToken()
+          const refreshToken = generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH)
           const refreshTokenExpiresAt = new DateInterval('2d')
             .getEndDate()
             .getTime()
@@ -1258,7 +1260,7 @@ describe('Storage', () => {
           ])
 
           code = await storage.createAuthCode({
-            code: generateRandomToken(),
+            code: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             redirectUri: 'https://application1.llun.dev/oauth/redirect',
             codeChallenge: 'challenge',
             codeChallengeMethod: 'plain',
@@ -1267,7 +1269,7 @@ describe('Storage', () => {
             accountId: actor?.account?.id as string,
             actorId: actor?.id as string,
 
-            scopes: ['read'],
+            scopes: [Scope.enum.read],
 
             expiresAt: new DateInterval('50m').getEndDate().getTime()
           })
@@ -1275,7 +1277,7 @@ describe('Storage', () => {
 
         it('adds authCode to the repository', async () => {
           const code = await storage.createAuthCode({
-            code: generateRandomToken(),
+            code: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             redirectUri: null,
             codeChallenge: null,
             codeChallengeMethod: 'S256',
@@ -1284,7 +1286,7 @@ describe('Storage', () => {
             accountId: actor?.account?.id as string,
             actorId: actor?.id as string,
 
-            scopes: ['read'],
+            scopes: [Scope.enum.read],
 
             expiresAt: new DateInterval('50m').getEndDate().getTime()
           })

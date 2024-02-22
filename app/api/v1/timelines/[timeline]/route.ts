@@ -1,4 +1,4 @@
-import { ERROR_400, ERROR_404 } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { Timeline } from '@/lib/timelines/types'
 
@@ -14,15 +14,13 @@ export const GET = AuthenticatedGuard<Params>(async (req, context, params) => {
 
   const { storage, currentActor } = context
   const { timeline } = params?.params ?? {}
-  if (!timeline) {
-    return Response.json(ERROR_400, { status: 400 })
-  }
+  if (!timeline) return apiErrorResponse(400)
 
   if (
     !Object.values(Timeline).includes(timeline) ||
     UNSUPPORTED_TIMELINE.includes(timeline)
   ) {
-    return Response.json(ERROR_404, { status: 404 })
+    return apiErrorResponse(404)
   }
 
   const statuses = await storage.getTimeline({

@@ -8,9 +8,10 @@ import {
   generateRandomToken
 } from '@jmondi/oauth2-server'
 
+import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
 import { Token } from '@/lib/models/oauth2/token'
 import { Storage } from '@/lib/storage/types'
-import { Scopes } from '@/lib/storage/types/oauth'
+import { Scope } from '@/lib/storage/types/oauth'
 
 export class TokenRepository implements OAuthTokenRepository {
   storage: Storage
@@ -32,7 +33,7 @@ export class TokenRepository implements OAuthTokenRepository {
   ): Promise<OAuthToken> {
     const currentTime = Date.now()
     return Token.parse({
-      accessToken: generateRandomToken(),
+      accessToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
       accessTokenExpiresAt: new DateInterval('30d').getEndDate().getTime(),
       refreshToken: null,
       refreshTokenExpiresAt: null,
@@ -62,7 +63,7 @@ export class TokenRepository implements OAuthTokenRepository {
   async issueRefreshToken(token: OAuthToken): Promise<OAuthToken> {
     const updatedToken = await this.storage.updateRefreshToken({
       accessToken: token.accessToken,
-      refreshToken: generateRandomToken(),
+      refreshToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
       refreshTokenExpiresAt: new DateInterval('2h').getEndDate().getTime()
     })
     if (!updatedToken) throw new Error('Fail to issue refresh token')
@@ -83,7 +84,7 @@ export class TokenRepository implements OAuthTokenRepository {
       accountId: token.user?.account.id,
       actorId: token.user?.actor.id,
       clientId: token.client.id,
-      scopes: token.scopes.map((scope) => scope.name as Scopes)
+      scopes: token.scopes.map((scope) => scope.name as Scope)
     })
   }
 

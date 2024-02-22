@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { ERROR_400, ERROR_500 } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
 import { parse, verify } from '@/lib/utils/signature'
 
@@ -12,19 +12,13 @@ export const ActivityPubVerifySenderGuard =
   <P>(handle: ActivityPubVerifiedSenderHandle<P>) =>
   async (request: NextRequest, params?: AppRouterParams<P>) => {
     const storage = await getStorage()
-    if (!storage) {
-      return Response.json(ERROR_500, { status: 500 })
-    }
+    if (!storage) return apiErrorResponse(500)
 
     const requestSignature = request.headers.get('signature')
-    if (!requestSignature) {
-      return Response.json(ERROR_400, { status: 400 })
-    }
+    if (!requestSignature) return apiErrorResponse(400)
 
     const signatureParts = await parse(requestSignature)
-    if (!signatureParts.keyId) {
-      return Response.json(ERROR_400, { status: 400 })
-    }
+    if (!signatureParts.keyId) return apiErrorResponse(400)
 
     const host = headerHost(request.headers)
     const requestUrl = new URL(request.url, `http://${host}`)
@@ -36,7 +30,7 @@ export const ActivityPubVerifySenderGuard =
         publicKey
       )
     ) {
-      return Response.json(ERROR_400, { status: 400 })
+      return apiErrorResponse(400)
     }
 
     return handle(request, { storage }, params)

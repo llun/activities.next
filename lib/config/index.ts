@@ -14,8 +14,10 @@ import { RedisConfig, getRedisConfig } from './redis'
 import { RequestConfig, getRequestConfig } from './request'
 
 const Config = z.object({
-  serviceName: z.string().optional(),
   host: z.string(),
+  serviceName: z.string().nullish(),
+  serviceDescription: z.string().nullish(),
+  languages: z.string().array().default(['en']),
   database: z.union([KnexBaseDatabase, FirebaseDatabase]),
   allowEmails: z.string().array(),
   secretPhase: z.string(),

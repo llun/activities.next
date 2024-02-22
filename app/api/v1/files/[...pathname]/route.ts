@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import path from 'path'
 
-import { ERROR_404 } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/response'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { getMedia } from '@/lib/services/medias'
 
@@ -19,9 +19,7 @@ export const GET = async (
     .replace(/^(\.\.(\/|\\|$))+/, '')
 
   const media = await getMedia(userPath)
-  if (!media) {
-    return Response.json(ERROR_404, { status: 404 })
-  }
+  if (!media) return apiErrorResponse(404)
 
   switch (media.type) {
     case 'buffer': {
@@ -38,7 +36,7 @@ export const GET = async (
       return Response.redirect(redirectUrl, 308)
     }
     default: {
-      return Response.json(ERROR_404, { status: 404 })
+      return apiErrorResponse(404)
     }
   }
 }

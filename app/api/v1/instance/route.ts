@@ -1,21 +1,31 @@
-export const GET = async () => {
+import { NextRequest } from 'next/server'
+
+import { getConfig } from '@/lib/config'
+import { VERSION } from '@/lib/constants'
+import { defaultOptions, defaultStatusOption } from '@/lib/response'
+import {
+  ACCEPTED_FILE_TYPES,
+  MAX_FILE_SIZE
+} from '@/lib/services/medias/constants'
+import { HttpMethod, getCORSHeaders } from '@/lib/utils/getCORSHeaders'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+export const GET = async (req: NextRequest) => {
+  const config = getConfig()
   const data = {
-    uri: 'llun.dev',
-    title: 'Personal llun Mastodon',
-    short_description: '',
-    description: 'Experiment personal mastodon service with Next.js',
+    uri: config.host,
+    title: config.serviceName ?? 'Activities.next',
+    short_description:
+      config.serviceDescription ?? 'Personal activity pub server with Next.js',
+    description:
+      config.serviceDescription ?? 'Personal activity pub server with Next.js',
     email: '-',
-    version: '1.0.0',
-    urls: {
-      streaming_api: 'wss://llun.dev/streaming'
-    },
-    stats: {
-      user_count: 1,
-      status_count: 1,
-      domain_count: 1
-    },
+    version: VERSION,
     thumbnail: '',
-    languages: ['en', 'th'],
+    languages: config.languages,
     registrations: false,
     approval_required: false,
     invites_enabled: false,
@@ -26,10 +36,10 @@ export const GET = async () => {
         characters_reserved_per_url: 23
       },
       media_attachments: {
-        supported_mime_types: ['image/jpeg', 'video/mp4'],
-        image_size_limit: 10485760,
+        supported_mime_types: ACCEPTED_FILE_TYPES,
+        image_size_limit: MAX_FILE_SIZE,
         image_matrix_limit: 16777216,
-        video_size_limit: 41943040,
+        video_size_limit: MAX_FILE_SIZE,
         video_frame_rate_limit: 60,
         video_matrix_limit: 2304000
       },
@@ -39,31 +49,10 @@ export const GET = async () => {
         min_expiration: 300,
         max_expiration: 2629746
       }
-    },
-    contact_account: {
-      id: '1',
-      username: 'llun',
-      acct: 'llun',
-      display_name: 'llun',
-      locked: false,
-      bot: false,
-      discoverable: false,
-      group: false,
-      created_at: '2019-02-18T00:00:00.000Z',
-      note: '',
-      url: 'https://llun.dev/@null',
-      avatar: '',
-      avatar_static: '',
-      header: '',
-      header_static: '',
-      followers_count: 0,
-      following_count: 0,
-      statuses_count: 0,
-      last_status_at: '2022-02-18',
-      emojis: [],
-      fields: []
-    },
-    rules: []
+    }
   }
-  return Response.json(data)
+  return Response.json(data, {
+    ...defaultStatusOption(200),
+    headers: new Headers(getCORSHeaders(CORS_HEADERS, req.headers))
+  })
 }

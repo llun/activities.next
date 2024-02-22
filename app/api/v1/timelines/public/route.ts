@@ -1,13 +1,11 @@
-import { ERROR_500 } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
 import { Timeline } from '@/lib/timelines/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const GET = async () => {
   const storage = await getStorage()
-  if (!storage) {
-    return Response.json(ERROR_500, { status: 500 })
-  }
+  if (!storage) return apiErrorResponse(500)
 
   const statuses = await storage.getTimeline({
     timeline: Timeline.LOCAL_PUBLIC

@@ -13,8 +13,12 @@ import {
 } from '@/lib/activities/actions/types'
 import { NoteEntity } from '@/lib/activities/entities/note'
 import { QuestionEntity } from '@/lib/activities/entities/question'
-import { DEFAULT_202, ERROR_404 } from '@/lib/errors'
 import { compact } from '@/lib/jsonld'
+import {
+  DEFAULT_202,
+  apiErrorResponse,
+  defaultStatusOption
+} from '@/lib/response'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 
 export const maxDuration = 60
@@ -35,7 +39,7 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
           break
         }
       }
-      return Response.json(DEFAULT_202, { status: 202 })
+      return Response.json(DEFAULT_202, defaultStatusOption(202))
     }
     case UpdateAction: {
       switch (activity.object.type) {
@@ -48,11 +52,11 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
           break
         }
       }
-      return Response.json(DEFAULT_202, { status: 202 })
+      return Response.json(DEFAULT_202, defaultStatusOption(202))
     }
     case AnnounceAction: {
       await announce({ storage, status: activity })
-      return Response.json(DEFAULT_202, { status: 202 })
+      return Response.json(DEFAULT_202, defaultStatusOption(202))
     }
     case UndoAction: {
       switch (activity.object.type) {
@@ -62,19 +66,19 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
           break
         }
       }
-      return Response.json(DEFAULT_202, { status: 202 })
+      return Response.json(DEFAULT_202, defaultStatusOption(202))
     }
     case DeleteAction: {
       // TODO: Handle delete object type string
       if (typeof activity.object === 'string') {
-        return Response.json(DEFAULT_202, { status: 202 })
+        return Response.json(DEFAULT_202, defaultStatusOption(202))
       }
 
       const id = activity.object.id
       await storage.deleteStatus({ statusId: id })
-      return Response.json(DEFAULT_202, { status: 202 })
+      return Response.json(DEFAULT_202, defaultStatusOption(202))
     }
     default:
-      return Response.json(ERROR_404, { status: 404 })
+      return apiErrorResponse(404)
   }
 })

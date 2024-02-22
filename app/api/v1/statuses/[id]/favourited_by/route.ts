@@ -1,4 +1,4 @@
-import { ERROR_400 } from '@/lib/errors'
+import { apiErrorResponse } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 
 interface Params {
@@ -7,9 +7,7 @@ interface Params {
 
 export const GET = AuthenticatedGuard<Params>(async (req, context, params) => {
   const uuid = params?.params.id
-  if (!uuid) {
-    return Response.json(ERROR_400, { status: 400 })
-  }
+  if (!uuid) return apiErrorResponse(400)
 
   const { currentActor, storage } = context
   const statusId = `${currentActor.id}/statuses/${uuid}`

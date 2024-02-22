@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { ERROR_404 } from '@/lib/errors'
+import { apiErrorResponse, defaultStatusOption } from '@/lib/response'
 import { fetchStream } from '@/lib/services/apple/webstream'
 import { AppRouterParams } from '@/lib/services/guards/types'
 
@@ -16,13 +16,11 @@ export const GET = async (
 ) => {
   const token = params.params.token
   const stream = await fetchStream(token)
-  if (!stream) {
-    return Response.json(ERROR_404, { status: 404 })
-  }
+  if (!stream) return apiErrorResponse(404)
 
   const headers = new Headers([
     ['Access-Control-Allow-Origin', allowOrigin(req)],
     ['Vary', 'Origin']
   ])
-  return Response.json({ stream }, { headers })
+  return Response.json({ stream }, { ...defaultStatusOption(200), headers })
 }
