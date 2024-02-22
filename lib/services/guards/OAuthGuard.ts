@@ -1,9 +1,11 @@
+import jwt from 'jsonwebtoken'
 import intersection from 'lodash/intersection'
 import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 import { generate } from 'peggy'
 
 import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getConfig } from '@/lib/config'
 import { Actor } from '@/lib/models/actor'
 import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
@@ -51,21 +53,38 @@ export const OAuthGuard =
     const token = getTokenFromHeader(req.headers.get('Authorization'))
     if (!token) return apiErrorResponse(401)
 
-    const accessToken = await storage.getAccessToken(token)
-    if (!accessToken) return apiErrorResponse(401)
+    try {
+      const currentTime = Date.now()
+      const decoded = jwt.verify(
+        token,
+        getConfig().secretPhase
+      ) as jwt.JwtPayload
+      if (decoded.exp && decoded.exp * 1000 < currentTime) {
+        return apiErrorResponse(401)
+      }
+      if (decoded.nbf && decoded.nbf * 1000 > currentTime) {
+        return apiErrorResponse(401)
+      }
 
-    const currentTime = Date.now()
-    const tokenScopes = accessToken.scopes.map((scope) => scope.name)
-    if (
-      intersection(tokenScopes, scopes).length === 0 ||
-      accessToken.accessTokenExpiresAt.getTime() < currentTime
-    ) {
+      const accessToken = await storage.getAccessToken({
+        accessToken: decoded.jti ?? ''
+      })
+      if (!accessToken) return apiErrorResponse(401)
+
+      const tokenScopes = accessToken.scopes.map((scope) => scope.name)
+      if (
+        intersection(tokenScopes, scopes).length === 0 ||
+        accessToken.accessTokenExpiresAt.getTime() < currentTime
+      ) {
+        return apiErrorResponse(401)
+      }
+
+      return handle(
+        req,
+        { currentActor: new Actor(accessToken.user.actor), storage },
+        params
+      )
+    } catch {
       return apiErrorResponse(401)
     }
-
-    return handle(
-      req,
-      { currentActor: new Actor(accessToken.user.actor), storage },
-      params
-    )
   }

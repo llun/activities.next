@@ -1,5 +1,6 @@
 import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
 
+import { DEFAULT_OAUTH_TOKEN_LENGTH } from '../constants'
 import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
@@ -1179,7 +1180,7 @@ describe('Storage', () => {
           ])
 
           token = await storage.createAccessToken({
-            accessToken: generateRandomToken(),
+            accessToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             accessTokenExpiresAt: new DateInterval('30d')
               .getEndDate()
               .getTime(),
@@ -1192,7 +1193,7 @@ describe('Storage', () => {
 
         it('adds token to the repository', async () => {
           const token = await storage.createAccessToken({
-            accessToken: generateRandomToken(),
+            accessToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             accessTokenExpiresAt: new DateInterval('30d')
               .getEndDate()
               .getTime(),
@@ -1207,7 +1208,7 @@ describe('Storage', () => {
         })
 
         it('add refresh token to access token', async () => {
-          const refreshToken = generateRandomToken()
+          const refreshToken = generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH)
           const refreshTokenExpiresAt = new DateInterval('2d')
             .getEndDate()
             .getTime()
@@ -1259,7 +1260,7 @@ describe('Storage', () => {
           ])
 
           code = await storage.createAuthCode({
-            code: generateRandomToken(),
+            code: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             redirectUri: 'https://application1.llun.dev/oauth/redirect',
             codeChallenge: 'challenge',
             codeChallengeMethod: 'plain',
@@ -1276,7 +1277,7 @@ describe('Storage', () => {
 
         it('adds authCode to the repository', async () => {
           const code = await storage.createAuthCode({
-            code: generateRandomToken(),
+            code: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             redirectUri: null,
             codeChallenge: null,
             codeChallengeMethod: 'S256',

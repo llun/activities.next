@@ -3720,6 +3720,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/jsonwebtoken@npm:^9":
+  version: 9.0.5
+  resolution: "@types/jsonwebtoken@npm:9.0.5"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10c0/c582b8420586f3b9550f7e34992cb32be300bc953636f3b087ed9c180ce7ea5c2e4b35090be2d57f0d3168cc3ca1074932907caa2afe09f4e9c84cf5c0daefa8
+  languageName: node
+  linkType: hard
+
 "@types/linkify-it@npm:*":
   version: 3.0.5
   resolution: "@types/linkify-it@npm:3.0.5"
@@ -4267,6 +4276,7 @@ __metadata:
     "@types/formidable": "npm:^3.4.5"
     "@types/jest": "npm:^29.5.12"
     "@types/jsonld": "npm:^1.5.13"
+    "@types/jsonwebtoken": "npm:^9"
     "@types/lodash": "npm:^4.14.202"
     "@types/mime-types": "npm:^2.1.4"
     "@types/node": "npm:^20.11.19"
@@ -4303,6 +4313,7 @@ __metadata:
     jest-extended: "npm:^4.0.2"
     jest-fetch-mock: "npm:^3.0.3"
     jsonld: "npm:^8.3.2"
+    jsonwebtoken: "npm:^9.0.2"
     keyv: "npm:^4.5.4"
     knex: "npm:3.1.0"
     linkifyjs: "npm:^4.1.3"

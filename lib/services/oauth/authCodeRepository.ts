@@ -10,6 +10,7 @@ import {
   generateRandomToken
 } from 'node_modules/@jmondi/oauth2-server/dist/index.cjs'
 
+import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
 import { AuthCode } from '@/lib/models/oauth2/authCode'
 import { Storage } from '@/lib/storage/types'
 import { Scope } from '@/lib/storage/types/oauth'
@@ -38,7 +39,7 @@ export class AuthCodeRepository implements OAuthAuthCodeRepository {
   ): OAuthAuthCode {
     const currentTime = Date.now()
     return AuthCode.parse({
-      code: generateRandomToken(),
+      code: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
       redirectUri: null,
       codeChallenge: null,
       codeChallengeMethod: 'S256',
