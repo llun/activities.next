@@ -1,3 +1,4 @@
+import intersection from 'lodash/intersection'
 import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 import { generate } from 'peggy'
@@ -28,7 +29,7 @@ export const getTokenFromHeader = (authorizationHeader: string | null) => {
 }
 
 export const OAuthGuard =
-  <P>(scope: Scope, handle: AuthenticatedApiHandle<P>) =>
+  <P>(scopes: Scope[], handle: AuthenticatedApiHandle<P>) =>
   async (req: NextRequest, params?: AppRouterParams<P>) => {
     const [storage, session] = await Promise.all([
       getStorage(),
@@ -55,8 +56,10 @@ export const OAuthGuard =
 
     const currentTime = Date.now()
     const tokenScopes = accessToken.scopes.map((scope) => scope.name)
-    if (!tokenScopes.includes(scope)) return apiErrorResponse(401)
-    if (accessToken.accessTokenExpiresAt.getTime() < currentTime) {
+    if (
+      intersection(tokenScopes, scopes).length === 0 ||
+      accessToken.accessTokenExpiresAt.getTime() < currentTime
+    ) {
       return apiErrorResponse(401)
     }
 

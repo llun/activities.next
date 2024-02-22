@@ -9,7 +9,7 @@ export const createApplication = async (
   storage: Storage,
   request: PostRequest
 ): Promise<PostResponse> => {
-  const scopes = request.scopes ?? 'read'
+  const scopes = request.scopes ?? Scope.enum.read
   try {
     const existingApplication = await storage.getClientFromName({
       name: request.client_name

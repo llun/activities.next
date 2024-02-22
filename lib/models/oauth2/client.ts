@@ -8,7 +8,7 @@ export const Client = z.object({
   secret: z.string(),
   redirectUris: z.string().url().array().min(1),
   scopes: Scope.array()
-    .default(['read'])
+    .default([Scope.enum.read])
     .transform((value) => value.map((scope) => ({ name: scope }))),
   allowedGrants: GrantIdentifiers.array().default([
     'authorization_code',
