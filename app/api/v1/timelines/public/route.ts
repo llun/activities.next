@@ -1,5 +1,5 @@
+import { Timeline } from '@/lib/services/timelines/types'
 import { getStorage } from '@/lib/storage'
-import { Timeline } from '@/lib/timelines/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { apiErrorResponse } from '@/lib/utils/response'
 

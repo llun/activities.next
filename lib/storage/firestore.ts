@@ -1,27 +1,28 @@
 import { Firestore, Settings } from '@google-cloud/firestore'
 import crypto from 'crypto'
 
-import { PER_PAGE_LIMIT } from '.'
-import { Account } from '../models/account'
-import { Actor } from '../models/actor'
-import { Attachment, AttachmentData } from '../models/attachment'
-import { Follow, FollowStatus } from '../models/follow'
-import { AuthCode } from '../models/oauth2/authCode'
-import { Client } from '../models/oauth2/client'
-import { Token } from '../models/oauth2/token'
-import { User } from '../models/oauth2/user'
-import { PollChoice, PollChoiceData } from '../models/pollChoice'
-import { Session } from '../models/session'
+import { Account } from '@/lib/models/account'
+import { Actor } from '@/lib/models/actor'
+import { Attachment, AttachmentData } from '@/lib/models/attachment'
+import { Follow, FollowStatus } from '@/lib/models/follow'
+import { AuthCode } from '@/lib/models/oauth2/authCode'
+import { Client } from '@/lib/models/oauth2/client'
+import { Token } from '@/lib/models/oauth2/token'
+import { User } from '@/lib/models/oauth2/user'
+import { PollChoice, PollChoiceData } from '@/lib/models/pollChoice'
+import { Session } from '@/lib/models/session'
 import {
   Edited,
   Status,
   StatusAnnounce,
   StatusNote,
   StatusType
-} from '../models/status'
+} from '@/lib/models/status'
+import { Timeline } from '@/lib/services/timelines/types'
+import { Trace } from '@/lib/utils/trace'
+
+import { PER_PAGE_LIMIT } from '.'
 import { Tag, TagData } from '../models/tag'
-import { Timeline } from '../timelines/types'
-import { Trace } from '../utils/trace'
 import {
   CreateTagParams,
   CreateTimelineStatusParams,

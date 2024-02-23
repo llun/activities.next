@@ -1,7 +1,7 @@
 import cn from 'classnames'
 import { FC } from 'react'
 
-import { Timeline } from '../timelines/types'
+import { Timeline } from '@/lib/services/timelines/types'
 
 export interface Tab {
   name: string

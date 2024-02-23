@@ -1,16 +1,16 @@
 import { randomBytes } from 'crypto'
 
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
-
-import { addStatusToTimelines } from '.'
-import { SqlStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { ACTOR1_ID } from '../stub/seed/actor1'
+import { SqlStorage } from '@/lib/storage/sql'
+import { mockRequests } from '@/lib/stub/activities'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import {
   EXTERNAL_ACTOR1,
   EXTERNAL_ACTOR1_FOLLOWERS
-} from '../stub/seed/external1'
-import { seedStorage } from '../stub/storage'
+} from '@/lib/stub/seed/external1'
+import { seedStorage } from '@/lib/stub/storage'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+
+import { addStatusToTimelines } from '.'
 import { Timeline } from './types'
 
 describe('#addStatusToTimeline', () => {

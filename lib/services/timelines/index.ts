@@ -1,7 +1,8 @@
-import { Actor } from '../models/actor'
-import { Status } from '../models/status'
-import { Storage } from '../storage/types'
-import { getSpan } from '../utils/trace'
+import { Actor } from '@/lib/models/actor'
+import { Status } from '@/lib/models/status'
+import { Storage } from '@/lib/storage/types'
+import { getSpan } from '@/lib/utils/trace'
+
 import { mainTimelineRule } from './main'
 import { mentionTimelineRule } from './mention'
 import { noannounceTimelineRule } from './noaanounce'

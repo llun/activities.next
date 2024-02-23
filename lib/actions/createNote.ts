@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 
+import { addStatusToTimelines } from '@/lib/services/timelines'
 import { compact } from '@/lib/utils/jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -22,7 +23,6 @@ import { PostBoxAttachment } from '../models/attachment'
 import { FollowStatus } from '../models/follow'
 import { Status, StatusType } from '../models/status'
 import { Storage } from '../storage/types'
-import { addStatusToTimelines } from '../timelines'
 import { invalidate } from '../utils/cache'
 import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '../utils/response'

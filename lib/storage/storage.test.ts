@@ -1,5 +1,7 @@
 import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
 
+import { addStatusToTimelines } from '@/lib/services/timelines'
+import { Timeline } from '@/lib/services/timelines/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '../constants'
@@ -11,8 +13,6 @@ import { Client } from '../models/oauth2/client'
 import { Token } from '../models/oauth2/token'
 import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '../stub/const'
-import { addStatusToTimelines } from '../timelines'
-import { Timeline } from '../timelines/types'
 import { waitFor } from '../utils/waitFor'
 import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'

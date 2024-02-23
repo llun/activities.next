@@ -3,8 +3,8 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
 import { getConfig } from '@/lib/config'
+import { Timeline } from '@/lib/services/timelines/types'
 import { getStorage } from '@/lib/storage'
-import { Timeline } from '@/lib/timelines/types'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { authOptions } from '../api/auth/[...nextauth]/authOptions'

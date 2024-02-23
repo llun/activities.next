@@ -1,8 +1,9 @@
 import { z } from 'zod'
 
-import { Status } from '../models/status'
-import { Tag } from '../models/tag'
-import { Timeline } from '../timelines/types'
+import { Status } from '@/lib/models/status'
+import { Tag } from '@/lib/models/tag'
+import { Timeline } from '@/lib/services/timelines/types'
+
 import { AccountStorage } from './types/acount'
 import { ActorStorage } from './types/actor'
 import { FollowerStorage } from './types/follower'

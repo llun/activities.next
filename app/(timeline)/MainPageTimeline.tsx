@@ -9,7 +9,7 @@ import { TimelineLoadMoreButton } from '@/lib/components/TimelineLoadMoreButton'
 import { Tab, TimelineTabs } from '@/lib/components/TimelineTabs'
 import { ActorProfile } from '@/lib/models/actor'
 import { EditableStatusData, StatusData } from '@/lib/models/status'
-import { Timeline } from '@/lib/timelines/types'
+import { Timeline } from '@/lib/services/timelines/types'
 
 import {
   clearAction,

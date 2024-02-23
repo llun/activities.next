@@ -1,6 +1,6 @@
-import { Actor } from '../models/actor'
-import { StatusData } from '../models/status'
-import { Storage } from '../storage/types'
+import { Actor } from '@/lib/models/actor'
+import { StatusData } from '@/lib/models/status'
+import { Storage } from '@/lib/storage/types'
 
 export enum Timeline {
   MAIN = 'main',

@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 
+import { addStatusToTimelines } from '@/lib/services/timelines'
 import { compact } from '@/lib/utils/jsonld'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
@@ -7,7 +8,6 @@ import { getStatus, sendAnnounce } from '../activities'
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
-import { addStatusToTimelines } from '../timelines'
 import { getSpan } from '../utils/trace'
 import { createNote } from './createNote'
 import { recordActorIfNeeded } from './utils'

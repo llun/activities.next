@@ -1,12 +1,13 @@
-import { getConfig } from '../config'
-import { StatusType } from '../models/status'
-import { sendMail } from '../services/email'
+import { getConfig } from '@/lib/config'
+import { StatusType } from '@/lib/models/status'
+import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
   getSubject,
   getTextContent
-} from '../services/email/templates/mention'
-import { getSpan } from '../utils/trace'
+} from '@/lib/services/email/templates/mention'
+import { getSpan } from '@/lib/utils/trace'
+
 import { MentionTimelineRule, Timeline } from './types'
 
 export const mentionTimelineRule: MentionTimelineRule = async ({

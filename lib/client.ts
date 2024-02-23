@@ -1,9 +1,10 @@
+import { Timeline } from '@/lib/services/timelines/types'
+
 import { Duration } from './components/PostBox/PollChoices'
 import { Attachment, PostBoxAttachment } from './models/attachment'
 import { Follow, FollowStatus } from './models/follow'
 import { StatusData } from './models/status'
 import { Assets, Stream } from './services/apple/webstream'
-import { Timeline } from './timelines/types'
 
 export interface CreateNoteParams {
   message: string

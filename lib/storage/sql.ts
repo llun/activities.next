@@ -3,27 +3,27 @@ import crypto from 'crypto'
 import { Knex, knex } from 'knex'
 import omit from 'lodash/omit'
 
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
-
-import { PER_PAGE_LIMIT } from '.'
-import { Account } from '../models/account'
-import { Actor } from '../models/actor'
-import { Attachment, AttachmentData } from '../models/attachment'
-import { Follow, FollowStatus } from '../models/follow'
-import { AuthCode } from '../models/oauth2/authCode'
-import { Client } from '../models/oauth2/client'
-import { Token } from '../models/oauth2/token'
-import { User } from '../models/oauth2/user'
-import { PollChoice } from '../models/pollChoice'
-import { Session } from '../models/session'
+import { Account } from '@/lib/models/account'
+import { Actor } from '@/lib/models/actor'
+import { Attachment, AttachmentData } from '@/lib/models/attachment'
+import { Follow, FollowStatus } from '@/lib/models/follow'
+import { AuthCode } from '@/lib/models/oauth2/authCode'
+import { Client } from '@/lib/models/oauth2/client'
+import { Token } from '@/lib/models/oauth2/token'
+import { User } from '@/lib/models/oauth2/user'
+import { PollChoice } from '@/lib/models/pollChoice'
+import { Session } from '@/lib/models/session'
 import {
   Status,
   StatusAnnounce,
   StatusNote,
   StatusType
-} from '../models/status'
-import { Tag, TagData } from '../models/tag'
-import { Timeline } from '../timelines/types'
+} from '@/lib/models/status'
+import { Tag, TagData } from '@/lib/models/tag'
+import { Timeline } from '@/lib/services/timelines/types'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+
+import { PER_PAGE_LIMIT } from '.'
 import {
   CreateTagParams,
   CreateTimelineStatusParams,

@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 
+import { addStatusToTimelines } from '@/lib/services/timelines'
 import { compact } from '@/lib/utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
 
@@ -8,7 +9,6 @@ import { Question, QuestionEntity } from '../activities/entities/question'
 import { getConfig } from '../config'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
-import { addStatusToTimelines } from '../timelines'
 import { formatText } from '../utils/text/formatText'
 import { getMentions } from '../utils/text/getMentions'
 import { getSpan } from '../utils/trace'
