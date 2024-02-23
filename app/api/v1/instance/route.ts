@@ -2,12 +2,12 @@ import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
 import { VERSION } from '@/lib/constants'
-import { defaultOptions, defaultStatusOption } from '@/lib/response'
+import { apiResponse, defaultOptions } from '@/lib/response'
 import {
   ACCEPTED_FILE_TYPES,
   MAX_FILE_SIZE
 } from '@/lib/services/medias/constants'
-import { HttpMethod, getCORSHeaders } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -51,8 +51,5 @@ export const GET = async (req: NextRequest) => {
       }
     }
   }
-  return Response.json(data, {
-    ...defaultStatusOption(200),
-    headers: new Headers(getCORSHeaders(CORS_HEADERS, req.headers))
-  })
+  return apiResponse(req, CORS_HEADERS, data)
 }

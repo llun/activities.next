@@ -72,3 +72,15 @@ export const defaultOptions =
       headers: new Headers(Object.entries(getCORSHeaders(methods, req.headers)))
     })
   }
+
+export const apiResponse = (
+  req: NextRequest,
+  methods: HttpMethod[],
+  data: unknown,
+  code: StatusCode = 200
+) => {
+  return Response.json(data, {
+    ...defaultStatusOption(code),
+    headers: new Headers(Object.entries(getCORSHeaders(methods, req.headers)))
+  })
+}

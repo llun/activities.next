@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 
-import { StatusCode, defaultOptions, statusText } from '@/lib/response'
+import { StatusCode, apiResponse, defaultOptions } from '@/lib/response'
 import { getOAuth2Server } from '@/lib/services/oauth/server'
-import { HttpMethod, getCORSHeaders } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -21,12 +21,10 @@ export const POST = async (req: NextRequest) => {
     body
   }
   const oauthResponse = await server.respondToAccessTokenRequest(request)
-  return Response.json(oauthResponse.body, {
-    status: oauthResponse.status,
-    statusText: statusText(oauthResponse.status as StatusCode),
-    headers: new Headers({
-      ...getCORSHeaders(CORS_HEADERS, req.headers),
-      ...Object.entries(oauthResponse.headers)
-    })
-  })
+  return apiResponse(
+    req,
+    CORS_HEADERS,
+    oauthResponse.status,
+    oauthResponse.status as StatusCode
+  )
 }
