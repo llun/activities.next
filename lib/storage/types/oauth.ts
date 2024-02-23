@@ -7,6 +7,12 @@ import { Token } from '@/lib/models/oauth2/token'
 export const Scope = z.enum(['read', 'write', 'follow', 'push'])
 export type Scope = z.infer<typeof Scope>
 
+export const UsableScopes = [
+  Scope.enum.read,
+  Scope.enum.write,
+  Scope.enum.follow
+]
+
 export const GrantIdentifiers = z.enum([
   'authorization_code',
   'client_credentials',

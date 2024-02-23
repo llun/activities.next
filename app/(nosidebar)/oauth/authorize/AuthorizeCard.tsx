@@ -1,10 +1,12 @@
 'use client'
 
+import intersection from 'lodash/intersection'
 import { useRouter } from 'next/navigation'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/Button'
 import { Client } from '@/lib/models/oauth2/client'
+import { UsableScopes } from '@/lib/storage/types/oauth'
 
 import { SearchParams } from './types'
 
@@ -16,6 +18,7 @@ interface Props {
 export const AuthorizeCard: FC<Props> = ({ searchParams, client }) => {
   const requestedScopes = searchParams.scope.split(' ')
   const router = useRouter()
+  const availabledScopes = intersection(UsableScopes, requestedScopes)
   return (
     <form className="card" action="/api/oauth/authorize" method="post">
       <div className="card-body">
@@ -29,7 +32,7 @@ export const AuthorizeCard: FC<Props> = ({ searchParams, client }) => {
         </p>
         <h6 className="mb-2 text-body-secondary">Review permissions</h6>
         <div className="mb-2">
-          {requestedScopes.map((scope) => (
+          {availabledScopes.map((scope) => (
             <div key={scope} className="form-check">
               <input
                 className="form-check-input"
@@ -37,6 +40,7 @@ export const AuthorizeCard: FC<Props> = ({ searchParams, client }) => {
                 type="checkbox"
                 value={scope}
                 id={`scope-${scope}`}
+                defaultChecked
               />
               <label className="form-check-label" htmlFor={`scope-${scope}`}>
                 {scope}
