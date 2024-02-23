@@ -11,7 +11,7 @@ export const getMastodonStatus = async (
   status: StatusData
 ) => {
   const account = await getMastodonAccount(storage, status.actor as ActorData)
-  return {
+  return MastodonStatus.parse({
     id: status.id,
     created_at: getISOTimeUTC(status.createdAt),
     in_reply_to_id: null,
@@ -41,5 +41,5 @@ export const getMastodonStatus = async (
     card: null,
     poll: null,
     application: null
-  }
+  })
 }
