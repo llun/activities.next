@@ -1,9 +1,15 @@
 import {
   DEFAULT_202,
   apiErrorResponse,
-  defaultStatusOption
+  apiResponse,
+  defaultOptions
 } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.DELETE]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 interface Params {
   token: string
@@ -25,6 +31,6 @@ export const DELETE = AuthenticatedGuard<Params>(
     }
 
     await storage.deleteAccountSession({ token })
-    return Response.json(DEFAULT_202, defaultStatusOption(202))
+    return apiResponse(req, CORS_HEADERS, DEFAULT_202)
   }
 )

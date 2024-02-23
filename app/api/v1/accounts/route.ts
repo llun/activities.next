@@ -3,16 +3,20 @@ import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { apiErrorResponse, defaultStatusOption } from '@/lib/response'
+import { apiErrorResponse, apiResponse, defaultOptions } from '@/lib/response'
 import { sendMail } from '@/lib/services/email'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { getStorage } from '@/lib/storage'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { generateKeyPair } from '@/lib/utils/signature'
 
 import { CreateAccountRequest } from './types'
 
 const BCRYPT_ROUND = 10
 const MAIN_ERROR_MESSAGE = 'Validation failed'
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = async (request: NextRequest) => {
   const config = getConfig()
@@ -30,25 +34,26 @@ export const POST = async (request: NextRequest) => {
       error: 'ERR_INVALID',
       description: issue.message
     }))
-    return Response.json(
-      {
-        error: MAIN_ERROR_MESSAGE,
-        details: fields.fieldErrors
-      },
-      defaultStatusOption(422)
+    return apiResponse(
+      request,
+      CORS_HEADERS,
+      { error: MAIN_ERROR_MESSAGE, details: fields },
+      422
     )
   }
 
   const form = content.data
   if (allowEmails.length && !allowEmails.includes(form.email)) {
-    return Response.json(
+    return apiResponse(
+      request,
+      CORS_HEADERS,
       {
         error: MAIN_ERROR_MESSAGE,
         details: {
           email: [{ error: 'ERR_TAKEN', description: 'Email is already taken' }]
         }
       },
-      defaultStatusOption(422)
+      422
     )
   }
 
@@ -78,12 +83,11 @@ export const POST = async (request: NextRequest) => {
     ]
   }
   if (Object.keys(errorDetails).length > 0) {
-    return Response.json(
-      {
-        error: MAIN_ERROR_MESSAGE,
-        details: errorDetails
-      },
-      defaultStatusOption(422)
+    return apiResponse(
+      request,
+      CORS_HEADERS,
+      { error: MAIN_ERROR_MESSAGE, details: errorDetails },
+      422
     )
   }
 

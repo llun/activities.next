@@ -2,11 +2,21 @@ import { sendLike, sendUndoLike } from '@/lib/activities'
 import {
   DEFAULT_202,
   apiErrorResponse,
-  defaultStatusOption
+  apiResponse,
+  defaultOptions
 } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 
 import { LikeStatusRequest } from './types'
+
+const CORS_HEADERS = [
+  HttpMethod.enum.OPTIONS,
+  HttpMethod.enum.POST,
+  HttpMethod.enum.DELETE
+]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = AuthenticatedGuard(async (req, context) => {
   const { storage, currentActor } = context
@@ -17,7 +27,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
 
   await storage.createLike({ actorId: currentActor.id, statusId })
   await sendLike({ currentActor, status })
-  return Response.json(DEFAULT_202, defaultStatusOption(202))
+  return apiResponse(req, CORS_HEADERS, DEFAULT_202)
 })
 
 export const DELETE = AuthenticatedGuard(async (req, context) => {
@@ -29,5 +39,5 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
 
   await storage.deleteLike({ actorId: currentActor.id, statusId })
   await sendUndoLike({ currentActor, status })
-  return Response.json(DEFAULT_202, defaultStatusOption(202))
+  return apiResponse(req, CORS_HEADERS, DEFAULT_202)
 })

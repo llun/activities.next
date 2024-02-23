@@ -12,11 +12,16 @@ import { FollowStatus } from '@/lib/models/follow'
 import {
   DEFAULT_202,
   apiErrorResponse,
-  defaultStatusOption
+  apiResponse,
+  defaultOptions
 } from '@/lib/response'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const Activity = z.union([Accept, Reject, Follow, Like, Undo])
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
   try {
@@ -25,12 +30,12 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
       case 'Accept': {
         const follow = await acceptFollowRequest({ activity, storage })
         if (!follow) return apiErrorResponse(404)
-        return Response.json(DEFAULT_202, defaultStatusOption(202))
+        return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
       }
       case 'Reject': {
         const follow = await rejectFollowRequest({ activity, storage })
         if (!follow) return apiErrorResponse(404)
-        return Response.json(DEFAULT_202, defaultStatusOption(202))
+        return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
       }
       case 'Follow': {
         const follow = await createFollower({
@@ -38,14 +43,11 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
           storage
         })
         if (!follow) return apiErrorResponse(404)
-        return Response.json(
-          { target: follow.object },
-          defaultStatusOption(202)
-        )
+        return apiResponse(req, CORS_HEADERS, { target: follow.object }, 202)
       }
       case 'Like': {
         await likeRequest({ activity, storage })
-        return Response.json(DEFAULT_202, defaultStatusOption(202))
+        return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
       }
       case 'Undo': {
         const undoRequest = activity as UndoFollow | UndoLike
@@ -60,9 +62,11 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
               followId: follow.id,
               status: FollowStatus.enum.Undo
             })
-            return Response.json(
+            return apiResponse(
+              req,
+              CORS_HEADERS,
               { target: undoRequest.object.object },
-              defaultStatusOption(202)
+              202
             )
           }
           case 'Like': {
@@ -73,15 +77,15 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
                   ? undoRequest.object.object
                   : undoRequest.object.object.id
             })
-            return Response.json(DEFAULT_202, defaultStatusOption(202))
+            return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
           }
           default: {
-            return Response.json(DEFAULT_202, defaultStatusOption(202))
+            return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
           }
         }
       }
       default:
-        return Response.json(DEFAULT_202, defaultStatusOption(202))
+        return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
     }
   } catch {
     return apiErrorResponse(400)

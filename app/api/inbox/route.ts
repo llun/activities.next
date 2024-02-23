@@ -17,11 +17,17 @@ import { compact } from '@/lib/jsonld'
 import {
   DEFAULT_202,
   apiErrorResponse,
-  defaultStatusOption
+  apiResponse,
+  defaultOptions
 } from '@/lib/response'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const maxDuration = 60
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
   const { storage } = context
@@ -39,7 +45,7 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
           break
         }
       }
-      return Response.json(DEFAULT_202, defaultStatusOption(202))
+      return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
     }
     case UpdateAction: {
       switch (activity.object.type) {
@@ -52,11 +58,11 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
           break
         }
       }
-      return Response.json(DEFAULT_202, defaultStatusOption(202))
+      return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
     }
     case AnnounceAction: {
       await announce({ storage, status: activity })
-      return Response.json(DEFAULT_202, defaultStatusOption(202))
+      return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
     }
     case UndoAction: {
       switch (activity.object.type) {
@@ -66,17 +72,17 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
           break
         }
       }
-      return Response.json(DEFAULT_202, defaultStatusOption(202))
+      return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
     }
     case DeleteAction: {
       // TODO: Handle delete object type string
       if (typeof activity.object === 'string') {
-        return Response.json(DEFAULT_202, defaultStatusOption(202))
+        return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
       }
 
       const id = activity.object.id
       await storage.deleteStatus({ statusId: id })
-      return Response.json(DEFAULT_202, defaultStatusOption(202))
+      return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
     }
     default:
       return apiErrorResponse(404)

@@ -3,11 +3,22 @@ import { FollowStatus } from '@/lib/models/follow'
 import {
   DEFAULT_202,
   apiErrorResponse,
-  defaultStatusOption
+  apiResponse,
+  defaultOptions
 } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 
 import { FollowRequest } from './types'
+
+const CORS_HEADERS = [
+  HttpMethod.enum.OPTIONS,
+  HttpMethod.enum.GET,
+  HttpMethod.enum.POST,
+  HttpMethod.enum.DELETE
+]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = AuthenticatedGuard(async (req, context) => {
   const { storage, currentActor } = context
@@ -19,7 +30,7 @@ export const GET = AuthenticatedGuard(async (req, context) => {
     actorId: currentActor.id,
     targetActorId: targetActorId as string
   })
-  return Response.json({ follow })
+  return apiResponse(req, CORS_HEADERS, { follow })
 })
 
 export const POST = AuthenticatedGuard(async (req, context) => {
@@ -37,7 +48,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     sharedInbox: `https://${currentActor.domain}/inbox`
   })
   await follow(followItem.id, currentActor, target)
-  return Response.json(DEFAULT_202, defaultStatusOption(202))
+  return apiResponse(req, CORS_HEADERS, DEFAULT_202)
 })
 
 export const DELETE = AuthenticatedGuard(async (req, context) => {
@@ -58,5 +69,5 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
       status: FollowStatus.enum.Undo
     })
   ])
-  return Response.json(DEFAULT_202, defaultStatusOption(202))
+  return apiResponse(req, CORS_HEADERS, DEFAULT_202)
 })
