@@ -4,11 +4,11 @@ import { FC } from 'react'
 
 import { Posts } from '@/lib/components/Posts/Posts'
 import { getConfig } from '@/lib/config'
+import { getStorage } from '@/lib/storage'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
-} from '@/lib/jsonld/activitystream'
-import { getStorage } from '@/lib/storage'
+} from '@/lib/utils/jsonld/activitystream'
 
 import { StatusBox } from './StatusBox'
 import styles from './[status].module.scss'

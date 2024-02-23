@@ -21,7 +21,7 @@ import {
 } from '../models/status'
 import { Tag, TagData } from '../models/tag'
 import { Timeline } from '../timelines/types'
-import { Trace } from '../trace'
+import { Trace } from '../utils/trace'
 import {
   CreateTagParams,
   CreateTimelineStatusParams,

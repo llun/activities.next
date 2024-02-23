@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 
 import { Actor } from '@/lib/models/actor'
-import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
 import { Storage } from '@/lib/storage/types'
+import { apiErrorResponse } from '@/lib/utils/response'
 
 import { headerHost } from './headerHost'
 import { AppRouterParams } from './types'

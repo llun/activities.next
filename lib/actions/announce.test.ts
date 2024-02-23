@@ -1,6 +1,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { SqlStorage } from '../storage/sql'

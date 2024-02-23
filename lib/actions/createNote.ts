@@ -1,5 +1,12 @@
 import crypto from 'crypto'
 
+import { compact } from '@/lib/utils/jsonld'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMACT,
+  ACTIVITY_STREAM_URL
+} from '@/lib/utils/jsonld/activitystream'
+
 import { getPublicProfile, sendNote } from '../activities'
 import { Mention } from '../activities/entities/mention'
 import {
@@ -10,23 +17,17 @@ import {
   getTags
 } from '../activities/entities/note'
 import { CACHE_KEY_PREFIX_ACTOR, CACHE_NAMESPACE_ACTORS } from '../constants'
-import { compact } from '../jsonld'
-import {
-  ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMACT,
-  ACTIVITY_STREAM_URL
-} from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { FollowStatus } from '../models/follow'
 import { Status, StatusType } from '../models/status'
-import { UNFOLLOW_NETWORK_ERROR_CODES } from '../response'
 import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
-import { getSpan } from '../trace'
 import { invalidate } from '../utils/cache'
 import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
+import { UNFOLLOW_NETWORK_ERROR_CODES } from '../utils/response'
 import { getMentions } from '../utils/text/getMentions'
+import { getSpan } from '../utils/trace'
 import { recordActorIfNeeded } from './utils'
 
 interface CreateNoteParams {

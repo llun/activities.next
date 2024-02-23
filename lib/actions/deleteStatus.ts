@@ -1,7 +1,7 @@
 import { deleteStatus } from '../activities'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
-import { getSpan } from '../trace'
+import { getSpan } from '../utils/trace'
 
 interface DeleteStatusFromUserInputParams {
   currentActor: Actor

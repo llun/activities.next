@@ -6,7 +6,7 @@ import util from 'util'
 import { getConfig } from '@/lib/config'
 import { Actor } from '@/lib/models/actor'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
-import { getSpan } from '@/lib/trace'
+import { getSpan } from '@/lib/utils/trace'
 
 export const SIGNATURE_GRAMMAR = `
 pairs = (","? pair:pair { return pair })+

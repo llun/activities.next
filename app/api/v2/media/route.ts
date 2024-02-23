@@ -1,7 +1,7 @@
-import { apiErrorResponse } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaSchema } from '@/lib/services/medias/types'
+import { apiErrorResponse } from '@/lib/utils/response'
 
 export const POST = AuthenticatedGuard(async (req, context) => {
   try {

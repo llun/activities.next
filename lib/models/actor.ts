@@ -1,12 +1,12 @@
 import { z } from 'zod'
 
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
+import { W3ID_URL } from '@/lib/utils/jsonld/w3id'
 
 import { PublicProfile } from '../activities'
 import { Image } from '../activities/entities/image'
 import { Person } from '../activities/entities/person'
-import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
-import { W3ID_URL } from '../jsonld/w3id'
 import { Account } from './account'
 
 export const ActorProfile = z.object({

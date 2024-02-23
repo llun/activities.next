@@ -2,7 +2,7 @@ import { HTTPError } from 'got'
 
 import { getPublicProfile } from '@/lib/activities'
 import { Storage } from '@/lib/storage/types'
-import { getSpan } from '@/lib/trace'
+import { getSpan } from '@/lib/utils/trace'
 
 export async function getSenderPublicKey(storage: Storage, actorId: string) {
   const span = getSpan('guard', 'getSenderPublicKey', { actorId })

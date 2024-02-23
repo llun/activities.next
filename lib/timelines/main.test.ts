@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto'
 
-import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+
 import { Actor } from '../models/actor'
 import { Status } from '../models/status'
 import { SqlStorage } from '../storage/sql'

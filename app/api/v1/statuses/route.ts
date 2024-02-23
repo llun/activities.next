@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
-import { apiErrorResponse } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { apiErrorResponse } from '@/lib/utils/response'
 
 const NoteSchema = z.object({
   status: z.string(),

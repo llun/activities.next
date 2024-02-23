@@ -2,12 +2,12 @@ import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
 import { VERSION } from '@/lib/constants'
-import { apiResponse, defaultOptions } from '@/lib/response'
 import {
   ACCEPTED_FILE_TYPES,
   MAX_FILE_SIZE
 } from '@/lib/services/medias/constants'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 

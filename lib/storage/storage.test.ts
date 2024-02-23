@@ -1,7 +1,8 @@
 import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
 
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '../constants'
-import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { FollowStatus } from '../models/follow'

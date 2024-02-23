@@ -1,7 +1,7 @@
-import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
 import { Timeline } from '@/lib/timelines/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { apiErrorResponse } from '@/lib/utils/response'
 
 export const GET = async () => {
   const storage = await getStorage()

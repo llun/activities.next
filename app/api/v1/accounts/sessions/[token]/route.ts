@@ -1,11 +1,11 @@
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
   apiErrorResponse,
   apiResponse,
   defaultOptions
-} from '@/lib/response'
-import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+} from '@/lib/utils/response'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.DELETE]
 

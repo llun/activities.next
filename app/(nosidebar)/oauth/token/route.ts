@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 
-import { StatusCode, apiResponse, defaultOptions } from '@/lib/response'
 import { getOAuth2Server } from '@/lib/services/oauth/server'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { StatusCode, apiResponse, defaultOptions } from '@/lib/utils/response'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 

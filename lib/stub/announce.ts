@@ -6,7 +6,7 @@ import { AnnounceStatus } from '../activities/actions/announceStatus'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
-} from '../jsonld/activitystream'
+} from '../utils/jsonld/activitystream'
 
 interface Params {
   actorId: string

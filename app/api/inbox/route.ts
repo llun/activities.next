@@ -13,15 +13,15 @@ import {
 } from '@/lib/activities/actions/types'
 import { NoteEntity } from '@/lib/activities/entities/note'
 import { QuestionEntity } from '@/lib/activities/entities/question'
-import { compact } from '@/lib/jsonld'
+import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { compact } from '@/lib/utils/jsonld'
 import {
   DEFAULT_202,
   apiErrorResponse,
   apiResponse,
   defaultOptions
-} from '@/lib/response'
-import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+} from '@/lib/utils/response'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 

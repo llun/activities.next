@@ -1,7 +1,7 @@
 import { type NextRequest } from 'next/server'
 
-import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
+import { apiErrorResponse } from '@/lib/utils/response'
 
 export const GET = async (req: NextRequest) => {
   const url = new URL(req.url)

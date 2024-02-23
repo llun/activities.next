@@ -9,7 +9,10 @@ import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 
 import { Config, getConfig } from './lib/config'
-import { TRACE_APPLICATION_SCOPE, TRACE_APPLICATION_VERSION } from './lib/trace'
+import {
+  TRACE_APPLICATION_SCOPE,
+  TRACE_APPLICATION_VERSION
+} from './lib/utils/trace'
 
 const getTraceExporter = (config: Config) => {
   if (!config.openTelemetry) return null

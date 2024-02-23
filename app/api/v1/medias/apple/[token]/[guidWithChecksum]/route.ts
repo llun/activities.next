@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 
-import { apiErrorResponse } from '@/lib/response'
 import { fetchAssetsUrl } from '@/lib/services/apple/webstream'
 import { AppRouterParams } from '@/lib/services/guards/types'
+import { apiErrorResponse } from '@/lib/utils/response'
 
 interface Params {
   token: string

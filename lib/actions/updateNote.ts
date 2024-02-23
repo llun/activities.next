@@ -1,3 +1,10 @@
+import { compact } from '@/lib/utils/jsonld'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMACT,
+  ACTIVITY_STREAM_URL
+} from '@/lib/utils/jsonld/activitystream'
+
 import { sendUpdateNote } from '../activities'
 import {
   Note,
@@ -6,17 +13,11 @@ import {
   getSummary
 } from '../activities/entities/note'
 import { getConfig } from '../config'
-import { compact } from '../jsonld'
-import {
-  ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMACT,
-  ACTIVITY_STREAM_URL
-} from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
-import { getSpan } from '../trace'
 import { formatText } from '../utils/text/formatText'
+import { getSpan } from '../utils/trace'
 
 interface UpdateNoteParams {
   note: Note

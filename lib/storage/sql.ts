@@ -3,8 +3,9 @@ import crypto from 'crypto'
 import { Knex, knex } from 'knex'
 import omit from 'lodash/omit'
 
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+
 import { PER_PAGE_LIMIT } from '.'
-import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { Account } from '../models/account'
 import { Actor } from '../models/actor'
 import { Attachment, AttachmentData } from '../models/attachment'

@@ -1,7 +1,8 @@
 import { randomBytes } from 'crypto'
 
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+
 import { addStatusToTimelines } from '.'
-import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
 import { SqlStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
 import { ACTOR1_ID } from '../stub/seed/actor1'

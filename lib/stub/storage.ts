@@ -1,4 +1,5 @@
-import { ACTIVITY_STREAM_PUBLIC } from '../jsonld/activitystream'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+
 import { Actor } from '../models/actor'
 import { FollowStatus } from '../models/follow'
 import { Storage } from '../storage/types'

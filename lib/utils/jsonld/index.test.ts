@@ -1,5 +1,6 @@
-import { MockMastodonCreateActivity } from '../stub/createActivity'
-import { ACTOR1_ID } from '../stub/seed/actor1'
+import { MockMastodonCreateActivity } from '@/lib/stub/createActivity'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+
 import { compact } from './index'
 
 jest.useFakeTimers().setSystemTime(new Date('2022-11-28'))

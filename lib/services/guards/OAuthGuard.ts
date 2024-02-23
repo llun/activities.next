@@ -7,9 +7,9 @@ import { generate } from 'peggy'
 import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { Actor } from '@/lib/models/actor'
-import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
 import { Scope } from '@/lib/storage/types/oauth'
+import { apiErrorResponse } from '@/lib/utils/response'
 
 import { AppRouterParams, AuthenticatedApiHandle } from './types'
 

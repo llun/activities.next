@@ -1,10 +1,11 @@
+import { compact } from '@/lib/utils/jsonld'
+import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
+
 import { getContent, getSummary } from '../activities/entities/note'
 import { Question, QuestionEntity } from '../activities/entities/question'
-import { compact } from '../jsonld'
-import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
-import { getSpan } from '../trace'
+import { getSpan } from '../utils/trace'
 
 interface UpdatePollParams {
   question: Question

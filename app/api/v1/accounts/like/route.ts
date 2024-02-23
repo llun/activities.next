@@ -1,12 +1,12 @@
 import { sendLike, sendUndoLike } from '@/lib/activities'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
   apiErrorResponse,
   apiResponse,
   defaultOptions
-} from '@/lib/response'
-import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+} from '@/lib/utils/response'
 
 import { LikeStatusRequest } from './types'
 

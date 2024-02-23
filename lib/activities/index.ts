@@ -1,10 +1,5 @@
 import crypto from 'crypto'
 
-import {
-  ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_URL
-} from '@/lib/jsonld/activitystream'
-import { compact } from '@/lib/jsonld/index'
 import { Actor, ActorProfile } from '@/lib/models/actor'
 import { Follow } from '@/lib/models/follow'
 import {
@@ -14,10 +9,15 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/models/status'
-import { getSpan } from '@/lib/trace'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_URL
+} from '@/lib/utils/jsonld/activitystream'
+import { compact } from '@/lib/utils/jsonld/index'
 import { request } from '@/lib/utils/request'
 import { signedHeaders } from '@/lib/utils/signature'
+import { getSpan } from '@/lib/utils/trace'
 
 import { AcceptFollow } from './actions/acceptFollow'
 import { AnnounceStatus } from './actions/announceStatus'

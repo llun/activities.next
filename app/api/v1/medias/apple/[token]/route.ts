@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 
-import { apiErrorResponse, defaultStatusOption } from '@/lib/response'
 import { fetchStream } from '@/lib/services/apple/webstream'
 import { AppRouterParams } from '@/lib/services/guards/types'
+import { apiErrorResponse, defaultStatusOption } from '@/lib/utils/response'
 
 import { allowOrigin } from './utils'
 

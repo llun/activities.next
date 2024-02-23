@@ -1,5 +1,5 @@
 import { StatusType } from '../models/status'
-import { getSpan } from '../trace'
+import { getSpan } from '../utils/trace'
 import { MainTimelineRule, Timeline } from './types'
 
 /**

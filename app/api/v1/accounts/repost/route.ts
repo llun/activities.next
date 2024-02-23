@@ -2,9 +2,9 @@ import { z } from 'zod'
 
 import { userAnnounce } from '@/lib/actions/announce'
 import { userUndoAnnounce } from '@/lib/actions/undoAnnounce'
-import { DEFAULT_202, apiResponse, defaultOptions } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { DEFAULT_202, apiResponse, defaultOptions } from '@/lib/utils/response'
 
 const RepostRequest = z.object({ statusId: z.string() })
 type RepostRequest = z.infer<typeof RepostRequest>

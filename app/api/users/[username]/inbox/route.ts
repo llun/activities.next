@@ -9,14 +9,14 @@ import { FollowRequest } from '@/lib/activities/actions/follow'
 import { UndoFollow } from '@/lib/activities/actions/undoFollow'
 import { UndoLike } from '@/lib/activities/actions/undoLike'
 import { FollowStatus } from '@/lib/models/follow'
+import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
   apiErrorResponse,
   apiResponse,
   defaultOptions
-} from '@/lib/response'
-import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+} from '@/lib/utils/response'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const Activity = z.union([Accept, Reject, Follow, Like, Undo])

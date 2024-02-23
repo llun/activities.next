@@ -1,6 +1,6 @@
-import { apiErrorResponse } from '@/lib/response'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { Timeline } from '@/lib/timelines/types'
+import { apiErrorResponse } from '@/lib/utils/response'
 
 const UNSUPPORTED_TIMELINE = [Timeline.LOCAL_PUBLIC]
 

@@ -6,7 +6,7 @@ import {
   getSubject,
   getTextContent
 } from '../services/email/templates/mention'
-import { getSpan } from '../trace'
+import { getSpan } from '../utils/trace'
 import { MentionTimelineRule, Timeline } from './types'
 
 export const mentionTimelineRule: MentionTimelineRule = async ({

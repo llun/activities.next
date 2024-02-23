@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
 import { ACTIVITIES_SHARED_KEY } from '@/lib/constants'
-import { apiErrorResponse } from '@/lib/response'
+import { apiErrorResponse } from '@/lib/utils/response'
 
 import { AppRouterApiHandle, AppRouterParams } from './types'
 

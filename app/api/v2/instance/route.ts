@@ -1,6 +1,5 @@
 import { getConfig } from '@/lib/config'
 import { VERSION } from '@/lib/constants'
-import { apiResponse, defaultOptions } from '@/lib/response'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import {
   ACCEPTED_FILE_TYPES,
@@ -8,6 +7,7 @@ import {
 } from '@/lib/services/medias/constants'
 import { Scope } from '@/lib/storage/types/oauth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 

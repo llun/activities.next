@@ -1,16 +1,17 @@
 import crypto from 'crypto'
 
+import { compact } from '@/lib/utils/jsonld'
+import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
+
 import { getContent, getSummary, getTags } from '../activities/entities/note'
 import { Question, QuestionEntity } from '../activities/entities/question'
 import { getConfig } from '../config'
-import { compact } from '../jsonld'
-import { ACTIVITY_STREAM_URL } from '../jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
-import { getSpan } from '../trace'
 import { formatText } from '../utils/text/formatText'
 import { getMentions } from '../utils/text/getMentions'
+import { getSpan } from '../utils/trace'
 import { statusRecipientsCC, statusRecipientsTo } from './createNote'
 import { recordActorIfNeeded } from './utils'
 

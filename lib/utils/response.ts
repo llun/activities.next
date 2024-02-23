@@ -1,7 +1,7 @@
 import { NextApiResponse } from 'next'
 import { NextRequest } from 'next/server'
 
-import { HttpMethod, getCORSHeaders } from './utils/getCORSHeaders'
+import { HttpMethod, getCORSHeaders } from './getCORSHeaders'
 
 export const ERROR_500 = { status: 'Internal Server Error' }
 

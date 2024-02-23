@@ -1,13 +1,13 @@
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
   apiErrorResponse,
   apiResponse,
   defaultOptions
-} from '@/lib/response'
-import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+} from '@/lib/utils/response'
 
 import { DeleteStatusRequest, PostRequest } from './types'
 

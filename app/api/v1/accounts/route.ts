@@ -3,11 +3,15 @@ import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { apiErrorResponse, apiResponse, defaultOptions } from '@/lib/response'
 import { sendMail } from '@/lib/services/email'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { getStorage } from '@/lib/storage'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import {
+  apiErrorResponse,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { generateKeyPair } from '@/lib/utils/signature'
 
 import { CreateAccountRequest } from './types'

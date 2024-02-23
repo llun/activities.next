@@ -1,7 +1,7 @@
 import { Actor } from '../models/actor'
 import { Status } from '../models/status'
 import { Storage } from '../storage/types'
-import { getSpan } from '../trace'
+import { getSpan } from '../utils/trace'
 import { mainTimelineRule } from './main'
 import { mentionTimelineRule } from './mention'
 import { noannounceTimelineRule } from './noaanounce'

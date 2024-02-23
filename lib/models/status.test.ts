@@ -1,9 +1,9 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { compact } from '@/lib/utils/jsonld'
 
 import { Note } from '../activities/entities/note'
-import { compact } from '../jsonld'
 import { SqlStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
 import { MockMastodonNote } from '../stub/note'

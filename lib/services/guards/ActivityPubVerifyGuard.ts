@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { apiErrorResponse } from '@/lib/response'
 import { getStorage } from '@/lib/storage'
+import { apiErrorResponse } from '@/lib/utils/response'
 import { parse, verify } from '@/lib/utils/signature'
 
 import { getSenderPublicKey } from './getSenderPublicKey'
