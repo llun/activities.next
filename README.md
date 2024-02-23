@@ -27,8 +27,8 @@ alpha stage and has only few features supported.
   - ✅ Main timeline
   - 🚧 Notifications timeline
   - [ ] Medias timeline
-- 🚧 OAuth Bearer
-- [ ] Mastodon API compatible and clients supports
+- ✅ OAuth Bearer
+- 🚧 Mastodon API compatible and clients supports
 - [ ] GPS Activity e.g. Bicycle ride, Running etc
 
 ## Setup
