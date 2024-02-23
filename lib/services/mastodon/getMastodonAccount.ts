@@ -2,7 +2,12 @@ import { ActorData } from '@/lib/models/actor'
 import { Storage } from '@/lib/storage/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-export const getMastodonActor = async (storage: Storage, actor: ActorData) => {
+import { MastodonAccount } from './types'
+
+export const getMastodonAccount = async (
+  storage: Storage,
+  actor: ActorData
+) => {
   const [followersCount, followingCount, statusesCount, statuses] =
     await Promise.all([
       storage.getActorFollowersCount({ actorId: actor.id }),
@@ -11,7 +16,7 @@ export const getMastodonActor = async (storage: Storage, actor: ActorData) => {
       storage.getActorStatuses({ actorId: actor.id })
     ])
 
-  return {
+  return MastodonAccount.parse({
     id: actor.id,
     username: actor.username,
     acct: `${actor.username}@${actor.domain}`,
@@ -41,5 +46,5 @@ export const getMastodonActor = async (storage: Storage, actor: ActorData) => {
     },
     emojis: [],
     fields: []
-  }
+  })
 }
