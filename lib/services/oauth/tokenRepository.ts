@@ -34,7 +34,7 @@ export class TokenRepository implements OAuthTokenRepository {
     const currentTime = Date.now()
     return Token.parse({
       accessToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
-      accessTokenExpiresAt: new DateInterval('30d').getEndDate().getTime(),
+      accessTokenExpiresAt: new DateInterval('15m').getEndDate().getTime(),
       refreshToken: null,
       refreshTokenExpiresAt: null,
       client: {
@@ -64,7 +64,7 @@ export class TokenRepository implements OAuthTokenRepository {
     const updatedToken = await this.storage.updateRefreshToken({
       accessToken: token.accessToken,
       refreshToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
-      refreshTokenExpiresAt: new DateInterval('2h').getEndDate().getTime()
+      refreshTokenExpiresAt: new DateInterval('7d').getEndDate().getTime()
     })
     if (!updatedToken) throw new Error('Fail to issue refresh token')
     return updatedToken

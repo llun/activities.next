@@ -62,13 +62,6 @@ export const OAuthGuard =
         token,
         getConfig().secretPhase
       ) as jwt.JwtPayload
-      if (decoded.exp && decoded.exp * 1000 < currentTime) {
-        return apiErrorResponse(401)
-      }
-      if (decoded.nbf && decoded.nbf * 1000 > currentTime) {
-        return apiErrorResponse(401)
-      }
-
       const accessToken = await storage.getAccessToken({
         accessToken: decoded.jti ?? ''
       })
@@ -90,6 +83,9 @@ export const OAuthGuard =
         params
       )
     } catch (e) {
+      const nodeErr = e as NodeJS.ErrnoException
+      console.error(nodeErr.message)
+      console.error(nodeErr.stack)
       return apiErrorResponse(500)
     }
   }

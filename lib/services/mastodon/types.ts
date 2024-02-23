@@ -28,13 +28,32 @@ export type MastodonSource = z.infer<typeof MastodonSource>
 
 export const MastodonAttachment = z.object({
   id: z.string(),
-  type: z.enum(['image', 'video', 'gifv', 'audio']),
+  type: z.string(),
   url: z.string(),
   preview_url: z.string(),
-  remote_url: z.string().optional(),
-  text_url: z.string().optional(),
-  description: z.string().optional(),
-  blurhash: z.string().optional()
+  remote_url: z.string(),
+  preview_remote_url: z.string().nullable(),
+  text_url: z.string().nullable(),
+  meta: z.object({
+    focus: z.object({
+      x: z.number(),
+      y: z.number()
+    }),
+    original: z.object({
+      width: z.number(),
+      height: z.number(),
+      size: z.string(),
+      aspect: z.number()
+    }),
+    small: z.object({
+      width: z.number(),
+      height: z.number(),
+      size: z.string(),
+      aspect: z.number()
+    })
+  }),
+  description: z.string(),
+  blurhash: z.string()
 })
 export type MastodonAttachment = z.infer<typeof MastodonAttachment>
 
@@ -64,10 +83,13 @@ export const MastodonAccount = z.object({
   acct: z.string(),
   display_name: z.string(),
   locked: z.boolean(),
-  bot: z.boolean(),
+  bot: z.boolean().nullable(),
+  discoverable: z.boolean().nullable(),
+  group: z.boolean().nullable(),
   created_at: z.string(),
   note: z.string(),
   url: z.string(),
+  uri: z.string(),
   avatar: z.string(),
   avatar_static: z.string(),
   header: z.string(),
@@ -82,26 +104,61 @@ export const MastodonAccount = z.object({
 })
 export type MastodonAccount = z.infer<typeof MastodonAccount>
 
+export const MastodonCard = z.object({
+  url: z.string(),
+  title: z.string(),
+  description: z.string(),
+  language: z.string(),
+  type: z.string(),
+  author_name: z.string(),
+  author_url: z.string(),
+  provider_name: z.string(),
+  provider_url: z.string(),
+  html: z.string(),
+  width: z.number(),
+  height: z.number(),
+  image: z.string(),
+  image_description: z.string(),
+  embed_url: z.string(),
+  blurhash: z.string(),
+  published_at: z.string().nullable()
+})
+export type MastodonCard = z.infer<typeof MastodonCard>
+
 export const MastodonStatus = z.object({
   id: z.string(),
-  uri: z.string(),
-  url: z.string(),
-  account: MastodonAccount,
-  content: z.string(),
   created_at: z.string(),
-  emojis: MastodonEmoji.array(),
-  replies_count: z.number(),
-  reblogs_count: z.number(),
-  favourites_count: z.number(),
-  reblogged: z.boolean().nullable(),
-  favourited: z.boolean().nullable(),
-  muted: z.boolean().nullable(),
+  in_reply_to_id: z.string().nullable(),
+  in_reply_to_account_id: z.string().nullable(),
   sensitive: z.boolean(),
   spoiler_text: z.string().nullable(),
-  visibility: z.enum(['public', 'unlisted', 'private', 'direct']),
-  media_attachments: MastodonAttachment.array().nullable(),
-  mentions: MastodonMention.array().nullable(),
-  tags: MastodonTag.array().nullable(),
+  visibility: z.string(),
+  language: z.string().nullable(),
+  uri: z.string(),
+  url: z.string().nullable(),
+  replies_count: z.number(),
+  reblogs_count: z.number(),
+  reblog: z.null(),
+  favourites_count: z.number(),
+  edited_at: z.string().nullable(),
+  favourited: z.boolean(),
+  reblogged: z.boolean(),
+  muted: z.boolean(),
+  bookmarked: z.boolean(),
+  content: z.string(),
+  filtered: z.array(z.string()),
+  account: MastodonAccount,
+  media_attachments: MastodonAttachment.array().optional(),
+  mentions: MastodonMention.array().optional(),
+  tags: MastodonTag.array().optional(),
+  emojis: MastodonEmoji.array().optional(),
+  card: MastodonCard.nullable(),
+  poll: z.unknown().nullable(),
   application: MastodonApplication.nullable()
 })
 export type MastodonStatus = z.infer<typeof MastodonStatus>
+
+export const ReblogMastodonStatus = MastodonStatus.extend({
+  reblog: MastodonStatus
+})
+export type ReblogMastodonStatus = z.infer<typeof ReblogMastodonStatus>
