@@ -1188,20 +1188,23 @@ export class FirestoreStorage implements Storage {
           .filter((status): status is Status => Boolean(status))
           .slice(0, PER_PAGE_LIMIT)
       }
+      case Timeline.HOME:
       case Timeline.MAIN:
       case Timeline.MENTION:
       case Timeline.NOANNOUNCE: {
         if (!actorId) return []
 
+        const actualTimeline =
+          timeline === Timeline.HOME ? Timeline.MAIN : timeline
         let query = this.db
           .collection(`actors/${FirestoreStorage.urlToId(actorId)}/timelines`)
-          .where('timeline', '==', timeline)
+          .where('timeline', '==', actualTimeline)
           .orderBy('createdAt', 'desc')
           .limit(PER_PAGE_LIMIT)
         if (startAfterStatusId) {
           const lastStatus = await this.db
             .collection(`actors/${FirestoreStorage.urlToId(actorId)}/timelines`)
-            .where('timeline', '==', timeline)
+            .where('timeline', '==', actualTimeline)
             .where('statusId', '==', startAfterStatusId)
             .get()
           if (lastStatus.size === 1) {

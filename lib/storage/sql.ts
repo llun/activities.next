@@ -1199,15 +1199,19 @@ export class SqlStorage implements Storage {
         return statuses
       }
       case Timeline.MAIN:
+      case Timeline.HOME:
       case Timeline.MENTION:
       case Timeline.NOANNOUNCE: {
         if (!actorId) return []
+
+        const actualTimeline =
+          timeline === Timeline.HOME ? Timeline.MAIN : timeline
         const limit = PER_PAGE_LIMIT
         const startAfterId = startAfterStatusId
           ? (
               await this.database('timelines')
                 .where('actorId', actorId)
-                .where('timeline', timeline)
+                .where('timeline', actualTimeline)
                 .where('statusId', startAfterStatusId)
                 .select('id')
                 .first<{ id: number }>()
@@ -1217,14 +1221,14 @@ export class SqlStorage implements Storage {
         const statusesId = await (startAfterStatusId
           ? this.database('timelines')
               .where('actorId', actorId)
-              .where('timeline', timeline)
+              .where('timeline', actualTimeline)
               .where('id', '<', startAfterId)
               .select('statusId')
               .orderBy('createdAt', 'desc')
               .limit(limit)
           : this.database('timelines')
               .where('actorId', actorId)
-              .where('timeline', timeline)
+              .where('timeline', actualTimeline)
               .select('statusId')
               .orderBy('createdAt', 'desc')
               .limit(limit))

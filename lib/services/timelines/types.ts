@@ -4,6 +4,7 @@ import { Storage } from '@/lib/storage/types'
 
 export enum Timeline {
   MAIN = 'main',
+  HOME = 'home',
   NOANNOUNCE = 'noannounce',
   MENTION = 'mention',
   LOCAL_PUBLIC = 'local-public'
