@@ -29,6 +29,7 @@ export const recordActorIfNeeded = async ({
       followersUrl: profile.endpoints.followers,
       inboxUrl: profile.endpoints.inbox,
       sharedInboxUrl: profile.endpoints.sharedInbox,
+      ...(profile.icon ? { iconUrl: profile.icon.url } : {}),
       publicKey: profile.publicKey || '',
       createdAt: profile.createdAt
     })
@@ -47,6 +48,7 @@ export const recordActorIfNeeded = async ({
       followersUrl: profile.endpoints.followers,
       inboxUrl: profile.endpoints.inbox,
       sharedInboxUrl: profile.endpoints.sharedInbox,
+      ...(profile.icon ? { iconUrl: profile.icon.url } : {}),
       publicKey: profile.publicKey || ''
     })
   }
