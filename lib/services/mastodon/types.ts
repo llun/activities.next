@@ -97,7 +97,7 @@ export const MastodonStatus = z.object({
   favourited: z.boolean().nullable(),
   muted: z.boolean().nullable(),
   sensitive: z.boolean(),
-  spoiler_text: z.string(),
+  spoiler_text: z.string().nullable(),
   visibility: z.enum(['public', 'unlisted', 'private', 'direct']),
   media_attachments: MastodonAttachment.array().nullable(),
   mentions: MastodonMention.array().nullable(),
