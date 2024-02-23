@@ -24,7 +24,7 @@ export const POST = async (req: NextRequest) => {
   return apiResponse(
     req,
     CORS_HEADERS,
-    oauthResponse.status,
+    oauthResponse.body,
     oauthResponse.status as StatusCode
   )
 }

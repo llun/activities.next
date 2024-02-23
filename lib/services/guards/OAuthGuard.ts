@@ -50,8 +50,11 @@ export const OAuthGuard =
       return handle(req, { currentActor, storage }, params)
     }
 
-    const token = getTokenFromHeader(req.headers.get('Authorization'))
-    if (!token) return apiErrorResponse(401)
+    const authorizationToken = req.headers.get('Authorization')
+    const token = getTokenFromHeader(authorizationToken)
+    if (!token) {
+      return apiErrorResponse(401)
+    }
 
     try {
       const currentTime = Date.now()
@@ -69,7 +72,9 @@ export const OAuthGuard =
       const accessToken = await storage.getAccessToken({
         accessToken: decoded.jti ?? ''
       })
-      if (!accessToken) return apiErrorResponse(401)
+      if (!accessToken) {
+        return apiErrorResponse(401)
+      }
 
       const tokenScopes = accessToken.scopes.map((scope) => scope.name)
       if (
@@ -84,7 +89,7 @@ export const OAuthGuard =
         { currentActor: new Actor(accessToken.user.actor), storage },
         params
       )
-    } catch {
-      return apiErrorResponse(401)
+    } catch (e) {
+      return apiErrorResponse(500)
     }
   }

@@ -6,7 +6,7 @@ import { FC } from 'react'
 
 import { Button } from '@/lib/components/Button'
 import { Client } from '@/lib/models/oauth2/client'
-import { Scope, UsableScopes } from '@/lib/storage/types/oauth'
+import { UsableScopes } from '@/lib/storage/types/oauth'
 
 import { SearchParams } from './types'
 
@@ -41,7 +41,6 @@ export const AuthorizeCard: FC<Props> = ({ searchParams, client }) => {
                 value={scope}
                 id={`scope-${scope}`}
                 defaultChecked
-                disabled={scope === Scope.enum.read}
               />
               <label className="form-check-label" htmlFor={`scope-${scope}`}>
                 {scope}
