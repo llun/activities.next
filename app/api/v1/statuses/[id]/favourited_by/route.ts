@@ -1,5 +1,5 @@
-import { getMastodonActor } from '@/lib/services/actors/getMastodonActor'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { getMastodonActor } from '@/lib/services/mastodon/getMastodonActor'
 import { Scope } from '@/lib/storage/types/oauth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
