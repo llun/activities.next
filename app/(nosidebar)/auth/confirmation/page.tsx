@@ -3,14 +3,11 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getStorage } from '@/lib/storage'
 import { Storage } from '@/lib/storage/types'
 
-interface Props {
-  searchParams: Record<string, string | string[] | undefined>
-}
-
+export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Activities.next: Confirm account'
 }
@@ -20,10 +17,13 @@ const isVerify = async (storage: Storage, verificationCode?: string) => {
   return storage.verifyAccount({ verificationCode })
 }
 
+interface Props {
+  searchParams: Record<string, string | string[] | undefined>
+}
 const Page: FC<Props> = async ({ searchParams }) => {
   const [storage, session] = await Promise.all([
     getStorage(),
-    getServerSession(authOptions)
+    getServerSession(getAuthOptions())
   ])
 
   if (!storage) throw new Error('Storage is not available')

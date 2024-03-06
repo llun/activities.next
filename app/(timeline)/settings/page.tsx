@@ -3,13 +3,15 @@ import { getServerSession } from 'next-auth'
 import { getProviders } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 
-import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/Button'
 import { getConfig } from '@/lib/config'
 import { getStorage } from '@/lib/storage'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AuthenticationProviders } from './AuthenticationProviders'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Activities.next: Settings'
@@ -18,7 +20,7 @@ export const metadata: Metadata = {
 const Page = async () => {
   const [storage, session, providers] = await Promise.all([
     getStorage(),
-    getServerSession(authOptions),
+    getServerSession(getAuthOptions()),
     getProviders()
   ])
 

@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 
-import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getStorage } from '@/lib/storage'
 
 import { getRedirectUrl } from './getRedirectUrl'
@@ -12,7 +12,7 @@ export const AuthenticatedGuard =
   async (req: NextRequest, params?: AppRouterParams<P>) => {
     const [storage, session] = await Promise.all([
       getStorage(),
-      getServerSession(authOptions)
+      getServerSession(getAuthOptions())
     ])
     if (!storage || !session?.user?.email) {
       return Response.redirect(getRedirectUrl(req, '/signin'), 307)

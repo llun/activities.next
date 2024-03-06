@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Posts } from '@/lib/components/Posts/Posts'
 import { getConfig } from '@/lib/config'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -14,6 +14,7 @@ import { getStorage } from '@/lib/storage'
 import { CredentialForm } from './CredentialForm'
 import { SigninButton } from './SigninButton'
 
+export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Activities.next: Sign in'
 }
@@ -23,7 +24,7 @@ const Page: FC = async () => {
   const [storage, providers, session] = await Promise.all([
     getStorage(),
     getProviders(),
-    getServerSession(authOptions)
+    getServerSession(getAuthOptions())
   ])
 
   if (!storage) throw new Error('Storage is not available')

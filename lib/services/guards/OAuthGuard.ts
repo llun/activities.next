@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 import { generate } from 'peggy'
 
-import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { Actor } from '@/lib/models/actor'
 import { getStorage } from '@/lib/storage'
@@ -35,7 +35,7 @@ export const OAuthGuard =
   async (req: NextRequest, params?: AppRouterParams<P>) => {
     const [storage, session] = await Promise.all([
       getStorage(),
-      getServerSession(authOptions)
+      getServerSession(getAuthOptions())
     ])
 
     if (!storage) {

@@ -8,7 +8,7 @@ import { Header } from '@/lib/components/Header'
 import { getStorage } from '@/lib/storage'
 
 import { Modal } from '../Modal'
-import { authOptions } from '../api/auth/[...nextauth]/authOptions'
+import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
 
 export const viewport = {
   width: 'device-width',
@@ -26,7 +26,7 @@ interface LayoutProps {
 const Layout: FC<LayoutProps> = async ({ children }) => {
   const [storage, session] = await Promise.all([
     getStorage(),
-    getServerSession(authOptions)
+    getServerSession(getAuthOptions())
   ])
 
   if (!storage) {
@@ -35,7 +35,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
 
   return (
     <html lang="en">
-      <body className=''>
+      <body className="">
         <Header session={session} />
         <section className="container pt-4">
           <div className="row">{children}</div>
