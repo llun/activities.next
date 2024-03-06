@@ -1,5 +1,7 @@
 import { getConfig } from '@/lib/config'
 
+export const dynamic = 'force-dynamic'
+
 export const GET = async () => {
   const config = getConfig()
   const headers = new Headers([

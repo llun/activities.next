@@ -1,4 +1,6 @@
-import { getConfig } from "@/lib/config"
+import { getConfig } from '@/lib/config'
+
+export const dynamic = 'force-dynamic'
 
 export const GET = async () => {
   const config = getConfig()
@@ -37,7 +39,9 @@ export const GET = async () => {
       invitesEnabled: false,
       localBubbleInstances: [],
       mailerEnabled: false,
-      nodeDescription: config.serviceDescription ?? 'Personal activity pub server with Next.js',
+      nodeDescription:
+        config.serviceDescription ??
+        'Personal activity pub server with Next.js',
       nodeName: config.host,
       pollLimits: {
         max_expiration: 31536000,
