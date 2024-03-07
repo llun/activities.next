@@ -1,0 +1,26 @@
+node_modules
+.yarn
+
+# misc
+.DS_Store
+*.pem
+.idea
+uploads
+scripts
+wallaby.js
+.github
+.git
+
+# debug
+*.log
+
+# local env files
+.env*.local
+
+# database
+*.sqlite3
+
+# shared configuration
+config.json
+config.*.json
+*.properties

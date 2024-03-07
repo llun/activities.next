@@ -54,6 +54,7 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
             database: {
               type: process.env.ACTIVITIES_DATABASE_TYPE,
               client: process.env.ACTIVITIES_DATABASE_CLIENT,
+              useNullAsDefault: true,
               connection: {
                 filename: process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME
               }
