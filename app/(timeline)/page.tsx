@@ -7,9 +7,10 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { getStorage } from '@/lib/storage'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { authOptions } from '../api/auth/[...nextauth]/authOptions'
+import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
 import { MainPageTimeline } from './MainPageTimeline'
 
+export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Activities.next: Timeline'
 }
@@ -18,7 +19,7 @@ const Page = async () => {
   const { host, mediaStorage } = getConfig()
   const [storage, session] = await Promise.all([
     getStorage(),
-    getServerSession(authOptions)
+    getServerSession(getAuthOptions())
   ])
 
   if (!storage) {

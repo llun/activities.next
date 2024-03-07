@@ -2,7 +2,8 @@ const migrationDatabaseConfig = {
   client: 'better-sqlite3',
   useNullAsDefault: true,
   connection: {
-    filename: './dev.sqlite3'
+    filename:
+      process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME || './activities.sqlite'
   }
 }
 

@@ -3,10 +3,11 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/Button'
 import { getStorage } from '@/lib/storage'
 
+export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Activities.next: Sign up'
 }
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 const Page: FC = async () => {
   const [storage, session] = await Promise.all([
     getStorage(),
-    getServerSession(authOptions)
+    getServerSession(getAuthOptions())
   ])
 
   if (!storage) throw new Error('Storage is not available')

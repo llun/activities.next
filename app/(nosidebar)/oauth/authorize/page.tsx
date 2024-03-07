@@ -2,13 +2,15 @@ import { getServerSession } from 'next-auth'
 import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getStorage } from '@/lib/storage'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AuthorizeCard } from './AuthorizeCard'
 import { SearchParams } from './types'
+
+export const dynamic = 'force-dynamic'
 
 interface Props {
   searchParams: SearchParams
@@ -17,7 +19,7 @@ interface Props {
 const Page: FC<Props> = async ({ searchParams }) => {
   const [storage, session] = await Promise.all([
     getStorage(),
-    getServerSession(authOptions)
+    getServerSession(getAuthOptions())
   ])
 
   if (!storage) {

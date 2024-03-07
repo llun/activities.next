@@ -3,6 +3,8 @@ import { getStorage } from '@/lib/storage'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { apiErrorResponse } from '@/lib/utils/response'
 
+export const dynamic = 'force-dynamic'
+
 export const GET = async () => {
   const storage = await getStorage()
   if (!storage) return apiErrorResponse(500)

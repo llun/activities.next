@@ -3,12 +3,14 @@ import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
-import { authOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getStorage } from '@/lib/storage'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { DeleteSessionButton } from './DeleteSessionButton'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Activities.next: Sessions'
@@ -18,7 +20,7 @@ const Page = async () => {
   const { host } = getConfig()
   const [storage, session] = await Promise.all([
     getStorage(),
-    getServerSession(authOptions)
+    getServerSession(getAuthOptions())
   ])
 
   if (!storage) {

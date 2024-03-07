@@ -24,15 +24,9 @@ const nextConfig = {
       'resend'
     ]
   },
-
-  publicRuntimeConfig: {
-    host: process.env.ACTIVITIES_HOST
-  },
-
   generateBuildId() {
     return `activities-${Date.now()}`
   },
-
   images: {
     remotePatterns: [
       {
@@ -41,7 +35,6 @@ const nextConfig = {
       }
     ]
   },
-
   async rewrites() {
     return [
       {
@@ -67,5 +60,4 @@ const nextConfig = {
     ]
   }
 }
-
 module.exports = nextConfig
