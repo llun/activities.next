@@ -18,7 +18,7 @@ export const linkBody = (url: string) => {
     pathnameWithSearch.length > LINK_BODY_LIMIT
       ? `${pathnameWithSearch.slice(0, LINK_BODY_LIMIT)}…`
       : pathnameWithSearch
-  return `<a href="${link.toString()}" target="_blank" rel="nofollow noopener noreferrer">${hostname}${
+  return `<a href="${link.toString()}" target="_blank" rel="noopener noreferrer">${hostname}${
     pathname === '/' ? '' : pathname
   }</a>`
 }
