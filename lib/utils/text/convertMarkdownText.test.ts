@@ -1,3 +1,5 @@
+import { TEST_DOMAIN } from '@/lib/stub/const'
+
 import { convertMarkdownText } from './convertMarkdownText'
 
 describe('#convertMarkdownText', () => {
@@ -15,6 +17,12 @@ describe('#convertMarkdownText', () => {
       )
     ).toEqual(
       '<p>Test linkify string <a href="https://www.llun.me/posts/dev/2023-01-07-my-wrong-assumptions-with-activity-pub/" target="_blank" rel="noopener noreferrer">llun.me/posts/dev/2023-01-07-m…</a> with url</p>'
+    )
+  })
+
+  it('detect mention and convert to link', () => {
+    expect(convertMarkdownText('@test1@somewhere.test')).toEqual(
+      `<p><span class="h-card"><a href="https://${TEST_DOMAIN}/@test1@somewhere.test" target="_blank" class="u-url mention">@<span>test1</span></a></span></p>`
     )
   })
 })
