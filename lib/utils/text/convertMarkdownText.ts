@@ -10,7 +10,7 @@ export const MENTION_REGEX =
   /^@(?<username>[a-zA-Z0-9_.]+)(@(?<domain>[a-zA-Z0-9_.]+))?$/g
 export const LINK_BODY_LIMIT = 30
 
-const mention: TokenizerAndRendererExtension = {
+const mention: (host: string) => TokenizerAndRendererExtension = (host) => ({
   name: 'mention',
   level: 'inline',
   start(src) {
@@ -33,9 +33,9 @@ const mention: TokenizerAndRendererExtension = {
     }
   },
   renderer(token) {
-    return `<span class="h-card"><a href="https://test.llun.dev/${token.raw}" target="_blank" class="u-url mention">@<span>${token.username}</span></a></span>`
+    return `<span class="h-card"><a href="https://${host}/${token.raw}" target="_blank" class="u-url mention">@<span>${token.username}</span></a></span>`
   }
-}
+})
 
 const SHARED_RENDERER: RendererObject = {
   link(href, title, text) {
@@ -90,12 +90,12 @@ const SHARED_TOKENIZER: TokenizerObject = {
   }
 }
 
-export const convertMarkdownText = (text: string) =>
+export const convertMarkdownText = (host: string) => (text: string) =>
   (
     new Marked({
       gfm: true,
       async: false,
-      extensions: [mention],
+      extensions: [mention(host)],
       renderer: SHARED_RENDERER,
       tokenizer: SHARED_TOKENIZER
     }).parse(text) as string

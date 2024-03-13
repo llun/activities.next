@@ -5,14 +5,14 @@ import { convertMarkdownText } from './convertMarkdownText'
 describe('#convertMarkdownText', () => {
   it('detect links in the text and cut the text short', async () => {
     expect(
-      convertMarkdownText(
+      convertMarkdownText(TEST_DOMAIN)(
         'Youtube video with time tag https://youtu.be/ODh4cTITV_Y?si=jvQSOW0ecDYC8dLD&t=186'
       )
     ).toEqual(
       '<p>Youtube video with time tag <a href="https://youtu.be/ODh4cTITV_Y?si=jvQSOW0ecDYC8dLD&t=186" target="_blank" rel="noopener noreferrer">youtu.be/ODh4cTITV_Y?si=jvQSOW…</a></p>'
     )
     expect(
-      convertMarkdownText(
+      convertMarkdownText(TEST_DOMAIN)(
         'Test linkify string https://www.llun.me/posts/dev/2023-01-07-my-wrong-assumptions-with-activity-pub/ with url'
       )
     ).toEqual(
@@ -21,7 +21,7 @@ describe('#convertMarkdownText', () => {
   })
 
   it('detect mention and convert to link', () => {
-    expect(convertMarkdownText('@test1@somewhere.test')).toEqual(
+    expect(convertMarkdownText(TEST_DOMAIN)('@test1@somewhere.test')).toEqual(
       `<p><span class="h-card"><a href="https://${TEST_DOMAIN}/@test1@somewhere.test" target="_blank" class="u-url mention">@<span>test1</span></a></span></p>`
     )
   })
