@@ -3,7 +3,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { Actor } from '../models/actor'
 import { FollowStatus } from '../models/follow'
 import { Storage } from '../storage/types'
-import { linkifyText } from '../utils/text/linkifyText'
+import { convertMarkdownText } from '../utils/text/convertMarkdownText'
 import { TEST_DOMAIN } from './const'
 import { seedActor1 } from './seed/actor1'
 import { seedActor2 } from './seed/actor2'
@@ -151,7 +151,9 @@ export const seedStorage = async (storage: Storage) => {
     actorId: actors[1].id,
     to: [ACTIVITY_STREAM_PUBLIC, actors[0].id],
     cc: [`${actors[1].id}/followers`],
-    text: linkifyText(TEST_DOMAIN)('@test1@llun.test This is Actor1 post'),
+    text: convertMarkdownText(TEST_DOMAIN)(
+      '@test1@llun.test This is Actor1 post'
+    ),
     reply: `${actors[0].id}/statuses/post-1`
   })
   await storage.createTag({

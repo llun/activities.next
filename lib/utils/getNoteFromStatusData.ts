@@ -4,7 +4,7 @@ import { Attachment } from '../models/attachment'
 import { StatusData, StatusType } from '../models/status'
 import { Tag } from '../models/tag'
 import { getISOTimeUTC } from './getISOTimeUTC'
-import { formatText } from './text/formatText'
+import { convertMarkdownText } from './text/convertMarkdownText'
 
 export const getNoteFromStatusData = (status: StatusData): Note | null => {
   if (status.type === StatusType.enum.Poll) return null
@@ -22,7 +22,7 @@ export const getNoteFromStatusData = (status: StatusData): Note | null => {
     to: actualStatus.to,
     cc: actualStatus.cc,
     inReplyTo: actualStatus.reply || null,
-    content: formatText(getConfig().host, actualStatus.text),
+    content: convertMarkdownText(getConfig().host)(actualStatus.text),
     attachment: actualStatus.attachments.map((attachment) =>
       new Attachment(attachment).toObject()
     ),

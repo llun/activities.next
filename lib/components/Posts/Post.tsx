@@ -2,11 +2,10 @@ import cn from 'classnames'
 import { formatDistance } from 'date-fns'
 import _ from 'lodash'
 import { FC } from 'react'
-import sanitizeHtml from 'sanitize-html'
 
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
-import { formatText } from '@/lib/utils/text/formatText'
-import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
+import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
@@ -80,11 +79,7 @@ export const Post: FC<PostProps> = (props) => {
       </div>
       <div className={'me-1 text-break'}>
         {_.chain(actualStatus.text)
-          .thru(
-            status.isLocalActor
-              ? _.curry(formatText)(host)
-              : (text) => sanitizeHtml(text, SANITIZED_OPTION)
-          )
+          .thru(status.isLocalActor ? convertMarkdownText(host) : sanitizeText)
           .thru(_.curryRight(convertEmojisToImages)(actualStatus.tags))
           .thru(_.trim)
           .thru(cleanClassName)

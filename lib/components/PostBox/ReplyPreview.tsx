@@ -2,7 +2,7 @@ import cn from 'classnames'
 import { FC } from 'react'
 
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
-import { formatText } from '@/lib/utils/text/formatText'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 import { StatusData, StatusType } from '../../models/status'
 import { cleanClassName } from '../../utils/text/cleanClassName'
@@ -56,7 +56,7 @@ export const ReplyPreview: FC<Props> = ({ host, status, onClose }) => {
         <Actor actorId={status.actorId || ''} />
         {cleanClassName(
           status.isLocalActor
-            ? formatText(host, getText(status))
+            ? convertMarkdownText(host)(getText(status))
             : convertEmojisToImages(getText(status), getTags(status))
         )}
         <Poll status={status} currentTime={new Date()} />

@@ -1,7 +1,5 @@
 import sanitizeHtml from 'sanitize-html'
 
-import { linkifyText } from './linkifyText'
-
 export const SANITIZED_OPTION = {
   allowedTags: [
     'p',
@@ -32,11 +30,7 @@ export const SANITIZED_OPTION = {
 
 // Support the same tags as Mastodon here
 // https://github.com/mastodon/mastodon/blob/eae5c7334ae61c463edd2e3cd03115b897f6e92b/lib/sanitize_ext/sanitize_config.rb
-export const sanitizeText = (host: string) => (text: string) =>
+export const sanitizeText = (text: string) =>
   sanitizeHtml(text, {
-    ...SANITIZED_OPTION,
-    textFilter: (text, tagName) => {
-      if (['code', 'pre', 'a'].includes(tagName)) return text
-      return linkifyText(host)(text)
-    }
+    ...SANITIZED_OPTION
   })

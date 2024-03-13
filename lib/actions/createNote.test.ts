@@ -13,7 +13,7 @@ import { seedActor1 } from '../stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
 import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
-import { formatText } from '../utils/text/formatText'
+import { convertMarkdownText } from '../utils/text/convertMarkdownText'
 import { createNote, createNoteFromUserInput } from './createNote'
 
 enableFetchMocks()
@@ -247,7 +247,7 @@ How are you?
       })
 
       const note = getNoteFromStatusData(status.data)
-      expect(note?.content).toEqual(formatText(TEST_DOMAIN, text))
+      expect(note?.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
       expect(note?.tag).toHaveLength(1)
       expect(note?.tag).toContainValue({
         type: 'Mention',
@@ -291,7 +291,7 @@ How are you?
       ])
 
       const note = getNoteFromStatusData(status.data)
-      expect(note?.content).toEqual(formatText(TEST_DOMAIN, text))
+      expect(note?.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
       expect(note?.tag).toHaveLength(2)
       expect(note?.tag).toContainValue({
         type: 'Mention',

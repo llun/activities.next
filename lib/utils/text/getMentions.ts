@@ -1,10 +1,9 @@
-import * as linkify from 'linkifyjs'
-
 import { getPublicProfileFromHandle } from '../../activities'
 import { Mention } from '../../activities/entities/mention'
 import { Actor } from '../../models/actor'
 import { Status } from '../../models/status'
 import { getSpan } from '../trace'
+import { MENTION_GLOBAL_REGEX, MentionMatchGroup } from './convertMarkdownText'
 
 interface GetMentionsParams {
   text: string
@@ -23,24 +22,24 @@ export const getMentions = async ({
   })
 
   const mentions = await Promise.all(
-    linkify
-      .find(text)
-      .filter((item) => item.type === 'mention')
-      .map((item) => [item.value, item.value.slice(1).split('@')].flat())
-      .map(async ([value, user, host]) => {
-        try {
-          const userHost = host ?? currentActor.domain
-          const person = await getPublicProfileFromHandle(`${user}@${userHost}`)
-          if (!person) return null
-          return {
-            type: 'Mention',
-            href: person?.id ?? `https://${host}/users/${user}`,
-            name: value
-          } as Mention
-        } catch {
-          return null
-        }
-      })
+    Array.from(text.matchAll(MENTION_GLOBAL_REGEX)).map(async (match) => {
+      const mention = match.groups as MentionMatchGroup
+      try {
+        const userHost = mention.domain ?? currentActor.domain
+        const person = await getPublicProfileFromHandle(
+          `${mention.username}@${userHost}`
+        )
+        if (!person) return null
+        return {
+          type: 'Mention',
+          href:
+            person?.id ?? `https://${mention.domain}/users/${mention.username}`,
+          name: match[0].trim()
+        } as Mention
+      } catch {
+        return null
+      }
+    })
   )
 
   if (replyStatus) {
