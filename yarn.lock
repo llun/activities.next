@@ -3646,15 +3646,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/formidable@npm:^3.4.5":
-  version: 3.4.5
-  resolution: "@types/formidable@npm:3.4.5"
-  dependencies:
-    "@types/node": "npm:*"
-  checksum: 10c0/733dc59d4d12152ba5fb70751184812345ff08691864dd9b1b7626b9d40045a306021b9721495cafb56cd375da54fecaaebdada98fc390b7406ebb81efe0bfbe
-  languageName: node
-  linkType: hard
-
 "@types/glob@npm:*":
   version: 8.1.0
   resolution: "@types/glob@npm:8.1.0"
@@ -4290,7 +4281,6 @@ __metadata:
     "@types/bcrypt": "npm:^5.0.2"
     "@types/content-type": "npm:^1.1.8"
     "@types/fluent-ffmpeg": "npm:^2"
-    "@types/formidable": "npm:^3.4.5"
     "@types/jest": "npm:^29.5.12"
     "@types/jsonld": "npm:^1.5.13"
     "@types/jsonwebtoken": "npm:^9"
@@ -4323,7 +4313,6 @@ __metadata:
     eslint-plugin-unused-imports: "npm:^3.1.0"
     firebase-tools: "npm:^13.4.1"
     fluent-ffmpeg: "npm:^2.1.2"
-    formidable: "npm:^3.5.1"
     got: "npm:14.2.1"
     html-react-parser: "npm:^5.1.8"
     jest: "npm:^29.7.0"
@@ -4772,13 +4761,6 @@ __metadata:
   version: 2.0.0
   resolution: "as-array@npm:2.0.0"
   checksum: 10c0/8f7583187d401a6958452acc324104241ad11c385d9f1a995c769f0d3eab6e32277b5a37c3192d490b0729d9cfeb2f35e94efa6ba90dc7178f4c21d0cfede5c1
-  languageName: node
-  linkType: hard
-
-"asap@npm:^2.0.0":
-  version: 2.0.6
-  resolution: "asap@npm:2.0.6"
-  checksum: 10c0/c6d5e39fe1f15e4b87677460bd66b66050cd14c772269cee6688824c1410a08ab20254bb6784f9afb75af9144a9f9a7692d49547f4d19d715aeb7c0318f3136d
   languageName: node
   linkType: hard
 
@@ -6253,16 +6235,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dezalgo@npm:^1.0.4":
-  version: 1.0.4
-  resolution: "dezalgo@npm:1.0.4"
-  dependencies:
-    asap: "npm:^2.0.0"
-    wrappy: "npm:1"
-  checksum: 10c0/8a870ed42eade9a397e6141fe5c025148a59ed52f1f28b1db5de216b4d57f0af7a257070c3af7ce3d5508c1ce9dd5009028a76f4b2cc9370dc56551d2355fad8
-  languageName: node
-  linkType: hard
-
 "diff-sequences@npm:^29.6.3":
   version: 29.6.3
   resolution: "diff-sequences@npm:29.6.3"
@@ -7702,17 +7674,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"formidable@npm:^3.5.1":
-  version: 3.5.1
-  resolution: "formidable@npm:3.5.1"
-  dependencies:
-    dezalgo: "npm:^1.0.4"
-    hexoid: "npm:^1.0.0"
-    once: "npm:^1.4.0"
-  checksum: 10c0/c02fa1a027876dd9fc5abde16e9c537bec41bc652b362d0b3fd26daaae0615b9a472129c29b328a130d11f543f676acd1b13e6f28f3adc1b088cdaea9fb9e054
-  languageName: node
-  linkType: hard
-
 "forwarded@npm:0.2.0":
   version: 0.2.0
   resolution: "forwarded@npm:0.2.0"
@@ -8421,13 +8382,6 @@ __metadata:
   version: 2.5.0
   resolution: "heap-js@npm:2.5.0"
   checksum: 10c0/11a8ff8abdea5087770d62bcf235fc5b7ffcb832d328264e91034cac1a898fb18259386f3cc12003ef49189d82e216498fdf8c486da197b36c44cda3e12ff3ac
-  languageName: node
-  linkType: hard
-
-"hexoid@npm:^1.0.0":
-  version: 1.0.0
-  resolution: "hexoid@npm:1.0.0"
-  checksum: 10c0/9c45e8ba676b9eb88455631ebceec4c829a8374a583410dc735472ab9808bf11339fcd074633c3fa30e420901b894d8a92ffd5e2e21eddd41149546e05a91f69
   languageName: node
   linkType: hard
 
