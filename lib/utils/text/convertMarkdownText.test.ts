@@ -25,4 +25,13 @@ describe('#convertMarkdownText', () => {
       `<p><span class="h-card"><a href="https://${TEST_DOMAIN}/@test1@somewhere.test" target="_blank" class="u-url mention">@<span>test1</span></a></span></p>`
     )
   })
+
+  it('links multiple mentions with user url', async () => {
+    const message = convertMarkdownText(TEST_DOMAIN)(
+      'With multiple mentions @test1@somewhere.test and @test2@llun.test tags'
+    )
+    expect(message).toEqual(
+      `<p>With multiple mentions <span class="h-card"><a href="https://${TEST_DOMAIN}/@test1@somewhere.test" target="_blank" class="u-url mention">@<span>test1</span></a></span> and <span class="h-card"><a href="https://${TEST_DOMAIN}/@test2@llun.test" target="_blank" class="u-url mention">@<span>test2</span></a></span> tags</p>`
+    )
+  })
 })

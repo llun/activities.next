@@ -7,7 +7,7 @@ import {
 } from 'marked'
 
 export const MENTION_REGEX =
-  /^@(?<username>[a-zA-Z0-9_.]+)(@(?<domain>[a-zA-Z0-9_.]+))?$/g
+  /^@(?<username>[a-zA-Z0-9_.]+)(@(?<domain>[a-zA-Z0-9_.]+))?/i
 export const LINK_BODY_LIMIT = 30
 
 const mention: (host: string) => TokenizerAndRendererExtension = (host) => ({
