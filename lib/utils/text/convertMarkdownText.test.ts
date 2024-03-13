@@ -34,4 +34,20 @@ describe('#convertMarkdownText', () => {
       `<p>With multiple mentions <span class="h-card"><a href="https://${TEST_DOMAIN}/@test1@somewhere.test" target="_blank" class="u-url mention">@<span>test1</span></a></span> and <span class="h-card"><a href="https://${TEST_DOMAIN}/@test2@llun.test" target="_blank" class="u-url mention">@<span>test2</span></a></span> tags</p>`
     )
   })
+
+  it('should not convert invalid mention to link', async () => {
+    expect(
+      convertMarkdownText(TEST_DOMAIN)('With invalid mention @@something')
+    ).toEqual(`<p>With invalid mention @@something</p>`)
+
+    expect(
+      convertMarkdownText(TEST_DOMAIN)('@something@ is invalid mention')
+    ).toEqual(`<p>@something@ is invalid mention</p>`)
+
+    expect(
+      convertMarkdownText(TEST_DOMAIN)(
+        'Invalid is in the middle @something@ of the text'
+      )
+    ).toEqual(`<p>Invalid is in the middle @something@ of the text</p>`)
+  })
 })

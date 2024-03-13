@@ -7,17 +7,23 @@ import {
 } from 'marked'
 
 export const MENTION_REGEX =
-  /^@(?<username>[a-zA-Z0-9_.]+)(@(?<domain>[a-zA-Z0-9_.]+))?/i
+  /@(?<username>[a-zA-Z0-9_.]+)(@(?<domain>[a-zA-Z0-9_.]+))?(\s+|$)/
+
+export const MENTION_TOKENIZER_REGEX = new RegExp(`^${MENTION_REGEX.source}`)
+export const MENTION_GLOBAL_REGEX = new RegExp(
+  `(^|\\s+)?${MENTION_REGEX.source}($|\\s+)?`,
+  'g'
+)
 export const LINK_BODY_LIMIT = 30
 
 const mention: (host: string) => TokenizerAndRendererExtension = (host) => ({
   name: 'mention',
   level: 'inline',
   start(src) {
-    return src.match(/@\w+/)?.index
+    return src.match(/(^|\s+)@\w+/)?.index
   },
   tokenizer(src) {
-    const rule = MENTION_REGEX
+    const rule = MENTION_TOKENIZER_REGEX
     const match = rule.exec(src)
     if (match) {
       const { username, domain } = match.groups as {
@@ -26,7 +32,7 @@ const mention: (host: string) => TokenizerAndRendererExtension = (host) => ({
       }
       return {
         type: 'mention',
-        raw: match[0],
+        raw: match[0].trim(),
         username,
         domain
       }
