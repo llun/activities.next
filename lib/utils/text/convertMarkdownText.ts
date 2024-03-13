@@ -57,4 +57,4 @@ marked.use({
 })
 
 export const convertMarkdownText = (text: string) =>
-  marked.parse(text, { gfm: true, async: false }) as string
+  (marked.parse(text, { gfm: true, async: false }) as string).trim()
