@@ -9,7 +9,7 @@ import { Question, QuestionEntity } from '../activities/entities/question'
 import { getConfig } from '../config'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
-import { formatText } from '../utils/text/formatText'
+import { convertMarkdownText } from '../utils/text/convertMarkdownText'
 import { getMentions } from '../utils/text/getMentions'
 import { getSpan } from '../utils/trace'
 import { statusRecipientsCC, statusRecipientsTo } from './createNote'
@@ -130,7 +130,7 @@ export const createPollFromUserInput = async ({
       currentActor.domain
     }/${currentActor.getMention()}/${postId}`,
     actorId: currentActor.id,
-    text: formatText(config.host, text),
+    text: convertMarkdownText(config.host)(text),
     summary: '',
     to,
     cc,

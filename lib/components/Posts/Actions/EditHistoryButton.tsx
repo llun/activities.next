@@ -3,7 +3,7 @@ import { formatDistance } from 'date-fns'
 import { FC, useState } from 'react'
 
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
-import { formatText } from '@/lib/utils/text/formatText'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 import { StatusData, StatusNote, StatusPoll } from '../../../models/status'
 import { cleanClassName } from '../../../utils/text/cleanClassName'
@@ -52,7 +52,7 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
                   <div className="me-auto text-start">
                     {cleanClassName(
                       status.isLocalActor
-                        ? formatText(host, edit.text)
+                        ? convertMarkdownText(host)(edit.text)
                         : convertEmojisToImages(edit.text, status.tags)
                     )}
                   </div>

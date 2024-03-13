@@ -5,7 +5,7 @@ import { FC } from 'react'
 import sanitizeHtml from 'sanitize-html'
 
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
-import { formatText } from '@/lib/utils/text/formatText'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 
 import { ActorProfile } from '../../models/actor'
@@ -82,7 +82,7 @@ export const Post: FC<PostProps> = (props) => {
         {_.chain(actualStatus.text)
           .thru(
             status.isLocalActor
-              ? _.curry(formatText)(host)
+              ? convertMarkdownText(host)
               : (text) => sanitizeHtml(text, SANITIZED_OPTION)
           )
           .thru(_.curryRight(convertEmojisToImages)(actualStatus.tags))

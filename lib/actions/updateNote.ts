@@ -16,7 +16,7 @@ import { getConfig } from '../config'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
-import { formatText } from '../utils/text/formatText'
+import { convertMarkdownText } from '../utils/text/convertMarkdownText'
 import { getSpan } from '../utils/trace'
 
 interface UpdateNoteParams {
@@ -84,7 +84,7 @@ export const updateNoteFromUserInput = async ({
   const updatedStatus = await storage.updateNote({
     statusId,
     summary,
-    text: formatText(config.host, text)
+    text: convertMarkdownText(config.host)(text)
   })
   if (!updatedStatus) {
     span.end()

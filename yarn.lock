@@ -4326,7 +4326,6 @@ __metadata:
     jsonwebtoken: "npm:^9.0.2"
     keyv: "npm:^4.5.4"
     knex: "npm:3.1.0"
-    linkifyjs: "npm:^4.1.3"
     lodash: "npm:^4.17.21"
     marked: "npm:^12.0.1"
     mime-types: "npm:^2.1.35"
@@ -10310,13 +10309,6 @@ __metadata:
   dependencies:
     uc.micro: "npm:^1.0.1"
   checksum: 10c0/468cb4954f85cdfc16e169db89a42d65287e3f121a9448b29c3c00d64c6f5a8f4367bea3978ba9109a0e3a10b19d50632b983639f91b9be9f20d1f63a5ff5bc1
-  languageName: node
-  linkType: hard
-
-"linkifyjs@npm:^4.1.3":
-  version: 4.1.3
-  resolution: "linkifyjs@npm:4.1.3"
-  checksum: 10c0/9fb71da06ee710b5587c8b61ff9a0e45303d448f61fab135e44652cff95c09c1abe276158a72384cff6f35a2371d1cec33dfaa7e5280b71dbb142b43d210c75a
   languageName: node
   linkType: hard
 
