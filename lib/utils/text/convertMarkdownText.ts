@@ -6,6 +6,8 @@ import {
   TokenizerObject
 } from 'marked'
 
+export type MentionMatchGroup = { username: string; domain: string | null }
+
 export const MENTION_REGEX =
   /@(?<username>[a-zA-Z0-9_.]+)(@(?<domain>[a-zA-Z0-9_.]+))?/
 
@@ -28,10 +30,7 @@ const mention: (host: string) => TokenizerAndRendererExtension = (host) => ({
     const rule = MENTION_TOKENIZER_REGEX
     const match = rule.exec(src)
     if (match) {
-      const { username, domain } = match.groups as {
-        username: string | null
-        domain: string | null
-      }
+      const { username, domain } = match.groups as MentionMatchGroup
       return {
         type: 'mention',
         raw: match[0].trim(),
