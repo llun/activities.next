@@ -7,9 +7,11 @@ import {
 } from 'marked'
 
 export const MENTION_REGEX =
-  /@(?<username>[a-zA-Z0-9_.]+)(@(?<domain>[a-zA-Z0-9_.]+))?(\s+|$)/
+  /@(?<username>[a-zA-Z0-9_.]+)(@(?<domain>[a-zA-Z0-9_.]+))?/
 
-export const MENTION_TOKENIZER_REGEX = new RegExp(`^${MENTION_REGEX.source}`)
+export const MENTION_TOKENIZER_REGEX = new RegExp(
+  `^${MENTION_REGEX.source}(\\s+|$)`
+)
 export const MENTION_GLOBAL_REGEX = new RegExp(
   `(^|\\s+)?${MENTION_REGEX.source}($|\\s+)?`,
   'g'
