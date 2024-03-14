@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { LambdaConfig } from '../services/email/lambda'
 import { ResendConfig } from '../services/email/resend'
 import { SMTPConfig } from '../services/email/smtp'
+import { getAuthConfig } from './auth'
 import {
   FirebaseDatabase,
   KnexBaseDatabase,
@@ -75,10 +76,10 @@ const getConfigFromEnvironment = () => {
       allowMediaDomains: JSON.parse(
         process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS || '[]'
       ),
-      auth: JSON.parse(process.env.ACTIVITIES_AUTH || '{}'),
       ...(process.env.ACTIVITIES_EMAIL
         ? { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
         : null),
+      ...getAuthConfig(),
       ...getDatabaseConfig(),
       ...getMediaStorageConfig(),
       ...getRedisConfig(),
