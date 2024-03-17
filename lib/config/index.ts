@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { LambdaConfig } from '../services/email/lambda'
 import { ResendConfig } from '../services/email/resend'
 import { SMTPConfig } from '../services/email/smtp'
-import { getAuthConfig } from './auth'
+import { AuthConfig, getAuthConfig } from './auth'
 import {
   FirebaseDatabase,
   KnexBaseDatabase,
@@ -28,12 +28,7 @@ const Config = z.object({
   allowEmails: z.string().array(),
   secretPhase: z.string(),
   allowMediaDomains: z.string().array().optional(),
-  auth: z
-    .object({
-      enableStorageAdapter: z.boolean().optional(),
-      github: z.object({ id: z.string(), secret: z.string() }).optional()
-    })
-    .optional(),
+  auth: AuthConfig.optional(),
   email: z.union([SMTPConfig, LambdaConfig, ResendConfig]).optional(),
   mediaStorage: MediaStorageConfig.optional(),
   redis: RedisConfig.optional(),

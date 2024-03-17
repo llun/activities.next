@@ -9,7 +9,6 @@ const GithubConfig = z.object({
 type GithubConfig = z.infer<typeof GithubConfig>
 
 export const AuthConfig = z.object({
-  enableStorageAdapter: z.boolean(),
   github: GithubConfig.nullish()
 })
 export type AuthConfig = z.infer<typeof AuthConfig>
@@ -33,9 +32,6 @@ export const getAuthConfig = (): { auth: AuthConfig } | null => {
   if (!hasEnvironmentAuth) return null
   return {
     auth: {
-      enableStorageAdapter: Boolean(
-        process.env.ACTIVITIES_AUTH_ENABLE_STORAGE_ADAPTER
-      ),
       github: getGithubConfig()
     }
   }

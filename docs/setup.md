@@ -113,7 +113,6 @@ which Github will provider the app id and secret. Copy those value to the config
 ```json
 {
   "auth": {
-    "enableStorageAdapter": true,
     "github": {
       "id": "github personal app id",
       "secret": "github personal app secret"
