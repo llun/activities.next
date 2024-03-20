@@ -23,7 +23,7 @@ export const getAuthOptions = memoize(() => {
         CredentialsProvider({
           name: serviceName ?? 'credentials',
           credentials: {
-            username: { label: 'Username', type: 'text' },
+            actorId: { label: 'Actor Address', type: 'text' },
             password: { label: 'Password', type: 'password' }
           },
           async authorize(credentials, request) {
@@ -31,10 +31,11 @@ export const getAuthOptions = memoize(() => {
             if (!credentials) return null
 
             const storage = await getStorage()
-            const { username, password } = credentials
+            const { actorId, password } = credentials
+            const [username, domain] = actorId.split('@')
             const actor = await storage?.getActorFromUsername({
               username,
-              domain: hostname
+              domain: domain ?? hostname
             })
             if (!actor) return null
 

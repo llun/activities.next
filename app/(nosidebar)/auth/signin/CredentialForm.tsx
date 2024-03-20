@@ -25,15 +25,15 @@ export const CredentialForm: FC<Props> = ({ provider }) => {
       <form method="post" action={getSigninCallbackUrl(provider, searchParams)}>
         <input name="csrfToken" type="hidden" defaultValue={csrfToken ?? ''} />
         <div className="mb-3 row">
-          <label htmlFor="inputUsername" className="col-sm-2 col-form-label">
-            Username
+          <label htmlFor="inputActorId" className="col-sm-2 col-form-label">
+            Actor Id
           </label>
           <div className="col-sm-10">
             <input
-              name="username"
+              name="actorId"
               type="text"
               className="form-control"
-              id="inputUsername"
+              id="inputActorId"
             />
           </div>
         </div>
