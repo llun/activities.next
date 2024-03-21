@@ -1,3 +1,4 @@
+import { TraceExporter as GoogleTraceExporter } from '@google-cloud/opentelemetry-cloud-trace-exporter'
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
 import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
@@ -6,7 +7,11 @@ import { KnexInstrumentation } from '@opentelemetry/instrumentation-knex'
 import { Resource } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
+import {
+  SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
+  SEMRESATTRS_SERVICE_NAME,
+  SEMRESATTRS_SERVICE_VERSION
+} from '@opentelemetry/semantic-conventions'
 
 import { Config, getConfig } from './lib/config'
 import {
@@ -21,6 +26,8 @@ const getTraceExporter = (config: Config) => {
       return new GrpcOLTPTraceExporter()
     case 'http/json':
       return new HttpOLTPTraceExporter()
+    case 'google':
+      return new GoogleTraceExporter()
     default:
       return new ProtoOLTPTraceExporter()
   }
@@ -31,9 +38,9 @@ const exporter = getTraceExporter(config)
 if (exporter) {
   const sdk = new NodeSDK({
     resource: new Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: TRACE_APPLICATION_SCOPE,
-      [SemanticResourceAttributes.SERVICE_VERSION]: TRACE_APPLICATION_VERSION,
-      [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV
+      [SEMRESATTRS_SERVICE_NAME]: TRACE_APPLICATION_SCOPE,
+      [SEMRESATTRS_SERVICE_VERSION]: TRACE_APPLICATION_VERSION,
+      [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV
     }),
     spanProcessor: new SimpleSpanProcessor(exporter),
     instrumentations: [new KnexInstrumentation(), new HttpInstrumentation()]
