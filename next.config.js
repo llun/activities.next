@@ -6,7 +6,6 @@ const nextConfig = {
   swcMinify: true,
   assetPrefix: '/activities',
   experimental: {
-    instrumentationHook: true,
     serverComponentsExternalPackages: [
       '@aws-sdk/client-lambda',
       '@aws-sdk/client-s3',
