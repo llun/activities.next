@@ -5,7 +5,8 @@ import { matcher } from './utils'
 export const OpenTelemetryProtocol = z.union([
   z.literal('grpc'),
   z.literal('http/protobuf'),
-  z.literal('http/json')
+  z.literal('http/json'),
+  z.literal('google')
 ])
 export type OpenTelemetryProtocol = z.infer<typeof OpenTelemetryProtocol>
 

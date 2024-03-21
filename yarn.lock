@@ -1378,6 +1378,36 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@google-cloud/opentelemetry-cloud-trace-exporter@npm:^2.1.0":
+  version: 2.1.0
+  resolution: "@google-cloud/opentelemetry-cloud-trace-exporter@npm:2.1.0"
+  dependencies:
+    "@google-cloud/opentelemetry-resource-util": "npm:^2.1.0"
+    "@grpc/grpc-js": "npm:^1.1.8"
+    "@grpc/proto-loader": "npm:^0.7.0"
+    google-auth-library: "npm:^7.0.0"
+    google-proto-files: "npm:^3.0.0"
+  peerDependencies:
+    "@opentelemetry/api": ^1.0.0
+    "@opentelemetry/core": ^1.0.0
+    "@opentelemetry/resources": ^1.0.0
+    "@opentelemetry/sdk-trace-base": ^1.0.0
+  checksum: 10c0/1d6b16c5b7a4ea09ac3982f2fb7675e82dacaabb1e0eb142f718af0648c07ba55af79585dc48ae3b1efc6c73a6d6906e9fd054b63b99de1eb1bad31d676b28d9
+  languageName: node
+  linkType: hard
+
+"@google-cloud/opentelemetry-resource-util@npm:^2.1.0":
+  version: 2.1.0
+  resolution: "@google-cloud/opentelemetry-resource-util@npm:2.1.0"
+  dependencies:
+    gcp-metadata: "npm:^5.0.1"
+  peerDependencies:
+    "@opentelemetry/resources": ^1.0.0
+    "@opentelemetry/semantic-conventions": ^1.0.0
+  checksum: 10c0/b9d39d45b47585dc02fa1403ce17493a6463e8b3f15431c3e695687c247f6b29496f8f27be306d63c33f2b2ee011e63eedfa6f4aaaa6ff300394ca66830fcee6
+  languageName: node
+  linkType: hard
+
 "@google-cloud/paginator@npm:^4.0.0":
   version: 4.0.1
   resolution: "@google-cloud/paginator@npm:4.0.1"
@@ -4253,6 +4283,7 @@ __metadata:
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@date-fns/utc": "npm:^1.2.0"
     "@google-cloud/firestore": "npm:^7.5.0"
+    "@google-cloud/opentelemetry-cloud-trace-exporter": "npm:^2.1.0"
     "@jmondi/oauth2-server": "npm:^3.2.0"
     "@keyv/redis": "npm:^2.8.4"
     "@llun/activities.schema": "npm:^0.0.6"
@@ -7850,7 +7881,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"gcp-metadata@npm:^5.3.0":
+"gcp-metadata@npm:^5.0.1, gcp-metadata@npm:^5.3.0":
   version: 5.3.0
   resolution: "gcp-metadata@npm:5.3.0"
   dependencies:
@@ -8090,7 +8121,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"google-auth-library@npm:^7.11.0":
+"google-auth-library@npm:^7.0.0, google-auth-library@npm:^7.11.0":
   version: 7.14.1
   resolution: "google-auth-library@npm:7.14.1"
   dependencies:
@@ -8203,6 +8234,16 @@ __metadata:
   bin:
     gp12-pem: build/src/bin/gp12-pem.js
   checksum: 10c0/2cd15077cb2179306870223c65b49d38f0860bd8cc60da8072cc632c9aad8cb7e61e46e63d72e8ef3fca27ad9e6b8870db6cc809839f279382d9cc4d891a9a7b
+  languageName: node
+  linkType: hard
+
+"google-proto-files@npm:^3.0.0":
+  version: 3.0.3
+  resolution: "google-proto-files@npm:3.0.3"
+  dependencies:
+    protobufjs: "npm:^7.0.0"
+    walkdir: "npm:^0.4.0"
+  checksum: 10c0/a1295d02226c946b8693637c0260bb02decac57320305f90faa48419dec77122296028686a612202ee1a376ba71284e12135f63fcb5122671118be3f8243c386
   languageName: node
   linkType: hard
 
@@ -14219,6 +14260,13 @@ __metadata:
   version: 1.1.2
   resolution: "vary@npm:1.1.2"
   checksum: 10c0/f15d588d79f3675135ba783c91a4083dcd290a2a5be9fcb6514220a1634e23df116847b1cc51f66bfb0644cf9353b2abb7815ae499bab06e46dd33c1a6bf1f4f
+  languageName: node
+  linkType: hard
+
+"walkdir@npm:^0.4.0":
+  version: 0.4.1
+  resolution: "walkdir@npm:0.4.1"
+  checksum: 10c0/88e635aa9303e9196e4dc15013d2bd4afca4c8c8b4bb27722ca042bad213bb882d3b9141b3b0cca6bfb274f7889b30cf58d6374844094abec0016f335c5414dc
   languageName: node
   linkType: hard
 
