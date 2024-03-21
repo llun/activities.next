@@ -13,8 +13,6 @@ import {
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const UNSUPPORTED_TIMELINE = [Timeline.LOCAL_PUBLIC]
 
-export const maxDuration = 120
-
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 interface Params {

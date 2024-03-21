@@ -25,8 +25,6 @@ import {
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
-export const maxDuration = 60
-
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
