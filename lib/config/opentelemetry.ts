@@ -11,7 +11,7 @@ export const OpenTelemetryProtocol = z.union([
 export type OpenTelemetryProtocol = z.infer<typeof OpenTelemetryProtocol>
 
 export const OpenTelemetryConfig = z.object({
-  endpoint: z.string(),
+  endpoint: z.string().optional(),
   protocol: OpenTelemetryProtocol.optional(),
   headers: z.string().optional()
 })
