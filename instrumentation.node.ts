@@ -6,7 +6,7 @@ import { HttpInstrumentation } from '@opentelemetry/instrumentation-http'
 import { KnexInstrumentation } from '@opentelemetry/instrumentation-knex'
 import { Resource } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
-import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node'
 import {
   SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
   SEMRESATTRS_SERVICE_NAME,
@@ -42,7 +42,7 @@ if (exporter) {
       [SEMRESATTRS_SERVICE_VERSION]: TRACE_APPLICATION_VERSION,
       [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV
     }),
-    spanProcessor: new SimpleSpanProcessor(exporter),
+    spanProcessor: new BatchSpanProcessor(exporter),
     instrumentations: [new KnexInstrumentation(), new HttpInstrumentation()]
   })
   sdk.start()
