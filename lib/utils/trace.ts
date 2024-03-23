@@ -1,8 +1,6 @@
-import GoogleTracer from '@google-cloud/trace-agent'
-import { Span, trace } from '@opentelemetry/api'
+import { trace } from '@opentelemetry/api'
 import { NextApiHandler } from 'next'
 
-import { getConfig } from '../config'
 import { logger } from './logger'
 import { errorResponse } from './response'
 
@@ -13,41 +11,12 @@ export interface Data {
   [key: string]: string | boolean | number | undefined
 }
 
-const getUniversalSpan = (span: GoogleTracer.PluginTypes.Span | Span) => ({
-  recordException(e: Error) {
-    if ('recordException' in span) {
-      span.recordException(e)
-    } else {
-      span.addLabel('error', true)
-      span.addLabel('errorMessage', e.message)
-      span.addLabel('errorStack', e.stack)
-    }
-  },
-  end() {
-    if ('endSpan' in span) {
-      span.endSpan()
-    } else {
-      span.end()
-    }
-  }
-})
-
 export const getSpan = (op: string, name: string, data: Data = {}) => {
-  if (getConfig().openTelemetry?.protocol === 'google') {
-    const tracer = GoogleTracer.get()
-    const span = tracer.createChildSpan({ name: `${op}.${name}` })
-    Object.keys(data).forEach((key) => {
-      span.addLabel(key, data[key])
-    })
-    return getUniversalSpan(span)
-  }
-
   const tracer = trace.getTracer(
     TRACE_APPLICATION_SCOPE,
     TRACE_APPLICATION_VERSION
   )
-  const span = tracer.startSpan(`${op}.${name}`, { attributes: data })
-  return getUniversalSpan(span)
+  return tracer.startSpan(`${op}.${name}`, { attributes: data })
 }
 
 const AsyncFunction = async function () {}.constructor // eslint-disable-line @typescript-eslint/no-empty-function
