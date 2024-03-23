@@ -134,7 +134,6 @@ export const getPublicProfile = async ({
       headers: { Accept: DEFAULT_ACCEPT }
     })
     if (statusCode !== 200) {
-      span.end()
       return null
     }
 
@@ -142,7 +141,6 @@ export const getPublicProfile = async ({
     const person: Person = (await compact(data)) as Person
 
     if (!withCollectionCount) {
-      span.end()
       return {
         id: person.id,
         username: person.preferredUsername,
