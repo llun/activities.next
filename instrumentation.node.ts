@@ -1,4 +1,8 @@
 import { TraceExporter as GoogleTraceExporter } from '@google-cloud/opentelemetry-cloud-trace-exporter'
+import opentelemetryAPI, {
+  DiagConsoleLogger,
+  DiagLogLevel
+} from '@opentelemetry/api'
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
 import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
@@ -33,6 +37,7 @@ const getTraceExporter = (config: Config) => {
   }
 }
 
+opentelemetryAPI.diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.WARN)
 const config = getConfig()
 const exporter = getTraceExporter(config)
 if (exporter) {
@@ -46,6 +51,7 @@ if (exporter) {
     instrumentations: [new KnexInstrumentation(), new HttpInstrumentation()]
   })
   sdk.start()
+  console.log('OpenTelemetry start')
 
   process.on('SIGTERM', () => {
     sdk
