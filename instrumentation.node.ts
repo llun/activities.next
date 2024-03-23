@@ -44,6 +44,7 @@ const getTraceExporter = (config: Config) => {
 opentelemetryAPI.diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.WARN)
 const config = getConfig()
 const exporter = getTraceExporter(config)
+console.log('OpenTelemetry protocol = ', config.openTelemetry?.protocol)
 if (exporter) {
   if (config.openTelemetry?.protocol === 'google') {
     const provider = new NodeTracerProvider({
@@ -73,8 +74,6 @@ if (exporter) {
       instrumentations: [new KnexInstrumentation(), new HttpInstrumentation()]
     })
     sdk.start()
-    console.log('OpenTelemetry start')
-
     process.on('SIGTERM', () => {
       sdk
         .shutdown()
