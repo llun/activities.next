@@ -2,6 +2,7 @@ import { TraceExporter as GoogleTraceExporter } from '@google-cloud/opentelemetr
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
 import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
+import { HttpInstrumentation } from '@opentelemetry/instrumentation-http'
 import { KnexInstrumentation } from '@opentelemetry/instrumentation-knex'
 import { Resource } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
@@ -42,7 +43,7 @@ if (exporter) {
       [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV
     }),
     spanProcessors: [new BatchSpanProcessor(exporter)],
-    instrumentations: [new KnexInstrumentation()]
+    instrumentations: [new KnexInstrumentation(), new HttpInstrumentation()]
   })
   sdk.start()
   process.on('SIGTERM', () => {
