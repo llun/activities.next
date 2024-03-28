@@ -226,7 +226,7 @@ export class Status {
         id: data.id,
         type: QuestionEntity,
         summary: data.summary || null,
-        published: getISOTimeUTC(data.createdAt),
+
         url: data.url,
         attributedTo: data.actorId,
         to: data.to,
@@ -234,7 +234,7 @@ export class Status {
         inReplyTo: data.reply || null,
         content: data.text,
         tag: data.tags.map((tag) => new Tag(tag).toObject()),
-        endTime: getISOTimeUTC(data.endAt),
+
         oneOf: [],
         replies: {
           id: `${data.id}/replies`,
@@ -244,7 +244,11 @@ export class Status {
             const status = new Status(StatusData.parse(reply))
             return status.toObject()
           })
-        }
+        },
+
+        published: getISOTimeUTC(data.createdAt),
+        endTime: getISOTimeUTC(data.endAt),
+        ...(data.updatedAt ? { updated: getISOTimeUTC(data.updatedAt) } : null)
       } as Question
     }
 
@@ -257,7 +261,6 @@ export class Status {
       id: data.id,
       type: data.type,
       summary: data.summary || null,
-      published: getISOTimeUTC(data.createdAt),
       url: data.url,
       attributedTo: data.actorId,
       to: data.to,
@@ -276,7 +279,10 @@ export class Status {
           const status = new Status(StatusData.parse(reply))
           return status.toObject()
         })
-      }
+      },
+
+      published: getISOTimeUTC(data.createdAt),
+      ...(data.updatedAt ? { updated: getISOTimeUTC(data.updatedAt) } : null)
     } as Note
   }
 
