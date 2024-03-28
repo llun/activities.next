@@ -21,16 +21,10 @@ USER app
 
 FROM base as build
 ADD --chown=app:app . /opt/activities.next/
-RUN \
-  --mount=type=cache,id=corepack-cache,target=/usr/local/share/.cache/corepack,sharing=locked \
-  --mount=type=cache,id=yarn-cache,target=/usr/local/share/.cache/yarn,sharing=locked \
-  yarn install --immutable
+RUN yarn install --immutable
 RUN yarn migrate
 RUN yarn build
-RUN \
-  --mount=type=cache,id=corepack-cache,target=/usr/local/share/.cache/corepack,sharing=locked \
-  --mount=type=cache,id=yarn-cache,target=/usr/local/share/.cache/yarn,sharing=locked \
-  yarn workspaces focus -A --production
+RUN yarn workspaces focus -A --production
 
 FROM base as activities.next
 ENV NODE_ENV="production"
