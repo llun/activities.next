@@ -135,6 +135,7 @@ describe('Status', () => {
           summary: null,
           inReplyTo: null,
           published: getISOTimeUTC(status?.data.createdAt ?? 0),
+          updated: getISOTimeUTC(status?.updatedAt ?? 0),
           url: status?.data.url,
           attributedTo: status?.data.actorId,
           to: status?.data.to,
