@@ -8,7 +8,7 @@ import { format } from 'date-fns'
 import ffmpeg from 'fluent-ffmpeg'
 import { IncomingMessage } from 'http'
 import { memoize } from 'lodash'
-import shape from 'sharp'
+import sharp from 'sharp'
 import { Readable } from 'stream'
 
 import {
@@ -35,10 +35,10 @@ const uploadImageToS3 = async (
   const { bucket, region } = mediaStorageConfig
   const randomPrefix = crypto.randomBytes(8).toString('hex')
 
-  const resizedImage = shape(Buffer.from(await file.arrayBuffer()))
+  const resizedImage = sharp(Buffer.from(await file.arrayBuffer()))
     .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
     .rotate()
-    .webp({ quality: 95 })
+    .webp({ quality: 95, smartSubsample: true, nearLossless: true })
 
   const [metaData, buffer] = await Promise.all([
     resizedImage.metadata(),
