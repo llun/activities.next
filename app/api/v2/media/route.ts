@@ -11,7 +11,10 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     const response = await saveMedia(storage, currentActor, media)
     if (!response) return apiErrorResponse(422)
     return Response.json(response)
-  } catch {
+  } catch (e) {
+    const nodeErr = e as NodeJS.ErrnoException
+    console.error(nodeErr.message)
+    console.error(nodeErr.stack)
     return apiErrorResponse(422)
   }
 })
