@@ -53,6 +53,7 @@ interface Props {
   onDiscardReply: () => void
   onPostCreated: (status: StatusData, attachments: Attachment[]) => void
   onPostUpdated: (status: StatusData) => void
+  onDiscardEdit: () => void
 }
 
 export const PostBox: FC<Props> = ({
@@ -63,7 +64,8 @@ export const PostBox: FC<Props> = ({
   isMediaUploadEnabled,
   onPostCreated,
   onPostUpdated,
-  onDiscardReply
+  onDiscardReply,
+  onDiscardEdit
 }) => {
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
@@ -263,11 +265,11 @@ export const PostBox: FC<Props> = ({
     const postBox = postBoxRef.current
 
     if (editStatus) {
-      postBox.value = sanitizeHtml(editStatus.text, {
-        allowedTags: []
-      })
+      postBox.value = editStatus.text
       postBox.focus()
       return
+    } else {
+      postBox.value = ''
     }
 
     if (!replyStatus) return
@@ -333,9 +335,21 @@ export const PostBox: FC<Props> = ({
               <i className="bi bi-bar-chart-fill" />
             </Button>
           </div>
-          <Button disabled={!allowPost} type="submit">
-            {editStatus ? 'Update' : 'Send'}
-          </Button>
+          <div>
+            {editStatus ? (
+              <Button
+                className="me-2"
+                type="button"
+                variant="danger"
+                onClick={onDiscardEdit}
+              >
+                Cancel Edit
+              </Button>
+            ) : null}
+            <Button disabled={!allowPost} type="submit">
+              {editStatus ? 'Update' : 'Send'}
+            </Button>
+          </div>
         </div>
         <div className={styles.attachments}>
           {postExtension.attachments.map((item, index) => (

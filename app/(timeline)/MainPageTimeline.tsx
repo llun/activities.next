@@ -73,6 +73,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         editStatus={statusActionState.editStatus}
         isMediaUploadEnabled={isMediaUploadEnabled}
         onDiscardReply={() => dispatchStatusAction(clearAction())}
+        onDiscardEdit={() => dispatchStatusAction(clearAction())}
         onPostCreated={(status: StatusData) => {
           setCurrentStatuses((previousValue) => [status, ...previousValue])
           dispatchStatusAction(clearAction())
