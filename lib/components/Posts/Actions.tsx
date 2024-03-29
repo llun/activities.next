@@ -22,9 +22,9 @@ export const Actions: FC<Props> = ({
   showActions = false,
   onReply,
   onEdit,
-  onPostDeleted,
   onPostReposted,
-  onShowEdits
+  onShowEdits,
+  onPostDeleted
 }) => {
   if (!showActions) return null
   if (!currentActor) return null
@@ -60,11 +60,6 @@ export const Actions: FC<Props> = ({
         onPostReposted={onPostReposted}
       />
       <LikeButton currentActor={currentActor} status={status} />
-      <DeleteButton
-        className={cn({ 'd-none': !editable })}
-        status={status}
-        onPostDeleted={onPostDeleted}
-      />
       <EditHistoryButton
         status={status}
         host={host}
@@ -74,6 +69,11 @@ export const Actions: FC<Props> = ({
         status={status}
         className={cn({ 'd-none': !editable })}
         onEdit={onEdit}
+      />
+      <DeleteButton
+        className={cn({ 'd-none': !editable })}
+        status={status}
+        onPostDeleted={onPostDeleted}
       />
     </div>
   )
