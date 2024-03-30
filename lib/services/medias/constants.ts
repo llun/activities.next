@@ -7,6 +7,8 @@ export const ACCEPTED_FILE_TYPES = [
   'image/png',
   'image/heic',
   'image/heif',
+  'video/quicktime',
+  'video/mp4',
   'video/webm',
   'audio/mp4'
 ]

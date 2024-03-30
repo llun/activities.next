@@ -6,10 +6,12 @@ import {
 import crypto from 'crypto'
 import { format } from 'date-fns'
 import ffmpeg from 'fluent-ffmpeg'
+import fs from 'fs/promises'
 import { IncomingMessage } from 'http'
 import { memoize } from 'lodash'
+import { tmpdir } from 'os'
+import { basename, extname, join } from 'path'
 import sharp from 'sharp'
-import { Readable } from 'stream'
 
 import {
   MediaStorageObjectConfig,
@@ -17,6 +19,7 @@ import {
 } from '../../config/mediaStorage'
 import { Media } from '../../storage/types/media'
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
+import { transcodeMedia } from './transcoder'
 import {
   FFProbe,
   MediaStorageGetFile,
@@ -65,13 +68,20 @@ const uploadVideoToS3 = async (
   file: File
 ) => {
   const buffer = Buffer.from(await file.arrayBuffer())
-
-  const probe = await new Promise((resolve, reject) => {
-    ffmpeg(Readable.from(Buffer.from(buffer))).ffprobe((error, data) => {
-      if (error) return reject(error)
-      resolve(data)
-    })
-  })
+  const inputPath = join(
+    tmpdir(),
+    `${Buffer.from(crypto.randomBytes(8)).toString('hex')}-${file.name}`
+  )
+  await fs.writeFile(inputPath, buffer)
+  const [probe, outputBuffer] = await Promise.all([
+    new Promise((resolve, reject) => {
+      ffmpeg(inputPath).ffprobe((error, data) => {
+        if (error) return reject(error)
+        resolve(data)
+      })
+    }),
+    transcodeMedia(inputPath)
+  ])
   const videoStream = (probe as FFProbe).streams.find(
     (stream): stream is VideoProbe => stream.codec_type === 'video'
   )
@@ -82,13 +92,13 @@ const uploadVideoToS3 = async (
   const { bucket, region } = mediaStorageConfig
   const randomPrefix = crypto.randomBytes(8).toString('hex')
   const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-  const path = `medias/${timeDirectory}/${randomPrefix}-${file.name}`
+  const path = `medias/${timeDirectory}/${randomPrefix}-${basename(file.name, extname(file.name))}.webm`
   const s3client = getS3Client(region)
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: path,
-    ContentType: file.type,
-    Body: buffer
+    ContentType: 'video/webm',
+    Body: outputBuffer
   })
   await s3client.send(command)
   return { path, metaData }
