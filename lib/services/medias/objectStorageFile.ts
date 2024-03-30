@@ -101,14 +101,15 @@ const uploadVideoToS3 = async (
     Body: outputBuffer
   })
   await s3client.send(command)
-  return { path, metaData }
+  return { path, metaData, contentType: 'video/webm' }
 }
 
 const getSaveFileOutput = (
   host: string,
-  media: Media
+  media: Media,
+  contentType?: string
 ): MediaStorageSaveFileOutput => {
-  const mimeType = media.original.mimeType
+  const mimeType = contentType ?? media.original.mimeType
   const type = mimeType.startsWith('video') ? 'video' : 'image'
   return {
     id: media.id,
@@ -158,8 +159,11 @@ export const saveObjectStorageFile: MediaStorageSaveFile = async (
   }
 
   if (file.type.startsWith('video')) {
-    const { path, metaData } = await uploadVideoToS3(currentTime, config, file)
-
+    const { path, metaData, contentType } = await uploadVideoToS3(
+      currentTime,
+      config,
+      file
+    )
     const storedMedia = await storage.createMedia({
       actorId: actor.id,
       original: {
@@ -176,7 +180,7 @@ export const saveObjectStorageFile: MediaStorageSaveFile = async (
     if (!storedMedia) {
       throw new Error('Fail to store media')
     }
-    return getSaveFileOutput(host, storedMedia)
+    return getSaveFileOutput(host, storedMedia, contentType)
   }
 
   const { metaData, path } = await uploadImageToS3(currentTime, config, file)
