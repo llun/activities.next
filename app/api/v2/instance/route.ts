@@ -34,9 +34,9 @@ export const GET = OAuthGuard([Scope.enum.read], async (req) => {
       },
       media_attachments: {
         supported_mime_types: ACCEPTED_FILE_TYPES,
-        image_size_limit: MAX_FILE_SIZE,
+        image_size_limit: config.mediaStorage?.maxFileSize ?? MAX_FILE_SIZE,
         image_matrix_limit: 33177600,
-        video_size_limit: MAX_FILE_SIZE,
+        video_size_limit: config.mediaStorage?.maxFileSize ?? MAX_FILE_SIZE,
         video_frame_rate_limit: 120,
         video_matrix_limit: 8294400
       },

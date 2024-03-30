@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { getConfig } from '@/lib/config'
+
 import { MediaStorageConfig } from '../../config/mediaStorage'
 import { Actor } from '../../models/actor'
 import { Storage } from '../../storage/types'
@@ -109,10 +111,10 @@ export type FFProbe = {
 
 export const FileSchema = z
   .custom<File>()
-  .refine(
-    (file) => file.size <= MAX_FILE_SIZE,
-    `Max file size is ${MAX_FILE_SIZE} bytes.`
-  )
+  .refine((file) => {
+    const config = getConfig()
+    return file.size <= (config.mediaStorage?.maxFileSize ?? MAX_FILE_SIZE)
+  }, 'File is larger than the limit.')
   .refine(
     (file) => ACCEPTED_FILE_TYPES.includes(file.type),
     `Only ${ACCEPTED_FILE_TYPES.join(',')} are accepted`
