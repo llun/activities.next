@@ -23,7 +23,7 @@
     "@google-cloud/firestore": "^7.6.0",
     "@jmondi/oauth2-server": "^3.2.0",
     "@keyv/redis": "^2.8.4",
-    "@llun/activities.schema": "^0.0.6",
+    "@llun/activities.schema": "^0.0.7",
     "@opentelemetry/api": "^1.8.0",
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^9.6.0",
@@ -98,5 +98,5 @@
     "prettier": "3.2.5",
     "typescript": "^5.4.5"
   },
-  "packageManager": "yarn@4.1.1"
+  "packageManager": "yarn@4.2.1"
 }
