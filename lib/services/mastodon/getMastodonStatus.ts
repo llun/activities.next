@@ -3,14 +3,14 @@ import { StatusData } from '@/lib/models/status'
 import { Storage } from '@/lib/storage/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-import { getMastodonAccount } from './getMastodonAccount'
+import { getMastodonActor } from './getMastodonActor'
 import { MastodonStatus, ReblogMastodonStatus } from './types'
 
 export const getMastodonStatus = async (
   storage: Storage,
   status: StatusData
 ): Promise<MastodonStatus | ReblogMastodonStatus> => {
-  const account = await getMastodonAccount(storage, status.actor as ActorData)
+  const account = await getMastodonActor(storage, status.actor as ActorData)
   if (status.type === 'Announce') {
     return ReblogMastodonStatus.parse({
       id: status.id,

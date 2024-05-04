@@ -1,5 +1,5 @@
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
-import { getMastodonAccount } from '@/lib/services/mastodon/getMastodonAccount'
+import { getMastodonActor } from '@/lib/services/mastodon/getMastodonActor'
 import { Scope } from '@/lib/storage/types/oauth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -29,7 +29,7 @@ export const GET = OAuthGuard<Params>(
       req,
       CORS_HEADERS,
       await Promise.all(
-        actors.map((actor) => getMastodonAccount(storage, actor.data))
+        actors.map((actor) => getMastodonActor(storage, actor.data))
       )
     )
   }

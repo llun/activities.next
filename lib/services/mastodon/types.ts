@@ -77,7 +77,7 @@ export const MastodonTag = z.object({
 })
 export type MastodonTag = z.infer<typeof MastodonTag>
 
-export const MastodonAccount = z.object({
+export const MastodonActor = z.object({
   id: z.string(),
   username: z.string(),
   acct: z.string(),
@@ -102,7 +102,7 @@ export const MastodonAccount = z.object({
   emojis: MastodonEmoji.array(),
   fields: MastodonField.array().nullable()
 })
-export type MastodonAccount = z.infer<typeof MastodonAccount>
+export type MastodonActor = z.infer<typeof MastodonActor>
 
 export const MastodonCard = z.object({
   url: z.string(),
@@ -147,7 +147,7 @@ export const MastodonStatus = z.object({
   bookmarked: z.boolean(),
   content: z.string(),
   filtered: z.array(z.string()),
-  account: MastodonAccount,
+  account: MastodonActor,
   media_attachments: MastodonAttachment.array().optional(),
   mentions: MastodonMention.array().optional(),
   tags: MastodonTag.array().optional(),
