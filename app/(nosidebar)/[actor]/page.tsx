@@ -12,7 +12,8 @@ import { getStorage } from '@/lib/storage'
 
 import { ActorTimelines } from './ActorTimelines'
 import styles from './[actor].module.scss'
-import { getActorProfile } from './getActorProfile'
+import { getExternalActorProfile } from './getExternalActorProfile'
+import { getInternalActorProfile } from './getInternalActorProfile'
 
 interface Props {
   params: { actor: string }
@@ -35,7 +36,8 @@ const Page: FC<Props> = async ({ params }) => {
   if (!storage) throw new Error('Storage is not available')
 
   const { actor } = params
-  const parts = decodeURIComponent(actor).split('@').slice(1)
+  const decodedActorHandle = decodeURIComponent(actor)
+  const parts = decodedActorHandle.split('@').slice(1)
   if (parts.length !== 2) {
     return notFound()
   }
@@ -43,11 +45,14 @@ const Page: FC<Props> = async ({ params }) => {
   const [username, domain] = parts
   const isLoggedIn = Boolean(session?.user?.email)
   const storageActor = await storage.getActorFromUsername({ username, domain })
-  if (!storageActor || (!isLoggedIn && !storageActor?.account)) {
+
+  if (!isLoggedIn && !storageActor?.account) {
     return notFound()
   }
 
-  const actorProfile = await getActorProfile(storage, storageActor)
+  const actorProfile = storageActor?.account
+    ? await getInternalActorProfile(storage, storageActor)
+    : await getExternalActorProfile(storage, decodedActorHandle)
   if (!actorProfile) {
     return notFound()
   }
