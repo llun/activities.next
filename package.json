@@ -59,7 +59,7 @@
   "devDependencies": {
     "@next/env": "^14.2.3",
     "@swc-node/register": "^1.9.1",
-    "@swc/core": "^1.5.7",
+    "@swc/core": "1.5.7",
     "@swc/jest": "^0.2.36",
     "@testing-library/jest-dom": "^6.4.5",
     "@testing-library/react": "^15.0.7",
@@ -72,7 +72,7 @@
     "@types/jsonwebtoken": "^9",
     "@types/lodash": "^4.17.4",
     "@types/mime-types": "^2.1.4",
-    "@types/node": "^20.12.12",
+    "@types/node": "^20.12.13",
     "@types/nodemailer": "^6.4.15",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
