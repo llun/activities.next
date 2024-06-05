@@ -1,3 +1,5 @@
+import { Mastodon } from '@llun/activities.schema'
+
 import { Actor } from '../../models/actor'
 
 export type CreateActorParams = {
@@ -50,6 +52,10 @@ export type GetActorFollowersCountParams = { actorId: string }
 
 export interface ActorStorage {
   createActor(params: CreateActorParams): Promise<Actor | undefined>
+  createMastodonActor(
+    params: CreateActorParams
+  ): Promise<Mastodon.Account | undefined>
+
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | undefined>
   getActorFromUsername(
     params: GetActorFromUsernameParams

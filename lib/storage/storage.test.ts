@@ -13,6 +13,7 @@ import { Client } from '../models/oauth2/client'
 import { Token } from '../models/oauth2/token'
 import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '../stub/const'
+import { getISOTimeUTC } from '../utils/getISOTimeUTC'
 import { waitFor } from '../utils/waitFor'
 import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
@@ -72,6 +73,10 @@ const TEST_ID14 = `https://${TEST_DOMAIN}/users/user14`
 
 // Actor who follows Actor14 and see boost
 const TEST_ID15 = `https://${TEST_DOMAIN}/users/user15`
+
+// Mastodon Actor
+const TEST_ID16 = `https://${TEST_DOMAIN}/users/user16`
+const TEST_USERNAME16 = 'random16'
 
 type TestStorage = [string, Storage]
 
@@ -249,6 +254,48 @@ describe('Storage', () => {
         expect(actor?.domain).toEqual(TEST_DOMAIN10)
         expect(actor?.followersUrl).toEqual(`${TEST_ID10}/followers`)
         expect(actor?.privateKey).toEqual('')
+      })
+
+      it.only('creates actor and returns actor in mastodon account format', async () => {
+        const currentTime = Date.now()
+        const actor = await storage.createMastodonActor({
+          actorId: TEST_ID16,
+          username: TEST_USERNAME16,
+          domain: TEST_DOMAIN,
+          followersUrl: `${TEST_ID16}/followers`,
+          inboxUrl: `${TEST_ID16}/inbox`,
+          sharedInboxUrl: TEST_SHARED_INBOX,
+          publicKey: 'publicKey',
+          createdAt: currentTime
+        })
+        expect(actor).toEqual({
+          id: TEST_ID16,
+          username: TEST_USERNAME16,
+          acct: `${TEST_USERNAME16}@${TEST_DOMAIN}`,
+          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME16}`,
+          display_name: '',
+          note: '',
+          avatar: '',
+          avatar_static: '',
+          header: '',
+          header_static: '',
+
+          locked: false,
+          fields: [],
+          emojis: [],
+
+          bot: false,
+          group: false,
+          discoverable: true,
+          noindex: false,
+
+          created_at: getISOTimeUTC(currentTime),
+          last_status_at: null,
+
+          statuses_count: 0,
+          followers_count: 0,
+          following_count: 0
+        })
       })
     })
 

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import { Mastodon } from '@llun/activities.schema'
 import crypto from 'crypto'
 import { Knex, knex } from 'knex'
 import omit from 'lodash/omit'
@@ -382,6 +383,12 @@ export class SqlStorage implements Storage {
       updatedAt: currentTime
     })
     return this.getActorFromId({ id: actorId })
+  }
+
+  async createMastodonActor(
+    params: CreateActorParams
+  ): Promise<Mastodon.Account | undefined> {
+    return undefined
   }
 
   private getActor(sqlActor: SQLActor, account?: Account) {

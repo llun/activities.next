@@ -1,4 +1,5 @@
 import { Firestore, Settings } from '@google-cloud/firestore'
+import { Mastodon } from '@llun/activities.schema'
 import crypto from 'crypto'
 
 import { Account } from '@/lib/models/account'
@@ -381,6 +382,13 @@ export class FirestoreStorage implements Storage {
     }
     await this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`).set(doc)
     return this.getActorFromId({ id: actorId })
+  }
+
+  @Trace('db')
+  async createMastodonActor(
+    params: CreateActorParams
+  ): Promise<Mastodon.Account | undefined> {
+    return undefined
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

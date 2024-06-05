@@ -1,8 +1,8 @@
+import { Mastodon } from '@llun/activities.schema'
+
 import { ActorData } from '@/lib/models/actor'
 import { Storage } from '@/lib/storage/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-
-import { MastodonAccount } from './types'
 
 export const getMastodonAccount = async (
   storage: Storage,
@@ -16,7 +16,7 @@ export const getMastodonAccount = async (
       storage.getActorStatuses({ actorId: actor.id })
     ])
 
-  return MastodonAccount.parse({
+  return Mastodon.Account.parse({
     id: actor.id,
     username: actor.username,
     acct: `${actor.username}@${actor.domain}`,
