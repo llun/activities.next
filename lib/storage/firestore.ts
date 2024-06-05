@@ -24,6 +24,7 @@ import { Trace } from '@/lib/utils/trace'
 
 import { PER_PAGE_LIMIT } from '.'
 import { Tag, TagData } from '../models/tag'
+import { getISOTimeUTC } from '../utils/getISOTimeUTC'
 import {
   CreateTagParams,
   CreateTimelineStatusParams,
@@ -377,6 +378,11 @@ export class FirestoreStorage implements Storage {
       domain,
       publicKey,
       privateKey,
+
+      followingCount: 0,
+      followersCount: 0,
+      statusCount: 0,
+
       createdAt,
       updatedAt: currentTime
     }
@@ -385,10 +391,54 @@ export class FirestoreStorage implements Storage {
   }
 
   @Trace('db')
-  async createMastodonActor(
-    params: CreateActorParams
-  ): Promise<Mastodon.Account | undefined> {
-    return undefined
+  async createMastodonActor({
+    actorId,
+
+    username,
+    domain,
+    name = '',
+    summary = '',
+    iconUrl = '',
+    headerImageUrl = '',
+    followersUrl,
+    inboxUrl,
+    sharedInboxUrl,
+
+    publicKey,
+    privateKey = '',
+
+    createdAt
+  }: CreateActorParams): Promise<Mastodon.Account | undefined> {
+    const currentTime = Date.now()
+    const doc = {
+      id: actorId,
+      username,
+      name,
+      summary,
+      iconUrl,
+      headerImageUrl,
+      followersUrl,
+      inboxUrl,
+      sharedInboxUrl,
+      domain,
+      publicKey,
+      privateKey,
+
+      followingCount: 0,
+      followersCount: 0,
+      statusCount: 0,
+
+      createdAt,
+      updatedAt: currentTime
+    }
+    var docRef = this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`)
+    const persistedDoc = await docRef.get()
+    if (persistedDoc.exists) {
+      return
+    }
+
+    await docRef.set(doc)
+    return this.getMastodonActorFromDataAndAccount(doc)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -412,6 +462,39 @@ export class FirestoreStorage implements Storage {
       ...(account ? { account } : null),
       createdAt: Number.isNaN(data.createdAt) ? 0 : data.createdAt,
       updatedAt: Number.isNaN(data.updatedAt) ? 0 : data.updatedAt
+    })
+  }
+
+  private getMastodonActorFromDataAndAccount(data: any): Mastodon.Account {
+    return Mastodon.Account.parse({
+      id: data.id,
+      username: data.username,
+      acct: `${data.username}@${data.domain}`,
+      url: `https://${data.domain}/@${data.username}`,
+      display_name: data.name ?? '',
+      note: data.summary ?? '',
+      avatar: data.iconUrl ?? '',
+      avatar_static: data.iconUrl ?? '',
+      header: data.headerImageUrl ?? '',
+      header_static: data.headerImageUrl ?? '',
+
+      fields: [],
+      emojis: [],
+
+      locked: false,
+      bot: false,
+      group: false,
+      discoverable: true,
+      noindex: false,
+
+      created_at: getISOTimeUTC(data.createdAt),
+      last_status_at: data.lastStatusAt
+        ? getISOTimeUTC(data.lastStatusAt)
+        : null,
+
+      followers_count: data.followersCount ?? 0,
+      following_count: data.followingCount ?? 0,
+      statuses_count: data.statusCount ?? 0
     })
   }
 
