@@ -2040,12 +2040,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@llun/activities.schema@npm:^0.2.0":
-  version: 0.2.0
-  resolution: "@llun/activities.schema@npm:0.2.0"
+"@llun/activities.schema@npm:^0.2.1":
+  version: 0.2.1
+  resolution: "@llun/activities.schema@npm:0.2.1"
   dependencies:
     zod: "npm:^3.23.8"
-  checksum: 10c0/dd8a64211a746eb4ed3bdeaa33eb8fe7e1581ccbe1777dd1e3620e4996cb16655298a4765e0022f874f2c22270abce7d239bdb196b86a4d4e9c77a73964c6859
+  checksum: 10c0/c7b1a95b3983783b9194aa80e9dc30967cb18a8234fef37f756c1fad3b0367837f36bc8a7e7dee5d64f1a04f191b7ce980211ec2130daaa75e65b7f4fe616989
   languageName: node
   linkType: hard
 
@@ -3790,7 +3790,7 @@ __metadata:
     "@google-cloud/firestore": "npm:^7.8.0"
     "@jmondi/oauth2-server": "npm:^3.3.0"
     "@keyv/redis": "npm:^2.8.5"
-    "@llun/activities.schema": "npm:^0.2.0"
+    "@llun/activities.schema": "npm:^0.2.1"
     "@next/env": "npm:^14.2.3"
     "@opentelemetry/api": "npm:^1.9.0"
     "@swc-node/register": "npm:^1.9.1"
@@ -4775,9 +4775,9 @@ __metadata:
   linkType: hard
 
 "caniuse-lite@npm:^1.0.30001579, caniuse-lite@npm:^1.0.30001587":
-  version: 1.0.30001628
-  resolution: "caniuse-lite@npm:1.0.30001628"
-  checksum: 10c0/7f3e198d30220e02d54ea9de1562725d65e89e4318e16b5addd550a8cd6d240de4d42eecb97506c5eafdf5193ad39624729e12b6385fc63b2a2b8e8c430cbcb1
+  version: 1.0.30001629
+  resolution: "caniuse-lite@npm:1.0.30001629"
+  checksum: 10c0/e95136a423c0c5e7f9d026ef3f9be8d06cadc4c83ad65eedfaeaba6b5eb814489ea186e90bae1085f3be7348577e25f8fe436b384c2f983324ad8dea4a7dfe1d
   languageName: node
   linkType: hard
 
@@ -5853,9 +5853,9 @@ __metadata:
   linkType: hard
 
 "electron-to-chromium@npm:^1.4.668":
-  version: 1.4.790
-  resolution: "electron-to-chromium@npm:1.4.790"
-  checksum: 10c0/2af48c4fef7009c0dea272ce5878a3655e7f6ed0b2e63f3e38f3ef59b21eaa3fbacd7c33c9e120b90e6d6543ef2587daf38daf1fd75cb22bd18c9fda79d4ca81
+  version: 1.4.792
+  resolution: "electron-to-chromium@npm:1.4.792"
+  checksum: 10c0/ade79be9394a193030bf9df5119e7255df5a12680f41e5cde55dae072a11b1f86a7a2b449a893c68f2e69f0dbcd95a19f1b3c22f6f6c5f052828aac7591a288f
   languageName: node
   linkType: hard
 
@@ -7453,9 +7453,9 @@ __metadata:
   linkType: hard
 
 "globals@npm:^15.0.0":
-  version: 15.3.0
-  resolution: "globals@npm:15.3.0"
-  checksum: 10c0/edbef1c528185d02636ed6d72a1688168b922d6176031904386214f8b59d893f1d0a28da519b95665f557d366b17ea1affb9f433ea451e7372e2808fb31079d7
+  version: 15.4.0
+  resolution: "globals@npm:15.4.0"
+  checksum: 10c0/19041b8fd49deb154e1cb706c82756ab7184c8ae3495aab183efcad9edd1b6320cc54af1a9110d8699245bef124834b004a8156ca988ba7814c25ec71a43f6a4
   languageName: node
   linkType: hard
 
@@ -11512,13 +11512,13 @@ __metadata:
   linkType: hard
 
 "re2@npm:^1.17.7":
-  version: 1.21.0
-  resolution: "re2@npm:1.21.0"
+  version: 1.21.1
+  resolution: "re2@npm:1.21.1"
   dependencies:
     install-artifact-from-github: "npm:^1.3.5"
     nan: "npm:^2.19.0"
     node-gyp: "npm:^10.1.0"
-  checksum: 10c0/b7f3d170d2dbdeaace9f144cb88fba38151620bc3a84ed7ae2932c1b3fb8a154c2b3f37bd619d20328e2ffd2098415a0271985cd4b51f2e89b0675b777217d29
+  checksum: 10c0/006da56128e478c6f0b1400efbfe413a3cb6cdc98dd2b2a886450658aabab1df3cc7cc04a574d32fbaade33d19be0d186cca5622a2046dc0e6dadb90014142b7
   languageName: node
   linkType: hard
 

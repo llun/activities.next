@@ -403,7 +403,7 @@ export class SqlStorage implements Storage {
     privateKey,
 
     createdAt
-  }: CreateActorParams): Promise<Mastodon.Account | undefined> {
+  }: CreateActorParams): Promise<Mastodon.Account | null> {
     const currentTime = Date.now()
 
     const settings: ActorSettings = {

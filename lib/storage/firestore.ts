@@ -408,7 +408,7 @@ export class FirestoreStorage implements Storage {
     privateKey = '',
 
     createdAt
-  }: CreateActorParams): Promise<Mastodon.Account | undefined> {
+  }: CreateActorParams): Promise<Mastodon.Account | null> {
     const currentTime = Date.now()
     const doc = {
       id: actorId,
@@ -434,7 +434,7 @@ export class FirestoreStorage implements Storage {
     var docRef = this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`)
     const persistedDoc = await docRef.get()
     if (persistedDoc.exists) {
-      return
+      return null
     }
 
     await docRef.set(doc)
