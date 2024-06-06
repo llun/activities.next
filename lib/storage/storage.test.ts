@@ -217,6 +217,37 @@ describe('Storage', () => {
         ).toMatchObject(expectedActorAfterCreated)
       })
 
+      it('returns mastodon actor from getMastodonActor methods', async () => {
+        const expectedActorAfterCreated = {
+          id: TEST_ID,
+          username: TEST_USERNAME,
+          acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
+          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME}`,
+          display_name: '',
+          note: '',
+          avatar: '',
+          avatar_static: '',
+          header: '',
+          header_static: '',
+          locked: false,
+          fields: [],
+          emojis: [],
+          bot: false,
+          group: false,
+          discoverable: true,
+          noindex: false,
+          created_at: expect.toBeString(),
+          last_status_at: null,
+          statuses_count: 0,
+          followers_count: 0,
+          following_count: 0
+        }
+
+        expect(
+          await storage.getMastodonActorFromEmail({ email: TEST_EMAIL })
+        ).toMatchObject(expectedActorAfterCreated)
+      })
+
       it('updates actor information', async () => {
         await storage.updateActor({
           actorId: TEST_ID,

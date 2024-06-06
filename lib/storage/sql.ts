@@ -531,6 +531,16 @@ export class SqlStorage implements Storage {
     return this.getActor(storageActor, account)
   }
 
+  async getMastodonActorFromEmail({ email }: GetActorFromEmailParams) {
+    const actorId = await this.database('actors')
+      .select<string>('actors.id')
+      .leftJoin('accounts', 'actors.accountId', 'accounts.id')
+      .where('accounts.email', email)
+      .first()
+    if (!actorId) return null
+    return this.getMastodonActor(actorId.id)
+  }
+
   async isCurrentActorFollowing({
     currentActorId,
     followingActorId

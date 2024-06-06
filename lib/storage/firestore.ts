@@ -438,7 +438,7 @@ export class FirestoreStorage implements Storage {
     }
 
     await docRef.set(doc)
-    return this.getMastodonActorFromDataAndAccount(doc)
+    return this.getMastodonActorFromData(doc)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -465,7 +465,7 @@ export class FirestoreStorage implements Storage {
     })
   }
 
-  private getMastodonActorFromDataAndAccount(data: any): Mastodon.Account {
+  private getMastodonActorFromData(data: any): Mastodon.Account {
     return Mastodon.Account.parse({
       id: data.id,
       username: data.username,
@@ -521,6 +521,27 @@ export class FirestoreStorage implements Storage {
       id: accountId
     } as Account
     return this.getActorFromDataAndAccount(data, account)
+  }
+
+  @Trace('db')
+  async getMastodonActorFromEmail({ email }: GetActorFromEmailParams) {
+    const accounts = this.db.collection('accounts')
+    const accountsSnapshot = await accounts
+      .where('email', '==', email)
+      .limit(1)
+      .get()
+    if (accountsSnapshot.docs.length !== 1) return null
+
+    const accountId = accountsSnapshot.docs[0].id
+    const actors = this.db.collection('actors')
+    const actorsSnapshot = await actors
+      .where('accountId', '==', accountId)
+      .limit(1)
+      .get()
+    if (actorsSnapshot.docs.length !== 1) return null
+
+    const data = actorsSnapshot.docs[0].data()
+    return this.getMastodonActorFromData(data)
   }
 
   @Trace('db')
