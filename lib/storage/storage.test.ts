@@ -256,7 +256,7 @@ describe('Storage', () => {
         expect(actor?.privateKey).toEqual('')
       })
 
-      it.only('creates actor and returns actor in mastodon account format', async () => {
+      it('creates actor and returns actor in mastodon account format', async () => {
         const currentTime = Date.now()
         const actor = await storage.createMastodonActor({
           actorId: TEST_ID16,

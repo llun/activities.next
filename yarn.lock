@@ -181,9 +181,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-s3@npm:^3.590.0":
-  version: 3.590.0
-  resolution: "@aws-sdk/client-s3@npm:3.590.0"
+"@aws-sdk/client-s3@npm:^3.591.0":
+  version: 3.591.0
+  resolution: "@aws-sdk/client-s3@npm:3.591.0"
   dependencies:
     "@aws-crypto/sha1-browser": "npm:3.0.0"
     "@aws-crypto/sha256-browser": "npm:3.0.0"
@@ -243,7 +243,7 @@ __metadata:
     "@smithy/util-utf8": "npm:^3.0.0"
     "@smithy/util-waiter": "npm:^3.0.0"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/8194e8cad26dc741e5f27661cb9fa084061fe8d1320f9da3fc89bde8b9dfc23516579dcabce159245e686edbc33fc478ba5fb0238c5aba7470c2f1fc5c69c945
+  checksum: 10c0/c4c9f36a5cdc5955a549398835718bc463a4f8b5477af980868885437f20678f76e0d827556b876adc754f3becdc9507ebd1574d120b25f5f9b258e05c90941d
   languageName: node
   linkType: hard
 
@@ -2040,12 +2040,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@llun/activities.schema@npm:^0.1.2":
-  version: 0.1.2
-  resolution: "@llun/activities.schema@npm:0.1.2"
+"@llun/activities.schema@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "@llun/activities.schema@npm:0.2.0"
   dependencies:
     zod: "npm:^3.23.8"
-  checksum: 10c0/59f73190f3b016618ffc46668b38b6fd62bfb80f243b75d8b2a2fffc7beb9feea5052ff273720f07a4ba453cfd4ca63f5518b2773fdb3c62ac3b20109e10c6cf
+  checksum: 10c0/dd8a64211a746eb4ed3bdeaa33eb8fe7e1581ccbe1777dd1e3620e4996cb16655298a4765e0022f874f2c22270abce7d239bdb196b86a4d4e9c77a73964c6859
   languageName: node
   linkType: hard
 
@@ -2203,10 +2203,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opentelemetry/api@npm:^1.6.0, @opentelemetry/api@npm:^1.8.0":
-  version: 1.8.0
-  resolution: "@opentelemetry/api@npm:1.8.0"
-  checksum: 10c0/66d5504bfbf9c19a14ea549f5fca975a73a5e1e8a1e40a6dc2d662893c942b9ba66c009262816dee2b9ffd0267acd707ec692eba20db11a09d4ee114c00dc161
+"@opentelemetry/api@npm:^1.6.0, @opentelemetry/api@npm:^1.9.0":
+  version: 1.9.0
+  resolution: "@opentelemetry/api@npm:1.9.0"
+  checksum: 10c0/9aae2fe6e8a3a3eeb6c1fdef78e1939cf05a0f37f8a4fae4d6bf2e09eb1e06f966ece85805626e01ba5fab48072b94f19b835449e58b6d26720ee19a58298add
   languageName: node
   linkType: hard
 
@@ -3784,15 +3784,15 @@ __metadata:
   resolution: "activities.next@workspace:."
   dependencies:
     "@aws-sdk/client-lambda": "npm:^3.590.0"
-    "@aws-sdk/client-s3": "npm:^3.590.0"
+    "@aws-sdk/client-s3": "npm:^3.591.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@date-fns/utc": "npm:^1.2.0"
     "@google-cloud/firestore": "npm:^7.8.0"
     "@jmondi/oauth2-server": "npm:^3.3.0"
     "@keyv/redis": "npm:^2.8.5"
-    "@llun/activities.schema": "npm:^0.1.2"
+    "@llun/activities.schema": "npm:^0.2.0"
     "@next/env": "npm:^14.2.3"
-    "@opentelemetry/api": "npm:^1.8.0"
+    "@opentelemetry/api": "npm:^1.9.0"
     "@swc-node/register": "npm:^1.9.1"
     "@swc/core": "npm:1.5.25"
     "@swc/jest": "npm:^0.2.36"
@@ -3829,12 +3829,12 @@ __metadata:
     eslint-config-standard: "npm:^17.1.0"
     eslint-plugin-import: "npm:^2.29.1"
     eslint-plugin-jest: "npm:^28.5.0"
-    eslint-plugin-n: "npm:^17.8.0"
+    eslint-plugin-n: "npm:^17.8.1"
     eslint-plugin-promise: "npm:^6.2.0"
     eslint-plugin-unused-imports: "npm:^4.0.0"
-    firebase-tools: "npm:^13.10.2"
+    firebase-tools: "npm:^13.11.0"
     fluent-ffmpeg: "npm:^2.1.3"
-    got: "npm:14.4.0"
+    got: "npm:14.4.1"
     html-react-parser: "npm:^5.1.10"
     jest: "npm:^29.7.0"
     jest-extended: "npm:^4.0.2"
@@ -6326,9 +6326,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eslint-plugin-n@npm:^17.8.0":
-  version: 17.8.0
-  resolution: "eslint-plugin-n@npm:17.8.0"
+"eslint-plugin-n@npm:^17.8.1":
+  version: 17.8.1
+  resolution: "eslint-plugin-n@npm:17.8.1"
   dependencies:
     "@eslint-community/eslint-utils": "npm:^4.4.0"
     enhanced-resolve: "npm:^5.17.0"
@@ -6340,7 +6340,7 @@ __metadata:
     semver: "npm:^7.5.3"
   peerDependencies:
     eslint: ">=8.23.0"
-  checksum: 10c0/893c9bfa398ddf06c62e91adeb8d4e870fe0cf5f2aff82d6a7813a083a4f2504102387923ec92c3d84ddf8707302486ea69cb9b833588f88de9533fcb558c767
+  checksum: 10c0/e4e6992d066fa6e21d1a8ea4392d7362c95383a59c16f63d62076ae7c6d5ff085a2ece5e6fb353f4667158a0336c00fdf707b9be38f8cbaa6f5685da39e68b8f
   languageName: node
   linkType: hard
 
@@ -6904,9 +6904,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"firebase-tools@npm:^13.10.2":
-  version: 13.10.2
-  resolution: "firebase-tools@npm:13.10.2"
+"firebase-tools@npm:^13.11.0":
+  version: 13.11.0
+  resolution: "firebase-tools@npm:13.11.0"
   dependencies:
     "@google-cloud/cloud-sql-connector": "npm:^1.2.3"
     "@google-cloud/pubsub": "npm:^4.4.0"
@@ -6976,7 +6976,7 @@ __metadata:
     yaml: "npm:^2.4.1"
   bin:
     firebase: lib/bin/firebase.js
-  checksum: 10c0/8497480d4e1215dd6660d05d4898544b589bba598344e102107f013cf6340e4777653eb3d67cec4cfd17002943679757fb9f3346411d2bd83f7b12b7c67d8372
+  checksum: 10c0/c7b4de4e08656486d5d815d19c794d52458b9750fd2d78abf2ec069aef8470042ae39003f0ebb98ef046c314fdc60c6502e862ffcf22789ca557af6a04e83068
   languageName: node
   linkType: hard
 
@@ -7540,9 +7540,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"got@npm:14.4.0":
-  version: 14.4.0
-  resolution: "got@npm:14.4.0"
+"got@npm:14.4.1":
+  version: 14.4.1
+  resolution: "got@npm:14.4.1"
   dependencies:
     "@sindresorhus/is": "npm:^6.3.1"
     "@szmarczak/http-timer": "npm:^5.0.1"
@@ -7555,7 +7555,8 @@ __metadata:
     lowercase-keys: "npm:^3.0.0"
     p-cancelable: "npm:^4.0.1"
     responselike: "npm:^3.0.0"
-  checksum: 10c0/b09c38690b3e788c8b40dead26a3ab7bdc71773a08e9f4fb128a4fe4549140feca6c2722dd1b50c3f74a3a69bc62e95a4258a8c308ed857642c467ce4e0e9e47
+    type-fest: "npm:^4.19.0"
+  checksum: 10c0/6adf8785f26676040a31faaf0ddd1420aaa40af32a9ddd58674b54d3371eeb67ac159bc8e9f3ec3d6cb96a4a966a05afbd570ab7b34cfee19b340b2530f0e536
   languageName: node
   linkType: hard
 
@@ -8569,15 +8570,15 @@ __metadata:
   linkType: hard
 
 "jackspeak@npm:^3.1.2":
-  version: 3.3.0
-  resolution: "jackspeak@npm:3.3.0"
+  version: 3.4.0
+  resolution: "jackspeak@npm:3.4.0"
   dependencies:
     "@isaacs/cliui": "npm:^8.0.2"
     "@pkgjs/parseargs": "npm:^0.11.0"
   dependenciesMeta:
     "@pkgjs/parseargs":
       optional: true
-  checksum: 10c0/e0d604cd9f360f0589149be3392a4815a78316bd57136339ffe3c430aa011a2cc92647f824a521366dd15482833c6ce4f32c232f0a919187a58ced820a23c1ee
+  checksum: 10c0/7e42d1ea411b4d57d43ea8a6afbca9224382804359cb72626d0fc45bb8db1de5ad0248283c3db45fe73e77210750d4fcc7c2b4fe5d24fda94aaa24d658295c5f
   languageName: node
   linkType: hard
 
@@ -13152,6 +13153,13 @@ __metadata:
   version: 0.21.3
   resolution: "type-fest@npm:0.21.3"
   checksum: 10c0/902bd57bfa30d51d4779b641c2bc403cdf1371fb9c91d3c058b0133694fcfdb817aef07a47f40faf79039eecbaa39ee9d3c532deff244f3a19ce68cea71a61e8
+  languageName: node
+  linkType: hard
+
+"type-fest@npm:^4.19.0":
+  version: 4.19.0
+  resolution: "type-fest@npm:4.19.0"
+  checksum: 10c0/bd5f96142ea6cc436b75bc2ac0b672d70dfd55ed6986ef76f25165517984bda475bb5d2ee674470a7c5ce0348837627f5e87d9aef1158ba4fb9b36dd10fa2225
   languageName: node
   linkType: hard
 
