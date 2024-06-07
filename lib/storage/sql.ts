@@ -532,13 +532,13 @@ export class SqlStorage implements Storage {
   }
 
   async getMastodonActorFromEmail({ email }: GetActorFromEmailParams) {
-    const actorId = await this.database('actors')
-      .select<string>('actors.id')
+    const result = await this.database('actors')
+      .select('actors.id')
       .leftJoin('accounts', 'actors.accountId', 'accounts.id')
       .where('accounts.email', email)
-      .first()
-    if (!actorId) return null
-    return this.getMastodonActor(actorId.id)
+      .first<{ id: string }>()
+    if (!result) return null
+    return this.getMastodonActor(result.id)
   }
 
   async isCurrentActorFollowing({
@@ -563,6 +563,20 @@ export class SqlStorage implements Storage {
 
     const account = await this.getAccountFromId({ id: storageActor.accountId })
     return this.getActor(storageActor, account)
+  }
+
+  async getMastodonActorFromUsername({
+    username,
+    domain
+  }: GetActorFromUsernameParams) {
+    const result = await this.database<SQLActor>('actors')
+      .where('username', username)
+      .andWhere('domain', domain)
+      .select('id')
+      .first<{ id: string }>()
+    if (!result) return null
+
+    return this.getMastodonActor(result.id)
   }
 
   async getActorFromId({ id }: GetActorFromIdParams) {

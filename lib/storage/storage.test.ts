@@ -246,6 +246,12 @@ describe('Storage', () => {
         expect(
           await storage.getMastodonActorFromEmail({ email: TEST_EMAIL })
         ).toMatchObject(expectedActorAfterCreated)
+        expect(
+          await storage.getMastodonActorFromUsername({
+            username: TEST_USERNAME,
+            domain: TEST_DOMAIN
+          })
+        ).toMatchObject(expectedActorAfterCreated)
       })
 
       it('updates actor information', async () => {

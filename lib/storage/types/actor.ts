@@ -63,6 +63,9 @@ export interface ActorStorage {
   getActorFromUsername(
     params: GetActorFromUsernameParams
   ): Promise<Actor | undefined>
+  getMastodonActorFromUsername(
+    params: GetActorFromUsernameParams
+  ): Promise<Mastodon.Account | null>
   getActorFromId(params: GetActorFromIdParams): Promise<Actor | undefined>
   updateActor(params: UpdateActorParams): Promise<Actor | undefined>
   deleteActor(params: DeleteActorParams): Promise<void>

@@ -562,6 +562,22 @@ export class FirestoreStorage implements Storage {
     return this.getActorFromDataAndAccount(data, account)
   }
 
+  @Trace('db')
+  async getMastodonActorFromUsername({
+    username,
+    domain
+  }: GetActorFromUsernameParams) {
+    const actors = this.db.collection('actors')
+    const snapshot = await actors
+      .where('username', '==', username)
+      .where('domain', '==', domain)
+      .limit(1)
+      .get()
+    if (snapshot.docs.length !== 1) return null
+    const data = snapshot.docs[0].data()
+    return this.getMastodonActorFromData(data)
+  }
+
   static urlToId(idInURLFormat: string) {
     const url = new URL(idInURLFormat)
     return `${url.host}:${url.pathname.slice(1).replaceAll('/', ':')}`
