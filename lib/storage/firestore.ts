@@ -600,6 +600,17 @@ export class FirestoreStorage implements Storage {
   }
 
   @Trace('db')
+  async getMastodonActorFromId({ id }: GetActorFromIdParams) {
+    const doc = await this.db
+      .doc(`actors/${FirestoreStorage.urlToId(id)}`)
+      .get()
+    const data = doc.data()
+    if (!data) return null
+
+    return this.getMastodonActorFromData(data)
+  }
+
+  @Trace('db')
   async updateActor({
     actorId,
     name,

@@ -252,6 +252,9 @@ describe('Storage', () => {
             domain: TEST_DOMAIN
           })
         ).toMatchObject(expectedActorAfterCreated)
+        expect(
+          await storage.getMastodonActorFromId({ id: TEST_ID })
+        ).toMatchObject(expectedActorAfterCreated)
       })
 
       it('updates actor information', async () => {

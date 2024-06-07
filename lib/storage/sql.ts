@@ -593,6 +593,10 @@ export class SqlStorage implements Storage {
     return this.getActor(storageActor, account)
   }
 
+  async getMastodonActorFromId({ id }: GetActorFromIdParams) {
+    return this.getMastodonActor(id)
+  }
+
   async updateActor({
     actorId,
     name,
