@@ -114,17 +114,19 @@ export interface FirestoreConfig extends Settings {
 
 export class FirestoreStorage implements Storage {
   readonly db: Firestore
+  private config: FirestoreConfig
 
   constructor(config: FirestoreConfig) {
     if (process.env.FIREBASE_PRIVATE_KEY && config.credentials) {
       config.credentials.private_key = process.env.FIREBASE_PRIVATE_KEY
     }
     this.db = new Firestore(config)
+    this.config = config
   }
 
   async destroy() {
     await fetch(
-      'http://127.0.0.1:8080/emulator/v1/projects/test/databases/(default)/documents',
+      `http://127.0.0.1:8080/emulator/v1/projects/${this.config.projectId}/databases/(default)/documents`,
       {
         method: 'DELETE'
       }
