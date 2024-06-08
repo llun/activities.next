@@ -62,34 +62,160 @@ describe('ActorStorage', () => {
       })
     })
 
-    it('returns mastodon actor from id', async () => {
-      const actor = await storage.getMastodonActorFromId({
-        id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`
+    describe('deprecated actor', () => {
+      it('returns actor from id', async () => {
+        const id = `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`
+        const actor = await storage.getActorFromId({
+          id
+        })
+
+        expect(actor).toMatchObject({
+          id,
+          username: TEST_USERNAME,
+          domain: TEST_DOMAIN,
+          account: {
+            id: expect.toBeString(),
+            email: TEST_EMAIL
+          },
+          followersUrl: `${id}/followers`,
+          publicKey: expect.toBeString(),
+          privateKey: expect.toBeString()
+        })
       })
 
-      expect(actor).toMatchObject({
-        id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
-        username: TEST_USERNAME,
-        acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
-        url: `https://${TEST_DOMAIN}/@${TEST_USERNAME}`,
-        display_name: '',
-        note: '',
-        avatar: '',
-        avatar_static: '',
-        header: '',
-        header_static: '',
-        locked: false,
-        fields: [],
-        emojis: [],
-        bot: false,
-        group: false,
-        discoverable: true,
-        noindex: false,
-        created_at: expect.toBeString(),
-        last_status_at: null,
-        statuses_count: 0,
-        followers_count: 0,
-        following_count: 0
+      it('returns actor from username', async () => {
+        const actor = await storage.getActorFromUsername({
+          username: TEST_USERNAME,
+          domain: TEST_DOMAIN
+        })
+
+        expect(actor).toMatchObject({
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
+          username: TEST_USERNAME,
+          domain: TEST_DOMAIN,
+          account: {
+            id: expect.toBeString(),
+            email: TEST_EMAIL
+          },
+          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}/followers`,
+          publicKey: expect.toBeString(),
+          privateKey: expect.toBeString()
+        })
+      })
+
+      it('returns actor from email', async () => {
+        const actor = await storage.getActorFromEmail({
+          email: TEST_EMAIL
+        })
+
+        expect(actor).toMatchObject({
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
+          username: TEST_USERNAME,
+          domain: TEST_DOMAIN,
+          account: {
+            id: expect.toBeString(),
+            email: TEST_EMAIL
+          },
+          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}/followers`,
+          publicKey: expect.toBeString(),
+          privateKey: expect.toBeString()
+        })
+      })
+    })
+
+    describe('mastodon actor', () => {
+      it('returns mastodon actor from id', async () => {
+        const actor = await storage.getMastodonActorFromId({
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`
+        })
+
+        expect(actor).toMatchObject({
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
+          username: TEST_USERNAME,
+          acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
+          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME}`,
+          display_name: '',
+          note: '',
+          avatar: '',
+          avatar_static: '',
+          header: '',
+          header_static: '',
+          locked: false,
+          fields: [],
+          emojis: [],
+          bot: false,
+          group: false,
+          discoverable: true,
+          noindex: false,
+          created_at: expect.toBeString(),
+          last_status_at: null,
+          statuses_count: 0,
+          followers_count: 0,
+          following_count: 0
+        })
+      })
+
+      it('returns mastodon actor from username', async () => {
+        const actor = await storage.getMastodonActorFromUsername({
+          username: TEST_USERNAME,
+          domain: TEST_DOMAIN
+        })
+
+        expect(actor).toMatchObject({
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
+          username: TEST_USERNAME,
+          acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
+          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME}`,
+          display_name: '',
+          note: '',
+          avatar: '',
+          avatar_static: '',
+          header: '',
+          header_static: '',
+          locked: false,
+          fields: [],
+          emojis: [],
+          bot: false,
+          group: false,
+          discoverable: true,
+          noindex: false,
+          created_at: expect.toBeString(),
+          last_status_at: null,
+          statuses_count: 0,
+          followers_count: 0,
+          following_count: 0
+        })
+      })
+
+      it('returns mastodon actor from email', async () => {
+        const actor = await storage.getMastodonActorFromEmail({
+          email: TEST_EMAIL
+        })
+
+        expect(actor).toMatchObject({
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
+          username: TEST_USERNAME,
+          acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
+          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME}`,
+          display_name: '',
+          note: '',
+          avatar: '',
+          avatar_static: '',
+          header: '',
+          header_static: '',
+          locked: false,
+          fields: [],
+          emojis: [],
+          bot: false,
+          group: false,
+          discoverable: true,
+          noindex: false,
+          created_at: expect.toBeString(),
+          last_status_at: null,
+          statuses_count: 0,
+          followers_count: 0,
+          following_count: 0
+        })
       })
     })
   })
