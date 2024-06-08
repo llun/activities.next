@@ -218,5 +218,79 @@ describe('ActorStorage', () => {
         })
       })
     })
+
+    describe('edit actor', () => {
+      it('updates actor information and returns it in mastodon actor', async () => {
+        await storage.updateActor({
+          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
+          name: 'name',
+          summary: 'summary',
+          iconUrl: 'iconUrl',
+          headerImageUrl: 'headerImageUrl',
+          appleSharedAlbumToken: 'appleSharedAlbumToken',
+          publicKey: 'publicKey'
+        })
+
+        const actor = await storage.getMastodonActorFromUsername({
+          username: TEST_USERNAME,
+          domain: TEST_DOMAIN
+        })
+
+        expect(actor).toMatchObject({
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
+          username: TEST_USERNAME,
+          acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
+          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME}`,
+          display_name: 'name',
+          note: 'summary',
+          avatar: 'iconUrl',
+          avatar_static: 'iconUrl',
+          header: 'headerImageUrl',
+          header_static: 'headerImageUrl',
+          locked: false,
+          fields: [],
+          emojis: [],
+          bot: false,
+          group: false,
+          discoverable: true,
+          noindex: false,
+          created_at: expect.toBeString(),
+          last_status_at: null,
+          statuses_count: 0,
+          followers_count: 0,
+          following_count: 0
+        })
+      })
+
+      it('updates actor information and returns it in actor', async () => {
+        await storage.updateActor({
+          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
+          name: 'name2',
+          summary: 'summary2',
+          iconUrl: 'iconUrl2',
+          headerImageUrl: 'headerImageUrl2',
+          appleSharedAlbumToken: 'appleSharedAlbumToken2',
+          publicKey: 'publicKey2'
+        })
+
+        const actor = await storage.getActorFromUsername({
+          username: TEST_USERNAME,
+          domain: TEST_DOMAIN
+        })
+
+        expect(actor).toMatchObject({
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
+          username: TEST_USERNAME,
+          domain: TEST_DOMAIN,
+          account: {
+            id: expect.toBeString(),
+            email: TEST_EMAIL
+          },
+          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}/followers`,
+          publicKey: 'publicKey2',
+          privateKey: expect.toBeString()
+        })
+      })
+    })
   })
 })
