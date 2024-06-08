@@ -58,7 +58,7 @@
   },
   "devDependencies": {
     "@next/env": "^14.2.3",
-    "@swc-node/register": "^1.9.1",
+    "@swc-node/register": "^1.9.2",
     "@swc/core": "1.5.25",
     "@swc/jest": "^0.2.36",
     "@testing-library/jest-dom": "^6.4.5",

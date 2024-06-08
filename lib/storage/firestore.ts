@@ -472,7 +472,7 @@ export class FirestoreStorage implements Storage {
       id: data.id,
       username: data.username,
       acct: `${data.username}@${data.domain}`,
-      url: `https://${data.domain}/@${data.username}`,
+      url: data.id,
       display_name: data.name ?? '',
       note: data.summary ?? '',
       avatar: data.iconUrl ?? '',

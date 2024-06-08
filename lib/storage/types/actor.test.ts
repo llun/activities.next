@@ -1,14 +1,13 @@
+import { domainToASCII } from 'url'
+
 import {
-  EXTERNAL_ACTOR_DOMAIN,
-  EXTERNAL_ACTOR_FOLLOWSERS_URL,
-  EXTERNAL_ACTOR_ID,
-  EXTERNAL_ACTOR_INBOX_URL,
-  EXTERNAL_ACTOR_USERNAME,
+  EXTERNAL_ACTORS,
   TEST_DOMAIN,
   TEST_EMAIL,
   TEST_PASSWORD_HASH,
   TEST_USERNAME3
 } from '@/lib/stub/const'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { FirestoreStorage } from '../firestore'
 import { SqlStorage } from '../sql'
@@ -138,7 +137,7 @@ describe('ActorStorage', () => {
           id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
-          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME3}`,
+          url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           display_name: '',
           note: '',
           avatar: '',
@@ -170,7 +169,7 @@ describe('ActorStorage', () => {
           id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
-          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME3}`,
+          url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           display_name: '',
           note: '',
           avatar: '',
@@ -201,7 +200,7 @@ describe('ActorStorage', () => {
           id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
-          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME3}`,
+          url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           display_name: '',
           note: '',
           avatar: '',
@@ -245,7 +244,7 @@ describe('ActorStorage', () => {
           id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
-          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME3}`,
+          url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           display_name: 'name',
           note: 'summary',
           avatar: 'iconUrl',
@@ -299,24 +298,71 @@ describe('ActorStorage', () => {
     })
 
     describe('external actors', () => {
-      it('creates actor without account in the storage', async () => {
+      it('creates actor without account in the storage and returns deprecated actor model', async () => {
         await storage.createActor({
-          actorId: EXTERNAL_ACTOR_ID,
-          username: EXTERNAL_ACTOR_USERNAME,
-          domain: EXTERNAL_ACTOR_DOMAIN,
-          followersUrl: EXTERNAL_ACTOR_FOLLOWSERS_URL,
-          inboxUrl: EXTERNAL_ACTOR_INBOX_URL,
-          sharedInboxUrl: EXTERNAL_ACTOR_INBOX_URL,
+          actorId: EXTERNAL_ACTORS[0].id,
+          username: EXTERNAL_ACTORS[0].username,
+          domain: EXTERNAL_ACTORS[0].domain,
+          followersUrl: EXTERNAL_ACTORS[0].followers_url,
+          inboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+          sharedInboxUrl: EXTERNAL_ACTORS[0].inbox_url,
           publicKey: 'publicKey',
           createdAt: Date.now()
         })
-        const actor = await storage.getActorFromId({ id: EXTERNAL_ACTOR_ID })
+        const actor = await storage.getActorFromId({
+          id: EXTERNAL_ACTORS[0].id
+        })
         expect(actor).toBeDefined()
-        expect(actor?.username).toEqual(EXTERNAL_ACTOR_USERNAME)
-        expect(actor?.domain).toEqual(EXTERNAL_ACTOR_DOMAIN)
-        expect(actor?.followersUrl).toEqual(EXTERNAL_ACTOR_FOLLOWSERS_URL)
-        expect(actor?.privateKey).toEqual('')
+        expect(actor?.username).toEqual(EXTERNAL_ACTORS[0].username)
+        expect(actor?.domain).toEqual(EXTERNAL_ACTORS[0].domain)
+        expect(actor?.followersUrl).toEqual(EXTERNAL_ACTORS[0].followers_url)
+        expect(actor?.inboxUrl).toEqual(EXTERNAL_ACTORS[0].inbox_url)
+        expect(actor?.sharedInboxUrl).toEqual(EXTERNAL_ACTORS[0].inbox_url)
         expect(actor?.publicKey).toEqual('publicKey')
+        expect(actor?.privateKey).toEqual('')
+      })
+
+      it('creates actor without account in the storage and returns mastodon actor model', async () => {
+        const currentTime = Date.now()
+        const actor = await storage.createMastodonActor({
+          actorId: EXTERNAL_ACTORS[1].id,
+          username: EXTERNAL_ACTORS[1].username,
+          name: EXTERNAL_ACTORS[1].name,
+          domain: EXTERNAL_ACTORS[1].domain,
+          followersUrl: EXTERNAL_ACTORS[1].followers_url,
+          inboxUrl: EXTERNAL_ACTORS[1].inbox_url,
+          sharedInboxUrl: EXTERNAL_ACTORS[1].inbox_url,
+          publicKey: 'publicKey',
+          createdAt: currentTime
+        })
+        expect(actor).toEqual({
+          id: EXTERNAL_ACTORS[1].id,
+          username: EXTERNAL_ACTORS[1].username,
+          acct: `${EXTERNAL_ACTORS[1].username}@${EXTERNAL_ACTORS[1].domain}`,
+          url: EXTERNAL_ACTORS[1].id,
+          display_name: EXTERNAL_ACTORS[1].name,
+          note: '',
+          avatar: '',
+          avatar_static: '',
+          header: '',
+          header_static: '',
+
+          locked: false,
+          fields: [],
+          emojis: [],
+
+          bot: false,
+          group: false,
+          discoverable: true,
+          noindex: false,
+
+          created_at: getISOTimeUTC(currentTime),
+          last_status_at: null,
+
+          statuses_count: 0,
+          followers_count: 0,
+          following_count: 0
+        })
       })
     })
   })

@@ -11,11 +11,24 @@ export const TEST_PASSWORD_HASH = 'password_hash'
 export const TEST_EMAIL = `${TEST_USERNAME}@${TEST_DOMAIN}`
 export const TEST_EMAIL2 = `${TEST_USERNAME2}@${TEST_DOMAIN}`
 
-export const EXTERNAL_ACTOR_ID = 'https://external_actor_domain/u/actor_id'
-export const EXTERNAL_ACTOR_USERNAME = 'actor_id'
-export const EXTERNAL_ACTOR_DOMAIN = 'external_actor_domain'
-export const EXTERNAL_ACTOR_FOLLOWSERS_URL = `${EXTERNAL_ACTOR_ID}/followers`
-export const EXTERNAL_ACTOR_INBOX_URL = `${EXTERNAL_ACTOR_ID}/inbox`
+export const EXTERNAL_ACTORS = [
+  {
+    id: 'https://external_actor_domain/u/actor_id',
+    username: 'actor_id',
+    name: 'actor_name',
+    domain: 'external_actor_domain',
+    followers_url: `https://external_actor_domain/u/actor_id/followers`,
+    inbox_url: `https://external_actor_domain/u/actor_id/inbox`
+  },
+  {
+    id: 'https://external_actor_domain/u/actor_id2',
+    username: 'actor_id2',
+    name: 'actor_name2',
+    domain: 'external_actor_domain',
+    followers_url: 'https://external_actor_domain/u/actor_id2/followers',
+    inbox_url: 'https://external_actor_domain/u/actor_id2/inbox'
+  }
+]
 
 export const testUserId = (username: string) =>
   `https://${TEST_DOMAIN}/users/${username}`
