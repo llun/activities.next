@@ -17,8 +17,8 @@ jobs:
         run: corepack enable
       - name: Install dependencies
         run: yarn install
-      - name: Test Storage
-        run: yarn firebase emulators:exec --only firestore --project test 'yarn test:storage'
+      - name: Test Without Storage
+        run: yarn test:withoutStorage
   storage-test:
     name: 'Storage Tests'
     runs-on: ubuntu-latest

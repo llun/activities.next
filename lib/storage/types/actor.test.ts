@@ -1,8 +1,13 @@
 import {
+  EXTERNAL_ACTOR_DOMAIN,
+  EXTERNAL_ACTOR_FOLLOWSERS_URL,
+  EXTERNAL_ACTOR_ID,
+  EXTERNAL_ACTOR_INBOX_URL,
+  EXTERNAL_ACTOR_USERNAME,
   TEST_DOMAIN,
   TEST_EMAIL,
   TEST_PASSWORD_HASH,
-  TEST_USERNAME
+  TEST_USERNAME3
 } from '@/lib/stub/const'
 
 import { FirestoreStorage } from '../firestore'
@@ -54,7 +59,7 @@ describe('ActorStorage', () => {
     beforeAll(async () => {
       await storage.createAccount({
         email: TEST_EMAIL,
-        username: TEST_USERNAME,
+        username: TEST_USERNAME3,
         passwordHash: TEST_PASSWORD_HASH,
         domain: TEST_DOMAIN,
         privateKey: 'privateKey1',
@@ -64,14 +69,14 @@ describe('ActorStorage', () => {
 
     describe('deprecated actor', () => {
       it('returns actor from id', async () => {
-        const id = `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`
+        const id = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
         const actor = await storage.getActorFromId({
           id
         })
 
         expect(actor).toMatchObject({
           id,
-          username: TEST_USERNAME,
+          username: TEST_USERNAME3,
           domain: TEST_DOMAIN,
           account: {
             id: expect.toBeString(),
@@ -85,19 +90,19 @@ describe('ActorStorage', () => {
 
       it('returns actor from username', async () => {
         const actor = await storage.getActorFromUsername({
-          username: TEST_USERNAME,
+          username: TEST_USERNAME3,
           domain: TEST_DOMAIN
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
-          username: TEST_USERNAME,
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          username: TEST_USERNAME3,
           domain: TEST_DOMAIN,
           account: {
             id: expect.toBeString(),
             email: TEST_EMAIL
           },
-          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}/followers`,
+          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}/followers`,
           publicKey: expect.toBeString(),
           privateKey: expect.toBeString()
         })
@@ -109,14 +114,14 @@ describe('ActorStorage', () => {
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
-          username: TEST_USERNAME,
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          username: TEST_USERNAME3,
           domain: TEST_DOMAIN,
           account: {
             id: expect.toBeString(),
             email: TEST_EMAIL
           },
-          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}/followers`,
+          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}/followers`,
           publicKey: expect.toBeString(),
           privateKey: expect.toBeString()
         })
@@ -126,14 +131,14 @@ describe('ActorStorage', () => {
     describe('mastodon actor', () => {
       it('returns mastodon actor from id', async () => {
         const actor = await storage.getMastodonActorFromId({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
-          username: TEST_USERNAME,
-          acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
-          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME}`,
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          username: TEST_USERNAME3,
+          acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
+          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME3}`,
           display_name: '',
           note: '',
           avatar: '',
@@ -157,15 +162,15 @@ describe('ActorStorage', () => {
 
       it('returns mastodon actor from username', async () => {
         const actor = await storage.getMastodonActorFromUsername({
-          username: TEST_USERNAME,
+          username: TEST_USERNAME3,
           domain: TEST_DOMAIN
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
-          username: TEST_USERNAME,
-          acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
-          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME}`,
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          username: TEST_USERNAME3,
+          acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
+          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME3}`,
           display_name: '',
           note: '',
           avatar: '',
@@ -193,10 +198,10 @@ describe('ActorStorage', () => {
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
-          username: TEST_USERNAME,
-          acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
-          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME}`,
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          username: TEST_USERNAME3,
+          acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
+          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME3}`,
           display_name: '',
           note: '',
           avatar: '',
@@ -222,7 +227,7 @@ describe('ActorStorage', () => {
     describe('edit actor', () => {
       it('updates actor information and returns it in mastodon actor', async () => {
         await storage.updateActor({
-          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
+          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           name: 'name',
           summary: 'summary',
           iconUrl: 'iconUrl',
@@ -232,15 +237,15 @@ describe('ActorStorage', () => {
         })
 
         const actor = await storage.getMastodonActorFromUsername({
-          username: TEST_USERNAME,
+          username: TEST_USERNAME3,
           domain: TEST_DOMAIN
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
-          username: TEST_USERNAME,
-          acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
-          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME}`,
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          username: TEST_USERNAME3,
+          acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
+          url: `https://${TEST_DOMAIN}/@${TEST_USERNAME3}`,
           display_name: 'name',
           note: 'summary',
           avatar: 'iconUrl',
@@ -264,7 +269,7 @@ describe('ActorStorage', () => {
 
       it('updates actor information and returns it in actor', async () => {
         await storage.updateActor({
-          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
+          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           name: 'name2',
           summary: 'summary2',
           iconUrl: 'iconUrl2',
@@ -274,22 +279,44 @@ describe('ActorStorage', () => {
         })
 
         const actor = await storage.getActorFromUsername({
-          username: TEST_USERNAME,
+          username: TEST_USERNAME3,
           domain: TEST_DOMAIN
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}`,
-          username: TEST_USERNAME,
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          username: TEST_USERNAME3,
           domain: TEST_DOMAIN,
           account: {
             id: expect.toBeString(),
             email: TEST_EMAIL
           },
-          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME}/followers`,
+          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}/followers`,
           publicKey: 'publicKey2',
           privateKey: expect.toBeString()
         })
+      })
+    })
+
+    describe('external actors', () => {
+      it('creates actor without account in the storage', async () => {
+        await storage.createActor({
+          actorId: EXTERNAL_ACTOR_ID,
+          username: EXTERNAL_ACTOR_USERNAME,
+          domain: EXTERNAL_ACTOR_DOMAIN,
+          followersUrl: EXTERNAL_ACTOR_FOLLOWSERS_URL,
+          inboxUrl: EXTERNAL_ACTOR_INBOX_URL,
+          sharedInboxUrl: EXTERNAL_ACTOR_INBOX_URL,
+          publicKey: 'publicKey',
+          createdAt: Date.now()
+        })
+        const actor = await storage.getActorFromId({ id: EXTERNAL_ACTOR_ID })
+        expect(actor).toBeDefined()
+        expect(actor?.username).toEqual(EXTERNAL_ACTOR_USERNAME)
+        expect(actor?.domain).toEqual(EXTERNAL_ACTOR_DOMAIN)
+        expect(actor?.followersUrl).toEqual(EXTERNAL_ACTOR_FOLLOWSERS_URL)
+        expect(actor?.privateKey).toEqual('')
+        expect(actor?.publicKey).toEqual('publicKey')
       })
     })
   })
