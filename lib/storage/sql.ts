@@ -490,7 +490,7 @@ export class SqlStorage implements Storage {
       id: sqlActor.id,
       username: sqlActor.username,
       acct: `${sqlActor.username}@${sqlActor.domain}`,
-      url: `https://${sqlActor.domain}/@${sqlActor.username}`,
+      url: sqlActor.id,
       display_name: sqlActor.name ?? '',
       note: sqlActor.summary ?? '',
 
