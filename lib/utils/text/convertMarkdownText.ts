@@ -45,7 +45,7 @@ const mention: (host: string) => TokenizerAndRendererExtension = (host) => ({
 })
 
 const SHARED_RENDERER: RendererObject = {
-  link(href, title, text) {
+  link({ href, title, text }) {
     if (title) {
       return `<a href="${href}" title="${title}" target="_blank" rel="noopener noreferrer">${text}</a>`
     }
