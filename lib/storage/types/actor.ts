@@ -1,3 +1,5 @@
+import { Mastodon } from '@llun/activities.schema'
+
 import { Actor } from '../../models/actor'
 
 export type CreateActorParams = {
@@ -50,11 +52,24 @@ export type GetActorFollowersCountParams = { actorId: string }
 
 export interface ActorStorage {
   createActor(params: CreateActorParams): Promise<Actor | undefined>
+  createMastodonActor(
+    params: CreateActorParams
+  ): Promise<Mastodon.Account | null>
+
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | undefined>
+  getMastodonActorFromEmail(
+    params: GetActorFromEmailParams
+  ): Promise<Mastodon.Account | null>
   getActorFromUsername(
     params: GetActorFromUsernameParams
   ): Promise<Actor | undefined>
+  getMastodonActorFromUsername(
+    params: GetActorFromUsernameParams
+  ): Promise<Mastodon.Account | null>
   getActorFromId(params: GetActorFromIdParams): Promise<Actor | undefined>
+  getMastodonActorFromId(
+    params: GetActorFromIdParams
+  ): Promise<Mastodon.Account | null>
   updateActor(params: UpdateActorParams): Promise<Actor | undefined>
   deleteActor(params: DeleteActorParams): Promise<void>
 

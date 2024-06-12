@@ -1,4 +1,5 @@
 import { Firestore, Settings } from '@google-cloud/firestore'
+import { Mastodon } from '@llun/activities.schema'
 import crypto from 'crypto'
 
 import { Account } from '@/lib/models/account'
@@ -23,6 +24,7 @@ import { Trace } from '@/lib/utils/trace'
 
 import { PER_PAGE_LIMIT } from '.'
 import { Tag, TagData } from '../models/tag'
+import { getISOTimeUTC } from '../utils/getISOTimeUTC'
 import {
   CreateTagParams,
   CreateTimelineStatusParams,
@@ -112,17 +114,19 @@ export interface FirestoreConfig extends Settings {
 
 export class FirestoreStorage implements Storage {
   readonly db: Firestore
+  private config: FirestoreConfig
 
   constructor(config: FirestoreConfig) {
     if (process.env.FIREBASE_PRIVATE_KEY && config.credentials) {
       config.credentials.private_key = process.env.FIREBASE_PRIVATE_KEY
     }
     this.db = new Firestore(config)
+    this.config = config
   }
 
   async destroy() {
     await fetch(
-      'http://127.0.0.1:8080/emulator/v1/projects/test/databases/(default)/documents',
+      `http://127.0.0.1:8080/emulator/v1/projects/${this.config.projectId}/databases/(default)/documents`,
       {
         method: 'DELETE'
       }
@@ -376,11 +380,67 @@ export class FirestoreStorage implements Storage {
       domain,
       publicKey,
       privateKey,
+
+      followingCount: 0,
+      followersCount: 0,
+      statusCount: 0,
+
       createdAt,
       updatedAt: currentTime
     }
     await this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`).set(doc)
     return this.getActorFromId({ id: actorId })
+  }
+
+  @Trace('db')
+  async createMastodonActor({
+    actorId,
+
+    username,
+    domain,
+    name = '',
+    summary = '',
+    iconUrl = '',
+    headerImageUrl = '',
+    followersUrl,
+    inboxUrl,
+    sharedInboxUrl,
+
+    publicKey,
+    privateKey = '',
+
+    createdAt
+  }: CreateActorParams): Promise<Mastodon.Account | null> {
+    const currentTime = Date.now()
+    const doc = {
+      id: actorId,
+      username,
+      name,
+      summary,
+      iconUrl,
+      headerImageUrl,
+      followersUrl,
+      inboxUrl,
+      sharedInboxUrl,
+      domain,
+      publicKey,
+      privateKey,
+
+      followingCount: 0,
+      followersCount: 0,
+      statusCount: 0,
+
+      createdAt,
+      updatedAt: currentTime
+    }
+    var docRef = this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`)
+    const persistedDoc = await docRef.get()
+    if (persistedDoc.exists) {
+      return null
+    }
+
+    await docRef.set(doc)
+    return this.getMastodonActorFromData(doc)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -404,6 +464,39 @@ export class FirestoreStorage implements Storage {
       ...(account ? { account } : null),
       createdAt: Number.isNaN(data.createdAt) ? 0 : data.createdAt,
       updatedAt: Number.isNaN(data.updatedAt) ? 0 : data.updatedAt
+    })
+  }
+
+  private getMastodonActorFromData(data: any): Mastodon.Account {
+    return Mastodon.Account.parse({
+      id: data.id,
+      username: data.username,
+      acct: `${data.username}@${data.domain}`,
+      url: data.id,
+      display_name: data.name ?? '',
+      note: data.summary ?? '',
+      avatar: data.iconUrl ?? '',
+      avatar_static: data.iconUrl ?? '',
+      header: data.headerImageUrl ?? '',
+      header_static: data.headerImageUrl ?? '',
+
+      fields: [],
+      emojis: [],
+
+      locked: false,
+      bot: false,
+      group: false,
+      discoverable: true,
+      noindex: false,
+
+      created_at: getISOTimeUTC(data.createdAt),
+      last_status_at: data.lastStatusAt
+        ? getISOTimeUTC(data.lastStatusAt)
+        : null,
+
+      followers_count: data.followersCount ?? 0,
+      following_count: data.followingCount ?? 0,
+      statuses_count: data.statusCount ?? 0
     })
   }
 
@@ -433,6 +526,27 @@ export class FirestoreStorage implements Storage {
   }
 
   @Trace('db')
+  async getMastodonActorFromEmail({ email }: GetActorFromEmailParams) {
+    const accounts = this.db.collection('accounts')
+    const accountsSnapshot = await accounts
+      .where('email', '==', email)
+      .limit(1)
+      .get()
+    if (accountsSnapshot.docs.length !== 1) return null
+
+    const accountId = accountsSnapshot.docs[0].id
+    const actors = this.db.collection('actors')
+    const actorsSnapshot = await actors
+      .where('accountId', '==', accountId)
+      .limit(1)
+      .get()
+    if (actorsSnapshot.docs.length !== 1) return null
+
+    const data = actorsSnapshot.docs[0].data()
+    return this.getMastodonActorFromData(data)
+  }
+
+  @Trace('db')
   async getActorFromUsername({ username, domain }: GetActorFromUsernameParams) {
     const actors = this.db.collection('actors')
     const snapshot = await actors
@@ -448,6 +562,22 @@ export class FirestoreStorage implements Storage {
 
     const account = await this.getAccountFromId({ id: data.accountId })
     return this.getActorFromDataAndAccount(data, account)
+  }
+
+  @Trace('db')
+  async getMastodonActorFromUsername({
+    username,
+    domain
+  }: GetActorFromUsernameParams) {
+    const actors = this.db.collection('actors')
+    const snapshot = await actors
+      .where('username', '==', username)
+      .where('domain', '==', domain)
+      .limit(1)
+      .get()
+    if (snapshot.docs.length !== 1) return null
+    const data = snapshot.docs[0].data()
+    return this.getMastodonActorFromData(data)
   }
 
   static urlToId(idInURLFormat: string) {
@@ -469,6 +599,17 @@ export class FirestoreStorage implements Storage {
 
     const account = await this.getAccountFromId({ id: data.accountId })
     return this.getActorFromDataAndAccount(data, account)
+  }
+
+  @Trace('db')
+  async getMastodonActorFromId({ id }: GetActorFromIdParams) {
+    const doc = await this.db
+      .doc(`actors/${FirestoreStorage.urlToId(id)}`)
+      .get()
+    const data = doc.data()
+    if (!data) return null
+
+    return this.getMastodonActorFromData(data)
   }
 
   @Trace('db')

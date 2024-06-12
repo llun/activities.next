@@ -13,6 +13,7 @@ import { Client } from '../models/oauth2/client'
 import { Token } from '../models/oauth2/token'
 import { StatusNote, StatusType } from '../models/status'
 import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '../stub/const'
+import { getISOTimeUTC } from '../utils/getISOTimeUTC'
 import { waitFor } from '../utils/waitFor'
 import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
@@ -72,6 +73,10 @@ const TEST_ID14 = `https://${TEST_DOMAIN}/users/user14`
 
 // Actor who follows Actor14 and see boost
 const TEST_ID15 = `https://${TEST_DOMAIN}/users/user15`
+
+// Mastodon Actor
+const TEST_ID16 = `https://${TEST_DOMAIN}/users/user16`
+const TEST_USERNAME16 = 'random16'
 
 type TestStorage = [string, Storage]
 
@@ -212,6 +217,46 @@ describe('Storage', () => {
         ).toMatchObject(expectedActorAfterCreated)
       })
 
+      it('returns mastodon actor from getMastodonActor methods', async () => {
+        const expectedActorAfterCreated = {
+          id: TEST_ID,
+          username: TEST_USERNAME,
+          acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
+          url: TEST_ID,
+          display_name: '',
+          note: '',
+          avatar: '',
+          avatar_static: '',
+          header: '',
+          header_static: '',
+          locked: false,
+          fields: [],
+          emojis: [],
+          bot: false,
+          group: false,
+          discoverable: true,
+          noindex: false,
+          created_at: expect.toBeString(),
+          last_status_at: null,
+          statuses_count: 0,
+          followers_count: 0,
+          following_count: 0
+        }
+
+        expect(
+          await storage.getMastodonActorFromEmail({ email: TEST_EMAIL })
+        ).toMatchObject(expectedActorAfterCreated)
+        expect(
+          await storage.getMastodonActorFromUsername({
+            username: TEST_USERNAME,
+            domain: TEST_DOMAIN
+          })
+        ).toMatchObject(expectedActorAfterCreated)
+        expect(
+          await storage.getMastodonActorFromId({ id: TEST_ID })
+        ).toMatchObject(expectedActorAfterCreated)
+      })
+
       it('updates actor information', async () => {
         await storage.updateActor({
           actorId: TEST_ID,
@@ -249,6 +294,48 @@ describe('Storage', () => {
         expect(actor?.domain).toEqual(TEST_DOMAIN10)
         expect(actor?.followersUrl).toEqual(`${TEST_ID10}/followers`)
         expect(actor?.privateKey).toEqual('')
+      })
+
+      it('creates actor and returns actor in mastodon account format', async () => {
+        const currentTime = Date.now()
+        const actor = await storage.createMastodonActor({
+          actorId: TEST_ID16,
+          username: TEST_USERNAME16,
+          domain: TEST_DOMAIN,
+          followersUrl: `${TEST_ID16}/followers`,
+          inboxUrl: `${TEST_ID16}/inbox`,
+          sharedInboxUrl: TEST_SHARED_INBOX,
+          publicKey: 'publicKey',
+          createdAt: currentTime
+        })
+        expect(actor).toEqual({
+          id: TEST_ID16,
+          username: TEST_USERNAME16,
+          acct: `${TEST_USERNAME16}@${TEST_DOMAIN}`,
+          url: TEST_ID16,
+          display_name: '',
+          note: '',
+          avatar: '',
+          avatar_static: '',
+          header: '',
+          header_static: '',
+
+          locked: false,
+          fields: [],
+          emojis: [],
+
+          bot: false,
+          group: false,
+          discoverable: true,
+          noindex: false,
+
+          created_at: getISOTimeUTC(currentTime),
+          last_status_at: null,
+
+          statuses_count: 0,
+          followers_count: 0,
+          following_count: 0
+        })
       })
     })
 

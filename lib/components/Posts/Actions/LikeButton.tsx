@@ -53,18 +53,18 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
       {status.type === StatusType.enum.Note &&
         status.actorId === currentActor?.id &&
         status.totalLikes > 0 && (
-          <div className={styles['like-info']}>
-            <span
-              className={cn(styles['like-count'])}
-              onClick={async () => {
-                const url = new URL(status.id)
-                const uuid = url.pathname.split('/').pop()
-                if (!uuid) return
-                const actors = await getStatusFavouritedBy({ uuid })
-                setFavouritedByActors(actors)
-                setShowFavouritedBy((current) => !current)
-              }}
-            >
+          <div
+            className={styles['like-info']}
+            onClick={async () => {
+              const url = new URL(status.id)
+              const uuid = url.pathname.split('/').pop()
+              if (!uuid) return
+              const actors = await getStatusFavouritedBy({ uuid })
+              setFavouritedByActors(actors)
+              setShowFavouritedBy((current) => !current)
+            }}
+          >
+            <span className={cn(styles['like-count'])}>
               {status.totalLikes}
             </span>
             <div

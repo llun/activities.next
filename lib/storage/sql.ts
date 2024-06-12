@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import { Mastodon } from '@llun/activities.schema'
 import crypto from 'crypto'
 import { Knex, knex } from 'knex'
 import omit from 'lodash/omit'
@@ -24,6 +25,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
 import { PER_PAGE_LIMIT } from '.'
+import { getISOTimeUTC } from '../utils/getISOTimeUTC'
 import {
   CreateTagParams,
   CreateTimelineStatusParams,
@@ -384,6 +386,48 @@ export class SqlStorage implements Storage {
     return this.getActorFromId({ id: actorId })
   }
 
+  async createMastodonActor({
+    actorId,
+
+    username,
+    domain,
+    name,
+    summary,
+    iconUrl,
+    headerImageUrl,
+    followersUrl,
+    inboxUrl,
+    sharedInboxUrl,
+
+    publicKey,
+    privateKey,
+
+    createdAt
+  }: CreateActorParams): Promise<Mastodon.Account | null> {
+    const currentTime = Date.now()
+
+    const settings: ActorSettings = {
+      iconUrl,
+      headerImageUrl,
+      followersUrl,
+      inboxUrl,
+      sharedInboxUrl
+    }
+    await this.database('actors').insert({
+      id: actorId,
+      username,
+      domain,
+      name,
+      summary,
+      settings: JSON.stringify(settings),
+      publicKey,
+      privateKey,
+      createdAt,
+      updatedAt: currentTime
+    })
+    return this.getMastodonActor(actorId)
+  }
+
   private getActor(sqlActor: SQLActor, account?: Account) {
     const settings = JSON.parse(sqlActor.settings || '{}') as ActorSettings
     return new Actor({
@@ -410,6 +454,71 @@ export class SqlStorage implements Storage {
     })
   }
 
+  private async getMastodonActor(actorId: string) {
+    const sqlActor = await this.database<SQLActor>('actors')
+      .where('id', actorId)
+      .first()
+    if (!sqlActor) return null
+
+    const [lastStatusCreatedAt, totalStatus, totalFollowers, totalFollowing] =
+      await this.database.transaction(async (trx) =>
+        Promise.all([
+          trx('statuses')
+            .where('actorId', actorId)
+            .orderBy('createdAt', 'desc')
+            .select('createdAt')
+            .first(),
+          trx('statuses')
+            .where('actorId', actorId)
+            .count<{ count: number }>('* as count')
+            .first(),
+          trx('follows')
+            .where('targetActorId', actorId)
+            .andWhere('status', 'Accepted')
+            .count<{ count: number }>('* as count')
+            .first(),
+          trx('follows')
+            .where('actorId', actorId)
+            .andWhere('status', 'Accepted')
+            .count<{ count: number }>('* as count')
+            .first()
+        ])
+      )
+
+    const settings = JSON.parse(sqlActor.settings || '{}') as ActorSettings
+    return Mastodon.Account.parse({
+      id: sqlActor.id,
+      username: sqlActor.username,
+      acct: `${sqlActor.username}@${sqlActor.domain}`,
+      url: sqlActor.id,
+      display_name: sqlActor.name ?? '',
+      note: sqlActor.summary ?? '',
+
+      avatar: settings.iconUrl ?? '',
+      avatar_static: settings.iconUrl ?? '',
+      header: settings.headerImageUrl ?? '',
+      header_static: settings.headerImageUrl ?? '',
+
+      fields: [],
+      emojis: [],
+
+      locked: false,
+      bot: false,
+      group: false,
+      discoverable: true,
+      noindex: false,
+
+      created_at: getISOTimeUTC(sqlActor.createdAt),
+      last_status_at: lastStatusCreatedAt
+        ? getISOTimeUTC(lastStatusCreatedAt)
+        : null,
+
+      followers_count: totalFollowers?.count ?? 0,
+      following_count: totalFollowing?.count ?? 0,
+      statuses_count: totalStatus?.count ?? 0
+    })
+  }
+
   async getActorFromEmail({ email }: GetActorFromEmailParams) {
     const storageActor = await this.database('actors')
       .select<SQLActor>('actors.*')
@@ -420,6 +529,16 @@ export class SqlStorage implements Storage {
 
     const account = await this.getAccountFromId({ id: storageActor.accountId })
     return this.getActor(storageActor, account)
+  }
+
+  async getMastodonActorFromEmail({ email }: GetActorFromEmailParams) {
+    const result = await this.database('actors')
+      .select('actors.id')
+      .leftJoin('accounts', 'actors.accountId', 'accounts.id')
+      .where('accounts.email', email)
+      .first<{ id: string }>()
+    if (!result) return null
+    return this.getMastodonActor(result.id)
   }
 
   async isCurrentActorFollowing({
@@ -446,6 +565,20 @@ export class SqlStorage implements Storage {
     return this.getActor(storageActor, account)
   }
 
+  async getMastodonActorFromUsername({
+    username,
+    domain
+  }: GetActorFromUsernameParams) {
+    const result = await this.database<SQLActor>('actors')
+      .where('username', username)
+      .andWhere('domain', domain)
+      .select('id')
+      .first<{ id: string }>()
+    if (!result) return null
+
+    return this.getMastodonActor(result.id)
+  }
+
   async getActorFromId({ id }: GetActorFromIdParams) {
     const storageActor = await this.database<SQLActor>('actors')
       .where('id', id)
@@ -458,6 +591,10 @@ export class SqlStorage implements Storage {
 
     const account = await this.getAccountFromId({ id: storageActor.accountId })
     return this.getActor(storageActor, account)
+  }
+
+  async getMastodonActorFromId({ id }: GetActorFromIdParams) {
+    return this.getMastodonActor(id)
   }
 
   async updateActor({
