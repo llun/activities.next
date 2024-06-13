@@ -179,19 +179,36 @@ export class FirestoreStorage implements Storage {
       updatedAt: currentTime
     })
 
-    await this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`).set({
+    const actorDoc = {
       id: actorId,
       accountId: accountRef.id,
+
       username,
       domain,
+      name: '',
+      summary: '',
+
+      iconUrl: '',
+      headerImageUrl: '',
+
       followersUrl: `${actorId}/followers`,
-      publicKey,
-      privateKey,
       inboxUrl: `${actorId}/inbox`,
       sharedInboxUrl: `https://${domain}/inbox`,
+
+      publicKey,
+      privateKey,
+
+      followingCount: 0,
+      followersCount: 0,
+      statusCount: 0,
+
       createdAt: currentTime,
       updatedAt: currentTime
-    })
+    }
+
+    await this.db
+      .doc(`actors/${FirestoreStorage.urlToId(actorId)}`)
+      .set(actorDoc)
     return accountRef.id
   }
 
@@ -723,6 +740,11 @@ export class FirestoreStorage implements Storage {
     }
     const follows = this.db.collection('follows')
     const ref = await follows.add(content)
+
+    const actor = await this.db
+      .doc(`actors/${FirestoreStorage.urlToId(actorId)}`)
+      .get()
+
     return {
       id: ref.id,
       ...content
