@@ -467,7 +467,7 @@ export class SqlStorage implements Storage {
             .where('actorId', actorId)
             .orderBy('createdAt', 'desc')
             .select('createdAt')
-            .first(),
+            .first<{ createdAt: number }>(),
           trx('statuses')
             .where('actorId', actorId)
             .count<{ count: number }>('* as count')
@@ -510,7 +510,7 @@ export class SqlStorage implements Storage {
 
       created_at: getISOTimeUTC(sqlActor.createdAt),
       last_status_at: lastStatusCreatedAt
-        ? getISOTimeUTC(lastStatusCreatedAt)
+        ? getISOTimeUTC(lastStatusCreatedAt.createdAt)
         : null,
 
       followers_count: totalFollowers?.count ?? 0,

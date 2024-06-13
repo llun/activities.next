@@ -1,5 +1,3 @@
-import { domainToASCII } from 'url'
-
 import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,
