@@ -1,4 +1,4 @@
-import { FollowStatus } from '@/lib/models/follow'
+import { Follow, FollowStatus } from '@/lib/models/follow'
 import {
   TEST_DOMAIN,
   TEST_EMAIL,
@@ -239,31 +239,40 @@ describe('FollowerStorage', () => {
           await storage.getActorFollowingCount({ actorId: ACTOR3_ID })
         ).toEqual(3)
       })
+    })
 
+    describe('updateFollow', () => {
       it('reduce following and follower when actor undo', async () => {
-        await storage.createFollow({
+        const beforeUndoActorFollowingCount =
+          await storage.getActorFollowingCount({ actorId: ACTOR3_ID })
+        const beforeUndoTargetActorFollowersCount =
+          await storage.getActorFollowersCount({ actorId: ACTOR2_ID })
+
+        const acceptedFollow = await storage.getAcceptedOrRequestedFollow({
           actorId: ACTOR3_ID,
-          targetActorId: ACTOR1_ID,
-          inbox: `${ACTOR3_ID}/inbox`,
-          sharedInbox: TEST_SHARED_INBOX,
+          targetActorId: ACTOR2_ID
+        })
+        await storage.updateFollowStatus({
+          followId: (acceptedFollow as Follow).id,
           status: FollowStatus.enum.Undo
         })
         expect(
-          await storage.getMastodonActorFromId({ id: ACTOR1_ID })
+          await storage.getMastodonActorFromId({ id: ACTOR2_ID })
         ).toMatchObject({
-          followers_count: 1
+          followers_count: beforeUndoTargetActorFollowersCount - 1
         })
         expect(
-          await storage.getActorFollowersCount({ actorId: ACTOR1_ID })
-        ).toEqual(1)
+          await storage.getActorFollowersCount({ actorId: ACTOR2_ID })
+        ).toEqual(beforeUndoTargetActorFollowersCount - 1)
+
         expect(
           await storage.getMastodonActorFromId({ id: ACTOR3_ID })
         ).toMatchObject({
-          following_count: 2
+          following_count: beforeUndoActorFollowingCount - 1
         })
         expect(
           await storage.getActorFollowingCount({ actorId: ACTOR3_ID })
-        ).toEqual(2)
+        ).toEqual(beforeUndoActorFollowingCount - 1)
       })
     })
   })

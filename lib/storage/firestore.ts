@@ -941,6 +941,35 @@ export class FirestoreStorage implements Storage {
     const follow = await this.getFollowFromId({ followId })
     if (!follow) return
 
+    const actorRef = this.db.doc(
+      `actors/${FirestoreStorage.urlToId(follow.actorId)}`
+    )
+    const targetActorRef = this.db.doc(
+      `actors/${FirestoreStorage.urlToId(follow.targetActorId)}`
+    )
+    if (
+      status === FollowStatus.enum.Accepted ||
+      status === FollowStatus.enum.Undo
+    ) {
+      const value = status === FollowStatus.enum.Accepted ? 1 : -1
+      const [actor, targetActor] = await Promise.all([
+        actorRef.get(),
+        targetActorRef.get()
+      ])
+      await Promise.all([
+        actor.exists
+          ? actorRef.update({
+              followingCount: (actor.data()?.followingCount ?? 0) + value
+            })
+          : Promise.resolve(),
+        targetActor.exists
+          ? targetActorRef.update({
+              followersCount: (targetActor.data()?.followersCount ?? 0) + value
+            })
+          : null
+      ])
+    }
+
     const ref = this.db.collection('follows').doc(follow.id)
     await ref.update({
       status,
