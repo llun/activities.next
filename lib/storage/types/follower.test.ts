@@ -14,6 +14,10 @@ import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
 import { ACTOR6_ID } from '@/lib/stub/seed/actor6'
+import {
+  EXTERNAL_ACTOR1,
+  EXTERNAL_ACTOR1_FOLLOWERS
+} from '@/lib/stub/seed/external1'
 import { TEST_SHARED_INBOX, seedStorage } from '@/lib/stub/storage'
 
 import { FirestoreStorage } from '../firestore'
@@ -184,6 +188,37 @@ describe('FollowerStorage', () => {
           targetActorId: ACTOR1_ID
         })
         expect(follows).toHaveLength(0)
+      })
+    })
+
+    describe('getFollowersInbox', () => {
+      it('returns all accepted followers inbox urls', async () => {
+        const inboxes = await storage.getFollowersInbox({
+          targetActorId: ACTOR1_ID
+        })
+        expect(inboxes).toEqual(['https://somewhere.test/inbox'])
+      })
+    })
+
+    describe('getLocalActorsFromFollowerUrl', () => {
+      it('returns only actors with accounts from follower ids for external actor', async () => {
+        const actors = await storage.getLocalActorsFromFollowerUrl({
+          followerUrl: EXTERNAL_ACTOR1_FOLLOWERS
+        })
+        expect(actors).toHaveLength(1)
+        expect(actors[0]).toMatchObject({
+          id: ACTOR1_ID
+        })
+      })
+
+      it('returns only accepted actors with accounts from follower ids for internal actor', async () => {
+        const actors = await storage.getLocalActorsFromFollowerUrl({
+          followerUrl: `${ACTOR2_ID}/followers`
+        })
+        expect(actors).toHaveLength(1)
+        expect(actors[0]).toMatchObject({
+          id: ACTOR3_ID
+        })
       })
     })
 
