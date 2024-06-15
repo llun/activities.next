@@ -128,5 +128,39 @@ describe('FollowerStorage', () => {
         ).toEqual(true)
       })
     })
+
+    describe('getAcceptedOrRequestedFollow', () => {
+      it('returns accpeted follow', async () => {
+        const follow = await storage.getAcceptedOrRequestedFollow({
+          actorId: 'https://somewhere.test/actors/friend',
+          targetActorId: ACTOR1_ID
+        })
+        expect(follow).toMatchObject({
+          actorId: 'https://somewhere.test/actors/friend',
+          targetActorId: ACTOR1_ID,
+          status: FollowStatus.enum.Accepted
+        })
+      })
+
+      it('returns requested follow', async () => {
+        const follow = await storage.getAcceptedOrRequestedFollow({
+          actorId: ACTOR5_ID,
+          targetActorId: ACTOR1_ID
+        })
+        expect(follow).toMatchObject({
+          actorId: ACTOR5_ID,
+          targetActorId: ACTOR1_ID,
+          status: FollowStatus.enum.Requested
+        })
+      })
+
+      it('returns null if follow not found', async () => {
+        const follow = await storage.getAcceptedOrRequestedFollow({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR5_ID
+        })
+        expect(follow).toBeUndefined()
+      })
+    })
   })
 })
