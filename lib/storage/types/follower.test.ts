@@ -1,23 +1,10 @@
 import { Follow, FollowStatus } from '@/lib/models/follow'
-import {
-  TEST_DOMAIN,
-  TEST_EMAIL,
-  TEST_PASSWORD_HASH,
-  TEST_USERNAME,
-  TEST_USERNAME2,
-  TEST_USERNAME3,
-  testUserId
-} from '@/lib/stub/const'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
-import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
 import { ACTOR6_ID } from '@/lib/stub/seed/actor6'
-import {
-  EXTERNAL_ACTOR1,
-  EXTERNAL_ACTOR1_FOLLOWERS
-} from '@/lib/stub/seed/external1'
+import { EXTERNAL_ACTOR1_FOLLOWERS } from '@/lib/stub/seed/external1'
 import { TEST_SHARED_INBOX, seedStorage } from '@/lib/stub/storage'
 
 import { FirestoreStorage } from '../firestore'

@@ -450,7 +450,7 @@ export class FirestoreStorage implements Storage {
       createdAt,
       updatedAt: currentTime
     }
-    var docRef = this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`)
+    const docRef = this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`)
     const persistedDoc = await docRef.get()
     if (persistedDoc.exists) {
       return null
@@ -484,6 +484,7 @@ export class FirestoreStorage implements Storage {
     })
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private getMastodonActorFromData(data: any): Mastodon.Account {
     return Mastodon.Account.parse({
       id: data.id,

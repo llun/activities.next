@@ -1,4 +1,3 @@
-import { getActorPosts, getPublicProfileFromHandle } from '@/lib/activities'
 import { CACHE_KEY_PREFIX_ACTOR, CACHE_NAMESPACE_ACTORS } from '@/lib/constants'
 import { Actor } from '@/lib/models/actor'
 import { Storage } from '@/lib/storage/types'
