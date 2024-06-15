@@ -9,7 +9,9 @@ import {
   testUserId
 } from '@/lib/stub/const'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
+import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
 import { ACTOR6_ID } from '@/lib/stub/seed/actor6'
 import { seedStorage } from '@/lib/stub/storage'
 
@@ -96,6 +98,35 @@ describe('FollowerStorage', () => {
       expect(
         await storage.getFollowersInbox({ targetActorId: ACTOR1_ID })
       ).toEqual(['https://somewhere.test/inbox'])
+    })
+
+    describe('isCurrentActorFollowing', () => {
+      it('returns false if current actor is not following target actor', async () => {
+        expect(
+          await storage.isCurrentActorFollowing({
+            currentActorId: ACTOR3_ID,
+            followingActorId: ACTOR1_ID
+          })
+        ).toEqual(false)
+      })
+
+      it('returns false if current actor is requested but not accepted yet', async () => {
+        expect(
+          await storage.isCurrentActorFollowing({
+            currentActorId: ACTOR5_ID,
+            followingActorId: ACTOR1_ID
+          })
+        ).toEqual(false)
+      })
+
+      it('returns true if current actor is following target actor', async () => {
+        expect(
+          await storage.isCurrentActorFollowing({
+            currentActorId: 'https://somewhere.test/actors/friend',
+            followingActorId: ACTOR1_ID
+          })
+        ).toEqual(true)
+      })
     })
   })
 })
