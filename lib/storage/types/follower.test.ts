@@ -162,5 +162,28 @@ describe('FollowerStorage', () => {
         expect(follow).toBeUndefined()
       })
     })
+
+    describe('getLocalFollowsFromInboxUrl', () => {
+      it('returns local follows from inbox url', async () => {
+        const follows = await storage.getLocalFollowsFromInboxUrl({
+          followerInboxUrl: 'https://somewhere.test/inbox/friend',
+          targetActorId: ACTOR1_ID
+        })
+        expect(follows).toHaveLength(1)
+        expect(follows[0]).toMatchObject({
+          actorId: 'https://somewhere.test/actors/friend',
+          targetActorId: ACTOR1_ID,
+          status: FollowStatus.enum.Accepted
+        })
+      })
+
+      it('returns empty array if inbox url not found', async () => {
+        const follows = await storage.getLocalFollowsFromInboxUrl({
+          followerInboxUrl: 'https://somewhere.test/inbox/unknown',
+          targetActorId: ACTOR1_ID
+        })
+        expect(follows).toHaveLength(0)
+      })
+    })
   })
 })
