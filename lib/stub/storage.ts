@@ -10,6 +10,7 @@ import { seedActor2 } from './seed/actor2'
 import { seedActor3 } from './seed/actor3'
 import { seedActor4 } from './seed/actor4'
 import { seedActor5 } from './seed/actor5'
+import { seedActor6 } from './seed/actor6'
 import {
   EXTERNAL_ACTOR1,
   EXTERNAL_ACTOR1_INBOX,
@@ -24,7 +25,8 @@ export const seedStorage = async (storage: Storage) => {
     storage.createAccount(seedActor2),
     storage.createAccount(seedActor3),
     storage.createAccount(seedActor4),
-    storage.createAccount(seedActor5)
+    storage.createAccount(seedActor5),
+    storage.createAccount(seedActor6)
   ])
 
   const actors = (await Promise.all([
@@ -32,7 +34,8 @@ export const seedStorage = async (storage: Storage) => {
     storage.getActorFromEmail({ email: seedActor2.email }),
     storage.getActorFromEmail({ email: seedActor3.email }),
     storage.getActorFromEmail({ email: seedActor4.email }),
-    storage.getActorFromEmail({ email: seedActor5.email })
+    storage.getActorFromEmail({ email: seedActor5.email }),
+    storage.getActorFromEmail({ email: seedActor6.email })
   ])) as Actor[]
 
   if (actors.some((actor) => !actor)) return
@@ -76,7 +79,7 @@ export const seedStorage = async (storage: Storage) => {
   await storage.createFollow({
     actorId: actors[4].id,
     targetActorId: actors[0].id,
-    inbox: `${actors[4]}/inbox`,
+    inbox: `${actors[4].id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Requested
   })
@@ -102,7 +105,7 @@ export const seedStorage = async (storage: Storage) => {
   await storage.createFollow({
     actorId: actors[2].id,
     targetActorId: actors[1].id,
-    inbox: `${actors[2]}/inbox`,
+    inbox: `${actors[2].id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })
@@ -111,7 +114,7 @@ export const seedStorage = async (storage: Storage) => {
   await storage.createFollow({
     actorId: actors[2].id,
     targetActorId: actors[3].id,
-    inbox: `${actors[2]}/inbox`,
+    inbox: `${actors[2].id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })
