@@ -274,6 +274,38 @@ describe('FollowerStorage', () => {
           await storage.getActorFollowingCount({ actorId: ACTOR3_ID })
         ).toEqual(beforeUndoActorFollowingCount - 1)
       })
+
+      it('increase following and follower when actor accepted', async () => {
+        const beforeUndoActorFollowingCount =
+          await storage.getActorFollowingCount({ actorId: ACTOR5_ID })
+        const beforeUndoTargetActorFollowersCount =
+          await storage.getActorFollowersCount({ actorId: ACTOR1_ID })
+        const acceptedFollow = await storage.getAcceptedOrRequestedFollow({
+          actorId: ACTOR5_ID,
+          targetActorId: ACTOR1_ID
+        })
+        await storage.updateFollowStatus({
+          followId: (acceptedFollow as Follow).id,
+          status: FollowStatus.enum.Accepted
+        })
+        expect(
+          await storage.getMastodonActorFromId({ id: ACTOR1_ID })
+        ).toMatchObject({
+          followers_count: beforeUndoTargetActorFollowersCount + 1
+        })
+        expect(
+          await storage.getActorFollowersCount({ actorId: ACTOR1_ID })
+        ).toEqual(beforeUndoTargetActorFollowersCount + 1)
+
+        expect(
+          await storage.getMastodonActorFromId({ id: ACTOR5_ID })
+        ).toMatchObject({
+          following_count: beforeUndoActorFollowingCount + 1
+        })
+        expect(
+          await storage.getActorFollowingCount({ actorId: ACTOR5_ID })
+        ).toEqual(beforeUndoActorFollowingCount + 1)
+      })
     })
   })
 })
