@@ -5,10 +5,10 @@ import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import { createFollower } from '@/lib/actions/createFollower'
 import { likeRequest } from '@/lib/actions/like'
 import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
+import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
 import { FollowRequest } from '@/lib/activities/actions/follow'
 import { UndoFollow } from '@/lib/activities/actions/undoFollow'
 import { UndoLike } from '@/lib/activities/actions/undoLike'
-import { FollowStatus } from '@/lib/models/follow'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -53,15 +53,13 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
         const undoRequest = activity as UndoFollow | UndoLike
         switch (undoRequest.object.type) {
           case 'Follow': {
-            const follow = await storage.getAcceptedOrRequestedFollow({
-              actorId: undoRequest.object.actor,
-              targetActorId: undoRequest.object.object
+            const result = await undoFollowRequest({
+              storage,
+              request: undoRequest as UndoFollow
             })
-            if (!follow) return apiErrorResponse(404)
-            await storage.updateFollowStatus({
-              followId: follow.id,
-              status: FollowStatus.enum.Undo
-            })
+            if (result) {
+              return apiErrorResponse(404)
+            }
             return apiResponse(
               req,
               CORS_HEADERS,
