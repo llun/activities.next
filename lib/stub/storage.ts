@@ -79,7 +79,7 @@ export const seedStorage = async (storage: Storage) => {
   await storage.createFollow({
     actorId: actors[4].id,
     targetActorId: actors[0].id,
-    inbox: `${actors[4]}/inbox`,
+    inbox: `${actors[4].id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Requested
   })
@@ -105,7 +105,7 @@ export const seedStorage = async (storage: Storage) => {
   await storage.createFollow({
     actorId: actors[2].id,
     targetActorId: actors[1].id,
-    inbox: `${actors[2]}/inbox`,
+    inbox: `${actors[2].id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })
@@ -114,7 +114,7 @@ export const seedStorage = async (storage: Storage) => {
   await storage.createFollow({
     actorId: actors[2].id,
     targetActorId: actors[3].id,
-    inbox: `${actors[2]}/inbox`,
+    inbox: `${actors[2].id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })

@@ -9,11 +9,12 @@ import {
   testUserId
 } from '@/lib/stub/const'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
 import { ACTOR6_ID } from '@/lib/stub/seed/actor6'
-import { seedStorage } from '@/lib/stub/storage'
+import { TEST_SHARED_INBOX, seedStorage } from '@/lib/stub/storage'
 
 import { FirestoreStorage } from '../firestore'
 import { SqlStorage } from '../sql'
@@ -183,6 +184,86 @@ describe('FollowerStorage', () => {
           targetActorId: ACTOR1_ID
         })
         expect(follows).toHaveLength(0)
+      })
+    })
+
+    describe('createFollow', () => {
+      it('creates follow with requested status does not increase following and follower count', async () => {
+        await storage.createFollow({
+          actorId: ACTOR2_ID,
+          targetActorId: ACTOR1_ID,
+          inbox: `${ACTOR2_ID}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Requested
+        })
+        expect(
+          await storage.getMastodonActorFromId({ id: ACTOR1_ID })
+        ).toMatchObject({
+          followers_count: 1
+        })
+        expect(
+          await storage.getActorFollowersCount({ actorId: ACTOR1_ID })
+        ).toEqual(1)
+        expect(
+          await storage.getMastodonActorFromId({ id: ACTOR2_ID })
+        ).toMatchObject({
+          following_count: 1
+        })
+        expect(
+          await storage.getActorFollowingCount({ actorId: ACTOR2_ID })
+        ).toEqual(1)
+      })
+
+      it('creates follow with accepted status and increase following and follower count', async () => {
+        await storage.createFollow({
+          actorId: ACTOR3_ID,
+          targetActorId: ACTOR1_ID,
+          inbox: `${ACTOR3_ID}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Accepted
+        })
+        expect(
+          await storage.getMastodonActorFromId({ id: ACTOR1_ID })
+        ).toMatchObject({
+          followers_count: 2
+        })
+        expect(
+          await storage.getActorFollowersCount({ actorId: ACTOR1_ID })
+        ).toEqual(2)
+        expect(
+          await storage.getMastodonActorFromId({ id: ACTOR3_ID })
+        ).toMatchObject({
+          following_count: 3
+        })
+        expect(
+          await storage.getActorFollowingCount({ actorId: ACTOR3_ID })
+        ).toEqual(3)
+      })
+
+      it('reduce following and follower when actor undo', async () => {
+        await storage.createFollow({
+          actorId: ACTOR3_ID,
+          targetActorId: ACTOR1_ID,
+          inbox: `${ACTOR3_ID}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Undo
+        })
+        expect(
+          await storage.getMastodonActorFromId({ id: ACTOR1_ID })
+        ).toMatchObject({
+          followers_count: 1
+        })
+        expect(
+          await storage.getActorFollowersCount({ actorId: ACTOR1_ID })
+        ).toEqual(1)
+        expect(
+          await storage.getMastodonActorFromId({ id: ACTOR3_ID })
+        ).toMatchObject({
+          following_count: 2
+        })
+        expect(
+          await storage.getActorFollowingCount({ actorId: ACTOR3_ID })
+        ).toEqual(2)
       })
     })
   })
