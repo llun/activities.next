@@ -57,9 +57,7 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
               storage,
               request: undoRequest as UndoFollow
             })
-            if (result) {
-              return apiErrorResponse(404)
-            }
+            if (result) return apiErrorResponse(404)
             return apiResponse(
               req,
               CORS_HEADERS,

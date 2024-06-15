@@ -56,6 +56,7 @@ import {
   GetActorFromIdParams,
   GetActorFromUsernameParams,
   IsCurrentActorFollowingParams,
+  IsInternalActorParams,
   UpdateActorParams
 } from './types/actor'
 import {
@@ -661,6 +662,14 @@ export class SqlStorage implements Storage {
       .count<{ count: number }>('* as count')
       .first()
     return result?.count ?? 0
+  }
+
+  async isInternalActor({ actorId }: IsInternalActorParams) {
+    const storageActor = await this.database<SQLActor>('actors')
+      .where('id', actorId)
+      .first()
+    if (!storageActor) return false
+    return Boolean(storageActor.accountId)
   }
 
   async createFollow({
