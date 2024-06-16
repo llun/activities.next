@@ -23,6 +23,9 @@ export const ActorProfile = z.object({
   inboxUrl: z.string(),
   sharedInboxUrl: z.string(),
 
+  followingCount: z.number(),
+  followersCount: z.number(),
+
   createdAt: z.number()
 })
 
@@ -168,6 +171,9 @@ export class Actor {
       followersUrl: this.data.followersUrl ?? '',
       inboxUrl: this.data.inboxUrl ?? '',
       sharedInboxUrl: this.data.sharedInboxUrl ?? '',
+
+      followersCount: this.data.followersCount,
+      followingCount: this.data.followingCount,
 
       createdAt: this.data.createdAt
     }

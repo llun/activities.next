@@ -89,6 +89,10 @@ export const MockActor = ({
     sharedInboxUrl,
     publicKey: MOCK_PUBLIC_KEY,
     privateKey: MOCK_PRIVATE_KEY,
+
+    followingCount: 0,
+    followersCount: 0,
+
     createdAt: Date.now(),
     updatedAt: Date.now()
   })

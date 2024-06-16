@@ -429,7 +429,12 @@ export class SqlStorage implements Storage {
     return this.getMastodonActor(actorId)
   }
 
-  private getActor(sqlActor: SQLActor, account?: Account) {
+  private getActor(
+    sqlActor: SQLActor,
+    followingCount: number,
+    followersCount: number,
+    account?: Account
+  ) {
     const settings = JSON.parse(sqlActor.settings || '{}') as ActorSettings
     return new Actor({
       id: sqlActor.id,
@@ -450,6 +455,10 @@ export class SqlStorage implements Storage {
       publicKey: sqlActor.publicKey,
       ...(sqlActor.privateKey ? { privateKey: sqlActor.privateKey } : null),
       ...(account ? { account } : null),
+
+      followingCount,
+      followersCount,
+
       createdAt: sqlActor.createdAt,
       updatedAt: sqlActor.updatedAt
     })
@@ -528,8 +537,29 @@ export class SqlStorage implements Storage {
       .first()
     if (!storageActor) return undefined
 
-    const account = await this.getAccountFromId({ id: storageActor.accountId })
-    return this.getActor(storageActor, account)
+    const [account, totalFollowers, totalFollowing] =
+      await this.database.transaction(async (trx) => {
+        return Promise.all([
+          trx<Account>('accounts').where('id', storageActor.accountId).first(),
+          trx('follows')
+            .where('targetActorId', storageActor.id)
+            .andWhere('status', 'Accepted')
+            .count<{ count: number }>('* as count')
+            .first(),
+          trx('follows')
+            .where('actorId', storageActor.id)
+            .andWhere('status', 'Accepted')
+            .count<{ count: number }>('* as count')
+            .first()
+        ])
+      })
+
+    return this.getActor(
+      storageActor,
+      totalFollowing?.count ?? 0,
+      totalFollowers?.count ?? 0,
+      account
+    )
   }
 
   async getMastodonActorFromEmail({ email }: GetActorFromEmailParams) {
@@ -562,8 +592,29 @@ export class SqlStorage implements Storage {
       .first()
     if (!storageActor) return undefined
 
-    const account = await this.getAccountFromId({ id: storageActor.accountId })
-    return this.getActor(storageActor, account)
+    const [account, totalFollowers, totalFollowing] =
+      await this.database.transaction(async (trx) => {
+        return Promise.all([
+          trx<Account>('accounts').where('id', storageActor.accountId).first(),
+          trx('follows')
+            .where('targetActorId', storageActor.id)
+            .andWhere('status', 'Accepted')
+            .count<{ count: number }>('* as count')
+            .first(),
+          trx('follows')
+            .where('actorId', storageActor.id)
+            .andWhere('status', 'Accepted')
+            .count<{ count: number }>('* as count')
+            .first()
+        ])
+      })
+
+    return this.getActor(
+      storageActor,
+      totalFollowing?.count ?? 0,
+      totalFollowers?.count ?? 0,
+      account
+    )
   }
 
   async getMastodonActorFromUsername({
@@ -587,11 +638,53 @@ export class SqlStorage implements Storage {
     if (!storageActor) return undefined
 
     if (!storageActor.accountId) {
-      return this.getActor(storageActor)
+      const [totalFollowers, totalFollowing] = await this.database.transaction(
+        async (trx) => {
+          return Promise.all([
+            trx('follows')
+              .where('targetActorId', storageActor.id)
+              .andWhere('status', 'Accepted')
+              .count<{ count: number }>('* as count')
+              .first(),
+            trx('follows')
+              .where('actorId', storageActor.id)
+              .andWhere('status', 'Accepted')
+              .count<{ count: number }>('* as count')
+              .first()
+          ])
+        }
+      )
+
+      return this.getActor(
+        storageActor,
+        totalFollowing?.count ?? 0,
+        totalFollowers?.count ?? 0
+      )
     }
 
-    const account = await this.getAccountFromId({ id: storageActor.accountId })
-    return this.getActor(storageActor, account)
+    const [account, totalFollowers, totalFollowing] =
+      await this.database.transaction(async (trx) => {
+        return Promise.all([
+          trx<Account>('accounts').where('id', storageActor.accountId).first(),
+          trx('follows')
+            .where('targetActorId', storageActor.id)
+            .andWhere('status', 'Accepted')
+            .count<{ count: number }>('* as count')
+            .first(),
+          trx('follows')
+            .where('actorId', storageActor.id)
+            .andWhere('status', 'Accepted')
+            .count<{ count: number }>('* as count')
+            .first()
+        ])
+      })
+
+    return this.getActor(
+      storageActor,
+      totalFollowing?.count ?? 0,
+      totalFollowers?.count ?? 0,
+      account
+    )
   }
 
   async getMastodonActorFromId({ id }: GetActorFromIdParams) {
@@ -764,20 +857,37 @@ export class SqlStorage implements Storage {
       .first()
     if (!actor?.id) return []
 
-    const localActors = await this.database('actors')
-      .leftJoin('follows', 'follows.actorId', 'actors.id')
-      .where('follows.targetActorId', actor.id)
-      .where('follows.status', FollowStatus.enum.Accepted)
-      .where('actors.privateKey', '<>', '')
-      .select('actors.*')
-    return Promise.all(
-      localActors.map(async (actor) => {
-        const account = await this.getAccountFromId({
-          id: actor.accountId
+    return this.database.transaction(async (trx) => {
+      const localActors = await trx('actors')
+        .leftJoin('follows', 'follows.actorId', 'actors.id')
+        .where('follows.targetActorId', actor.id)
+        .where('follows.status', FollowStatus.enum.Accepted)
+        .where('actors.privateKey', '<>', '')
+        .select('actors.*')
+      return Promise.all(
+        localActors.map(async (actor) => {
+          const [account, totalFollowers, totalFollowing] = await Promise.all([
+            trx<Account>('accounts').where('id', actor.accountId).first(),
+            trx('follows')
+              .where('targetActorId', actor.id)
+              .andWhere('status', 'Accepted')
+              .count<{ count: number }>('* as count')
+              .first(),
+            trx('follows')
+              .where('actorId', actor.id)
+              .andWhere('status', 'Accepted')
+              .count<{ count: number }>('* as count')
+              .first()
+          ])
+          return this.getActor(
+            actor,
+            totalFollowing?.count ?? 0,
+            totalFollowers?.count ?? 0,
+            account
+          )
         })
-        return this.getActor(actor, account)
-      })
-    )
+      )
+    })
   }
 
   async getAcceptedOrRequestedFollow({

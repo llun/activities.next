@@ -477,6 +477,8 @@ export class FirestoreStorage implements Storage {
       ...(data.appleSharedAlbumToken
         ? { appleSharedAlbumToken: data.appleSharedAlbumToken }
         : null),
+      followingCount: data.followingCount ?? 0,
+      followersCount: data.followersCount ?? 0,
       publicKey: data.publicKey,
       ...(data.privateKey ? { privateKey: data.privateKey } : null),
       ...(account ? { account } : null),
