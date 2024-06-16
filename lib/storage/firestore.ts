@@ -55,6 +55,7 @@ import {
   GetActorFromIdParams,
   GetActorFromUsernameParams,
   IsCurrentActorFollowingParams,
+  IsInternalActorParams,
   UpdateActorParams
 } from './types/actor'
 import {
@@ -476,6 +477,8 @@ export class FirestoreStorage implements Storage {
       ...(data.appleSharedAlbumToken
         ? { appleSharedAlbumToken: data.appleSharedAlbumToken }
         : null),
+      followingCount: data.followingCount ?? 0,
+      followersCount: data.followersCount ?? 0,
       publicKey: data.publicKey,
       ...(data.privateKey ? { privateKey: data.privateKey } : null),
       ...(account ? { account } : null),
@@ -709,6 +712,15 @@ export class FirestoreStorage implements Storage {
       .count()
       .get()
     return snapshot.data().count
+  }
+
+  @Trace('db')
+  async isInternalActor({ actorId }: IsInternalActorParams) {
+    const actorDoc = await this.db
+      .doc(`actors/${FirestoreStorage.urlToId(actorId)}`)
+      .get()
+    if (!actorDoc.exists) return false
+    return Boolean(actorDoc?.data()?.accountId)
   }
 
   @Trace('db')

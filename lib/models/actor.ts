@@ -23,6 +23,9 @@ export const ActorProfile = z.object({
   inboxUrl: z.string(),
   sharedInboxUrl: z.string(),
 
+  followingCount: z.number(),
+  followersCount: z.number(),
+
   createdAt: z.number()
 })
 
@@ -169,6 +172,9 @@ export class Actor {
       inboxUrl: this.data.inboxUrl ?? '',
       sharedInboxUrl: this.data.sharedInboxUrl ?? '',
 
+      followersCount: this.data.followersCount,
+      followingCount: this.data.followingCount,
+
       createdAt: this.data.createdAt
     }
   }
@@ -219,39 +225,41 @@ export class Actor {
     }
   }
 
-  toPublicProfile(params?: {
-    followingCount: number
-    followersCount: number
-    totalPosts: number
-  }): PublicProfile {
-    const person = this.toPerson()
-    const { followersCount, followingCount, totalPosts } = params ?? {
-      followersCount: 0,
-      followingCount: 0,
+  toPublicProfile(params?: { totalPosts: number }): PublicProfile {
+    const { totalPosts } = params ?? {
       totalPosts: 0
     }
+    const icon = this.data.iconUrl
+      ? {
+          icon: {
+            type: 'Image',
+            mediaType: 'image/jpeg',
+            url: this.data.iconUrl
+          } as Image
+        }
+      : null
     return {
-      id: person.id,
-      username: person.preferredUsername,
-      domain: new URL(person.id).hostname,
-      ...(person.icon ? { icon: person.icon } : null),
-      url: person.url,
-      name: person.name || '',
-      summary: person.summary || '',
+      id: this.data.id,
+      username: this.data.username,
+      domain: this.data.domain,
+      ...(icon || null),
+      url: `https://${this.data.domain}/@${this.data.username}`,
+      name: this.data.name || '',
+      summary: this.data.summary || '',
 
-      followersCount,
-      followingCount,
+      followersCount: this.data.followersCount,
+      followingCount: this.data.followingCount,
       totalPosts,
 
       endpoints: {
-        following: person.following,
-        followers: person.followers,
-        inbox: person.inbox,
-        outbox: person.outbox,
-        sharedInbox: person.endpoints?.sharedInbox ?? person.inbox
+        following: `https://${this.data.domain}/users/${this.data.username}/following`,
+        followers: this.data.followersUrl,
+        inbox: this.data.inboxUrl,
+        outbox: `https://${this.data.domain}/users/${this.data.username}/outbox`,
+        sharedInbox: this.data.sharedInboxUrl ?? this.data.inboxUrl
       },
 
-      createdAt: new Date(person.published).getTime()
+      createdAt: this.data.createdAt
     }
   }
 

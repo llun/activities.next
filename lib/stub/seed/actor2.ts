@@ -75,5 +75,7 @@ export const seedActor2 = {
     'Ibho5GXxXnDokCdDxJWOuIqbv88JcsdPfDlerBqJH/psZvcdvfLlOtpkKbXfn1wy\n' +
     'bfrQD45F9obHgZNedNHLb2xcbb6HNJ1JNaTj8IAXtQkqTRVrfuyt+jd2Z6ZeTdx+\n' +
     'JkCCNlFq6jaQjU5WpaX9YolMRrWWBwkkga+eRBSXuCvA\n' +
-    '-----END ENCRYPTED PRIVATE KEY-----\n'
+    '-----END ENCRYPTED PRIVATE KEY-----\n',
+  followersCount: 0,
+  followingCount: 0
 }

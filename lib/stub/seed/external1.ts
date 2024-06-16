@@ -12,5 +12,7 @@ export const seedExternal1 = {
   sharedInboxUrl: EXTERNAL_ACTOR1_INBOX,
   followersUrl: EXTERNAL_ACTOR1_FOLLOWERS,
   publicKey: 'publicKey',
-  createdAt: Date.now()
+  createdAt: Date.now(),
+  followersCount: 0,
+  followingCount: 0
 }

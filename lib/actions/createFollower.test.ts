@@ -17,25 +17,22 @@ describe('#createFollower', () => {
       filename: ':memory:'
     }
   })
-  let actor: Actor | undefined
+  let actor: Actor
 
   beforeAll(async () => {
     await storage.migrate()
     await seedStorage(storage)
-    actor = await storage.getActorFromUsername({
+    actor = (await storage.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain
-    })
+    })) as Actor
   })
 
   afterAll(async () => {
-    if (!storage) return
     await storage.destroy()
   })
 
   it('creates follower in database and send accept follow back', async () => {
-    if (!actor) fail('Actor is required')
-
     const request = MockFollowRequest({
       actorId: 'https://another.network/users/friend',
       targetActorId: actor.id

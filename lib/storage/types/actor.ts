@@ -50,6 +50,8 @@ export type DeleteActorParams = {
 export type GetActorFollowingCountParams = { actorId: string }
 export type GetActorFollowersCountParams = { actorId: string }
 
+export type IsInternalActorParams = { actorId: string }
+
 export interface ActorStorage {
   createActor(params: CreateActorParams): Promise<Actor | undefined>
   createMastodonActor(
@@ -78,4 +80,6 @@ export interface ActorStorage {
   ): Promise<boolean>
   getActorFollowingCount(params: GetActorFollowingCountParams): Promise<number>
   getActorFollowersCount(params: GetActorFollowersCountParams): Promise<number>
+
+  isInternalActor(params: IsInternalActorParams): Promise<boolean>
 }

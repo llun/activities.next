@@ -62,6 +62,17 @@ describe('ActorStorage', () => {
         privateKey: 'privateKey1',
         publicKey: 'publicKey1'
       })
+
+      await storage.createActor({
+        actorId: EXTERNAL_ACTORS[0].id,
+        username: EXTERNAL_ACTORS[0].username,
+        domain: EXTERNAL_ACTORS[0].domain,
+        followersUrl: EXTERNAL_ACTORS[0].followers_url,
+        inboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+        sharedInboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+        publicKey: 'publicKey',
+        createdAt: Date.now()
+      })
     })
 
     describe('deprecated actor', () => {
@@ -221,7 +232,66 @@ describe('ActorStorage', () => {
       })
     })
 
-    describe('edit actor', () => {
+    describe('external actors', () => {
+      it('creates actor without account in the storage and returns deprecated actor model', async () => {
+        const actor = await storage.getActorFromId({
+          id: EXTERNAL_ACTORS[0].id
+        })
+        expect(actor).toBeDefined()
+        expect(actor?.username).toEqual(EXTERNAL_ACTORS[0].username)
+        expect(actor?.domain).toEqual(EXTERNAL_ACTORS[0].domain)
+        expect(actor?.followersUrl).toEqual(EXTERNAL_ACTORS[0].followers_url)
+        expect(actor?.inboxUrl).toEqual(EXTERNAL_ACTORS[0].inbox_url)
+        expect(actor?.sharedInboxUrl).toEqual(EXTERNAL_ACTORS[0].inbox_url)
+        expect(actor?.publicKey).toEqual('publicKey')
+        expect(actor?.privateKey).toEqual('')
+      })
+
+      it('creates actor without account in the storage and returns mastodon actor model', async () => {
+        const currentTime = Date.now()
+        const actor = await storage.createMastodonActor({
+          actorId: EXTERNAL_ACTORS[1].id,
+          username: EXTERNAL_ACTORS[1].username,
+          name: EXTERNAL_ACTORS[1].name,
+          domain: EXTERNAL_ACTORS[1].domain,
+          followersUrl: EXTERNAL_ACTORS[1].followers_url,
+          inboxUrl: EXTERNAL_ACTORS[1].inbox_url,
+          sharedInboxUrl: EXTERNAL_ACTORS[1].inbox_url,
+          publicKey: 'publicKey',
+          createdAt: currentTime
+        })
+        expect(actor).toEqual({
+          id: EXTERNAL_ACTORS[1].id,
+          username: EXTERNAL_ACTORS[1].username,
+          acct: `${EXTERNAL_ACTORS[1].username}@${EXTERNAL_ACTORS[1].domain}`,
+          url: EXTERNAL_ACTORS[1].id,
+          display_name: EXTERNAL_ACTORS[1].name,
+          note: '',
+          avatar: '',
+          avatar_static: '',
+          header: '',
+          header_static: '',
+
+          locked: false,
+          fields: [],
+          emojis: [],
+
+          bot: false,
+          group: false,
+          discoverable: true,
+          noindex: false,
+
+          created_at: getISOTimeUTC(currentTime),
+          last_status_at: null,
+
+          statuses_count: 0,
+          followers_count: 0,
+          following_count: 0
+        })
+      })
+    })
+
+    describe('#updateActor', () => {
       it('updates actor information and returns it in mastodon actor', async () => {
         await storage.updateActor({
           actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
@@ -295,72 +365,26 @@ describe('ActorStorage', () => {
       })
     })
 
-    describe('external actors', () => {
-      it('creates actor without account in the storage and returns deprecated actor model', async () => {
-        await storage.createActor({
-          actorId: EXTERNAL_ACTORS[0].id,
-          username: EXTERNAL_ACTORS[0].username,
-          domain: EXTERNAL_ACTORS[0].domain,
-          followersUrl: EXTERNAL_ACTORS[0].followers_url,
-          inboxUrl: EXTERNAL_ACTORS[0].inbox_url,
-          sharedInboxUrl: EXTERNAL_ACTORS[0].inbox_url,
-          publicKey: 'publicKey',
-          createdAt: Date.now()
+    describe('#isInternalActor', () => {
+      it('returns true when actor is internal', async () => {
+        const result = await storage.isInternalActor({
+          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
         })
-        const actor = await storage.getActorFromId({
-          id: EXTERNAL_ACTORS[0].id
-        })
-        expect(actor).toBeDefined()
-        expect(actor?.username).toEqual(EXTERNAL_ACTORS[0].username)
-        expect(actor?.domain).toEqual(EXTERNAL_ACTORS[0].domain)
-        expect(actor?.followersUrl).toEqual(EXTERNAL_ACTORS[0].followers_url)
-        expect(actor?.inboxUrl).toEqual(EXTERNAL_ACTORS[0].inbox_url)
-        expect(actor?.sharedInboxUrl).toEqual(EXTERNAL_ACTORS[0].inbox_url)
-        expect(actor?.publicKey).toEqual('publicKey')
-        expect(actor?.privateKey).toEqual('')
+        expect(result).toBeTrue()
       })
 
-      it('creates actor without account in the storage and returns mastodon actor model', async () => {
-        const currentTime = Date.now()
-        const actor = await storage.createMastodonActor({
-          actorId: EXTERNAL_ACTORS[1].id,
-          username: EXTERNAL_ACTORS[1].username,
-          name: EXTERNAL_ACTORS[1].name,
-          domain: EXTERNAL_ACTORS[1].domain,
-          followersUrl: EXTERNAL_ACTORS[1].followers_url,
-          inboxUrl: EXTERNAL_ACTORS[1].inbox_url,
-          sharedInboxUrl: EXTERNAL_ACTORS[1].inbox_url,
-          publicKey: 'publicKey',
-          createdAt: currentTime
+      it('returns false when actor is external', async () => {
+        const result = await storage.isInternalActor({
+          actorId: EXTERNAL_ACTORS[0].id
         })
-        expect(actor).toEqual({
-          id: EXTERNAL_ACTORS[1].id,
-          username: EXTERNAL_ACTORS[1].username,
-          acct: `${EXTERNAL_ACTORS[1].username}@${EXTERNAL_ACTORS[1].domain}`,
-          url: EXTERNAL_ACTORS[1].id,
-          display_name: EXTERNAL_ACTORS[1].name,
-          note: '',
-          avatar: '',
-          avatar_static: '',
-          header: '',
-          header_static: '',
+        expect(result).toBeFalse()
+      })
 
-          locked: false,
-          fields: [],
-          emojis: [],
-
-          bot: false,
-          group: false,
-          discoverable: true,
-          noindex: false,
-
-          created_at: getISOTimeUTC(currentTime),
-          last_status_at: null,
-
-          statuses_count: 0,
-          followers_count: 0,
-          following_count: 0
+      it('returns false when actor is not exists', async () => {
+        const result = await storage.isInternalActor({
+          actorId: 'https://notfound.test/actor'
         })
+        expect(result).toBeFalse()
       })
     })
   })
