@@ -59,7 +59,7 @@
   "devDependencies": {
     "@next/env": "^14.2.4",
     "@swc-node/register": "^1.9.2",
-    "@swc/core": "1.5.29",
+    "@swc/core": "1.6.1",
     "@swc/jest": "^0.2.36",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^16.0.0",
