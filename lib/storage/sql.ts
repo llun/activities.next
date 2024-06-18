@@ -1270,7 +1270,8 @@ export class SqlStorage implements Storage {
   private async getStatusWithAttachmentsFromData(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
-    currentActorId?: string
+    currentActorId?: string,
+    withReplies?: boolean
   ): Promise<Status> {
     const [to, cc] = await Promise.all([
       this.database('recipients')
@@ -1318,10 +1319,12 @@ export class SqlStorage implements Storage {
     ] = await Promise.all([
       this.getAttachments({ statusId: data.id }),
       this.getTags({ statusId: data.id }),
-      this.database('statuses')
-        .select('id')
-        .where('reply', data.id)
-        .orderBy('createdAt', 'desc'),
+      withReplies
+        ? this.database('statuses')
+            .select('id')
+            .where('reply', data.id)
+            .orderBy('createdAt', 'desc')
+        : Promise.resolve([]),
       this.getActorFromId({ id: data.actorId }),
       this.database('likes')
         .where('statusId', data.id)
@@ -1393,7 +1396,8 @@ export class SqlStorage implements Storage {
 
   private async getStatusWithCurrentActorId(
     statusId: string,
-    currentActorId?: string
+    currentActorId?: string,
+    withReplies?: boolean
   ) {
     const status = await this.database('statuses').where('id', statusId).first()
     if (!status) return
@@ -1401,8 +1405,8 @@ export class SqlStorage implements Storage {
     return this.getStatusWithAttachmentsFromData(status, currentActorId)
   }
 
-  async getStatus({ statusId }: GetStatusParams) {
-    return this.getStatusWithCurrentActorId(statusId)
+  async getStatus({ statusId, withReplies }: GetStatusParams) {
+    return this.getStatusWithCurrentActorId(statusId, undefined, withReplies)
   }
 
   async getStatusReplies({ statusId }: GetStatusRepliesParams) {

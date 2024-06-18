@@ -125,6 +125,10 @@ export class FirestoreStorage implements Storage {
     this.config = config
   }
 
+  async migrate() {
+    // Do nothing
+  }
+
   async destroy() {
     await fetch(
       `http://127.0.0.1:8080/emulator/v1/projects/${this.config.projectId}/databases/(default)/documents`,
