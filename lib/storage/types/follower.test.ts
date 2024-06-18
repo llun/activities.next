@@ -12,13 +12,17 @@ import { SqlStorage } from '../sql'
 import { Storage } from '../types'
 import { AccountStorage } from './acount'
 import { ActorStorage } from './actor'
+import { BaseStorage } from './base'
 import { FollowerStorage } from './follower'
 
-type AccountAndFollowerStorage = AccountStorage & ActorStorage & FollowerStorage
+type AccountAndFollowerStorage = AccountStorage &
+  ActorStorage &
+  FollowerStorage &
+  BaseStorage
 type TestStorage = [string, AccountAndFollowerStorage]
 
 describe('FollowerStorage', () => {
-  const testTable: TestStorage[] = [
+  const testStorages: TestStorage[] = [
     [
       'sqlite',
       new SqlStorage({
@@ -42,18 +46,14 @@ describe('FollowerStorage', () => {
   ]
 
   beforeAll(async () => {
-    const sqlItem = testTable.find((value) => value[0] === 'sqlite')
-    if (sqlItem) await (sqlItem[1] as SqlStorage).migrate()
+    await Promise.all(testStorages.map((item) => item[1].migrate()))
   })
 
   afterAll(async () => {
-    for (const item of testTable) {
-      const storage = item[1] as Storage
-      await storage.destroy()
-    }
+    await Promise.all(testStorages.map((item) => item[1].destroy()))
   })
 
-  describe.each(testTable)('%s', (name, storage) => {
+  describe.each(testStorages)('%s', (name, storage) => {
     beforeAll(async () => {
       await seedStorage(storage as Storage)
     })
