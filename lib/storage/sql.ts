@@ -1402,7 +1402,11 @@ export class SqlStorage implements Storage {
     const status = await this.database('statuses').where('id', statusId).first()
     if (!status) return
 
-    return this.getStatusWithAttachmentsFromData(status, currentActorId)
+    return this.getStatusWithAttachmentsFromData(
+      status,
+      currentActorId,
+      withReplies
+    )
   }
 
   async getStatus({ statusId, withReplies }: GetStatusParams) {

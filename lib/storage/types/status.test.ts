@@ -89,7 +89,44 @@ describe('StatusStorage', () => {
           attachments: [],
           tags: []
         })
-        console.log(status?.toJson())
+      })
+      it('returns status with replies', async () => {
+        const status = await storage.getStatus({
+          statusId: `${ACTOR1_ID}/statuses/post-1`,
+          withReplies: true
+        })
+        expect(status?.toJson().replies).toHaveLength(1)
+        expect(status?.toJson()).toMatchObject({
+          id: 'https://llun.test/users/test1/statuses/post-1',
+          actorId: 'https://llun.test/users/test1',
+          actor: {
+            id: 'https://llun.test/users/test1',
+            username: 'test1',
+            domain: 'llun.test',
+            followersUrl: 'https://llun.test/users/test1/followers',
+            inboxUrl: 'https://llun.test/users/test1/inbox',
+            sharedInboxUrl: 'https://llun.test/inbox',
+            followingCount: 2,
+            followersCount: 1,
+            createdAt: expect.toBeNumber()
+          },
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          edits: [],
+          createdAt: expect.toBeNumber(),
+          updatedAt: expect.toBeNumber(),
+          type: 'Note',
+          url: 'https://llun.test/users/test1/statuses/post-1',
+          text: 'This is Actor1 post',
+          summary: '',
+          reply: '',
+          isActorAnnounced: false,
+          isActorLiked: false,
+          isLocalActor: true,
+          totalLikes: 0,
+          attachments: [],
+          tags: []
+        })
       })
     })
   })
