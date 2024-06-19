@@ -138,6 +138,7 @@ export const seedStorage = async (storage: Storage) => {
     text: 'This is Actor1 post 2'
   })
 
+  // Actor1 post with attachments
   await storage.createNote({
     id: `${actors[0].id}/statuses/post-3`,
     url: `${actors[0].id}/statuses/post-3`,
@@ -145,6 +146,22 @@ export const seedStorage = async (storage: Storage) => {
     to: [ACTIVITY_STREAM_PUBLIC],
     cc: [],
     text: 'This is Actor1 post 3'
+  })
+  await storage.createAttachment({
+    actorId: actors[0].id,
+    statusId: `${actors[0].id}/statuses/post-3`,
+    mediaType: 'image/png',
+    url: 'https://via.placeholder.com/150',
+    width: 150,
+    height: 150
+  })
+  await storage.createAttachment({
+    actorId: actors[0].id,
+    statusId: `${actors[0].id}/statuses/post-3`,
+    mediaType: 'image/png',
+    url: 'https://via.placeholder.com/150',
+    width: 150,
+    height: 150
   })
 
   // Actor2 status
