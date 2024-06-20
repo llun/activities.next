@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
-import { SecondsToDurationText } from '../../../../../lib/components/PostBox/PollChoices'
-import { PostBoxAttachment } from '../../../../../lib/models/attachment'
-import { StatusData } from '../../../../../lib/models/status'
+import { SecondsToDurationText } from '@/lib/components/PostBox/PollChoices'
+import { PostBoxAttachment } from '@/lib/models/attachment'
+import { StatusData } from '@/lib/models/status'
 
 export const CreateNoteRequest = z.object({
   type: z.literal('note'),

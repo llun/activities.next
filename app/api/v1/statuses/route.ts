@@ -12,8 +12,6 @@ const NoteSchema = z.object({
   media_ids: z.array(z.string()).optional()
 })
 
-type NoteSchema = z.infer<typeof NoteSchema>
-
 export const POST = AuthenticatedGuard(async (req, context) => {
   const { currentActor, storage } = context
   try {

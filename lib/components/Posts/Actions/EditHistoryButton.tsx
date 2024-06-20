@@ -5,8 +5,8 @@ import { FC, useState } from 'react'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
-import { StatusData, StatusNote, StatusPoll } from '../../../models/status'
-import { cleanClassName } from '../../../utils/text/cleanClassName'
+import { StatusData, StatusNote, StatusPoll } from '@/lib/models/status'
+import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { Button } from '../../Button'
 import styles from './EditHistoryButton.module.scss'
 

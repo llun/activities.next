@@ -5,9 +5,9 @@ import {
   getStatusFavouritedBy,
   likeStatus,
   undoLikeStatus
-} from '../../../client'
-import { ActorProfile } from '../../../models/actor'
-import { StatusNote, StatusPoll, StatusType } from '../../../models/status'
+} from '@/lib/client'
+import { ActorProfile } from '@/lib/models/actor'
+import { StatusNote, StatusPoll, StatusType } from '@/lib/models/status'
 import { Button } from '../../Button'
 import styles from './LikeButton.module.scss'
 

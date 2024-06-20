@@ -1,5 +1,3 @@
-'https://mastodon.world/users/Mallulady/statuses/109601474428132248'
-
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { AnnounceStatus } from '../activities/actions/announceStatus'
