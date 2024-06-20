@@ -21,17 +21,17 @@ export async function middleware(request: NextRequest) {
       ])
     ) {
       // Actor route
-      if (/^\/@[\w\d]+$/.test(pathname)) {
-        const matches = pathname.match(/^\/@(?<username>[\w\d]+)/)
+      if (/^\/@\w+$/.test(pathname)) {
+        const matches = pathname.match(/^\/@(?<username>\w+)/)
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}`
         return NextResponse.rewrite(apiUrl)
       }
 
       // Actor status route
-      if (/^\/@[\w\d]+\/[\w\d-]+$/.test(pathname) && acceptValue) {
+      if (/^\/@\w+\/[\w-]+$/.test(pathname) && acceptValue) {
         const matches = pathname.match(
-          /^\/@(?<username>[\w\d]+)\/(?<statusId>[\w\d-]+)/
+          /^\/@(?<username>\w+)\/(?<statusId>[\w-]+)/
         )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}/statuses/${matches?.groups?.statusId}`

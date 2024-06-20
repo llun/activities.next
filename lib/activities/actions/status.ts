@@ -11,5 +11,4 @@ export type StatusActivity =
   | DeleteStatus
   | DeleteUser
   | AnnounceStatus
-  | UpdateStatus
   | UndoStatus

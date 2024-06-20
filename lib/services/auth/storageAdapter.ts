@@ -61,12 +61,10 @@ export function StorageAdapter(secret: string): Adapter {
       if (!account) return null
       return userFromAccount(account)
     },
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async updateUser(user) {
+    async updateUser(/* user */) {
       throw NoImplementationError
     },
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async deleteUser(userId) {
+    async deleteUser(/* userId */) {
       throw NoImplementationError
     },
     async linkAccount({ provider, providerAccountId, userId }) {
@@ -79,8 +77,7 @@ export function StorageAdapter(secret: string): Adapter {
         providerAccountId
       })
     },
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async unlinkAccount(accountId) {
+    async unlinkAccount(/* accountId */) {
       throw NoImplementationError
     },
     async createSession(session) {
@@ -171,12 +168,10 @@ export function StorageAdapter(secret: string): Adapter {
 
       await storage.deleteAccountSession({ token: sessionToken })
     },
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async createVerificationToken(verificationToken) {
+    async createVerificationToken(/* verificationToken */) {
       throw NoImplementationError
     },
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async useVerificationToken(params) {
+    async useVerificationToken(/* params */) {
       throw NoImplementationError
     }
   }
