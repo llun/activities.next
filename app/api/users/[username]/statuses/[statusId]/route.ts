@@ -20,6 +20,9 @@ export const GET = OnlyLocalUserGuard(
     const note = status.toObject()
     if (!note) return apiErrorResponse(404)
 
-    return Response.json({ '@context': ACTIVITY_STREAM_URL, ...note })
+    return Response.json(
+      { '@context': ACTIVITY_STREAM_URL, ...note },
+      { headers: { 'content-type': 'application/ld+json' } }
+    )
   }
 )
