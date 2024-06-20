@@ -1,4 +1,5 @@
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { seedStorage } from '@/lib/stub/storage'
 
 import { FirestoreStorage } from '../firestore'
@@ -90,6 +91,7 @@ describe('StatusStorage', () => {
           tags: []
         })
       })
+
       it('returns status with replies', async () => {
         const status = await storage.getStatus({
           statusId: `${ACTOR1_ID}/statuses/post-1`,
@@ -127,6 +129,59 @@ describe('StatusStorage', () => {
           attachments: [],
           tags: []
         })
+      })
+
+      it('returns status with attachments', async () => {
+        const status = await storage.getStatus({
+          statusId: `${ACTOR1_ID}/statuses/post-3`
+        })
+        expect(status?.data.attachments).toHaveLength(2)
+        expect(status?.data.attachments).toMatchObject([
+          {
+            id: expect.toBeString(),
+            actorId: 'https://llun.test/users/test1',
+            statusId: 'https://llun.test/users/test1/statuses/post-3',
+            type: 'Document',
+            mediaType: 'image/png',
+            url: 'https://via.placeholder.com/150',
+            width: 150,
+            height: 150,
+            name: '',
+            createdAt: expect.toBeNumber(),
+            updatedAt: expect.toBeNumber()
+          },
+          {
+            id: expect.toBeString(),
+            actorId: 'https://llun.test/users/test1',
+            statusId: 'https://llun.test/users/test1/statuses/post-3',
+            type: 'Document',
+            mediaType: 'image/png',
+            url: 'https://via.placeholder.com/150',
+            width: 150,
+            height: 150,
+            name: '',
+            createdAt: expect.toBeNumber(),
+            updatedAt: expect.toBeNumber()
+          }
+        ])
+      })
+
+      it('returns status with tags', async () => {
+        const status = await storage.getStatus({
+          statusId: `${ACTOR2_ID}/statuses/post-2`
+        })
+        expect(status?.data.tags).toHaveLength(1)
+        expect(status?.data.tags).toMatchObject([
+          {
+            id: expect.toBeString(),
+            statusId: 'https://llun.test/users/test2/statuses/post-2',
+            type: 'mention',
+            name: '@test1',
+            value: 'https://llun.test/@test1',
+            createdAt: expect.toBeNumber(),
+            updatedAt: expect.toBeNumber()
+          }
+        ])
       })
     })
   })

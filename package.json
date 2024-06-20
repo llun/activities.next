@@ -16,8 +16,8 @@
     "migrate:make": "knex migrate:make"
   },
   "dependencies": {
-    "@aws-sdk/client-lambda": "^3.598.0",
-    "@aws-sdk/client-s3": "^3.598.0",
+    "@aws-sdk/client-lambda": "^3.600.0",
+    "@aws-sdk/client-s3": "^3.600.0",
     "@aws-sdk/util-utf8-node": "^3.259.0",
     "@date-fns/utc": "^1.2.0",
     "@google-cloud/firestore": "^7.8.0",
@@ -44,8 +44,8 @@
     "mime-types": "^2.1.35",
     "next": "14.2.4",
     "next-auth": "4.24.7",
-    "nodemailer": "^6.9.13",
-    "peggy": "^4.0.2",
+    "nodemailer": "^6.9.14",
+    "peggy": "^4.0.3",
     "pino": "^9.2.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -59,7 +59,7 @@
   "devDependencies": {
     "@next/env": "^14.2.4",
     "@swc-node/register": "^1.9.2",
-    "@swc/core": "1.6.1",
+    "@swc/core": "1.6.3",
     "@swc/jest": "^0.2.36",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^16.0.0",
@@ -72,7 +72,7 @@
     "@types/jsonwebtoken": "^9",
     "@types/lodash": "^4.17.5",
     "@types/mime-types": "^2.1.4",
-    "@types/node": "^20.14.5",
+    "@types/node": "^20.14.6",
     "@types/nodemailer": "^6.4.15",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
@@ -81,7 +81,7 @@
     "@typescript-eslint/eslint-plugin": "^7.13.1",
     "@typescript-eslint/parser": "^7.13.1",
     "dotenv-flow": "^4.1.0",
-    "eslint": "^8.57.0",
+    "eslint": "^9.5.0",
     "eslint-config-next": "14.2.4",
     "eslint-config-prettier": "^9.1.0",
     "eslint-config-standard": "^17.1.0",
@@ -96,7 +96,7 @@
     "jest-fetch-mock": "^3.0.3",
     "postcss": "^8.4.38",
     "prettier": "3.3.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.5.2"
   },
   "packageManager": "yarn@4.2.2"
 }
