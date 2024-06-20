@@ -168,7 +168,7 @@ describe('Status', () => {
         expect(note?.tag).toHaveLength(1)
         expect(note?.tag).toContainValue({
           type: 'Mention',
-          name: '@test',
+          name: '@test1',
           href: 'https://llun.test/@test1'
         })
       })
