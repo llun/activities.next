@@ -4,7 +4,7 @@ import {
   EditableStatusData,
   StatusData,
   StatusType
-} from '../../../models/status'
+} from '@/lib/models/status'
 import { Button } from '../../Button'
 
 interface Props {

@@ -11,8 +11,6 @@ const AssetsRequest = z.object({
   photoGuids: z.string().array()
 })
 
-type AssetsRequest = z.infer<typeof AssetsRequest>
-
 interface Params {
   token: string
 }

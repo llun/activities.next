@@ -20,9 +20,9 @@ export const ActorTabs: FC<Props> = ({ currentTab, onClickTab }) => {
           className={cn('nav-link', {
             active: currentTab === ActorTab.Posts
           })}
-          onClick={(event) => {
+          onClick={async (event) => {
             event.preventDefault()
-            onClickTab(ActorTab.Posts)
+            await onClickTab(ActorTab.Posts)
           }}
         >
           Posts
@@ -34,9 +34,9 @@ export const ActorTabs: FC<Props> = ({ currentTab, onClickTab }) => {
           className={cn('nav-link', {
             active: currentTab === ActorTab.Medias
           })}
-          onClick={(event) => {
+          onClick={async (event) => {
             event.preventDefault()
-            onClickTab(ActorTab.Medias)
+            await onClickTab(ActorTab.Medias)
           }}
         >
           Medias

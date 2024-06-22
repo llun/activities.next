@@ -1,7 +1,7 @@
 import { FC } from 'react'
 
-import { deleteStatus } from '../../../client'
-import { StatusData, StatusNote, StatusPoll } from '../../../models/status'
+import { deleteStatus } from '@/lib/client'
+import { StatusData, StatusNote, StatusPoll } from '@/lib/models/status'
 import { Button } from '../../Button'
 
 interface Props {

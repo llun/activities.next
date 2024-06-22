@@ -24,11 +24,11 @@ export const ActivityPubVerifySenderGuard =
     const requestUrl = new URL(request.url, `http://${host}`)
     const publicKey = await getSenderPublicKey(storage, signatureParts.keyId)
     if (
-      !verify(
+      !(await verify(
         `${request.method.toLowerCase()} ${requestUrl.pathname}`,
         request.headers,
         publicKey
-      )
+      ))
     ) {
       return apiErrorResponse(400)
     }

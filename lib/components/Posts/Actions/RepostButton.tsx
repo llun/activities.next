@@ -1,9 +1,9 @@
 import cn from 'classnames'
 import { FC, useState } from 'react'
 
-import { repostStatus, undoRepostStatus } from '../../../client'
-import { ActorProfile } from '../../../models/actor'
-import { StatusData, StatusType } from '../../../models/status'
+import { repostStatus, undoRepostStatus } from '@/lib/client'
+import { ActorProfile } from '@/lib/models/actor'
+import { StatusData, StatusType } from '@/lib/models/status'
 import { Button } from '../../Button'
 
 interface RepostButtonProps {

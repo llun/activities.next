@@ -14,8 +14,6 @@ const EditNoteSchema = z.object({
   spoiler_text: z.string().optional()
 })
 
-type EditNoteSchema = z.infer<typeof EditNoteSchema>
-
 export const PUT = AuthenticatedGuard<Params>(async (req, context, params) => {
   const id = params?.params.id
   if (!id) return apiErrorResponse(400)

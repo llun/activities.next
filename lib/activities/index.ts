@@ -14,7 +14,7 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
 } from '@/lib/utils/jsonld/activitystream'
-import { compact } from '@/lib/utils/jsonld/index'
+import { compact } from '@/lib/utils/jsonld'
 import { request } from '@/lib/utils/request'
 import { signedHeaders } from '@/lib/utils/signature'
 import { getSpan } from '@/lib/utils/trace'

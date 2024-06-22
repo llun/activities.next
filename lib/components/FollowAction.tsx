@@ -33,7 +33,7 @@ export const FollowAction: FC<FollowActionProps> = ({
   if (!isLoggedIn) return null
   if (followingStatus === undefined) return null
 
-  if (followingStatus === false) {
+  if (!followingStatus) {
     return (
       <div className="flex-shrink-0">
         <Button type="button" onClick={() => onFollow(targetActorId)}>

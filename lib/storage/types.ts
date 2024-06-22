@@ -6,6 +6,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 
 import { AccountStorage } from './types/acount'
 import { ActorStorage } from './types/actor'
+import { BaseStorage } from './types/base'
 import { FollowerStorage } from './types/follower'
 import { LikeStorage } from './types/like'
 import { MediaStorage } from './types/media'
@@ -43,12 +44,11 @@ export interface Storage
     LikeStorage,
     MediaStorage,
     StatusStorage,
-    OAuthStorage {
+    OAuthStorage,
+    BaseStorage {
   getTimeline(params: GetTimelineParams): Promise<Status[]>
   createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
 
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>
-
-  destroy(): Promise<void>
 }

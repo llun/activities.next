@@ -181,12 +181,12 @@ export const PostBox: FC<Props> = ({
     )
   }
 
-  const onQuickPost = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  const onQuickPost = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!(event.metaKey || event.ctrlKey)) return
     if (event.code !== 'Enter') return
     if (!allowPost) return
     if (!formRef.current) return
-    onPost()
+    await onPost()
   }
 
   const onTextChange = () => {

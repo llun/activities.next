@@ -9,10 +9,10 @@ export enum MediaStorageType {
   ObjectStorage = 'object'
 }
 
-const BaseStorageConfig = z.object({
+export const BaseStorageConfig = z.object({
   maxFileSize: z.number().nullish()
 })
-type BaseStorageConfig = z.infer<typeof BaseStorageConfig>
+export type BaseStorageConfig = z.infer<typeof BaseStorageConfig>
 
 export const MediaStorageFileConfig = BaseStorageConfig.extend({
   type: z.literal(MediaStorageType.LocalFile),

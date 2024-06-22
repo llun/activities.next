@@ -7,15 +7,15 @@ import {
 
 import { FirestoreStorage } from '../firestore'
 import { SqlStorage } from '../sql'
-import { Storage } from '../types'
 import { AccountStorage } from './acount'
 import { ActorStorage } from './actor'
+import { BaseStorage } from './base'
 
-type AccountAndActorStorage = AccountStorage & ActorStorage
+type AccountAndActorStorage = AccountStorage & ActorStorage & BaseStorage
 type TestStorage = [string, AccountAndActorStorage]
 
 describe('AccountStorage', () => {
-  const testTable: TestStorage[] = [
+  const testStorages: TestStorage[] = [
     [
       'sqlite',
       new SqlStorage({
@@ -39,18 +39,14 @@ describe('AccountStorage', () => {
   ]
 
   beforeAll(async () => {
-    const sqlItem = testTable.find((value) => value[0] === 'sqlite')
-    if (sqlItem) await (sqlItem[1] as SqlStorage).migrate()
+    await Promise.all(testStorages.map((item) => item[1].migrate()))
   })
 
   afterAll(async () => {
-    for (const item of testTable) {
-      const storage = item[1] as Storage
-      await storage.destroy()
-    }
+    await Promise.all(testStorages.map((item) => item[1].destroy()))
   })
 
-  describe.each(testTable)('%s', (name, storage) => {
+  describe.each(testStorages)('%s', (name, storage) => {
     it('returns false when account is not created yet', async () => {
       expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeFalse()
       expect(

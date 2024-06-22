@@ -1,6 +1,6 @@
 import { FC } from 'react'
 
-import { StatusData } from '../../../models/status'
+import { StatusData } from '@/lib/models/status'
 import { Button } from '../../Button'
 
 interface Props {

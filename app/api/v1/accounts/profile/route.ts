@@ -16,7 +16,6 @@ const ProfileRequest = z.object({
   inboxUrl: z.string().optional(),
   sharedInboxUrl: z.string().optional()
 })
-type ProfileRequest = z.infer<typeof ProfileRequest>
 
 export const POST = AuthenticatedGuard(async (req, context) => {
   const { currentActor, storage } = context

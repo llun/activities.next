@@ -43,7 +43,7 @@ const getActualStatus = (status: StatusData) => {
 interface BoostStatusProps {
   status: StatusData
 }
-const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
+export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   if (status.type !== StatusType.enum.Announce) return null
   return (
     <div className={cn('d-flex', 'mb-1', 'align-items-center')}>

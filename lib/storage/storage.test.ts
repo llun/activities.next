@@ -105,15 +105,11 @@ describe('Storage', () => {
   ]
 
   beforeAll(async () => {
-    const sqlItem = testTable.find((value) => value[0] === 'sqlite')
-    if (sqlItem) await (sqlItem[1] as SqlStorage).migrate()
+    await Promise.all(testTable.map((item) => item[1].migrate()))
   })
 
   afterAll(async () => {
-    for (const item of testTable) {
-      const storage = item[1]
-      await storage.destroy()
-    }
+    await Promise.all(testTable.map((item) => item[1].destroy()))
   })
 
   describe.each(testTable)(`%s`, (name, storage) => {

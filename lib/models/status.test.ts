@@ -123,7 +123,8 @@ describe('Status', () => {
       it('converts status to Note object', async () => {
         const statusId = `${actor1?.id}/statuses/post-1`
         const status = await storage.getStatus({
-          statusId
+          statusId,
+          withReplies: true
         })
         const note = status?.toObject()
         if (status?.data.type !== StatusType.enum.Note) {
@@ -167,7 +168,7 @@ describe('Status', () => {
         expect(note?.tag).toHaveLength(1)
         expect(note?.tag).toContainValue({
           type: 'Mention',
-          name: '@test',
+          name: '@test1',
           href: 'https://llun.test/@test1'
         })
       })

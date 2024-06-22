@@ -38,8 +38,6 @@ const StatusBase = z
   })
   .passthrough()
 
-type StatusBase = z.infer<typeof StatusBase>
-
 export const StatusNote = StatusBase.extend({
   type: z.literal(StatusType.enum.Note),
   url: z.string(),
