@@ -11,7 +11,7 @@ type StatusParams = OnlyLocalUserGuardHandle & {
 }
 
 export const GET = OnlyLocalUserGuard(
-  async (storage, actor, _, query: unknown) => {
+  async (storage, actor, req, query: unknown) => {
     const { statusId } = (query as AppRouterParams<StatusParams>).params
     const id = `${actor.id}/statuses/${statusId}`
     const status = await storage.getStatus({ statusId: id, withReplies: true })
@@ -19,6 +19,16 @@ export const GET = OnlyLocalUserGuard(
 
     const note = status.toObject()
     if (!note) return apiErrorResponse(404)
+
+    const acceptHeader = req.headers.get('accept')
+    if (
+      acceptHeader !==
+      'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+    ) {
+      return Response.redirect(
+        `https://${status.actor?.domain}/@${actor.username}/${statusId}`
+      )
+    }
 
     return Response.json(
       { '@context': ACTIVITY_STREAM_URL, ...note },
