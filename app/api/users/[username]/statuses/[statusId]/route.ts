@@ -21,18 +21,22 @@ export const GET = OnlyLocalUserGuard(
     if (!note) return apiErrorResponse(404)
 
     const acceptHeader = req.headers.get('accept')
-    if (
-      acceptHeader !==
-      'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-    ) {
-      return Response.redirect(
-        `https://${status.actor?.domain}/@${actor.username}/${statusId}`
+    if (acceptHeader?.startsWith('application/ld+json')) {
+      return Response.json(
+        { '@context': ACTIVITY_STREAM_URL, ...note },
+        { headers: { 'content-type': 'application/ld+json' } }
       )
     }
 
-    return Response.json(
-      { '@context': ACTIVITY_STREAM_URL, ...note },
-      { headers: { 'content-type': 'application/ld+json' } }
+    if (acceptHeader?.startsWith('application/activity+json')) {
+      return Response.json(
+        { '@context': ACTIVITY_STREAM_URL, ...note },
+        { headers: { 'content-type': 'activity+json' } }
+      )
+    }
+
+    return Response.redirect(
+      `https://${status.actor?.domain}/@${actor.username}/${statusId}`
     )
   }
 )
