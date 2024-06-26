@@ -52,10 +52,12 @@ export async function verify(
       if (item === '(request-target)') {
         return `(request-target): ${requestTarget}`
       }
+      if (item === 'host' && getHeadersValue(headers, 'x-forwarded-host')) {
+        return `${item}: ${getHeadersValue(headers, 'x-forwarded-host')}`
+      }
       return `${item}: ${getHeadersValue(headers, item)}`
     })
     .join('\n')
-
   const signature = parsedSignature.signature
   const verifier = crypto.createVerify(parsedSignature.algorithm)
   verifier.update(comparedSignedString)
