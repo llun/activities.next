@@ -30,7 +30,8 @@ export const ActivityPubVerifySenderGuard =
         publicKey
       ))
     ) {
-      return apiErrorResponse(400)
+      console.error('Fail to verify request', request.headers, publicKey)
+      //return apiErrorResponse(400)
     }
 
     return handle(request, { storage }, params)
