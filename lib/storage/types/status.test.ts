@@ -184,5 +184,19 @@ describe('StatusStorage', () => {
         ])
       })
     })
+
+    describe('getActorStatuses', () => {
+      it('returns statuses for specific actor', async () => {
+        const statuses = await storage.getActorStatuses({
+          actorId: ACTOR1_ID
+        })
+        expect(statuses).toHaveLength(3)
+        expect(statuses.map((item) => item.data.text)).toEqual([
+          'This is Actor1 post 3',
+          'This is Actor1 post 2',
+          'This is Actor1 post'
+        ])
+      })
+    })
   })
 })
