@@ -191,4 +191,16 @@ export const seedStorage = async (storage: Storage) => {
     cc: [`${actors[1].id}/followers`],
     originalStatusId: `${actors[1].id}/statuses/post-2`
   })
+
+  // Actor 3 poll
+  await storage.createPoll({
+    id: `${actors[2].id}/statuses/poll-1`,
+    actorId: actors[2].id,
+    to: [ACTIVITY_STREAM_PUBLIC],
+    cc: [],
+    url: `${actors[2].id}/statuses/poll-1`,
+    text: 'This is a poll',
+    choices: ['Yes', 'No'],
+    endAt: Date.now() + 1000
+  })
 }

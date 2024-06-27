@@ -1,5 +1,6 @@
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { seedStorage } from '@/lib/stub/storage'
 
 import { FirestoreStorage } from '../firestore'
@@ -182,6 +183,53 @@ describe('StatusStorage', () => {
             updatedAt: expect.toBeNumber()
           }
         ])
+      })
+
+      it('returns announce status', async () => {
+        const status = await storage.getStatus({
+          statusId: `${ACTOR2_ID}/statuses/post-3`
+        })
+        expect(status?.data).toMatchObject({
+          id: `${ACTOR2_ID}/statuses/post-3`,
+          actorId: ACTOR2_ID,
+          actor: {
+            username: 'test2',
+            domain: 'llun.test'
+          },
+          type: 'Announce',
+          originalStatus: {
+            id: `${ACTOR2_ID}/statuses/post-2`,
+            actorId: ACTOR2_ID,
+            type: 'Note',
+            text: expect.toBeString()
+          }
+        })
+      })
+
+      it('returns poll status', async () => {
+        const status = await storage.getStatus({
+          statusId: `${ACTOR3_ID}/statuses/poll-1`
+        })
+        expect(status?.data).toMatchObject({
+          id: `${ACTOR3_ID}/statuses/poll-1`,
+          actorId: ACTOR3_ID,
+          type: 'Poll',
+          url: 'https://llun.test/users/test3/statuses/poll-1',
+          text: 'This is a poll',
+          tags: [],
+          choices: [
+            {
+              statusId: 'https://llun.test/users/test3/statuses/poll-1',
+              title: 'Yes',
+              totalVotes: 0
+            },
+            {
+              statusId: 'https://llun.test/users/test3/statuses/poll-1',
+              title: 'No',
+              totalVotes: 0
+            }
+          ]
+        })
       })
     })
 
