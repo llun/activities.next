@@ -1,6 +1,7 @@
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { seedStorage } from '@/lib/stub/storage'
 
 import { FirestoreStorage } from '../firestore'
@@ -9,11 +10,13 @@ import { Storage } from '../types'
 import { AccountStorage } from './acount'
 import { ActorStorage } from './actor'
 import { BaseStorage } from './base'
+import { MediaStorage } from './media'
 import { StatusStorage } from './status'
 
 type AccountAndStatusStorage = AccountStorage &
   ActorStorage &
   StatusStorage &
+  MediaStorage &
   BaseStorage
 type TestStorage = [string, AccountAndStatusStorage]
 
@@ -300,6 +303,52 @@ describe('StatusStorage', () => {
         })
         expect(actors).toHaveLength(1)
         expect(actors[0].id).toBe(ACTOR2_ID)
+      })
+    })
+
+    describe('createNote', () => {
+      it('creates a new note', async () => {
+        const status = await storage.createNote({
+          id: `${ACTOR4_ID}/statuses/new-post`,
+          url: `${ACTOR4_ID}/statuses/new-post`,
+          actorId: ACTOR4_ID,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'This is a new post'
+        })
+        expect(status?.data.text).toBe('This is a new post')
+      })
+
+      it('creates a new note with attachments', async () => {
+        await storage.createNote({
+          id: `${ACTOR4_ID}/statuses/new-post-2`,
+          url: `${ACTOR4_ID}/statuses/new-post-2`,
+          actorId: ACTOR4_ID,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'This is a new post with attachments'
+        })
+        await storage.createAttachment({
+          actorId: ACTOR4_ID,
+          statusId: `${ACTOR4_ID}/statuses/new-post-2`,
+          mediaType: 'image/png',
+          url: 'https://via.placeholder.com/150',
+          width: 150,
+          height: 150
+        })
+        await storage.createAttachment({
+          actorId: ACTOR4_ID,
+          statusId: `${ACTOR4_ID}/statuses/new-post-2`,
+          mediaType: 'image/png',
+          url: 'https://via.placeholder.com/150',
+          width: 150,
+          height: 150
+        })
+        const status = await storage.getStatus({
+          statusId: `${ACTOR4_ID}/statuses/new-post-2`
+        })
+        expect(status?.data.text).toBe('This is a new post with attachments')
+        expect(status?.data.attachments).toHaveLength(2)
       })
     })
   })
