@@ -1,3 +1,4 @@
+import { TagType } from '@/lib/models/tag'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
@@ -360,9 +361,9 @@ describe('StatusStorage', () => {
           cc: [],
           text: 'This is a new post with tags'
         })
-        await storage.createTag({
+        const tag = await storage.createTag({
           statusId: `${ACTOR4_ID}/statuses/new-post-3`,
-          type: 'mention',
+          type: TagType.enum.mention,
           name: '@test1',
           value: 'https://llun.test/@test1'
         })
@@ -371,7 +372,17 @@ describe('StatusStorage', () => {
         })
         expect(status?.data.text).toBe('This is a new post with tags')
         expect(status?.data.tags).toHaveLength(1)
-        console.log(status?.data.tags)
+        expect(status?.data.tags).toMatchObject([
+          {
+            id: tag.data.id,
+            statusId: `${ACTOR4_ID}/statuses/new-post-3`,
+            type: TagType.enum.mention,
+            name: '@test1',
+            value: 'https://llun.test/@test1',
+            createdAt: tag.data.createdAt,
+            updatedAt: tag.data.updatedAt
+          }
+        ])
       })
     })
   })
