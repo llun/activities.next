@@ -1,3 +1,5 @@
+import { Tag, TagType } from '@/lib/models/tag'
+
 import { Actor } from '../../models/actor'
 import { Status } from '../../models/status'
 
@@ -50,6 +52,16 @@ export type HasActorAnnouncedStatusParams = BaseStatusParams & {
 }
 export type GetFavouritedByParams = BaseStatusParams
 
+export type CreateTagParams = {
+  statusId: string
+  name: string
+  type: TagType
+  value?: string
+}
+export type GetTagsParams = {
+  statusId: string
+}
+
 export interface StatusStorage {
   createNote(params: CreateNoteParams): Promise<Status>
   updateNote(params: UpdateNoteParams): Promise<Status | undefined>
@@ -70,4 +82,7 @@ export interface StatusStorage {
   deleteStatus(params: DeleteStatusParams): Promise<void>
 
   getFavouritedBy(params: GetFavouritedByParams): Promise<Actor[]>
+
+  createTag(params: CreateTagParams): Promise<Tag>
+  getTags(params: GetTagsParams): Promise<Tag[]>
 }

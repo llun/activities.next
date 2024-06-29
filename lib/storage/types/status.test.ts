@@ -350,6 +350,29 @@ describe('StatusStorage', () => {
         expect(status?.data.text).toBe('This is a new post with attachments')
         expect(status?.data.attachments).toHaveLength(2)
       })
+
+      it('creates a new note with tags', async () => {
+        await storage.createNote({
+          id: `${ACTOR4_ID}/statuses/new-post-3`,
+          url: `${ACTOR4_ID}/statuses/new-post-3`,
+          actorId: ACTOR4_ID,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'This is a new post with tags'
+        })
+        await storage.createTag({
+          statusId: `${ACTOR4_ID}/statuses/new-post-3`,
+          type: 'mention',
+          name: '@test1',
+          value: 'https://llun.test/@test1'
+        })
+        const status = await storage.getStatus({
+          statusId: `${ACTOR4_ID}/statuses/new-post-3`
+        })
+        expect(status?.data.text).toBe('This is a new post with tags')
+        expect(status?.data.tags).toHaveLength(1)
+        console.log(status?.data.tags)
+      })
     })
   })
 })
