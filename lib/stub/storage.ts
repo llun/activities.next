@@ -203,4 +203,9 @@ export const seedStorage = async (storage: Storage) => {
     choices: ['Yes', 'No'],
     endAt: Date.now() + 1000
   })
+
+  await storage.createLike({
+    actorId: actors[1].id,
+    statusId: `${actors[2].id}/statuses/poll-1`
+  })
 }

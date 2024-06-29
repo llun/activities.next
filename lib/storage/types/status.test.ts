@@ -267,5 +267,40 @@ describe('StatusStorage', () => {
         )
       })
     })
+
+    describe('hasActorAnnouncedStatus', () => {
+      it('returns true if actor has announced status', async () => {
+        const result = await storage.hasActorAnnouncedStatus({
+          statusId: `${ACTOR2_ID}/statuses/post-2`,
+          actorId: ACTOR2_ID
+        })
+        expect(result).toBeTrue()
+      })
+
+      it('returns false if actor has not announced status', async () => {
+        const result = await storage.hasActorAnnouncedStatus({
+          statusId: `${ACTOR1_ID}/statuses/post-1`,
+          actorId: ACTOR1_ID
+        })
+        expect(result).toBeFalse()
+      })
+    })
+
+    describe('getFavouritedBy', () => {
+      it('returns actors who favourited the status', async () => {
+        const actors = await storage.getFavouritedBy({
+          statusId: `${ACTOR1_ID}/statuses/post-1`
+        })
+        expect(actors).toHaveLength(0)
+      })
+
+      it('returns actors who favourited the status', async () => {
+        const actors = await storage.getFavouritedBy({
+          statusId: `${ACTOR3_ID}/statuses/poll-1`
+        })
+        expect(actors).toHaveLength(1)
+        expect(actors[0].id).toBe(ACTOR2_ID)
+      })
+    })
   })
 })
