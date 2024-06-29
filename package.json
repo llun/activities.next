@@ -16,8 +16,8 @@
     "migrate:make": "knex migrate:make"
   },
   "dependencies": {
-    "@aws-sdk/client-lambda": "^3.600.0",
-    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/client-lambda": "^3.606.0",
+    "@aws-sdk/client-s3": "^3.606.0",
     "@aws-sdk/util-utf8-node": "^3.259.0",
     "@date-fns/utc": "^1.2.0",
     "@google-cloud/firestore": "^7.9.0",
@@ -58,7 +58,7 @@
   },
   "devDependencies": {
     "@next/env": "^14.2.4",
-    "@swc-node/register": "^1.9.2",
+    "@swc-node/register": "^1.10.0",
     "@swc/core": "1.6.5",
     "@swc/jest": "^0.2.36",
     "@testing-library/jest-dom": "^6.4.6",

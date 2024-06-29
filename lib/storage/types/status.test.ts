@@ -246,5 +246,26 @@ describe('StatusStorage', () => {
         ])
       })
     })
+
+    describe('getActorStatusesCount', () => {
+      it('returns total number of statuses for the specific actor', async () => {
+        const count = await storage.getActorStatusesCount({
+          actorId: ACTOR1_ID
+        })
+        expect(count).toBe(3)
+      })
+    })
+
+    describe('getStatusReplies', () => {
+      it('returns replies for specific status', async () => {
+        const replies = await storage.getStatusReplies({
+          statusId: `${ACTOR1_ID}/statuses/post-1`
+        })
+        expect(replies).toHaveLength(1)
+        expect(replies[0].data.text).toBe(
+          '<p><span class="h-card"><a href="https://test.llun.dev/@test1@llun.test" target="_blank" class="u-url mention">@<span>test1</span></a></span> This is Actor1 post</p>'
+        )
+      })
+    })
   })
 })
