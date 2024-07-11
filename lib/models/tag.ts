@@ -1,7 +1,9 @@
 import { z } from 'zod'
 
 import { Mention } from '../activities/entities/mention'
-import { TagType } from '../storage/types'
+
+export const TagType = z.enum(['emoji', 'mention'])
+export type TagType = z.infer<typeof TagType>
 
 export const TagData = z.object({
   id: z.string(),

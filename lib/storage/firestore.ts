@@ -25,13 +25,7 @@ import { Trace } from '@/lib/utils/trace'
 import { PER_PAGE_LIMIT } from '.'
 import { Tag, TagData } from '../models/tag'
 import { getISOTimeUTC } from '../utils/getISOTimeUTC'
-import {
-  CreateTagParams,
-  CreateTimelineStatusParams,
-  GetTagsParams,
-  GetTimelineParams,
-  Storage
-} from './types'
+import { CreateTimelineStatusParams, GetTimelineParams, Storage } from './types'
 import {
   CreateAccountParams,
   CreateAccountSessionParams,
@@ -98,12 +92,14 @@ import {
   CreateAnnounceParams,
   CreateNoteParams,
   CreatePollParams,
+  CreateTagParams,
   DeleteStatusParams,
   GetActorStatusesCountParams,
   GetActorStatusesParams,
   GetFavouritedByParams,
   GetStatusParams,
   GetStatusRepliesParams,
+  GetTagsParams,
   HasActorAnnouncedStatusParams,
   UpdateNoteParams,
   UpdatePollParams

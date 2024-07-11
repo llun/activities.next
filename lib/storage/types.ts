@@ -1,7 +1,4 @@
-import { z } from 'zod'
-
 import { Status } from '@/lib/models/status'
-import { Tag } from '@/lib/models/tag'
 import { Timeline } from '@/lib/services/timelines/types'
 
 import { AccountStorage } from './types/acount'
@@ -24,19 +21,6 @@ export type CreateTimelineStatusParams = {
   status: Status
 }
 
-export const TagType = z.enum(['emoji', 'mention'])
-export type TagType = z.infer<typeof TagType>
-
-export type CreateTagParams = {
-  statusId: string
-  name: string
-  type: TagType
-  value?: string
-}
-export type GetTagsParams = {
-  statusId: string
-}
-
 export interface Storage
   extends AccountStorage,
     ActorStorage,
@@ -48,7 +32,4 @@ export interface Storage
     BaseStorage {
   getTimeline(params: GetTimelineParams): Promise<Status[]>
   createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
-
-  createTag(params: CreateTagParams): Promise<Tag>
-  getTags(params: GetTagsParams): Promise<Tag[]>
 }

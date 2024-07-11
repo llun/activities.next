@@ -23,6 +23,7 @@
 uploads
 scripts/*.js
 scripts/cloudflared.sh
+.vscode
 
 # debug
 npm-debug.log*
