@@ -43,22 +43,31 @@ const uploadImageToS3 = async (
     .rotate()
     .webp({ quality: 95, smartSubsample: true, nearLossless: true })
 
-  const [metaData, buffer] = await Promise.all([
+  const tempFilePath = join(
+    tmpdir(),
+    `${crypto.randomBytes(8).toString('hex')}.webp`
+  )
+  const [metaData] = await Promise.all([
     resizedImage.metadata(),
-    resizedImage.toBuffer()
+    resizedImage.keepExif().toFile(tempFilePath)
   ])
 
   const contentType = 'image/webp'
   const timeDirectory = format(currentTime, 'yyyy-MM-dd')
   const path = `medias/${timeDirectory}/${randomPrefix}.webp`
   const s3client = getS3Client(region)
+
+  const fd = await fs.open(tempFilePath, 'r')
+  const stream = fd.createReadStream()
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: path,
     ContentType: contentType,
-    Body: buffer
+    Body: stream
   })
   await s3client.send(command)
+  stream.close()
+  fd.close()
   return { image: resizedImage, metaData, path, contentType }
 }
 
