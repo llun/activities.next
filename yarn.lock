@@ -2269,7 +2269,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opentelemetry/core@npm:1.25.1, @opentelemetry/core@npm:^1.25.1":
+"@opentelemetry/core@npm:1.25.1, @opentelemetry/core@npm:^1.25.1, @opentelemetry/core@npm:^1.8.0":
   version: 1.25.1
   resolution: "@opentelemetry/core@npm:1.25.1"
   dependencies:
@@ -2354,6 +2354,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@opentelemetry/instrumentation-aws-sdk@npm:^0.43.0":
+  version: 0.43.0
+  resolution: "@opentelemetry/instrumentation-aws-sdk@npm:0.43.0"
+  dependencies:
+    "@opentelemetry/core": "npm:^1.8.0"
+    "@opentelemetry/instrumentation": "npm:^0.52.0"
+    "@opentelemetry/propagation-utils": "npm:^0.30.10"
+    "@opentelemetry/semantic-conventions": "npm:^1.22.0"
+  peerDependencies:
+    "@opentelemetry/api": ^1.3.0
+  checksum: 10c0/058a29a2841411e2ff026177a947f0c7dbadb8e1be4c41bd1848878c045e7a995bc999677e609458746ea4b2f09dbe473ee64375a9265227532cffdbfc1dcbd8
+  languageName: node
+  linkType: hard
+
 "@opentelemetry/instrumentation-http@npm:^0.52.1":
   version: 0.52.1
   resolution: "@opentelemetry/instrumentation-http@npm:0.52.1"
@@ -2377,6 +2391,18 @@ __metadata:
   peerDependencies:
     "@opentelemetry/api": ^1.3.0
   checksum: 10c0/f3f754778f030bdba27113d62d6510a7c8be5deb7848b59c540b58d678295935b06fa8b5c029fa592a01ecef84f4624505eab48be8d74b7c4199cf6301fd4be1
+  languageName: node
+  linkType: hard
+
+"@opentelemetry/instrumentation-undici@npm:^0.4.0":
+  version: 0.4.0
+  resolution: "@opentelemetry/instrumentation-undici@npm:0.4.0"
+  dependencies:
+    "@opentelemetry/core": "npm:^1.8.0"
+    "@opentelemetry/instrumentation": "npm:^0.52.0"
+  peerDependencies:
+    "@opentelemetry/api": ^1.7.0
+  checksum: 10c0/fa91e4c89f34d58de507ccf27bb6146c5af3f3d2da9e733f3718d26a5860b72920df5f833f326160c0c2ae744cf95a2212772072d643d7ba80cdee1063c02479
   languageName: node
   linkType: hard
 
@@ -2436,6 +2462,15 @@ __metadata:
   peerDependencies:
     "@opentelemetry/api": ">=1.3.0 <1.10.0"
   checksum: 10c0/d391be7652221f85618bc47c0ef33093086e6bf9321a4d5825ae104514f02c4a1d19b63641e33067b0843e16972b0d8c063a6be0a392fec33d9dbf9d39c1c01b
+  languageName: node
+  linkType: hard
+
+"@opentelemetry/propagation-utils@npm:^0.30.10":
+  version: 0.30.10
+  resolution: "@opentelemetry/propagation-utils@npm:0.30.10"
+  peerDependencies:
+    "@opentelemetry/api": ^1.0.0
+  checksum: 10c0/253c77486dec4f93102fe2a4087942fffb9ce6c3deb76d2532777633b27063611ca55bb24851a03226a19c56565c506aaaccc6d191c2b3dd8adec2594cda294f
   languageName: node
   linkType: hard
 
@@ -4209,6 +4244,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@vercel/otel@npm:^1.9.1":
+  version: 1.9.1
+  resolution: "@vercel/otel@npm:1.9.1"
+  peerDependencies:
+    "@opentelemetry/api": ^1.7.0
+    "@opentelemetry/api-logs": "*"
+    "@opentelemetry/instrumentation": "*"
+    "@opentelemetry/resources": ^1.19.0
+    "@opentelemetry/sdk-logs": "*"
+    "@opentelemetry/sdk-metrics": ^1.19.0
+    "@opentelemetry/sdk-trace-base": ^1.19.0
+  checksum: 10c0/6c8022c44f4a2bd97680e807fa0c2ca912adf0e556d669a81c81c32e80ea58f3c27417168c7d94ca43b18240ada8ead65cda68bb7373b156619a4450bb5996b8
+  languageName: node
+  linkType: hard
+
 "abbrev@npm:1":
   version: 1.1.1
   resolution: "abbrev@npm:1.1.1"
@@ -4290,8 +4340,10 @@ __metadata:
     "@opentelemetry/exporter-trace-otlp-http": "npm:^0.52.1"
     "@opentelemetry/exporter-trace-otlp-proto": "npm:^0.52.1"
     "@opentelemetry/instrumentation": "npm:^0.52.1"
+    "@opentelemetry/instrumentation-aws-sdk": "npm:^0.43.0"
     "@opentelemetry/instrumentation-http": "npm:^0.52.1"
     "@opentelemetry/instrumentation-knex": "npm:^0.38.0"
+    "@opentelemetry/instrumentation-undici": "npm:^0.4.0"
     "@opentelemetry/resources": "npm:^1.25.1"
     "@opentelemetry/sdk-node": "npm:^0.52.1"
     "@opentelemetry/sdk-trace-base": "npm:^1.25.1"
@@ -4320,6 +4372,7 @@ __metadata:
     "@types/sanitize-html": "npm:^2.11.0"
     "@typescript-eslint/eslint-plugin": "npm:^7.16.0"
     "@typescript-eslint/parser": "npm:^7.16.0"
+    "@vercel/otel": "npm:^1.9.1"
     bcrypt: "npm:^5.1.1"
     better-sqlite3: "npm:^11.1.2"
     bootstrap: "npm:^5.3.3"

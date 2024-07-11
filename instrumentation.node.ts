@@ -2,8 +2,10 @@ import { TraceExporter as GoogleTraceExporter } from '@google-cloud/opentelemetr
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
 import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
+import { AwsInstrumentation } from '@opentelemetry/instrumentation-aws-sdk'
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http'
 import { KnexInstrumentation } from '@opentelemetry/instrumentation-knex'
+import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici'
 import { Resource } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node'
@@ -43,7 +45,12 @@ if (exporter) {
       [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV
     }),
     spanProcessors: [new BatchSpanProcessor(exporter)],
-    instrumentations: [new KnexInstrumentation(), new HttpInstrumentation()]
+    instrumentations: [
+      new KnexInstrumentation(),
+      new HttpInstrumentation(),
+      new UndiciInstrumentation(),
+      new AwsInstrumentation()
+    ]
   })
   sdk.start()
   process.on('SIGTERM', () => {
