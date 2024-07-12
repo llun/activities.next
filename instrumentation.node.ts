@@ -1,4 +1,5 @@
 import { TraceExporter as GoogleTraceExporter } from '@google-cloud/opentelemetry-cloud-trace-exporter'
+import { DiagConsoleLogger, DiagLogLevel, diag } from '@opentelemetry/api'
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
 import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
@@ -37,6 +38,7 @@ const getTraceExporter = (config: Config) => {
 
 const config = getConfig()
 const exporter = getTraceExporter(config)
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO)
 if (exporter) {
   const sdk = new NodeSDK({
     resource: new Resource({
@@ -52,12 +54,21 @@ if (exporter) {
       new AwsInstrumentation()
     ]
   })
-  sdk.start()
+  try {
+    sdk.start()
+    diag.info('OpenTelemetry automatic instrumentation started successfully')
+  } catch (error) {
+    diag.error(
+      'Error initializing OpenTelemetry SDK. Your application is not instrumented and will not produce telemetry',
+      error
+    )
+  }
+
   process.on('SIGTERM', () => {
     sdk
       .shutdown()
-      .then(() => console.log('Tracing terminated'))
-      .catch((error) => console.log('Error terminating tracing', error))
+      .then(() => diag.debug('OpenTelemetry SDK terminated'))
+      .catch((error) => diag.error('Error terminating tracing', error))
       .finally(() => process.exit(0))
   })
 }
