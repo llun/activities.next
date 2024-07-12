@@ -21,7 +21,8 @@ const nextConfig = {
       'jsonld',
       'keyv',
       'nodemailer',
-      'resend'
+      'resend',
+      'google-proto-files'
     ]
   },
   generateBuildId() {
