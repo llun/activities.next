@@ -56,7 +56,7 @@ export function Trace(op: string) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/ban-types
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export function TraceSync(op: string, fn: Function) {
   return function (...args: unknown[]) {
     const span = getSpan(op, fn.name)
