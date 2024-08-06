@@ -21,7 +21,6 @@
     }
   ],
   "rules": {
-    "no-unused-vars": "off",
     "@next/next/no-img-element": "off"
   }
 }
