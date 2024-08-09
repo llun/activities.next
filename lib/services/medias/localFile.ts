@@ -10,6 +10,7 @@ import { Readable } from 'stream'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
+import { extractVideoImage } from './extractVideoImage'
 import {
   FFProbe,
   MediaStorageGetFile,
@@ -21,10 +22,23 @@ const saveImageFile = async (
   uploadPath: string,
   imageFile: File,
   isThumbnail: boolean
+) =>
+  saveImageBuffer(
+    uploadPath,
+    imageFile.name,
+    Buffer.from(await imageFile.arrayBuffer()),
+    isThumbnail
+  )
+
+const saveImageBuffer = async (
+  uploadPath: string,
+  fileName: string,
+  imageBuffer: Buffer,
+  isThumbnail: boolean
 ) => {
   const randomPrefix = crypto.randomBytes(8).toString('hex')
-  const filePath = `${process.cwd()}/${uploadPath}/${randomPrefix}${isThumbnail ? '-thumbail' : ''}-${imageFile.name}`
-  const resizedImage = sharp(Buffer.from(await imageFile.arrayBuffer()))
+  const filePath = `${process.cwd()}/${uploadPath}/${randomPrefix}${isThumbnail ? '-thumbail' : ''}-${fileName}`
+  const resizedImage = sharp(imageBuffer)
     .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
     .rotate()
     .webp({ quality: 95, smartSubsample: true, nearLossless: true })
@@ -37,18 +51,22 @@ const saveImageFile = async (
     image: resizedImage,
     metaData,
     path: filePath,
-    contentType: 'image/webp'
+    contentType: 'image/webp',
+    previewImage: null
   }
 }
 
 const saveVideoFile = async (uploadPath: string, videoFile: File) => {
   const buffer = Buffer.from(await videoFile.arrayBuffer())
-  const probe = await new Promise((resolve, reject) => {
-    ffmpeg(Readable.from(buffer)).ffprobe((error, data) => {
-      if (error) return reject(error)
-      resolve(data)
-    })
-  })
+  const [probe, previewImage] = await Promise.all([
+    new Promise((resolve, reject) => {
+      ffmpeg(Readable.from(buffer)).ffprobe((error, data) => {
+        if (error) return reject(error)
+        resolve(data)
+      })
+    }),
+    extractVideoImage(Readable.from(buffer))
+  ])
 
   const videoStream = (probe as FFProbe).streams.find(
     (stream): stream is VideoProbe => stream.codec_type === 'video'
@@ -63,7 +81,8 @@ const saveVideoFile = async (uploadPath: string, videoFile: File) => {
   return {
     metaData,
     path: filePath,
-    contentType: videoFile.type
+    contentType: videoFile.type,
+    previewImage
   }
 }
 
@@ -81,12 +100,14 @@ export const saveLocalFile: MediaStorageSaveFile = async (
     return null
   }
 
-  const { path, metaData } = file.type.startsWith('video')
+  const { path, metaData, previewImage } = file.type.startsWith('video')
     ? await saveVideoFile(config.path, file)
     : await saveImageFile(config.path, file, false)
   const thumbnail = media.thumbnail
     ? await saveImageFile(config.path, media.thumbnail, true)
-    : null
+    : previewImage
+      ? await saveImageBuffer(config.path, file.name, previewImage, true)
+      : null
   const storedMedia = await storage.createMedia({
     actorId: actor.id,
     original: {
