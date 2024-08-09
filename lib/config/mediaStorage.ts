@@ -38,8 +38,8 @@ export type MediaStorageConfig = z.infer<typeof MediaStorageConfig>
 export const getMediaStorageConfig = (): {
   mediaStorage: MediaStorageConfig
 } | null => {
-  const hasEnvironmentOtel = matcher('ACTIVITIES_MEDIA_STORAGE_')
-  if (!hasEnvironmentOtel) return null
+  const hasEnvironmentMediaStorage = matcher('ACTIVITIES_MEDIA_STORAGE_')
+  if (!hasEnvironmentMediaStorage) return null
 
   switch (process.env.ACTIVITIES_MEDIA_STORAGE_TYPE) {
     case MediaStorageType.LocalFile:
