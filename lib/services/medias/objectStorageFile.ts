@@ -79,7 +79,7 @@ const uploadVideoToS3 = async (
   const buffer = Buffer.from(await file.arrayBuffer())
 
   const probe = await new Promise((resolve, reject) => {
-    ffmpeg(Readable.from(Buffer.from(buffer))).ffprobe((error, data) => {
+    ffmpeg(Readable.from(buffer)).ffprobe((error, data) => {
       if (error) return reject(error)
       resolve(data)
     })
