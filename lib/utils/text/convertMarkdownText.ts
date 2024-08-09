@@ -102,7 +102,6 @@ export const convertMarkdownText = (host: string) => (text: string) =>
     new Marked({
       gfm: true,
       async: false,
-      useNewRenderer: true,
       extensions: [mention(host)],
       renderer: SHARED_RENDERER,
       tokenizer: SHARED_TOKENIZER
