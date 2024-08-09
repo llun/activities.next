@@ -49,6 +49,7 @@ const saveVideoFile = async (uploadPath: string, videoFile: File) => {
       resolve(data)
     })
   })
+
   const videoStream = (probe as FFProbe).streams.find(
     (stream): stream is VideoProbe => stream.codec_type === 'video'
   )
@@ -86,7 +87,6 @@ export const saveLocalFile: MediaStorageSaveFile = async (
   const thumbnail = media.thumbnail
     ? await saveImageFile(config.path, media.thumbnail, true)
     : null
-
   const storedMedia = await storage.createMedia({
     actorId: actor.id,
     original: {

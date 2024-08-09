@@ -352,14 +352,18 @@ export const PostBox: FC<Props> = ({
           </div>
         </div>
         <div className={styles.attachments}>
-          {postExtension.attachments.map((item, index) => (
-            <div
-              className={styles.attachment}
-              key={item.id}
-              style={{ backgroundImage: `url(${item.posterUrl || item.url})` }}
-              onClick={() => onRemoveAttachment(index)}
-            />
-          ))}
+          {postExtension.attachments.map((item, index) => {
+            return (
+              <div
+                className={styles.attachment}
+                key={item.id}
+                style={{
+                  backgroundImage: `url("${item.posterUrl || item.url}")`
+                }}
+                onClick={() => onRemoveAttachment(index)}
+              />
+            )
+          })}
         </div>
       </form>
     </div>
