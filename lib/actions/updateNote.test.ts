@@ -3,10 +3,12 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
 import { Actor } from '../models/actor'
+import { Status } from '../models/status'
 import { SqlStorage } from '../storage/sql'
 import { expectCall, mockRequests } from '../stub/activities'
 import { seedActor1 } from '../stub/seed/actor1'
 import { seedStorage } from '../stub/storage'
+import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
 import { updateNoteFromUserInput } from './updateNote'
 
 enableFetchMocks()
@@ -44,13 +46,12 @@ describe('Update note action', () => {
     it('update status to new text', async () => {
       if (!actor1) fail('Actor1 is required')
 
-      const status = await updateNoteFromUserInput({
+      const status = (await updateNoteFromUserInput({
         statusId: `${actor1.id}/statuses/post-1`,
         currentActor: actor1,
         storage,
         text: '<p>This is an updated note</p>'
-      })
-      if (!status) fail('Status should return after update')
+      })) as Status
 
       expect(status.data).toMatchObject({
         actorId: actor1.id,
@@ -66,7 +67,7 @@ describe('Update note action', () => {
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
-        object: status?.toObject()
+        object: getNoteFromStatusData(status.data)
       })
     })
 
@@ -81,7 +82,7 @@ describe('Update note action', () => {
       })
 
       expect(status?.data).toMatchObject({
-        text: '<p>This is markdown <strong>text</strong> that should get format</p>'
+        text: 'This is markdown **text** that should get format'
       })
     })
   })

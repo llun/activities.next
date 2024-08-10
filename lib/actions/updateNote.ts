@@ -12,11 +12,9 @@ import {
   getContent,
   getSummary
 } from '../activities/entities/note'
-import { getConfig } from '../config'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
-import { convertMarkdownText } from '../utils/text/convertMarkdownText'
 import { getSpan } from '../utils/trace'
 
 interface UpdateNoteParams {
@@ -69,7 +67,6 @@ export const updateNoteFromUserInput = async ({
   summary,
   storage
 }: UpdateNoteFromUserInput) => {
-  const config = getConfig()
   const span = getSpan('actions', 'updateNoteFromUser', { statusId })
   const status = await storage.getStatus({ statusId })
   if (
@@ -84,7 +81,7 @@ export const updateNoteFromUserInput = async ({
   const updatedStatus = await storage.updateNote({
     statusId,
     summary,
-    text: convertMarkdownText(config.host)(text)
+    text
   })
   if (!updatedStatus) {
     span.end()

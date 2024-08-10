@@ -34,6 +34,9 @@ export const getNoteFromStatusData = (status: StatusData): Note | null => {
       items: actualStatus.replies.map((reply) =>
         getNoteFromStatusData(StatusData.parse(reply))
       )
-    }
+    },
+    ...(actualStatus.updatedAt
+      ? { updated: getISOTimeUTC(actualStatus.updatedAt) }
+      : null)
   } as Note
 }

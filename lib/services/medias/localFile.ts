@@ -2,10 +2,76 @@ import crypto from 'crypto'
 import fs from 'fs/promises'
 import mime from 'mime-types'
 import path from 'path'
+import process from 'process'
 import sharp from 'sharp'
 
-import { MediaStorageType } from '../../config/mediaStorage'
+import { MediaStorageType } from '@/lib/config/mediaStorage'
+
+import { MAX_HEIGHT, MAX_WIDTH } from './constants'
+import { extractVideoImage } from './extractVideoImage'
+import { extractVideoMeta } from './extractVideoMeta'
 import { MediaStorageGetFile, MediaStorageSaveFile } from './types'
+
+const saveImageFile = async (
+  uploadPath: string,
+  imageFile: File,
+  isThumbnail: boolean
+) =>
+  saveImageBuffer(
+    uploadPath,
+    imageFile.name,
+    Buffer.from(await imageFile.arrayBuffer()),
+    isThumbnail
+  )
+
+const saveImageBuffer = async (
+  uploadPath: string,
+  fileName: string,
+  imageBuffer: Buffer,
+  isThumbnail: boolean
+) => {
+  const randomPrefix = crypto.randomBytes(8).toString('hex')
+  const name = path.basename(fileName, path.extname(fileName))
+  const filePath = `${process.cwd()}/${uploadPath}/${randomPrefix}${isThumbnail ? '-thumbail' : ''}-${name}.webp`
+  const resizedImage = sharp(imageBuffer)
+    .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
+    .rotate()
+    .webp({ quality: 95, smartSubsample: true, nearLossless: true })
+  const [metaData] = await Promise.all([
+    resizedImage.metadata(),
+    resizedImage.keepExif().toFile(filePath)
+  ])
+
+  return {
+    image: resizedImage,
+    metaData,
+    path: filePath,
+    contentType: 'image/webp',
+    previewImage: null
+  }
+}
+
+const saveVideoFile = async (uploadPath: string, videoFile: File) => {
+  const buffer = Buffer.from(await videoFile.arrayBuffer())
+  const probe = await extractVideoMeta(Buffer.from(buffer))
+  const videoStream = probe.streams.find(
+    (stream) => stream.codec_type === 'video'
+  )
+  const metaData = videoStream
+    ? { width: videoStream.width, height: videoStream.height }
+    : { width: 0, height: 0 }
+
+  const randomPrefix = crypto.randomBytes(8).toString('hex')
+  const filePath = `${process.cwd()}/${uploadPath}/${randomPrefix}-${videoFile.name}`
+  await fs.writeFile(filePath, buffer)
+  const previewImage = await extractVideoImage(filePath)
+  return {
+    metaData,
+    path: filePath,
+    contentType: videoFile.type,
+    previewImage
+  }
+}
 
 export const saveLocalFile: MediaStorageSaveFile = async (
   config,
@@ -16,52 +82,51 @@ export const saveLocalFile: MediaStorageSaveFile = async (
 ) => {
   if (config.type !== MediaStorageType.LocalFile) return null
 
-  const randomPrefix = crypto.randomBytes(8).toString('hex')
-
-  const filePath = `${config.path}/${randomPrefix}-${media.file.name}`
-  const thumbnailPath = media.thumbnail
-    ? `${config.path}/${randomPrefix}-${media.thumbnail.name}`
-    : null
-
-  await fs.writeFile(filePath, Buffer.from(await media.file.arrayBuffer()))
-  if (thumbnailPath && media.thumbnail) {
-    await fs.writeFile(
-      thumbnailPath,
-      Buffer.from(await media.thumbnail.arrayBuffer())
-    )
+  const { file } = media
+  if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
+    return null
   }
 
-  const originalMetaData = await sharp(filePath).metadata()
-  const thumbnailMetaData = thumbnailPath
-    ? await sharp(thumbnailPath).metadata()
-    : null
-
+  const { path, metaData, previewImage } = file.type.startsWith('video')
+    ? await saveVideoFile(config.path, file)
+    : await saveImageFile(config.path, file, false)
+  const thumbnail = media.thumbnail
+    ? await saveImageFile(config.path, media.thumbnail, true)
+    : previewImage
+      ? await saveImageBuffer(
+          config.path,
+          `video-thumbnail.jpg`,
+          previewImage,
+          true
+        )
+      : null
   const storedMedia = await storage.createMedia({
     actorId: actor.id,
     original: {
-      path: filePath,
-      bytes: media.file.size,
-      mimeType: media.file.type,
+      path,
+      bytes: file.size,
+      mimeType: file.type,
       metaData: {
-        width: originalMetaData.width ?? 0,
-        height: originalMetaData.height ?? 0
+        width: metaData.width ?? 0,
+        height: metaData.height ?? 0
       }
     },
-    ...(thumbnailPath
+    ...(thumbnail
       ? {
           thumbnail: {
-            path: thumbnailPath,
-            bytes: thumbnailMetaData?.size ?? 0,
-            mimeType: `image/${thumbnailMetaData?.format}`,
+            path: thumbnail.path,
+            bytes: thumbnail.metaData.size ?? 0,
+            mimeType: `image/${thumbnail.metaData.format ?? 'jpg'}`,
             metaData: {
-              width: thumbnailMetaData?.width ?? 0,
-              height: thumbnailMetaData?.height ?? 0
+              width: thumbnail.metaData.width ?? 0,
+              height: thumbnail.metaData.height ?? 0
             }
           }
         }
       : null),
     ...(media.description ? { description: media.description } : null)
   })
+
   if (!storedMedia) {
     throw new Error('Fail to store media')
   }
@@ -70,13 +135,16 @@ export const saveLocalFile: MediaStorageSaveFile = async (
     .split('/')
     .pop()}`
 
+  const previewUrl = thumbnail
+    ? `https://${host}/api/v1/files/${thumbnail?.path.split('/').pop()}`
+    : url
   return {
     id: storedMedia.id,
     type: media.file.type.startsWith('image') ? 'image' : 'video',
     mime_type: media.file.type,
     // TODO: Add config for base image domain?
     url,
-    preview_url: url,
+    preview_url: previewUrl,
     text_url: '',
     remote_url: '',
     meta: {
