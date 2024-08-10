@@ -39,6 +39,7 @@ export const UploadMediaButton: FC<Props> = ({
           id: media.id,
           mediaType: media.mime_type,
           url: media.url,
+          posterUrl: media.preview_url,
           width: media.meta.original.width,
           height: media.meta.original.height
         }))
