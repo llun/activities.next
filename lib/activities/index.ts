@@ -10,15 +10,16 @@ import {
   StatusType
 } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { compact } from '@/lib/utils/jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
 } from '@/lib/utils/jsonld/activitystream'
-import { compact } from '@/lib/utils/jsonld'
 import { request } from '@/lib/utils/request'
 import { signedHeaders } from '@/lib/utils/signature'
 import { getSpan } from '@/lib/utils/trace'
 
+import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
 import { AcceptFollow } from './actions/acceptFollow'
 import { AnnounceStatus } from './actions/announceStatus'
 import { CreateStatus } from './actions/createStatus'
@@ -425,7 +426,7 @@ export const sendUpdateNote = async ({
     inbox
   })
 
-  const note = status.toObject()
+  const note = getNoteFromStatusData(status.data)
   if (!note) {
     span.end()
     return
