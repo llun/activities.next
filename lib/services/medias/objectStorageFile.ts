@@ -5,14 +5,12 @@ import {
 } from '@aws-sdk/client-s3'
 import crypto from 'crypto'
 import { format } from 'date-fns'
-import ffmpeg from 'fluent-ffmpeg'
 import fs from 'fs/promises'
 import { IncomingMessage } from 'http'
 import { memoize } from 'lodash'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import sharp from 'sharp'
-import { Readable } from 'stream'
 
 import {
   MediaStorageObjectConfig,
@@ -20,12 +18,11 @@ import {
 } from '../../config/mediaStorage'
 import { Media } from '../../storage/types/media'
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
+import { extractVideoMeta } from './extractVideoMeta'
 import {
-  FFProbe,
   MediaStorageGetFile,
   MediaStorageSaveFile,
-  MediaStorageSaveFileOutput,
-  VideoProbe
+  MediaStorageSaveFileOutput
 } from './types'
 
 const getS3Client = memoize((region: string) => new S3Client({ region }))
@@ -78,14 +75,9 @@ const uploadVideoToS3 = async (
 ) => {
   const buffer = Buffer.from(await file.arrayBuffer())
 
-  const probe = await new Promise((resolve, reject) => {
-    ffmpeg(Readable.from(buffer)).ffprobe((error, data) => {
-      if (error) return reject(error)
-      resolve(data)
-    })
-  })
-  const videoStream = (probe as FFProbe).streams.find(
-    (stream): stream is VideoProbe => stream.codec_type === 'video'
+  const probe = await extractVideoMeta(buffer)
+  const videoStream = probe.streams.find(
+    (stream) => stream.codec_type === 'video'
   )
   const metaData = videoStream
     ? { width: videoStream.width, height: videoStream.height }

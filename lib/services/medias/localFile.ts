@@ -1,22 +1,16 @@
 import crypto from 'crypto'
-import ffmpeg from 'fluent-ffmpeg'
 import fs from 'fs/promises'
 import mime from 'mime-types'
 import path from 'path'
 import process from 'process'
 import sharp from 'sharp'
-import { Readable } from 'stream'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { extractVideoImage } from './extractVideoImage'
-import {
-  FFProbe,
-  MediaStorageGetFile,
-  MediaStorageSaveFile,
-  VideoProbe
-} from './types'
+import { extractVideoMeta } from './extractVideoMeta'
+import { MediaStorageGetFile, MediaStorageSaveFile } from './types'
 
 const saveImageFile = async (
   uploadPath: string,
@@ -37,7 +31,8 @@ const saveImageBuffer = async (
   isThumbnail: boolean
 ) => {
   const randomPrefix = crypto.randomBytes(8).toString('hex')
-  const filePath = `${process.cwd()}/${uploadPath}/${randomPrefix}${isThumbnail ? '-thumbail' : ''}-${fileName}`
+  const name = path.basename(fileName, path.extname(fileName))
+  const filePath = `${process.cwd()}/${uploadPath}/${randomPrefix}${isThumbnail ? '-thumbail' : ''}-${name}.webp`
   const resizedImage = sharp(imageBuffer)
     .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
     .rotate()
@@ -58,18 +53,9 @@ const saveImageBuffer = async (
 
 const saveVideoFile = async (uploadPath: string, videoFile: File) => {
   const buffer = Buffer.from(await videoFile.arrayBuffer())
-  const [probe, previewImage] = await Promise.all([
-    new Promise((resolve, reject) => {
-      ffmpeg(Readable.from(buffer)).ffprobe((error, data) => {
-        if (error) return reject(error)
-        resolve(data)
-      })
-    }),
-    extractVideoImage(Readable.from(buffer))
-  ])
-
-  const videoStream = (probe as FFProbe).streams.find(
-    (stream): stream is VideoProbe => stream.codec_type === 'video'
+  const probe = await extractVideoMeta(Buffer.from(buffer))
+  const videoStream = probe.streams.find(
+    (stream) => stream.codec_type === 'video'
   )
   const metaData = videoStream
     ? { width: videoStream.width, height: videoStream.height }
@@ -78,6 +64,7 @@ const saveVideoFile = async (uploadPath: string, videoFile: File) => {
   const randomPrefix = crypto.randomBytes(8).toString('hex')
   const filePath = `${process.cwd()}/${uploadPath}/${randomPrefix}-${videoFile.name}`
   await fs.writeFile(filePath, buffer)
+  const previewImage = await extractVideoImage(filePath)
   return {
     metaData,
     path: filePath,
@@ -106,7 +93,12 @@ export const saveLocalFile: MediaStorageSaveFile = async (
   const thumbnail = media.thumbnail
     ? await saveImageFile(config.path, media.thumbnail, true)
     : previewImage
-      ? await saveImageBuffer(config.path, file.name, previewImage, true)
+      ? await saveImageBuffer(
+          config.path,
+          `video-thumbnail.jpg`,
+          previewImage,
+          true
+        )
       : null
   const storedMedia = await storage.createMedia({
     actorId: actor.id,
@@ -143,13 +135,16 @@ export const saveLocalFile: MediaStorageSaveFile = async (
     .split('/')
     .pop()}`
 
+  const previewUrl = thumbnail
+    ? `https://${host}/api/v1/files/${thumbnail?.path.split('/').pop()}`
+    : url
   return {
     id: storedMedia.id,
     type: media.file.type.startsWith('image') ? 'image' : 'video',
     mime_type: media.file.type,
     // TODO: Add config for base image domain?
     url,
-    preview_url: url,
+    preview_url: previewUrl,
     text_url: '',
     remote_url: '',
     meta: {
