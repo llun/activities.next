@@ -18,6 +18,7 @@ import {
 } from '../../config/mediaStorage'
 import { Media } from '../../storage/types/media'
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
+import { extractVideoImage } from './extractVideoImage'
 import { extractVideoMeta } from './extractVideoMeta'
 import {
   MediaStorageGetFile,
@@ -30,12 +31,26 @@ const getS3Client = memoize((region: string) => new S3Client({ region }))
 const uploadImageToS3 = async (
   currentTime: number,
   mediaStorageConfig: MediaStorageObjectConfig,
-  file: File
+  file: File,
+  isThumbnnail = false
+) =>
+  uploadImageBufferToS3(
+    currentTime,
+    mediaStorageConfig,
+    Buffer.from(await file.arrayBuffer()),
+    isThumbnnail
+  )
+
+const uploadImageBufferToS3 = async (
+  currentTime: number,
+  mediaStorageConfig: MediaStorageObjectConfig,
+  buffer: Buffer,
+  isThumbnnail = false
 ) => {
   const { bucket, region } = mediaStorageConfig
   const randomPrefix = crypto.randomBytes(8).toString('hex')
 
-  const resizedImage = sharp(Buffer.from(await file.arrayBuffer()))
+  const resizedImage = sharp(buffer)
     .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
     .rotate()
     .webp({ quality: 95, smartSubsample: true, nearLossless: true })
@@ -51,7 +66,7 @@ const uploadImageToS3 = async (
 
   const contentType = 'image/webp'
   const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-  const path = `medias/${timeDirectory}/${randomPrefix}.webp`
+  const path = `medias/${timeDirectory}/${randomPrefix}${isThumbnnail ? '-thumbnail' : ''}.webp`
   const s3client = getS3Client(region)
 
   const fd = await fs.open(tempFilePath, 'r')
@@ -65,6 +80,7 @@ const uploadImageToS3 = async (
   await s3client.send(command)
   stream.close()
   fd.close()
+  await fs.unlink(tempFilePath)
   return { image: resizedImage, metaData, path, contentType }
 }
 
@@ -74,7 +90,16 @@ const uploadVideoToS3 = async (
   file: File
 ) => {
   const buffer = Buffer.from(await file.arrayBuffer())
-  const probe = await extractVideoMeta(buffer)
+  const tmpVideoFile = join(
+    tmpdir(),
+    `${crypto.randomBytes(8).toString('hex')}${file.name}`
+  )
+  await fs.writeFile(tmpVideoFile, buffer)
+  const [probe, previewImage] = await Promise.all([
+    extractVideoMeta(buffer),
+    extractVideoImage(tmpVideoFile)
+  ])
+  await fs.unlink(tmpVideoFile)
   const videoStream = probe.streams.find(
     (stream) => stream.codec_type === 'video'
   )
@@ -105,7 +130,7 @@ const uploadVideoToS3 = async (
     Body: buffer
   })
   await s3client.send(command)
-  return { path, metaData, contentType: file.type }
+  return { path, metaData, contentType: file.type, previewImage }
 }
 
 const getSaveFileOutput = (
@@ -163,10 +188,16 @@ export const saveObjectStorageFile: MediaStorageSaveFile = async (
   }
 
   if (file.type.startsWith('video')) {
-    const { path, metaData, contentType } = await uploadVideoToS3(
+    const { path, metaData, contentType, previewImage } = await uploadVideoToS3(
       currentTime,
       config,
       file
+    )
+    const thumbnail = await uploadImageBufferToS3(
+      currentTime,
+      config,
+      previewImage,
+      true
     )
     const storedMedia = await storage.createMedia({
       actorId: actor.id,
@@ -177,6 +208,15 @@ export const saveObjectStorageFile: MediaStorageSaveFile = async (
         metaData: {
           width: metaData.width ?? 0,
           height: metaData.height ?? 0
+        }
+      },
+      thumbnail: {
+        path: thumbnail.path,
+        bytes: thumbnail.metaData.size ?? 0,
+        mimeType: `image/${thumbnail.metaData.format ?? 'jpg'}`,
+        metaData: {
+          width: thumbnail.metaData.width ?? 0,
+          height: thumbnail.metaData.height ?? 0
         }
       },
       ...(media.description ? { description: media.description } : null)
