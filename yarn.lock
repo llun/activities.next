@@ -3957,7 +3957,7 @@ __metadata:
     eslint-plugin-jest: "npm:^28.8.0"
     eslint-plugin-n: "npm:^17.10.2"
     eslint-plugin-promise: "npm:^7.1.0"
-    eslint-plugin-unused-imports: "npm:^4.1.2"
+    eslint-plugin-unused-imports: "npm:^4.1.3"
     firebase-tools: "npm:^13.15.1"
     fluent-ffmpeg: "npm:^2.1.3"
     got: "npm:14.4.2"
@@ -6590,16 +6590,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eslint-plugin-unused-imports@npm:^4.1.2":
-  version: 4.1.2
-  resolution: "eslint-plugin-unused-imports@npm:4.1.2"
+"eslint-plugin-unused-imports@npm:^4.1.3":
+  version: 4.1.3
+  resolution: "eslint-plugin-unused-imports@npm:4.1.3"
   peerDependencies:
     "@typescript-eslint/eslint-plugin": ^8.0.0-0 || ^7.0.0 || ^6.0.0 || ^5.0.0
     eslint: ^9.0.0 || ^8.0.0
   peerDependenciesMeta:
     "@typescript-eslint/eslint-plugin":
       optional: true
-  checksum: 10c0/1b994f3d35dfa28c71503f240d81b9ccc31b6b87681146091465207cc8be6e726f2c9552aeede81610f5762fe394294be270ba8b4535e04c1935bb46320cd9f8
+  checksum: 10c0/e30120e274554b99756fb4c2af123ca03f502fc55bc7e5b095fa9278b96cb32f1e405cf2e533aa8b0f8ca28c504ecf15daed9e4b5fccb172316e256a994fdebe
   languageName: node
   linkType: hard
 

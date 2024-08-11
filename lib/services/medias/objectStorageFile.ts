@@ -140,13 +140,17 @@ const getSaveFileOutput = (
 ): MediaStorageSaveFileOutput => {
   const mimeType = contentType ?? media.original.mimeType
   const type = mimeType.startsWith('video') ? 'video' : 'image'
+  const url = `https://${host}/api/v1/files/${media.original.path}`
+  const previewUrl = media.thumbnail
+    ? `https://${host}/api/v1/files/${media.thumbnail?.path}`
+    : url
   return {
     id: media.id,
     type,
     mime_type: mimeType,
     // TODO: Add config for base image domain?
-    url: `https://${host}/api/v1/files/${media.original.path}`,
-    preview_url: `https://${host}/api/v1/files/${media.original.path}`,
+    url,
+    preview_url: previewUrl,
     text_url: '',
     remote_url: '',
     meta: {
