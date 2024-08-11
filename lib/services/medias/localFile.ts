@@ -57,12 +57,24 @@ const saveVideoFile = async (uploadPath: string, videoFile: File) => {
   const videoStream = probe.streams.find(
     (stream) => stream.codec_type === 'video'
   )
+  const formats = probe.format.format_name?.split(',')
+  if (
+    !videoStream ||
+    !(formats?.includes('mp4') || formats?.includes('webm'))
+  ) {
+    throw new Error('Invalid video format')
+  }
+
   const metaData = videoStream
     ? { width: videoStream.width, height: videoStream.height }
     : { width: 0, height: 0 }
 
+  const fileName = videoFile.name.endsWith('.mov')
+    ? `${videoFile.name.split('.')[0]}.mp4`
+    : videoFile.name
+
   const randomPrefix = crypto.randomBytes(8).toString('hex')
-  const filePath = `${process.cwd()}/${uploadPath}/${randomPrefix}-${videoFile.name}`
+  const filePath = `${process.cwd()}/${uploadPath}/${randomPrefix}-${fileName}`
   await fs.writeFile(filePath, buffer)
   const previewImage = await extractVideoImage(filePath)
   return {
