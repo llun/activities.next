@@ -74,11 +74,18 @@ const uploadVideoToS3 = async (
   file: File
 ) => {
   const buffer = Buffer.from(await file.arrayBuffer())
-
   const probe = await extractVideoMeta(buffer)
   const videoStream = probe.streams.find(
     (stream) => stream.codec_type === 'video'
   )
+  const formats = probe.format.format_name?.split(',')
+  if (
+    !videoStream ||
+    !(formats?.includes('mp4') || formats?.includes('webm'))
+  ) {
+    throw new Error('Invalid video format')
+  }
+
   const metaData = videoStream
     ? { width: videoStream.width, height: videoStream.height }
     : { width: 0, height: 0 }
@@ -86,7 +93,10 @@ const uploadVideoToS3 = async (
   const { bucket, region } = mediaStorageConfig
   const randomPrefix = crypto.randomBytes(8).toString('hex')
   const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-  const path = `medias/${timeDirectory}/${randomPrefix}-${file.name}`
+  const fileName = file.name.endsWith('.mov')
+    ? `${file.name.split('.')[0]}.mp4`
+    : file.name
+  const path = `medias/${timeDirectory}/${randomPrefix}-${fileName}`
   const s3client = getS3Client(region)
   const command = new PutObjectCommand({
     Bucket: bucket,
