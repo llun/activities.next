@@ -429,6 +429,8 @@ export class SqlStorage implements Storage {
     sqlActor: SQLActor,
     followingCount: number,
     followersCount: number,
+    statusCount: number,
+    lastStatusAt: number,
     account?: Account
   ) {
     const settings = JSON.parse(sqlActor.settings || '{}') as ActorSettings
@@ -454,6 +456,9 @@ export class SqlStorage implements Storage {
 
       followingCount,
       followersCount,
+
+      statusCount,
+      lastStatusAt,
 
       createdAt: sqlActor.createdAt,
       updatedAt: sqlActor.updatedAt
@@ -533,7 +538,7 @@ export class SqlStorage implements Storage {
       .first()
     if (!storageActor) return undefined
 
-    const [account, totalFollowers, totalFollowing] =
+    const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
       await this.database.transaction(async (trx) => {
         return Promise.all([
           trx<Account>('accounts').where('id', storageActor.accountId).first(),
@@ -546,7 +551,15 @@ export class SqlStorage implements Storage {
             .where('actorId', storageActor.id)
             .andWhere('status', 'Accepted')
             .count<{ count: number }>('* as count')
-            .first()
+            .first(),
+          trx('statuses')
+            .where('actorId', storageActor.id)
+            .count<{ count: number }>('id as count')
+            .first(),
+          trx('statuses')
+            .where('actorId', storageActor.id)
+            .orderBy('createdAt', 'desc')
+            .first<{ createdAt: number }>('createdAt')
         ])
       })
 
@@ -554,6 +567,8 @@ export class SqlStorage implements Storage {
       storageActor,
       totalFollowing?.count ?? 0,
       totalFollowers?.count ?? 0,
+      totalStatus?.count ?? 0,
+      lastStatus?.createdAt ?? 0,
       account
     )
   }
@@ -588,7 +603,7 @@ export class SqlStorage implements Storage {
       .first()
     if (!storageActor) return undefined
 
-    const [account, totalFollowers, totalFollowing] =
+    const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
       await this.database.transaction(async (trx) => {
         return Promise.all([
           trx<Account>('accounts').where('id', storageActor.accountId).first(),
@@ -601,7 +616,15 @@ export class SqlStorage implements Storage {
             .where('actorId', storageActor.id)
             .andWhere('status', 'Accepted')
             .count<{ count: number }>('* as count')
-            .first()
+            .first(),
+          trx('statuses')
+            .where('actorId', storageActor.id)
+            .count<{ count: number }>('id as count')
+            .first(),
+          trx('statuses')
+            .where('actorId', storageActor.id)
+            .orderBy('createdAt', 'desc')
+            .first<{ createdAt: number }>('createdAt')
         ])
       })
 
@@ -609,6 +632,8 @@ export class SqlStorage implements Storage {
       storageActor,
       totalFollowing?.count ?? 0,
       totalFollowers?.count ?? 0,
+      totalStatus?.count ?? 0,
+      lastStatus?.createdAt ?? 0,
       account
     )
   }
@@ -634,8 +659,8 @@ export class SqlStorage implements Storage {
     if (!storageActor) return undefined
 
     if (!storageActor.accountId) {
-      const [totalFollowers, totalFollowing] = await this.database.transaction(
-        async (trx) => {
+      const [totalFollowers, totalFollowing, totalStatus, lastStatus] =
+        await this.database.transaction(async (trx) => {
           return Promise.all([
             trx('follows')
               .where('targetActorId', storageActor.id)
@@ -646,19 +671,28 @@ export class SqlStorage implements Storage {
               .where('actorId', storageActor.id)
               .andWhere('status', 'Accepted')
               .count<{ count: number }>('* as count')
-              .first()
+              .first(),
+            trx('statuses')
+              .where('actorId', storageActor.id)
+              .count<{ count: number }>('id as count')
+              .first(),
+            trx('statuses')
+              .where('actorId', storageActor.id)
+              .orderBy('createdAt', 'desc')
+              .first<{ createdAt: number }>('createdAt')
           ])
-        }
-      )
+        })
 
       return this.getActor(
         storageActor,
         totalFollowing?.count ?? 0,
-        totalFollowers?.count ?? 0
+        totalFollowers?.count ?? 0,
+        totalStatus?.count ?? 0,
+        lastStatus?.createdAt ?? 0
       )
     }
 
-    const [account, totalFollowers, totalFollowing] =
+    const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
       await this.database.transaction(async (trx) => {
         return Promise.all([
           trx<Account>('accounts').where('id', storageActor.accountId).first(),
@@ -671,7 +705,15 @@ export class SqlStorage implements Storage {
             .where('actorId', storageActor.id)
             .andWhere('status', 'Accepted')
             .count<{ count: number }>('* as count')
-            .first()
+            .first(),
+          trx('statuses')
+            .where('actorId', storageActor.id)
+            .count<{ count: number }>('id as count')
+            .first(),
+          trx('statuses')
+            .where('actorId', storageActor.id)
+            .orderBy('createdAt', 'desc')
+            .first<{ createdAt: number }>('createdAt')
         ])
       })
 
@@ -679,6 +721,8 @@ export class SqlStorage implements Storage {
       storageActor,
       totalFollowing?.count ?? 0,
       totalFollowers?.count ?? 0,
+      totalStatus?.count ?? 0,
+      lastStatus?.createdAt ?? 0,
       account
     )
   }
@@ -862,7 +906,13 @@ export class SqlStorage implements Storage {
         .select('actors.*')
       return Promise.all(
         localActors.map(async (actor) => {
-          const [account, totalFollowers, totalFollowing] = await Promise.all([
+          const [
+            account,
+            totalFollowers,
+            totalFollowing,
+            totalStatus,
+            lastStatus
+          ] = await Promise.all([
             trx<Account>('accounts').where('id', actor.accountId).first(),
             trx('follows')
               .where('targetActorId', actor.id)
@@ -873,12 +923,22 @@ export class SqlStorage implements Storage {
               .where('actorId', actor.id)
               .andWhere('status', 'Accepted')
               .count<{ count: number }>('* as count')
-              .first()
+              .first(),
+            trx('statuses')
+              .where('actorId', actor.id)
+              .count<{ count: number }>('id as count')
+              .first(),
+            trx('statuses')
+              .where('actorId', actor.id)
+              .orderBy('createdAt', 'desc')
+              .first<{ createdAt: number }>('createdAt')
           ])
           return this.getActor(
             actor,
             totalFollowing?.count ?? 0,
             totalFollowers?.count ?? 0,
+            totalStatus?.count ?? 0,
+            lastStatus?.createdAt ?? 0,
             account
           )
         })
