@@ -8,13 +8,10 @@ export const getMastodonAccount = async (
   storage: Storage,
   actor: ActorData
 ) => {
-  const [followersCount, followingCount, statusesCount, statuses] =
-    await Promise.all([
-      storage.getActorFollowersCount({ actorId: actor.id }),
-      storage.getActorFollowingCount({ actorId: actor.id }),
-      storage.getActorStatusesCount({ actorId: actor.id }),
-      storage.getActorStatuses({ actorId: actor.id })
-    ])
+  const [statusesCount, statuses] = await Promise.all([
+    storage.getActorStatusesCount({ actorId: actor.id }),
+    storage.getActorStatuses({ actorId: actor.id })
+  ])
 
   return Mastodon.Account.parse({
     id: actor.id,
@@ -34,8 +31,8 @@ export const getMastodonAccount = async (
     header: actor.headerImageUrl ?? '',
     header_static: actor.headerImageUrl ?? '',
 
-    followers_count: followersCount,
-    following_count: followingCount,
+    followers_count: actor.followersCount,
+    following_count: actor.followingCount,
 
     statuses_count: statusesCount,
     last_status_at: statuses[0]?.createdAt
