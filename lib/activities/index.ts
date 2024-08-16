@@ -280,6 +280,9 @@ export const getActorProfileFromPublicProfile = async ({
     followersCount: publicProfile.followersCount,
     followingCount: publicProfile.followingCount,
 
+    statusCount: publicProfile.totalPosts,
+    lastStatusAt: 0,
+
     createdAt: publicProfile.createdAt
   }
   return actor

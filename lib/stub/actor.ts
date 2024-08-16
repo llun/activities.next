@@ -93,6 +93,9 @@ export const MockActor = ({
     followingCount: 0,
     followersCount: 0,
 
+    statusCount: 0,
+
+    lastStatusAt: 0,
     createdAt: Date.now(),
     updatedAt: Date.now()
   })

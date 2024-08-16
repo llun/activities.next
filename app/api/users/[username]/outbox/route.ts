@@ -8,15 +8,12 @@ export const GET = OnlyLocalUserGuard(async (storage, actor, req) => {
   const url = new URL(req.url)
   const pageParam = url.searchParams.get('page')
   if (!pageParam) {
-    const totalItems = await storage.getActorStatusesCount({
-      actorId: actor.id
-    })
     const outboxId = `${actor.id}/outbox`
     return Response.json({
       '@context': ACTIVITY_STREAM_URL,
       id: outboxId,
       type: 'OrderedCollection',
-      totalItems,
+      totalItems: actor.data.statusCount,
       first: `${outboxId}?page=true`,
       last: `${outboxId}?min_id=0&page=true`
     })

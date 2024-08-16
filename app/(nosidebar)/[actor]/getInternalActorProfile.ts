@@ -8,15 +8,12 @@ export const getInternalActorProfile = async (storage: Storage, actor: Actor) =>
     CACHE_NAMESPACE_ACTORS,
     `${CACHE_KEY_PREFIX_ACTOR}_${actor}`,
     async () => {
-      const [statuses, statusCount, attachments] = await Promise.all([
+      const [statuses, attachments] = await Promise.all([
         storage.getActorStatuses({ actorId: actor.id }),
-        storage.getActorStatusesCount({ actorId: actor.id }),
         storage.getAttachmentsForActor({ actorId: actor.id })
       ])
       return {
-        person: actor.toPublicProfile({
-          totalPosts: statusCount
-        }),
+        person: actor.toPublicProfile(),
         statuses: statuses.map((item) => item.toJson()),
         attachments: attachments.map((item) => item.toJson())
       }

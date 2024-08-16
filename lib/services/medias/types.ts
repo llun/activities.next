@@ -2,9 +2,7 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 
-import { MediaStorageConfig } from '../../config/mediaStorage'
 import { Actor } from '../../models/actor'
-import { Storage } from '../../storage/types'
 import { ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from './constants'
 
 export const FileSchema = z
@@ -26,47 +24,58 @@ export const MediaSchema = z.object({
 })
 export type MediaSchema = z.infer<typeof MediaSchema>
 
-interface MediaMeta {
-  width: number
-  height: number
-  size: `${number}x${number}`
-  aspect: number
-}
-export interface MediaStorageSaveFileOutput {
-  id: string
-  type: 'image' | 'video'
-  // Non-mastodon property
-  mime_type: string
-  url: string
-  preview_url: string
-  text_url: string
-  remote_url: string
-  meta: {
-    original: MediaMeta
-    small?: MediaMeta
-  }
-  description: string
-}
-export type MediaStorageSaveFile = (
-  config: MediaStorageConfig,
-  host: string,
-  storage: Storage,
-  actor: Actor,
-  media: MediaSchema
-) => Promise<MediaStorageSaveFileOutput | null>
+const MediaMeta = z.object({
+  width: z.number(),
+  height: z.number(),
+  size: z.string().regex(/^\d+x\d+$/),
+  aspect: z.number()
+})
+type MediaMeta = z.infer<typeof MediaMeta>
 
-export interface MediaStorageGetFileOutput {
-  type: 'buffer'
-  buffer: Buffer
-  contentType: string
-}
+export const MediaType = z.enum(['image', 'video'])
+export type MediaType = z.infer<typeof MediaType>
 
-export interface MediaStorageGetRedirectOutput {
-  type: 'redirect'
-  redirectUrl: string
-}
+export const MediaStorageSaveFileOutput = z.object({
+  id: z.string(),
+  type: MediaType,
+  mime_type: z.string(),
+  url: z.string().url(),
+  preview_url: z.string().url(),
+  text_url: z.string().url().nullish(),
+  remote_url: z.string().url().nullish(),
+  meta: z.object({
+    original: MediaMeta,
+    small: MediaMeta.optional()
+  }),
+  description: z.string()
+})
+export type MediaStorageSaveFileOutput = z.infer<
+  typeof MediaStorageSaveFileOutput
+>
 
-export type MediaStorageGetFile = (
-  config: MediaStorageConfig,
-  filePath: string
-) => Promise<MediaStorageGetFileOutput | MediaStorageGetRedirectOutput | null>
+export const MediaStorageGetFileOutput = z.object({
+  type: z.literal('buffer'),
+  buffer: z.instanceof(Buffer),
+  contentType: z.string()
+})
+export type MediaStorageGetFileOutput = z.infer<
+  typeof MediaStorageGetFileOutput
+>
+
+export const MediaStorageGetRedirectOutput = z.object({
+  type: z.literal('redirect'),
+  redirectUrl: z.string().url()
+})
+export type MediaStorageGetRedirectOutput = z.infer<
+  typeof MediaStorageGetRedirectOutput
+>
+
+export interface MediaStorage {
+  saveFile: (
+    actor: Actor,
+    media: MediaSchema
+  ) => Promise<MediaStorageSaveFileOutput | null>
+  getFile: (
+    filePath: string
+  ) => Promise<MediaStorageGetFileOutput | MediaStorageGetRedirectOutput | null>
+}
