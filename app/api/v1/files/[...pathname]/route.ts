@@ -3,6 +3,7 @@ import path from 'path'
 
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { getMedia } from '@/lib/services/medias'
+import { getStorage } from '@/lib/storage'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 interface Params {
@@ -17,8 +18,12 @@ export const GET = async (
   const userPath = path
     .normalize(Array.isArray(pathname) ? pathname.join('/') : pathname)
     .replace(/^(\.\.(\/|\\|$))+/, '')
+  const storage = await getStorage()
+  if (!storage) {
+    return apiErrorResponse(500)
+  }
 
-  const media = await getMedia(userPath)
+  const media = await getMedia(storage, userPath)
   if (!media) return apiErrorResponse(404)
 
   switch (media.type) {
