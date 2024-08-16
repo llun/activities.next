@@ -53,7 +53,7 @@ describe('StatusStorage', () => {
     await Promise.all(testStorages.map((item) => item[1].destroy()))
   })
 
-  describe.each(testStorages)('%s', (name, storage) => {
+  describe.each(testStorages)('%s', (_, storage) => {
     beforeAll(async () => {
       await seedStorage(storage as Storage)
     })
@@ -75,6 +75,8 @@ describe('StatusStorage', () => {
             sharedInboxUrl: 'https://llun.test/inbox',
             followingCount: 2,
             followersCount: 1,
+            statusCount: 3,
+            lastStatusAt: expect.toBeNumber(),
             createdAt: expect.toBeNumber()
           },
           to: ['https://www.w3.org/ns/activitystreams#Public'],

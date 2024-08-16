@@ -27,7 +27,7 @@ export const ActorProfile = z.object({
   followersCount: z.number(),
 
   statusCount: z.number(),
-  lastStatusAt: z.number(),
+  lastStatusAt: z.number().nullable(),
 
   createdAt: z.number()
 })
@@ -179,7 +179,7 @@ export class Actor {
       followingCount: this.data.followingCount,
 
       statusCount: this.data.statusCount,
-      lastStatusAt: this.data.lastStatusAt,
+      lastStatusAt: this.data.lastStatusAt ?? null,
 
       createdAt: this.data.createdAt
     }

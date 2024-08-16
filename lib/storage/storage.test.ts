@@ -611,7 +611,6 @@ describe('Storage', () => {
         const postId = 'post-1'
         const id = `${TEST_ID}/statuses/${postId}`
 
-        const actor = await storage.getActorFromId({ id: TEST_ID })
         const status = await storage.createNote({
           id,
           url: id,
@@ -621,6 +620,8 @@ describe('Storage', () => {
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
         })
+
+        const actor = await storage.getActorFromId({ id: TEST_ID })
         expect(status.data).toEqual({
           id,
           url: id,
