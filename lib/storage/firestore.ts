@@ -772,15 +772,11 @@ export class FirestoreStorage implements Storage {
       await Promise.all([
         actor.exists &&
           actorRef.update({
-            followingCount: actor.data()?.followingCount
-              ? actor.data()?.followingCount + 1
-              : 1
+            followingCount: FieldValue.increment(1)
           }),
         targetActor.exists &&
           targetActorRef.update({
-            followersCount: targetActor.data()?.followersCount
-              ? targetActor.data()?.followersCount + 1
-              : 1
+            followersCount: FieldValue.increment(1)
           })
       ])
     }
