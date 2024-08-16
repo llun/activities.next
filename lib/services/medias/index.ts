@@ -3,8 +3,8 @@ import { Storage } from '@/lib/storage/types'
 import { getConfig } from '../../config'
 import { MediaStorageType } from '../../config/mediaStorage'
 import { Actor } from '../../models/actor'
+import { S3FileStorage } from './S3StorageFile'
 import { LocalFileStorage } from './localFile'
-import { S3FileStorage } from './objectStorageFile'
 import { MediaSchema } from './types'
 
 export const saveMedia = async (
