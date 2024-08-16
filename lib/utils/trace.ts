@@ -1,11 +1,9 @@
 import { trace } from '@opentelemetry/api'
-import { NextApiHandler } from 'next'
 
 import { logger } from './logger'
-import { errorResponse } from './response'
 
 export const TRACE_APPLICATION_SCOPE = 'activities.next'
-export const TRACE_APPLICATION_VERSION = '0.1.0'
+export const TRACE_APPLICATION_VERSION = '0.1.6'
 
 export interface Data {
   [key: string]: string | boolean | number | undefined
@@ -55,38 +53,3 @@ export function Trace(op: string) {
     }
   }
 }
-
-// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-export function TraceSync(op: string, fn: Function) {
-  return function (...args: unknown[]) {
-    const span = getSpan(op, fn.name)
-    logger.debug({ op, propertyKey: fn.name })
-    const value = fn(...args)
-    span.end()
-    return value
-  }
-}
-
-export function TraceAsync(op: string, fn: AsyncFunction) {
-  return async function (...args: unknown[]) {
-    const span = getSpan(op, fn.name)
-    logger.debug({ op, propertyKey: fn.name })
-    const value = await fn(...args)
-    span.end()
-    return value
-  }
-}
-
-export const ApiTrace =
-  (name: string, handle: NextApiHandler): NextApiHandler =>
-  async (req, res) => {
-    const span = getSpan('api', name, { method: req.method })
-    try {
-      await handle(req, res)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (e: any) {
-      span.recordException(e)
-      return errorResponse(res, 500)
-    }
-    span.end()
-  }
