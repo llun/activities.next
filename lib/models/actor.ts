@@ -231,10 +231,7 @@ export class Actor {
     }
   }
 
-  toPublicProfile(params?: { totalPosts: number }): PublicProfile {
-    const { totalPosts } = params ?? {
-      totalPosts: 0
-    }
+  toPublicProfile(): PublicProfile {
     const icon = this.data.iconUrl
       ? {
           icon: {
@@ -255,7 +252,7 @@ export class Actor {
 
       followersCount: this.data.followersCount,
       followingCount: this.data.followingCount,
-      totalPosts,
+      totalPosts: this.data.statusCount,
 
       endpoints: {
         following: `https://${this.data.domain}/users/${this.data.username}/following`,

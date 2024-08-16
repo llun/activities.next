@@ -17,9 +17,6 @@ export const GET = async () => {
     return Response.json([])
   }
 
-  // TODO: Add last actor status
-  const lastStatusDate = new Date(statuses[0].createdAt)
-
   const loadedStatuses = await Promise.all(
     statuses.map(async (status) => ({
       id: status.id,
@@ -59,18 +56,12 @@ export const GET = async () => {
         avatar_static: status.actor?.iconUrl,
         header: status.actor?.headerImageUrl,
         header_static: status.actor?.headerImageUrl,
-        followers_count: await storage.getActorFollowersCount({
-          actorId: status.actorId
-        }),
-        following_count: await storage.getActorFollowingCount({
-          actorId: status.actorId
-        }),
-        statuses_count: await storage.getActorStatusesCount({
-          actorId: status.actorId
-        }),
-        last_status_at: `${lastStatusDate.getUTCFullYear()}-${
-          lastStatusDate.getUTCMonth() + 1
-        }-${lastStatusDate.getUTCDate()}`,
+        followers_count: status.actor?.followersCount ?? 0,
+        following_count: status.actor?.followingCount ?? 0,
+        statuses_count: status.actor?.statusCount ?? 0,
+        last_status_at: status.actor?.lastStatusAt
+          ? getISOTimeUTC(status.actor?.lastStatusAt)
+          : null,
         emojis: [],
         fields: []
       },
