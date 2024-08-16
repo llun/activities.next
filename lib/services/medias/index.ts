@@ -5,7 +5,7 @@ import { MediaStorageType } from '../../config/mediaStorage'
 import { Actor } from '../../models/actor'
 import { S3FileStorage } from './S3StorageFile'
 import { LocalFileStorage } from './localFile'
-import { MediaSchema } from './types'
+import { MediaSchema, PresigedMediaInput } from './types'
 
 export const saveMedia = async (
   storage: Storage,
@@ -25,6 +25,25 @@ export const saveMedia = async (
         actor,
         media
       )
+    }
+    default:
+      return null
+  }
+}
+
+export const getPresignedUrl = async (
+  storage: Storage,
+  actor: Actor,
+  presignedMediaInput: PresigedMediaInput
+) => {
+  const { mediaStorage, host } = getConfig()
+  switch (mediaStorage?.type) {
+    case MediaStorageType.ObjectStorage: {
+      return S3FileStorage.getStorage(
+        mediaStorage,
+        host,
+        storage
+      ).getPresigedForSaveFileUrl(actor, presignedMediaInput)
     }
     default:
       return null
