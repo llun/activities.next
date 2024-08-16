@@ -964,7 +964,6 @@ export class FirestoreStorage implements Storage {
       status === FollowStatus.enum.Accepted ||
       status === FollowStatus.enum.Undo
     ) {
-      const value = status === FollowStatus.enum.Accepted ? 1 : -1
       const [actor, targetActor] = await Promise.all([
         actorRef.get(),
         targetActorRef.get()
@@ -972,12 +971,16 @@ export class FirestoreStorage implements Storage {
       await Promise.all([
         actor.exists
           ? actorRef.update({
-              followingCount: (actor.data()?.followingCount ?? 0) + value
+              followingCount: FollowStatus.enum.Accepted
+                ? FieldValue.increment(1)
+                : FieldValue.increment(-1)
             })
           : Promise.resolve(),
         targetActor.exists
           ? targetActorRef.update({
-              followersCount: (targetActor.data()?.followersCount ?? 0) + value
+              followersCount: FollowStatus.enum.Accepted
+                ? FieldValue.increment(1)
+                : FieldValue.increment(-1)
             })
           : null
       ])
