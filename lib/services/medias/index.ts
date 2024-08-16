@@ -1,12 +1,10 @@
+import { Storage } from '@/lib/storage/types'
+
 import { getConfig } from '../../config'
 import { MediaStorageType } from '../../config/mediaStorage'
 import { Actor } from '../../models/actor'
-import { Storage } from '../../storage/types'
-import { getLocalFile, saveLocalFile } from './localFile'
-import {
-  getObjectStorageFile,
-  saveObjectStorageFile
-} from './objectStorageFile'
+import { LocalFileStorage } from './localFile'
+import { S3FileStorage } from './objectStorageFile'
 import { MediaSchema } from './types'
 
 export const saveMedia = async (
@@ -15,25 +13,35 @@ export const saveMedia = async (
   media: MediaSchema
 ) => {
   const { mediaStorage, host } = getConfig()
-  if (!mediaStorage) return null
-  switch (mediaStorage.type) {
-    case MediaStorageType.LocalFile:
-      return saveLocalFile(mediaStorage, host, storage, actor, media)
-    case MediaStorageType.ObjectStorage:
-      return saveObjectStorageFile(mediaStorage, host, storage, actor, media)
+  switch (mediaStorage?.type) {
+    case MediaStorageType.LocalFile: {
+      return LocalFileStorage.getStorage(mediaStorage, host, storage).saveFile(
+        actor,
+        media
+      )
+    }
+    case MediaStorageType.ObjectStorage: {
+      return S3FileStorage.getStorage(mediaStorage, host, storage).saveFile(
+        actor,
+        media
+      )
+    }
     default:
       return null
   }
 }
 
-export const getMedia = async (path: string) => {
-  const { mediaStorage } = getConfig()
-  if (!mediaStorage) return null
-  switch (mediaStorage.type) {
-    case MediaStorageType.LocalFile:
-      return getLocalFile(mediaStorage, path)
-    case MediaStorageType.ObjectStorage:
-      return getObjectStorageFile(mediaStorage, path)
+export const getMedia = async (storage: Storage, path: string) => {
+  const { mediaStorage, host } = getConfig()
+  switch (mediaStorage?.type) {
+    case MediaStorageType.LocalFile: {
+      return LocalFileStorage.getStorage(mediaStorage, host, storage).getFile(
+        path
+      )
+    }
+    case MediaStorageType.ObjectStorage: {
+      return S3FileStorage.getStorage(mediaStorage, host, storage).getFile(path)
+    }
     default:
       return null
   }
