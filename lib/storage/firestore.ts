@@ -1,4 +1,4 @@
-import { Firestore, Settings } from '@google-cloud/firestore'
+import { FieldValue, Firestore, Settings } from '@google-cloud/firestore'
 import { Mastodon } from '@llun/activities.schema'
 import crypto from 'crypto'
 
@@ -1020,12 +1020,28 @@ export class FirestoreStorage implements Storage {
       createdAt: createdAt || currentTime,
       updatedAt: currentTime
     }
-    await this.db.doc(`statuses/${FirestoreStorage.urlToId(id)}`).set(status)
 
     const actor = await this.getActorFromId({ id: actorId })
+    await Promise.all([
+      this.db.doc(`statuses/${FirestoreStorage.urlToId(id)}`).set(status),
+      actor
+        ? this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`).update({
+            statusCount: FieldValue.increment(1),
+            lastStatusAt: currentTime
+          })
+        : null
+    ])
+
+    const profile = actor?.toProfile()
     return new Status({
       ...status,
-      actor: actor?.toProfile() || null,
+      actor: profile
+        ? {
+            ...profile,
+            statusCount: profile?.statusCount + 1,
+            lastStatusAt: currentTime
+          }
+        : null,
       attachments: [],
       totalLikes: 0,
       isActorLiked: false,
@@ -1161,7 +1177,16 @@ export class FirestoreStorage implements Storage {
       updatedAt: currentTime
     }))
 
-    await this.db.doc(statusPath).set(status)
+    const actor = await this.getActorFromId({ id: actorId })
+    await Promise.all([
+      this.db.doc(statusPath).set(status),
+      actor
+        ? this.db.doc(`actors/${FirestoreStorage.urlToId(actorId)}`).update({
+            statusCount: FieldValue.increment(1),
+            lastStatusAt: currentTime
+          })
+        : null
+    ])
     await Promise.all(
       choices.map((title, index) =>
         this.db
@@ -1170,10 +1195,16 @@ export class FirestoreStorage implements Storage {
       )
     )
 
-    const actor = await this.getActorFromId({ id: actorId })
+    const profile = actor?.toProfile()
     return new Status({
       ...status,
-      actor: actor?.toProfile() || null,
+      actor: profile
+        ? {
+            ...profile,
+            statusCount: profile?.statusCount + 1,
+            lastStatusAt: currentTime
+          }
+        : null,
       totalLikes: 0,
       isActorLiked: false,
       isActorAnnounced: false,
