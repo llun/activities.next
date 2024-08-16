@@ -63,6 +63,15 @@ export class LocalFileStorage implements MediaStorage {
     }
   }
 
+  isPresigedSupported() {
+    return false
+  }
+
+  async getPresigedForSaveFileUrl() {
+    // Local storage does not support presigned URLs
+    return null
+  }
+
   async saveFile(actor: Actor, media: MediaSchema) {
     const { file } = media
     if (!file.type.startsWith('image') && !file.type.startsWith('video')) {

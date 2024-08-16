@@ -3,11 +3,11 @@ import {
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post'
 import crypto from 'crypto'
 import { format } from 'date-fns'
 import fs from 'fs/promises'
 import { IncomingMessage } from 'http'
-import { memoize } from 'lodash'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import sharp from 'sharp'
@@ -26,10 +26,10 @@ import {
   MediaStorageGetFileOutput,
   MediaStorageGetRedirectOutput,
   MediaStorageSaveFileOutput,
-  MediaType
+  MediaType,
+  PresigedMediaInput,
+  PresignedUrlOutput
 } from './types'
-
-const getS3Client = memoize((region: string) => new S3Client({ region }))
 
 export class S3FileStorage implements MediaStorage {
   private static _instance: MediaStorage
@@ -37,6 +37,8 @@ export class S3FileStorage implements MediaStorage {
   private _config: MediaStorageObjectConfig
   private _host: string
   private _storage: Storage
+
+  private _client: S3Client
 
   static getStorage(
     config: MediaStorageObjectConfig,
@@ -57,10 +59,11 @@ export class S3FileStorage implements MediaStorage {
     this._config = config
     this._host = host
     this._storage = storage
+    this._client = new S3Client({ region: config.region })
   }
 
   async getFile(filePath: string) {
-    const { bucket, region, hostname } = this._config
+    const { bucket, hostname } = this._config
     if (hostname) {
       return MediaStorageGetRedirectOutput.parse({
         type: 'redirect',
@@ -68,7 +71,7 @@ export class S3FileStorage implements MediaStorage {
       })
     }
 
-    const s3client = getS3Client(region)
+    const s3client = this._client
     const command = new GetObjectCommand({
       Bucket: bucket,
       Key: filePath
@@ -81,6 +84,78 @@ export class S3FileStorage implements MediaStorage {
       type: 'buffer',
       contentType: (message as IncomingMessage).headers['content-type'],
       buffer: Buffer.from(await message.transformToByteArray())
+    })
+  }
+
+  isPresigedSupported() {
+    return true
+  }
+
+  async getPresigedForSaveFileUrl(
+    actor: Actor,
+    presignedMedia: PresigedMediaInput
+  ) {
+    const { bucket } = this._config
+    const { fileName } = presignedMedia
+
+    const currentTime = Date.now()
+    const randomPrefix = crypto.randomBytes(8).toString('hex')
+    const timeDirectory = format(currentTime, 'yyyy-MM-dd')
+    const key = `medias/${timeDirectory}/${randomPrefix}-${fileName}`
+
+    const presignedFields = { 'Content-MD5': presignedMedia.md5FileHash }
+
+    const { url } = await createPresignedPost(this._client, {
+      Bucket: bucket,
+      Key: key,
+      Conditions: [
+        { bucket },
+        { key },
+        { 'Content-MD5': presignedMedia.md5FileHash },
+        ['eq', '$Content-Type', presignedMedia.contentType],
+        ['content-length-range', 0, presignedMedia.size]
+      ],
+      Fields: presignedFields,
+      Expires: 300
+    })
+    const storedMedia = await this._storage.createMedia({
+      actorId: actor.id,
+      original: {
+        path: key,
+        bytes: presignedMedia.size,
+        mimeType: presignedMedia.contentType,
+        metaData: {
+          width: presignedMedia.width ?? 0,
+          height: presignedMedia.height ?? 0
+        }
+      }
+    })
+    if (!storedMedia) {
+      return null
+    }
+
+    return PresignedUrlOutput.parse({
+      url,
+      saveFileOutput: {
+        id: storedMedia.id,
+        type: presignedMedia.contentType.startsWith('video')
+          ? MediaType.enum.video
+          : MediaType.enum.image,
+        mime_type: presignedMedia.contentType,
+        url: `https://${this._host}/api/v1/files/${key}`,
+        preview_url: null,
+        text_url: null,
+        remote_url: null,
+        meta: {
+          original: {
+            width: presignedMedia.width ?? 0,
+            height: presignedMedia.height ?? 0,
+            size: `${presignedMedia.width}x${presignedMedia.height}`,
+            aspect: presignedMedia.width / presignedMedia.height
+          }
+        },
+        description: ''
+      }
     })
   }
 
@@ -164,7 +239,7 @@ export class S3FileStorage implements MediaStorage {
     buffer: Buffer,
     isThumbnail = false
   ) {
-    const { bucket, region } = this._config
+    const { bucket } = this._config
     const randomPrefix = crypto.randomBytes(8).toString('hex')
 
     const resizedImage = sharp(buffer)
@@ -184,7 +259,7 @@ export class S3FileStorage implements MediaStorage {
     const contentType = 'image/webp'
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
     const path = `medias/${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.webp`
-    const s3client = getS3Client(region)
+    const s3client = this._client
 
     const fd = await fs.open(tempFilePath, 'r')
     const stream = fd.createReadStream()
@@ -228,14 +303,14 @@ export class S3FileStorage implements MediaStorage {
       ? { width: videoStream.width, height: videoStream.height }
       : { width: 0, height: 0 }
 
-    const { bucket, region } = this._config
+    const { bucket } = this._config
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
     const fileName = file.name.endsWith('.mov')
       ? `${file.name.split('.')[0]}.mp4`
       : file.name
     const path = `medias/${timeDirectory}/${randomPrefix}-${fileName}`
-    const s3client = getS3Client(region)
+    const s3client = this._client
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: path,

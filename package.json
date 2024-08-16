@@ -18,6 +18,7 @@
   "dependencies": {
     "@aws-sdk/client-lambda": "^3.632.0",
     "@aws-sdk/client-s3": "^3.632.0",
+    "@aws-sdk/s3-presigned-post": "^3.632.0",
     "@aws-sdk/util-utf8-node": "^3.259.0",
     "@date-fns/utc": "^1.2.0",
     "@google-cloud/firestore": "^7.9.0",

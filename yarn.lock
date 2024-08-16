@@ -170,7 +170,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-s3@npm:^3.632.0":
+"@aws-sdk/client-s3@npm:3.632.0, @aws-sdk/client-s3@npm:^3.632.0":
   version: 3.632.0
   resolution: "@aws-sdk/client-s3@npm:3.632.0"
   dependencies:
@@ -667,6 +667,23 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@aws-sdk/s3-presigned-post@npm:^3.632.0":
+  version: 3.632.0
+  resolution: "@aws-sdk/s3-presigned-post@npm:3.632.0"
+  dependencies:
+    "@aws-sdk/client-s3": "npm:3.632.0"
+    "@aws-sdk/types": "npm:3.609.0"
+    "@aws-sdk/util-format-url": "npm:3.609.0"
+    "@smithy/middleware-endpoint": "npm:^3.1.0"
+    "@smithy/signature-v4": "npm:^4.1.0"
+    "@smithy/types": "npm:^3.3.0"
+    "@smithy/util-hex-encoding": "npm:^3.0.0"
+    "@smithy/util-utf8": "npm:^3.0.0"
+    tslib: "npm:^2.6.2"
+  checksum: 10c0/9d7f2c0ba71b29213ff21d27993a449200ce7700d2dc36d3d0af3d9af8a35f72112cc43341e1a5eacd4fcac592812e6f7fe4ee9b72f70286e5de3e0b5926d224
+  languageName: node
+  linkType: hard
+
 "@aws-sdk/signature-v4-multi-region@npm:3.629.0":
   version: 3.629.0
   resolution: "@aws-sdk/signature-v4-multi-region@npm:3.629.0"
@@ -734,6 +751,18 @@ __metadata:
     "@smithy/util-endpoints": "npm:^2.0.5"
     tslib: "npm:^2.6.2"
   checksum: 10c0/2fce660a887acec61570ed13c1441487cf26e9e12f5eafffcc390b4de94169ca8ab4400e394d7e4d0e25a9e45526c50e427941ec2d04d70a67a583f1ee611e6c
+  languageName: node
+  linkType: hard
+
+"@aws-sdk/util-format-url@npm:3.609.0":
+  version: 3.609.0
+  resolution: "@aws-sdk/util-format-url@npm:3.609.0"
+  dependencies:
+    "@aws-sdk/types": "npm:3.609.0"
+    "@smithy/querystring-builder": "npm:^3.0.3"
+    "@smithy/types": "npm:^3.3.0"
+    tslib: "npm:^2.6.2"
+  checksum: 10c0/983c72e2394fbdf47ca82c81d9a3892a82289b660998f26675d64709c19db1ccf88e951dd9a12e4867c618f51ba142f62f9613978ed5472837bfc69f6243534b
   languageName: node
   linkType: hard
 
@@ -3972,6 +4001,7 @@ __metadata:
   dependencies:
     "@aws-sdk/client-lambda": "npm:^3.632.0"
     "@aws-sdk/client-s3": "npm:^3.632.0"
+    "@aws-sdk/s3-presigned-post": "npm:^3.632.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@date-fns/utc": "npm:^1.2.0"
     "@google-cloud/firestore": "npm:^7.9.0"
