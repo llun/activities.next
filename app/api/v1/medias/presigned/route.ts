@@ -7,12 +7,16 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   const { storage, currentActor } = context
   try {
     const content = await req.json()
-    const url = getPresignedUrl(
+    const presigned = await getPresignedUrl(
       storage,
       currentActor,
       PresigedMediaInput.parse(content)
     )
-    return Response.json({ url })
+
+    if (!presigned) {
+      return apiErrorResponse(422)
+    }
+    return Response.json({ presigned })
   } catch {
     return apiErrorResponse(422)
   }

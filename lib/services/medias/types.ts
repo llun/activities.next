@@ -95,6 +95,7 @@ export type PresigedMediaInput = z.infer<typeof PresigedMediaInput>
 
 export const PresignedUrlOutput = z.object({
   url: z.string().url(),
+  fields: z.record(z.string(), z.string()),
   saveFileOutput: MediaStorageSaveFileOutput
 })
 export type PresignedUrlOutput = z.infer<typeof PresignedUrlOutput>

@@ -343,8 +343,13 @@ interface CreateUploadPresignedUrlParams {
 }
 export const createUploadPresignedUrl = async ({
   media
-}: CreateUploadPresignedUrlParams) => {
-  const path = '/api/v1/media/presignedUrl'
+}: CreateUploadPresignedUrlParams): Promise<{
+  presigned: {
+    url: string
+    fields: { [key: string]: string }
+  }
+} | null> => {
+  const path = '/api/v1/medias/presigned'
   const checksum = await crypto.subtle.digest(
     'SHA-1',
     await media.arrayBuffer()
@@ -391,4 +396,29 @@ export const createUploadPresignedUrl = async ({
   })
   if (response.status !== 200) return null
   return response.json()
+}
+
+interface UploadFileToPresignedUrlParams {
+  presignedUrl: string
+  fields: { [key: string]: string }
+  media: File
+}
+
+export const uploadFileToPresignedUrl = async ({
+  presignedUrl,
+  fields,
+  media
+}: UploadFileToPresignedUrlParams) => {
+  const data = new FormData()
+  data.append('Content-Type', media.type)
+  Object.entries(fields).forEach(([key, value]) => {
+    data.append(key, value)
+  })
+  data.append('file', media)
+
+  return fetch(presignedUrl, {
+    method: 'POST',
+    body: data,
+    mode: 'no-cors'
+  })
 }

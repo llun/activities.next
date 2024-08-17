@@ -101,23 +101,22 @@ export class S3FileStorage implements MediaStorage {
     const currentTime = Date.now()
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-    const key = `medias/${timeDirectory}/${randomPrefix}-${fileName}`
 
-    const presignedFields = { 'Content-MD5': presignedMedia.checksum }
+    const finalFileName = fileName.endsWith('.mov')
+      ? `${fileName.split('.')[0]}.mp4`
+      : fileName
 
-    const { url } = await createPresignedPost(this._client, {
+    const key = `medias/${timeDirectory}/${randomPrefix}-${finalFileName}`
+    const { url, fields } = await createPresignedPost(this._client, {
       Bucket: bucket,
       Key: key,
       Conditions: [
         { bucket },
         { key },
-        { 'x-amz-algorithm': 'SHA1' },
-        { 'x-amz-checksum-sha1': presignedMedia.checksum },
         ['eq', '$Content-Type', presignedMedia.contentType],
         ['content-length-range', 0, presignedMedia.size]
       ],
-      Fields: presignedFields,
-      Expires: 300
+      Expires: 600
     })
     const storedMedia = await this._storage.createMedia({
       actorId: actor.id,
@@ -137,6 +136,7 @@ export class S3FileStorage implements MediaStorage {
 
     return PresignedUrlOutput.parse({
       url,
+      fields,
       saveFileOutput: {
         id: storedMedia.id,
         type: presignedMedia.contentType.startsWith('video')
