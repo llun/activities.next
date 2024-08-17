@@ -337,3 +337,58 @@ export const uploadMedia = async ({
   if (response.status !== 200) return null
   return response.json()
 }
+
+interface CreateUploadPresignedUrlParams {
+  media: File
+}
+export const createUploadPresignedUrl = async ({
+  media
+}: CreateUploadPresignedUrlParams) => {
+  const path = '/api/v1/media/presignedUrl'
+  const checksum = await crypto.subtle.digest(
+    'SHA-1',
+    await media.arrayBuffer()
+  )
+  const hashArray = Array.from(new Uint8Array(checksum))
+  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+
+  const metaData: { width: number; height: number } | null = await new Promise(
+    (resolve) => {
+      if (media.type.startsWith('video')) {
+        const element = document.createElement('video')
+        element.src = URL.createObjectURL(media)
+        element.onloadedmetadata = () => {
+          resolve({ width: element.videoWidth, height: element.videoHeight })
+        }
+        return
+      }
+
+      if (media.type.startsWith('image')) {
+        const element = document.createElement('img')
+        element.src = URL.createObjectURL(media)
+        element.onload = () => {
+          resolve({ width: element.width, height: element.height })
+        }
+        return
+      }
+      resolve(null)
+    }
+  )
+
+  const body = {
+    fileName: media.name,
+    checksum: hashHex,
+    contentType: media.type,
+    size: media.size,
+    ...metaData
+  }
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  })
+  if (response.status !== 200) return null
+  return response.json()
+}

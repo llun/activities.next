@@ -103,7 +103,7 @@ export class S3FileStorage implements MediaStorage {
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
     const key = `medias/${timeDirectory}/${randomPrefix}-${fileName}`
 
-    const presignedFields = { 'Content-MD5': presignedMedia.md5FileHash }
+    const presignedFields = { 'Content-MD5': presignedMedia.checksum }
 
     const { url } = await createPresignedPost(this._client, {
       Bucket: bucket,
@@ -111,7 +111,8 @@ export class S3FileStorage implements MediaStorage {
       Conditions: [
         { bucket },
         { key },
-        { 'Content-MD5': presignedMedia.md5FileHash },
+        { 'x-amz-algorithm': 'SHA1' },
+        { 'x-amz-checksum-sha1': presignedMedia.checksum },
         ['eq', '$Content-Type', presignedMedia.contentType],
         ['content-length-range', 0, presignedMedia.size]
       ],

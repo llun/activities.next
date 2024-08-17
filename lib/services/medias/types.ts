@@ -75,7 +75,7 @@ export type MediaStorageGetRedirectOutput = z.infer<
 
 export const PresigedMediaInput = z.object({
   fileName: z.string(),
-  md5FileHash: z.string(),
+  checksum: z.string(),
   width: z.number(),
   height: z.number(),
   contentType: z
