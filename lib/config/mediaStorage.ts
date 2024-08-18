@@ -2,11 +2,14 @@ import { z } from 'zod'
 
 import { matcher } from '@/lib/config/utils'
 
+import { MediaStorageS3Config } from '../services/medias/S3StorageFile'
 import { MAX_FILE_SIZE } from '../services/medias/constants'
+import { MediaStorageFileConfig } from '../services/medias/localFile'
 
 export enum MediaStorageType {
   LocalFile = 'fs',
-  ObjectStorage = 'object'
+  ObjectStorage = 'object',
+  S3Storage = 's3'
 }
 
 export const BaseStorageConfig = z.object({
@@ -14,24 +17,9 @@ export const BaseStorageConfig = z.object({
 })
 export type BaseStorageConfig = z.infer<typeof BaseStorageConfig>
 
-export const MediaStorageFileConfig = BaseStorageConfig.extend({
-  type: z.literal(MediaStorageType.LocalFile),
-  path: z.string()
-})
-
-export type MediaStorageFileConfig = z.infer<typeof MediaStorageFileConfig>
-
-export const MediaStorageObjectConfig = BaseStorageConfig.extend({
-  type: z.literal(MediaStorageType.ObjectStorage),
-  bucket: z.string(),
-  region: z.string(),
-  hostname: z.string().optional()
-})
-export type MediaStorageObjectConfig = z.infer<typeof MediaStorageObjectConfig>
-
 export const MediaStorageConfig = z.union([
   MediaStorageFileConfig,
-  MediaStorageObjectConfig
+  MediaStorageS3Config
 ])
 export type MediaStorageConfig = z.infer<typeof MediaStorageConfig>
 

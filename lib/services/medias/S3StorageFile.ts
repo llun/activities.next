@@ -11,11 +11,12 @@ import { IncomingMessage } from 'http'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import sharp from 'sharp'
+import { z } from 'zod'
 
 import { Actor } from '@/lib/models/actor'
 import { Storage } from '@/lib/storage/types'
 
-import { MediaStorageObjectConfig } from '../../config/mediaStorage'
+import { BaseStorageConfig, MediaStorageType } from '../../config/mediaStorage'
 import { Media } from '../../storage/types/media'
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { extractVideoImage } from './extractVideoImage'
@@ -31,17 +32,28 @@ import {
   PresignedUrlOutput
 } from './types'
 
+export const MediaStorageS3Config = BaseStorageConfig.extend({
+  type: z.union([
+    z.literal(MediaStorageType.ObjectStorage),
+    z.literal(MediaStorageType.S3Storage)
+  ]),
+  bucket: z.string(),
+  region: z.string(),
+  hostname: z.string().optional()
+})
+export type MediaStorageS3Config = z.infer<typeof MediaStorageS3Config>
+
 export class S3FileStorage implements MediaStorage {
   private static _instance: MediaStorage
 
-  private _config: MediaStorageObjectConfig
+  private _config: MediaStorageS3Config
   private _host: string
   private _storage: Storage
 
   private _client: S3Client
 
   static getStorage(
-    config: MediaStorageObjectConfig,
+    config: MediaStorageS3Config,
     host: string,
     storage: Storage
   ) {
@@ -51,11 +63,7 @@ export class S3FileStorage implements MediaStorage {
     return S3FileStorage._instance
   }
 
-  constructor(
-    config: MediaStorageObjectConfig,
-    host: string,
-    storage: Storage
-  ) {
+  constructor(config: MediaStorageS3Config, host: string, storage: Storage) {
     this._config = config
     this._host = host
     this._storage = storage
