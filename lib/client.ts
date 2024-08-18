@@ -5,6 +5,7 @@ import { Attachment, PostBoxAttachment } from './models/attachment'
 import { Follow, FollowStatus } from './models/follow'
 import { StatusData } from './models/status'
 import { Assets, Stream } from './services/apple/webstream'
+import { PresignedUrlOutput } from './services/medias/types'
 import { TimelineFormat } from './services/timelines/const'
 
 export interface CreateNoteParams {
@@ -344,10 +345,7 @@ interface CreateUploadPresignedUrlParams {
 export const createUploadPresignedUrl = async ({
   media
 }: CreateUploadPresignedUrlParams): Promise<{
-  presigned: {
-    url: string
-    fields: { [key: string]: string }
-  }
+  presigned: PresignedUrlOutput
 } | null> => {
   const path = '/api/v1/medias/presigned'
   const checksum = await crypto.subtle.digest(
@@ -394,7 +392,8 @@ export const createUploadPresignedUrl = async ({
     },
     body: JSON.stringify(body)
   })
-  if (response.status !== 200) return null
+  if (response.status === 404) return null
+  if (response.status !== 200) throw new Error('Failed to get presigned URL')
   return response.json()
 }
 

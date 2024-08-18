@@ -14,7 +14,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     )
 
     if (!presigned) {
-      return apiErrorResponse(422)
+      return apiErrorResponse(404)
     }
     return Response.json({ presigned })
   } catch {

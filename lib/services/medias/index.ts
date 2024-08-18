@@ -38,6 +38,7 @@ export const getPresignedUrl = async (
 ) => {
   const { mediaStorage, host } = getConfig()
   switch (mediaStorage?.type) {
+    case MediaStorageType.S3Storage:
     case MediaStorageType.ObjectStorage: {
       return S3FileStorage.getStorage(
         mediaStorage,
@@ -58,6 +59,7 @@ export const getMedia = async (storage: Storage, path: string) => {
         path
       )
     }
+    case MediaStorageType.S3Storage:
     case MediaStorageType.ObjectStorage: {
       return S3FileStorage.getStorage(mediaStorage, host, storage).getFile(path)
     }
