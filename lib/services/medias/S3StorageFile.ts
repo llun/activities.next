@@ -15,11 +15,7 @@ import sharp from 'sharp'
 import { Actor } from '@/lib/models/actor'
 import { Storage } from '@/lib/storage/types'
 
-import {
-  BaseStorageConfig,
-  MediaStorageS3Config,
-  MediaStorageType
-} from '../../config/mediaStorage'
+import { MediaStorageS3Config } from '../../config/mediaStorage'
 import { Media } from '../../storage/types/media'
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { extractVideoImage } from './extractVideoImage'
