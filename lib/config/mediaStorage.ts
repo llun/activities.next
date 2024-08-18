@@ -44,6 +44,7 @@ export const getMediaStorageConfig = (): {
             MAX_FILE_SIZE
         }
       }
+    case MediaStorageType.S3Storage:
     case MediaStorageType.ObjectStorage: {
       return {
         mediaStorage: {
