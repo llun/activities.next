@@ -11,12 +11,15 @@ import { IncomingMessage } from 'http'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import sharp from 'sharp'
-import { z } from 'zod'
 
 import { Actor } from '@/lib/models/actor'
 import { Storage } from '@/lib/storage/types'
 
-import { BaseStorageConfig, MediaStorageType } from '../../config/mediaStorage'
+import {
+  BaseStorageConfig,
+  MediaStorageS3Config,
+  MediaStorageType
+} from '../../config/mediaStorage'
 import { Media } from '../../storage/types/media'
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { extractVideoImage } from './extractVideoImage'
@@ -31,17 +34,6 @@ import {
   PresigedMediaInput,
   PresignedUrlOutput
 } from './types'
-
-export const MediaStorageS3Config = BaseStorageConfig.extend({
-  type: z.union([
-    z.literal(MediaStorageType.ObjectStorage),
-    z.literal(MediaStorageType.S3Storage)
-  ]),
-  bucket: z.string(),
-  region: z.string(),
-  hostname: z.string().optional()
-})
-export type MediaStorageS3Config = z.infer<typeof MediaStorageS3Config>
 
 export class S3FileStorage implements MediaStorage {
   private static _instance: MediaStorage

@@ -4,9 +4,8 @@ import mime from 'mime-types'
 import path from 'path'
 import process from 'process'
 import sharp from 'sharp'
-import { z } from 'zod'
 
-import { BaseStorageConfig, MediaStorageType } from '@/lib/config/mediaStorage'
+import { MediaStorageFileConfig } from '@/lib/config/mediaStorage'
 import { Actor } from '@/lib/models/actor'
 import { Storage } from '@/lib/storage/types'
 
@@ -20,12 +19,6 @@ import {
   MediaStorageSaveFileOutput,
   MediaType
 } from './types'
-
-export const MediaStorageFileConfig = BaseStorageConfig.extend({
-  type: z.literal(MediaStorageType.LocalFile),
-  path: z.string()
-})
-export type MediaStorageFileConfig = z.infer<typeof MediaStorageFileConfig>
 
 export class LocalFileStorage implements MediaStorage {
   private static _instance: MediaStorage

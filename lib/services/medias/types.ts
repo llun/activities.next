@@ -84,12 +84,10 @@ export const PresigedMediaInput = z.object({
       (value) => ACCEPTED_FILE_TYPES.includes(value),
       FILE_TYPE_ERROR_MESSAGE
     ),
-  size: z
-    .number()
-    .max(
-      getConfig().mediaStorage?.maxFileSize ?? MAX_FILE_SIZE,
-      FILE_SIZE_ERROR_MESSAGE
-    )
+  size: z.number().refine((value) => {
+    const config = getConfig()
+    return value <= (config.mediaStorage?.maxFileSize ?? MAX_FILE_SIZE)
+  }, FILE_SIZE_ERROR_MESSAGE)
 })
 export type PresigedMediaInput = z.infer<typeof PresigedMediaInput>
 
