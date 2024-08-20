@@ -101,6 +101,10 @@ export class S3FileStorage implements MediaStorage {
     const finalFileName = fileName.endsWith('.mov')
       ? `${fileName.split('.')[0]}.mp4`
       : fileName
+    const mimeType =
+      presignedMedia.contentType === 'video/quicktime'
+        ? 'video/mp4'
+        : presignedMedia.contentType
 
     const key = `medias/${timeDirectory}/${randomPrefix}-${finalFileName}`
     const { url, fields } = await createPresignedPost(this._client, {
@@ -119,7 +123,7 @@ export class S3FileStorage implements MediaStorage {
       original: {
         path: key,
         bytes: presignedMedia.size,
-        mimeType: presignedMedia.contentType,
+        mimeType,
         metaData: {
           width: presignedMedia.width ?? 0,
           height: presignedMedia.height ?? 0
