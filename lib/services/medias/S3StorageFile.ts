@@ -142,7 +142,7 @@ export class S3FileStorage implements MediaStorage {
         type: presignedMedia.contentType.startsWith('video')
           ? MediaType.enum.video
           : MediaType.enum.image,
-        mime_type: presignedMedia.contentType,
+        mime_type: mimeType,
         url: `https://${this._host}/api/v1/files/${key}`,
         preview_url: null,
         text_url: null,
