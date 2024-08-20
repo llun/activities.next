@@ -117,7 +117,13 @@ export class FirestoreStorage implements Storage {
     if (process.env.FIREBASE_PRIVATE_KEY && config.credentials) {
       config.credentials.private_key = process.env.FIREBASE_PRIVATE_KEY
     }
-    this.db = new Firestore(config)
+    if (config.credentials) {
+      const { apiKey, ...rest } = config
+      this.db = new Firestore(rest)
+    } else {
+      this.db = new Firestore(config)
+    }
+
     this.config = config
   }
 
