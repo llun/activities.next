@@ -1,6 +1,7 @@
 import { FieldValue, Firestore, Settings } from '@google-cloud/firestore'
 import { Mastodon } from '@llun/activities.schema'
 import crypto from 'crypto'
+import omit from 'lodash/omit'
 
 import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
@@ -118,8 +119,7 @@ export class FirestoreStorage implements Storage {
       config.credentials.private_key = process.env.FIREBASE_PRIVATE_KEY
     }
     if (config.credentials) {
-      const { apiKey, ...rest } = config
-      this.db = new Firestore(rest)
+      this.db = new Firestore(omit(config, ['apiKey']))
     } else {
       this.db = new Firestore(config)
     }
