@@ -1,5 +1,6 @@
+import { Note } from '@llun/activities.schema'
+
 import { CollectionPage } from './collectionPage'
-import { Note } from './note'
 
 export type Collection =
   | {

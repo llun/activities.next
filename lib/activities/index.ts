@@ -1,3 +1,4 @@
+import { Note } from '@llun/activities.schema'
 import crypto from 'crypto'
 
 import { Actor, ActorProfile } from '@/lib/models/actor'
@@ -38,7 +39,6 @@ import { UndoLike } from './actions/undoLike'
 import { UndoStatus } from './actions/undoStatus'
 import { UpdateStatus } from './actions/updateStatus'
 import { Image } from './entities/image'
-import { Note } from './entities/note'
 import {
   OrderedCollection,
   getOrderCollectionFirstPage

@@ -1,3 +1,5 @@
+import { Note } from '@llun/activities.schema'
+
 import { ContextEntity } from './base'
 import { Collection } from './collection'
 import { Document } from './document'
@@ -30,10 +32,6 @@ export interface BaseNote extends ContextEntity {
   attachment?: Attachment | Attachment[]
   tag: (Mention | Emoji)[]
   replies?: Collection
-}
-
-export interface Note extends BaseNote {
-  type: NoteEntity
 }
 
 export const getAttachments = (object: Note) => {

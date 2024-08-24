@@ -1,3 +1,4 @@
+import { Note } from '@llun/activities.schema'
 import crypto from 'crypto'
 
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
@@ -7,7 +8,6 @@ import {
 } from '@/lib/utils/jsonld/activitystream'
 
 import { Document } from '../activities/entities/document'
-import { Note } from '../activities/entities/note'
 import { TEST_DOMAIN } from './const'
 import { ACTOR1_ID, seedActor1 } from './seed/actor1'
 

@@ -1,3 +1,5 @@
+import { Note } from '@llun/activities.schema'
+
 import { compact } from '@/lib/utils/jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -6,12 +8,7 @@ import {
 } from '@/lib/utils/jsonld/activitystream'
 
 import { sendUpdateNote } from '../activities'
-import {
-  Note,
-  NoteEntity,
-  getContent,
-  getSummary
-} from '../activities/entities/note'
+import { NoteEntity, getContent, getSummary } from '../activities/entities/note'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
