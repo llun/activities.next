@@ -103,6 +103,7 @@ export const MockLitepubNote = ({
     attachment: documents,
     attributedTo: from,
     cc,
+    url: id,
     content,
     context:
       conversation ??

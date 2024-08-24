@@ -8,12 +8,7 @@ import { LambdaConfig } from '../services/email/lambda'
 import { ResendConfig } from '../services/email/resend'
 import { SMTPConfig } from '../services/email/smtp'
 import { AuthConfig, getAuthConfig } from './auth'
-import {
-  DatabaseConfig,
-  FirebaseDatabase,
-  KnexBaseDatabase,
-  getDatabaseConfig
-} from './database'
+import { DatabaseConfig, getDatabaseConfig } from './database'
 import { InternalApiConfig, getInternalApiConfig } from './internalApi'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'

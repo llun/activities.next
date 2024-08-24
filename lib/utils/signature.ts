@@ -8,6 +8,8 @@ import { Actor } from '@/lib/models/actor'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
 import { getSpan } from '@/lib/utils/trace'
 
+import { FORWARDED_HOST } from '../constants'
+
 export const SIGNATURE_GRAMMAR = `
 pairs = (","? pair:pair { return pair })+
 pair = key:token "=" '"' value:value '"' { return [key, value] }
@@ -52,8 +54,8 @@ export async function verify(
       if (item === '(request-target)') {
         return `(request-target): ${requestTarget}`
       }
-      if (item === 'host' && getHeadersValue(headers, 'x-forwarded-host')) {
-        return `${item}: ${getHeadersValue(headers, 'x-forwarded-host')}`
+      if (item === 'host' && getHeadersValue(headers, FORWARDED_HOST)) {
+        return `${item}: ${getHeadersValue(headers, FORWARDED_HOST)}`
       }
       return `${item}: ${getHeadersValue(headers, item)}`
     })

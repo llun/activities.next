@@ -1,3 +1,4 @@
+import { Note } from '@llun/activities.schema'
 import crypto from 'crypto'
 
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -11,7 +12,6 @@ import {
 import { getPublicProfile, sendNote } from '../activities'
 import { Mention } from '../activities/entities/mention'
 import {
-  Note,
   getAttachments,
   getContent,
   getSummary,

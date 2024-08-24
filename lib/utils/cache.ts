@@ -1,4 +1,4 @@
-import '@keyv/redis'
+import KeyvRedis from '@keyv/redis'
 import Keyv from 'keyv'
 import { memoize } from 'lodash'
 
@@ -10,9 +10,8 @@ const getKeyv = memoize((namespace: string) => {
     return null
   }
 
-  const { url, tls } = config.redis
-  const option = tls ? { tls: true } : undefined
-  return new Keyv(url, { ...option, namespace })
+  const { url } = config.redis
+  return new Keyv({ store: new KeyvRedis({ uri: url }), namespace })
 })
 
 export const cache = async <P>(
