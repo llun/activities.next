@@ -9,6 +9,7 @@ import { ResendConfig } from '../services/email/resend'
 import { SMTPConfig } from '../services/email/smtp'
 import { AuthConfig, getAuthConfig } from './auth'
 import {
+  DatabaseConfig,
   FirebaseDatabase,
   KnexBaseDatabase,
   getDatabaseConfig
@@ -16,6 +17,7 @@ import {
 import { InternalApiConfig, getInternalApiConfig } from './internalApi'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
+import { QueueConfig, getQueueConfig } from './queue'
 import { RedisConfig, getRedisConfig } from './redis'
 import { RequestConfig, getRequestConfig } from './request'
 
@@ -24,7 +26,8 @@ const Config = z.object({
   serviceName: z.string().nullish(),
   serviceDescription: z.string().nullish(),
   languages: z.string().array().default(['en']),
-  database: z.union([KnexBaseDatabase, FirebaseDatabase]),
+  database: DatabaseConfig,
+  queue: QueueConfig.optional(),
   allowEmails: z.string().array(),
   secretPhase: z.string(),
   allowMediaDomains: z.string().array().optional(),
@@ -80,7 +83,8 @@ const getConfigFromEnvironment = () => {
       ...getRedisConfig(),
       ...getOtelConfig(),
       ...getInternalApiConfig(),
-      ...getRequestConfig()
+      ...getRequestConfig(),
+      ...getQueueConfig()
     })
   } catch (error) {
     if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {

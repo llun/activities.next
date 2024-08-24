@@ -1,0 +1,39 @@
+import { z } from 'zod'
+
+import { matcher } from './utils'
+
+const QStashConfig = z.object({
+  type: z.literal('qstash'),
+  url: z.string().url(),
+  token: z.string(),
+  currentSigningKey: z.string(),
+  nextSigningKey: z.string(),
+  queueName: z.string()
+})
+type QStashConfig = z.infer<typeof QStashConfig>
+
+export const QueueConfig = QStashConfig
+export type QueueConfig = z.infer<typeof QueueConfig>
+
+export const getQueueConfig = (): { queue: QueueConfig } | null => {
+  const hasEnvironmentQueue = matcher('ACTIVITIES_QUEUE_')
+  if (!hasEnvironmentQueue) return null
+
+  switch (process.env.ACTIVITIES_QUEUE_TYPE) {
+    case 'qstash':
+      return {
+        queue: {
+          type: 'qstash',
+          url: process.env.ACTIVITIES_QUEUE_URL as string,
+          token: process.env.ACTIVITIES_QUEUE_TOKEN as string,
+          currentSigningKey: process.env
+            .ACTIVITIES_QUEUE_CURRENT_SIGNING_KEY as string,
+          nextSigningKey: process.env
+            .ACTIVITIES_QUEUE_NEXT_SIGNING_KEY as string,
+          queueName: process.env.ACTIVITIES_QUEUE_NAME as string
+        }
+      }
+    default:
+      return null
+  }
+}
