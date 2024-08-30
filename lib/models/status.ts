@@ -1,10 +1,11 @@
+import { Note } from '@llun/activities.schema'
 import { z } from 'zod'
 
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Document } from '../activities/entities/document'
-import { Note, getContent, getSummary } from '../activities/entities/note'
+import { getContent, getSummary } from '../activities/entities/note'
 import { Question, QuestionEntity } from '../activities/entities/question'
 import { ActorProfile } from './actor'
 import { Attachment, AttachmentData } from './attachment'

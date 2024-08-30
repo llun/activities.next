@@ -1,5 +1,4 @@
 import KeyvRedis from '@keyv/redis'
-import { KeyvRedisOptions } from '@keyv/redis/dist/types'
 import got, { Headers, Method } from 'got'
 import { memoize } from 'lodash'
 
@@ -24,9 +23,8 @@ export interface RequestOptions {
 export const getRequestCache = memoize(() => {
   const config = getConfig()
   if (config.redis) {
-    const { url, tls } = config.redis
-    const option = tls ? ({ tls: {} } as KeyvRedisOptions) : undefined
-    return new KeyvRedis(url, option)
+    const { url } = config.redis
+    return new KeyvRedis({ uri: url })
   }
 
   return false

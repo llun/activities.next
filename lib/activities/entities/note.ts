@@ -1,3 +1,5 @@
+import { Note } from '@llun/activities.schema'
+
 import { ContextEntity } from './base'
 import { Collection } from './collection'
 import { Document } from './document'
@@ -12,28 +14,24 @@ export type NoteEntity = typeof NoteEntity
 
 export interface BaseNote extends ContextEntity {
   id: string
-  summary?: string | null
+  summary?: string
   summaryMap?: {
     [key in string]: string
   }
   inReplyTo: string | null
   published: string
   updated?: string
-  url?: string
+  url: string
   attributedTo: string
   to: string | string[]
   cc: string | string[]
-  content?: string | string[]
+  content?: string
   contentMap?: {
     [key in string]: string
   }
   attachment?: Attachment | Attachment[]
   tag: (Mention | Emoji)[]
   replies?: Collection
-}
-
-export interface Note extends BaseNote {
-  type: NoteEntity
 }
 
 export const getAttachments = (object: Note) => {

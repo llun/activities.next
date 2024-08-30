@@ -3,8 +3,7 @@ import { z } from 'zod'
 import { matcher } from './utils'
 
 export const RedisConfig = z.object({
-  url: z.string(),
-  tls: z.boolean().optional()
+  url: z.string()
 })
 export type RedisConfig = z.infer<typeof RedisConfig>
 
@@ -13,8 +12,7 @@ export const getRedisConfig = (): { redis: RedisConfig } | null => {
   if (!hasEnvironmentRedis) return null
   return {
     redis: {
-      url: process.env.ACTIVITIES_REDIS_URL as string,
-      tls: Boolean(process.env.ACTIVITIES_REDIS_TLS)
+      url: process.env.ACTIVITIES_REDIS_URL as string
     }
   }
 }

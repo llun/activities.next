@@ -1,4 +1,5 @@
-import { Note } from '../activities/entities/note'
+import { Note } from '@llun/activities.schema'
+
 import { getConfig } from '../config'
 import { Attachment } from '../models/attachment'
 import { StatusData, StatusType } from '../models/status'

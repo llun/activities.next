@@ -1,4 +1,5 @@
 import { getConfig } from '@/lib/config'
+import { VERSION } from '@/lib/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,7 +104,7 @@ export const GET = async () => {
     openRegistrations: false,
     protocols: ['activitypub'],
     services: { inbound: [], outbound: [] },
-    software: { name: 'mastodon', version: 'activities.next-0.1.5' },
+    software: { name: 'mastodon', version: `activities.next-${VERSION}` },
     usage: { localPosts: 150, users: { total: 1 } },
     version: '2.0'
   })

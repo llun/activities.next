@@ -9,6 +9,7 @@ import { getConfig } from '@/lib/config'
 import { Actor } from '@/lib/models/actor'
 import { getStorage } from '@/lib/storage'
 import { Scope } from '@/lib/storage/types/oauth'
+import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 import { AppRouterParams, AuthenticatedApiHandle } from './types'
@@ -84,8 +85,7 @@ export const OAuthGuard =
       )
     } catch (e) {
       const nodeErr = e as NodeJS.ErrnoException
-      console.error(nodeErr.message)
-      console.error(nodeErr.stack)
+      logger.error(nodeErr)
       return apiErrorResponse(500)
     }
   }

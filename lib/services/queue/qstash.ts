@@ -1,0 +1,62 @@
+import { Client } from '@upstash/qstash'
+import { z } from 'zod'
+
+import { CREATE_NOTE_JOB_NAME, createNote } from '@/lib/actions/createNote'
+import { getStorage } from '@/lib/storage'
+import { logger } from '@/lib/utils/logger'
+
+import { JobMessage, Queue } from './type'
+
+export const QStashConfig = z.object({
+  type: z.literal('qstash'),
+  url: z.string().url(),
+  token: z.string(),
+  currentSigningKey: z.string(),
+  nextSigningKey: z.string(),
+  queueName: z.string()
+})
+export type QStashConfig = z.infer<typeof QStashConfig>
+
+const MAX_JOB_TIMEOUT_SECONDS = 30
+const MAX_JOB_RETRIES = 0
+
+export class QStashQueue implements Queue {
+  private _client: Client
+  private _url: string
+  private _queueName: string
+
+  constructor(config: QStashConfig) {
+    this._url = config.url
+    this._queueName = config.queueName
+    this._client = new Client({
+      token: config.token
+    })
+  }
+
+  async publish(message: JobMessage): Promise<void> {
+    await this._client.queue({ queueName: this._queueName }).enqueueJSON({
+      url: this._url,
+      body: message,
+      timeout: MAX_JOB_TIMEOUT_SECONDS,
+      retries: MAX_JOB_RETRIES
+    })
+  }
+
+  async handle(message: JobMessage): Promise<void> {
+    logger.debug({ message }, 'QStash Handling message')
+    const storage = await getStorage()
+    if (!storage) {
+      throw new Error('Storage is not available')
+    }
+
+    switch (message.name) {
+      case CREATE_NOTE_JOB_NAME: {
+        await createNote({ storage, note: message.data })
+        return
+      }
+      default: {
+        logger.error(`Unknown job name: ${message.name}`)
+      }
+    }
+  }
+}

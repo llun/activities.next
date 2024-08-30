@@ -7,15 +7,13 @@ import { z } from 'zod'
 import { LambdaConfig } from '../services/email/lambda'
 import { ResendConfig } from '../services/email/resend'
 import { SMTPConfig } from '../services/email/smtp'
+import { logger } from '../utils/logger'
 import { AuthConfig, getAuthConfig } from './auth'
-import {
-  FirebaseDatabase,
-  KnexBaseDatabase,
-  getDatabaseConfig
-} from './database'
+import { DatabaseConfig, getDatabaseConfig } from './database'
 import { InternalApiConfig, getInternalApiConfig } from './internalApi'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
+import { QueueConfig, getQueueConfig } from './queue'
 import { RedisConfig, getRedisConfig } from './redis'
 import { RequestConfig, getRequestConfig } from './request'
 
@@ -24,7 +22,8 @@ const Config = z.object({
   serviceName: z.string().nullish(),
   serviceDescription: z.string().nullish(),
   languages: z.string().array().default(['en']),
-  database: z.union([KnexBaseDatabase, FirebaseDatabase]),
+  database: DatabaseConfig,
+  queue: QueueConfig.optional(),
   allowEmails: z.string().array(),
   secretPhase: z.string(),
   allowMediaDomains: z.string().array().optional(),
@@ -55,9 +54,8 @@ const getConfigFromFile = () => {
       return null
     }
 
-    console.error('Invalid file config')
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    logger.error('Invalid file config')
+    logger.error(nodeError)
     return null
   }
 }
@@ -80,7 +78,8 @@ const getConfigFromEnvironment = () => {
       ...getRedisConfig(),
       ...getOtelConfig(),
       ...getInternalApiConfig(),
-      ...getRequestConfig()
+      ...getRequestConfig(),
+      ...getQueueConfig()
     })
   } catch (error) {
     if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {
@@ -88,9 +87,8 @@ const getConfigFromEnvironment = () => {
     }
 
     const nodeErr = error as NodeJS.ErrnoException
-    console.error('Invalid environment config')
-    console.error(nodeErr.message)
-    console.error(nodeErr.stack)
+    logger.error('Invalid environment config')
+    logger.error(nodeErr)
     return null
   }
 }

@@ -26,6 +26,7 @@ import { Trace } from '@/lib/utils/trace'
 import { PER_PAGE_LIMIT } from '.'
 import { Tag, TagData } from '../models/tag'
 import { getISOTimeUTC } from '../utils/getISOTimeUTC'
+import { logger } from '../utils/logger'
 import { CreateTimelineStatusParams, GetTimelineParams, Storage } from './types'
 import {
   CreateAccountParams,
@@ -1275,10 +1276,7 @@ export class FirestoreStorage implements Storage {
 
     if (data.type === StatusType.enum.Announce) {
       if (!data.originalStatusId) {
-        console.error(
-          'Announce status original status id is undefined',
-          data.id
-        )
+        logger.error('Announce status original status id is undefined', data.id)
         return
       }
 
@@ -1289,7 +1287,7 @@ export class FirestoreStorage implements Storage {
       if (!originalStatusData) return
 
       if (originalStatusData.type === StatusType.enum.Announce) {
-        console.error(
+        logger.error(
           'Announce status announce another status',
           data.id,
           data.originalStatusId

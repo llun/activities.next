@@ -1,5 +1,5 @@
 import { announce } from '@/lib/actions/announce'
-import { createNote } from '@/lib/actions/createNote'
+import { CREATE_NOTE_JOB_NAME } from '@/lib/actions/createNote'
 import { createPoll } from '@/lib/actions/createPoll'
 import { updateNote } from '@/lib/actions/updateNote'
 import { updatePoll } from '@/lib/actions/updatePoll'
@@ -14,6 +14,7 @@ import {
 import { NoteEntity } from '@/lib/activities/entities/note'
 import { QuestionEntity } from '@/lib/activities/entities/question'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
+import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { compact } from '@/lib/utils/jsonld'
 import {
@@ -35,7 +36,10 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
     case CreateAction: {
       switch (activity.object.type) {
         case NoteEntity: {
-          await createNote({ storage, note: activity.object })
+          await getQueue().publish({
+            name: CREATE_NOTE_JOB_NAME,
+            data: activity.object
+          })
           break
         }
         case QuestionEntity: {

@@ -1,4 +1,6 @@
+import { Note } from '@llun/activities.schema'
 import crypto from 'crypto'
+import { z } from 'zod'
 
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { compact } from '@/lib/utils/jsonld'
@@ -11,7 +13,6 @@ import {
 import { getPublicProfile, sendNote } from '../activities'
 import { Mention } from '../activities/entities/mention'
 import {
-  Note,
   getAttachments,
   getContent,
   getSummary,
@@ -25,10 +26,18 @@ import { Status, StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { invalidate } from '../utils/cache'
 import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
+import { logger } from '../utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '../utils/response'
 import { getMentions } from '../utils/text/getMentions'
 import { getSpan } from '../utils/trace'
 import { recordActorIfNeeded } from './utils'
+
+export const CREATE_NOTE_JOB_NAME = 'CreateNoteJob'
+export const CreateNoteJobMessage = z.object({
+  name: z.literal(CREATE_NOTE_JOB_NAME),
+  data: Note
+})
+export type CreateNoteJobMessage = z.infer<typeof CreateNoteJobMessage>
 
 interface CreateNoteParams {
   note: Note
@@ -266,7 +275,7 @@ export const createNoteFromUserInput = async ({
           note: note as Note
         })
       } catch (e) {
-        console.error(`Fail to send note to ${inbox}`)
+        logger.error({ inbox }, `Fail to send note`)
         const nodeError = e as NodeJS.ErrnoException
         if (UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code ?? '')) {
           const follows = await storage.getLocalFollowsFromInboxUrl({

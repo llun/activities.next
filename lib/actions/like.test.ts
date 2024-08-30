@@ -1,6 +1,6 @@
+import { Note } from '@llun/activities.schema'
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { Note } from '../activities/entities/note'
 import { StatusType } from '../models/status'
 import { SqlStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
