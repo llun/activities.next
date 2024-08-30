@@ -14,8 +14,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     return Response.json(response)
   } catch (e) {
     const nodeErr = e as NodeJS.ErrnoException
-    logger.error(nodeErr.message)
-    logger.error(nodeErr.stack)
+    logger.error(nodeErr)
     return apiErrorResponse(422)
   }
 })

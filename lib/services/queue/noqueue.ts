@@ -10,6 +10,7 @@ export class NoQueue implements Queue {
   }
 
   async handle(message: JobMessage): Promise<void> {
+    logger.debug({ message }, 'NoQueue Handling message')
     const storage = await getStorage()
     if (!storage) {
       throw new Error('Storage is not available')

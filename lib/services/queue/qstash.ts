@@ -36,7 +36,7 @@ export class QStashQueue implements Queue {
   }
 
   async handle(message: JobMessage): Promise<void> {
-    logger.debug('Handling message', message)
+    logger.debug({ message }, 'QStash Handling message')
     const storage = await getStorage()
     if (!storage) {
       throw new Error('Storage is not available')

@@ -275,7 +275,7 @@ export const createNoteFromUserInput = async ({
           note: note as Note
         })
       } catch (e) {
-        logger.error(`Fail to send note to ${inbox}`)
+        logger.error({ inbox }, `Fail to send note`)
         const nodeError = e as NodeJS.ErrnoException
         if (UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code ?? '')) {
           const follows = await storage.getLocalFollowsFromInboxUrl({

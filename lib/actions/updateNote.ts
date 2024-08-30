@@ -124,7 +124,7 @@ export const updateNoteFromUserInput = async ({
           status: updatedStatus
         })
       } catch {
-        logger.error(`Fail to update note to ${inbox}`)
+        logger.error({ inbox }, `Fail to update note`)
       }
     })
   ])

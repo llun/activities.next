@@ -58,8 +58,7 @@ export class LocalFileStorage implements MediaStorage {
       })
     } catch (e) {
       const error = e as NodeJS.ErrnoException
-      logger.error(error.message)
-      logger.error(error.stack)
+      logger.error(error)
       return null
     }
   }

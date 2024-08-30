@@ -12,7 +12,8 @@ const levelToSeverity: Record<string, string> = {
 }
 
 const logger = pino({
-  enabled: process.env.NODE_ENV === 'production',
+  enabled: true,
+  level: process.env.LOG_LEVEL ?? 'info',
   base: {
     serviceContext: {
       service: 'activities.next',

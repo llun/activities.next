@@ -128,7 +128,7 @@ export const POST = async (request: NextRequest) => {
         }
       })
     } catch {
-      logger.error(`Fail to send email to ${form.email}`)
+      logger.error({ to: form.email }, `Fail to send email`)
     }
   }
 
