@@ -1,16 +1,7 @@
 import { z } from 'zod'
 
+import { QStashConfig } from '../services/queue/qstash'
 import { matcher } from './utils'
-
-const QStashConfig = z.object({
-  type: z.literal('qstash'),
-  url: z.string().url(),
-  token: z.string(),
-  currentSigningKey: z.string(),
-  nextSigningKey: z.string(),
-  queueName: z.string()
-})
-type QStashConfig = z.infer<typeof QStashConfig>
 
 export const QueueConfig = QStashConfig
 export type QueueConfig = z.infer<typeof QueueConfig>
