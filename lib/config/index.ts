@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { LambdaConfig } from '../services/email/lambda'
 import { ResendConfig } from '../services/email/resend'
 import { SMTPConfig } from '../services/email/smtp'
+import { logger } from '../utils/logger'
 import { AuthConfig, getAuthConfig } from './auth'
 import { DatabaseConfig, getDatabaseConfig } from './database'
 import { InternalApiConfig, getInternalApiConfig } from './internalApi'
@@ -53,9 +54,8 @@ const getConfigFromFile = () => {
       return null
     }
 
-    console.error('Invalid file config')
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    logger.error('Invalid file config')
+    logger.error(nodeError)
     return null
   }
 }
@@ -87,9 +87,8 @@ const getConfigFromEnvironment = () => {
     }
 
     const nodeErr = error as NodeJS.ErrnoException
-    console.error('Invalid environment config')
-    console.error(nodeErr.message)
-    console.error(nodeErr.stack)
+    logger.error('Invalid environment config')
+    logger.error(nodeErr)
     return null
   }
 }

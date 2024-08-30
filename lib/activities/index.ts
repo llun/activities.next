@@ -21,6 +21,7 @@ import { signedHeaders } from '@/lib/utils/signature'
 import { getSpan } from '@/lib/utils/trace'
 
 import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
+import { logger } from '../utils/logger'
 import { AcceptFollow } from './actions/acceptFollow'
 import { AnnounceStatus } from './actions/announceStatus'
 import { CreateStatus } from './actions/createStatus'
@@ -73,7 +74,7 @@ export const getWebfingerSelf = async (account: string) => {
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[getWebfingerSelf] ${nodeError.message}`)
+    logger.error(`[getWebfingerSelf] ${nodeError.message}`)
     return null
   } finally {
     span.end()
@@ -240,7 +241,7 @@ export const getPublicProfile = async ({
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[getPublicProfile] ${nodeError.message}`)
+    logger.error(`[getPublicProfile] ${nodeError.message}`)
     return null
   } finally {
     span.end()
@@ -337,7 +338,7 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[getActorPosts] ${nodeError.message}`)
+    logger.error(`[getActorPosts] ${nodeError.message}`)
     return []
   } finally {
     span.end()
@@ -363,7 +364,7 @@ export const getStatus = async ({
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[getStatus] ${nodeError.message}`)
+    logger.error(`[getStatus] ${nodeError.message}`)
     return null
   } finally {
     span.end()
@@ -408,7 +409,7 @@ export const sendNote = async ({
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[sendNote] ${nodeError.message}`)
+    logger.error(`[sendNote] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -459,7 +460,7 @@ export const sendUpdateNote = async ({
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[sendUpdateNote] ${nodeError.message}`)
+    logger.error(`[sendUpdateNote] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -507,7 +508,7 @@ export const sendAnnounce = async ({
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[sendAnnounce] ${nodeError.message}`)
+    logger.error(`[sendAnnounce] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -552,7 +553,7 @@ export const deleteStatus = async ({
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[deleteStatus] ${nodeError.message}`)
+    logger.error(`[deleteStatus] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -602,7 +603,7 @@ export const undoAnnounce = async ({
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[undoAnnounce] ${nodeError.message}`)
+    logger.error(`[undoAnnounce] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -652,7 +653,7 @@ export const follow = async (
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[follow] ${nodeError.message}`)
+    logger.error(`[follow] ${nodeError.message}`)
     return false
   } finally {
     span.end()
@@ -703,7 +704,7 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[unfollow] ${nodeError.message}`)
+    logger.error(`[unfollow] ${nodeError.message}`)
     return false
   } finally {
     span.end()
@@ -751,7 +752,7 @@ export const acceptFollow = async (
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[acceptFollow] ${nodeError.message}`)
+    logger.error(`[acceptFollow] ${nodeError.message}`)
     return false
   } finally {
     span.end()
@@ -799,7 +800,7 @@ export const sendLike = async ({ currentActor, status }: LikeParams) => {
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[sendLike] ${nodeError.message}`)
+    logger.error(`[sendLike] ${nodeError.message}`)
   } finally {
     span.end()
   }
@@ -851,7 +852,7 @@ export const sendUndoLike = async ({
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     span.recordException(nodeError)
-    console.error(`[sendUndoLike] ${nodeError.message}`)
+    logger.error(`[sendUndoLike] ${nodeError.message}`)
   } finally {
     span.end()
   }

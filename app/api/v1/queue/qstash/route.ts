@@ -35,6 +35,6 @@ export const POST = async (request: NextRequest) => {
     }
   } catch {
     return apiErrorResponse(400)
-  }
+}
   return apiResponse(request, ['POST'], {})
 }

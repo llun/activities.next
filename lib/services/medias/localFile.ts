@@ -8,6 +8,7 @@ import sharp from 'sharp'
 import { MediaStorageFileConfig } from '@/lib/config/mediaStorage'
 import { Actor } from '@/lib/models/actor'
 import { Storage } from '@/lib/storage/types'
+import { logger } from '@/lib/utils/logger'
 
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { extractVideoImage } from './extractVideoImage'
@@ -57,8 +58,8 @@ export class LocalFileStorage implements MediaStorage {
       })
     } catch (e) {
       const error = e as NodeJS.ErrnoException
-      console.error(error.message)
-      console.error(error.stack)
+      logger.error(error.message)
+      logger.error(error.stack)
       return null
     }
   }

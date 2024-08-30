@@ -1,6 +1,7 @@
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaSchema } from '@/lib/services/medias/types'
+import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 export const POST = AuthenticatedGuard(async (req, context) => {
@@ -13,8 +14,8 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     return Response.json(response)
   } catch (e) {
     const nodeErr = e as NodeJS.ErrnoException
-    console.error(nodeErr.message)
-    console.error(nodeErr.stack)
+    logger.error(nodeErr.message)
+    logger.error(nodeErr.stack)
     return apiErrorResponse(422)
   }
 })

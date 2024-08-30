@@ -7,6 +7,7 @@ import { sendMail } from '@/lib/services/email'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { getStorage } from '@/lib/storage'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { logger } from '@/lib/utils/logger'
 import {
   apiErrorResponse,
   apiResponse,
@@ -127,7 +128,7 @@ export const POST = async (request: NextRequest) => {
         }
       })
     } catch {
-      console.error(`Fail to send email to ${form.email}`)
+      logger.error(`Fail to send email to ${form.email}`)
     }
   }
 

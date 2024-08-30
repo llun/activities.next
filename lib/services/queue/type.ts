@@ -1,9 +1,11 @@
 import { z } from 'zod'
 
-export const QueueMessage = z.object({
-  job: z.string()
-})
+import { CreateNoteJobMessage } from '@/lib/actions/createNote'
+
+export const JobMessage = CreateNoteJobMessage
+export type JobMessage = z.infer<typeof JobMessage>
 
 export interface Queue {
-  publish(): Promise<void>
+  publish(message: JobMessage): Promise<void>
+  handle(message: JobMessage): Promise<void>
 }

@@ -12,6 +12,7 @@ import { NoteEntity, getContent, getSummary } from '../activities/entities/note'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
+import { logger } from '../utils/logger'
 import { getSpan } from '../utils/trace'
 
 interface UpdateNoteParams {
@@ -123,7 +124,7 @@ export const updateNoteFromUserInput = async ({
           status: updatedStatus
         })
       } catch {
-        console.error(`Fail to update note to ${inbox}`)
+        logger.error(`Fail to update note to ${inbox}`)
       }
     })
   ])

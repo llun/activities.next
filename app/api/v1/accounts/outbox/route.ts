@@ -2,6 +2,7 @@ import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { logger } from '@/lib/utils/logger'
 import {
   DEFAULT_202,
   apiErrorResponse,
@@ -47,8 +48,8 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     }
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
-    console.error(nodeError.message)
-    console.error(nodeError.stack)
+    logger.error(nodeError.message)
+    logger.error(nodeError.stack)
     return apiErrorResponse(400)
   }
 })

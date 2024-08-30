@@ -7,6 +7,7 @@ import { W3ID_URL } from '@/lib/utils/jsonld/w3id'
 import { PublicProfile } from '../activities'
 import { Image } from '../activities/entities/image'
 import { Person } from '../activities/entities/person'
+import { logger } from '../utils/logger'
 import { Account } from './account'
 
 export const ActorProfile = z.object({
@@ -127,7 +128,7 @@ export class Actor {
 
       return `@${id}${Actor.getMentionHostnameFromId(actorId)}`
     } catch {
-      console.error(`Fail to split the actor id, (${JSON.stringify(actorId)})`)
+      logger.error(`Fail to split the actor id, (${JSON.stringify(actorId)})`)
       return actorId
     }
   }
