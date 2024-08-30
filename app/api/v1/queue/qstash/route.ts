@@ -4,6 +4,8 @@ import { NextRequest } from 'next/server'
 
 import { Config, getConfig } from '@/lib/config'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { getQueue } from '@/lib/services/queue'
+import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
 
 const getReceiver = memoize(
@@ -33,8 +35,13 @@ export const POST = async (request: NextRequest) => {
     if (!isValid) {
       return apiErrorResponse(400)
     }
-  } catch {
+
+    const jsonBody = JSON.parse(body)
+    logger.debug({ body: jsonBody }, 'Received message from qstash')
+    await getQueue().handle(jsonBody)
+  } catch (e) {
+    logger.error(e)
     return apiErrorResponse(400)
-}
+  }
   return apiResponse(request, ['POST'], {})
 }
