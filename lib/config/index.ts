@@ -87,10 +87,16 @@ const getConfigFromEnvironment = () => {
 
 export const getConfig = memoize((): Config => {
   const fileConfig = getConfigFromFile()
-  if (fileConfig) return fileConfig
+  if (fileConfig) {
+    logger.debug('Using file config')
+    return fileConfig
+  }
 
   const environmentConfig = getConfigFromEnvironment()
-  if (environmentConfig) return environmentConfig
+  if (environmentConfig) {
+    logger.debug('Using environment config')
+    return environmentConfig
+  }
 
   throw new Error('Fail to read Activities.next config')
 })
