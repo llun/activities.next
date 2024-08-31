@@ -1,6 +1,4 @@
-import KeyvRedis from '@keyv/redis'
 import got, { Headers, Method } from 'got'
-import { memoize } from 'lodash'
 
 import { getConfig } from '../config'
 
@@ -19,16 +17,6 @@ export interface RequestOptions {
   body?: string
   responseTimeout?: number
 }
-
-export const getRequestCache = memoize(() => {
-  const config = getConfig()
-  if (config.redis) {
-    const { url } = config.redis
-    return new KeyvRedis({ uri: url })
-  }
-
-  return false
-})
 
 export const request = ({
   url,
@@ -56,7 +44,6 @@ export const request = ({
     },
     throwHttpErrors: false,
     method,
-    body,
-    cache: getRequestCache()
+    body
   })
 }
