@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getStorage } from '@/lib/storage'
+import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { parse, verify } from '@/lib/utils/signature'
 
@@ -30,7 +31,7 @@ export const ActivityPubVerifySenderGuard =
         publicKey
       ))
     ) {
-      console.error('Fail to verify signature')
+      logger.error('Fail to verify signature')
       return apiErrorResponse(400)
     }
 
