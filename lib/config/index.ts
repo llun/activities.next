@@ -82,10 +82,6 @@ const getConfigFromEnvironment = () => {
       ...getQueueConfig()
     })
   } catch (error) {
-    if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {
-      return null
-    }
-
     const nodeErr = error as NodeJS.ErrnoException
     logger.error('Invalid environment config')
     logger.error(nodeErr)
