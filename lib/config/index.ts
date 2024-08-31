@@ -50,10 +50,6 @@ const getConfigFromFile = () => {
       return null
     }
 
-    if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {
-      return null
-    }
-
     logger.error('Invalid file config')
     logger.error(nodeError)
     return null
