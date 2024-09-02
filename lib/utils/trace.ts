@@ -18,6 +18,9 @@ export const getSpan = (op: string, name: string, data: Data = {}) => {
   return span
 }
 
+export const getTracer = () =>
+  trace.getTracer(TRACE_APPLICATION_SCOPE, TRACE_APPLICATION_VERSION)
+
 const AsyncFunction = async function () {}.constructor // eslint-disable-line @typescript-eslint/no-empty-function
 type AsyncFunction = typeof AsyncFunction
 

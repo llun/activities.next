@@ -1,0 +1,179 @@
+import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+
+import { CREATE_NOTE_JOB_NAME } from '../actions/createNote'
+import { Actor } from '../models/actor'
+import { StatusType } from '../models/status'
+import { SqlStorage } from '../storage/sql'
+import { mockRequests } from '../stub/activities'
+import { MockImageDocument } from '../stub/imageDocument'
+import { MockLitepubNote, MockMastodonNote } from '../stub/note'
+import { seedActor1 } from '../stub/seed/actor1'
+import { seedActor2 } from '../stub/seed/actor2'
+import { seedStorage } from '../stub/storage'
+import { createNoteJob } from './createNoteJob'
+
+enableFetchMocks()
+
+// Actor id for testing pulling actor information when create status
+const FRIEND_ACTOR_ID = 'https://somewhere.test/actors/friend'
+
+describe('createNoteJob', () => {
+  const storage = new SqlStorage({
+    client: 'better-sqlite3',
+    useNullAsDefault: true,
+    connection: {
+      filename: ':memory:'
+    }
+  })
+  let actor1: Actor | undefined
+  let actor2: Actor | undefined
+
+  beforeAll(async () => {
+    await storage.migrate()
+    await seedStorage(storage)
+    actor1 = await storage.getActorFromUsername({
+      username: seedActor1.username,
+      domain: seedActor1.domain
+    })
+    actor2 = await storage.getActorFromUsername({
+      username: seedActor2.username,
+      domain: seedActor2.domain
+    })
+  })
+
+  afterAll(async () => {
+    if (!storage) return
+    await storage.destroy()
+  })
+
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    mockRequests(fetchMock)
+  })
+
+  it('adds note into storage and returns note', async () => {
+    const note = MockMastodonNote({ content: '<p>Hello</p>' })
+    expect(
+      await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    ).toEqual(note)
+
+    const status = await storage.getStatus({ statusId: note.id })
+    if (status?.data.type !== StatusType.enum.Note) {
+      fail('Stauts type must be note')
+    }
+    expect(status).toBeDefined()
+    expect(status?.data.id).toEqual(note.id)
+    expect(status?.data.text).toEqual('<p>Hello</p>')
+    expect(status?.data.actorId).toEqual(note.attributedTo)
+    expect(status?.data.to).toEqual(note.to)
+    expect(status?.data.cc).toEqual(note.cc)
+    expect(status?.data.type).toEqual(StatusType.enum.Note)
+    expect(status?.data.createdAt).toEqual(new Date(note.published).getTime())
+  })
+
+  it('adds litepub note into storage and returns note', async () => {
+    const note = MockLitepubNote({ content: '<p>Hello</p>' })
+    expect(
+      await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    ).toEqual(note)
+
+    const status = await storage.getStatus({ statusId: note.id })
+    if (status?.data.type !== StatusType.enum.Note) {
+      fail('Stauts type must be note')
+    }
+    expect(status).toBeDefined()
+    expect(status?.data.id).toEqual(note.id)
+    expect(status?.data.text).toEqual('<p>Hello</p>')
+    expect(status?.data.actorId).toEqual(note.attributedTo)
+    expect(status?.data.to).toEqual(note.to)
+    expect(status?.data.cc).toEqual(note.cc)
+    expect(status?.data.type).toEqual(StatusType.enum.Note)
+    expect(status?.data.createdAt).toEqual(new Date(note.published).getTime())
+  })
+
+  it('add status and attachments with status id into storage', async () => {
+    const note = MockMastodonNote({
+      content: 'Hello',
+      documents: [
+        MockImageDocument({ url: 'https://llun.dev/images/test1.jpg' }),
+        MockImageDocument({
+          url: 'https://llun.dev/images/test2.jpg',
+          name: 'Second image'
+        })
+      ]
+    })
+    expect(
+      await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    ).toEqual(note)
+    const status = await storage.getStatus({ statusId: note.id })
+    if (status?.data.type !== StatusType.enum.Note) {
+      fail('Stauts type must be note')
+    }
+    expect(status?.data.attachments.length).toEqual(2)
+    expect(status?.data.attachments[0]).toMatchObject({
+      statusId: note.id,
+      mediaType: 'image/jpeg',
+      name: '',
+      url: 'https://llun.dev/images/test1.jpg',
+      width: 2000,
+      height: 1500
+    })
+    expect(status?.data.attachments[1]).toMatchObject({
+      statusId: note.id,
+      mediaType: 'image/jpeg',
+      url: 'https://llun.dev/images/test2.jpg',
+      width: 2000,
+      height: 1500,
+      name: 'Second image'
+    })
+  })
+
+  it('does not add duplicate note into storage', async () => {
+    const note = MockMastodonNote({
+      id: `${actor1?.id}/statuses/post-1`,
+      content: 'Test duplicate'
+    })
+    expect(
+      await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    ).toEqual(note)
+    const status = await storage.getStatus({
+      statusId: `${actor1?.id}/statuses/post-1`
+    })
+    expect(status).not.toEqual('Test duplicate')
+  })
+
+  it('get public profile and add non-exist actor to storage', async () => {
+    const note = MockMastodonNote({
+      from: FRIEND_ACTOR_ID,
+      content: '<p>Hello</p>'
+    })
+    expect(
+      await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    ).toEqual(note)
+
+    const actor = await storage.getActorFromId({ id: FRIEND_ACTOR_ID })
+    expect(actor).toBeDefined()
+    expect(actor).toMatchObject({
+      id: FRIEND_ACTOR_ID,
+      username: 'friend',
+      domain: 'somewhere.test',
+      createdAt: expect.toBeNumber()
+    })
+  })
+
+  it('adds note with single content map when contentMap is array', async () => {
+    const note = MockMastodonNote({
+      content: '<p>Hello</p>',
+      contentMap: ['<p>Hello</p>']
+    })
+    expect(
+      await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    ).toEqual(note)
+
+    const status = await storage.getStatus({ statusId: note.id })
+    if (status?.data.type !== StatusType.enum.Note) {
+      fail('Stauts type must be note')
+    }
+    expect(status.data.text).toEqual('<p>Hello</p>')
+  })
+})
