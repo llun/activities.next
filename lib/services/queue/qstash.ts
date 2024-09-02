@@ -12,8 +12,7 @@ export const QStashConfig = z.object({
   url: z.string().url(),
   token: z.string(),
   currentSigningKey: z.string(),
-  nextSigningKey: z.string(),
-  queueName: z.string()
+  nextSigningKey: z.string()
 })
 export type QStashConfig = z.infer<typeof QStashConfig>
 
