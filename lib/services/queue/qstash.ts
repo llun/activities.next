@@ -12,8 +12,7 @@ export const QStashConfig = z.object({
   url: z.string().url(),
   token: z.string(),
   currentSigningKey: z.string(),
-  nextSigningKey: z.string(),
-  queueName: z.string()
+  nextSigningKey: z.string()
 })
 export type QStashConfig = z.infer<typeof QStashConfig>
 
@@ -23,18 +22,16 @@ const MAX_JOB_RETRIES = 0
 export class QStashQueue implements Queue {
   private _client: Client
   private _url: string
-  private _queueName: string
 
   constructor(config: QStashConfig) {
     this._url = config.url
-    this._queueName = config.queueName
     this._client = new Client({
       token: config.token
     })
   }
 
   async publish(message: JobMessage): Promise<void> {
-    await this._client.queue({ queueName: this._queueName }).enqueueJSON({
+    await this._client.publishJSON({
       url: this._url,
       body: message,
       timeout: MAX_JOB_TIMEOUT_SECONDS,

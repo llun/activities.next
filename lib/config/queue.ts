@@ -20,8 +20,7 @@ export const getQueueConfig = (): { queue: QueueConfig } | null => {
           currentSigningKey: process.env
             .ACTIVITIES_QUEUE_CURRENT_SIGNING_KEY as string,
           nextSigningKey: process.env
-            .ACTIVITIES_QUEUE_NEXT_SIGNING_KEY as string,
-          queueName: process.env.ACTIVITIES_QUEUE_NAME as string
+            .ACTIVITIES_QUEUE_NEXT_SIGNING_KEY as string
         }
       }
     default:
