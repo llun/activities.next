@@ -2,14 +2,11 @@ import { JOBS } from '@/lib/jobs'
 import { getStorage } from '@/lib/storage'
 import { logger } from '@/lib/utils/logger'
 
-import { JobMessage, Queue } from './type'
+import { JobMessage } from './type'
 
-export class BaseQueue implements Queue {
-  async publish(message: JobMessage): Promise<void> {
-    throw new Error('Method not implemented.')
-  }
-
-  async handle(message: JobMessage): Promise<void> {
+export const defaultJobHandle =
+  (queueName: string) => async (message: JobMessage) => {
+    logger.debug({ message }, `${queueName} handle job`)
     const storage = await getStorage()
     if (!storage) {
       logger.error('Storage is not available')
@@ -24,4 +21,3 @@ export class BaseQueue implements Queue {
 
     await job(storage, message)
   }
-}

@@ -1,5 +1,3 @@
-import { announce } from '@/lib/actions/announce'
-import { CREATE_NOTE_JOB_NAME } from '@/lib/actions/createNote'
 import { createPoll } from '@/lib/actions/createPoll'
 import { updateNote } from '@/lib/actions/updateNote'
 import { updatePoll } from '@/lib/actions/updatePoll'
@@ -13,6 +11,8 @@ import {
 } from '@/lib/activities/actions/types'
 import { NoteEntity } from '@/lib/activities/entities/note'
 import { QuestionEntity } from '@/lib/activities/entities/question'
+import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/createAnnounceJob'
+import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/createNoteJob'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -63,7 +63,10 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
       return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
     }
     case AnnounceAction: {
-      await announce({ storage, status: activity })
+      await getQueue().publish({
+        name: CREATE_ANNOUNCE_JOB_NAME,
+        data: activity
+      })
       return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
     }
     case UndoAction: {

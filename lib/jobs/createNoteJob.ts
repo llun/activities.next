@@ -1,6 +1,6 @@
 import { Note } from '@llun/activities.schema'
+import { z } from 'zod'
 
-import { CREATE_NOTE_JOB_NAME } from '../actions/createNote'
 import { recordActorIfNeeded } from '../actions/utils'
 import {
   getAttachments,
@@ -14,6 +14,13 @@ import { JobHandle } from '../services/queue/type'
 import { addStatusToTimelines } from '../services/timelines'
 import { compact } from '../utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
+
+export const CREATE_NOTE_JOB_NAME = 'CreateNoteJob'
+export const CreateNoteJobMessage = z.object({
+  name: z.literal(CREATE_NOTE_JOB_NAME),
+  data: Note
+})
+export type CreateNoteJobMessage = z.infer<typeof CreateNoteJobMessage>
 
 export const createNoteJob: JobHandle = createJobHandle(
   CREATE_NOTE_JOB_NAME,

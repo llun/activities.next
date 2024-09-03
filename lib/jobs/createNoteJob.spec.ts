@@ -1,6 +1,5 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { CREATE_NOTE_JOB_NAME } from '../actions/createNote'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { SqlStorage } from '../storage/sql'
@@ -8,9 +7,8 @@ import { mockRequests } from '../stub/activities'
 import { MockImageDocument } from '../stub/imageDocument'
 import { MockLitepubNote, MockMastodonNote } from '../stub/note'
 import { seedActor1 } from '../stub/seed/actor1'
-import { seedActor2 } from '../stub/seed/actor2'
 import { seedStorage } from '../stub/storage'
-import { createNoteJob } from './createNoteJob'
+import { CREATE_NOTE_JOB_NAME, createNoteJob } from './createNoteJob'
 
 enableFetchMocks()
 
@@ -26,7 +24,6 @@ describe('createNoteJob', () => {
     }
   })
   let actor1: Actor | undefined
-  let actor2: Actor | undefined
 
   beforeAll(async () => {
     await storage.migrate()
@@ -34,10 +31,6 @@ describe('createNoteJob', () => {
     actor1 = await storage.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain
-    })
-    actor2 = await storage.getActorFromUsername({
-      username: seedActor2.username,
-      domain: seedActor2.domain
     })
   })
 

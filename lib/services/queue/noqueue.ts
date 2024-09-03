@@ -1,8 +1,12 @@
-import { BaseQueue } from './base'
-import { JobMessage } from './type'
+import { defaultJobHandle } from './base'
+import { JobMessage, Queue } from './type'
 
-export class NoQueue extends BaseQueue {
+export class NoQueue implements Queue {
   async publish(message: JobMessage): Promise<void> {
     await this.handle(message)
+  }
+
+  handle(message: JobMessage) {
+    return defaultJobHandle('noqueue')(message)
   }
 }

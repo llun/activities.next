@@ -1,130 +1,24 @@
 import { Note } from '@llun/activities.schema'
 import crypto from 'crypto'
-import { z } from 'zod'
 
 import { addStatusToTimelines } from '@/lib/services/timelines'
-import { compact } from '@/lib/utils/jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMACT,
-  ACTIVITY_STREAM_URL
+  ACTIVITY_STREAM_PUBLIC_COMACT
 } from '@/lib/utils/jsonld/activitystream'
 
 import { getPublicProfile, sendNote } from '../activities'
 import { Mention } from '../activities/entities/mention'
-import {
-  getAttachments,
-  getContent,
-  getSummary,
-  getTags
-} from '../activities/entities/note'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { FollowStatus } from '../models/follow'
-import { Status, StatusType } from '../models/status'
+import { Status } from '../models/status'
 import { Storage } from '../storage/types'
 import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
 import { logger } from '../utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '../utils/response'
 import { getMentions } from '../utils/text/getMentions'
 import { getSpan } from '../utils/trace'
-import { recordActorIfNeeded } from './utils'
-
-export const CREATE_NOTE_JOB_NAME = 'CreateNoteJob'
-export const CreateNoteJobMessage = z.object({
-  name: z.literal(CREATE_NOTE_JOB_NAME),
-  data: Note
-})
-export type CreateNoteJobMessage = z.infer<typeof CreateNoteJobMessage>
-
-interface CreateNoteParams {
-  note: Note
-  storage: Storage
-}
-export const createNote = async ({
-  note,
-  storage
-}: CreateNoteParams): Promise<Note | null> => {
-  const span = getSpan('actions', 'createNote', { status: note.id })
-
-  const existingStatus = await storage.getStatus({
-    statusId: note.id,
-    withReplies: false
-  })
-  if (existingStatus) {
-    span.end()
-    return note
-  }
-
-  const compactNote = (await compact({
-    '@context': ACTIVITY_STREAM_URL,
-    ...note
-  })) as Note
-  if (compactNote.type !== StatusType.enum.Note) {
-    span.end()
-    return null
-  }
-
-  const text = getContent(compactNote)
-  const summary = getSummary(compactNote)
-
-  const [, status] = await Promise.all([
-    recordActorIfNeeded({ actorId: compactNote.attributedTo, storage }),
-    storage.createNote({
-      id: compactNote.id,
-      url: compactNote.url || compactNote.id,
-
-      actorId: compactNote.attributedTo,
-
-      text,
-      summary,
-
-      to: Array.isArray(note.to) ? note.to : [note.to].filter((item) => item),
-      cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter((item) => item),
-
-      reply: compactNote.inReplyTo || '',
-      createdAt: new Date(compactNote.published).getTime()
-    })
-  ])
-
-  const attachments = getAttachments(note)
-  const tags = getTags(note)
-
-  await Promise.all([
-    addStatusToTimelines(storage, status),
-    ...attachments.map(async (attachment) => {
-      if (attachment.type !== 'Document') return
-      return storage.createAttachment({
-        actorId: compactNote.attributedTo,
-        statusId: compactNote.id,
-        mediaType: attachment.mediaType,
-        height: attachment.height,
-        width: attachment.width,
-        name: attachment.name || '',
-        url: attachment.url
-      })
-    }),
-    ...tags.map((item) => {
-      if (item.type === 'Emoji') {
-        return storage.createTag({
-          statusId: compactNote.id,
-          name: item.name,
-          value: item.icon.url,
-          type: 'emoji'
-        })
-      }
-      return storage.createTag({
-        statusId: compactNote.id,
-        name: item.name || '',
-        value: item.href,
-        type: 'mention'
-      })
-    })
-  ])
-
-  span.end()
-  return note
-}
 
 // TODO: Support status visibility public, unlist, followers only, mentions only
 export const statusRecipientsTo = (actor: Actor, replyStatus?: Status) => {
