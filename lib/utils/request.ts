@@ -37,7 +37,7 @@ export const request = ({
       ...headers
     },
     timeout: {
-      response: defaultResponseTimeout
+      request: DEFAULT_RESPONSE_TIMEOUT
     },
     retry: {
       limit: retryLimit
