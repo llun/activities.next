@@ -1,3 +1,4 @@
+import { Note } from '@llun/activities.schema'
 import crypto from 'crypto'
 
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -40,8 +41,9 @@ export const createPoll = async ({ question, storage }: CreatePollParams) => {
     return null
   }
 
-  const text = getContent(compactQuestion)
-  const summary = getSummary(compactQuestion)
+  // TODO: Move Poll to schema
+  const text = getContent(compactQuestion as unknown as Note)
+  const summary = getSummary(compactQuestion as unknown as Note)
   const choices = compactQuestion.oneOf.map((item) => item.name)
 
   const [, status] = await Promise.all([
@@ -69,7 +71,8 @@ export const createPoll = async ({ question, storage }: CreatePollParams) => {
     })
   ])
 
-  const tags = getTags(question)
+  // TODO: Move Poll to schema
+  const tags = getTags(question as unknown as Note)
   await Promise.all([
     addStatusToTimelines(storage, status),
     ...tags.map((item) => {
