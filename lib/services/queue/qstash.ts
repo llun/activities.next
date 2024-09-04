@@ -27,7 +27,7 @@ export class QStashQueue implements Queue {
     })
   }
 
-  async publish<T>(message: JobMessage<T>): Promise<void> {
+  async publish(message: JobMessage): Promise<void> {
     await this._client.publishJSON({
       url: this._url,
       body: message,
@@ -37,7 +37,7 @@ export class QStashQueue implements Queue {
     })
   }
 
-  handle<T>(message: JobMessage<T>) {
+  handle(message: JobMessage) {
     return defaultJobHandle('qstash')(message)
   }
 }

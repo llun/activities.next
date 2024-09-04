@@ -46,7 +46,11 @@ describe('createNoteJob', () => {
 
   it('adds note into storage and returns note', async () => {
     const note = MockMastodonNote({ content: '<p>Hello</p>' })
-    await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    await createNoteJob(storage, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
 
     const status = await storage.getStatus({ statusId: note.id })
     if (status?.data.type !== StatusType.enum.Note) {
@@ -64,7 +68,11 @@ describe('createNoteJob', () => {
 
   it('adds litepub note into storage and returns note', async () => {
     const note = MockLitepubNote({ content: '<p>Hello</p>' })
-    await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    await createNoteJob(storage, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
 
     const status = await storage.getStatus({ statusId: note.id })
     if (status?.data.type !== StatusType.enum.Note) {
@@ -91,7 +99,11 @@ describe('createNoteJob', () => {
         })
       ]
     })
-    await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    await createNoteJob(storage, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
     const status = await storage.getStatus({ statusId: note.id })
     if (status?.data.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
@@ -120,7 +132,11 @@ describe('createNoteJob', () => {
       id: `${actor1?.id}/statuses/post-1`,
       content: 'Test duplicate'
     })
-    await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    await createNoteJob(storage, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
     const status = await storage.getStatus({
       statusId: `${actor1?.id}/statuses/post-1`
     })
@@ -132,7 +148,11 @@ describe('createNoteJob', () => {
       from: FRIEND_ACTOR_ID,
       content: '<p>Hello</p>'
     })
-    await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    await createNoteJob(storage, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
     const actor = await storage.getActorFromId({ id: FRIEND_ACTOR_ID })
     expect(actor).toBeDefined()
     expect(actor).toMatchObject({
@@ -148,7 +168,28 @@ describe('createNoteJob', () => {
       content: '<p>Hello</p>',
       contentMap: ['<p>Hello</p>']
     })
-    await createNoteJob(storage, { name: CREATE_NOTE_JOB_NAME, data: note })
+    await createNoteJob(storage, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+    const status = await storage.getStatus({ statusId: note.id })
+    if (status?.data.type !== StatusType.enum.Note) {
+      fail('Stauts type must be note')
+    }
+    expect(status.data.text).toEqual('<p>Hello</p>')
+  })
+
+  it('adds note with content is array from wordpress', async () => {
+    const note = MockMastodonNote({
+      content: ['<p>Hello</p>'],
+      contentMap: {}
+    })
+    await createNoteJob(storage, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
     const status = await storage.getStatus({ statusId: note.id })
     if (status?.data.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')

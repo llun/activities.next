@@ -1,5 +1,4 @@
 import { Note } from '@llun/activities.schema'
-import { z } from 'zod'
 
 import { recordActorIfNeeded } from '../actions/utils'
 import {
@@ -9,25 +8,16 @@ import {
   getTags
 } from '../activities/entities/note'
 import { StatusType } from '../models/status'
-import { JobHandle } from '../services/queue/type'
 import { addStatusToTimelines } from '../services/timelines'
 import { compact } from '../utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
 import { createJobHandle } from './createJobHandle'
 
 export const CREATE_NOTE_JOB_NAME = 'CreateNoteJob'
-export const CreateNoteJobMessage = z.object({
-  name: z.literal(CREATE_NOTE_JOB_NAME),
-  data: Note
-})
-export type CreateNoteJobMessage = z.infer<typeof CreateNoteJobMessage>
-
-export const createNoteJob: JobHandle = createJobHandle(
+export const createNoteJob = createJobHandle(
   CREATE_NOTE_JOB_NAME,
   async (storage, message) => {
-    if (message.name !== CREATE_NOTE_JOB_NAME) return
-
-    const note = message.data
+    const note = Note.parse(message.data)
     const existingStatus = await storage.getStatus({
       statusId: note.id,
       withReplies: false

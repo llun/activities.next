@@ -5,8 +5,7 @@ import { logger } from '@/lib/utils/logger'
 import { JobMessage } from './type'
 
 export const defaultJobHandle =
-  (queueName: string) =>
-  async <T>(message: JobMessage<T>) => {
+  (queueName: string) => async (message: JobMessage) => {
     logger.debug({ message }, `${queueName} handle job`)
     const storage = await getStorage()
     if (!storage) {

@@ -1,29 +1,24 @@
 import { Announce } from '@llun/activities.schema'
-import { z } from 'zod'
 
 import { recordActorIfNeeded } from '../actions/utils'
 import { getStatus } from '../activities'
-import { createJobHandle, getQueue } from '../services/queue'
 import { JobHandle } from '../services/queue/type'
 import { addStatusToTimelines } from '../services/timelines'
 import { compact } from '../utils/jsonld'
+import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
+import { createJobHandle } from './createJobHandle'
+import { CREATE_NOTE_JOB_NAME, createNoteJob } from './createNoteJob'
 
 export const CREATE_ANNOUNCE_JOB_NAME = 'CreateAnnounceJob'
-export const CreateAnnounceJobMessage = z.object({
-  name: z.literal(CREATE_ANNOUNCE_JOB_NAME),
-  data: Announce
-})
-export type CreateAnnounceJobMessage = z.infer<typeof CreateAnnounceJobMessage>
-
 export const createAnnounceJob: JobHandle = createJobHandle(
   CREATE_ANNOUNCE_JOB_NAME,
   async (storage, message) => {
-    if (message.name !== CREATE_ANNOUNCE_JOB_NAME) return
-
-    const status = message.data
-    const compactedStatus = (await compact(status)) as Announce
+    const status = Announce.parse(message.data)
+    const compactedStatus = (await compact({
+      '@context': ACTIVITY_STREAM_URL,
+      ...status
+    })) as Announce
     const { object } = compactedStatus
-
     const existingStatus = await storage.getStatus({
       statusId: object,
       withReplies: false
@@ -33,10 +28,12 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       if (!boostedStatus) {
         return
       }
-
-      await getQueue().publish({ name: 'CreateNoteJob', data: boostedStatus })
+      await createNoteJob(storage, {
+        id: boostedStatus.id,
+        name: CREATE_NOTE_JOB_NAME,
+        data: boostedStatus
+      })
     }
-
     const existingAnnounce = await storage.getStatus({
       statusId: compactedStatus.id,
       withReplies: false

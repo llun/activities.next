@@ -15,7 +15,7 @@ export const stubNoteId = (id = crypto.randomBytes(8).toString('hex')) =>
   `https://${TEST_DOMAIN}/users/${seedActor1.username}/statuses/${id}`
 
 interface MockNoteParams {
-  content: string
+  content: string | string[]
   contentMap?: { [key: string]: string } | string[]
   published?: number
   id?: string
@@ -37,7 +37,7 @@ export const MockMastodonNote = ({
   from = ACTOR1_ID,
   to = [ACTIVITY_STREAM_PUBLIC],
   cc = [],
-  inReplyTo,
+  inReplyTo = null,
   documents = [],
   conversation,
 
@@ -83,7 +83,7 @@ export const MockLitepubNote = ({
   from = ACTOR1_ID,
   to = [ACTIVITY_STREAM_PUBLIC],
   cc = [],
-  inReplyTo,
+  inReplyTo = null,
   documents,
   conversation,
 
