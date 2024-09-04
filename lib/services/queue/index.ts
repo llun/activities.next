@@ -1,9 +1,11 @@
+import memoize from 'lodash/memoize'
+
 import { getConfig } from '@/lib/config'
 
 import { NoQueue } from './noqueue'
 import { QStashQueue } from './qstash'
 
-export const getQueue = () => {
+export const getQueue = memoize(() => {
   const config = getConfig()
   switch (config.queue?.type) {
     case 'qstash': {
@@ -13,4 +15,4 @@ export const getQueue = () => {
       return new NoQueue()
     }
   }
-}
+})

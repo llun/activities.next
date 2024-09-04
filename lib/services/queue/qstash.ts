@@ -1,10 +1,7 @@
 import { Client } from '@upstash/qstash'
 import { z } from 'zod'
 
-import { CREATE_NOTE_JOB_NAME, createNote } from '@/lib/actions/createNote'
-import { getStorage } from '@/lib/storage'
-import { logger } from '@/lib/utils/logger'
-
+import { defaultJobHandle } from './base'
 import { JobMessage, Queue } from './type'
 
 export const QStashConfig = z.object({
@@ -35,25 +32,12 @@ export class QStashQueue implements Queue {
       url: this._url,
       body: message,
       timeout: MAX_JOB_TIMEOUT_SECONDS,
-      retries: MAX_JOB_RETRIES
+      retries: MAX_JOB_RETRIES,
+      deduplicationId: message.id
     })
   }
 
-  async handle(message: JobMessage): Promise<void> {
-    logger.debug({ message }, 'QStash Handling message')
-    const storage = await getStorage()
-    if (!storage) {
-      throw new Error('Storage is not available')
-    }
-
-    switch (message.name) {
-      case CREATE_NOTE_JOB_NAME: {
-        await createNote({ storage, note: message.data })
-        return
-      }
-      default: {
-        logger.error(`Unknown job name: ${message.name}`)
-      }
-    }
+  handle(message: JobMessage) {
+    return defaultJobHandle('qstash')(message)
   }
 }

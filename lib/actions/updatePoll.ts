@@ -1,3 +1,5 @@
+import { Note } from '@llun/activities.schema'
+
 import { compact } from '@/lib/utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
 
@@ -31,8 +33,9 @@ export const updatePoll = async ({ question, storage }: UpdatePollParams) => {
     return null
   }
 
-  const text = getContent(compactQuestion)
-  const summary = getSummary(compactQuestion)
+  // TODO: Move Poll to schema
+  const text = getContent(compactQuestion as unknown as Note)
+  const summary = getSummary(compactQuestion as unknown as Note)
   await storage.updatePoll({
     statusId: compactQuestion.id,
     summary,
