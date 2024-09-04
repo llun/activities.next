@@ -4182,7 +4182,7 @@ __metadata:
     "@types/sanitize-html": "npm:^2.13.0"
     "@typescript-eslint/eslint-plugin": "npm:^8.4.0"
     "@typescript-eslint/parser": "npm:^8.4.0"
-    "@upstash/qstash": "npm:2.6.5"
+    "@upstash/qstash": "npm:2.7.2"
     bcrypt: "npm:^5.1.1"
     better-sqlite3: "npm:^11.2.1"
     bootstrap: "npm:^5.3.3"
