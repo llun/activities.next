@@ -1,3 +1,5 @@
+import crypto from 'node:crypto'
+
 import { createPoll } from '@/lib/actions/createPoll'
 import { updateNote } from '@/lib/actions/updateNote'
 import { updatePoll } from '@/lib/actions/updatePoll'
@@ -31,12 +33,16 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
   const { storage } = context
   const body = await request.json()
   const activity = (await compact(body)) as StatusActivity
+  const deduplicationId = crypto
+    .createHash('sha256')
+    .update(JSON.stringify(activity.id))
+    .digest('hex')
   switch (activity.type) {
     case CreateAction: {
       switch (activity.object.type) {
         case 'Note': {
           await getQueue().publish({
-            id: activity.object.id,
+            id: deduplicationId,
             name: CREATE_NOTE_JOB_NAME,
             data: activity.object
           })
@@ -64,7 +70,7 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
     }
     case AnnounceAction: {
       await getQueue().publish({
-        id: activity.id,
+        id: deduplicationId,
         name: CREATE_ANNOUNCE_JOB_NAME,
         data: activity
       })
