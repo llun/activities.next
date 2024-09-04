@@ -1,9 +1,17 @@
-import { JobMessage } from '@/lib/jobs'
-import { Storage } from '@/lib/storage/types'
+import type { Storage } from '@/lib/storage/types'
 
-export interface Queue {
-  publish(message: JobMessage): Promise<void>
-  handle(message: JobMessage): Promise<void>
+export interface JobMessage<T> {
+  id: string
+  name: string
+  data: T
 }
 
-export type JobHandle = (storage: Storage, message: JobMessage) => Promise<void>
+export interface Queue {
+  publish<T>(message: JobMessage<T>): Promise<void>
+  handle<T>(message: JobMessage<T>): Promise<void>
+}
+
+export type JobHandle = <T>(
+  storage: Storage,
+  message: JobMessage<T>
+) => Promise<void>

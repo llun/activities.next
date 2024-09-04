@@ -37,6 +37,7 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
       switch (activity.object.type) {
         case NoteEntity: {
           await getQueue().publish({
+            id: activity.object.id,
             name: CREATE_NOTE_JOB_NAME,
             data: activity.object
           })
@@ -64,6 +65,7 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
     }
     case AnnounceAction: {
       await getQueue().publish({
+        id: activity.id,
         name: CREATE_ANNOUNCE_JOB_NAME,
         data: activity
       })

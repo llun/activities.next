@@ -27,17 +27,17 @@ export class QStashQueue implements Queue {
     })
   }
 
-  async publish(message: JobMessage): Promise<void> {
+  async publish<T>(message: JobMessage<T>): Promise<void> {
     await this._client.publishJSON({
       url: this._url,
       body: message,
       timeout: MAX_JOB_TIMEOUT_SECONDS,
       retries: MAX_JOB_RETRIES,
-      deduplicationId: message.data.id
+      deduplicationId: message.id
     })
   }
 
-  handle(message: JobMessage) {
+  handle<T>(message: JobMessage<T>) {
     return defaultJobHandle('qstash')(message)
   }
 }
