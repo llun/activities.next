@@ -8,7 +8,7 @@ import {
 } from '@/lib/utils/jsonld/activitystream'
 
 import { sendUpdateNote } from '../activities'
-import { NoteEntity, getContent, getSummary } from '../activities/entities/note'
+import { getContent, getSummary } from '../activities/entities/note'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
@@ -34,7 +34,7 @@ export const updateNote = async ({ note, storage }: UpdateNoteParams) => {
     '@context': ACTIVITY_STREAM_URL,
     ...note
   })) as Note
-  if (compactNote.type !== NoteEntity) {
+  if (compactNote.type !== 'Note') {
     span.end()
     return null
   }

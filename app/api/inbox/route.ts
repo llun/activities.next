@@ -9,7 +9,6 @@ import {
   UndoAction,
   UpdateAction
 } from '@/lib/activities/actions/types'
-import { NoteEntity } from '@/lib/activities/entities/note'
 import { QuestionEntity } from '@/lib/activities/entities/question'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/createNoteJob'
@@ -35,7 +34,7 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
   switch (activity.type) {
     case CreateAction: {
       switch (activity.object.type) {
-        case NoteEntity: {
+        case 'Note': {
           await getQueue().publish({
             id: activity.object.id,
             name: CREATE_NOTE_JOB_NAME,
@@ -56,7 +55,7 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
           await updatePoll({ storage, question: activity.object })
           break
         }
-        case NoteEntity: {
+        case 'Note': {
           await updateNote({ storage, note: activity.object })
           break
         }
