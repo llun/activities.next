@@ -9,11 +9,11 @@ import {
   getTags
 } from '../activities/entities/note'
 import { StatusType } from '../models/status'
-import { createJobHandle } from '../services/queue'
 import { JobHandle } from '../services/queue/type'
 import { addStatusToTimelines } from '../services/timelines'
 import { compact } from '../utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
+import { createJobHandle } from './createJobHandle'
 
 export const CREATE_NOTE_JOB_NAME = 'CreateNoteJob'
 export const CreateNoteJobMessage = z.object({
