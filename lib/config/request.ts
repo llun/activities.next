@@ -11,7 +11,12 @@ export const RequestConfig = z.object({
     .positive()
     .safe()
     .default(DEFAULT_RESPONSE_TIMEOUT),
-  numberOfRetry: z.number().positive().safe().default(DEFAULT_MAX_RETRY_LIMIT)
+  numberOfRetry: z.number().positive().safe().default(DEFAULT_MAX_RETRY_LIMIT),
+  retryNoise: z
+    .number({ description: 'retry noise that add to backoff delay' })
+    .min(-100)
+    .max(100)
+    .nullish()
 })
 export type RequestConfig = z.infer<typeof RequestConfig>
 
@@ -27,7 +32,10 @@ export const getRequestConfig = (): { request: RequestConfig } | null => {
       numberOfRetry: parseInt(
         process.env.ACTIVITIES_REQUEST_RETRY as string,
         10
-      )
+      ),
+      retryNoise: process.env.ACTIVITIES_REQUEST_RETRY_NOISE
+        ? parseInt(process.env.ACTIVITIES_REQUEST_RETRY_NOISE, 10)
+        : null
     }
   }
 }

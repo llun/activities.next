@@ -10,8 +10,15 @@ export const createJobHandle = (
       'queue.handle',
       { attributes: { job: jobName } },
       async (span) => {
-        await handle(storage, message)
-        span.end()
+        try {
+          await handle(storage, message)
+        } catch (error) {
+          const nodeError = error as NodeJS.ErrnoException
+          span.recordException(nodeError)
+          throw error
+        } finally {
+          span.end()
+        }
       }
     )
   }
