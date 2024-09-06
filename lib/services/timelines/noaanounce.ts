@@ -1,5 +1,5 @@
 import { StatusType } from '@/lib/models/status'
-import { getSpan, getTracer } from '@/lib/utils/trace'
+import { getTracer } from '@/lib/utils/trace'
 
 import { NoAnnounceTimelineRule, Timeline } from './types'
 
