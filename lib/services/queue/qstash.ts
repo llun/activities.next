@@ -1,6 +1,8 @@
 import { Client } from '@upstash/qstash'
 import { z } from 'zod'
 
+import { getTracer } from '@/lib/utils/trace'
+
 import { defaultJobHandle } from './base'
 import { JobMessage, Queue } from './type'
 
@@ -28,12 +30,22 @@ export class QStashQueue implements Queue {
   }
 
   async publish(message: JobMessage): Promise<void> {
-    await this._client.publishJSON({
-      url: this._url,
-      body: message,
-      timeout: MAX_JOB_TIMEOUT_SECONDS,
-      retries: MAX_JOB_RETRIES,
-      deduplicationId: message.id
+    await getTracer().startActiveSpan('queue.publish', async (span) => {
+      try {
+        await this._client.publishJSON({
+          url: this._url,
+          body: message,
+          timeout: MAX_JOB_TIMEOUT_SECONDS,
+          retries: MAX_JOB_RETRIES,
+          deduplicationId: message.id
+        })
+      } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException
+        span.recordException(nodeError)
+        throw error
+      } finally {
+        span.end()
+      }
     })
   }
 
