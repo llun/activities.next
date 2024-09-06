@@ -14,7 +14,6 @@ import { InternalApiConfig, getInternalApiConfig } from './internalApi'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
 import { QueueConfig, getQueueConfig } from './queue'
-import { RedisConfig, getRedisConfig } from './redis'
 import { RequestConfig, getRequestConfig } from './request'
 
 const Config = z.object({
@@ -30,7 +29,6 @@ const Config = z.object({
   auth: AuthConfig.optional(),
   email: z.union([SMTPConfig, LambdaConfig, ResendConfig]).optional(),
   mediaStorage: MediaStorageConfig.optional(),
-  redis: RedisConfig.optional(),
   openTelemetry: OpenTelemetryConfig.optional(),
   internalApi: InternalApiConfig.optional(),
   request: RequestConfig.optional()
@@ -75,7 +73,6 @@ const getConfigFromEnvironment = () => {
       ...getAuthConfig(),
       ...getDatabaseConfig(),
       ...getMediaStorageConfig(),
-      ...getRedisConfig(),
       ...getOtelConfig(),
       ...getInternalApiConfig(),
       ...getRequestConfig(),

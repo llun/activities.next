@@ -27,6 +27,7 @@ export const request = ({
 }: RequestOptions) => {
   const config = getConfig()
   const retryLimit = config.request?.numberOfRetry ?? MAX_RETRY_LIMIT
+  const retryNoise = config.request?.retryNoise
   const defaultResponseTimeout =
     responseTimeout ||
     config.request?.timeoutInMilliseconds ||
@@ -40,7 +41,8 @@ export const request = ({
       request: defaultResponseTimeout
     },
     retry: {
-      limit: retryLimit
+      limit: retryLimit,
+      ...(typeof retryNoise === 'number' ? { noise: retryNoise } : null)
     },
     throwHttpErrors: false,
     method,
