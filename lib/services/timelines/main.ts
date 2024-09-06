@@ -1,5 +1,5 @@
 import { StatusType } from '@/lib/models/status'
-import { getSpan } from '@/lib/utils/trace'
+import { getTracer } from '@/lib/utils/trace'
 
 import { MainTimelineRule, Timeline } from './types'
 
@@ -26,69 +26,75 @@ export const mainTimelineRule: MainTimelineRule = async ({
   storage,
   currentActor,
   status
-}) => {
-  const span = getSpan('timelines', 'mainTimelineRule', {
-    actorId: currentActor.id,
-    statusId: status.id
-  })
-  if (status.type === StatusType.enum.Announce) {
-    const isFollowing = await storage.isCurrentActorFollowing({
-      currentActorId: currentActor.id,
-      followingActorId: status.actorId
-    })
-    if (!isFollowing) {
+}) =>
+  getTracer().startActiveSpan(
+    'timelines.mainTimelineRule',
+    {
+      attributes: {
+        actorId: currentActor.id,
+        statusId: status.id
+      }
+    },
+    async (span) => {
+      if (status.type === StatusType.enum.Announce) {
+        const isFollowing = await storage.isCurrentActorFollowing({
+          currentActorId: currentActor.id,
+          followingActorId: status.actorId
+        })
+        if (!isFollowing) {
+          span.end()
+          return null
+        }
+
+        const originalStatus = status.originalStatus
+        const timeline = await mainTimelineRule({
+          storage,
+          currentActor,
+          status: originalStatus
+        })
+        span.end()
+        if (timeline === Timeline.MAIN) return null
+        return Timeline.MAIN
+      }
+
+      if (status.actorId === currentActor.id) {
+        span.end()
+        return Timeline.MAIN
+      }
+      const isFollowing = await storage.isCurrentActorFollowing({
+        currentActorId: currentActor.id,
+        followingActorId: status.actorId
+      })
+
+      if (!status.reply) {
+        span.end()
+        if (isFollowing) return Timeline.MAIN
+        return null
+      }
+
+      const repliedStatus = await storage.getStatus({
+        statusId: status.reply,
+        withReplies: false
+      })
+      // Deleted parent status, don't show child status
+      if (!repliedStatus) {
+        span.end()
+        return null
+      }
+      if (repliedStatus.actorId === currentActor.id) {
+        span.end()
+        return Timeline.MAIN
+      }
+      if (!isFollowing) {
+        span.end()
+        return null
+      }
+      const value = await mainTimelineRule({
+        storage,
+        currentActor,
+        status: repliedStatus.data
+      })
       span.end()
-      return null
+      return value
     }
-
-    const originalStatus = status.originalStatus
-    const timeline = await mainTimelineRule({
-      storage,
-      currentActor,
-      status: originalStatus
-    })
-    span.end()
-    if (timeline === Timeline.MAIN) return null
-    return Timeline.MAIN
-  }
-
-  if (status.actorId === currentActor.id) {
-    span.end()
-    return Timeline.MAIN
-  }
-  const isFollowing = await storage.isCurrentActorFollowing({
-    currentActorId: currentActor.id,
-    followingActorId: status.actorId
-  })
-
-  if (!status.reply) {
-    span.end()
-    if (isFollowing) return Timeline.MAIN
-    return null
-  }
-
-  const repliedStatus = await storage.getStatus({
-    statusId: status.reply,
-    withReplies: false
-  })
-  // Deleted parent status, don't show child status
-  if (!repliedStatus) {
-    span.end()
-    return null
-  }
-  if (repliedStatus.actorId === currentActor.id) {
-    span.end()
-    return Timeline.MAIN
-  }
-  if (!isFollowing) {
-    span.end()
-    return null
-  }
-  const value = await mainTimelineRule({
-    storage,
-    currentActor,
-    status: repliedStatus.data
-  })
-  span.end()
-  return value
-}
+  )
