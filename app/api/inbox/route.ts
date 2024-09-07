@@ -1,6 +1,6 @@
+import { ENTITY_TYPE_NOTE, ENTITY_TYPE_QUESTION } from '@llun/activities.schema'
 import crypto from 'node:crypto'
 
-import { createPoll } from '@/lib/actions/createPoll'
 import { updateNote } from '@/lib/actions/updateNote'
 import { updatePoll } from '@/lib/actions/updatePoll'
 import { StatusActivity } from '@/lib/activities/actions/status'
@@ -11,9 +11,9 @@ import {
   UndoAction,
   UpdateAction
 } from '@/lib/activities/actions/types'
-import { QuestionEntity } from '@/lib/activities/entities/question'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/createNoteJob'
+import { CREATE_POLL_JOB_NAME } from '@/lib/jobs/createPollJob'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -39,29 +39,33 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
     .digest('hex')
   switch (activity.type) {
     case CreateAction: {
-      switch (activity.object.type) {
-        case 'Note': {
-          await getQueue().publish({
-            id: deduplicationId,
-            name: CREATE_NOTE_JOB_NAME,
-            data: activity.object
-          })
-          break
+      const jobName = ((name: string) => {
+        switch (name) {
+          case ENTITY_TYPE_NOTE:
+            return CREATE_NOTE_JOB_NAME
+          case ENTITY_TYPE_QUESTION:
+            return CREATE_POLL_JOB_NAME
+          default:
+            return null
         }
-        case QuestionEntity: {
-          await createPoll({ storage, question: activity.object })
-          break
-        }
+      })(activity.object.type)
+      if (!jobName) {
+        return apiErrorResponse(404)
       }
+      await getQueue().publish({
+        id: deduplicationId,
+        name: jobName,
+        data: activity.object
+      })
       return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
     }
     case UpdateAction: {
       switch (activity.object.type) {
-        case QuestionEntity: {
+        case ENTITY_TYPE_QUESTION: {
           await updatePoll({ storage, question: activity.object })
           break
         }
-        case 'Note': {
+        case ENTITY_TYPE_NOTE: {
           await updateNote({ storage, note: activity.object })
           break
         }

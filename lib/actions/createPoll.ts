@@ -1,12 +1,7 @@
-import { Note } from '@llun/activities.schema'
 import crypto from 'crypto'
 
 import { addStatusToTimelines } from '@/lib/services/timelines'
-import { compact } from '@/lib/utils/jsonld'
-import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
 
-import { getContent, getSummary, getTags } from '../activities/entities/note'
-import { Question, QuestionEntity } from '../activities/entities/question'
 import { getConfig } from '../config'
 import { Actor } from '../models/actor'
 import { Storage } from '../storage/types'
@@ -14,87 +9,6 @@ import { convertMarkdownText } from '../utils/text/convertMarkdownText'
 import { getMentions } from '../utils/text/getMentions'
 import { getSpan } from '../utils/trace'
 import { statusRecipientsCC, statusRecipientsTo } from './createNote'
-import { recordActorIfNeeded } from './utils'
-
-interface CreatePollParams {
-  question: Question
-  storage: Storage
-}
-
-export const createPoll = async ({ question, storage }: CreatePollParams) => {
-  const span = getSpan('actions', 'createQuestion', { status: question.id })
-  const existingStatus = await storage.getStatus({
-    statusId: question.id,
-    withReplies: false
-  })
-  if (existingStatus) {
-    span.end()
-    return question
-  }
-
-  const compactQuestion = (await compact({
-    '@context': ACTIVITY_STREAM_URL,
-    ...question
-  })) as Question
-  if (compactQuestion.type !== QuestionEntity) {
-    span.end()
-    return null
-  }
-
-  // TODO: Move Poll to schema
-  const text = getContent(compactQuestion as unknown as Note)
-  const summary = getSummary(compactQuestion as unknown as Note)
-  const choices = compactQuestion.oneOf.map((item) => item.name)
-
-  const [, status] = await Promise.all([
-    recordActorIfNeeded({ actorId: compactQuestion.attributedTo, storage }),
-    storage.createPoll({
-      id: compactQuestion.id,
-      url: compactQuestion.url || compactQuestion.id,
-
-      actorId: compactQuestion.attributedTo,
-
-      text,
-      summary,
-
-      to: Array.isArray(question.to)
-        ? question.to
-        : [question.to].filter((item) => item),
-      cc: Array.isArray(question.cc)
-        ? question.cc
-        : [question.cc].filter((item) => item),
-
-      reply: compactQuestion.inReplyTo || '',
-      choices,
-      endAt: new Date(compactQuestion.endTime).getTime(),
-      createdAt: new Date(compactQuestion.published).getTime()
-    })
-  ])
-
-  // TODO: Move Poll to schema
-  const tags = getTags(question as unknown as Note)
-  await Promise.all([
-    addStatusToTimelines(storage, status),
-    ...tags.map((item) => {
-      if (item.type === 'Emoji') {
-        return storage.createTag({
-          statusId: compactQuestion.id,
-          name: item.name,
-          value: item.icon.url,
-          type: 'emoji'
-        })
-      }
-      return storage.createTag({
-        statusId: compactQuestion.id,
-        name: item.name || '',
-        value: item.href,
-        type: 'mention'
-      })
-    })
-  ])
-  span.end()
-  return question
-}
 
 interface CreatePollFromUserInputParams {
   text: string

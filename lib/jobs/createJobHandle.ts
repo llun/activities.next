@@ -6,20 +6,16 @@ export const createJobHandle = (
   handle: JobHandle
 ): JobHandle => {
   return async (storage, message) => {
-    await getTracer().startActiveSpan(
-      'queue.handle',
-      { attributes: { job: jobName } },
-      async (span) => {
-        try {
-          await handle(storage, message)
-        } catch (error) {
-          const nodeError = error as NodeJS.ErrnoException
-          span.recordException(nodeError)
-          throw error
-        } finally {
-          span.end()
-        }
+    await getTracer().startActiveSpan(jobName, async (span) => {
+      try {
+        await handle(storage, message)
+      } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException
+        span.recordException(nodeError)
+        throw error
+      } finally {
+        span.end()
       }
-    )
+    })
   }
 }
