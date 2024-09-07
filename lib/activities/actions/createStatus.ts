@@ -1,11 +1,10 @@
-import { Note } from '@llun/activities.schema'
+import { Note, Question } from '@llun/activities.schema'
 import * as jsonld from 'jsonld'
 
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { Status } from '../../models/status'
 import { ContextEntity } from '../entities/base'
-import { Question } from '../entities/question'
 import { Signature } from '../types'
 import { BaseActivity } from './base'
 import { CreateAction } from './types'

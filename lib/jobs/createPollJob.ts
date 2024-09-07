@@ -78,6 +78,5 @@ export const createPollJob = createJobHandle(
         })
       })
     ])
-    return
   }
 )

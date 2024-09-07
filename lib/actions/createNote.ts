@@ -1,4 +1,4 @@
-import { Note } from '@llun/activities.schema'
+import { Mention, Note } from '@llun/activities.schema'
 import crypto from 'crypto'
 
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -8,7 +8,6 @@ import {
 } from '@/lib/utils/jsonld/activitystream'
 
 import { getPublicProfile, sendNote } from '../activities'
-import { Mention } from '../activities/entities/mention'
 import { Actor } from '../models/actor'
 import { PostBoxAttachment } from '../models/attachment'
 import { FollowStatus } from '../models/follow'

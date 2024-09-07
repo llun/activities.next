@@ -1,10 +1,9 @@
-import { Note } from '@llun/activities.schema'
+import { ENTITY_TYPE_QUESTION, Note, Question } from '@llun/activities.schema'
 
 import { compact } from '@/lib/utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
 
 import { getContent, getSummary } from '../activities/entities/note'
-import { Question, QuestionEntity } from '../activities/entities/question'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { getSpan } from '../utils/trace'
@@ -28,7 +27,7 @@ export const updatePoll = async ({ question, storage }: UpdatePollParams) => {
     '@context': ACTIVITY_STREAM_URL,
     ...question
   })) as Question
-  if (compactQuestion.type !== QuestionEntity) {
+  if (compactQuestion.type !== ENTITY_TYPE_QUESTION) {
     span.end()
     return null
   }
