@@ -2,7 +2,6 @@ import { ENTITY_TYPE_NOTE, ENTITY_TYPE_QUESTION } from '@llun/activities.schema'
 import crypto from 'node:crypto'
 
 import { updateNote } from '@/lib/actions/updateNote'
-import { updatePoll } from '@/lib/actions/updatePoll'
 import { StatusActivity } from '@/lib/activities/actions/status'
 import {
   AnnounceAction,
@@ -14,6 +13,7 @@ import {
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/createNoteJob'
 import { CREATE_POLL_JOB_NAME } from '@/lib/jobs/createPollJob'
+import { UPDATE_POLL_JOB_NAME } from '@/lib/jobs/updatePollJob'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -62,7 +62,11 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
     case UpdateAction: {
       switch (activity.object.type) {
         case ENTITY_TYPE_QUESTION: {
-          await updatePoll({ storage, question: activity.object })
+          await getQueue().publish({
+            id: deduplicationId,
+            name: UPDATE_POLL_JOB_NAME,
+            data: activity.object
+          })
           break
         }
         case ENTITY_TYPE_NOTE: {
