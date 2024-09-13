@@ -1,6 +1,5 @@
+import { Mention } from '@llun/activities.schema'
 import { z } from 'zod'
-
-import { Mention } from '../activities/entities/mention'
 
 export const TagType = z.enum(['emoji', 'mention'])
 export type TagType = z.infer<typeof TagType>
@@ -26,11 +25,11 @@ export class Tag {
 
   toObject() {
     const data = this.data
-    return {
+    return Mention.parse({
       type: [data.type[0].toUpperCase(), data.type.slice(1)].join(''),
       name: data.name,
       href: data.value
-    } as Mention
+    })
   }
 
   toJson(): TagData {

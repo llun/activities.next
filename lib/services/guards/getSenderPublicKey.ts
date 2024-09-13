@@ -20,7 +20,8 @@ export async function getSenderPublicKey(storage: Storage, actorId: string) {
         const sender = await getPublicProfile({
           actorId,
           withCollectionCount: false,
-          withPublicKey: true
+          withPublicKey: true,
+          withNetworkRetry: false
         })
 
         if (sender) return sender.publicKey || ''
@@ -36,7 +37,8 @@ export async function getSenderPublicKey(storage: Storage, actorId: string) {
           const url = new URL(actorId)
           const sender = await getPublicProfile({
             actorId: `${url.protocol}//${url.host}/actor#main-key`,
-            withPublicKey: true
+            withPublicKey: true,
+            withNetworkRetry: false
           })
 
           if (sender) return sender.publicKey || ''

@@ -1,5 +1,6 @@
+import { Mention } from '@llun/activities.schema'
+
 import { getPublicProfileFromHandle } from '../../activities'
-import { Mention } from '../../activities/entities/mention'
 import { Actor } from '../../models/actor'
 import { Status } from '../../models/status'
 import { getSpan } from '../trace'
@@ -30,12 +31,12 @@ export const getMentions = async ({
           `${mention.username}@${userHost}`
         )
         if (!person) return null
-        return {
+        return Mention.parse({
           type: 'Mention',
           href:
             person?.id ?? `https://${mention.domain}/users/${mention.username}`,
           name: match[0].trim()
-        } as Mention
+        })
       } catch {
         return null
       }

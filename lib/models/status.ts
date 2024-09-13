@@ -1,4 +1,4 @@
-import { Note } from '@llun/activities.schema'
+import { ENTITY_TYPE_QUESTION, Note, Question } from '@llun/activities.schema'
 import { z } from 'zod'
 
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
@@ -6,7 +6,6 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { AnnounceStatus } from '../activities/actions/announceStatus'
 import { Document } from '../activities/entities/document'
 import { getContent, getSummary } from '../activities/entities/note'
-import { Question, QuestionEntity } from '../activities/entities/question'
 import { ActorProfile } from './actor'
 import { Attachment, AttachmentData } from './attachment'
 import { PollChoiceData } from './pollChoice'
@@ -223,7 +222,7 @@ export class Status {
       const data = this.data
       return {
         id: data.id,
-        type: QuestionEntity,
+        type: ENTITY_TYPE_QUESTION,
         summary: data.summary || null,
 
         url: data.url,

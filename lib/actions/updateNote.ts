@@ -1,54 +1,14 @@
-import { Note } from '@llun/activities.schema'
-
-import { compact } from '@/lib/utils/jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMACT,
-  ACTIVITY_STREAM_URL
+  ACTIVITY_STREAM_PUBLIC_COMACT
 } from '@/lib/utils/jsonld/activitystream'
 
 import { sendUpdateNote } from '../activities'
-import { getContent, getSummary } from '../activities/entities/note'
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { logger } from '../utils/logger'
 import { getSpan } from '../utils/trace'
-
-interface UpdateNoteParams {
-  note: Note
-  storage: Storage
-}
-export const updateNote = async ({ note, storage }: UpdateNoteParams) => {
-  const span = getSpan('actions', 'updateNote', { status: note.id })
-  const existingStatus = await storage.getStatus({
-    statusId: note.id,
-    withReplies: false
-  })
-  if (!existingStatus || existingStatus.type !== StatusType.enum.Note) {
-    span.end()
-    return note
-  }
-
-  const compactNote = (await compact({
-    '@context': ACTIVITY_STREAM_URL,
-    ...note
-  })) as Note
-  if (compactNote.type !== 'Note') {
-    span.end()
-    return null
-  }
-
-  const text = getContent(compactNote)
-  const summary = getSummary(compactNote)
-  await storage.updateNote({
-    statusId: compactNote.id,
-    summary,
-    text
-  })
-  span.end()
-  return note
-}
 
 interface UpdateNoteFromUserInput {
   statusId: string
