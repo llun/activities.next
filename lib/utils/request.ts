@@ -16,6 +16,7 @@ export interface RequestOptions {
   headers?: Headers
   body?: string
   responseTimeout?: number
+  numberOfRetry?: number
 }
 
 export const request = ({
@@ -23,7 +24,8 @@ export const request = ({
   method = 'GET',
   headers,
   body,
-  responseTimeout
+  responseTimeout,
+  numberOfRetry
 }: RequestOptions) => {
   const config = getConfig()
   const retryLimit = config.request?.numberOfRetry ?? MAX_RETRY_LIMIT
@@ -41,7 +43,7 @@ export const request = ({
       request: defaultResponseTimeout
     },
     retry: {
-      limit: retryLimit,
+      limit: typeof numberOfRetry === 'number' ? numberOfRetry : retryLimit,
       ...(typeof retryNoise === 'number' ? { noise: retryNoise } : null)
     },
     throwHttpErrors: false,

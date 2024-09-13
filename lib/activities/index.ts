@@ -118,11 +118,13 @@ export interface GetPublicProfileParams {
   actorId: string
   withCollectionCount?: boolean
   withPublicKey?: boolean
+  withNetworkRetry?: boolean
 }
 export const getPublicProfile = async ({
   actorId,
   withCollectionCount = false,
-  withPublicKey = false
+  withPublicKey = false,
+  withNetworkRetry = true
 }: GetPublicProfileParams): Promise<PublicProfile | null> =>
   getTracer().startActiveSpan(
     'activities.getPublicProfile',
@@ -133,7 +135,9 @@ export const getPublicProfile = async ({
       try {
         const { statusCode, body } = await request({
           url: actorId,
-          headers: { Accept: DEFAULT_ACCEPT }
+          headers: { Accept: DEFAULT_ACCEPT },
+          // Use default retry by set it to undefined, otherwise 0 retry
+          numberOfRetry: withNetworkRetry ? undefined : 0
         })
         if (statusCode !== 200) {
           span.end()
