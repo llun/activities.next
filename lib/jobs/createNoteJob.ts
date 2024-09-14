@@ -12,8 +12,8 @@ import { addStatusToTimelines } from '../services/timelines'
 import { compact } from '../utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
 import { createJobHandle } from './createJobHandle'
+import { CREATE_NOTE_JOB_NAME } from './names'
 
-export const CREATE_NOTE_JOB_NAME = 'CreateNoteJob'
 export const createNoteJob = createJobHandle(
   CREATE_NOTE_JOB_NAME,
   async (storage, message) => {

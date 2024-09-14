@@ -1,12 +1,16 @@
 import { JobHandle } from '../services/queue/type'
+import { createAnnounceJob } from './createAnnounceJob'
+import { createNoteJob } from './createNoteJob'
+import { createPollJob } from './createPollJob'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
-  createAnnounceJob
-} from './createAnnounceJob'
-import { CREATE_NOTE_JOB_NAME, createNoteJob } from './createNoteJob'
-import { CREATE_POLL_JOB_NAME, createPollJob } from './createPollJob'
-import { UPDATE_NOTE_JOB_NAME, updateNoteJob } from './updateNoteJob'
-import { UPDATE_POLL_JOB_NAME, updatePollJob } from './updatePollJob'
+  CREATE_NOTE_JOB_NAME,
+  CREATE_POLL_JOB_NAME,
+  UPDATE_NOTE_JOB_NAME,
+  UPDATE_POLL_JOB_NAME
+} from './names'
+import { updateNoteJob } from './updateNoteJob'
+import { updatePollJob } from './updatePollJob'
 
 export const JOBS: Record<string, JobHandle> = {
   [CREATE_NOTE_JOB_NAME]: createNoteJob,

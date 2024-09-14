@@ -6,8 +6,8 @@ import { addStatusToTimelines } from '../services/timelines'
 import { compact } from '../utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
 import { createJobHandle } from './createJobHandle'
+import { CREATE_POLL_JOB_NAME } from './names'
 
-export const CREATE_POLL_JOB_NAME = 'CreatePollJob'
 export const createPollJob = createJobHandle(
   CREATE_POLL_JOB_NAME,
   async (storage, message) => {
