@@ -9,11 +9,13 @@ import {
   UndoAction,
   UpdateAction
 } from '@/lib/activities/actions/types'
-import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/createAnnounceJob'
-import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/createNoteJob'
-import { CREATE_POLL_JOB_NAME } from '@/lib/jobs/createPollJob'
-import { UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/updateNoteJob'
-import { UPDATE_POLL_JOB_NAME } from '@/lib/jobs/updatePollJob'
+import {
+  CREATE_ANNOUNCE_JOB_NAME,
+  CREATE_NOTE_JOB_NAME,
+  CREATE_POLL_JOB_NAME,
+  UPDATE_NOTE_JOB_NAME,
+  UPDATE_POLL_JOB_NAME
+} from '@/lib/jobs/names'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'

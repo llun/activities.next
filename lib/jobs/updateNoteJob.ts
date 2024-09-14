@@ -5,8 +5,8 @@ import { StatusType } from '../models/status'
 import { compact } from '../utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
 import { createJobHandle } from './createJobHandle'
+import { UPDATE_NOTE_JOB_NAME } from './names'
 
-export const UPDATE_NOTE_JOB_NAME = 'UpdateNoteJob'
 export const updateNoteJob = createJobHandle(
   UPDATE_NOTE_JOB_NAME,
   async (storage, message) => {

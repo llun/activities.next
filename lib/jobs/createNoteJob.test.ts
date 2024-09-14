@@ -8,7 +8,8 @@ import { MockImageDocument } from '../stub/imageDocument'
 import { MockLitepubNote, MockMastodonNote } from '../stub/note'
 import { seedActor1 } from '../stub/seed/actor1'
 import { seedStorage } from '../stub/storage'
-import { CREATE_NOTE_JOB_NAME, createNoteJob } from './createNoteJob'
+import { createNoteJob } from './createNoteJob'
+import { CREATE_NOTE_JOB_NAME } from './names'
 
 enableFetchMocks()
 
