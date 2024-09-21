@@ -13,6 +13,7 @@ import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
   CREATE_POLL_JOB_NAME,
+  DELETE_OBJECT_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
 } from '@/lib/jobs/names'
@@ -31,8 +32,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
-  const { storage } = context
+export const POST = ActivityPubVerifySenderGuard(async (request) => {
   const body = await request.json()
   const activity = (await compact(body)) as StatusActivity
   const deduplicationId = crypto
@@ -93,21 +93,22 @@ export const POST = ActivityPubVerifySenderGuard(async (request, context) => {
     case UndoAction: {
       switch (activity.object.type) {
         case AnnounceAction: {
-          const statusId = activity.object.id
-          await storage.deleteStatus({ statusId })
+          await getQueue().publish({
+            id: deduplicationId,
+            name: DELETE_OBJECT_JOB_NAME,
+            data: activity.object
+          })
           break
         }
       }
       return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
     }
     case DeleteAction: {
-      // TODO: Handle delete object type string
-      if (typeof activity.object === 'string') {
-        return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
-      }
-
-      const id = activity.object.id
-      await storage.deleteStatus({ statusId: id })
+      await getQueue().publish({
+        id: deduplicationId,
+        name: DELETE_OBJECT_JOB_NAME,
+        data: activity.object
+      })
       return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
     }
     default:

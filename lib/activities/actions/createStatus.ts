@@ -21,6 +21,7 @@ export interface CreateStatus extends BaseActivity, ContextEntity {
 interface CompactParams {
   status: Status
 }
+
 export const compact = ({ status }: CompactParams) => {
   const published = getISOTimeUTC(status.data.createdAt)
   const context = { '@context': 'https://www.w3.org/ns/activitystreams' }
