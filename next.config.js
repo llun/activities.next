@@ -3,26 +3,23 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   assetPrefix: '/activities',
-  experimental: {
-    serverComponentsExternalPackages: [
-      '@aws-sdk/client-lambda',
-      '@aws-sdk/client-s3',
-      '@aws-sdk/util-utf8-node',
-      '@google-cloud/firestore',
-      '@keyv/redis',
-      'knex',
-      'bcrypt',
-      'better-sqlite3',
-      'fluent-ffmpeg',
-      'got',
-      'jsonld',
-      'keyv',
-      'nodemailer',
-      'resend'
-    ]
-  },
+  serverExternalPackages: [
+    '@aws-sdk/client-lambda',
+    '@aws-sdk/client-s3',
+    '@aws-sdk/util-utf8-node',
+    '@google-cloud/firestore',
+    '@keyv/redis',
+    'knex',
+    'bcrypt',
+    'better-sqlite3',
+    'fluent-ffmpeg',
+    'got',
+    'jsonld',
+    'keyv',
+    'nodemailer',
+    'resend'
+  ],
   generateBuildId() {
     return `activities-${Date.now()}`
   },
