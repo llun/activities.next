@@ -18,7 +18,7 @@ const isVerify = async (storage: Storage, verificationCode?: string) => {
 }
 
 interface Props {
-  searchParams: Record<string, string | string[] | undefined>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 const Page: FC<Props> = async ({ searchParams }) => {
   const [storage, session] = await Promise.all([
@@ -31,10 +31,11 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return redirect('/')
   }
 
-  const verificationCode = Array.isArray(searchParams.verificationCode)
-    ? searchParams.verificationCode[0]
-    : searchParams.verificationCode
-  const isAccountVerify = Boolean(await isVerify(storage, verificationCode))
+  const { verificationCode } = await searchParams
+  const code = Array.isArray(verificationCode)
+    ? verificationCode[0]
+    : verificationCode
+  const isAccountVerify = Boolean(await isVerify(storage, code))
 
   return (
     <h1>

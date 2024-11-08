@@ -14,14 +14,15 @@ import { StatusBox } from './StatusBox'
 import styles from './[status].module.scss'
 
 interface Props {
-  params: { actor: string; status: string }
+  params: Promise<{ actor: string; status: string }>
 }
 
 export const generateMetadata = async ({
   params
 }: Props): Promise<Metadata> => {
+  const { actor } = await params
   return {
-    title: `Activities.next: ${decodeURIComponent(params.actor)} status`
+    title: `Activities.next: ${decodeURIComponent(actor)} status`
   }
 }
 
@@ -30,7 +31,7 @@ const Page: FC<Props> = async ({ params }) => {
   const storage = await getStorage()
   if (!storage) throw new Error('Storage is not available')
 
-  const { actor, status: id } = params
+  const { actor, status: id } = await params
   const currentTime = new Date()
   const parts = decodeURIComponent(actor).split('@').slice(1)
   if (parts.length !== 2) {

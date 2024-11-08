@@ -13,7 +13,7 @@ import { SearchParams } from './types'
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: SearchParams
+  searchParams: Promise<SearchParams>
 }
 
 const Page: FC<Props> = async ({ searchParams }) => {
@@ -26,14 +26,15 @@ const Page: FC<Props> = async ({ searchParams }) => {
     throw new Error('Fail to load storage')
   }
 
-  const parsedResult = SearchParams.safeParse(searchParams)
+  const params = await searchParams
+  const parsedResult = SearchParams.safeParse(params)
   if (!parsedResult.success) {
     return notFound()
   }
 
   const [actor, client] = await Promise.all([
     getActorFromSession(storage, session),
-    storage.getClientFromId({ clientId: searchParams.client_id })
+    storage.getClientFromId({ clientId: params.client_id })
   ])
 
   if (!client) {
@@ -44,14 +45,14 @@ const Page: FC<Props> = async ({ searchParams }) => {
     const url = new URL('/auth/signin', `https://${getConfig().host}`)
     url.searchParams.append(
       'redirectBack',
-      `/oauth/authorize?${new URLSearchParams(Object.entries(searchParams))}`
+      `/oauth/authorize?${new URLSearchParams(Object.entries(params))}`
     )
     return redirect(url.toString())
   }
 
   return (
     <div>
-      <AuthorizeCard searchParams={searchParams} client={client} />
+      <AuthorizeCard searchParams={params} client={client} />
     </div>
   )
 }
