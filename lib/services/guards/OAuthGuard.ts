@@ -33,7 +33,7 @@ export const getTokenFromHeader = (authorizationHeader: string | null) => {
 
 export const OAuthGuard =
   <P>(scopes: Scope[], handle: AuthenticatedApiHandle<P>) =>
-  async (req: NextRequest, params?: AppRouterParams<P>) => {
+  async (req: NextRequest, params: AppRouterParams<P>) => {
     const [storage, session] = await Promise.all([
       getStorage(),
       getServerSession(getAuthOptions())

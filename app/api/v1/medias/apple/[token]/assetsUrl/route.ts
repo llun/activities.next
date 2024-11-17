@@ -19,7 +19,7 @@ export const POST = async (
   req: NextRequest,
   params: AppRouterParams<Params>
 ) => {
-  const { token } = params.params
+  const { token } = await params.params
   try {
     const assetsRequest = AssetsRequest.parse(await req.json())
     const assets = await fetchAssetsUrl(token, assetsRequest.photoGuids)

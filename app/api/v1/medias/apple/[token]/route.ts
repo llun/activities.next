@@ -14,7 +14,7 @@ export const GET = async (
   req: NextRequest,
   params: AppRouterParams<Params>
 ) => {
-  const token = params.params.token
+  const token = (await params.params).token
   const stream = await fetchStream(token)
   if (!stream) return apiErrorResponse(404)
 

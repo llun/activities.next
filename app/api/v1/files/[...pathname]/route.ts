@@ -14,7 +14,7 @@ export const GET = async (
   req: NextRequest,
   params: AppRouterParams<Params>
 ) => {
-  const { pathname } = params.params
+  const { pathname } = await params.params
   const userPath = path
     .normalize(Array.isArray(pathname) ? pathname.join('/') : pathname)
     .replace(/^(\.\.(\/|\\|$))+/, '')

@@ -8,7 +8,7 @@ import { AppRouterApiHandle, AppRouterParams } from './types'
 
 export const AppRouterSharedKeyGuard =
   <P>(handle: AppRouterApiHandle<P>) =>
-  async (req: NextRequest, params?: AppRouterParams<P>) => {
+  async (req: NextRequest, params: AppRouterParams<P>) => {
     const config = getConfig()
     const sharedKey = config.internalApi?.sharedKey
     if (!sharedKey) return apiErrorResponse(403)

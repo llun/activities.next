@@ -10,7 +10,7 @@ import { ActivityPubVerifiedSenderHandle, AppRouterParams } from './types'
 
 export const ActivityPubVerifySenderGuard =
   <P>(handle: ActivityPubVerifiedSenderHandle<P>) =>
-  async (request: NextRequest, params?: AppRouterParams<P>) => {
+  async (request: NextRequest, params: AppRouterParams<P>) => {
     const storage = await getStorage()
     if (!storage) return apiErrorResponse(500)
 

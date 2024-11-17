@@ -27,7 +27,7 @@ export const GET = OAuthGuard<Params>(
     const format = url.searchParams.get('format')
 
     const { storage, currentActor } = context
-    const { timeline } = params?.params ?? {}
+    const { timeline } = (await params?.params) ?? {}
     if (!timeline) return apiErrorResponse(400)
 
     if (

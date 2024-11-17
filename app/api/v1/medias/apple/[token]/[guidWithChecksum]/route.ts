@@ -13,7 +13,7 @@ export const GET = async (
   req: NextRequest,
   params: AppRouterParams<Params>
 ) => {
-  const { token, guidWithChecksum } = params.params
+  const { token, guidWithChecksum } = await params.params
   const [guid, checksum] = (guidWithChecksum as string).split('@')
   if (!guid || !checksum) return apiErrorResponse(404)
 
