@@ -28,7 +28,7 @@ export const OnlyLocalUserGuard =
     const storage = await getStorage()
     if (!storage) return apiErrorResponse(500)
 
-    const { username } = query.params
+    const { username } = await query.params
     const host = headerHost(req.headers)
     const id = `https://${host}/users/${username}`
     const actor = await storage.getActorFromId({ id })

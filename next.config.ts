@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
+import { NextConfig } from 'next'
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   assetPrefix: '/activities',
+<<<<<<< HEAD:next.config.js
   experimental: {
     instrumentationHook: true,
     serverComponentsExternalPackages: [
@@ -25,9 +24,28 @@ const nextConfig = {
       'google-proto-files'
     ]
   },
+=======
+  serverExternalPackages: [
+    '@aws-sdk/client-lambda',
+    '@aws-sdk/client-s3',
+    '@aws-sdk/util-utf8-node',
+    '@google-cloud/firestore',
+    '@keyv/redis',
+    'knex',
+    'bcrypt',
+    'better-sqlite3',
+    'fluent-ffmpeg',
+    'got',
+    'jsonld',
+    'keyv',
+    'nodemailer',
+    'resend'
+  ],
+>>>>>>> main:next.config.ts
   generateBuildId() {
     return `activities-${Date.now()}`
   },
+  sassOptions: {},
   images: {
     remotePatterns: [
       {

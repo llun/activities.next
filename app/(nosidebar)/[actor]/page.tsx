@@ -16,14 +16,15 @@ import { getExternalActorProfile } from './getExternalActorProfile'
 import { getInternalActorProfile } from './getInternalActorProfile'
 
 interface Props {
-  params: { actor: string }
+  params: Promise<{ actor: string }>
 }
 
 export const generateMetadata = async ({
   params
 }: Props): Promise<Metadata> => {
+  const { actor } = await params
   return {
-    title: `Activities.next: ${decodeURIComponent(params.actor)}`
+    title: `Activities.next: ${decodeURIComponent(actor)}`
   }
 }
 
@@ -35,7 +36,7 @@ const Page: FC<Props> = async ({ params }) => {
   ])
   if (!storage) throw new Error('Storage is not available')
 
-  const { actor } = params
+  const { actor } = await params
   const decodedActorHandle = decodeURIComponent(actor)
   const parts = decodedActorHandle.split('@').slice(1)
   if (parts.length !== 2) {

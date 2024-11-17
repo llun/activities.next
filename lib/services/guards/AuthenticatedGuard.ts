@@ -9,7 +9,7 @@ import { AppRouterParams, AuthenticatedApiHandle } from './types'
 
 export const AuthenticatedGuard =
   <P>(handle: AuthenticatedApiHandle<P>) =>
-  async (req: NextRequest, params?: AppRouterParams<P>) => {
+  async (req: NextRequest, params: AppRouterParams<P>) => {
     const [storage, session] = await Promise.all([
       getStorage(),
       getServerSession(getAuthOptions())

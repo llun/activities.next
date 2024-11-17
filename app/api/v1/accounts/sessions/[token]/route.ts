@@ -18,7 +18,7 @@ interface Params {
 export const DELETE = AuthenticatedGuard<Params>(
   async (req, context, query) => {
     const { storage, currentActor } = context
-    const { token } = query?.params ?? { token: undefined }
+    const { token } = (await query?.params) ?? { token: undefined }
     if (!token) return apiErrorResponse(400)
 
     const accountSession = await storage.getAccountSession({

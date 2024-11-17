@@ -12,7 +12,7 @@ type StatusParams = OnlyLocalUserGuardHandle & {
 
 export const GET = OnlyLocalUserGuard(
   async (storage, actor, req, query: unknown) => {
-    const { statusId } = (query as AppRouterParams<StatusParams>).params
+    const { statusId } = await (query as AppRouterParams<StatusParams>).params
     const id = `${actor.id}/statuses/${statusId}`
     const status = await storage.getStatus({ statusId: id, withReplies: true })
     if (!status) return apiErrorResponse(404)

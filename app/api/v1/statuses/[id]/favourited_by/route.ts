@@ -19,7 +19,7 @@ interface Params {
 export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
   async (req, context, params) => {
-    const uuid = params?.params.id
+    const uuid = (await params?.params).id
     if (!uuid) return apiErrorResponse(400)
 
     const { currentActor, storage } = context
