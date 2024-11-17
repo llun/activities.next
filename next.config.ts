@@ -3,28 +3,6 @@ import { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   assetPrefix: '/activities',
-<<<<<<< HEAD:next.config.js
-  experimental: {
-    instrumentationHook: true,
-    serverComponentsExternalPackages: [
-      '@aws-sdk/client-lambda',
-      '@aws-sdk/client-s3',
-      '@aws-sdk/util-utf8-node',
-      '@google-cloud/firestore',
-      '@keyv/redis',
-      'knex',
-      'bcrypt',
-      'better-sqlite3',
-      'fluent-ffmpeg',
-      'got',
-      'jsonld',
-      'keyv',
-      'nodemailer',
-      'resend',
-      'google-proto-files'
-    ]
-  },
-=======
   serverExternalPackages: [
     '@aws-sdk/client-lambda',
     '@aws-sdk/client-s3',
@@ -39,9 +17,9 @@ const nextConfig: NextConfig = {
     'jsonld',
     'keyv',
     'nodemailer',
-    'resend'
+    'resend',
+    'google-proto-files'
   ],
->>>>>>> main:next.config.ts
   generateBuildId() {
     return `activities-${Date.now()}`
   },
