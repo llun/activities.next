@@ -1,4 +1,4 @@
-FROM node:20-alpine as base
+FROM node:22-alpine AS base
 ARG UID="1001"
 ARG GID="1001"
 ARG ACTIVITIES_HOST="localhost"
@@ -20,18 +20,18 @@ RUN corepack enable
 WORKDIR /opt/activities.next
 USER app
 
-FROM base as build
+FROM base AS build
 ADD --chown=app:app . /opt/activities.next/
+RUN yarn config set -H enableGlobalCache true
 RUN yarn install --immutable
+RUN yarn dedupe
 RUN yarn migrate
-RUN yarn build
-RUN yarn workspaces focus -A --production
+RUN BUILD_STANDALONE=true yarn build
 
-FROM base as activities.next
+FROM base AS output
 ENV NODE_ENV="production"
-ADD --chown=app:app . /opt/activities.next/
-COPY --from=build --chown=app:app /opt/activities.next/.next /opt/activities.next/.next
+COPY --from=build --chown=app:app /opt/activities.next/.next/standalone /opt/activities.next/
 COPY --from=build --chown=app:app /opt/activities.next/data.sqlite /opt/activities.next/data.sqlite
-COPY --from=build --chown=app:app /opt/activities.next/node_modules /opt/activities.next/node_modules
+RUN rm -r /opt/activities.next/.yarn
 EXPOSE 3000
-CMD ["yarn", "start"]
+CMD ["node", "server.js"]
