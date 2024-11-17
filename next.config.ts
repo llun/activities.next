@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
+import { NextConfig } from 'next'
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: true,
   assetPrefix: '/activities',
   serverExternalPackages: [
@@ -23,6 +22,7 @@ const nextConfig = {
   generateBuildId() {
     return `activities-${Date.now()}`
   },
+  sassOptions: {},
   images: {
     remotePatterns: [
       {
