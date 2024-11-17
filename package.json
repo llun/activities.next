@@ -16,6 +16,7 @@
     "migrate:make": "knex migrate:make"
   },
   "dependencies": {
+    "@auth/core": "^0.37.4",
     "@aws-sdk/client-lambda": "^3.693.0",
     "@aws-sdk/client-s3": "^3.693.0",
     "@aws-sdk/s3-presigned-post": "^3.693.0",

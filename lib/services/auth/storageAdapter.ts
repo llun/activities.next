@@ -1,4 +1,4 @@
-import { Adapter } from 'next-auth/adapters'
+import { Adapter, AdapterAccount, AdapterUser } from 'next-auth/adapters'
 import { JWT, decode } from 'next-auth/jwt'
 
 import { Account } from '../../models/account'
@@ -14,7 +14,7 @@ export const userFromAccount = (account: Account) => ({
 
 export function StorageAdapter(secret: string): Adapter {
   return {
-    async createUser(user) {
+    async createUser(user: AdapterUser) {
       const { email } = user
       const storage = await getStorage()
       const actor = await storage?.getActorFromEmail({ email })
@@ -67,7 +67,7 @@ export function StorageAdapter(secret: string): Adapter {
     async deleteUser(/* userId */) {
       throw NoImplementationError
     },
-    async linkAccount({ provider, providerAccountId, userId }) {
+    async linkAccount({ provider, providerAccountId, userId }: AdapterAccount) {
       const storage = await getStorage()
       if (!storage) return
 
