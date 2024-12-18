@@ -135,40 +135,6 @@ export const PostBox: FC<Props> = ({
     postBox.value = ''
   }
 
-  const onSelectAppleMedia = (media: Media) => {
-    if (media.type === 'video') {
-      const poster = media.derivatives[VideoPosterDerivative]
-      const video = media.derivatives[Video720p]
-      const attachment: AppleGalleryAttachment = {
-        type: 'apple',
-        id: media.guid,
-        mediaType: 'video/mp4',
-        name: media.caption,
-        url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${video.checksum}`,
-        posterUrl: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${poster.checksum}`,
-        width: media.width,
-        height: media.height
-      }
-      dispatch(setAttachments([...postExtension.attachments, attachment]))
-      return
-    }
-
-    const biggestDerivatives = Object.keys(media.derivatives)
-      .map((value) => parseInt(value, 10))
-      .sort((n1, n2) => n2 - n1)[0]
-    const bestDerivatives = media.derivatives[biggestDerivatives]
-    const attachment: AppleGalleryAttachment = {
-      type: 'apple',
-      id: media.guid,
-      mediaType: 'image/jpeg',
-      name: media.caption,
-      url: `https://${host}/api/v1/medias/apple/${profile.appleSharedAlbumToken}/${media.guid}@${bestDerivatives.checksum}`,
-      width: media.width,
-      height: media.height
-    }
-    dispatch(setAttachments([...postExtension.attachments, attachment]))
-  }
-
   const onSelectUploadedMedias = (medias: UploadedAttachment[]) =>
     dispatch(setAttachments([...postExtension.attachments, ...medias]))
 
@@ -318,10 +284,6 @@ export const PostBox: FC<Props> = ({
         />
         <div className="d-flex justify-content-between mb-3">
           <div>
-            <AppleGallerButton
-              profile={profile}
-              onSelectMedia={onSelectAppleMedia}
-            />
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               onSelectMedias={onSelectUploadedMedias}
