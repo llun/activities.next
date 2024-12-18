@@ -4,7 +4,6 @@ import { Duration } from './components/PostBox/PollChoices'
 import { Attachment, PostBoxAttachment } from './models/attachment'
 import { Follow, FollowStatus } from './models/follow'
 import { StatusData } from './models/status'
-import { Assets, Stream } from './services/apple/webstream'
 import { PresignedUrlOutput } from './services/medias/types'
 import { TimelineFormat } from './services/timelines/const'
 

@@ -12,7 +12,6 @@ import sanitizeHtml from 'sanitize-html'
 import { createNote, createPoll, updateNote } from '../../client'
 import { Actor, ActorProfile } from '../../models/actor'
 import {
-  AppleGalleryAttachment,
   Attachment,
   UploadedAttachment
 } from '../../models/attachment'
@@ -22,13 +21,7 @@ import {
   StatusNote,
   StatusType
 } from '../../models/status'
-import { Media } from '../../services/apple/media'
-import {
-  Video720p,
-  VideoPosterDerivative
-} from '../../services/apple/webstream'
 import { Button } from '../Button'
-import { AppleGallerButton } from './AppleGalleryButton'
 import { Duration, PollChoices } from './PollChoices'
 import styles from './PostBox.module.scss'
 import { ReplyPreview } from './ReplyPreview'
