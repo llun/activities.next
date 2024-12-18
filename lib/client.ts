@@ -4,7 +4,6 @@ import { Duration } from './components/PostBox/PollChoices'
 import { Attachment, PostBoxAttachment } from './models/attachment'
 import { Follow, FollowStatus } from './models/follow'
 import { StatusData } from './models/status'
-import { Assets, Stream } from './services/apple/webstream'
 import { PresignedUrlOutput } from './services/medias/types'
 import { TimelineFormat } from './services/timelines/const'
 
@@ -183,53 +182,6 @@ export const undoLikeStatus = async ({ statusId }: DefaultStatusParams) => {
     },
     body: JSON.stringify({ statusId })
   })
-}
-
-interface GetAppleSharedGalleryParams {
-  albumToken: string
-}
-export const getAppleSharedGallery = async ({
-  albumToken
-}: GetAppleSharedGalleryParams) => {
-  const response = await fetch(`/api/v1/medias/apple/${albumToken}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  })
-  if (response.status !== 200) {
-    // Create or throw an error here
-    return
-  }
-
-  const data = await response.json()
-  return data.stream as Stream
-}
-
-interface GetAppleSharedAlbumAssetsParams {
-  albumToken: string
-  photoGuids: string[]
-}
-export const getAppleSharedAlbumAssets = async ({
-  albumToken,
-  photoGuids
-}: GetAppleSharedAlbumAssetsParams) => {
-  const response = await fetch(`/api/v1/medias/apple/${albumToken}/assetsUrl`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      photoGuids
-    })
-  })
-  if (response.status !== 200) {
-    // Create or throw an error here
-    return
-  }
-
-  const data = await response.json()
-  return data.assets as Assets
 }
 
 interface FollowParams {
