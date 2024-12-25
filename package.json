@@ -41,7 +41,7 @@
     "@opentelemetry/sdk-node": "0.57.0",
     "@opentelemetry/sdk-trace-base": "1.30.0",
     "@opentelemetry/sdk-trace-node": "1.30.0",
-    "@opentelemetry/semantic-conventions": "1.28.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0",
     "@popperjs/core": "^2.11.8",
     "@upstash/qstash": "2.7.20",
     "@vercel/otel": "^1.10.0",

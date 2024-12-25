@@ -1,7 +1,6 @@
 import { TraceExporter as GoogleTraceExporter } from '@google-cloud/opentelemetry-cloud-trace-exporter'
 import { DiagConsoleLogger, DiagLogLevel, diag } from '@opentelemetry/api'
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
-import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
 import { AwsInstrumentation } from '@opentelemetry/instrumentation-aws-sdk'
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http'
@@ -11,9 +10,8 @@ import { Resource } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node'
 import {
-  SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
-  SEMRESATTRS_SERVICE_NAME,
-  SEMRESATTRS_SERVICE_VERSION
+  ATTR_SERVICE_NAME,
+  ATTR_SERVICE_VERSION
 } from '@opentelemetry/semantic-conventions'
 
 import { Config, getConfig } from './lib/config'
@@ -27,8 +25,6 @@ const getTraceExporter = (config: Config) => {
   switch (config.openTelemetry.protocol) {
     case 'grpc':
       return new GrpcOLTPTraceExporter()
-    case 'http/json':
-      return new HttpOLTPTraceExporter()
     case 'google':
       return new GoogleTraceExporter()
     default:
@@ -42,9 +38,8 @@ diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO)
 if (exporter) {
   const sdk = new NodeSDK({
     resource: new Resource({
-      [SEMRESATTRS_SERVICE_NAME]: TRACE_APPLICATION_SCOPE,
-      [SEMRESATTRS_SERVICE_VERSION]: TRACE_APPLICATION_VERSION,
-      [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV
+      [ATTR_SERVICE_NAME]: TRACE_APPLICATION_SCOPE,
+      [ATTR_SERVICE_VERSION]: TRACE_APPLICATION_VERSION
     }),
     spanProcessors: [new BatchSpanProcessor(exporter)],
     instrumentations: [
