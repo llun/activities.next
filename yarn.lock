@@ -2309,7 +2309,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opentelemetry/api-logs@npm:0.57.0":
+"@opentelemetry/api-logs@npm:0.57.0, @opentelemetry/api-logs@npm:^0.57.0":
   version: 0.57.0
   resolution: "@opentelemetry/api-logs@npm:0.57.0"
   dependencies:
@@ -2683,7 +2683,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opentelemetry/sdk-logs@npm:0.57.0":
+"@opentelemetry/sdk-logs@npm:0.57.0, @opentelemetry/sdk-logs@npm:^0.57.0":
   version: 0.57.0
   resolution: "@opentelemetry/sdk-logs@npm:0.57.0"
   dependencies:
@@ -2696,7 +2696,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opentelemetry/sdk-metrics@npm:1.30.0":
+"@opentelemetry/sdk-metrics@npm:1.30.0, @opentelemetry/sdk-metrics@npm:^1.30.0":
   version: 1.30.0
   resolution: "@opentelemetry/sdk-metrics@npm:1.30.0"
   dependencies:
@@ -4628,6 +4628,7 @@ __metadata:
     "@llun/activities.schema": "npm:^0.2.14"
     "@next/env": "npm:^15.1.2"
     "@opentelemetry/api": "npm:^1.9.0"
+    "@opentelemetry/api-logs": "npm:^0.57.0"
     "@opentelemetry/core": "npm:1.30.0"
     "@opentelemetry/exporter-jaeger": "npm:1.30.0"
     "@opentelemetry/exporter-trace-otlp-grpc": "npm:0.57.0"
@@ -4639,6 +4640,8 @@ __metadata:
     "@opentelemetry/instrumentation-knex": "npm:^0.44.0"
     "@opentelemetry/instrumentation-undici": "npm:^0.10.0"
     "@opentelemetry/resources": "npm:1.30.0"
+    "@opentelemetry/sdk-logs": "npm:^0.57.0"
+    "@opentelemetry/sdk-metrics": "npm:^1.30.0"
     "@opentelemetry/sdk-node": "npm:0.57.0"
     "@opentelemetry/sdk-trace-base": "npm:1.30.0"
     "@opentelemetry/sdk-trace-node": "npm:1.30.0"
