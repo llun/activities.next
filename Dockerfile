@@ -31,6 +31,8 @@ RUN BUILD_STANDALONE=true yarn build
 FROM base AS output
 ENV NODE_ENV="production"
 COPY --from=build --chown=app:app /opt/activities.next/.next/standalone /opt/activities.next/
+COPY --from=build --chown=app:app /opt/activities.next/public /opt/activities.next/public/
+COPY --from=build --chown=app:app /opt/activities.next/.next/static /opt/activities.next/.next/static
 COPY --from=build --chown=app:app /opt/activities.next/data.sqlite /opt/activities.next/data.sqlite
 RUN rm -r /opt/activities.next/.yarn
 EXPOSE 3000
