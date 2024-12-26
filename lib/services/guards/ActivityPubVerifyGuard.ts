@@ -31,7 +31,6 @@ export const ActivityPubVerifySenderGuard =
         publicKey
       ))
     ) {
-      logger.error('Fail to verify signature')
       return apiErrorResponse(400)
     }
 
