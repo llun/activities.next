@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 
 import { getStorage } from '@/lib/storage'
-import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { parse, verify } from '@/lib/utils/signature'
 
