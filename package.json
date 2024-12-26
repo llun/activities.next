@@ -64,7 +64,7 @@
     "lodash": "^4.17.21",
     "marked": "^15.0.4",
     "mime-types": "^2.1.35",
-    "next": "15.0.4",
+    "next": "15.1.2",
     "next-auth": "4.24.11",
     "nodemailer": "^6.9.16",
     "peggy": "^4.2.0",
