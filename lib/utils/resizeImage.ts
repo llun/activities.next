@@ -4,14 +4,9 @@ import {
   MAX_WIDTH
 } from '../services/medias/constants'
 
-/**
- * Resize image in browser to reduce file
- *
- * @param file File to resize
- */
-export async function resizeImage(file: File) {
+export async function resizeImage(file: File): Promise<File> {
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-    throw new Error('Invalid file type, only image is supported')
+    return file
   }
 
   const fileBuffer: ArrayBuffer = await new Promise((resolve, reject) => {
@@ -36,7 +31,6 @@ export async function resizeImage(file: File) {
   })
 
   if (image.width <= MAX_WIDTH && image.height <= MAX_HEIGHT) {
-    console.log('Return original file')
     return file
   }
 
