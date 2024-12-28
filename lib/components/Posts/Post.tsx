@@ -13,7 +13,7 @@ import { EditableStatusData, StatusData, StatusType } from '../../models/status'
 import { cleanClassName } from '../../utils/text/cleanClassName'
 import { Actions } from './Actions'
 import { Actor } from './Actor'
-import { Attachments } from './Attachments'
+import { Attachments, OnMediaSelectedHandle } from './Attachments'
 import { Poll } from './Poll'
 import styles from './Post.module.scss'
 
@@ -28,7 +28,7 @@ export interface PostProps {
   onEdit?: (status: EditableStatusData) => void
   onPostDeleted?: (status: StatusData) => void
   onPostReposted?: (status: StatusData) => void
-  onShowAttachment: (attachment: AttachmentData) => void
+  onShowAttachment: OnMediaSelectedHandle
 }
 
 const getActualStatus = (status: StatusData) => {
@@ -86,7 +86,7 @@ export const Post: FC<PostProps> = (props) => {
           .value()}
       </div>
       <Poll status={actualStatus} currentTime={currentTime} />
-      <Attachments status={actualStatus} onClickMedia={onShowAttachment} />
+      <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
       <Actions {...props} />
     </div>
   )

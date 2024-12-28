@@ -34,7 +34,8 @@ export const Posts: FC<Props> = ({
   onEdit,
   onPostDeleted
 }) => {
-  const [modalMedia, setModalMedia] = useState<AttachmentData>()
+  const [modalMedias, setModalMedias] = useState<AttachmentData[] | null>(null)
+  const [modalSelection, setModalSelection] = useState<number>(0)
 
   if (statuses.length === 0) return null
 
@@ -52,21 +53,50 @@ export const Posts: FC<Props> = ({
             onReply={onReply}
             onEdit={onEdit}
             onPostDeleted={onPostDeleted}
-            onShowAttachment={(attachment: AttachmentData) =>
-              setModalMedia(attachment)
-            }
+            onShowAttachment={(allMedias, index) => {
+              setModalMedias(allMedias)
+              setModalSelection(index)
+            }}
           />
         </div>
       ))}
       <Modal
-        isOpen={Boolean(modalMedia)}
-        onRequestClose={() => setModalMedia(undefined)}
+        className={styles.modal}
+        isOpen={Boolean(modalMedias)}
+        onRequestClose={() => {
+          setModalMedias(null)
+          setModalSelection(0)
+        }}
       >
-        <Media
-          showVideoControl
-          className={cn(styles.media)}
-          attachment={modalMedia}
-        />
+        <div
+          className={styles.mediasContent}
+          onClick={() => {
+            setModalMedias(null)
+            setModalSelection(0)
+          }}
+        >
+          {modalMedias?.length && modalMedias?.length > 1 && (
+            <div className={styles.mediasSelection}>
+              {modalMedias?.map((media, index) => (
+                <img
+                  key={media.id}
+                  src={media.url}
+                  width={50}
+                  height={50}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setModalSelection(index)
+                  }}
+                />
+              ))}
+            </div>
+          )}
+          <Media
+            showVideoControl
+            className={cn(styles.media)}
+            attachment={modalMedias?.[modalSelection]}
+          />
+        </div>
       </Modal>
     </section>
   )
