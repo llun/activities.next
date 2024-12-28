@@ -1,5 +1,4 @@
 import { ACCEPTED_IMAGE_TYPES } from '../services/medias/constants'
-import { getMediaWidthAndHeight } from './getMediaWidthAndHeight'
 
 export async function resizeImage(
   file: File,
