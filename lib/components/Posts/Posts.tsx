@@ -6,8 +6,7 @@ import { FC, useState } from 'react'
 import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
 import { EditableStatusData, StatusData } from '../../models/status'
-import { Modal } from '../Modal'
-import { Media } from './Media'
+import { MediasModal } from '../MediasModal'
 import { Post } from './Post'
 import styles from './Posts.module.scss'
 
@@ -34,8 +33,10 @@ export const Posts: FC<Props> = ({
   onEdit,
   onPostDeleted
 }) => {
-  const [modalMedias, setModalMedias] = useState<AttachmentData[] | null>(null)
-  const [modalSelection, setModalSelection] = useState<number>(0)
+  const [modalMedias, setModalMedias] = useState<{
+    medias: AttachmentData[]
+    initialSelection: number
+  } | null>(null)
 
   if (statuses.length === 0) return null
 
@@ -54,50 +55,16 @@ export const Posts: FC<Props> = ({
             onEdit={onEdit}
             onPostDeleted={onPostDeleted}
             onShowAttachment={(allMedias, index) => {
-              setModalMedias(allMedias)
-              setModalSelection(index)
+              setModalMedias({ medias: allMedias, initialSelection: index })
             }}
           />
         </div>
       ))}
-      <Modal
-        className={styles.modal}
-        isOpen={Boolean(modalMedias)}
-        onRequestClose={() => {
-          setModalMedias(null)
-          setModalSelection(0)
-        }}
-      >
-        <div
-          className={styles.mediasContent}
-          onClick={() => {
-            setModalMedias(null)
-            setModalSelection(0)
-          }}
-        >
-          {modalMedias?.length && modalMedias?.length > 1 && (
-            <div className={styles.mediasSelection}>
-              {modalMedias?.map((media, index) => (
-                <img
-                  key={media.id}
-                  src={media.url}
-                  width={50}
-                  height={50}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setModalSelection(index)
-                  }}
-                />
-              ))}
-            </div>
-          )}
-          <Media
-            showVideoControl
-            className={cn(styles.media)}
-            attachment={modalMedias?.[modalSelection]}
-          />
-        </div>
-      </Modal>
+      <MediasModal
+        medias={modalMedias?.medias ?? null}
+        initialSelection={modalMedias?.initialSelection ?? 0}
+        onClosed={() => setModalMedias(null)}
+      />
     </section>
   )
 }

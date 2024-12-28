@@ -2,8 +2,7 @@
 
 import { FC, useState } from 'react'
 
-import { Modal } from '@/lib/components/Modal'
-import { Media } from '@/lib/components/Posts/Media'
+import { MediasModal } from '@/lib/components/MediasModal'
 import { Post } from '@/lib/components/Posts/Post'
 import { AttachmentData } from '@/lib/models/attachment'
 import { StatusData } from '@/lib/models/status'
@@ -15,7 +14,10 @@ interface Props {
 }
 
 export const StatusBox: FC<Props> = ({ host, currentTime, status }) => {
-  const [modalMedia, setModalMedia] = useState<AttachmentData>()
+  const [modalMedias, setModalMedias] = useState<{
+    medias: AttachmentData[]
+    initialSelection: number
+  } | null>(null)
 
   return (
     <>
@@ -23,16 +25,15 @@ export const StatusBox: FC<Props> = ({ host, currentTime, status }) => {
         host={host}
         currentTime={currentTime}
         status={status}
-        onShowAttachment={(attachment: AttachmentData) =>
-          setModalMedia(attachment)
-        }
+        onShowAttachment={(allMedias, index) => {
+          setModalMedias({ medias: allMedias, initialSelection: index })
+        }}
       />
-      <Modal
-        isOpen={Boolean(modalMedia)}
-        onRequestClose={() => setModalMedia(undefined)}
-      >
-        <Media showVideoControl attachment={modalMedia} />
-      </Modal>
+      <MediasModal
+        medias={modalMedias?.medias ?? null}
+        initialSelection={modalMedias?.initialSelection ?? 0}
+        onClosed={() => setModalMedias(null)}
+      />
     </>
   )
 }

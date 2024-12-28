@@ -8,7 +8,6 @@ import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 import { ActorProfile } from '../../models/actor'
-import { AttachmentData } from '../../models/attachment'
 import { EditableStatusData, StatusData, StatusType } from '../../models/status'
 import { cleanClassName } from '../../utils/text/cleanClassName'
 import { Actions } from './Actions'
