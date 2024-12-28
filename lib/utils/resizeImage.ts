@@ -1,4 +1,8 @@
-import { MAX_HEIGHT, MAX_WIDTH } from '../services/medias/constants'
+import {
+  ACCEPTED_IMAGE_TYPES,
+  MAX_HEIGHT,
+  MAX_WIDTH
+} from '../services/medias/constants'
 
 /**
  * Resize image in browser to reduce file
@@ -6,7 +10,7 @@ import { MAX_HEIGHT, MAX_WIDTH } from '../services/medias/constants'
  * @param file File to resize
  */
 export async function resizeImage(file: File) {
-  if (!file.type.startsWith('image/')) {
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
     throw new Error('Invalid file type, only image is supported')
   }
 

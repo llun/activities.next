@@ -2,11 +2,11 @@
 export const MAX_FILE_SIZE = 209_715_200
 export const MAX_WIDTH = 4000
 export const MAX_HEIGHT = 4000
+
+export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png']
+
 export const ACCEPTED_FILE_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/heic',
-  'image/heif',
+  ...ACCEPTED_IMAGE_TYPES,
   'video/quicktime',
   'video/mp4',
   'video/webm',
