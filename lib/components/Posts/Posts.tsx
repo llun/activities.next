@@ -6,8 +6,7 @@ import { FC, useState } from 'react'
 import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
 import { EditableStatusData, StatusData } from '../../models/status'
-import { Modal } from '../Modal'
-import { Media } from './Media'
+import { MediasModal } from '../MediasModal'
 import { Post } from './Post'
 import styles from './Posts.module.scss'
 
@@ -34,7 +33,10 @@ export const Posts: FC<Props> = ({
   onEdit,
   onPostDeleted
 }) => {
-  const [modalMedia, setModalMedia] = useState<AttachmentData>()
+  const [modalMedias, setModalMedias] = useState<{
+    medias: AttachmentData[]
+    initialSelection: number
+  } | null>(null)
 
   if (statuses.length === 0) return null
 
@@ -52,22 +54,17 @@ export const Posts: FC<Props> = ({
             onReply={onReply}
             onEdit={onEdit}
             onPostDeleted={onPostDeleted}
-            onShowAttachment={(attachment: AttachmentData) =>
-              setModalMedia(attachment)
-            }
+            onShowAttachment={(allMedias, index) => {
+              setModalMedias({ medias: allMedias, initialSelection: index })
+            }}
           />
         </div>
       ))}
-      <Modal
-        isOpen={Boolean(modalMedia)}
-        onRequestClose={() => setModalMedia(undefined)}
-      >
-        <Media
-          showVideoControl
-          className={cn(styles.media)}
-          attachment={modalMedia}
-        />
-      </Modal>
+      <MediasModal
+        medias={modalMedias?.medias ?? null}
+        initialSelection={modalMedias?.initialSelection ?? 0}
+        onClosed={() => setModalMedias(null)}
+      />
     </section>
   )
 }

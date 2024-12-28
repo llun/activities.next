@@ -6,12 +6,17 @@ import { StatusData, StatusType } from '../../models/status'
 import styles from './Attachments.module.scss'
 import { Media } from './Media'
 
+export type OnMediaSelectedHandle = (
+  allMedias: AttachmentData[],
+  selectedMediaIndex: number
+) => void
+
 interface Props {
   status: StatusData
-  onClickMedia: (attachmentData: AttachmentData) => void
+  onMediaSelected: OnMediaSelectedHandle
 }
 
-export const Attachments: FC<Props> = ({ status, onClickMedia }) => {
+export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
   if (status.type !== StatusType.enum.Note) return null
   if (!status.attachments.length) return null
 
@@ -23,10 +28,10 @@ export const Attachments: FC<Props> = ({ status, onClickMedia }) => {
         [styles.more]: status.attachments.length > 3
       })}
     >
-      {status.attachments.map((attachment) => (
+      {status.attachments.map((attachment, index) => (
         <Media
           className={styles.media}
-          onClick={() => onClickMedia(attachment)}
+          onClick={() => onMediaSelected(status.attachments, index)}
           key={attachment.id}
           attachment={attachment}
         />
