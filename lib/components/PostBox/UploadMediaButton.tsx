@@ -1,5 +1,7 @@
 import { FC, SyntheticEvent, useRef } from 'react'
 
+import { resizeImage } from '@/lib/utils/resizeImage'
+
 import {
   createUploadPresignedUrl,
   uploadFileToPresignedUrl,
@@ -32,8 +34,7 @@ export const UploadMediaButton: FC<Props> = ({
     if (!event.currentTarget.files) return
     if (!event.currentTarget.files.length) return
 
-    const file = event.currentTarget.files[0]
-    event.currentTarget.value = ''
+    const file = await resizeImage(event.currentTarget.files[0])
 
     const result = await createUploadPresignedUrl({ media: file })
     // No presigned supported

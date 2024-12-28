@@ -125,7 +125,7 @@ export class LocalFileStorage implements MediaStorage {
       ? `https://${this._host}/api/v1/files/${thumbnail?.path.split('/').pop()}`
       : url
     return MediaStorageSaveFileOutput.parse({
-      id: storedMedia.id,
+      id: `${storedMedia.id}`,
       type: media.file.type.startsWith('image')
         ? MediaType.enum.image
         : MediaType.enum.video,
