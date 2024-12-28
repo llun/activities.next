@@ -1,10 +1,11 @@
-import {
-  ACCEPTED_IMAGE_TYPES,
-  MAX_HEIGHT,
-  MAX_WIDTH
-} from '../services/medias/constants'
+import { ACCEPTED_IMAGE_TYPES } from '../services/medias/constants'
+import { getMediaWidthAndHeight } from './getMediaWidthAndHeight'
 
-export async function resizeImage(file: File): Promise<File> {
+export async function resizeImage(
+  file: File,
+  widthLimitPixel: number,
+  heightLimitPixel: number
+): Promise<File> {
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
     return file
   }
@@ -30,7 +31,7 @@ export async function resizeImage(file: File): Promise<File> {
     img.src = URL.createObjectURL(blob)
   })
 
-  if (image.width <= MAX_WIDTH && image.height <= MAX_HEIGHT) {
+  if (image.width <= widthLimitPixel && image.height <= heightLimitPixel) {
     return file
   }
 
@@ -45,14 +46,14 @@ export async function resizeImage(file: File): Promise<File> {
   let height = image.height
 
   if (width > height) {
-    if (width > MAX_WIDTH) {
-      height = Math.round((height * MAX_WIDTH) / width)
-      width = MAX_WIDTH
+    if (width > widthLimitPixel) {
+      height = Math.round((height * widthLimitPixel) / width)
+      width = widthLimitPixel
     }
   } else {
-    if (height > MAX_HEIGHT) {
-      width = Math.round((width * MAX_HEIGHT) / height)
-      height = MAX_HEIGHT
+    if (height > heightLimitPixel) {
+      width = Math.round((width * heightLimitPixel) / height)
+      height = heightLimitPixel
     }
   }
 
