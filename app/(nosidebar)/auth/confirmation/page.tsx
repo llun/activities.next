@@ -1,9 +1,8 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { auth } from '@/auth'
 import { getStorage } from '@/lib/storage'
 import { Storage } from '@/lib/storage/types'
 
@@ -21,10 +20,7 @@ interface Props {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 const Page: FC<Props> = async ({ searchParams }) => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
+  const [storage, session] = await Promise.all([getStorage(), auth()])
 
   if (!storage) throw new Error('Storage is not available')
   if (session && session.user) {

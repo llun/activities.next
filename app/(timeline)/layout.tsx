@@ -2,11 +2,11 @@ import 'bootstrap-icons/font/bootstrap-icons.css'
 import 'bootstrap/dist/css/bootstrap.css'
 import cn from 'classnames'
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { FC, ReactNode } from 'react'
 
+import { auth } from '@/auth'
 import { Header } from '@/lib/components/Header'
 import { Profile as ProfileComponent } from '@/lib/components/Profile'
 import { getConfig } from '@/lib/config'
@@ -15,7 +15,6 @@ import { getStorage } from '@/lib/storage'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { Modal } from '../Modal'
-import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
 import styles from './(timeline).module.scss'
 
 export const viewport = {
@@ -32,10 +31,7 @@ interface LayoutProps {
 }
 
 const Layout: FC<LayoutProps> = async ({ children }) => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
+  const [storage, session] = await Promise.all([getStorage(), auth()])
 
   if (!storage) {
     throw new Error('Fail to load storage')

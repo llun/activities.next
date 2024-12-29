@@ -1,8 +1,7 @@
-import { getServerSession } from 'next-auth'
 import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { auth } from '@/auth'
 import { getConfig } from '@/lib/config'
 import { getStorage } from '@/lib/storage'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -17,10 +16,7 @@ interface Props {
 }
 
 const Page: FC<Props> = async ({ searchParams }) => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
+  const [storage, session] = await Promise.all([getStorage(), auth()])
 
   if (!storage) {
     throw new Error('Fail to load storage')

@@ -1,13 +1,12 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
+import { auth } from '@/auth'
 import { getConfig } from '@/lib/config'
 import { Timeline } from '@/lib/services/timelines/types'
 import { getStorage } from '@/lib/storage'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
 import { MainPageTimeline } from './MainPageTimeline'
 
 export const dynamic = 'force-dynamic'
@@ -17,10 +16,7 @@ export const metadata: Metadata = {
 
 const Page = async () => {
   const { host, mediaStorage } = getConfig()
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
+  const [storage, session] = await Promise.all([getStorage(), auth()])
 
   if (!storage) {
     throw new Error('Fail to load storage')

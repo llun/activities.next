@@ -1,9 +1,8 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { getProviders } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { auth } from '@/auth'
 import { Button } from '@/lib/components/Button'
 import { getConfig } from '@/lib/config'
 import { getStorage } from '@/lib/storage'
@@ -20,7 +19,7 @@ export const metadata: Metadata = {
 const Page = async () => {
   const [storage, session, providers] = await Promise.all([
     getStorage(),
-    getServerSession(getAuthOptions()),
+    auth(),
     getProviders()
   ])
 

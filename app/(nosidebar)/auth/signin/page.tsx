@@ -1,17 +1,17 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { getProviders } from 'next-auth/react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { auth } from '@/auth'
 import { Posts } from '@/lib/components/Posts/Posts'
 import { getConfig } from '@/lib/config'
 import { Timeline } from '@/lib/services/timelines/types'
 import { getStorage } from '@/lib/storage'
 
 import { CredentialForm } from './CredentialForm'
+import { ProviderList } from './ProviderList'
 import { SigninButton } from './SigninButton'
 
 export const dynamic = 'force-dynamic'
@@ -21,11 +21,7 @@ export const metadata: Metadata = {
 
 const Page: FC = async () => {
   const { host } = getConfig()
-  const [storage, providers, session] = await Promise.all([
-    getStorage(),
-    getProviders(),
-    getServerSession(getAuthOptions())
-  ])
+  const [storage, session] = await Promise.all([getStorage(), auth()])
 
   if (!storage) throw new Error('Storage is not available')
   if (session && session.user) {
@@ -40,13 +36,7 @@ const Page: FC = async () => {
     <div className="col-12">
       <div className="mb-4">
         <h1 className="mb-4">Sign-in</h1>
-        {Object.values(providers ?? []).map((provider) => {
-          if (provider.id === 'credentials') {
-            return <CredentialForm key={provider.id} provider={provider} />
-          }
-
-          return <SigninButton key={provider.id} provider={provider} />
-        })}
+        <ProviderList />
         <Link href="/auth/signup">Signup</Link>
       </div>
 

@@ -1,9 +1,8 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { auth } from '@/auth'
 import { Button } from '@/lib/components/Button'
 import { getStorage } from '@/lib/storage'
 
@@ -13,10 +12,7 @@ export const metadata: Metadata = {
 }
 
 const Page: FC = async () => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
+  const [storage, session] = await Promise.all([getStorage(), auth()])
 
   if (!storage) throw new Error('Storage is not available')
   if (session && session.user) {

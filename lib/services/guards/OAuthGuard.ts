@@ -1,10 +1,9 @@
 import jwt from 'jsonwebtoken'
 import intersection from 'lodash/intersection'
-import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 import { generate } from 'peggy'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { auth } from '@/auth'
 import { getConfig } from '@/lib/config'
 import { Actor } from '@/lib/models/actor'
 import { getStorage } from '@/lib/storage'
@@ -34,10 +33,7 @@ export const getTokenFromHeader = (authorizationHeader: string | null) => {
 export const OAuthGuard =
   <P>(scopes: Scope[], handle: AuthenticatedApiHandle<P>) =>
   async (req: NextRequest, params: AppRouterParams<P>) => {
-    const [storage, session] = await Promise.all([
-      getStorage(),
-      getServerSession(getAuthOptions())
-    ])
+    const [storage, session] = await Promise.all([getStorage(), auth()])
 
     if (!storage) {
       return apiErrorResponse(500)

@@ -1,14 +1,13 @@
 import 'bootstrap-icons/font/bootstrap-icons.css'
 import 'bootstrap/dist/css/bootstrap.css'
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { FC, ReactNode } from 'react'
 
+import { auth } from '@/auth'
 import { Header } from '@/lib/components/Header'
 import { getStorage } from '@/lib/storage'
 
 import { Modal } from '../Modal'
-import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
 
 export const viewport = {
   width: 'device-width',
@@ -24,10 +23,7 @@ interface LayoutProps {
 }
 
 const Layout: FC<LayoutProps> = async ({ children }) => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
+  const [storage, session] = await Promise.all([getStorage(), auth()])
 
   if (!storage) {
     throw new Error('Fail to load storage')

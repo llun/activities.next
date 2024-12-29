@@ -1,9 +1,8 @@
 import { formatDistance, formatRelative } from 'date-fns'
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { auth } from '@/auth'
 import { getConfig } from '@/lib/config'
 import { getStorage } from '@/lib/storage'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -18,10 +17,7 @@ export const metadata: Metadata = {
 
 const Page = async () => {
   const { host } = getConfig()
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
+  const [storage, session] = await Promise.all([getStorage(), auth()])
 
   if (!storage) {
     throw new Error('Fail to load storage')

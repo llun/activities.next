@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { auth } from '@/auth'
 import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 
@@ -7,7 +8,7 @@ export const config = {
   matcher: ['/(@.*)']
 }
 
-export async function middleware(request: NextRequest) {
+export const middleware = auth(async (request: NextRequest) => {
   if (request.method === 'GET') {
     const pathname = request.nextUrl.pathname
     const acceptValue = request.headers.get('Accept')
@@ -63,4 +64,4 @@ export async function middleware(request: NextRequest) {
 
     return NextResponse.next()
   }
-}
+})

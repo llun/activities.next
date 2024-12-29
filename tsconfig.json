@@ -2,9 +2,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/app/*": ["app/*"],
-      "@/lib/*": ["lib/*"],
-      "@/pages/*": ["pages/*"]
+      "@/*": ["./*"]
     },
     "target": "ESNext",
     "lib": ["dom", "dom.iterable", "esnext"],
