@@ -1,6 +1,0 @@
-version: '1.0'
-profile:
-  name: qodana.starter
-bootstrap: yarn install
-include:
-  - name: Eslint
