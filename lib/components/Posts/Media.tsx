@@ -1,4 +1,4 @@
-import { FC } from 'react'
+import { FC, MouseEvent } from 'react'
 
 import { AttachmentData } from '../../models/attachment'
 
@@ -7,7 +7,7 @@ interface Props {
   className?: string
   attachment?: AttachmentData
   showVideoControl?: boolean
-  onClick?: () => void
+  onClick?: (event: MouseEvent) => void
 }
 
 export const Media: FC<Props> = ({
@@ -46,7 +46,7 @@ export const Media: FC<Props> = ({
         onClick={(event) => {
           // Don't play the video here
           event.preventDefault()
-          onClick?.()
+          onClick?.(event)
         }}
       >
         <source src={`${url}#t=0.01`} type={mediaType} />
@@ -56,7 +56,15 @@ export const Media: FC<Props> = ({
 
   if (mediaType.startsWith('audio')) {
     return (
-      <audio className={className} controls>
+      <audio
+        className={className}
+        controls
+        onClick={(event) => {
+          // Don't audio the video here
+          event.preventDefault()
+          onClick?.(event)
+        }}
+      >
         <source src={url} type={mediaType} />
       </audio>
     )
