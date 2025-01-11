@@ -14,7 +14,9 @@ exports.up = (knex) => {
     })
     .createTable('actors', function (table) {
       table.string('id').unique()
-      table.string('preferredUsername').unique()
+      table
+        .string('preferredUsername')
+        .unique({ indexName: 'actors_preferredUsername_unique' })
 
       table.string('accountId')
       table.foreign('accountId').references('id').inTable('accounts')
