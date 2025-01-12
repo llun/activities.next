@@ -1628,6 +1628,7 @@ export class SqlStorage implements Storage {
         trx('recipients').where('statusId', statusId).delete(),
         trx('tags').where('statusId', statusId).delete(),
         trx('attachments').where('statusId', statusId).delete(),
+        trx('poll_choices').where('statusId', statusId).delete(),
         trx('timelines').where('statusId', statusId).delete()
       ])
     })
