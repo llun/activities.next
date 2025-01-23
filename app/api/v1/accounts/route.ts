@@ -31,8 +31,10 @@ export const POST = async (request: NextRequest) => {
   }
 
   const { host: domain, allowEmails } = config
-  const body = await request.json()
-  const content = CreateAccountRequest.safeParse(body)
+  const body = await request.formData()
+  const content = CreateAccountRequest.safeParse(
+    body.entries().reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {})
+  )
   if (!content.success) {
     const error = content.error
     const fields = error.flatten((issue) => ({
