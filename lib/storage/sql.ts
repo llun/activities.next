@@ -117,10 +117,10 @@ export interface SQLActor {
   publicKey: string
   privateKey: string
 
-  settings: string
+  settings: string | ActorSettings
 
-  createdAt: number
-  updatedAt: number
+  createdAt: number | Date
+  updatedAt: number | Date
 }
 
 export class SqlStorage implements Storage {
@@ -425,7 +425,10 @@ export class SqlStorage implements Storage {
     lastStatusAt: number,
     account?: Account
   ) {
-    const settings = JSON.parse(sqlActor.settings || '{}') as ActorSettings
+    const settings =
+      typeof sqlActor.settings === 'string'
+        ? (JSON.parse(sqlActor.settings || '{}') as ActorSettings)
+        : sqlActor.settings
     return new Actor({
       id: sqlActor.id,
       username: sqlActor.username,
@@ -452,8 +455,14 @@ export class SqlStorage implements Storage {
       statusCount,
       lastStatusAt,
 
-      createdAt: sqlActor.createdAt,
-      updatedAt: sqlActor.updatedAt
+      createdAt:
+        typeof sqlActor.createdAt === 'number'
+          ? sqlActor.createdAt
+          : sqlActor.createdAt.getTime(),
+      updatedAt:
+        typeof sqlActor.updatedAt === 'number'
+          ? sqlActor.updatedAt
+          : sqlActor.updatedAt.getTime()
     })
   }
 
@@ -488,7 +497,10 @@ export class SqlStorage implements Storage {
         ])
       )
 
-    const settings = JSON.parse(sqlActor.settings || '{}') as ActorSettings
+    const settings =
+      typeof sqlActor.settings === 'string'
+        ? (JSON.parse(sqlActor.settings || '{}') as ActorSettings)
+        : sqlActor.settings
     return Mastodon.Account.parse({
       id: sqlActor.id,
       username: sqlActor.username,
@@ -511,7 +523,11 @@ export class SqlStorage implements Storage {
       discoverable: true,
       noindex: false,
 
-      created_at: getISOTimeUTC(sqlActor.createdAt),
+      created_at: getISOTimeUTC(
+        typeof sqlActor.createdAt === 'number'
+          ? sqlActor.createdAt
+          : sqlActor.createdAt.getTime()
+      ),
       last_status_at: lastStatusCreatedAt
         ? getISOTimeUTC(lastStatusCreatedAt.createdAt)
         : null,
@@ -742,8 +758,13 @@ export class SqlStorage implements Storage {
       .first()
     if (!storageActor) return undefined
 
+    const storageSettings =
+      typeof storageActor.settings === 'string'
+        ? (JSON.parse(storageActor.settings) as ActorSettings)
+        : storageActor.settings
+
     const settings: ActorSettings = {
-      ...JSON.parse(storageActor.settings),
+      ...storageSettings,
       ...(iconUrl ? { iconUrl } : null),
       ...(headerImageUrl ? { headerImageUrl } : null),
       ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null),

@@ -46,8 +46,14 @@ export class PGStorage extends SqlStorage {
       statusCount,
       lastStatusAt,
 
-      createdAt: sqlActor.createdAt,
-      updatedAt: sqlActor.updatedAt
+      createdAt:
+        typeof sqlActor.createdAt === 'number'
+          ? sqlActor.createdAt
+          : sqlActor.createdAt.getTime(),
+      updatedAt:
+        typeof sqlActor.updatedAt === 'number'
+          ? sqlActor.updatedAt
+          : sqlActor.updatedAt.getTime()
     })
   }
 
