@@ -88,7 +88,7 @@ import {
   UpdateClientParams,
   UpdateRefreshTokenParams
 } from './types/oauth'
-import { ActorSettings } from './types/sql'
+import { ActorSettings, SQLAccount, SQLActor } from './types/sql'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -105,23 +105,6 @@ import {
   UpdateNoteParams,
   UpdatePollParams
 } from './types/status'
-
-export interface SQLActor {
-  id: string
-  username: string
-  domain: string
-  name?: string
-  summary?: string
-  accountId: string
-
-  publicKey: string
-  privateKey: string
-
-  settings: string | ActorSettings
-
-  createdAt: number | Date
-  updatedAt: number | Date
-}
 
 export class SqlStorage implements Storage {
   database: Knex
@@ -423,12 +406,35 @@ export class SqlStorage implements Storage {
     followersCount: number,
     statusCount: number,
     lastStatusAt: number,
-    account?: Account
+    sqlAccount?: SQLAccount
   ) {
     const settings =
       typeof sqlActor.settings === 'string'
         ? (JSON.parse(sqlActor.settings || '{}') as ActorSettings)
         : sqlActor.settings
+
+    const account = sqlAccount
+      ? {
+          account: Account.parse({
+            ...sqlAccount,
+            createdAt:
+              typeof sqlAccount.createdAt === 'number'
+                ? sqlAccount.createdAt
+                : sqlAccount.createdAt.getTime(),
+            updatedAt:
+              typeof sqlAccount.updatedAt === 'number'
+                ? sqlAccount.updatedAt
+                : sqlAccount.updatedAt.getTime(),
+            ...{
+              verifiedAt: sqlAccount.verifiedAt
+                ? typeof sqlAccount.verifiedAt === 'number'
+                  ? sqlAccount.verifiedAt
+                  : sqlAccount.verifiedAt.getTime()
+                : null
+            }
+          })
+        }
+      : null
     return new Actor({
       id: sqlActor.id,
       username: sqlActor.username,
@@ -447,7 +453,7 @@ export class SqlStorage implements Storage {
       sharedInboxUrl: settings.sharedInboxUrl,
       publicKey: sqlActor.publicKey,
       ...(sqlActor.privateKey ? { privateKey: sqlActor.privateKey } : null),
-      ...(account ? { account } : null),
+      ...account,
 
       followingCount,
       followersCount,
@@ -472,14 +478,14 @@ export class SqlStorage implements Storage {
       .first()
     if (!sqlActor) return null
 
-    const [lastStatusCreatedAt, totalStatus, totalFollowers, totalFollowing] =
+    const [lastStatus, totalStatus, totalFollowers, totalFollowing] =
       await this.database.transaction(async (trx) =>
         Promise.all([
           trx('statuses')
             .where('actorId', actorId)
             .orderBy('createdAt', 'desc')
             .select('createdAt')
-            .first<{ createdAt: number }>(),
+            .first<{ createdAt: number | Date }>(),
           trx('statuses')
             .where('actorId', actorId)
             .count<{ count: string }>('* as count')
@@ -501,6 +507,7 @@ export class SqlStorage implements Storage {
       typeof sqlActor.settings === 'string'
         ? (JSON.parse(sqlActor.settings || '{}') as ActorSettings)
         : sqlActor.settings
+    const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return Mastodon.Account.parse({
       id: sqlActor.id,
       username: sqlActor.username,
@@ -529,7 +536,11 @@ export class SqlStorage implements Storage {
           : sqlActor.createdAt.getTime()
       ),
       last_status_at: lastStatusCreatedAt
-        ? getISOTimeUTC(lastStatusCreatedAt.createdAt)
+        ? getISOTimeUTC(
+            typeof lastStatusCreatedAt === 'number'
+              ? lastStatusCreatedAt
+              : lastStatusCreatedAt.getTime()
+          )
         : null,
 
       followers_count: parseInt(totalFollowers?.count ?? '0', 10),
@@ -567,16 +578,19 @@ export class SqlStorage implements Storage {
           trx('statuses')
             .where('actorId', storageActor.id)
             .orderBy('createdAt', 'desc')
-            .first<{ createdAt: number }>('createdAt')
+            .first<{ createdAt: number | Date }>('createdAt')
         ])
       })
 
+    const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return this.getActor(
       storageActor,
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
       parseInt(totalStatus?.count ?? '0', 10),
-      lastStatus?.createdAt ?? 0,
+      typeof lastStatusCreatedAt === 'number'
+        ? lastStatusCreatedAt
+        : lastStatusCreatedAt.getTime(),
       account
     )
   }
@@ -632,16 +646,19 @@ export class SqlStorage implements Storage {
           trx('statuses')
             .where('actorId', storageActor.id)
             .orderBy('createdAt', 'desc')
-            .first<{ createdAt: number }>('createdAt')
+            .first<{ createdAt: number | Date }>('createdAt')
         ])
       })
 
+    const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return this.getActor(
       storageActor,
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
       parseInt(totalStatus?.count ?? '0', 10),
-      lastStatus?.createdAt ?? 0,
+      typeof lastStatusCreatedAt === 'number'
+        ? lastStatusCreatedAt
+        : lastStatusCreatedAt.getTime(),
       account
     )
   }
@@ -687,16 +704,21 @@ export class SqlStorage implements Storage {
             trx('statuses')
               .where('actorId', storageActor.id)
               .orderBy('createdAt', 'desc')
-              .first<{ createdAt: number }>('createdAt')
+              .first<{ createdAt: number | Date }>('createdAt')
           ])
         })
 
+      const lastStatusCreatedAt = lastStatus?.createdAt
+        ? lastStatus.createdAt
+        : 0
       return this.getActor(
         storageActor,
         parseInt(totalFollowing?.count ?? '0', 10),
         parseInt(totalFollowers?.count ?? '0', 10),
         parseInt(totalStatus?.count ?? '0', 10),
-        lastStatus?.createdAt ?? 0
+        typeof lastStatusCreatedAt === 'number'
+          ? lastStatusCreatedAt
+          : lastStatusCreatedAt.getTime()
       )
     }
 
@@ -721,16 +743,19 @@ export class SqlStorage implements Storage {
           trx('statuses')
             .where('actorId', storageActor.id)
             .orderBy('createdAt', 'desc')
-            .first<{ createdAt: number }>('createdAt')
+            .first<{ createdAt: number | Date }>('createdAt')
         ])
       })
 
+    const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return this.getActor(
       storageActor,
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
       parseInt(totalStatus?.count ?? '0', 10),
-      lastStatus?.createdAt ?? 0,
+      typeof lastStatusCreatedAt === 'number'
+        ? lastStatusCreatedAt
+        : lastStatusCreatedAt.getTime(),
       account
     )
   }
@@ -944,14 +969,19 @@ export class SqlStorage implements Storage {
             trx('statuses')
               .where('actorId', actor.id)
               .orderBy('createdAt', 'desc')
-              .first<{ createdAt: number }>('createdAt')
+              .first<{ createdAt: number | Date }>('createdAt')
           ])
+          const lastStatusCreatedAt = lastStatus?.createdAt
+            ? lastStatus.createdAt
+            : 0
           return this.getActor(
             actor,
             parseInt(totalFollowing?.count ?? '0', 10),
             parseInt(totalFollowers?.count ?? '0', 10),
             parseInt(totalStatus?.count ?? '0', 10),
-            lastStatus?.createdAt ?? 0,
+            typeof lastStatusCreatedAt === 'number'
+              ? lastStatusCreatedAt
+              : lastStatusCreatedAt.getTime(),
             account
           )
         })
