@@ -106,7 +106,7 @@ import {
   UpdatePollParams
 } from './types/status'
 
-interface SQLActor {
+export interface SQLActor {
   id: string
   username: string
   domain: string
@@ -141,18 +141,18 @@ export class SqlStorage implements Storage {
   async isAccountExists({ email }: IsAccountExistsParams) {
     const result = await this.database('accounts')
       .where('email', email)
-      .count<{ count: number }>('id as count')
+      .count<{ count: string }>('id as count')
       .first()
-    return Boolean(result?.count && result?.count > 0)
+    return parseInt(result?.count ?? '0', 10) > 0
   }
 
   async isUsernameExists({ username, domain }: IsUsernameExistsParams) {
     const response = await this.database('actors')
       .where('username', username)
       .andWhere('domain', domain)
-      .count<{ count: number }>('id as count')
+      .count<{ count: string }>('id as count')
       .first()
-    return Boolean(response?.count && response?.count > 0)
+    return parseInt(response?.count ?? '0', 10) > 0
   }
 
   async createAccount({
@@ -252,7 +252,7 @@ export class SqlStorage implements Storage {
       .first<Account>()
     if (!account) return
 
-    const currentTime = Date.now()
+    const currentTime = new Date()
     await this.database('accounts').where('id', account.id).update({
       verificationCode: '',
       verifiedAt: currentTime,
@@ -266,7 +266,7 @@ export class SqlStorage implements Storage {
     expireAt,
     token
   }: CreateAccountSessionParams): Promise<void> {
-    const currentTime = Date.now()
+    const currentTime = new Date()
 
     await this.database('sessions').insert({
       id: crypto.randomUUID(),
@@ -351,7 +351,7 @@ export class SqlStorage implements Storage {
 
     createdAt
   }: CreateActorParams) {
-    const currentTime = Date.now()
+    const currentTime = new Date()
 
     const settings: ActorSettings = {
       iconUrl,
@@ -369,7 +369,7 @@ export class SqlStorage implements Storage {
       settings: JSON.stringify(settings),
       publicKey,
       privateKey,
-      createdAt,
+      createdAt: new Date(createdAt),
       updatedAt: currentTime
     })
     return this.getActorFromId({ id: actorId })
@@ -393,7 +393,7 @@ export class SqlStorage implements Storage {
 
     createdAt
   }: CreateActorParams): Promise<Mastodon.Account | null> {
-    const currentTime = Date.now()
+    const currentTime = new Date()
 
     const settings: ActorSettings = {
       iconUrl,
@@ -411,13 +411,13 @@ export class SqlStorage implements Storage {
       settings: JSON.stringify(settings),
       publicKey,
       privateKey,
-      createdAt,
+      createdAt: new Date(createdAt),
       updatedAt: currentTime
     })
     return this.getMastodonActor(actorId)
   }
 
-  private getActor(
+  protected getActor(
     sqlActor: SQLActor,
     followingCount: number,
     followersCount: number,
@@ -473,17 +473,17 @@ export class SqlStorage implements Storage {
             .first<{ createdAt: number }>(),
           trx('statuses')
             .where('actorId', actorId)
-            .count<{ count: number }>('* as count')
+            .count<{ count: string }>('* as count')
             .first(),
           trx('follows')
             .where('targetActorId', actorId)
             .andWhere('status', 'Accepted')
-            .count<{ count: number }>('* as count')
+            .count<{ count: string }>('* as count')
             .first(),
           trx('follows')
             .where('actorId', actorId)
             .andWhere('status', 'Accepted')
-            .count<{ count: number }>('* as count')
+            .count<{ count: string }>('* as count')
             .first()
         ])
       )
@@ -516,9 +516,9 @@ export class SqlStorage implements Storage {
         ? getISOTimeUTC(lastStatusCreatedAt.createdAt)
         : null,
 
-      followers_count: totalFollowers?.count ?? 0,
-      following_count: totalFollowing?.count ?? 0,
-      statuses_count: totalStatus?.count ?? 0
+      followers_count: parseInt(totalFollowers?.count ?? '0', 10),
+      following_count: parseInt(totalFollowing?.count ?? '0', 10),
+      statuses_count: parseInt(totalStatus?.count ?? '0', 10)
     })
   }
 
@@ -537,16 +537,16 @@ export class SqlStorage implements Storage {
           trx('follows')
             .where('targetActorId', storageActor.id)
             .andWhere('status', 'Accepted')
-            .count<{ count: number }>('* as count')
+            .count<{ count: string }>('* as count')
             .first(),
           trx('follows')
             .where('actorId', storageActor.id)
             .andWhere('status', 'Accepted')
-            .count<{ count: number }>('* as count')
+            .count<{ count: string }>('* as count')
             .first(),
           trx('statuses')
             .where('actorId', storageActor.id)
-            .count<{ count: number }>('id as count')
+            .count<{ count: string }>('id as count')
             .first(),
           trx('statuses')
             .where('actorId', storageActor.id)
@@ -557,9 +557,9 @@ export class SqlStorage implements Storage {
 
     return this.getActor(
       storageActor,
-      totalFollowing?.count ?? 0,
-      totalFollowers?.count ?? 0,
-      totalStatus?.count ?? 0,
+      parseInt(totalFollowing?.count ?? '0', 10),
+      parseInt(totalFollowers?.count ?? '0', 10),
+      parseInt(totalStatus?.count ?? '0', 10),
       lastStatus?.createdAt ?? 0,
       account
     )
@@ -583,9 +583,9 @@ export class SqlStorage implements Storage {
       .where('actorId', currentActorId)
       .andWhere('targetActorId', followingActorId)
       .andWhere('status', 'Accepted')
-      .count<{ count: number }>('id as count')
+      .count<{ count: string }>('id as count')
       .first()
-    return Boolean(result?.count && result?.count > 0)
+    return parseInt(result?.count ?? '0', 10) > 0
   }
 
   async getActorFromUsername({ username, domain }: GetActorFromUsernameParams) {
@@ -602,16 +602,16 @@ export class SqlStorage implements Storage {
           trx('follows')
             .where('targetActorId', storageActor.id)
             .andWhere('status', 'Accepted')
-            .count<{ count: number }>('* as count')
+            .count<{ count: string }>('* as count')
             .first(),
           trx('follows')
             .where('actorId', storageActor.id)
             .andWhere('status', 'Accepted')
-            .count<{ count: number }>('* as count')
+            .count<{ count: string }>('* as count')
             .first(),
           trx('statuses')
             .where('actorId', storageActor.id)
-            .count<{ count: number }>('id as count')
+            .count<{ count: string }>('id as count')
             .first(),
           trx('statuses')
             .where('actorId', storageActor.id)
@@ -622,9 +622,9 @@ export class SqlStorage implements Storage {
 
     return this.getActor(
       storageActor,
-      totalFollowing?.count ?? 0,
-      totalFollowers?.count ?? 0,
-      totalStatus?.count ?? 0,
+      parseInt(totalFollowing?.count ?? '0', 10),
+      parseInt(totalFollowers?.count ?? '0', 10),
+      parseInt(totalStatus?.count ?? '0', 10),
       lastStatus?.createdAt ?? 0,
       account
     )
@@ -657,16 +657,16 @@ export class SqlStorage implements Storage {
             trx('follows')
               .where('targetActorId', storageActor.id)
               .andWhere('status', 'Accepted')
-              .count<{ count: number }>('* as count')
+              .count<{ count: string }>('* as count')
               .first(),
             trx('follows')
               .where('actorId', storageActor.id)
               .andWhere('status', 'Accepted')
-              .count<{ count: number }>('* as count')
+              .count<{ count: string }>('* as count')
               .first(),
             trx('statuses')
               .where('actorId', storageActor.id)
-              .count<{ count: number }>('id as count')
+              .count<{ count: string }>('id as count')
               .first(),
             trx('statuses')
               .where('actorId', storageActor.id)
@@ -677,9 +677,9 @@ export class SqlStorage implements Storage {
 
       return this.getActor(
         storageActor,
-        totalFollowing?.count ?? 0,
-        totalFollowers?.count ?? 0,
-        totalStatus?.count ?? 0,
+        parseInt(totalFollowing?.count ?? '0', 10),
+        parseInt(totalFollowers?.count ?? '0', 10),
+        parseInt(totalStatus?.count ?? '0', 10),
         lastStatus?.createdAt ?? 0
       )
     }
@@ -691,16 +691,16 @@ export class SqlStorage implements Storage {
           trx('follows')
             .where('targetActorId', storageActor.id)
             .andWhere('status', 'Accepted')
-            .count<{ count: number }>('* as count')
+            .count<{ count: string }>('* as count')
             .first(),
           trx('follows')
             .where('actorId', storageActor.id)
             .andWhere('status', 'Accepted')
-            .count<{ count: number }>('* as count')
+            .count<{ count: string }>('* as count')
             .first(),
           trx('statuses')
             .where('actorId', storageActor.id)
-            .count<{ count: number }>('id as count')
+            .count<{ count: string }>('id as count')
             .first(),
           trx('statuses')
             .where('actorId', storageActor.id)
@@ -711,9 +711,9 @@ export class SqlStorage implements Storage {
 
     return this.getActor(
       storageActor,
-      totalFollowing?.count ?? 0,
-      totalFollowers?.count ?? 0,
-      totalStatus?.count ?? 0,
+      parseInt(totalFollowing?.count ?? '0', 10),
+      parseInt(totalFollowers?.count ?? '0', 10),
+      parseInt(totalStatus?.count ?? '0', 10),
       lastStatus?.createdAt ?? 0,
       account
     )
@@ -775,18 +775,18 @@ export class SqlStorage implements Storage {
     const result = await this.database('follows')
       .where('actorId', actorId)
       .andWhere('status', 'Accepted')
-      .count<{ count: number }>('* as count')
+      .count<{ count: string }>('* as count')
       .first()
-    return result?.count ?? 0
+    return parseInt(result?.count ?? '0', 10)
   }
 
   async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
     const result = await this.database('follows')
       .where('targetActorId', actorId)
       .andWhere('status', 'Accepted')
-      .count<{ count: number }>('* as count')
+      .count<{ count: string }>('* as count')
       .first()
-    return result?.count ?? 0
+    return parseInt(result?.count ?? '0', 10)
   }
 
   async isInternalActor({ actorId }: IsInternalActorParams) {
@@ -909,16 +909,16 @@ export class SqlStorage implements Storage {
             trx('follows')
               .where('targetActorId', actor.id)
               .andWhere('status', 'Accepted')
-              .count<{ count: number }>('* as count')
+              .count<{ count: string }>('* as count')
               .first(),
             trx('follows')
               .where('actorId', actor.id)
               .andWhere('status', 'Accepted')
-              .count<{ count: number }>('* as count')
+              .count<{ count: string }>('* as count')
               .first(),
             trx('statuses')
               .where('actorId', actor.id)
-              .count<{ count: number }>('id as count')
+              .count<{ count: string }>('id as count')
               .first(),
             trx('statuses')
               .where('actorId', actor.id)
@@ -927,9 +927,9 @@ export class SqlStorage implements Storage {
           ])
           return this.getActor(
             actor,
-            totalFollowing?.count ?? 0,
-            totalFollowers?.count ?? 0,
-            totalStatus?.count ?? 0,
+            parseInt(totalFollowing?.count ?? '0', 10),
+            parseInt(totalFollowers?.count ?? '0', 10),
+            parseInt(totalStatus?.count ?? '0', 10),
             lastStatus?.createdAt ?? 0,
             account
           )
@@ -1376,7 +1376,7 @@ export class SqlStorage implements Storage {
       this.getActorFromId({ id: data.actorId }),
       this.database('likes')
         .where('statusId', data.id)
-        .count<{ count: number }>('* as count')
+        .count<{ count: string }>('* as count')
         .first(),
       this.isActorLikedStatus(data.id, currentActorId),
       this.hasActorAnnouncedStatus({
@@ -1415,7 +1415,7 @@ export class SqlStorage implements Storage {
       summary: content.summary,
       reply: data.reply,
       replies: repliesNote,
-      totalLikes: totalLikes?.count ?? 0,
+      totalLikes: parseInt(totalLikes?.count ?? '0', 10),
       isActorLiked: isActorLikedStatus,
       isActorAnnounced: isActorAnnouncedStatus,
       isLocalActor: Boolean(actor?.account),
@@ -1480,10 +1480,10 @@ export class SqlStorage implements Storage {
       .where('type', StatusType.enum.Announce)
       .where('content', statusId)
       .where('actorId', actorId)
-      .count<{ count: number }>('* as count')
+      .count<{ count: string }>('* as count')
       .first()
     if (!result) return false
-    return result.count !== 0
+    return parseInt(result.count, 10) !== 0
   }
 
   async getTimeline({
@@ -1573,7 +1573,7 @@ export class SqlStorage implements Storage {
         .where('actorId', actorId)
         .andWhere('statusId', status.id)
         .andWhere('timeline', timeline)
-        .count<{ count: number }>('* as count')
+        .count<{ count: string }>('* as count')
         .first()
       if (exists && exists.count) return
 
@@ -1591,9 +1591,9 @@ export class SqlStorage implements Storage {
   async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
     const result = await this.database('statuses')
       .where('actorId', actorId)
-      .count<{ count: number }>('* as count')
+      .count<{ count: string }>('* as count')
       .first()
-    return result?.count || 0
+    return parseInt(result?.count ?? '0', 10)
   }
 
   async getActorStatuses({ actorId }: GetActorStatusesParams) {
@@ -1714,9 +1714,9 @@ export class SqlStorage implements Storage {
 
     const result = await this.database('likes')
       .where({ actorId, statusId })
-      .count<{ count: number }>('* as count')
+      .count<{ count: string }>('* as count')
       .first()
-    if (result?.count === 1) {
+    if (parseInt(result?.count ?? '0', 10) === 1) {
       return
     }
 
@@ -1733,9 +1733,9 @@ export class SqlStorage implements Storage {
   async getLikeCount({ statusId }: GetLikeCountParams) {
     const result = await this.database('likes')
       .where('statusId', statusId)
-      .count<{ count: number }>('* as count')
+      .count<{ count: string }>('* as count')
       .first()
-    return result?.count ?? 0
+    return parseInt(result?.count ?? '0', 10)
   }
 
   private async isActorLikedStatus(statusId: string, actorId?: string) {
@@ -1744,10 +1744,9 @@ export class SqlStorage implements Storage {
     const result = await this.database('likes')
       .where('statusId', statusId)
       .where('actorId', actorId)
-      .count<{ count: number }>('* as count')
+      .count<{ count: string }>('* as count')
       .first()
-    if (!result) return false
-    return result.count !== 0
+    return parseInt(result?.count ?? '0', 10) !== 0
   }
 
   async createMedia({
@@ -1791,9 +1790,9 @@ export class SqlStorage implements Storage {
       CreateClientParams.parse(params)
     const clientNameCountResult = await this.database('clients')
       .where('name', name)
-      .count<{ count: number }>('id as count')
+      .count<{ count: string }>('id as count')
       .first()
-    if (clientNameCountResult?.count && clientNameCountResult?.count > 0) {
+    if (parseInt(clientNameCountResult?.count ?? '0', 10) > 0) {
       throw new Error(`Client ${name} is already exists`)
     }
 
@@ -1944,9 +1943,9 @@ export class SqlStorage implements Storage {
     const currentTime = Date.now()
     const tokenCountResult = await this.database('tokens')
       .where('accessToken', accessToken)
-      .count<{ count: number }>('accessToken as count')
+      .count<{ count: string }>('accessToken as count')
       .first()
-    if (tokenCountResult?.count && tokenCountResult?.count > 0) return null
+    if (parseInt(tokenCountResult?.count ?? '0', 10) > 0) return null
 
     const actor = await this.getActorFromId({ id: actorId })
     if (!actor?.account || actor.account.id !== accountId) return null
@@ -1973,15 +1972,15 @@ export class SqlStorage implements Storage {
     const [tokenCount, refreshTokenCount] = await Promise.all([
       this.database('tokens')
         .where('accessToken', accessToken)
-        .count<{ count: number }>('* as count')
+        .count<{ count: string }>('* as count')
         .first(),
       this.database('tokens')
         .where('refreshToken', refreshToken)
-        .count<{ count: number }>('* as count')
+        .count<{ count: string }>('* as count')
         .first()
     ])
     if (!tokenCount?.count) return null
-    if (refreshTokenCount !== undefined && refreshTokenCount?.count > 0) {
+    if (parseInt(refreshTokenCount?.count ?? '0', 10) > 0) {
       return null
     }
     await this.database('tokens').where('accessToken', accessToken).update({
@@ -2017,9 +2016,11 @@ export class SqlStorage implements Storage {
     const currentTime = Date.now()
     const codeCountResult = await this.database('auth_codes')
       .where('code', code)
-      .count<{ count: number }>('* as count')
+      .count<{ count: string }>('* as count')
       .first()
-    if (codeCountResult?.count && codeCountResult?.count > 0) return null
+    if (parseInt(codeCountResult?.count ?? '0', 10) > 0) {
+      return null
+    }
 
     const actor = await this.getActorFromId({ id: actorId })
     if (!actor?.account || actor.account.id !== accountId) return null

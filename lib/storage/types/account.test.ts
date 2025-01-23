@@ -5,19 +5,17 @@ import {
   TEST_USERNAME2
 } from '@/lib/stub/const'
 
-import { TestStorageTable, getTestStorageTable } from '../utils'
+import {
+  TestStorageTable,
+  getTestStorageTable,
+  storageBeforeAll
+} from '../utils'
 
 describe('AccountStorage', () => {
   const table: TestStorageTable = getTestStorageTable()
 
   beforeAll(async () => {
-    await Promise.all(
-      table.map(async (item) => {
-        const [, storage, prepare] = item
-        await prepare()
-        await storage.migrate()
-      })
-    )
+    await storageBeforeAll(table)
   })
 
   afterAll(async () => {

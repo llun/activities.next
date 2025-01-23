@@ -90,3 +90,13 @@ export const getTestStorageTable = (): TestStorageTable => {
     }
   }
 }
+
+export const storageBeforeAll = async (table: TestStorageTable) => {
+  await Promise.all(
+    table.map(async (item) => {
+      const [, storage, prepare] = item
+      await prepare()
+      await storage.migrate()
+    })
+  )
+}

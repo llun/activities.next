@@ -1,13 +1,54 @@
 import { Mastodon } from '@llun/activities.schema'
-import pg from 'pg'
 
+import { Account } from '../models/account'
+import { Actor } from '../models/actor'
 import { getISOTimeUTC } from '../utils/getISOTimeUTC'
-import { SqlStorage } from './sql'
+import { SQLActor, SqlStorage } from './sql'
 import { ActorSettings } from './types/sql'
 
 export class PGStorage extends SqlStorage {
   async destroy() {
     await this.database.destroy()
+  }
+
+  protected getActor(
+    sqlActor: SQLActor,
+    followingCount: number,
+    followersCount: number,
+    statusCount: number,
+    lastStatusAt: number,
+    account?: Account
+  ) {
+    const settings = sqlActor.settings as unknown as ActorSettings
+    return new Actor({
+      id: sqlActor.id,
+      username: sqlActor.username,
+      domain: sqlActor.domain,
+      ...(sqlActor.name ? { name: sqlActor.name } : null),
+      ...(sqlActor.summary ? { summary: sqlActor.summary } : null),
+      ...(settings.iconUrl ? { iconUrl: settings.iconUrl } : null),
+      ...(settings.headerImageUrl
+        ? { headerImageUrl: settings.headerImageUrl }
+        : null),
+      ...(settings.appleSharedAlbumToken
+        ? { appleSharedAlbumToken: settings.appleSharedAlbumToken }
+        : null),
+      followersUrl: settings.followersUrl,
+      inboxUrl: settings.inboxUrl,
+      sharedInboxUrl: settings.sharedInboxUrl,
+      publicKey: sqlActor.publicKey,
+      ...(sqlActor.privateKey ? { privateKey: sqlActor.privateKey } : null),
+      ...(account ? { account } : null),
+
+      followingCount,
+      followersCount,
+
+      statusCount,
+      lastStatusAt,
+
+      createdAt: sqlActor.createdAt,
+      updatedAt: sqlActor.updatedAt
+    })
   }
 
   protected async getMastodonActor(actorId: string) {
