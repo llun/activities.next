@@ -16,6 +16,7 @@ import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '../stub/const'
 import { getISOTimeUTC } from '../utils/getISOTimeUTC'
 import { waitFor } from '../utils/waitFor'
 import { FirestoreStorage } from './firestore'
+import { PGStorage } from './pg'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
 import { Scope } from './types/oauth'
@@ -80,31 +81,49 @@ const TEST_USERNAME16 = 'random16'
 
 type TestStorage = [string, Storage]
 
+const STORAGES = {
+  sqlite: () =>
+    new SqlStorage({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    }),
+  firestore: () =>
+    new FirestoreStorage({
+      type: 'firebase',
+      projectId: 'test',
+      host: 'localhost:8080',
+      ssl: false
+    }),
+  pg: () =>
+    new PGStorage({
+      client: 'pg',
+      connection: {
+        application_name: 'Activities.next',
+        host: 'localhost',
+        port: 5432,
+        user: 'admin',
+        password: 'password',
+        database: 'test'
+      }
+    })
+}
+
 describe('Storage', () => {
-  const testTable: TestStorage[] = [
-    [
-      'sqlite',
-      new SqlStorage({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-    ],
-    // Enable this when run start:firestore emulator and clear the database manually
-    [
-      'firestore',
-      new FirestoreStorage({
-        type: 'firebase',
-        projectId: 'test',
-        host: 'localhost:8080',
-        ssl: false
-      })
-    ]
-  ]
+  const testTable: TestStorage[] =
+    process.env.TEST_DATABASE_TYPE === 'pg'
+      ? [['pg', STORAGES.pg()]]
+      : [
+          ['sqlite', STORAGES.sqlite()],
+          // Enable this when run start:firestore emulator and clear the database manually
+          ['firestore', STORAGES.firestore()]
+        ]
+  console.log(testTable)
 
   beforeAll(async () => {
+    console.log('Migrating database')
     await Promise.all(testTable.map((item) => item[1].migrate()))
   })
 
@@ -153,7 +172,7 @@ describe('Storage', () => {
       ])
     })
 
-    describe('accounts', () => {
+    describe.only('accounts', () => {
       it('returns false when account is not created yet', async () => {
         expect(
           await storage.isAccountExists({ email: TEST_EMAIL2 })
@@ -166,7 +185,7 @@ describe('Storage', () => {
         ).toBeFalse()
       })
 
-      it('creates account and actor', async () => {
+      it.only('creates account and actor', async () => {
         await storage.createAccount({
           email: TEST_EMAIL2,
           username: TEST_USERNAME2,

@@ -5,48 +5,26 @@ import {
   TEST_USERNAME2
 } from '@/lib/stub/const'
 
-import { FirestoreStorage } from '../firestore'
-import { SqlStorage } from '../sql'
-import { AccountStorage } from './acount'
-import { ActorStorage } from './actor'
-import { BaseStorage } from './base'
-
-type AccountAndActorStorage = AccountStorage & ActorStorage & BaseStorage
-type TestStorage = [string, AccountAndActorStorage]
+import { TestStorageTable, getTestStorageTable } from '../utils'
 
 describe('AccountStorage', () => {
-  const testStorages: TestStorage[] = [
-    [
-      'sqlite',
-      new SqlStorage({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-    ],
-    // Enable this when run start:firestore emulator and clear the database manually
-    [
-      'firestore',
-      new FirestoreStorage({
-        type: 'firebase',
-        projectId: 'test',
-        host: 'localhost:8080',
-        ssl: false
-      })
-    ]
-  ]
+  const table: TestStorageTable = getTestStorageTable()
 
   beforeAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].migrate()))
+    await Promise.all(
+      table.map(async (item) => {
+        const [, storage, prepare] = item
+        await prepare()
+        await storage.migrate()
+      })
+    )
   })
 
   afterAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].destroy()))
+    await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(testStorages)('%s', (name, storage) => {
+  describe.each(table)('%s', (_, storage) => {
     it('returns false when account is not created yet', async () => {
       expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeFalse()
       expect(

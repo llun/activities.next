@@ -88,6 +88,7 @@ import {
   UpdateClientParams,
   UpdateRefreshTokenParams
 } from './types/oauth'
+import { ActorSettings } from './types/sql'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -104,15 +105,6 @@ import {
   UpdateNoteParams,
   UpdatePollParams
 } from './types/status'
-
-interface ActorSettings {
-  iconUrl?: string
-  headerImageUrl?: string
-  appleSharedAlbumToken?: string
-  followersUrl: string
-  inboxUrl: string
-  sharedInboxUrl: string
-}
 
 interface SQLActor {
   id: string
@@ -174,7 +166,7 @@ export class SqlStorage implements Storage {
   }: CreateAccountParams) {
     const accountId = crypto.randomUUID()
     const actorId = `https://${domain}/users/${username}`
-    const currentTime = Date.now()
+    const currentTime = new Date()
 
     const actorSettings: ActorSettings = {
       followersUrl: `${actorId}/followers`,
@@ -241,7 +233,7 @@ export class SqlStorage implements Storage {
     if (existingLinkAccount) return
     if (!account) return
 
-    const currentTime = Date.now()
+    const currentTime = new Date()
     await this.database('account_providers').insert({
       id: crypto.randomUUID(),
       provider,
@@ -465,7 +457,7 @@ export class SqlStorage implements Storage {
     })
   }
 
-  private async getMastodonActor(actorId: string) {
+  protected async getMastodonActor(actorId: string) {
     const sqlActor = await this.database<SQLActor>('actors')
       .where('id', actorId)
       .first()
