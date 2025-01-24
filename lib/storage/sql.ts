@@ -1688,6 +1688,7 @@ export class SqlStorage implements Storage {
     return actors.filter((actor): actor is Actor => Boolean(actor))
   }
 
+  // Media
   async createAttachment({
     actorId,
     statusId,
@@ -1804,6 +1805,7 @@ export class SqlStorage implements Storage {
     return parseInt(result?.count ?? '0', 10) !== 0
   }
 
+  // Media
   async createMedia({
     actorId,
     original,

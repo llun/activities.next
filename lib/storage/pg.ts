@@ -11,12 +11,19 @@ import { AccountStorage } from '@/lib/storage/types/acount'
 import { ActorStorage } from '@/lib/storage/types/actor'
 import { FollowerStorage } from '@/lib/storage/types/follower'
 import { LikeStorage } from '@/lib/storage/types/like'
+import { MediaStorage } from '@/lib/storage/types/media'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/storage/types/sql'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
+import { MediaSQLStorageMixin } from './sql/media'
+
 export const getPGStorage = (
   config: Knex.Config
-): AccountStorage & ActorStorage & FollowerStorage & LikeStorage => {
+): AccountStorage &
+  ActorStorage &
+  FollowerStorage &
+  LikeStorage &
+  MediaStorage => {
   const database = knex(config)
 
   const getActor = (
@@ -180,11 +187,13 @@ export const getPGStorage = (
     getActor
   )
   const likeStorage = LikeSQLStorageMixin(database)
+  const mediaStorage = MediaSQLStorageMixin(database)
 
   return {
     ...accountStorage,
     ...actorStorage,
     ...followerStorage,
-    ...likeStorage
+    ...likeStorage,
+    ...mediaStorage
   }
 }
