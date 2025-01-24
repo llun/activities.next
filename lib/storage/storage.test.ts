@@ -19,6 +19,11 @@ import { FirestoreStorage } from './firestore'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
 import { Scope } from './types/oauth'
+import {
+  TestStorageTable,
+  getTestStorageTable,
+  storageBeforeAll
+} from './utils'
 
 const TEST_SHARED_INBOX = `https://${TEST_DOMAIN}/inbox`
 const TEST_PASSWORD_HASH = 'password_hash'
@@ -78,59 +83,18 @@ const TEST_ID15 = `https://${TEST_DOMAIN}/users/user15`
 const TEST_ID16 = `https://${TEST_DOMAIN}/users/user16`
 const TEST_USERNAME16 = 'random16'
 
-type TestStorage = [string, Storage]
-
-const STORAGES = {
-  sqlite: () =>
-    new SqlStorage({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    }),
-  firestore: () =>
-    new FirestoreStorage({
-      type: 'firebase',
-      projectId: 'test',
-      host: 'localhost:8080',
-      ssl: false
-    }),
-  pg: () =>
-    new PGStorage({
-      client: 'pg',
-      connection: {
-        application_name: 'Activities.next',
-        host: 'localhost',
-        port: 5432,
-        user: 'admin',
-        password: 'password',
-        database: 'test'
-      }
-    })
-}
-
 describe('Storage', () => {
-  const testTable: TestStorage[] =
-    process.env.TEST_DATABASE_TYPE === 'pg'
-      ? [['pg', STORAGES.pg()]]
-      : [
-          ['sqlite', STORAGES.sqlite()],
-          // Enable this when run start:firestore emulator and clear the database manually
-          ['firestore', STORAGES.firestore()]
-        ]
-  console.log(testTable)
+  const table: TestStorageTable = getTestStorageTable()
 
   beforeAll(async () => {
-    console.log('Migrating database')
-    await Promise.all(testTable.map((item) => item[1].migrate()))
+    await storageBeforeAll(table)
   })
 
   afterAll(async () => {
-    await Promise.all(testTable.map((item) => item[1].destroy()))
+    await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(testTable)(`%s`, (name, storage) => {
+  describe.each(table)(`%s`, (_, storage) => {
     beforeAll(async () => {
       await storage.createAccount({
         email: TEST_EMAIL,
