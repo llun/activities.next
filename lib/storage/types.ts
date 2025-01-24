@@ -1,14 +1,14 @@
 import { Status } from '@/lib/models/status'
 import { Timeline } from '@/lib/services/timelines/types'
-
-import { AccountStorage } from './types/acount'
-import { ActorStorage } from './types/actor'
-import { BaseStorage } from './types/base'
-import { FollowerStorage } from './types/follower'
-import { LikeStorage } from './types/like'
-import { MediaStorage } from './types/media'
-import { OAuthStorage } from './types/oauth'
-import { StatusStorage } from './types/status'
+import { AccountStorage } from '@/lib/storage/types/acount'
+import { ActorStorage } from '@/lib/storage/types/actor'
+import { BaseStorage } from '@/lib/storage/types/base'
+import { FollowerStorage } from '@/lib/storage/types/follower'
+import { LikeStorage } from '@/lib/storage/types/like'
+import { MediaStorage } from '@/lib/storage/types/media'
+import { OAuthStorage } from '@/lib/storage/types/oauth'
+import { StatusStorage } from '@/lib/storage/types/status'
+import { TimelineStorage } from '@/lib/storage/types/timeline'
 
 export type GetTimelineParams = {
   timeline: Timeline
@@ -21,15 +21,12 @@ export type CreateTimelineStatusParams = {
   status: Status
 }
 
-export interface Storage
-  extends AccountStorage,
-    ActorStorage,
-    FollowerStorage,
-    LikeStorage,
-    MediaStorage,
-    StatusStorage,
-    OAuthStorage,
-    BaseStorage {
-  getTimeline(params: GetTimelineParams): Promise<Status[]>
-  createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
-}
+export type Storage = AccountStorage &
+  ActorStorage &
+  FollowerStorage &
+  LikeStorage &
+  MediaStorage &
+  OAuthStorage &
+  StatusStorage &
+  TimelineStorage &
+  BaseStorage
