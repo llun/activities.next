@@ -26,7 +26,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
 import { PER_PAGE_LIMIT } from '.'
 import { getISOTimeUTC } from '../utils/getISOTimeUTC'
-import { CreateTimelineStatusParams, GetTimelineParams, Storage } from './types'
+import { Storage } from './types'
 import {
   CreateAccountParams,
   CreateAccountSessionParams,
@@ -105,6 +105,7 @@ import {
   UpdateNoteParams,
   UpdatePollParams
 } from './types/status'
+import { CreateTimelineStatusParams, GetTimelineParams } from './types/timeline'
 
 export class SqlStorage implements Storage {
   database: Knex
@@ -1389,7 +1390,7 @@ export class SqlStorage implements Storage {
       const originalStatusId = data.content
       const [actor, originalStatus] = await Promise.all([
         this.getActorFromId({ id: data.actorId }),
-        this.getStatusWithCurrentActorId(originalStatusId, currentActorId)
+        this.getStatus({ statusId: originalStatusId, currentActorId })
       ])
 
       const announceData: StatusAnnounce = {
@@ -1497,11 +1498,7 @@ export class SqlStorage implements Storage {
     })
   }
 
-  private async getStatusWithCurrentActorId(
-    statusId: string,
-    currentActorId?: string,
-    withReplies?: boolean
-  ) {
+  async getStatus({ statusId, withReplies, currentActorId }: GetStatusParams) {
     const status = await this.database('statuses').where('id', statusId).first()
     if (!status) return
 
@@ -1510,10 +1507,6 @@ export class SqlStorage implements Storage {
       currentActorId,
       withReplies
     )
-  }
-
-  async getStatus({ statusId, withReplies }: GetStatusParams) {
-    return this.getStatusWithCurrentActorId(statusId, undefined, withReplies)
   }
 
   async getStatusReplies({ statusId }: GetStatusRepliesParams) {
@@ -1691,7 +1684,7 @@ export class SqlStorage implements Storage {
           statusesId
             .map((item) => item.statusId)
             .map((statusId) =>
-              this.getStatusWithCurrentActorId(statusId, actorId)
+              this.getStatus({ statusId, currentActorId: actorId })
             )
         )
 

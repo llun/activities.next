@@ -376,8 +376,15 @@ export const StatusSQLStorageMixin = (
     return getStatus({ statusId })
   }
 
-  async function getStatus({ statusId, withReplies }: GetStatusParams) {
-    return getStatusWithCurrentActorId(statusId, undefined, withReplies)
+  async function getStatus({
+    statusId,
+    withReplies,
+    currentActorId
+  }: GetStatusParams) {
+    const status = await database('statuses').where('id', statusId).first()
+    if (!status) return
+
+    return getStatusWithAttachmentsFromData(status, currentActorId, withReplies)
   }
 
   async function getStatusReplies({ statusId }: GetStatusRepliesParams) {
@@ -513,7 +520,7 @@ export const StatusSQLStorageMixin = (
       const originalStatusId = data.content
       const [actor, originalStatus] = await Promise.all([
         actorStorage.getActorFromId({ id: data.actorId }),
-        getStatusWithCurrentActorId(originalStatusId, currentActorId)
+        getStatus({ statusId: originalStatusId, currentActorId })
       ])
 
       const announceData: StatusAnnounce = {
@@ -617,17 +624,6 @@ export const StatusSQLStorageMixin = (
           }
         : null)
     })
-  }
-
-  async function getStatusWithCurrentActorId(
-    statusId: string,
-    currentActorId?: string,
-    withReplies?: boolean
-  ) {
-    const status = await database('statuses').where('id', statusId).first()
-    if (!status) return
-
-    return getStatusWithAttachmentsFromData(status, currentActorId, withReplies)
   }
 
   return {

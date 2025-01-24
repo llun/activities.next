@@ -42,7 +42,10 @@ export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> &
     choices: { title: string; totalVotes: number }[]
   }
 
-export type GetStatusParams = BaseStatusParams & { withReplies?: boolean }
+export type GetStatusParams = BaseStatusParams & {
+  currentActorId?: string
+  withReplies?: boolean
+}
 export type GetStatusRepliesParams = BaseStatusParams
 export type GetActorStatusesCountParams = { actorId: string }
 export type GetActorStatusesParams = { actorId: string }

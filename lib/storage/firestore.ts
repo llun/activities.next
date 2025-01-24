@@ -27,7 +27,7 @@ import { PER_PAGE_LIMIT } from '.'
 import { Tag, TagData } from '../models/tag'
 import { getISOTimeUTC } from '../utils/getISOTimeUTC'
 import { logger } from '../utils/logger'
-import { CreateTimelineStatusParams, GetTimelineParams, Storage } from './types'
+import { Storage } from './types'
 import {
   CreateAccountParams,
   CreateAccountSessionParams,
@@ -106,6 +106,7 @@ import {
   UpdateNoteParams,
   UpdatePollParams
 } from './types/status'
+import { CreateTimelineStatusParams, GetTimelineParams } from './types/timeline'
 
 export interface FirestoreConfig extends Settings {
   type: 'firebase' | 'firestore'
@@ -1375,21 +1376,17 @@ export class FirestoreStorage implements Storage {
   }
 
   @Trace('db')
-  private async getStatusWithCurrentActor(
-    statusId: string,
-    withReplies: boolean,
-    currentActorId?: string
-  ) {
+  async getStatus({
+    statusId,
+    withReplies = false,
+    currentActorId
+  }: GetStatusParams) {
     const snapshot = await this.db
       .doc(`statuses/${FirestoreStorage.urlToId(statusId)}`)
       .get()
     const data = snapshot.data()
     if (!data) return
     return this.getStatusFromData(data, withReplies, currentActorId)
-  }
-
-  async getStatus({ statusId, withReplies = false }: GetStatusParams) {
-    return this.getStatusWithCurrentActor(statusId, withReplies)
   }
 
   async getStatusReplies({ statusId }: GetStatusRepliesParams) {
