@@ -121,6 +121,7 @@ export class SqlStorage implements Storage {
     await this.database.destroy()
   }
 
+  // Account
   async isAccountExists({ email }: IsAccountExistsParams) {
     const result = await this.database('accounts')
       .where('email', email)
@@ -316,6 +317,7 @@ export class SqlStorage implements Storage {
     await this.database('sessions').where('token', token).delete()
   }
 
+  // Actor
   async createActor({
     actorId,
 
@@ -843,6 +845,7 @@ export class SqlStorage implements Storage {
     return Boolean(storageActor.accountId)
   }
 
+  // Follower
   async createFollow({
     actorId,
     targetActorId,
