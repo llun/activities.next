@@ -1842,6 +1842,7 @@ export class SqlStorage implements Storage {
     }
   }
 
+  // OAuth
   async createClient(params: CreateClientParams) {
     const { name, redirectUris, secret, scopes, ...rest } =
       CreateClientParams.parse(params)
