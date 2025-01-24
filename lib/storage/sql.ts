@@ -1762,6 +1762,7 @@ export class SqlStorage implements Storage {
     return data.map((item) => new Tag(item))
   }
 
+  // like
   async createLike({ actorId, statusId }: CreateLikeParams) {
     const status = await this.database('statuses').where('id', statusId).first()
     if (!status) return

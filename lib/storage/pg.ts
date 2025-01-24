@@ -1,20 +1,22 @@
 import { Mastodon } from '@llun/activities.schema'
 import knex, { Knex } from 'knex'
 
-import { Account } from '../models/account'
-import { Actor } from '../models/actor'
-import { getISOTimeUTC } from '../utils/getISOTimeUTC'
-import { AccountSQLStorageMixin } from './sql/account'
-import { ActorSQLStorageMixin } from './sql/actor'
-import { FollowerSQLStorageMixin } from './sql/follower'
-import { AccountStorage } from './types/acount'
-import { ActorStorage } from './types/actor'
-import { FollowerStorage } from './types/follower'
-import { ActorSettings, SQLAccount, SQLActor } from './types/sql'
+import { Account } from '@/lib/models/account'
+import { Actor } from '@/lib/models/actor'
+import { AccountSQLStorageMixin } from '@/lib/storage/sql/account'
+import { ActorSQLStorageMixin } from '@/lib/storage/sql/actor'
+import { FollowerSQLStorageMixin } from '@/lib/storage/sql/follower'
+import { LikeSQLStorageMixin } from '@/lib/storage/sql/like'
+import { AccountStorage } from '@/lib/storage/types/acount'
+import { ActorStorage } from '@/lib/storage/types/actor'
+import { FollowerStorage } from '@/lib/storage/types/follower'
+import { LikeStorage } from '@/lib/storage/types/like'
+import { ActorSettings, SQLAccount, SQLActor } from '@/lib/storage/types/sql'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const getPGStorage = (
   config: Knex.Config
-): AccountStorage & ActorStorage & FollowerStorage => {
+): AccountStorage & ActorStorage & FollowerStorage & LikeStorage => {
   const database = knex(config)
 
   const getActor = (
@@ -177,10 +179,12 @@ export const getPGStorage = (
     actorStorage,
     getActor
   )
+  const likeStorage = LikeSQLStorageMixin(database)
 
   return {
     ...accountStorage,
     ...actorStorage,
-    ...followerStorage
+    ...followerStorage,
+    ...likeStorage
   }
 }
