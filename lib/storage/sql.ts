@@ -1027,6 +1027,7 @@ export class SqlStorage implements Storage {
     })
   }
 
+  // Status
   async createNote({
     id,
     url,
@@ -1540,6 +1541,93 @@ export class SqlStorage implements Storage {
     return parseInt(result.count, 10) !== 0
   }
 
+  async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
+    const result = await this.database('statuses')
+      .where('actorId', actorId)
+      .count<{ count: string }>('* as count')
+      .first()
+    return parseInt(result?.count ?? '0', 10)
+  }
+
+  async getActorStatuses({ actorId }: GetActorStatusesParams) {
+    const statuses = await this.database('statuses')
+      .where('actorId', actorId)
+      .orderBy('createdAt', 'desc')
+      .limit(PER_PAGE_LIMIT)
+    return Promise.all(
+      statuses.map((item) => this.getStatusWithAttachmentsFromData(item))
+    )
+  }
+
+  async deleteStatus({ statusId }: DeleteStatusParams) {
+    const replies = await this.database('statuses')
+      .where('reply', statusId)
+      .select('id')
+    await Promise.all(
+      replies.map(({ id }) => this.deleteStatus({ statusId: id }))
+    )
+
+    await this.database.transaction(async (trx) => {
+      await Promise.all([
+        trx('statuses').where('id', statusId).delete(),
+        trx('recipients').where('statusId', statusId).delete(),
+        trx('tags').where('statusId', statusId).delete(),
+        trx('attachments').where('statusId', statusId).delete(),
+        trx('poll_choices').where('statusId', statusId).delete(),
+        trx('timelines').where('statusId', statusId).delete()
+      ])
+    })
+  }
+
+  async getFavouritedBy({ statusId }: GetFavouritedByParams): Promise<Actor[]> {
+    const result = await this.database('likes').where({ statusId })
+    const actors = await Promise.all(
+      result.map((item) => this.getActorFromId({ id: item.actorId }))
+    )
+    return actors.filter((actor): actor is Actor => Boolean(actor))
+  }
+
+  async createTag({
+    statusId,
+    name,
+    value,
+    type
+  }: CreateTagParams): Promise<Tag> {
+    const currentTime = Date.now()
+
+    const data: TagData = {
+      id: crypto.randomUUID(),
+      statusId,
+      type,
+      name,
+      value: value || '',
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
+    await this.database('tags').insert(data)
+    return new Tag(data)
+  }
+
+  async getTags({ statusId }: GetTagsParams) {
+    const data = await this.database<TagData>('tags').where(
+      'statusId',
+      statusId
+    )
+    return data.map((item) => new Tag(item))
+  }
+
+  private async isActorLikedStatus(statusId: string, actorId?: string) {
+    if (!actorId) return false
+
+    const result = await this.database('likes')
+      .where('statusId', statusId)
+      .where('actorId', actorId)
+      .count<{ count: string }>('* as count')
+      .first()
+    return parseInt(result?.count ?? '0', 10) !== 0
+  }
+
+  // Timeline
   async getTimeline({
     timeline,
     actorId,
@@ -1642,52 +1730,6 @@ export class SqlStorage implements Storage {
     })
   }
 
-  async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
-    const result = await this.database('statuses')
-      .where('actorId', actorId)
-      .count<{ count: string }>('* as count')
-      .first()
-    return parseInt(result?.count ?? '0', 10)
-  }
-
-  async getActorStatuses({ actorId }: GetActorStatusesParams) {
-    const statuses = await this.database('statuses')
-      .where('actorId', actorId)
-      .orderBy('createdAt', 'desc')
-      .limit(PER_PAGE_LIMIT)
-    return Promise.all(
-      statuses.map((item) => this.getStatusWithAttachmentsFromData(item))
-    )
-  }
-
-  async deleteStatus({ statusId }: DeleteStatusParams) {
-    const replies = await this.database('statuses')
-      .where('reply', statusId)
-      .select('id')
-    await Promise.all(
-      replies.map(({ id }) => this.deleteStatus({ statusId: id }))
-    )
-
-    await this.database.transaction(async (trx) => {
-      await Promise.all([
-        trx('statuses').where('id', statusId).delete(),
-        trx('recipients').where('statusId', statusId).delete(),
-        trx('tags').where('statusId', statusId).delete(),
-        trx('attachments').where('statusId', statusId).delete(),
-        trx('poll_choices').where('statusId', statusId).delete(),
-        trx('timelines').where('statusId', statusId).delete()
-      ])
-    })
-  }
-
-  async getFavouritedBy({ statusId }: GetFavouritedByParams): Promise<Actor[]> {
-    const result = await this.database('likes').where({ statusId })
-    const actors = await Promise.all(
-      result.map((item) => this.getActorFromId({ id: item.actorId }))
-    )
-    return actors.filter((actor): actor is Actor => Boolean(actor))
-  }
-
   // Media
   async createAttachment({
     actorId,
@@ -1734,78 +1776,6 @@ export class SqlStorage implements Storage {
     return data.map((item) => new Attachment(item))
   }
 
-  async createTag({
-    statusId,
-    name,
-    value,
-    type
-  }: CreateTagParams): Promise<Tag> {
-    const currentTime = Date.now()
-
-    const data: TagData = {
-      id: crypto.randomUUID(),
-      statusId,
-      type,
-      name,
-      value: value || '',
-      createdAt: currentTime,
-      updatedAt: currentTime
-    }
-    await this.database('tags').insert(data)
-    return new Tag(data)
-  }
-
-  async getTags({ statusId }: GetTagsParams) {
-    const data = await this.database<TagData>('tags').where(
-      'statusId',
-      statusId
-    )
-    return data.map((item) => new Tag(item))
-  }
-
-  // like
-  async createLike({ actorId, statusId }: CreateLikeParams) {
-    const status = await this.database('statuses').where('id', statusId).first()
-    if (!status) return
-
-    const result = await this.database('likes')
-      .where({ actorId, statusId })
-      .count<{ count: string }>('* as count')
-      .first()
-    if (parseInt(result?.count ?? '0', 10) === 1) {
-      return
-    }
-
-    await this.database('likes').insert({
-      actorId,
-      statusId
-    })
-  }
-
-  async deleteLike({ statusId, actorId }: DeleteLikeParams) {
-    await this.database('likes').where({ actorId, statusId }).delete()
-  }
-
-  async getLikeCount({ statusId }: GetLikeCountParams) {
-    const result = await this.database('likes')
-      .where('statusId', statusId)
-      .count<{ count: string }>('* as count')
-      .first()
-    return parseInt(result?.count ?? '0', 10)
-  }
-
-  private async isActorLikedStatus(statusId: string, actorId?: string) {
-    if (!actorId) return false
-
-    const result = await this.database('likes')
-      .where('statusId', statusId)
-      .where('actorId', actorId)
-      .count<{ count: string }>('* as count')
-      .first()
-    return parseInt(result?.count ?? '0', 10) !== 0
-  }
-
-  // Media
   async createMedia({
     actorId,
     original,
@@ -1840,6 +1810,37 @@ export class SqlStorage implements Storage {
       thumbnail,
       description
     }
+  }
+
+  // like
+  async createLike({ actorId, statusId }: CreateLikeParams) {
+    const status = await this.database('statuses').where('id', statusId).first()
+    if (!status) return
+
+    const result = await this.database('likes')
+      .where({ actorId, statusId })
+      .count<{ count: string }>('* as count')
+      .first()
+    if (parseInt(result?.count ?? '0', 10) === 1) {
+      return
+    }
+
+    await this.database('likes').insert({
+      actorId,
+      statusId
+    })
+  }
+
+  async deleteLike({ statusId, actorId }: DeleteLikeParams) {
+    await this.database('likes').where({ actorId, statusId }).delete()
+  }
+
+  async getLikeCount({ statusId }: GetLikeCountParams) {
+    const result = await this.database('likes')
+      .where('statusId', statusId)
+      .count<{ count: string }>('* as count')
+      .first()
+    return parseInt(result?.count ?? '0', 10)
   }
 
   // OAuth

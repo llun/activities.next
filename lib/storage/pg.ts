@@ -18,6 +18,9 @@ import { OAuthStorage } from '@/lib/storage/types/oauth'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/storage/types/sql'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
+import { StatusSQLStorageMixin } from './sql/status'
+import { StatusStorage } from './types/status'
+
 export const getPGStorage = (
   config: Knex.Config
 ): AccountStorage &
@@ -25,7 +28,8 @@ export const getPGStorage = (
   FollowerStorage &
   LikeStorage &
   MediaStorage &
-  OAuthStorage => {
+  OAuthStorage &
+  StatusStorage => {
   const database = knex(config)
 
   const getActor = (
@@ -191,6 +195,11 @@ export const getPGStorage = (
   const likeStorage = LikeSQLStorageMixin(database)
   const mediaStorage = MediaSQLStorageMixin(database)
   const oauthStorage = OAuthStorageMixin(database, accountStorage, actorStorage)
+  const statusStorage = StatusSQLStorageMixin(
+    database,
+    actorStorage,
+    mediaStorage
+  )
 
   return {
     ...accountStorage,
@@ -198,6 +207,7 @@ export const getPGStorage = (
     ...followerStorage,
     ...likeStorage,
     ...mediaStorage,
-    ...oauthStorage
+    ...oauthStorage,
+    ...statusStorage
   }
 }
