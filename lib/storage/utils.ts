@@ -2,7 +2,7 @@ import { noop } from 'lodash'
 import { Client as PostgresClient } from 'pg'
 
 import { FirestoreStorage } from './firestore'
-import { PGStorage } from './pg'
+import { PGStorage } from './sql'
 import { SqlStorage } from './sql'
 import { Storage } from './types'
 

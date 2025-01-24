@@ -1,11 +1,10 @@
 import memoize from 'lodash/memoize'
 
-import { getConfig } from '../config'
-import { KnexBaseDatabase } from '../config/database'
-import { FirestoreStorage } from './firestore'
-import { getPGStorage } from './pg'
-import { SqlStorage } from './sql'
-import { Storage } from './types'
+import { getConfig } from '@/lib/config'
+import { KnexBaseDatabase } from '@/lib/config/database'
+import { FirestoreStorage } from '@/lib/storage/firestore'
+import { getSQLStorage } from '@/lib/storage/sql'
+import { Storage } from '@/lib/storage/types'
 
 export const PER_PAGE_LIMIT = 30
 
@@ -15,10 +14,7 @@ export const getStorage = memoize((): Storage | null => {
     case 'sqlite3':
     case 'knex':
     case 'sql': {
-      if (config.database.client === 'pg') {
-        return getPGStorage(config.database as KnexBaseDatabase)
-      }
-      return new SqlStorage(config.database as KnexBaseDatabase)
+      return getSQLStorage(config.database as KnexBaseDatabase)
     }
     case 'firebase':
     case 'firestore':
