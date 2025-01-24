@@ -1,11 +1,11 @@
-import { SqlStorage } from '@/lib/storage/sql'
+import { getSQLStorage } from '@/lib/storage/sql'
 import { seedStorage } from '@/lib/stub/storage'
 
 import { createApplication } from './createApplication'
 import { SuccessResponse } from './types'
 
 describe('createApplication', () => {
-  const storage = new SqlStorage({
+  const storage = getSQLStorage({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

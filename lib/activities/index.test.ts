@@ -8,7 +8,7 @@ import {
   sendNote
 } from '.'
 import { Actor } from '../models/actor'
-import { SqlStorage } from '../storage/sql'
+import { getSQLStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
 import { MockActor } from '../stub/actor'
 import { MockMastodonNote } from '../stub/note'
@@ -20,7 +20,7 @@ import { CreateStatus } from './actions/createStatus'
 enableFetchMocks()
 
 describe('activities', () => {
-  const storage = new SqlStorage({
+  const storage = getSQLStorage({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

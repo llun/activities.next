@@ -4,7 +4,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { compact } from '@/lib/utils/jsonld'
 
-import { SqlStorage } from '../storage/sql'
+import { getSQLStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
 import { MockMastodonNote } from '../stub/note'
 import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
@@ -16,7 +16,7 @@ import { Status, StatusType } from './status'
 enableFetchMocks()
 
 describe('Status', () => {
-  const storage = new SqlStorage({
+  const storage = getSQLStorage({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

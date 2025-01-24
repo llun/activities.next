@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto'
 
-import { SqlStorage } from '@/lib/storage/sql'
+import { getSQLStorage } from '@/lib/storage/sql'
 import { mockRequests } from '@/lib/stub/activities'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import {
@@ -14,7 +14,7 @@ import { addStatusToTimelines } from '.'
 import { Timeline } from './types'
 
 describe('#addStatusToTimeline', () => {
-  const storage = new SqlStorage({
+  const storage = getSQLStorage({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

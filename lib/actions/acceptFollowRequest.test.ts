@@ -1,20 +1,20 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { AcceptFollow } from '../activities/actions/acceptFollow'
-import { FollowStatus } from '../models/follow'
-import { sendMail } from '../services/email'
+import { acceptFollowRequest } from '@/lib/actions//acceptFollowRequest'
+import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
+import { FollowStatus } from '@/lib/models/follow'
+import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
   getSubject,
   getTextContent
-} from '../services/email/templates/follow'
-import { SqlStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { MockFollowRequestResponse } from '../stub/followRequest'
-import { ACTOR1_ID } from '../stub/seed/actor1'
-import { ACTOR5_ID } from '../stub/seed/actor5'
-import { seedStorage } from '../stub/storage'
-import { acceptFollowRequest } from './acceptFollowRequest'
+} from '@/lib/services/email/templates/follow'
+import { getSQLStorage } from '@/lib/storage/sql'
+import { mockRequests } from '@/lib/stub/activities'
+import { MockFollowRequestResponse } from '@/lib/stub/followRequest'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
+import { seedStorage } from '@/lib/stub/storage'
 
 enableFetchMocks()
 
@@ -23,7 +23,7 @@ jest.mock('../services/email', () => ({
 }))
 
 describe('Accept follow action', () => {
-  const storage = new SqlStorage({
+  const storage = getSQLStorage({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

@@ -2,7 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
-import { SqlStorage } from '../storage/sql'
+import { getSQLStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
 import { MockAnnounceStatus } from '../stub/announce'
 import { stubNoteId } from '../stub/note'
@@ -16,7 +16,7 @@ import {
 enableFetchMocks()
 
 describe('Announce action', () => {
-  const storage = new SqlStorage({
+  const storage = getSQLStorage({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

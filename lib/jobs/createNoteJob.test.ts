@@ -2,7 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
-import { SqlStorage } from '../storage/sql'
+import { getSQLStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
 import { MockImageDocument } from '../stub/imageDocument'
 import { MockLitepubNote, MockMastodonNote } from '../stub/note'
@@ -17,7 +17,7 @@ enableFetchMocks()
 const FRIEND_ACTOR_ID = 'https://somewhere.test/actors/friend'
 
 describe('createNoteJob', () => {
-  const storage = new SqlStorage({
+  const storage = getSQLStorage({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

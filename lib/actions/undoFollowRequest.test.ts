@@ -1,4 +1,4 @@
-import { SqlStorage } from '../storage/sql'
+import { getSQLStorage } from '../storage/sql'
 import { ACTOR2_ID } from '../stub/seed/actor2'
 import { ACTOR3_ID } from '../stub/seed/actor3'
 import { seedStorage } from '../stub/storage'
@@ -8,7 +8,7 @@ import { undoFollowRequest } from './undoFollowRequest'
 jest.mock('../activities')
 
 describe('#undoFollowRequest', () => {
-  const storage = new SqlStorage({
+  const storage = getSQLStorage({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

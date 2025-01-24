@@ -6,7 +6,7 @@ import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { seedStorage } from '@/lib/stub/storage'
 
 import { FirestoreStorage } from '../firestore'
-import { SqlStorage } from '../sql'
+import { getSQLStorage } from '../sql'
 import { Storage } from '../types'
 import { AccountStorage } from './acount'
 import { ActorStorage } from './actor'
@@ -25,7 +25,7 @@ describe('StatusStorage', () => {
   const testStorages: TestStorage[] = [
     [
       'sqlite',
-      new SqlStorage({
+      getSQLStorage({
         client: 'better-sqlite3',
         useNullAsDefault: true,
         connection: {

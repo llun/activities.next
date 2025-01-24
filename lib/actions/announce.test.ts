@@ -4,7 +4,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
 import { Actor } from '../models/actor'
 import { StatusType } from '../models/status'
-import { SqlStorage } from '../storage/sql'
+import { getSQLStorage } from '../storage/sql'
 import { mockRequests } from '../stub/activities'
 import { seedActor1 } from '../stub/seed/actor1'
 import { seedStorage } from '../stub/storage'
@@ -13,7 +13,7 @@ import { userAnnounce } from './announce'
 enableFetchMocks()
 
 describe('Announce action', () => {
-  const storage = new SqlStorage({
+  const storage = getSQLStorage({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

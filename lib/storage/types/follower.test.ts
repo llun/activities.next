@@ -8,7 +8,7 @@ import { EXTERNAL_ACTOR1_FOLLOWERS } from '@/lib/stub/seed/external1'
 import { TEST_SHARED_INBOX, seedStorage } from '@/lib/stub/storage'
 
 import { FirestoreStorage } from '../firestore'
-import { SqlStorage } from '../sql'
+import { getSQLStorage } from '../sql'
 import { Storage } from '../types'
 import { AccountStorage } from './acount'
 import { ActorStorage } from './actor'
@@ -25,7 +25,7 @@ describe('FollowerStorage', () => {
   const testStorages: TestStorage[] = [
     [
       'sqlite',
-      new SqlStorage({
+      getSQLStorage({
         client: 'better-sqlite3',
         useNullAsDefault: true,
         connection: {

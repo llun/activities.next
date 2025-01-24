@@ -1,5 +1,5 @@
 import { Actor } from '../../models/actor'
-import { SqlStorage } from '../../storage/sql'
+import { getSQLStorage } from '../../storage/sql'
 import { mockRequests } from '../../stub/activities'
 import { ACTOR1_ID, seedActor1 } from '../../stub/seed/actor1'
 import { seedActor2 } from '../../stub/seed/actor2'
@@ -7,7 +7,7 @@ import { seedStorage } from '../../stub/storage'
 import { getMentions } from './getMentions'
 
 describe('#getMentions', () => {
-  const storage = new SqlStorage({
+  const storage = getSQLStorage({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

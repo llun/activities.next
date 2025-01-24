@@ -1,6 +1,6 @@
 import { acceptFollow } from '../activities'
 import { Actor } from '../models/actor'
-import { SqlStorage } from '../storage/sql'
+import { getSQLStorage } from '../storage/sql'
 import { testUserId } from '../stub/const'
 import { MockFollowRequest } from '../stub/followRequest'
 import { seedActor1 } from '../stub/seed/actor1'
@@ -10,7 +10,7 @@ import { createFollower } from './createFollower'
 jest.mock('../activities')
 
 describe('#createFollower', () => {
-  const storage = new SqlStorage({
+  const storage = getSQLStorage({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
