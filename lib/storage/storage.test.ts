@@ -135,7 +135,7 @@ describe('Storage', () => {
       ])
     })
 
-    describe.only('accounts', () => {
+    describe('accounts', () => {
       it('returns false when account is not created yet', async () => {
         expect(
           await storage.isAccountExists({ email: TEST_EMAIL2 })
@@ -148,7 +148,7 @@ describe('Storage', () => {
         ).toBeFalse()
       })
 
-      it.only('creates account and actor', async () => {
+      it('creates account and actor', async () => {
         await storage.createAccount({
           email: TEST_EMAIL2,
           username: TEST_USERNAME2,
