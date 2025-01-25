@@ -6,16 +6,16 @@ import {
   getPublicProfileFromHandle,
   getWebfingerSelf,
   sendNote
-} from '.'
-import { Actor } from '../models/actor'
-import { getSQLStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { MockActor } from '../stub/actor'
-import { MockMastodonNote } from '../stub/note'
-import { MockPerson } from '../stub/person'
-import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
-import { TEST_SHARED_INBOX, seedStorage } from '../stub/storage'
-import { CreateStatus } from './actions/createStatus'
+} from '@/lib/activities'
+import { CreateStatus } from '@/lib/activities/actions/createStatus'
+import { Actor } from '@/lib/models/actor'
+import { getSQLStorage } from '@/lib/storage/sql'
+import { mockRequests } from '@/lib/stub/activities'
+import { MockActor } from '@/lib/stub/actor'
+import { MockMastodonNote } from '@/lib/stub/note'
+import { MockPerson } from '@/lib/stub/person'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { TEST_SHARED_INBOX, seedStorage } from '@/lib/stub/storage'
 
 enableFetchMocks()
 

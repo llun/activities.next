@@ -1,17 +1,16 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { createNoteFromUserInput } from '@/lib/actions/createNote'
+import { Actor } from '@/lib/models/actor'
+import { getSQLStorage } from '@/lib/storage/sql'
+import { expectCall, mockRequests } from '@/lib/stub/activities'
+import { TEST_DOMAIN } from '@/lib/stub/const'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { seedStorage } from '@/lib/stub/storage'
+import { getNoteFromStatusData } from '@/lib/utils/getNoteFromStatusData'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
-
-import { Actor } from '../models/actor'
-import { getSQLStorage } from '../storage/sql'
-import { expectCall, mockRequests } from '../stub/activities'
-import { TEST_DOMAIN } from '../stub/const'
-import { seedActor1 } from '../stub/seed/actor1'
-import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
-import { seedStorage } from '../stub/storage'
-import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
-import { convertMarkdownText } from '../utils/text/convertMarkdownText'
-import { createNoteFromUserInput } from './createNote'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 enableFetchMocks()
 

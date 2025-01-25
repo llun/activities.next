@@ -1,11 +1,11 @@
-import { acceptFollow } from '../activities'
-import { Actor } from '../models/actor'
-import { getSQLStorage } from '../storage/sql'
-import { testUserId } from '../stub/const'
-import { MockFollowRequest } from '../stub/followRequest'
-import { seedActor1 } from '../stub/seed/actor1'
-import { seedStorage } from '../stub/storage'
-import { createFollower } from './createFollower'
+import { createFollower } from '@/lib/actions/createFollower'
+import { acceptFollow } from '@/lib/activities'
+import { Actor } from '@/lib/models/actor'
+import { getSQLStorage } from '@/lib/storage/sql'
+import { testUserId } from '@/lib/stub/const'
+import { MockFollowRequest } from '@/lib/stub/followRequest'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedStorage } from '@/lib/stub/storage'
 
 jest.mock('../activities')
 

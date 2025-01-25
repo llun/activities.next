@@ -1,15 +1,15 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { Actor } from '../models/actor'
-import { StatusType } from '../models/status'
-import { getSQLStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { MockImageDocument } from '../stub/imageDocument'
-import { MockLitepubNote, MockMastodonNote } from '../stub/note'
-import { seedActor1 } from '../stub/seed/actor1'
-import { seedStorage } from '../stub/storage'
-import { createNoteJob } from './createNoteJob'
-import { CREATE_NOTE_JOB_NAME } from './names'
+import { createNoteJob } from '@/lib/jobs/createNoteJob'
+import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { Actor } from '@/lib/models/actor'
+import { StatusType } from '@/lib/models/status'
+import { getSQLStorage } from '@/lib/storage/sql'
+import { mockRequests } from '@/lib/stub/activities'
+import { MockImageDocument } from '@/lib/stub/imageDocument'
+import { MockLitepubNote, MockMastodonNote } from '@/lib/stub/note'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedStorage } from '@/lib/stub/storage'
 
 enableFetchMocks()
 

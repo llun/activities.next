@@ -1,13 +1,13 @@
 import { Note } from '@llun/activities.schema'
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { StatusType } from '../models/status'
-import { getSQLStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { ACTOR1_ID } from '../stub/seed/actor1'
-import { ACTOR2_ID } from '../stub/seed/actor2'
-import { seedStorage } from '../stub/storage'
-import { likeRequest } from './like'
+import { likeRequest } from '@/lib/actions/like'
+import { StatusType } from '@/lib/models/status'
+import { getSQLStorage } from '@/lib/storage/sql'
+import { mockRequests } from '@/lib/stub/activities'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { seedStorage } from '@/lib/stub/storage'
 
 enableFetchMocks()
 

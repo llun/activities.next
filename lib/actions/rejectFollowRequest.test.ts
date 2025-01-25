@@ -1,13 +1,13 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { RejectFollow } from '../activities/actions/rejectFollow'
-import { FollowStatus } from '../models/follow'
-import { getSQLStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { MockFollowRequestResponse } from '../stub/followRequest'
-import { ACTOR1_ID } from '../stub/seed/actor1'
-import { seedStorage } from '../stub/storage'
-import { rejectFollowRequest } from './rejectFollowRequest'
+import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
+import { RejectFollow } from '@/lib/activities/actions/rejectFollow'
+import { FollowStatus } from '@/lib/models/follow'
+import { getSQLStorage } from '@/lib/storage/sql'
+import { mockRequests } from '@/lib/stub/activities'
+import { MockFollowRequestResponse } from '@/lib/stub/followRequest'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { seedStorage } from '@/lib/stub/storage'
 
 enableFetchMocks()
 
