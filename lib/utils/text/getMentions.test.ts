@@ -1,10 +1,10 @@
-import { Actor } from '../../models/actor'
-import { getSQLStorage } from '../../storage/sql'
-import { mockRequests } from '../../stub/activities'
-import { ACTOR1_ID, seedActor1 } from '../../stub/seed/actor1'
-import { seedActor2 } from '../../stub/seed/actor2'
-import { seedStorage } from '../../stub/storage'
-import { getMentions } from './getMentions'
+import { Actor } from '@/lib/models/actor'
+import { getSQLStorage } from '@/lib/storage/sql'
+import { mockRequests } from '@/lib/stub/activities'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { seedStorage } from '@/lib/stub/storage'
+import { getMentions } from '@/lib/utils/text/getMentions'
 
 describe('#getMentions', () => {
   const storage = getSQLStorage({

@@ -5,55 +5,21 @@ import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { seedStorage } from '@/lib/stub/storage'
 
-import { FirestoreStorage } from '../firestore'
-import { getSQLStorage } from '../sql'
 import { Storage } from '../types'
-import { AccountStorage } from './acount'
-import { ActorStorage } from './actor'
-import { BaseStorage } from './base'
-import { MediaStorage } from './media'
-import { StatusStorage } from './status'
-
-type AccountAndStatusStorage = AccountStorage &
-  ActorStorage &
-  StatusStorage &
-  MediaStorage &
-  BaseStorage
-type TestStorage = [string, AccountAndStatusStorage]
+import { getTestStorageTable, storageBeforeAll } from '../utils'
 
 describe('StatusStorage', () => {
-  const testStorages: TestStorage[] = [
-    [
-      'sqlite',
-      getSQLStorage({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-    ],
-    // Enable this when run start:firestore emulator and clear the database manually
-    [
-      'firestore',
-      new FirestoreStorage({
-        type: 'firebase',
-        projectId: 'test',
-        host: 'localhost:8080',
-        ssl: false
-      })
-    ]
-  ]
+  const table = getTestStorageTable()
 
   beforeAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].migrate()))
+    await storageBeforeAll(table)
   })
 
   afterAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].destroy()))
+    await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(testStorages)('%s', (_, storage) => {
+  describe.each(table)('%s', (_, storage) => {
     beforeAll(async () => {
       await seedStorage(storage as Storage)
     })

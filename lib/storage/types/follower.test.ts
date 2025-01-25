@@ -1,4 +1,6 @@
 import { Follow, FollowStatus } from '@/lib/models/follow'
+import { Storage } from '@/lib/storage/types'
+import { getTestStorageTable, storageBeforeAll } from '@/lib/storage/utils'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
@@ -7,53 +9,18 @@ import { ACTOR6_ID } from '@/lib/stub/seed/actor6'
 import { EXTERNAL_ACTOR1_FOLLOWERS } from '@/lib/stub/seed/external1'
 import { TEST_SHARED_INBOX, seedStorage } from '@/lib/stub/storage'
 
-import { FirestoreStorage } from '../firestore'
-import { getSQLStorage } from '../sql'
-import { Storage } from '../types'
-import { AccountStorage } from './acount'
-import { ActorStorage } from './actor'
-import { BaseStorage } from './base'
-import { FollowerStorage } from './follower'
-
-type AccountAndFollowerStorage = AccountStorage &
-  ActorStorage &
-  FollowerStorage &
-  BaseStorage
-type TestStorage = [string, AccountAndFollowerStorage]
-
 describe('FollowerStorage', () => {
-  const testStorages: TestStorage[] = [
-    [
-      'sqlite',
-      getSQLStorage({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-    ],
-    // Enable this when run start:firestore emulator and clear the database manually
-    [
-      'firestore',
-      new FirestoreStorage({
-        type: 'firebase',
-        projectId: 'test',
-        host: 'localhost:8080',
-        ssl: false
-      })
-    ]
-  ]
+  const table = getTestStorageTable()
 
   beforeAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].migrate()))
+    await storageBeforeAll(table)
   })
 
   afterAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].destroy()))
+    await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(testStorages)('%s', (name, storage) => {
+  describe.each(table)('%s', (_, storage) => {
     beforeAll(async () => {
       await seedStorage(storage as Storage)
     })

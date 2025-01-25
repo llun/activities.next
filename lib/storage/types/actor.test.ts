@@ -1,3 +1,4 @@
+import { getTestStorageTable, storageBeforeAll } from '@/lib/storage/utils'
 import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,
@@ -6,14 +7,6 @@ import {
   TEST_USERNAME3
 } from '@/lib/stub/const'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-
-import { getTestStorageTable, storageBeforeAll } from '../utils'
-import { AccountStorage } from './acount'
-import { ActorStorage } from './actor'
-import { BaseStorage } from './base'
-
-type AccountAndActorStorage = AccountStorage & ActorStorage & BaseStorage
-type TestStorage = [string, AccountAndActorStorage]
 
 describe('ActorStorage', () => {
   const table = getTestStorageTable()
