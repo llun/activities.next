@@ -30,12 +30,10 @@ export const generateMetadata = async ({
 
 const Page: FC<Props> = async ({ params }) => {
   const { host } = getConfig()
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
-  if (!storage) throw new Error('Storage is not available')
+  const database = getDatabase()
+  if (!database) throw new Error('Database is not available')
 
+  const session = await getServerSession(getAuthOptions())
   const { actor } = await params
   const decodedActorHandle = decodeURIComponent(actor)
   const parts = decodedActorHandle.split('@').slice(1)
@@ -45,15 +43,15 @@ const Page: FC<Props> = async ({ params }) => {
 
   const [username, domain] = parts
   const isLoggedIn = Boolean(session?.user?.email)
-  const storageActor = await storage.getActorFromUsername({ username, domain })
+  const storageActor = await database.getActorFromUsername({ username, domain })
 
   if (!isLoggedIn && !storageActor?.account) {
     return notFound()
   }
 
   const actorProfile = storageActor?.account
-    ? await getInternalActorProfile(storage, storageActor)
-    : await getExternalActorProfile(storage, decodedActorHandle)
+    ? await getInternalActorProfile(database, storageActor)
+    : await getExternalActorProfile(database, decodedActorHandle)
   if (!actorProfile) {
     return notFound()
   }
