@@ -10,11 +10,10 @@ import { LikeSQLStorageMixin } from '@/lib/storage/sql/like'
 import { MediaSQLStorageMixin } from '@/lib/storage/sql/media'
 import { OAuthStorageMixin } from '@/lib/storage/sql/oauth'
 import { StatusSQLStorageMixin } from '@/lib/storage/sql/status'
+import { TimelineSQLStorageMixin } from '@/lib/storage/sql/timeline'
 import { Storage } from '@/lib/storage/types'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/storage/types/sql'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-
-import { TimelineSQLStorageMixin } from './sql/timeline'
 
 export const getSQLStorage = (config: Knex.Config): Storage => {
   const database = knex(config)

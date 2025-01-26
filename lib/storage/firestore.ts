@@ -143,6 +143,7 @@ export class FirestoreStorage implements Storage {
     await this.db.terminate()
   }
 
+  // Account
   @Trace('db')
   async isAccountExists({ email }: IsAccountExistsParams) {
     const accounts = this.db.collection('accounts')
