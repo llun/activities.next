@@ -1,5 +1,5 @@
 import { getSQLDatabase } from '@/lib/database/sql'
-import { seedStorage } from '@/lib/stub/storage'
+import { seedDatabase } from '@/lib/stub/database'
 
 import { createApplication } from './createApplication'
 import { SuccessResponse } from './types'
@@ -15,7 +15,7 @@ describe('createApplication', () => {
 
   beforeAll(async () => {
     await storage.migrate()
-    await seedStorage(storage)
+    await seedDatabase(storage)
     await createApplication(storage, {
       client_name: 'existsClient',
       redirect_uris: 'https://exists.llun.dev/apps/redirect',

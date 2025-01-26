@@ -5,9 +5,9 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { expectCall, mockRequests } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
+import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
-import { seedStorage } from '@/lib/stub/storage'
 import { getNoteFromStatusData } from '@/lib/utils/getNoteFromStatusData'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
@@ -27,7 +27,7 @@ describe('Create note action', () => {
 
   beforeAll(async () => {
     await storage.migrate()
-    await seedStorage(storage)
+    await seedDatabase(storage)
     actor1 = await storage.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain

@@ -3,9 +3,9 @@ import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
 import { Scope } from '@/lib/database/types/oauth'
 import {
-  TestStorageTable,
-  getTestStorageTable,
-  storageBeforeAll
+  TestDatabaseTable,
+  databaseBeforeAll,
+  getTestDatabaseTable
 } from '@/lib/database/utils'
 import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
@@ -79,11 +79,11 @@ const TEST_ID15 = `https://${TEST_DOMAIN}/users/user15`
 const TEST_ID16 = `https://${TEST_DOMAIN}/users/user16`
 const TEST_USERNAME16 = 'random16'
 
-describe('Storage', () => {
-  const table: TestStorageTable = getTestStorageTable()
+describe('Database', () => {
+  const table: TestDatabaseTable = getTestDatabaseTable()
 
   beforeAll(async () => {
-    await storageBeforeAll(table)
+    await databaseBeforeAll(table)
   })
 
   afterAll(async () => {

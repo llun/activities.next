@@ -3,9 +3,9 @@ import { acceptFollow } from '@/lib/activities'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { testUserId } from '@/lib/stub/const'
+import { seedDatabase } from '@/lib/stub/database'
 import { MockFollowRequest } from '@/lib/stub/followRequest'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { seedStorage } from '@/lib/stub/storage'
 
 jest.mock('../activities')
 
@@ -21,7 +21,7 @@ describe('#createFollower', () => {
 
   beforeAll(async () => {
     await storage.migrate()
-    await seedStorage(storage)
+    await seedDatabase(storage)
     actor = (await storage.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain

@@ -5,9 +5,9 @@ import { likeRequest } from '@/lib/actions/like'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
-import { seedStorage } from '@/lib/stub/storage'
 
 enableFetchMocks()
 
@@ -22,7 +22,7 @@ describe('Accept follow action', () => {
 
   beforeAll(async () => {
     await storage.migrate()
-    await seedStorage(storage)
+    await seedDatabase(storage)
   })
 
   afterAll(async () => {

@@ -1,13 +1,13 @@
 import { Storage } from '@/lib/database/types'
 import { databaseBeforeAll, getTestDatabaseTable } from '@/lib/database/utils'
 import { Follow, FollowStatus } from '@/lib/models/follow'
+import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
 import { ACTOR6_ID } from '@/lib/stub/seed/actor6'
 import { EXTERNAL_ACTOR1_FOLLOWERS } from '@/lib/stub/seed/external1'
-import { TEST_SHARED_INBOX, seedStorage } from '@/lib/stub/storage'
 
 describe('FollowDatabase', () => {
   const table = getTestDatabaseTable()
@@ -22,7 +22,7 @@ describe('FollowDatabase', () => {
 
   describe.each(table)('%s', (_, database) => {
     beforeAll(async () => {
-      await seedStorage(database as Storage)
+      await seedDatabase(database as Storage)
     })
 
     it('returns empty followers and following for empty actor', async () => {

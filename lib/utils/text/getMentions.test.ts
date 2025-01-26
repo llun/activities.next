@@ -1,9 +1,9 @@
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
-import { seedStorage } from '@/lib/stub/storage'
 import { getMentions } from '@/lib/utils/text/getMentions'
 
 describe('#getMentions', () => {
@@ -19,7 +19,7 @@ describe('#getMentions', () => {
 
   beforeAll(async () => {
     await database.migrate()
-    await seedStorage(database)
+    await seedDatabase(database)
     actor1 = await database.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain

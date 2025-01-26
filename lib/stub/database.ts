@@ -19,7 +19,7 @@ import {
 
 export const TEST_SHARED_INBOX = 'https://llun.test/inbox'
 
-export const seedStorage = async (storage: Storage) => {
+export const seedDatabase = async (storage: Storage) => {
   await Promise.all([
     storage.createAccount(seedActor1),
     storage.createAccount(seedActor2),

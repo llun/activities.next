@@ -2,12 +2,12 @@ import { randomBytes } from 'crypto'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import {
   EXTERNAL_ACTOR1,
   EXTERNAL_ACTOR1_FOLLOWERS
 } from '@/lib/stub/seed/external1'
-import { seedStorage } from '@/lib/stub/storage'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
 import { addStatusToTimelines } from '.'
@@ -24,7 +24,7 @@ describe('#addStatusToTimeline', () => {
 
   beforeAll(async () => {
     await storage.migrate()
-    await seedStorage(storage)
+    await seedDatabase(storage)
   })
 
   afterAll(async () => {

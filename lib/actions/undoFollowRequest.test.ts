@@ -1,8 +1,8 @@
 import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
 import { getSQLDatabase } from '@/lib/database/sql'
+import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
-import { seedStorage } from '@/lib/stub/storage'
 import { MockUndoFollowRequest } from '@/lib/stub/undoRequest'
 
 jest.mock('../activities')
@@ -18,7 +18,7 @@ describe('#undoFollowRequest', () => {
 
   beforeAll(async () => {
     await storage.migrate()
-    await seedStorage(storage)
+    await seedDatabase(storage)
   })
 
   afterAll(async () => {

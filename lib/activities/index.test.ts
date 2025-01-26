@@ -12,10 +12,10 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
+import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { MockMastodonNote } from '@/lib/stub/note'
 import { MockPerson } from '@/lib/stub/person'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
-import { TEST_SHARED_INBOX, seedStorage } from '@/lib/stub/storage'
 
 enableFetchMocks()
 
@@ -31,7 +31,7 @@ describe('activities', () => {
 
   beforeAll(async () => {
     await storage.migrate()
-    await seedStorage(storage)
+    await seedDatabase(storage)
 
     actor1 = await storage.getActorFromEmail({ email: seedActor1.email })
   })

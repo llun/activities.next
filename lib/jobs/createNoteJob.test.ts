@@ -6,10 +6,10 @@ import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
 import { StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
 import { MockImageDocument } from '@/lib/stub/imageDocument'
 import { MockLitepubNote, MockMastodonNote } from '@/lib/stub/note'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { seedStorage } from '@/lib/stub/storage'
 
 enableFetchMocks()
 
@@ -28,7 +28,7 @@ describe('createNoteJob', () => {
 
   beforeAll(async () => {
     await storage.migrate()
-    await seedStorage(storage)
+    await seedDatabase(storage)
     actor1 = await storage.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain

@@ -7,9 +7,9 @@ import { Actor } from '@/lib/models/actor'
 import { StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockAnnounceStatus } from '@/lib/stub/announce'
+import { seedDatabase } from '@/lib/stub/database'
 import { stubNoteId } from '@/lib/stub/note'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
-import { seedStorage } from '@/lib/stub/storage'
 
 enableFetchMocks()
 
@@ -24,7 +24,7 @@ describe('Announce action', () => {
   let actor1: Actor | undefined
   beforeAll(async () => {
     await storage.migrate()
-    await seedStorage(storage)
+    await seedDatabase(storage)
     actor1 = await storage.getActorFromEmail({ email: seedActor1.email })
   })
   afterAll(async () => {

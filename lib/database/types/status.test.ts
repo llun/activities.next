@@ -1,9 +1,9 @@
 import { TagType } from '@/lib/models/tag'
+import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
-import { seedStorage } from '@/lib/stub/storage'
 
 import { Storage } from '../types'
 import { databaseBeforeAll, getTestDatabaseTable } from '../utils'
@@ -21,7 +21,7 @@ describe('StatusDatabase', () => {
 
   describe.each(table)('%s', (_, database) => {
     beforeAll(async () => {
-      await seedStorage(database as Storage)
+      await seedDatabase(database as Storage)
     })
 
     describe('getStatus', () => {

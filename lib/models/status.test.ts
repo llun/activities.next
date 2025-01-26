@@ -5,10 +5,10 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { Status, StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonNote } from '@/lib/stub/note'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
-import { seedStorage } from '@/lib/stub/storage'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { compact } from '@/lib/utils/jsonld'
 
@@ -25,7 +25,7 @@ describe('Status', () => {
 
   beforeAll(async () => {
     await storage.migrate()
-    await seedStorage(storage)
+    await seedDatabase(storage)
   })
 
   afterAll(async () => {

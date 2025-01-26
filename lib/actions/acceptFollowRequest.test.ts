@@ -11,10 +11,10 @@ import {
   getTextContent
 } from '@/lib/services/email/templates/follow'
 import { mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
 import { MockFollowRequestResponse } from '@/lib/stub/followRequest'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
-import { seedStorage } from '@/lib/stub/storage'
 
 enableFetchMocks()
 
@@ -33,7 +33,7 @@ describe('Accept follow action', () => {
 
   beforeAll(async () => {
     await storage.migrate()
-    await seedStorage(storage)
+    await seedDatabase(storage)
   })
 
   afterAll(async () => {
