@@ -1,10 +1,10 @@
 import cn from 'classnames'
 import { FC, useState } from 'react'
 
-import { AttachmentData } from '../models/attachment'
-import styles from './MediasModal.module.scss'
-import { Modal } from './Modal'
-import { Media } from './Posts/Media'
+import styles from '@/lib/components/MediasModal.module.scss'
+import { Modal } from '@/lib/components/Modal'
+import { Media } from '@/lib/components/Posts/Media'
+import { AttachmentData } from '@/lib/models/attachment'
 
 interface Props {
   medias: AttachmentData[] | null
@@ -39,6 +39,7 @@ export const MediasModal: FC<Props> = ({
           <div className={styles.mediasSelection}>
             {medias.map((media, index) => (
               <img
+                alt={media.name}
                 key={media.id}
                 src={media.url}
                 width={50}

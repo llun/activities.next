@@ -1,3 +1,12 @@
+export interface ActorSettings {
+  iconUrl?: string
+  headerImageUrl?: string
+  appleSharedAlbumToken?: string
+  followersUrl: string
+  inboxUrl: string
+  sharedInboxUrl: string
+}
+
 export interface SQLActor {
   id: string
   username: string
@@ -24,13 +33,4 @@ export interface SQLAccount {
   createdAt: number | Date
   updatedAt: number | Date
   verifiedAt?: number | Date
-}
-
-export interface ActorSettings {
-  iconUrl?: string
-  headerImageUrl?: string
-  appleSharedAlbumToken?: string
-  followersUrl: string
-  inboxUrl: string
-  sharedInboxUrl: string
 }
