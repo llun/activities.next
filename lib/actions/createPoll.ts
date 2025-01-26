@@ -5,7 +5,7 @@ import {
   statusRecipientsTo
 } from '@/lib/actions/createNote'
 import { getConfig } from '@/lib/config'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
@@ -17,7 +17,7 @@ interface CreatePollFromUserInputParams {
   replyStatusId?: string
   currentActor: Actor
   choices: string[]
-  storage: Storage
+  storage: Database
   endAt: number
 }
 export const createPollFromUserInput = async ({

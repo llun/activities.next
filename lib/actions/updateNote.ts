@@ -1,5 +1,5 @@
 import { sendUpdateNote } from '@/lib/activities'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { StatusType } from '@/lib/models/status'
 import {
@@ -14,7 +14,7 @@ interface UpdateNoteFromUserInput {
   currentActor: Actor
   text: string
   summary?: string
-  storage: Storage
+  storage: Database
 }
 
 export const updateNoteFromUserInput = async ({

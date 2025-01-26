@@ -1,4 +1,4 @@
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { ActorData } from '@/lib/models/actor'
 import { StatusData } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
@@ -7,7 +7,7 @@ import { getMastodonAccount } from './getMastodonAccount'
 import { MastodonStatus, ReblogMastodonStatus } from './types'
 
 export const getMastodonStatus = async (
-  storage: Storage,
+  storage: Database,
   status: StatusData
 ): Promise<MastodonStatus | ReblogMastodonStatus> => {
   const account = await getMastodonAccount(storage, status.actor as ActorData)

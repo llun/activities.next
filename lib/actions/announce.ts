@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 
 import { sendAnnounce } from '@/lib/activities'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
@@ -10,7 +10,7 @@ import { getSpan } from '@/lib/utils/trace'
 interface UserAnnounceParams {
   currentActor: Actor
   statusId: string
-  storage: Storage
+  storage: Database
 }
 export const userAnnounce = async ({
   currentActor,

@@ -1,8 +1,8 @@
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 
 export const getInternalActorProfile = async (
-  storage: Storage,
+  storage: Database,
   actor: Actor
 ) => {
   const [statuses, attachments] = await Promise.all([

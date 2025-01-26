@@ -5,14 +5,14 @@ import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getDatabase } from '@/lib/database'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Activities.next: Confirm account'
 }
 
-const isVerify = async (storage: Storage, verificationCode?: string) => {
+const isVerify = async (storage: Database, verificationCode?: string) => {
   if (!verificationCode) return false
   return storage.verifyAccount({ verificationCode })
 }

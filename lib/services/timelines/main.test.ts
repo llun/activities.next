@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto'
 
 import { getSQLDatabase } from '@/lib/database/sql'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
@@ -17,7 +17,7 @@ import { mainTimelineRule } from './main'
 import { Timeline } from './types'
 
 const createStatus = async (
-  storage: Storage,
+  storage: Database,
   actorId: string,
   text: string,
   reply?: string
@@ -36,7 +36,7 @@ const createStatus = async (
 }
 
 const createAnnounce = async (
-  storage: Storage,
+  storage: Database,
   actorId: string,
   originalStatusId: string
 ) => {

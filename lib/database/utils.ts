@@ -3,7 +3,7 @@ import { Client as PostgresClient } from 'pg'
 
 import { FirestoreStorage } from '@/lib/database/firestore'
 import { getSQLDatabase } from '@/lib/database/sql'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 
 const TEST_PG_TABLE = 'test'
 const TEST_PG_CONNECTION = {
@@ -14,12 +14,12 @@ const TEST_PG_CONNECTION = {
 }
 
 export type PrepareFunction = () => Promise<void> | void
-export type TestDatabaseTableItem = [string, Storage, PrepareFunction]
+export type TestDatabaseTableItem = [string, Database, PrepareFunction]
 export type TestDatabaseTable = TestDatabaseTableItem[]
 
 type GetTestDatabase = () => {
   name: string
-  storage: Storage
+  storage: Database
   prepare: () => Promise<void> | void
 }
 

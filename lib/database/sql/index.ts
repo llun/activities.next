@@ -9,13 +9,13 @@ import { MediaSQLStorageMixin } from '@/lib/database/sql/media'
 import { OAuthStorageMixin } from '@/lib/database/sql/oauth'
 import { StatusSQLStorageMixin } from '@/lib/database/sql/status'
 import { TimelineSQLStorageMixin } from '@/lib/database/sql/timeline'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/database/types/sql'
 import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-export const getSQLDatabase = (config: Knex.Config): Storage => {
+export const getSQLDatabase = (config: Knex.Config): Database => {
   const database = knex(config)
 
   const getActor = (

@@ -1,10 +1,10 @@
 import { Session } from 'next-auth'
 
 import { getConfig } from '@/lib/config'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 
 export const getActorFromSession = async (
-  storage: Storage,
+  storage: Database,
   session: Session | null
 ) => {
   const config = getConfig()

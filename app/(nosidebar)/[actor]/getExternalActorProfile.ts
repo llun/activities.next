@@ -1,8 +1,8 @@
 import { getActorPosts, getPublicProfileFromHandle } from '@/lib/activities'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 
 export const getExternalActorProfile = async (
-  storage: Storage,
+  storage: Database,
   actorHandle: string
 ) => {
   const profile = await getPublicProfileFromHandle(actorHandle, true)

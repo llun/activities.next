@@ -1,12 +1,12 @@
 import { OAuthUser, OAuthUserRepository } from '@jmondi/oauth2-server'
 
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { User } from '@/lib/models/oauth2/user'
 
 export class UserRepository implements OAuthUserRepository {
-  storage: Storage
+  storage: Database
 
-  constructor(storage: Storage) {
+  constructor(storage: Database) {
     this.storage = storage
   }
 

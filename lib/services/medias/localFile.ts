@@ -6,7 +6,7 @@ import process from 'process'
 import sharp from 'sharp'
 
 import { MediaStorageFileConfig } from '@/lib/config/mediaStorage'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { logger } from '@/lib/utils/logger'
 
@@ -26,12 +26,12 @@ export class LocalFileStorage implements MediaStorage {
 
   private _config: MediaStorageFileConfig
   private _host: string
-  private _storage: Storage
+  private _storage: Database
 
   static getStorage(
     config: MediaStorageFileConfig,
     host: string,
-    storage: Storage
+    storage: Database
   ) {
     if (!LocalFileStorage._instance) {
       LocalFileStorage._instance = new LocalFileStorage(config, host, storage)
@@ -39,7 +39,7 @@ export class LocalFileStorage implements MediaStorage {
     return LocalFileStorage._instance
   }
 
-  constructor(config: MediaStorageFileConfig, host: string, storage: Storage) {
+  constructor(config: MediaStorageFileConfig, host: string, storage: Database) {
     this._config = config
     this._host = host
     this._storage = storage

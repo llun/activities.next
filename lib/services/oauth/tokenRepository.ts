@@ -9,14 +9,14 @@ import {
 } from '@jmondi/oauth2-server'
 
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Scope } from '@/lib/database/types/oauth'
 import { Token } from '@/lib/models/oauth2/token'
 
 export class TokenRepository implements OAuthTokenRepository {
-  storage: Storage
+  storage: Database
 
-  constructor(storage: Storage) {
+  constructor(storage: Database) {
     this.storage = storage
   }
 

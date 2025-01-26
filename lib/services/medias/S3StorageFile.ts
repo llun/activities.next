@@ -13,7 +13,7 @@ import { join } from 'path'
 import sharp from 'sharp'
 
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Media } from '@/lib/database/types/media'
 import { Actor } from '@/lib/models/actor'
 import { MAX_HEIGHT, MAX_WIDTH } from '@/lib/services/medias/constants'
@@ -35,14 +35,14 @@ export class S3FileStorage implements MediaStorage {
 
   private _config: MediaStorageS3Config
   private _host: string
-  private _storage: Storage
+  private _storage: Database
 
   private _client: S3Client
 
   static getStorage(
     config: MediaStorageS3Config,
     host: string,
-    storage: Storage
+    storage: Database
   ) {
     if (!S3FileStorage._instance) {
       S3FileStorage._instance = new S3FileStorage(config, host, storage)
@@ -50,7 +50,7 @@ export class S3FileStorage implements MediaStorage {
     return S3FileStorage._instance
   }
 
-  constructor(config: MediaStorageS3Config, host: string, storage: Storage) {
+  constructor(config: MediaStorageS3Config, host: string, storage: Database) {
     this._config = config
     this._host = host
     this._storage = storage

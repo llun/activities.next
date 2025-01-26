@@ -2,7 +2,7 @@ import { Mention, Note } from '@llun/activities.schema'
 import crypto from 'crypto'
 
 import { getPublicProfile, sendNote } from '@/lib/activities'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { PostBoxAttachment } from '@/lib/models/attachment'
 import { FollowStatus } from '@/lib/models/follow'
@@ -60,7 +60,7 @@ interface CreateNoteFromUserInputParams {
   replyNoteId?: string
   currentActor: Actor
   attachments?: PostBoxAttachment[]
-  storage: Storage
+  storage: Database
 }
 export const createNoteFromUserInput = async ({
   text,

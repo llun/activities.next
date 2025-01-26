@@ -1,9 +1,9 @@
 import { LikeStatus } from '@/lib/activities/actions/like'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 
 interface LikeRequestParams {
   activity: LikeStatus
-  storage: Storage
+  storage: Database
 }
 
 export const likeRequest = async ({ activity, storage }: LikeRequestParams) => {

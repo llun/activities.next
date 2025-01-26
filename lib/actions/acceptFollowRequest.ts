@@ -1,6 +1,6 @@
 import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
 import { getConfig } from '@/lib/config'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { FollowStatus } from '@/lib/models/follow'
 import { sendMail } from '@/lib/services/email'
 import {
@@ -11,7 +11,7 @@ import {
 
 interface AcceptFollowRequestParams {
   activity: AcceptFollow
-  storage: Storage
+  storage: Database
 }
 
 export const acceptFollowRequest = async ({

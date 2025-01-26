@@ -1,10 +1,10 @@
 import { RejectFollow } from '@/lib/activities/actions/rejectFollow'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { FollowStatus } from '@/lib/models/follow'
 
 interface RejectFollowRequestParams {
   activity: RejectFollow
-  storage: Storage
+  storage: Database
 }
 
 export const rejectFollowRequest = async ({

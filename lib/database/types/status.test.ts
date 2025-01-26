@@ -5,7 +5,7 @@ import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 
-import { Storage } from '../types'
+import { Database } from '../types'
 import { databaseBeforeAll, getTestDatabaseTable } from '../utils'
 
 describe('StatusDatabase', () => {
@@ -21,7 +21,7 @@ describe('StatusDatabase', () => {
 
   describe.each(table)('%s', (_, database) => {
     beforeAll(async () => {
-      await seedDatabase(database as Storage)
+      await seedDatabase(database as Database)
     })
 
     describe('getStatus', () => {

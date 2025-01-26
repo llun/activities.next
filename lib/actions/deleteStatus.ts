@@ -1,12 +1,12 @@
 import { deleteStatus } from '@/lib/activities'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { getSpan } from '@/lib/utils/trace'
 
 interface DeleteStatusFromUserInputParams {
   currentActor: Actor
   statusId: string
-  storage: Storage
+  storage: Database
 }
 export const deleteStatusFromUserInput = async ({
   currentActor,

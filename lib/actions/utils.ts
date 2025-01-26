@@ -1,9 +1,9 @@
 import { getPublicProfile } from '@/lib/activities'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 
 interface RecordActorIfNeededParams {
   actorId: string
-  storage: Storage
+  storage: Database
 }
 export const recordActorIfNeeded = async ({
   actorId,

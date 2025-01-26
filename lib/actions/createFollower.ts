@@ -1,12 +1,12 @@
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { acceptFollow, getPublicProfile } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/actions/follow'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { FollowStatus } from '@/lib/models/follow'
 
 interface CreateFollowerParams {
   followRequest: FollowRequest
-  storage: Storage
+  storage: Database
 }
 export const createFollower = async ({
   followRequest,

@@ -1,9 +1,9 @@
 import { UndoFollow } from '@/lib/activities/actions/undoFollow'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { FollowStatus } from '@/lib/models/follow'
 
 interface UndoFollowRequestParams {
-  storage: Storage
+  storage: Database
   request: UndoFollow
 }
 

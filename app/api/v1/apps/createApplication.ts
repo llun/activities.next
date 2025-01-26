@@ -1,12 +1,12 @@
 import crypto from 'crypto'
 
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Scope } from '@/lib/database/types/oauth'
 
 import { PostRequest, PostResponse } from './types'
 
 export const createApplication = async (
-  database: Storage,
+  database: Database,
   request: PostRequest
 ): Promise<PostResponse> => {
   const scopes = request.scopes ?? Scope.enum.read

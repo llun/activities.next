@@ -3,7 +3,7 @@ import { Mastodon } from '@llun/activities.schema'
 import crypto from 'crypto'
 import omit from 'lodash/omit'
 
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
 import { Attachment, AttachmentData } from '@/lib/models/attachment'
@@ -112,7 +112,7 @@ export interface FirestoreConfig extends Settings {
   type: 'firebase' | 'firestore'
 }
 
-export class FirestoreStorage implements Storage {
+export class FirestoreStorage implements Database {
   readonly db: Firestore
   private config: FirestoreConfig
 

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { apiErrorResponse } from '@/lib/utils/response'
 
@@ -13,7 +13,7 @@ export type OnlyLocalUserGuardParams = {
 }
 
 export type OnlyLocalUserGuardHandle = (
-  storage: Storage,
+  storage: Database,
   actor: Actor,
   request: NextRequest,
   query: AppRouterParams<OnlyLocalUserGuardParams>

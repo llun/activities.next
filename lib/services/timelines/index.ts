@@ -1,4 +1,4 @@
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
 import { getTracer } from '@/lib/utils/trace'
@@ -8,7 +8,7 @@ import { mentionTimelineRule } from './mention'
 import { noannounceTimelineRule } from './noaanounce'
 
 export const addStatusToTimelines = async (
-  storage: Storage,
+  storage: Database,
   status: Status
 ): Promise<void> => {
   return getTracer().startActiveSpan(

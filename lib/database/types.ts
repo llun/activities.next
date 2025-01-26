@@ -8,7 +8,7 @@ import { OAuthDatabase } from '@/lib/database/types/oauth'
 import { StatusDatabase } from '@/lib/database/types/status'
 import { TimelineDatabase } from '@/lib/database/types/timeline'
 
-export type Storage = AccountDatabase &
+export type Database = AccountDatabase &
   ActorDatabase &
   FollowDatabase &
   LikeDatabase &

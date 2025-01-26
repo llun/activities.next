@@ -1,4 +1,4 @@
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { StatusData } from '@/lib/models/status'
 
@@ -11,7 +11,7 @@ export enum Timeline {
 }
 
 export interface TimelineRuleParams {
-  storage: Storage
+  storage: Database
   currentActor: Actor
   status: StatusData
 }

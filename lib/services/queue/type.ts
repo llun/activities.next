@@ -1,4 +1,4 @@
-import type { Storage } from '@/lib/database/types'
+import type { Database } from '@/lib/database/types'
 
 export interface JobMessage {
   id: string
@@ -11,4 +11,7 @@ export interface Queue {
   handle(message: JobMessage): Promise<void>
 }
 
-export type JobHandle = (storage: Storage, message: JobMessage) => Promise<void>
+export type JobHandle = (
+  storage: Database,
+  message: JobMessage
+) => Promise<void>

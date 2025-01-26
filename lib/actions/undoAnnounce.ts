@@ -1,12 +1,12 @@
 import { undoAnnounce } from '@/lib/activities'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { StatusAnnounce, StatusType } from '@/lib/models/status'
 
 interface UserUndoAnnounceParams {
   currentActor: Actor
   statusId: string
-  storage: Storage
+  storage: Database
 }
 export const userUndoAnnounce = async ({
   currentActor,

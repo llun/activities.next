@@ -4,11 +4,11 @@ import { getConfig } from '@/lib/config'
 import { KnexBaseDatabase } from '@/lib/config/database'
 import { FirestoreStorage } from '@/lib/database/firestore'
 import { getSQLDatabase } from '@/lib/database/sql'
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 
 export const PER_PAGE_LIMIT = 30
 
-export const getDatabase = memoize((): Storage | null => {
+export const getDatabase = memoize((): Database | null => {
   const config = getConfig()
   switch (config.database.type) {
     case 'sqlite3':

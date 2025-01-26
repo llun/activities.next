@@ -1,4 +1,4 @@
-import { Storage } from '@/lib/database/types'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { FollowStatus } from '@/lib/models/follow'
 import { TEST_DOMAIN } from '@/lib/stub/const'
@@ -19,7 +19,7 @@ import {
 
 export const TEST_SHARED_INBOX = 'https://llun.test/inbox'
 
-export const seedDatabase = async (storage: Storage) => {
+export const seedDatabase = async (storage: Database) => {
   await Promise.all([
     storage.createAccount(seedActor1),
     storage.createAccount(seedActor2),
