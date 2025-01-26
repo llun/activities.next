@@ -25,6 +25,7 @@ export const ActorFirestoreStorageMixin = (
   database: Firestore,
   accountStorage: AccountStorage
 ): ActorStorage => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function getActorFromDataAndAccount(data: any, account?: Account): Actor {
     return new Actor({
       id: data.id,
@@ -54,6 +55,7 @@ export const ActorFirestoreStorageMixin = (
     })
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function getMastodonActorFromData(data: any): Mastodon.Account {
     return Mastodon.Account.parse({
       id: data.id,
