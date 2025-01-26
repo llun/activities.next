@@ -63,7 +63,7 @@ import {
   GetLocalFollowersForActorIdParams,
   GetLocalFollowsFromInboxUrlParams,
   UpdateFollowStatusParams
-} from './types/follower'
+} from './types/follow'
 import {
   CreateLikeParams,
   DeleteLikeParams,

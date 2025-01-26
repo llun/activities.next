@@ -9,7 +9,7 @@ import { ACTOR6_ID } from '@/lib/stub/seed/actor6'
 import { EXTERNAL_ACTOR1_FOLLOWERS } from '@/lib/stub/seed/external1'
 import { TEST_SHARED_INBOX, seedStorage } from '@/lib/stub/storage'
 
-describe('FollowerStorage', () => {
+describe('FollowStorage', () => {
   const table = getTestStorageTable()
 
   beforeAll(async () => {
