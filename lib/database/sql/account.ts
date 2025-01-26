@@ -1,10 +1,7 @@
 import { Knex } from 'knex'
 
-import { Account } from '@/lib/models/account'
-import { Session } from '@/lib/models/session'
-
 import {
-  AccountStorage,
+  AccountDatabase,
   CreateAccountParams,
   CreateAccountSessionParams,
   DeleteAccountSessionParams,
@@ -17,10 +14,12 @@ import {
   LinkAccountWithProviderParams,
   UpdateAccountSessionParams,
   VerifyAccountParams
-} from '../types/acount'
-import { ActorSettings } from '../types/sql'
+} from '@/lib/database/types/account'
+import { ActorSettings } from '@/lib/database/types/sql'
+import { Account } from '@/lib/models/account'
+import { Session } from '@/lib/models/session'
 
-export const AccountSQLStorageMixin = (database: Knex): AccountStorage => ({
+export const AccountSQLStorageMixin = (database: Knex): AccountDatabase => ({
   async isAccountExists({ email }: IsAccountExistsParams) {
     const result = await database('accounts')
       .where('email', email)

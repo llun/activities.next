@@ -2,9 +2,9 @@ import { Firestore } from '@google-cloud/firestore'
 import { Mastodon } from '@llun/activities.schema'
 
 import { urlToId } from '@/lib/database/firestore/urlToId'
-import { AccountStorage } from '@/lib/database/types/acount'
+import { AccountDatabase } from '@/lib/database/types/account'
 import {
-  ActorStorage,
+  ActorDatabase,
   CreateActorParams,
   DeleteActorParams,
   GetActorFollowersCountParams,
@@ -23,8 +23,8 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const ActorFirestoreStorageMixin = (
   database: Firestore,
-  accountStorage: AccountStorage
-): ActorStorage => {
+  accountDatabase: AccountDatabase
+): ActorDatabase => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function getActorFromDataAndAccount(data: any, account?: Account): Actor {
     return new Actor({
@@ -244,7 +244,7 @@ export const ActorFirestoreStorageMixin = (
         return getActorFromDataAndAccount(data)
       }
 
-      const account = await accountStorage.getAccountFromId({
+      const account = await accountDatabase.getAccountFromId({
         id: data.accountId
       })
       return getActorFromDataAndAccount(data, account)
@@ -274,7 +274,7 @@ export const ActorFirestoreStorageMixin = (
         return getActorFromDataAndAccount(data)
       }
 
-      const account = await accountStorage.getAccountFromId({
+      const account = await accountDatabase.getAccountFromId({
         id: data.accountId
       })
       return getActorFromDataAndAccount(data, account)

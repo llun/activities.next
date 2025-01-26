@@ -2,7 +2,7 @@ import { Mastodon } from '@llun/activities.schema'
 import { Knex } from 'knex'
 
 import {
-  ActorStorage,
+  ActorDatabase,
   CreateActorParams,
   DeleteActorParams,
   GetActorFollowersCountParams,
@@ -34,7 +34,7 @@ export const ActorSQLStorageMixin = (
   database: Knex,
   getActor: GetActorFunction,
   getMastodonActor: GetMastodonActorFunction
-): ActorStorage => ({
+): ActorDatabase => ({
   async createActor({
     actorId,
 

@@ -1,7 +1,7 @@
 import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database'
-import { StatusStorage } from '@/lib/database/types/status'
+import { StatusDatabase } from '@/lib/database/types/status'
 import {
   CreateTimelineStatusParams,
   GetTimelineParams
@@ -12,7 +12,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
 export const TimelineSQLStorageMixin = (
   database: Knex,
-  statusStorage: StatusStorage
+  statusDatabase: StatusDatabase
 ) => ({
   async getTimeline({
     timeline,
@@ -34,7 +34,7 @@ export const TimelineSQLStorageMixin = (
         const statuses = (
           await Promise.all(
             local.map((item) =>
-              statusStorage.getStatus({ statusId: item.statusId })
+              statusDatabase.getStatus({ statusId: item.statusId })
             )
           )
         ).filter((item): item is Status => item !== undefined)
@@ -79,7 +79,7 @@ export const TimelineSQLStorageMixin = (
           statusesId
             .map((item) => item.statusId)
             .map((statusId) =>
-              statusStorage.getStatus({ statusId, currentActorId: actorId })
+              statusDatabase.getStatus({ statusId, currentActorId: actorId })
             )
         )
 

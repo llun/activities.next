@@ -41,7 +41,7 @@ import {
   LinkAccountWithProviderParams,
   UpdateAccountSessionParams,
   VerifyAccountParams
-} from './types/acount'
+} from './types/account'
 import {
   CreateActorParams,
   DeleteActorParams,

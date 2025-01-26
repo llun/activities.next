@@ -6,27 +6,27 @@ import {
 } from '@/lib/stub/const'
 
 import {
-  TestStorageTable,
-  getTestStorageTable,
-  storageBeforeAll
+  TestDatabaseTable,
+  databaseBeforeAll,
+  getTestDatabaseTable
 } from '../utils'
 
-describe('AccountStorage', () => {
-  const table: TestStorageTable = getTestStorageTable()
+describe('AccountDatabase', () => {
+  const table: TestDatabaseTable = getTestDatabaseTable()
 
   beforeAll(async () => {
-    await storageBeforeAll(table)
+    await databaseBeforeAll(table)
   })
 
   afterAll(async () => {
     await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(table)('%s', (_, storage) => {
+  describe.each(table)('%s', (_, database) => {
     it('returns false when account is not created yet', async () => {
-      expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeFalse()
+      expect(await database.isAccountExists({ email: TEST_EMAIL2 })).toBeFalse()
       expect(
-        await storage.isUsernameExists({
+        await database.isUsernameExists({
           username: TEST_USERNAME2,
           domain: TEST_DOMAIN
         })
@@ -34,7 +34,7 @@ describe('AccountStorage', () => {
     })
 
     it('creates account and actor', async () => {
-      await storage.createAccount({
+      await database.createAccount({
         email: TEST_EMAIL2,
         username: TEST_USERNAME2,
         passwordHash: TEST_PASSWORD_HASH,
@@ -42,14 +42,14 @@ describe('AccountStorage', () => {
         privateKey: 'privateKey2',
         publicKey: 'publicKey2'
       })
-      const actor = await storage.getMastodonActorFromUsername({
+      const actor = await database.getMastodonActorFromUsername({
         username: TEST_USERNAME2,
         domain: TEST_DOMAIN
       })
 
-      expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
+      expect(await database.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
       expect(
-        await storage.isUsernameExists({
+        await database.isUsernameExists({
           username: TEST_USERNAME2,
           domain: TEST_DOMAIN
         })

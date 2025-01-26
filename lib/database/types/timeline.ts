@@ -12,7 +12,7 @@ export type CreateTimelineStatusParams = {
   status: Status
 }
 
-export interface TimelineStorage {
+export interface TimelineDatabase {
   getTimeline({
     timeline,
     actorId,

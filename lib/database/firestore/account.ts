@@ -2,7 +2,7 @@ import { Firestore } from '@google-cloud/firestore'
 
 import { urlToId } from '@/lib/database/firestore/urlToId'
 import {
-  AccountStorage,
+  AccountDatabase,
   CreateAccountParams,
   CreateAccountSessionParams,
   DeleteAccountSessionParams,
@@ -15,13 +15,13 @@ import {
   LinkAccountWithProviderParams,
   UpdateAccountSessionParams,
   VerifyAccountParams
-} from '@/lib/database/types/acount'
+} from '@/lib/database/types/account'
 import { Account } from '@/lib/models/account'
 import { Session } from '@/lib/models/session'
 
 export const AccountFirestoreStorageMixin = (
   database: Firestore
-): AccountStorage => ({
+): AccountDatabase => ({
   async isAccountExists({ email }: IsAccountExistsParams) {
     const accounts = database.collection('accounts')
     const snapshot = await accounts.where('email', '==', email).count().get()

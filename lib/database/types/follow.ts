@@ -25,7 +25,7 @@ export type UpdateFollowStatusParams = {
   status: FollowStatus
 }
 
-export interface FollowStorage {
+export interface FollowDatabase {
   createFollow(params: CreateFollowParams): Promise<Follow>
   getFollowFromId(params: GetFollowFromIdParams): Promise<Follow | undefined>
   getLocalFollowersForActorId(

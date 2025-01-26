@@ -52,7 +52,7 @@ export type GetActorFollowersCountParams = { actorId: string }
 
 export type IsInternalActorParams = { actorId: string }
 
-export interface ActorStorage {
+export interface ActorDatabase {
   createActor(params: CreateActorParams): Promise<Actor | undefined>
   createMastodonActor(
     params: CreateActorParams

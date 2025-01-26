@@ -1,5 +1,5 @@
-import { Account } from '../../models/account'
-import { Session } from '../../models/session'
+import { Account } from '@/lib/models/account'
+import { Session } from '@/lib/models/session'
 
 export type IsAccountExistsParams = { email: string }
 export type IsUsernameExistsParams = { username: string; domain: string }
@@ -44,7 +44,7 @@ export type UpdateAccountSessionParams = {
   expireAt?: number
 }
 
-export interface AccountStorage {
+export interface AccountDatabase {
   isAccountExists(params: IsAccountExistsParams): Promise<boolean>
   isUsernameExists(params: IsUsernameExistsParams): Promise<boolean>
 

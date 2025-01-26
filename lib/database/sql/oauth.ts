@@ -1,8 +1,8 @@
 import { Knex } from 'knex'
 import { omit } from 'lodash'
 
-import { AccountStorage } from '@/lib/database/types/acount'
-import { ActorStorage } from '@/lib/database/types/actor'
+import { AccountDatabase } from '@/lib/database/types/account'
+import { ActorDatabase } from '@/lib/database/types/actor'
 import {
   CreateAccessTokenParams,
   CreateAuthCodeParams,
@@ -12,7 +12,7 @@ import {
   GetAuthCodeParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
-  OAuthStorage,
+  OAuthDatabase,
   RevokeAccessTokenParams,
   RevokeAuthCodeParams,
   UpdateClientParams,
@@ -25,9 +25,9 @@ import { User } from '@/lib/models/oauth2/user'
 
 export const OAuthStorageMixin = (
   database: Knex,
-  accountStorage: AccountStorage,
-  actorStorage: ActorStorage
-): OAuthStorage => ({
+  accountDatabase: AccountDatabase,
+  actorDatabase: ActorDatabase
+): OAuthDatabase => ({
   async createClient(params: CreateClientParams) {
     const { name, redirectUris, secret, scopes, ...rest } =
       CreateClientParams.parse(params)
@@ -128,8 +128,8 @@ export const OAuthStorageMixin = (
 
     const [client, actor, account] = await Promise.all([
       this.getClientFromId({ clientId: data.clientId }),
-      actorStorage.getActorFromId({ id: data.actorId }),
-      accountStorage.getAccountFromId({ id: data.accountId })
+      actorDatabase.getActorFromId({ id: data.actorId }),
+      accountDatabase.getAccountFromId({ id: data.accountId })
     ])
 
     return Token.parse({
@@ -186,7 +186,7 @@ export const OAuthStorageMixin = (
       .first()
     if (parseInt(tokenCountResult?.count ?? '0', 10) > 0) return null
 
-    const actor = await actorStorage.getActorFromId({ id: actorId })
+    const actor = await actorDatabase.getActorFromId({ id: actorId })
     if (!actor?.account || actor.account.id !== accountId) return null
 
     const token = {
@@ -261,7 +261,7 @@ export const OAuthStorageMixin = (
       return null
     }
 
-    const actor = await actorStorage.getActorFromId({ id: actorId })
+    const actor = await actorDatabase.getActorFromId({ id: actorId })
     if (!actor?.account || actor.account.id !== accountId) return null
 
     const authCode = {
@@ -288,8 +288,8 @@ export const OAuthStorageMixin = (
 
     const [client, actor, account] = await Promise.all([
       this.getClientFromId({ clientId: data.clientId }),
-      actorStorage.getActorFromId({ id: data.actorId }),
-      accountStorage.getAccountFromId({ id: data.accountId })
+      actorDatabase.getActorFromId({ id: data.actorId }),
+      accountDatabase.getAccountFromId({ id: data.accountId })
     ])
 
     return AuthCode.parse({

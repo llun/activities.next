@@ -5,11 +5,11 @@ import {
   CreateMediaParams,
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
-  MediaStorage
+  MediaDatabase
 } from '@/lib/database/types/media'
 import { Attachment, AttachmentData } from '@/lib/models/attachment'
 
-export const MediaSQLStorageMixin = (database: Knex): MediaStorage => ({
+export const MediaSQLStorageMixin = (database: Knex): MediaDatabase => ({
   async createMedia({
     actorId,
     original,

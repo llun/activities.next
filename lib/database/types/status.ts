@@ -64,7 +64,7 @@ export type GetTagsParams = {
   statusId: string
 }
 
-export interface StatusStorage {
+export interface StatusDatabase {
   createNote(params: CreateNoteParams): Promise<Status>
   updateNote(params: UpdateNoteParams): Promise<Status | undefined>
 

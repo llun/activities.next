@@ -14,16 +14,16 @@ const TEST_PG_CONNECTION = {
 }
 
 export type PrepareFunction = () => Promise<void> | void
-export type TestStorageTableItem = [string, Storage, PrepareFunction]
-export type TestStorageTable = TestStorageTableItem[]
+export type TestDatabaseTableItem = [string, Storage, PrepareFunction]
+export type TestDatabaseTable = TestDatabaseTableItem[]
 
-type GetTestStorage = () => {
+type GetTestDatabase = () => {
   name: string
   storage: Storage
   prepare: () => Promise<void> | void
 }
 
-const STORAGES: Record<string, GetTestStorage> = {
+const STORAGES: Record<string, GetTestDatabase> = {
   sqlite: () => ({
     name: 'sqlite',
     storage: getSQLStorage({
@@ -69,7 +69,7 @@ const STORAGES: Record<string, GetTestStorage> = {
   })
 }
 
-export const getTestStorageTable = (): TestStorageTable => {
+export const getTestDatabaseTable = (): TestDatabaseTable => {
   switch (process.env.TEST_DATABASE_TYPE) {
     case 'sqlite':
     case 'firestore':
@@ -90,7 +90,7 @@ export const getTestStorageTable = (): TestStorageTable => {
   }
 }
 
-export const storageBeforeAll = async (table: TestStorageTable) => {
+export const databaseBeforeAll = async (table: TestDatabaseTable) => {
   await Promise.all(
     table.map(async (item) => {
       const [, storage, prepare] = item

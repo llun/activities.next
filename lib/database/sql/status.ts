@@ -1,8 +1,8 @@
 import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database'
-import { ActorStorage } from '@/lib/database/types/actor'
-import { MediaStorage } from '@/lib/database/types/media'
+import { ActorDatabase } from '@/lib/database/types/actor'
+import { MediaDatabase } from '@/lib/database/types/media'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -16,7 +16,7 @@ import {
   GetStatusRepliesParams,
   GetTagsParams,
   HasActorAnnouncedStatusParams,
-  StatusStorage,
+  StatusDatabase,
   UpdateNoteParams,
   UpdatePollParams
 } from '@/lib/database/types/status'
@@ -32,9 +32,9 @@ import { Tag, TagData } from '@/lib/models/tag'
 
 export const StatusSQLStorageMixin = (
   database: Knex,
-  actorStorage: ActorStorage,
-  mediaStorage: MediaStorage
-): StatusStorage => {
+  actorDatabase: ActorDatabase,
+  mediaDatabase: MediaDatabase
+): StatusDatabase => {
   // Public
   async function createNote({
     id,
@@ -94,7 +94,7 @@ export const StatusSQLStorageMixin = (
       )
     })
 
-    const actor = await actorStorage.getActorFromId({ id: actorId })
+    const actor = await actorDatabase.getActorFromId({ id: actorId })
     return new Status({
       id,
       url,
@@ -209,7 +209,7 @@ export const StatusSQLStorageMixin = (
 
     const [originalStatus, actor] = await Promise.all([
       getStatus({ statusId: originalStatusId }),
-      actorStorage.getActorFromId({ id: actorId })
+      actorDatabase.getActorFromId({ id: actorId })
     ])
     const announceData: StatusAnnounce = {
       id,
@@ -300,7 +300,7 @@ export const StatusSQLStorageMixin = (
       )
     })
 
-    const actor = await actorStorage.getActorFromId({ id: actorId })
+    const actor = await actorDatabase.getActorFromId({ id: actorId })
     return new Status({
       id,
       url,
@@ -455,7 +455,7 @@ export const StatusSQLStorageMixin = (
   }: GetFavouritedByParams): Promise<Actor[]> {
     const result = await database('likes').where({ statusId })
     const actors = await Promise.all(
-      result.map((item) => actorStorage.getActorFromId({ id: item.actorId }))
+      result.map((item) => actorDatabase.getActorFromId({ id: item.actorId }))
     )
     return actors.filter((actor): actor is Actor => Boolean(actor))
   }
@@ -519,7 +519,7 @@ export const StatusSQLStorageMixin = (
     if (data.type === StatusType.enum.Announce) {
       const originalStatusId = data.content
       const [actor, originalStatus] = await Promise.all([
-        actorStorage.getActorFromId({ id: data.actorId }),
+        actorDatabase.getActorFromId({ id: data.actorId }),
         getStatus({ statusId: originalStatusId, currentActorId })
       ])
 
@@ -551,7 +551,7 @@ export const StatusSQLStorageMixin = (
       pollChoices,
       edits
     ] = await Promise.all([
-      mediaStorage.getAttachments({ statusId: data.id }),
+      mediaDatabase.getAttachments({ statusId: data.id }),
       getTags({ statusId: data.id }),
       withReplies
         ? database('statuses')
@@ -559,7 +559,7 @@ export const StatusSQLStorageMixin = (
             .where('reply', data.id)
             .orderBy('createdAt', 'desc')
         : Promise.resolve([]),
-      actorStorage.getActorFromId({ id: data.actorId }),
+      actorDatabase.getActorFromId({ id: data.actorId }),
       database('likes')
         .where('statusId', data.id)
         .count<{ count: string }>('* as count')

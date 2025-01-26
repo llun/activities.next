@@ -1,10 +1,10 @@
 import { Knex } from 'knex'
 
 import { GetActorFunction } from '@/lib/database/sql/actor'
-import { ActorStorage } from '@/lib/database/types/actor'
+import { ActorDatabase } from '@/lib/database/types/actor'
 import {
   CreateFollowParams,
-  FollowStorage,
+  FollowDatabase,
   GetAcceptedOrRequestedFollowParams,
   GetFollowFromIdParams,
   GetFollowersInboxParams,
@@ -18,9 +18,9 @@ import { Follow, FollowStatus } from '@/lib/models/follow'
 
 export const FollowerSQLStorageMixin = (
   database: Knex,
-  actorStorage: ActorStorage,
+  actorDatabase: ActorDatabase,
   getActor: GetActorFunction
-): FollowStorage => ({
+): FollowDatabase => ({
   async createFollow({
     actorId,
     targetActorId,
@@ -60,7 +60,7 @@ export const FollowerSQLStorageMixin = (
   async getLocalFollowersForActorId({
     targetActorId
   }: GetLocalFollowersForActorIdParams) {
-    const actor = await actorStorage.getActorFromId({ id: targetActorId })
+    const actor = await actorDatabase.getActorFromId({ id: targetActorId })
     // External actor, all followers are internal
     if (!actor?.privateKey) {
       return database<Follow>('follows')

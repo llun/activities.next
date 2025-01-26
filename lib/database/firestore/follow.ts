@@ -1,10 +1,10 @@
 import { FieldValue, Firestore } from '@google-cloud/firestore'
 
 import { urlToId } from '@/lib/database/firestore/urlToId'
-import { ActorStorage } from '@/lib/database/types/actor'
+import { ActorDatabase } from '@/lib/database/types/actor'
 import {
   CreateFollowParams,
-  FollowStorage,
+  FollowDatabase,
   GetAcceptedOrRequestedFollowParams,
   GetFollowFromIdParams,
   GetFollowersInboxParams,
@@ -18,8 +18,8 @@ import { Follow, FollowStatus } from '@/lib/models/follow'
 
 export const FollowerSQLStorageMixin = (
   database: Firestore,
-  actorStorage: ActorStorage
-): FollowStorage => ({
+  actorDatabase: ActorDatabase
+): FollowDatabase => ({
   async createFollow({
     actorId,
     targetActorId,
@@ -92,7 +92,7 @@ export const FollowerSQLStorageMixin = (
   async getLocalFollowersForActorId({
     targetActorId
   }: GetLocalFollowersForActorIdParams) {
-    const actor = await actorStorage.getActorFromId({ id: targetActorId })
+    const actor = await actorDatabase.getActorFromId({ id: targetActorId })
     // External actor, all followers are internal
     if (!actor?.privateKey) {
       const follows = database.collection('follows')
@@ -147,7 +147,9 @@ export const FollowerSQLStorageMixin = (
 
     const actors = (
       await Promise.all(
-        followers.map((actorId) => actorStorage.getActorFromId({ id: actorId }))
+        followers.map((actorId) =>
+          actorDatabase.getActorFromId({ id: actorId })
+        )
       )
     ).filter(
       (actor): actor is Actor => actor !== undefined && actor.privateKey !== ''
