@@ -3,7 +3,6 @@ import { Knex } from 'knex'
 
 import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
-
 import {
   ActorStorage,
   CreateActorParams,
@@ -16,8 +15,8 @@ import {
   IsCurrentActorFollowingParams,
   IsInternalActorParams,
   UpdateActorParams
-} from '../types/actor'
-import { ActorSettings, SQLAccount, SQLActor } from '../types/sql'
+} from '@/lib/storage/types/actor'
+import { ActorSettings, SQLAccount, SQLActor } from '@/lib/storage/types/sql'
 
 export type GetActorFunction = (
   sqlActor: SQLActor,
