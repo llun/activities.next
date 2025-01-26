@@ -2,7 +2,7 @@ import { Firestore } from '@google-cloud/firestore'
 
 import { Account } from '@/lib/models/account'
 import { Session } from '@/lib/models/session'
-import { FirestoreStorage } from '@/lib/storage/firestore'
+import { urlToId } from '@/lib/storage/firestore/urlToId'
 import {
   AccountStorage,
   CreateAccountParams,
@@ -19,7 +19,7 @@ import {
   VerifyAccountParams
 } from '@/lib/storage/types/acount'
 
-export const AccountSQLStorageMixin = (
+export const AccountFirestoreStorageMixin = (
   database: Firestore
 ): AccountStorage => ({
   async isAccountExists({ email }: IsAccountExistsParams) {
@@ -91,9 +91,7 @@ export const AccountSQLStorageMixin = (
       updatedAt: currentTime
     }
 
-    await database
-      .doc(`actors/${FirestoreStorage.urlToId(actorId)}`)
-      .set(actorDoc)
+    await database.doc(`actors/${urlToId(actorId)}`).set(actorDoc)
     return accountRef.id
   },
 

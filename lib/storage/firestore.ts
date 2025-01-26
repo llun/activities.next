@@ -374,6 +374,7 @@ export class FirestoreStorage implements Storage {
     await Promise.all(sessions.docs.map((doc) => doc.ref.delete()))
   }
 
+  // Actor
   @Trace('db')
   async createActor({
     actorId,
@@ -736,6 +737,7 @@ export class FirestoreStorage implements Storage {
     return Boolean(actorDoc?.data()?.accountId)
   }
 
+  // Follow
   @Trace('db')
   async createFollow({
     actorId,
