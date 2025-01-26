@@ -1,17 +1,8 @@
 import { Knex } from 'knex'
 
-import { Actor } from '@/lib/models/actor'
-import { PollChoice } from '@/lib/models/pollChoice'
-import {
-  Status,
-  StatusAnnounce,
-  StatusNote,
-  StatusType
-} from '@/lib/models/status'
-import { Tag, TagData } from '@/lib/models/tag'
-import { PER_PAGE_LIMIT } from '@/lib/storage'
-import { ActorStorage } from '@/lib/storage/types/actor'
-import { MediaStorage } from '@/lib/storage/types/media'
+import { PER_PAGE_LIMIT } from '@/lib/database'
+import { ActorStorage } from '@/lib/database/types/actor'
+import { MediaStorage } from '@/lib/database/types/media'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -28,7 +19,16 @@ import {
   StatusStorage,
   UpdateNoteParams,
   UpdatePollParams
-} from '@/lib/storage/types/status'
+} from '@/lib/database/types/status'
+import { Actor } from '@/lib/models/actor'
+import { PollChoice } from '@/lib/models/pollChoice'
+import {
+  Status,
+  StatusAnnounce,
+  StatusNote,
+  StatusType
+} from '@/lib/models/status'
+import { Tag, TagData } from '@/lib/models/tag'
 
 export const StatusSQLStorageMixin = (
   database: Knex,

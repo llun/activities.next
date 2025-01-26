@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { GrantIdentifiers, Scope } from '@/lib/storage/types/oauth'
+import { GrantIdentifiers, Scope } from '@/lib/database/types/oauth'
 
 export const Client = z.object({
   id: z.string(),

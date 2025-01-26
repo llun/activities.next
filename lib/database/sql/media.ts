@@ -1,13 +1,13 @@
 import { Knex } from 'knex'
 
-import { Attachment, AttachmentData } from '@/lib/models/attachment'
 import {
   CreateAttachmentParams,
   CreateMediaParams,
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
   MediaStorage
-} from '@/lib/storage/types/media'
+} from '@/lib/database/types/media'
+import { Attachment, AttachmentData } from '@/lib/models/attachment'
 
 export const MediaSQLStorageMixin = (database: Knex): MediaStorage => ({
   async createMedia({

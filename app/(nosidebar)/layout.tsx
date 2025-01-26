@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth'
 import { FC, ReactNode } from 'react'
 
 import { Header } from '@/lib/components/Header'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 
 import { Modal } from '../Modal'
 import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'

@@ -1,8 +1,8 @@
-import { acceptFollow, getPublicProfile } from '../activities'
-import { FollowRequest } from '../activities/actions/follow'
-import { FollowStatus } from '../models/follow'
-import { Storage } from '../storage/types'
-import { recordActorIfNeeded } from './utils'
+import { recordActorIfNeeded } from '@/lib/actions/utils'
+import { acceptFollow, getPublicProfile } from '@/lib/activities'
+import { FollowRequest } from '@/lib/activities/actions/follow'
+import { Storage } from '@/lib/database/types'
+import { FollowStatus } from '@/lib/models/follow'
 
 interface CreateFollowerParams {
   followRequest: FollowRequest

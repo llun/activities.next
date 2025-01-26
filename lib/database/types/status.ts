@@ -1,7 +1,6 @@
+import { Actor } from '@/lib/models/actor'
+import { Status } from '@/lib/models/status'
 import { Tag, TagType } from '@/lib/models/tag'
-
-import { Actor } from '../../models/actor'
-import { Status } from '../../models/status'
 
 interface BaseCreateStatusParams {
   id: string

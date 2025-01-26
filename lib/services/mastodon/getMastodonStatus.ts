@@ -1,6 +1,6 @@
+import { Storage } from '@/lib/database/types'
 import { ActorData } from '@/lib/models/actor'
 import { StatusData } from '@/lib/models/status'
-import { Storage } from '@/lib/storage/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { getMastodonAccount } from './getMastodonAccount'

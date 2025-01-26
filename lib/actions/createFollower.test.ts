@@ -1,7 +1,7 @@
 import { createFollower } from '@/lib/actions/createFollower'
 import { acceptFollow } from '@/lib/activities'
+import { getSQLStorage } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
-import { getSQLStorage } from '@/lib/storage/sql'
 import { testUserId } from '@/lib/stub/const'
 import { MockFollowRequest } from '@/lib/stub/followRequest'
 import { seedActor1 } from '@/lib/stub/seed/actor1'

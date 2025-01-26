@@ -1,5 +1,5 @@
 import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
-import { getSQLStorage } from '@/lib/storage/sql'
+import { getSQLStorage } from '@/lib/database/sql'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { seedStorage } from '@/lib/stub/storage'

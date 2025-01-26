@@ -8,8 +8,8 @@ import { FC } from 'react'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Posts } from '@/lib/components/Posts/Posts'
 import { getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
 import { Timeline } from '@/lib/services/timelines/types'
-import { getStorage } from '@/lib/storage'
 
 import { CredentialForm } from './CredentialForm'
 import { SigninButton } from './SigninButton'
@@ -21,18 +21,18 @@ export const metadata: Metadata = {
 
 const Page: FC = async () => {
   const { host } = getConfig()
-  const [storage, providers, session] = await Promise.all([
-    getStorage(),
+  const database = getDatabase()
+  const [providers, session] = await Promise.all([
     getProviders(),
     getServerSession(getAuthOptions())
   ])
 
-  if (!storage) throw new Error('Storage is not available')
+  if (!database) throw new Error('Storage is not available')
   if (session && session.user) {
     return redirect('/')
   }
 
-  const statuses = await storage?.getTimeline({
+  const statuses = await database.getTimeline({
     timeline: Timeline.LOCAL_PUBLIC
   })
 

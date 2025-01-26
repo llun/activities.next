@@ -4,7 +4,7 @@ import {
   CreateLikeParams,
   DeleteLikeParams,
   GetLikeCountParams
-} from '@/lib/storage/types/like'
+} from '@/lib/database/types/like'
 
 export const LikeSQLStorageMixin = (database: Knex) => ({
   async createLike({ actorId, statusId }: CreateLikeParams) {

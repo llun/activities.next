@@ -1,12 +1,8 @@
 import { Knex } from 'knex'
 import { omit } from 'lodash'
 
-import { AuthCode } from '@/lib/models/oauth2/authCode'
-import { Client } from '@/lib/models/oauth2/client'
-import { Token } from '@/lib/models/oauth2/token'
-import { User } from '@/lib/models/oauth2/user'
-import { AccountStorage } from '@/lib/storage/types/acount'
-import { ActorStorage } from '@/lib/storage/types/actor'
+import { AccountStorage } from '@/lib/database/types/acount'
+import { ActorStorage } from '@/lib/database/types/actor'
 import {
   CreateAccessTokenParams,
   CreateAuthCodeParams,
@@ -21,7 +17,11 @@ import {
   RevokeAuthCodeParams,
   UpdateClientParams,
   UpdateRefreshTokenParams
-} from '@/lib/storage/types/oauth'
+} from '@/lib/database/types/oauth'
+import { AuthCode } from '@/lib/models/oauth2/authCode'
+import { Client } from '@/lib/models/oauth2/client'
+import { Token } from '@/lib/models/oauth2/token'
+import { User } from '@/lib/models/oauth2/user'
 
 export const OAuthStorageMixin = (
   database: Knex,

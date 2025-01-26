@@ -1,11 +1,10 @@
-import { Storage } from '@/lib/storage/types'
-
-import { getConfig } from '../../config'
-import { MediaStorageType } from '../../config/mediaStorage'
-import { Actor } from '../../models/actor'
-import { S3FileStorage } from './S3StorageFile'
-import { LocalFileStorage } from './localFile'
-import { MediaSchema, PresigedMediaInput } from './types'
+import { getConfig } from '@/lib/config'
+import { MediaStorageType } from '@/lib/config/mediaStorage'
+import { Storage } from '@/lib/database/types'
+import { Actor } from '@/lib/models/actor'
+import { S3FileStorage } from '@/lib/services/medias/S3StorageFile'
+import { LocalFileStorage } from '@/lib/services/medias/localFile'
+import { MediaSchema, PresigedMediaInput } from '@/lib/services/medias/types'
 
 export const saveMedia = async (
   storage: Storage,

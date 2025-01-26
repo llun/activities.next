@@ -1,6 +1,6 @@
+import { Storage } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { StatusData } from '@/lib/models/status'
-import { Storage } from '@/lib/storage/types'
 
 export enum Timeline {
   MAIN = 'main',

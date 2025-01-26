@@ -1,8 +1,6 @@
 import { Mastodon } from '@llun/activities.schema'
 import { Knex } from 'knex'
 
-import { Account } from '@/lib/models/account'
-import { Actor } from '@/lib/models/actor'
 import {
   ActorStorage,
   CreateActorParams,
@@ -15,8 +13,10 @@ import {
   IsCurrentActorFollowingParams,
   IsInternalActorParams,
   UpdateActorParams
-} from '@/lib/storage/types/actor'
-import { ActorSettings, SQLAccount, SQLActor } from '@/lib/storage/types/sql'
+} from '@/lib/database/types/actor'
+import { ActorSettings, SQLAccount, SQLActor } from '@/lib/database/types/sql'
+import { Account } from '@/lib/models/account'
+import { Actor } from '@/lib/models/actor'
 
 export type GetActorFunction = (
   sqlActor: SQLActor,

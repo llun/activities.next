@@ -1,6 +1,6 @@
+import { Storage } from '@/lib/database/types'
+import { getTestStorageTable, storageBeforeAll } from '@/lib/database/utils'
 import { Follow, FollowStatus } from '@/lib/models/follow'
-import { Storage } from '@/lib/storage/types'
-import { getTestStorageTable, storageBeforeAll } from '@/lib/storage/utils'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'

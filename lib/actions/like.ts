@@ -1,5 +1,5 @@
-import { LikeStatus } from '../activities/actions/like'
-import { Storage } from '../storage/types'
+import { LikeStatus } from '@/lib/activities/actions/like'
+import { Storage } from '@/lib/database/types'
 
 interface LikeRequestParams {
   activity: LikeStatus

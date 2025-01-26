@@ -1,10 +1,10 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { getSQLStorage } from '@/lib/database/sql'
 import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
 import { StatusType } from '@/lib/models/status'
-import { getSQLStorage } from '@/lib/storage/sql'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockAnnounceStatus } from '@/lib/stub/announce'
 import { stubNoteId } from '@/lib/stub/note'

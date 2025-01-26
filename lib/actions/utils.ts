@@ -1,5 +1,5 @@
-import { getPublicProfile } from '../activities'
-import { Storage } from '../storage/types'
+import { getPublicProfile } from '@/lib/activities'
+import { Storage } from '@/lib/database/types'
 
 interface RecordActorIfNeededParams {
   actorId: string

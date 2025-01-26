@@ -1,9 +1,9 @@
 import { Note } from '@llun/activities.schema'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { getSQLStorage } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { Status, StatusType } from '@/lib/models/status'
-import { getSQLStorage } from '@/lib/storage/sql'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockMastodonNote } from '@/lib/stub/note'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'

@@ -12,14 +12,13 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import sharp from 'sharp'
 
+import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
+import { Storage } from '@/lib/database/types'
+import { Media } from '@/lib/database/types/media'
 import { Actor } from '@/lib/models/actor'
-import { Storage } from '@/lib/storage/types'
-
-import { MediaStorageS3Config } from '../../config/mediaStorage'
-import { Media } from '../../storage/types/media'
-import { MAX_HEIGHT, MAX_WIDTH } from './constants'
-import { extractVideoImage } from './extractVideoImage'
-import { extractVideoMeta } from './extractVideoMeta'
+import { MAX_HEIGHT, MAX_WIDTH } from '@/lib/services/medias/constants'
+import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
+import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import {
   MediaSchema,
   MediaStorage,
@@ -29,7 +28,7 @@ import {
   MediaType,
   PresigedMediaInput,
   PresignedUrlOutput
-} from './types'
+} from '@/lib/services/medias/types'
 
 export class S3FileStorage implements MediaStorage {
   private static _instance: MediaStorage

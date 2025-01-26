@@ -1,9 +1,9 @@
 import { noop } from 'lodash'
 import { Client as PostgresClient } from 'pg'
 
-import { FirestoreStorage } from '@/lib/storage/firestore'
-import { getSQLStorage } from '@/lib/storage/sql'
-import { Storage } from '@/lib/storage/types'
+import { FirestoreStorage } from '@/lib/database/firestore'
+import { getSQLStorage } from '@/lib/database/sql'
+import { Storage } from '@/lib/database/types'
 
 const TEST_PG_TABLE = 'test'
 const TEST_PG_CONNECTION = {

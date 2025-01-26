@@ -1,4 +1,4 @@
-import { getSQLStorage } from '@/lib/storage/sql'
+import { getSQLStorage } from '@/lib/database/sql'
 import { seedStorage } from '@/lib/stub/storage'
 
 import { createApplication } from './createApplication'

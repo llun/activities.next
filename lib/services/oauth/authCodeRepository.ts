@@ -11,9 +11,9 @@ import {
 } from 'node_modules/@jmondi/oauth2-server/dist/index.cjs'
 
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
+import { Storage } from '@/lib/database/types'
+import { Scope } from '@/lib/database/types/oauth'
 import { AuthCode } from '@/lib/models/oauth2/authCode'
-import { Storage } from '@/lib/storage/types'
-import { Scope } from '@/lib/storage/types/oauth'
 
 export class AuthCodeRepository implements OAuthAuthCodeRepository {
   storage: Storage

@@ -1,12 +1,11 @@
 import crypto from 'crypto'
 
+import { sendAnnounce } from '@/lib/activities'
+import { Storage } from '@/lib/database/types'
+import { Actor } from '@/lib/models/actor'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
-
-import { sendAnnounce } from '../activities'
-import { Actor } from '../models/actor'
-import { Storage } from '../storage/types'
-import { getSpan } from '../utils/trace'
+import { getSpan } from '@/lib/utils/trace'
 
 interface UserAnnounceParams {
   currentActor: Actor

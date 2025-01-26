@@ -8,7 +8,7 @@ import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { FollowAction } from '@/lib/components/FollowAction'
 import { Profile } from '@/lib/components/Profile'
 import { getConfig } from '@/lib/config'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 
 import { ActorTimelines } from './ActorTimelines'
 import styles from './[actor].module.scss'

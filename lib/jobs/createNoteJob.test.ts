@@ -1,10 +1,10 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { getSQLStorage } from '@/lib/database/sql'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
 import { StatusType } from '@/lib/models/status'
-import { getSQLStorage } from '@/lib/storage/sql'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockImageDocument } from '@/lib/stub/imageDocument'
 import { MockLitepubNote, MockMastodonNote } from '@/lib/stub/note'

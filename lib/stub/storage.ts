@@ -1,16 +1,16 @@
+import { Storage } from '@/lib/database/types'
+import { Actor } from '@/lib/models/actor'
+import { FollowStatus } from '@/lib/models/follow'
+import { TEST_DOMAIN } from '@/lib/stub/const'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { seedActor3 } from '@/lib/stub/seed/actor3'
+import { seedActor4 } from '@/lib/stub/seed/actor4'
+import { seedActor5 } from '@/lib/stub/seed/actor5'
+import { seedActor6 } from '@/lib/stub/seed/actor6'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
-import { Actor } from '../models/actor'
-import { FollowStatus } from '../models/follow'
-import { Storage } from '../storage/types'
-import { convertMarkdownText } from '../utils/text/convertMarkdownText'
-import { TEST_DOMAIN } from './const'
-import { seedActor1 } from './seed/actor1'
-import { seedActor2 } from './seed/actor2'
-import { seedActor3 } from './seed/actor3'
-import { seedActor4 } from './seed/actor4'
-import { seedActor5 } from './seed/actor5'
-import { seedActor6 } from './seed/actor6'
 import {
   EXTERNAL_ACTOR1,
   EXTERNAL_ACTOR1_INBOX,

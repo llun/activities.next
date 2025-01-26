@@ -1,5 +1,5 @@
-import { Actor } from '../../models/actor'
-import { Follow, FollowStatus } from '../../models/follow'
+import { Actor } from '@/lib/models/actor'
+import { Follow, FollowStatus } from '@/lib/models/follow'
 
 export type CreateFollowParams = {
   actorId: string

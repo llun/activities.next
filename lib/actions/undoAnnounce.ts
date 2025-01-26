@@ -1,7 +1,7 @@
-import { undoAnnounce } from '../activities'
-import { Actor } from '../models/actor'
-import { StatusAnnounce, StatusType } from '../models/status'
-import { Storage } from '../storage/types'
+import { undoAnnounce } from '@/lib/activities'
+import { Storage } from '@/lib/database/types'
+import { Actor } from '@/lib/models/actor'
+import { StatusAnnounce, StatusType } from '@/lib/models/status'
 
 interface UserUndoAnnounceParams {
   currentActor: Actor

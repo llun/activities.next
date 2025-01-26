@@ -1,5 +1,5 @@
 import { getActorPosts, getPublicProfileFromHandle } from '@/lib/activities'
-import { Storage } from '@/lib/storage/types'
+import { Storage } from '@/lib/database/types'
 
 export const getExternalActorProfile = async (
   storage: Storage,

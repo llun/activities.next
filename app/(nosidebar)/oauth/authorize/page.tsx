@@ -4,7 +4,7 @@ import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AuthorizeCard } from './AuthorizeCard'
@@ -17,15 +17,12 @@ interface Props {
 }
 
 const Page: FC<Props> = async ({ searchParams }) => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
-
-  if (!storage) {
-    throw new Error('Fail to load storage')
+  const database = getDatabase()
+  if (!database) {
+    throw new Error('Fail to load database')
   }
 
+  const session = await getServerSession(getAuthOptions())
   const params = await searchParams
   const parsedResult = SearchParams.safeParse(params)
   if (!parsedResult.success) {
@@ -33,8 +30,8 @@ const Page: FC<Props> = async ({ searchParams }) => {
   }
 
   const [actor, client] = await Promise.all([
-    getActorFromSession(storage, session),
-    storage.getClientFromId({ clientId: params.client_id })
+    getActorFromSession(database, session),
+    database.getClientFromId({ clientId: params.client_id })
   ])
 
   if (!client) {

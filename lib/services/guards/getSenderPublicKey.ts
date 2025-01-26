@@ -1,7 +1,7 @@
 import { HTTPError } from 'got'
 
 import { getPublicProfile } from '@/lib/activities'
-import { Storage } from '@/lib/storage/types'
+import { Storage } from '@/lib/database/types'
 import { getTracer } from '@/lib/utils/trace'
 
 export async function getSenderPublicKey(storage: Storage, actorId: string) {

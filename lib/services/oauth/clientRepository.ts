@@ -4,7 +4,7 @@ import {
   OAuthClientRepository
 } from '@jmondi/oauth2-server'
 
-import { Storage } from '@/lib/storage/types'
+import { Storage } from '@/lib/database/types'
 
 export class ClientRepository implements OAuthClientRepository {
   private storage: Storage

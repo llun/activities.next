@@ -1,9 +1,9 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { userAnnounce } from '@/lib/actions/announce'
+import { getSQLStorage } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { StatusType } from '@/lib/models/status'
-import { getSQLStorage } from '@/lib/storage/sql'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedStorage } from '@/lib/stub/storage'

@@ -1,15 +1,15 @@
+import { getDatabase } from '@/lib/database'
 import { Timeline } from '@/lib/services/timelines/types'
-import { getStorage } from '@/lib/storage'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 export const dynamic = 'force-dynamic'
 
 export const GET = async () => {
-  const storage = await getStorage()
-  if (!storage) return apiErrorResponse(500)
+  const database = getDatabase()
+  if (!database) return apiErrorResponse(500)
 
-  const statuses = await storage.getTimeline({
+  const statuses = await database.getTimeline({
     timeline: Timeline.LOCAL_PUBLIC
   })
 

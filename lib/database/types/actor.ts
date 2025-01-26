@@ -1,6 +1,6 @@
 import { Mastodon } from '@llun/activities.schema'
 
-import { Actor } from '../../models/actor'
+import { Actor } from '@/lib/models/actor'
 
 export type CreateActorParams = {
   actorId: string

@@ -4,7 +4,7 @@ import { FC } from 'react'
 
 import { Posts } from '@/lib/components/Posts/Posts'
 import { getConfig } from '@/lib/config'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
@@ -28,7 +28,7 @@ export const generateMetadata = async ({
 
 const Page: FC<Props> = async ({ params }) => {
   const { host } = getConfig()
-  const storage = await getStorage()
+  const storage = getDatabase()
   if (!storage) throw new Error('Storage is not available')
 
   const { actor, status: id } = await params

@@ -1,4 +1,4 @@
-import { getTestStorageTable, storageBeforeAll } from '@/lib/storage/utils'
+import { getTestStorageTable, storageBeforeAll } from '@/lib/database/utils'
 import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,

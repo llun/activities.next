@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { parse, verify } from '@/lib/utils/signature'
 
@@ -11,8 +11,8 @@ import { ActivityPubVerifiedSenderHandle, AppRouterParams } from './types'
 export const ActivityPubVerifySenderGuard =
   <P>(handle: ActivityPubVerifiedSenderHandle<P>) =>
   async (request: NextRequest, params: AppRouterParams<P>) => {
-    const storage = await getStorage()
-    if (!storage) return apiErrorResponse(500)
+    const database = getDatabase()
+    if (!database) return apiErrorResponse(500)
 
     const requestSignature = request.headers.get('signature')
     if (!requestSignature) return apiErrorResponse(400)
@@ -22,7 +22,7 @@ export const ActivityPubVerifySenderGuard =
 
     const host = headerHost(request.headers)
     const requestUrl = new URL(request.url, `http://${host}`)
-    const publicKey = await getSenderPublicKey(storage, signatureParts.keyId)
+    const publicKey = await getSenderPublicKey(database, signatureParts.keyId)
     if (
       !(await verify(
         `${request.method.toLowerCase()} ${requestUrl.pathname}`,

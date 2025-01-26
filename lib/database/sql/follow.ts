@@ -1,9 +1,7 @@
 import { Knex } from 'knex'
 
-import { Account } from '@/lib/models/account'
-import { Follow, FollowStatus } from '@/lib/models/follow'
-import { GetActorFunction } from '@/lib/storage/sql/actor'
-import { ActorStorage } from '@/lib/storage/types/actor'
+import { GetActorFunction } from '@/lib/database/sql/actor'
+import { ActorStorage } from '@/lib/database/types/actor'
 import {
   CreateFollowParams,
   FollowStorage,
@@ -14,7 +12,9 @@ import {
   GetLocalFollowersForActorIdParams,
   GetLocalFollowsFromInboxUrlParams,
   UpdateFollowStatusParams
-} from '@/lib/storage/types/follow'
+} from '@/lib/database/types/follow'
+import { Account } from '@/lib/models/account'
+import { Follow, FollowStatus } from '@/lib/models/follow'
 
 export const FollowerSQLStorageMixin = (
   database: Knex,

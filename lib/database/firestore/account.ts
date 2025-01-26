@@ -1,8 +1,6 @@
 import { Firestore } from '@google-cloud/firestore'
 
-import { Account } from '@/lib/models/account'
-import { Session } from '@/lib/models/session'
-import { urlToId } from '@/lib/storage/firestore/urlToId'
+import { urlToId } from '@/lib/database/firestore/urlToId'
 import {
   AccountStorage,
   CreateAccountParams,
@@ -17,7 +15,9 @@ import {
   LinkAccountWithProviderParams,
   UpdateAccountSessionParams,
   VerifyAccountParams
-} from '@/lib/storage/types/acount'
+} from '@/lib/database/types/acount'
+import { Account } from '@/lib/models/account'
+import { Session } from '@/lib/models/session'
 
 export const AccountFirestoreStorageMixin = (
   database: Firestore

@@ -1,11 +1,8 @@
 import { Firestore } from '@google-cloud/firestore'
 import { Mastodon } from '@llun/activities.schema'
 
-import { Account } from '@/lib/models/account'
-import { Actor } from '@/lib/models/actor'
-import { FollowStatus } from '@/lib/models/follow'
-import { urlToId } from '@/lib/storage/firestore/urlToId'
-import { AccountStorage } from '@/lib/storage/types/acount'
+import { urlToId } from '@/lib/database/firestore/urlToId'
+import { AccountStorage } from '@/lib/database/types/acount'
 import {
   ActorStorage,
   CreateActorParams,
@@ -18,7 +15,10 @@ import {
   IsCurrentActorFollowingParams,
   IsInternalActorParams,
   UpdateActorParams
-} from '@/lib/storage/types/actor'
+} from '@/lib/database/types/actor'
+import { Account } from '@/lib/models/account'
+import { Actor } from '@/lib/models/actor'
+import { FollowStatus } from '@/lib/models/follow'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const ActorFirestoreStorageMixin = (

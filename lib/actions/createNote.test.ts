@@ -1,8 +1,8 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
+import { getSQLStorage } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
-import { getSQLStorage } from '@/lib/storage/sql'
 import { expectCall, mockRequests } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedActor1 } from '@/lib/stub/seed/actor1'

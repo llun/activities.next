@@ -6,9 +6,9 @@ import { generate } from 'peggy'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
+import { Scope } from '@/lib/database/types/oauth'
 import { Actor } from '@/lib/models/actor'
-import { getStorage } from '@/lib/storage'
-import { Scope } from '@/lib/storage/types/oauth'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 
@@ -34,21 +34,18 @@ export const getTokenFromHeader = (authorizationHeader: string | null) => {
 export const OAuthGuard =
   <P>(scopes: Scope[], handle: AuthenticatedApiHandle<P>) =>
   async (req: NextRequest, params: AppRouterParams<P>) => {
-    const [storage, session] = await Promise.all([
-      getStorage(),
-      getServerSession(getAuthOptions())
-    ])
-
-    if (!storage) {
+    const database = getDatabase()
+    if (!database) {
       return apiErrorResponse(500)
     }
 
+    const session = await getServerSession(getAuthOptions())
     if (session?.user?.email) {
-      const currentActor = await storage.getActorFromEmail({
+      const currentActor = await database.getActorFromEmail({
         email: session.user.email
       })
       if (!currentActor) return apiErrorResponse(401)
-      return handle(req, { currentActor, storage }, params)
+      return handle(req, { currentActor, storage: database }, params)
     }
 
     const authorizationToken = req.headers.get('Authorization')

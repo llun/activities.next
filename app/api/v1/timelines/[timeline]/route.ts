@@ -1,8 +1,8 @@
+import { Scope } from '@/lib/database/types/oauth'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'
-import { Scope } from '@/lib/storage/types/oauth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,

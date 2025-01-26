@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { DeleteSessionButton } from './DeleteSessionButton'
@@ -18,22 +18,19 @@ export const metadata: Metadata = {
 
 const Page = async () => {
   const { host } = getConfig()
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
-
-  if (!storage) {
-    throw new Error('Fail to load storage')
+  const database = getDatabase()
+  if (!database) {
+    throw new Error('Fail to load database')
   }
 
-  const actor = await getActorFromSession(storage, session)
+  const session = await getServerSession(getAuthOptions())
+  const actor = await getActorFromSession(database, session)
   if (!actor || !actor.account) {
     return redirect(`https://${host}/auth/signin`)
   }
 
   const currentTime = Date.now()
-  const sessions = await storage.getAccountAllSessions({
+  const sessions = await database.getAccountAllSessions({
     accountId: actor.account.id
   })
 

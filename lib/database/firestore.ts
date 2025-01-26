@@ -3,6 +3,7 @@ import { Mastodon } from '@llun/activities.schema'
 import crypto from 'crypto'
 import omit from 'lodash/omit'
 
+import { Storage } from '@/lib/database/types'
 import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
 import { Attachment, AttachmentData } from '@/lib/models/attachment'
@@ -20,14 +21,13 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/models/status'
+import { Tag, TagData } from '@/lib/models/tag'
 import { Timeline } from '@/lib/services/timelines/types'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { logger } from '@/lib/utils/logger'
 import { Trace } from '@/lib/utils/trace'
 
 import { PER_PAGE_LIMIT } from '.'
-import { Tag, TagData } from '../models/tag'
-import { getISOTimeUTC } from '../utils/getISOTimeUTC'
-import { logger } from '../utils/logger'
-import { Storage } from './types'
 import {
   CreateAccountParams,
   CreateAccountSessionParams,
@@ -1006,6 +1006,7 @@ export class FirestoreStorage implements Storage {
     })
   }
 
+  // Status
   @Trace('db')
   async createNote({
     id,

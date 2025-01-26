@@ -4,8 +4,8 @@ import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
-import { getStorage } from '@/lib/storage'
-import { Storage } from '@/lib/storage/types'
+import { getDatabase } from '@/lib/database'
+import { Storage } from '@/lib/database/types'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -21,12 +21,12 @@ interface Props {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 const Page: FC<Props> = async ({ searchParams }) => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
+  const [database, session] = await Promise.all([
+    getDatabase(),
     getServerSession(getAuthOptions())
   ])
 
-  if (!storage) throw new Error('Storage is not available')
+  if (!database) throw new Error('Database is not available')
   if (session && session.user) {
     return redirect('/')
   }
@@ -35,7 +35,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
   const code = Array.isArray(verificationCode)
     ? verificationCode[0]
     : verificationCode
-  const isAccountVerify = Boolean(await isVerify(storage, code))
+  const isAccountVerify = Boolean(await isVerify(database, code))
 
   return (
     <h1>

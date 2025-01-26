@@ -2,13 +2,13 @@ import memoize from 'lodash/memoize'
 
 import { getConfig } from '@/lib/config'
 import { KnexBaseDatabase } from '@/lib/config/database'
-import { FirestoreStorage } from '@/lib/storage/firestore'
-import { getSQLStorage } from '@/lib/storage/sql'
-import { Storage } from '@/lib/storage/types'
+import { FirestoreStorage } from '@/lib/database/firestore'
+import { getSQLStorage } from '@/lib/database/sql'
+import { Storage } from '@/lib/database/types'
 
 export const PER_PAGE_LIMIT = 30
 
-export const getStorage = memoize((): Storage | null => {
+export const getDatabase = memoize((): Storage | null => {
   const config = getConfig()
   switch (config.database.type) {
     case 'sqlite3':

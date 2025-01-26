@@ -1,13 +1,13 @@
-import { AcceptFollow } from '../activities/actions/acceptFollow'
-import { getConfig } from '../config'
-import { FollowStatus } from '../models/follow'
-import { sendMail } from '../services/email'
+import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
+import { getConfig } from '@/lib/config'
+import { Storage } from '@/lib/database/types'
+import { FollowStatus } from '@/lib/models/follow'
+import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
   getSubject,
   getTextContent
-} from '../services/email/templates/follow'
-import { Storage } from '../storage/types'
+} from '@/lib/services/email/templates/follow'
 
 interface AcceptFollowRequestParams {
   activity: AcceptFollow

@@ -1,6 +1,12 @@
 import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
 
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
+import { Scope } from '@/lib/database/types/oauth'
+import {
+  TestStorageTable,
+  getTestStorageTable,
+  storageBeforeAll
+} from '@/lib/database/utils'
 import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
 import { FollowStatus } from '@/lib/models/follow'
@@ -10,12 +16,6 @@ import { Token } from '@/lib/models/oauth2/token'
 import { StatusNote, StatusType } from '@/lib/models/status'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
-import { Scope } from '@/lib/storage/types/oauth'
-import {
-  TestStorageTable,
-  getTestStorageTable,
-  storageBeforeAll
-} from '@/lib/storage/utils'
 import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '@/lib/stub/const'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'

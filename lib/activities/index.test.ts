@@ -8,8 +8,8 @@ import {
   sendNote
 } from '@/lib/activities'
 import { CreateStatus } from '@/lib/activities/actions/createStatus'
+import { getSQLStorage } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
-import { getSQLStorage } from '@/lib/storage/sql'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { MockMastodonNote } from '@/lib/stub/note'

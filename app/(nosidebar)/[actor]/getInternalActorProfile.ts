@@ -1,5 +1,5 @@
+import { Storage } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
-import { Storage } from '@/lib/storage/types'
 
 export const getInternalActorProfile = async (
   storage: Storage,

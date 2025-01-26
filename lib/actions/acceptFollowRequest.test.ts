@@ -2,6 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { acceptFollowRequest } from '@/lib/actions//acceptFollowRequest'
 import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
+import { getSQLStorage } from '@/lib/database/sql'
 import { FollowStatus } from '@/lib/models/follow'
 import { sendMail } from '@/lib/services/email'
 import {
@@ -9,7 +10,6 @@ import {
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/follow'
-import { getSQLStorage } from '@/lib/storage/sql'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockFollowRequestResponse } from '@/lib/stub/followRequest'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'

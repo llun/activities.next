@@ -1,9 +1,9 @@
 import { randomBytes } from 'crypto'
 
+import { getSQLStorage } from '@/lib/database/sql'
+import { Storage } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
-import { getSQLStorage } from '@/lib/storage/sql'
-import { Storage } from '@/lib/storage/types'
 import { mockRequests } from '@/lib/stub/activities'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'

@@ -1,7 +1,7 @@
 import { Mastodon } from '@llun/activities.schema'
 
+import { Storage } from '@/lib/database/types'
 import { ActorData } from '@/lib/models/actor'
-import { Storage } from '@/lib/storage/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const getMastodonAccount = async (

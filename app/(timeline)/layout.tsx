@@ -10,8 +10,8 @@ import { FC, ReactNode } from 'react'
 import { Header } from '@/lib/components/Header'
 import { Profile as ProfileComponent } from '@/lib/components/Profile'
 import { getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
 import { Actor } from '@/lib/models/actor'
-import { getStorage } from '@/lib/storage'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { Modal } from '../Modal'
@@ -32,16 +32,13 @@ interface LayoutProps {
 }
 
 const Layout: FC<LayoutProps> = async ({ children }) => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
-
-  if (!storage) {
-    throw new Error('Fail to load storage')
+  const database = getDatabase()
+  if (!database) {
+    throw new Error('Fail to load database')
   }
 
-  const actor = await getActorFromSession(storage, session)
+  const session = await getServerSession(getAuthOptions())
+  const actor = await getActorFromSession(database, session)
   if (!actor) {
     return redirect(`https://${getConfig().host}/auth/signin`)
   }

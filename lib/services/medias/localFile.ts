@@ -6,8 +6,8 @@ import process from 'process'
 import sharp from 'sharp'
 
 import { MediaStorageFileConfig } from '@/lib/config/mediaStorage'
+import { Storage } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
-import { Storage } from '@/lib/storage/types'
 import { logger } from '@/lib/utils/logger'
 
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'

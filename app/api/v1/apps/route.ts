@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,
@@ -16,14 +16,15 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = async (req: NextRequest) => {
-  const [storage, body] = await Promise.all([getStorage(), req.formData()])
-  if (!storage) {
+  const database = getDatabase()
+  if (!database) {
     return apiErrorResponse(500)
   }
 
+  const body = await req.formData()
   const json = Object.fromEntries(body.entries())
   const postRequest = PostRequest.parse(json)
-  const response = await createApplication(storage, postRequest)
+  const response = await createApplication(database, postRequest)
 
   const { type, ...rest } = response
   if (type === 'error') {

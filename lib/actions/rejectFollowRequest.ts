@@ -1,6 +1,6 @@
-import { RejectFollow } from '../activities/actions/rejectFollow'
-import { FollowStatus } from '../models/follow'
-import { Storage } from '../storage/types'
+import { RejectFollow } from '@/lib/activities/actions/rejectFollow'
+import { Storage } from '@/lib/database/types'
+import { FollowStatus } from '@/lib/models/follow'
 
 interface RejectFollowRequestParams {
   activity: RejectFollow

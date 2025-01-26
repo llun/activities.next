@@ -1,4 +1,4 @@
-import { urlToId } from '@/lib/storage/firestore/urlToId'
+import { urlToId } from '@/lib/database/firestore/urlToId'
 
 describe('#urlToId', () => {
   it('converts all / to :', () => {

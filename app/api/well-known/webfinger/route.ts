@@ -1,6 +1,6 @@
 import { type NextRequest } from 'next/server'
 
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 export const GET = async (req: NextRequest) => {
@@ -16,8 +16,8 @@ export const GET = async (req: NextRequest) => {
   const [username, domain] = account.split('@')
   if (!domain) return apiErrorResponse(404)
 
-  const storage = await getStorage()
-  const actor = await storage?.getActorFromUsername({ username, domain })
+  const database = getDatabase()
+  const actor = await database?.getActorFromUsername({ username, domain })
 
   // This is not local actors
   if (!actor?.privateKey) return apiErrorResponse(404)

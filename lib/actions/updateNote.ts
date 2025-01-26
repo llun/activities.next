@@ -1,14 +1,13 @@
+import { sendUpdateNote } from '@/lib/activities'
+import { Storage } from '@/lib/database/types'
+import { Actor } from '@/lib/models/actor'
+import { StatusType } from '@/lib/models/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
 } from '@/lib/utils/jsonld/activitystream'
-
-import { sendUpdateNote } from '../activities'
-import { Actor } from '../models/actor'
-import { StatusType } from '../models/status'
-import { Storage } from '../storage/types'
-import { logger } from '../utils/logger'
-import { getSpan } from '../utils/trace'
+import { logger } from '@/lib/utils/logger'
+import { getSpan } from '@/lib/utils/trace'
 
 interface UpdateNoteFromUserInput {
   statusId: string

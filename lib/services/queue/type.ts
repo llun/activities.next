@@ -1,4 +1,4 @@
-import type { Storage } from '@/lib/storage/types'
+import type { Storage } from '@/lib/database/types'
 
 export interface JobMessage {
   id: string

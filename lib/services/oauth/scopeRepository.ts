@@ -1,6 +1,6 @@
 import { OAuthScope, OAuthScopeRepository } from '@jmondi/oauth2-server'
 
-import { Scope } from '@/lib/storage/types/oauth'
+import { Scope } from '@/lib/database/types/oauth'
 
 export class ScopeRepository implements OAuthScopeRepository {
   async getAllByIdentifiers(scopeNames: string[]): Promise<OAuthScope[]> {

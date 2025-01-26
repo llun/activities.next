@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 
+import { getDatabase } from '@/lib/database'
+import { Storage } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
-import { getStorage } from '@/lib/storage'
-import { Storage } from '@/lib/storage/types'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 import { headerHost } from './headerHost'
@@ -25,16 +25,16 @@ export const OnlyLocalUserGuard =
     req: NextRequest,
     query: AppRouterParams<OnlyLocalUserGuardParams>
   ) => {
-    const storage = await getStorage()
-    if (!storage) return apiErrorResponse(500)
+    const database = await getDatabase()
+    if (!database) return apiErrorResponse(500)
 
     const { username } = await query.params
     const host = headerHost(req.headers)
     const id = `https://${host}/users/${username}`
-    const actor = await storage.getActorFromId({ id })
+    const actor = await database.getActorFromId({ id })
     if (!actor || !actor.account) {
       return apiErrorResponse(404)
     }
 
-    return handle(storage, actor, req, query)
+    return handle(database, actor, req, query)
   }

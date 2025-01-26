@@ -1,6 +1,6 @@
+import { Storage } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
-import { Storage } from '@/lib/storage/types'
 import { getTracer } from '@/lib/utils/trace'
 
 import { mainTimelineRule } from './main'

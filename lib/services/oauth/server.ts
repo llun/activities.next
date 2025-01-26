@@ -2,7 +2,7 @@ import { AuthorizationServer, DateInterval } from '@jmondi/oauth2-server'
 import { memoize } from 'lodash'
 
 import { getConfig } from '@/lib/config'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 
 import { AuthCodeRepository } from './authCodeRepository'
 import { ClientRepository } from './clientRepository'
@@ -11,12 +11,12 @@ import { TokenRepository } from './tokenRepository'
 import { UserRepository } from './userRepository'
 
 export const getOAuth2Server = memoize(async () => {
-  const storage = await getStorage()
-  if (!storage) throw new Error('Fail to get storage')
+  const database = getDatabase()
+  if (!database) throw new Error('Fail to get database')
 
   const authorizationServer = new AuthorizationServer(
-    new ClientRepository(storage),
-    new TokenRepository(storage),
+    new ClientRepository(database),
+    new TokenRepository(database),
     new ScopeRepository(),
     getConfig().secretPhase,
     {
@@ -24,8 +24,8 @@ export const getOAuth2Server = memoize(async () => {
     }
   )
 
-  const userRepository = new UserRepository(storage)
-  const authCodeRepository = new AuthCodeRepository(storage)
+  const userRepository = new UserRepository(database)
+  const authCodeRepository = new AuthCodeRepository(database)
   authorizationServer.enableGrantTypes(
     ['refresh_token', new DateInterval('30d')],
     { grant: 'authorization_code', authCodeRepository, userRepository }

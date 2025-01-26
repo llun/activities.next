@@ -1,13 +1,13 @@
 import { Knex } from 'knex'
 
-import { Status } from '@/lib/models/status'
-import { Timeline } from '@/lib/services/timelines/types'
-import { PER_PAGE_LIMIT } from '@/lib/storage'
-import { StatusStorage } from '@/lib/storage/types/status'
+import { PER_PAGE_LIMIT } from '@/lib/database'
+import { StatusStorage } from '@/lib/database/types/status'
 import {
   CreateTimelineStatusParams,
   GetTimelineParams
-} from '@/lib/storage/types/timeline'
+} from '@/lib/database/types/timeline'
+import { Status } from '@/lib/models/status'
+import { Timeline } from '@/lib/services/timelines/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
 export const TimelineSQLStorageMixin = (

@@ -1,9 +1,7 @@
 import { FieldValue, Firestore } from '@google-cloud/firestore'
 
-import { Actor } from '@/lib/models/actor'
-import { Follow, FollowStatus } from '@/lib/models/follow'
-import { urlToId } from '@/lib/storage/firestore/urlToId'
-import { ActorStorage } from '@/lib/storage/types/actor'
+import { urlToId } from '@/lib/database/firestore/urlToId'
+import { ActorStorage } from '@/lib/database/types/actor'
 import {
   CreateFollowParams,
   FollowStorage,
@@ -14,7 +12,9 @@ import {
   GetLocalFollowersForActorIdParams,
   GetLocalFollowsFromInboxUrlParams,
   UpdateFollowStatusParams
-} from '@/lib/storage/types/follow'
+} from '@/lib/database/types/follow'
+import { Actor } from '@/lib/models/actor'
+import { Follow, FollowStatus } from '@/lib/models/follow'
 
 export const FollowerSQLStorageMixin = (
   database: Firestore,
