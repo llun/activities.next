@@ -33,6 +33,6 @@ export const defaultJobHandle =
         return
       }
 
-      await job(storage, message)
+      await job(database, message)
     })
   }

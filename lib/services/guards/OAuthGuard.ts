@@ -60,7 +60,7 @@ export const OAuthGuard =
         token,
         getConfig().secretPhase
       ) as jwt.JwtPayload
-      const accessToken = await storage.getAccessToken({
+      const accessToken = await database.getAccessToken({
         accessToken: decoded.jti ?? ''
       })
       if (!accessToken) {
@@ -77,7 +77,7 @@ export const OAuthGuard =
 
       return handle(
         req,
-        { currentActor: new Actor(accessToken.user.actor), storage },
+        { currentActor: new Actor(accessToken.user.actor), storage: database },
         params
       )
     } catch (e) {
