@@ -28,8 +28,8 @@ export const generateMetadata = async ({
 
 const Page: FC<Props> = async ({ params }) => {
   const { host } = getConfig()
-  const storage = getDatabase()
-  if (!storage) throw new Error('Storage is not available')
+  const database = getDatabase()
+  if (!database) throw new Error('Database is not available')
 
   const { actor, status: id } = await params
   const currentTime = new Date()
@@ -40,8 +40,8 @@ const Page: FC<Props> = async ({ params }) => {
 
   const statusId = `https://${parts[1]}/users/${parts[0]}/statuses/${id}`
   const [status, replies] = await Promise.all([
-    storage.getStatus({ statusId, withReplies: false }),
-    storage.getStatusReplies({ statusId })
+    database.getStatus({ statusId, withReplies: false }),
+    database.getStatusReplies({ statusId })
   ])
   if (!status) {
     return notFound()
@@ -58,7 +58,7 @@ const Page: FC<Props> = async ({ params }) => {
 
   const previouses = []
   if (status.reply) {
-    let replyStatus = await storage.getStatus({
+    let replyStatus = await database.getStatus({
       statusId: status.reply,
       withReplies: false
     })
@@ -68,7 +68,7 @@ const Page: FC<Props> = async ({ params }) => {
         replyStatus = undefined
         break
       }
-      replyStatus = await storage.getStatus({
+      replyStatus = await database.getStatus({
         statusId: replyStatus.reply,
         withReplies: false
       })

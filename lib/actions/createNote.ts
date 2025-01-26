@@ -1,23 +1,22 @@
 import { Mention, Note } from '@llun/activities.schema'
 import crypto from 'crypto'
 
+import { getPublicProfile, sendNote } from '@/lib/activities'
+import { Storage } from '@/lib/database/types'
+import { Actor } from '@/lib/models/actor'
+import { PostBoxAttachment } from '@/lib/models/attachment'
+import { FollowStatus } from '@/lib/models/follow'
+import { Status } from '@/lib/models/status'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { getNoteFromStatusData } from '@/lib/utils/getNoteFromStatusData'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
 } from '@/lib/utils/jsonld/activitystream'
-
-import { getPublicProfile, sendNote } from '../activities'
-import { Actor } from '../models/actor'
-import { PostBoxAttachment } from '../models/attachment'
-import { FollowStatus } from '../models/follow'
-import { Status } from '../models/status'
-import { Storage } from '../storage/types'
-import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
-import { logger } from '../utils/logger'
-import { UNFOLLOW_NETWORK_ERROR_CODES } from '../utils/response'
-import { getMentions } from '../utils/text/getMentions'
-import { getSpan } from '../utils/trace'
+import { logger } from '@/lib/utils/logger'
+import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
+import { getMentions } from '@/lib/utils/text/getMentions'
+import { getSpan } from '@/lib/utils/trace'
 
 // TODO: Support status visibility public, unlist, followers only, mentions only
 export const statusRecipientsTo = (actor: Actor, replyStatus?: Status) => {

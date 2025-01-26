@@ -27,7 +27,7 @@ const Page: FC = async () => {
     getServerSession(getAuthOptions())
   ])
 
-  if (!database) throw new Error('Storage is not available')
+  if (!database) throw new Error('Database is not available')
   if (session && session.user) {
     return redirect('/')
   }

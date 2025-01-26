@@ -1,14 +1,16 @@
 import crypto from 'crypto'
 
+import {
+  statusRecipientsCC,
+  statusRecipientsTo
+} from '@/lib/actions/createNote'
+import { getConfig } from '@/lib/config'
+import { Storage } from '@/lib/database/types'
+import { Actor } from '@/lib/models/actor'
 import { addStatusToTimelines } from '@/lib/services/timelines'
-
-import { getConfig } from '../config'
-import { Actor } from '../models/actor'
-import { Storage } from '../storage/types'
-import { convertMarkdownText } from '../utils/text/convertMarkdownText'
-import { getMentions } from '../utils/text/getMentions'
-import { getSpan } from '../utils/trace'
-import { statusRecipientsCC, statusRecipientsTo } from './createNote'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
+import { getMentions } from '@/lib/utils/text/getMentions'
+import { getSpan } from '@/lib/utils/trace'
 
 interface CreatePollFromUserInputParams {
   text: string
