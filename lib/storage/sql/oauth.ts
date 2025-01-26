@@ -7,7 +7,6 @@ import { Token } from '@/lib/models/oauth2/token'
 import { User } from '@/lib/models/oauth2/user'
 import { AccountStorage } from '@/lib/storage/types/acount'
 import { ActorStorage } from '@/lib/storage/types/actor'
-import { OAuthStorage } from '@/lib/storage/types/oauth'
 import {
   CreateAccessTokenParams,
   CreateAuthCodeParams,
@@ -17,6 +16,7 @@ import {
   GetAuthCodeParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
+  OAuthStorage,
   RevokeAccessTokenParams,
   RevokeAuthCodeParams,
   UpdateClientParams,

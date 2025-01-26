@@ -4,6 +4,7 @@ import { Account } from '@/lib/models/account'
 import { Follow, FollowStatus } from '@/lib/models/follow'
 import {
   CreateFollowParams,
+  FollowerStorage,
   GetAcceptedOrRequestedFollowParams,
   GetFollowFromIdParams,
   GetFollowersInboxParams,
@@ -12,7 +13,6 @@ import {
   GetLocalFollowsFromInboxUrlParams,
   UpdateFollowStatusParams
 } from '@/lib/storage/types/follower'
-import { FollowerStorage } from '@/lib/storage/types/follower'
 
 import { ActorStorage } from '../types/actor'
 import { GetActorFunction } from './actor'
