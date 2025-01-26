@@ -2,7 +2,7 @@ import { Note } from '@llun/activities.schema'
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { likeRequest } from '@/lib/actions/like'
-import { getSQLStorage } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/sql'
 import { StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -12,7 +12,7 @@ import { seedStorage } from '@/lib/stub/storage'
 enableFetchMocks()
 
 describe('Accept follow action', () => {
-  const storage = getSQLStorage({
+  const storage = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

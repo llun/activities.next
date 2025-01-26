@@ -15,7 +15,7 @@ import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-export const getSQLStorage = (config: Knex.Config): Storage => {
+export const getSQLDatabase = (config: Knex.Config): Storage => {
   const database = knex(config)
 
   const getActor = (

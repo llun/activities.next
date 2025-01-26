@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
-import { getSQLStorage } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { expectCall, mockRequests } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
@@ -15,7 +15,7 @@ import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 enableFetchMocks()
 
 describe('Create note action', () => {
-  const storage = getSQLStorage({
+  const storage = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

@@ -1,7 +1,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { userAnnounce } from '@/lib/actions/announce'
-import { getSQLStorage } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
@@ -12,7 +12,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 enableFetchMocks()
 
 describe('Announce action', () => {
-  const storage = getSQLStorage({
+  const storage = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

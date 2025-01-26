@@ -1,4 +1,4 @@
-import { getSQLStorage } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -7,7 +7,7 @@ import { seedStorage } from '@/lib/stub/storage'
 import { getMentions } from '@/lib/utils/text/getMentions'
 
 describe('#getMentions', () => {
-  const storage = getSQLStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -18,21 +18,21 @@ describe('#getMentions', () => {
   let actor2: Actor | undefined
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
-    actor1 = await storage.getActorFromUsername({
+    await database.migrate()
+    await seedStorage(database)
+    actor1 = await database.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain
     })
-    actor2 = await storage.getActorFromUsername({
+    actor2 = await database.getActorFromUsername({
       username: seedActor2.username,
       domain: seedActor2.domain
     })
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -110,7 +110,7 @@ describe('#getMentions', () => {
     if (!actor1) fail('Actor1 is required')
     if (!actor2) fail('Actor2 is required')
 
-    const status = await storage.getStatus({
+    const status = await database.getStatus({
       statusId: `${actor2.id}/statuses/post-2`
     })
 

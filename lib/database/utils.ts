@@ -2,7 +2,7 @@ import { noop } from 'lodash'
 import { Client as PostgresClient } from 'pg'
 
 import { FirestoreStorage } from '@/lib/database/firestore'
-import { getSQLStorage } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/sql'
 import { Storage } from '@/lib/database/types'
 
 const TEST_PG_TABLE = 'test'
@@ -26,7 +26,7 @@ type GetTestDatabase = () => {
 const STORAGES: Record<string, GetTestDatabase> = {
   sqlite: () => ({
     name: 'sqlite',
-    storage: getSQLStorage({
+    storage: getSQLDatabase({
       client: 'better-sqlite3',
       useNullAsDefault: true,
       connection: {
@@ -47,7 +47,7 @@ const STORAGES: Record<string, GetTestDatabase> = {
   }),
   pg: () => ({
     name: 'pg',
-    storage: getSQLStorage({
+    storage: getSQLDatabase({
       client: 'pg',
       connection: {
         ...TEST_PG_CONNECTION,

@@ -1,7 +1,7 @@
 import { Note } from '@llun/activities.schema'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { getSQLStorage } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { Status, StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
@@ -15,7 +15,7 @@ import { compact } from '@/lib/utils/jsonld'
 enableFetchMocks()
 
 describe('Status', () => {
-  const storage = getSQLStorage({
+  const storage = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

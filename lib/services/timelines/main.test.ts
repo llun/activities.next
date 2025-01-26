@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto'
 
-import { getSQLStorage } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/sql'
 import { Storage } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
@@ -52,7 +52,7 @@ const createAnnounce = async (
 }
 
 describe('#mainTimelineRule', () => {
-  const storage = getSQLStorage({
+  const storage = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {

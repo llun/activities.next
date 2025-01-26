@@ -8,7 +8,7 @@ import {
   sendNote
 } from '@/lib/activities'
 import { CreateStatus } from '@/lib/activities/actions/createStatus'
-import { getSQLStorage } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
@@ -20,7 +20,7 @@ import { TEST_SHARED_INBOX, seedStorage } from '@/lib/stub/storage'
 enableFetchMocks()
 
 describe('activities', () => {
-  const storage = getSQLStorage({
+  const storage = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
