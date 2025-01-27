@@ -16,7 +16,7 @@ import {
 import { Actor } from '@/lib/models/actor'
 import { Follow, FollowStatus } from '@/lib/models/follow'
 
-export const FollowerSQLStorageMixin = (
+export const FollowerFirestoreDatabaseMixin = (
   database: Firestore,
   actorDatabase: ActorDatabase
 ): FollowDatabase => ({

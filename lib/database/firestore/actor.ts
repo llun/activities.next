@@ -21,7 +21,7 @@ import { Actor } from '@/lib/models/actor'
 import { FollowStatus } from '@/lib/models/follow'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-export const ActorFirestoreStorageMixin = (
+export const ActorFirestoreDatabaseMixin = (
   database: Firestore,
   accountDatabase: AccountDatabase
 ): ActorDatabase => {

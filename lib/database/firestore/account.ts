@@ -19,7 +19,7 @@ import {
 import { Account } from '@/lib/models/account'
 import { Session } from '@/lib/models/session'
 
-export const AccountFirestoreStorageMixin = (
+export const AccountFirestoreDatabaseMixin = (
   database: Firestore
 ): AccountDatabase => ({
   async isAccountExists({ email }: IsAccountExistsParams) {
