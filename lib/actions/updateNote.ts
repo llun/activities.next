@@ -14,7 +14,7 @@ interface UpdateNoteFromUserInput {
   currentActor: Actor
   text: string
   summary?: string
-  storage: Database
+  database: Database
 }
 
 export const updateNoteFromUserInput = async ({
@@ -22,10 +22,10 @@ export const updateNoteFromUserInput = async ({
   currentActor,
   text,
   summary,
-  storage
+  database
 }: UpdateNoteFromUserInput) => {
   const span = getSpan('actions', 'updateNoteFromUser', { statusId })
-  const status = await storage.getStatus({ statusId })
+  const status = await database.getStatus({ statusId })
   if (
     !status ||
     status.type !== StatusType.enum.Note ||
@@ -35,7 +35,7 @@ export const updateNoteFromUserInput = async ({
     return null
   }
 
-  const updatedStatus = await storage.updateNote({
+  const updatedStatus = await database.updateNote({
     statusId,
     summary,
     text
@@ -52,7 +52,7 @@ export const updateNoteFromUserInput = async ({
     updatedStatus.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
     updatedStatus.cc.includes(ACTIVITY_STREAM_PUBLIC_COMACT)
   ) {
-    const followersInbox = await storage.getFollowersInbox({
+    const followersInbox = await database.getFollowersInbox({
       targetActorId: currentActor.id
     })
     inboxes.push(...followersInbox)
@@ -66,7 +66,7 @@ export const updateNoteFromUserInput = async ({
             item !== ACTIVITY_STREAM_PUBLIC &&
             item !== ACTIVITY_STREAM_PUBLIC_COMACT
         )
-        .map(async (item) => storage.getActorFromId({ id: item }))
+        .map(async (item) => database.getActorFromId({ id: item }))
     )
   )
     .filter((actor): actor is Actor => Boolean(actor))

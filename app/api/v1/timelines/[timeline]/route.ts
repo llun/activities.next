@@ -26,7 +26,7 @@ export const GET = OAuthGuard<Params>(
     const startAfterStatusId = url.searchParams.get('startAfterStatusId')
     const format = url.searchParams.get('format')
 
-    const { storage, currentActor } = context
+    const { database, currentActor } = context
     const { timeline } = (await params?.params) ?? {}
     if (!timeline) return apiErrorResponse(400)
 
@@ -37,7 +37,7 @@ export const GET = OAuthGuard<Params>(
       return apiErrorResponse(404)
     }
 
-    const statuses = await storage.getTimeline({
+    const statuses = await database.getTimeline({
       timeline,
       actorId: currentActor.id,
       startAfterStatusId
@@ -52,7 +52,7 @@ export const GET = OAuthGuard<Params>(
       req,
       CORS_HEADERS,
       await Promise.all(
-        statuses.map((item) => getMastodonStatus(storage, item.data))
+        statuses.map((item) => getMastodonStatus(database, item.data))
       )
     )
   }

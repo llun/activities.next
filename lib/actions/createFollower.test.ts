@@ -10,7 +10,7 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 jest.mock('../activities')
 
 describe('#createFollower', () => {
-  const storage = getSQLDatabase({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -20,16 +20,16 @@ describe('#createFollower', () => {
   let actor: Actor
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedDatabase(storage)
-    actor = (await storage.getActorFromUsername({
+    await database.migrate()
+    await seedDatabase(database)
+    actor = (await database.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain
     })) as Actor
   })
 
   afterAll(async () => {
-    await storage.destroy()
+    await database.destroy()
   })
 
   it('creates follower in database and send accept follow back', async () => {
@@ -38,12 +38,12 @@ describe('#createFollower', () => {
       targetActorId: actor.id
     })
     const follow = await createFollower({
-      storage,
+      database,
       followRequest: request
     })
     expect(follow).toEqual(request)
 
-    const followingActor = await storage.getActorFromId({
+    const followingActor = await database.getActorFromId({
       id: 'https://another.network/users/friend'
     })
     expect(followingActor).toBeDefined()
@@ -60,7 +60,7 @@ describe('#createFollower', () => {
       targetActorId: testUserId('notexist')
     })
     const follow = await createFollower({
-      storage,
+      database,
       followRequest: request
     })
     expect(follow).toBeNull()

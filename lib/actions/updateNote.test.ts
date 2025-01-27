@@ -13,7 +13,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 enableFetchMocks()
 
 describe('Update note action', () => {
-  const storage = getSQLDatabase({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -23,17 +23,17 @@ describe('Update note action', () => {
   let actor1: Actor | undefined
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedDatabase(storage)
-    actor1 = await storage.getActorFromUsername({
+    await database.migrate()
+    await seedDatabase(database)
+    actor1 = await database.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain
     })
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -48,7 +48,7 @@ describe('Update note action', () => {
       const status = (await updateNoteFromUserInput({
         statusId: `${actor1.id}/statuses/post-1`,
         currentActor: actor1,
-        storage,
+        database,
         text: '<p>This is an updated note</p>'
       })) as Status
 
@@ -76,7 +76,7 @@ describe('Update note action', () => {
       const status = await updateNoteFromUserInput({
         statusId: `${actor1.id}/statuses/post-1`,
         currentActor: actor1,
-        storage,
+        database,
         text: 'This is markdown **text** that should get format'
       })
 

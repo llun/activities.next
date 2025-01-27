@@ -11,27 +11,27 @@ import {
 
 interface AcceptFollowRequestParams {
   activity: AcceptFollow
-  storage: Database
+  database: Database
 }
 
 export const acceptFollowRequest = async ({
   activity,
-  storage
+  database
 }: AcceptFollowRequestParams) => {
   const followRequestId = new URL(activity.object.id)
   const followId = followRequestId.pathname.slice(1)
   const config = getConfig()
-  const follow = await storage.getFollowFromId({ followId })
+  const follow = await database.getFollowFromId({ followId })
   if (!follow) return null
-  await storage.updateFollowStatus({
+  await database.updateFollowStatus({
     followId,
     status: FollowStatus.enum.Accepted
   })
 
   if (config.email) {
     const [actor, targetActor] = await Promise.all([
-      storage.getActorFromId({ id: follow.actorId }),
-      storage.getActorFromId({ id: follow.targetActorId })
+      database.getActorFromId({ id: follow.actorId }),
+      database.getActorFromId({ id: follow.targetActorId })
     ])
 
     if (targetActor?.account && actor) {

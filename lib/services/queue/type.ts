@@ -12,6 +12,6 @@ export interface Queue {
 }
 
 export type JobHandle = (
-  storage: Database,
+  database: Database,
   message: JobMessage
 ) => Promise<void>

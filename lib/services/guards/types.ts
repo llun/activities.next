@@ -11,12 +11,12 @@ export type AppRouterApiHandle<P> = (
 
 export type AuthenticatedApiHandle<P> = (
   request: NextRequest,
-  context: { storage: Database; currentActor: Actor },
+  context: { database: Database; currentActor: Actor },
   params: AppRouterParams<P>
 ) => Promise<Response> | Response
 
 export type ActivityPubVerifiedSenderHandle<P> = (
   request: NextRequest,
-  context: { storage: Database },
+  context: { database: Database },
   params: AppRouterParams<P>
 ) => Promise<Response> | Response

@@ -17,11 +17,11 @@ interface Params {
 
 export const DELETE = AuthenticatedGuard<Params>(
   async (req, context, query) => {
-    const { storage, currentActor } = context
+    const { database, currentActor } = context
     const { token } = (await query?.params) ?? { token: undefined }
     if (!token) return apiErrorResponse(400)
 
-    const accountSession = await storage.getAccountSession({
+    const accountSession = await database.getAccountSession({
       token
     })
     if (!accountSession) return apiErrorResponse(404)
@@ -30,7 +30,7 @@ export const DELETE = AuthenticatedGuard<Params>(
       throw new Error('Invalid token')
     }
 
-    await storage.deleteAccountSession({ token })
+    await database.deleteAccountSession({ token })
     return apiResponse(req, CORS_HEADERS, DEFAULT_202)
   }
 )

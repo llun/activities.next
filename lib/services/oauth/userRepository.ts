@@ -4,14 +4,14 @@ import { Database } from '@/lib/database/types'
 import { User } from '@/lib/models/oauth2/user'
 
 export class UserRepository implements OAuthUserRepository {
-  storage: Database
+  database: Database
 
-  constructor(storage: Database) {
-    this.storage = storage
+  constructor(database: Database) {
+    this.database = database
   }
 
   async getUserByCredentials(identifier: string): Promise<OAuthUser> {
-    const actor = await this.storage.getActorFromId({ id: identifier })
+    const actor = await this.database.getActorFromId({ id: identifier })
     if (!actor || !actor.account) throw new Error('Fail to find actor')
     return User.parse({
       id: actor.id,

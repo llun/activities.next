@@ -11,7 +11,7 @@ export enum Timeline {
 }
 
 export interface TimelineRuleParams {
-  storage: Database
+  database: Database
   currentActor: Actor
   status: StatusData
 }

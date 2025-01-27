@@ -3,21 +3,21 @@ import { Database } from '@/lib/database/types'
 import { FollowStatus } from '@/lib/models/follow'
 
 interface UndoFollowRequestParams {
-  storage: Database
+  database: Database
   request: UndoFollow
 }
 
 export const undoFollowRequest = async ({
-  storage,
+  database,
   request
 }: UndoFollowRequestParams) => {
-  const follow = await storage.getAcceptedOrRequestedFollow({
+  const follow = await database.getAcceptedOrRequestedFollow({
     actorId: request.object.actor,
     targetActorId: request.object.object
   })
   if (!follow) return false
 
-  await storage.updateFollowStatus({
+  await database.updateFollowStatus({
     followId: follow.id,
     status: FollowStatus.enum.Undo
   })

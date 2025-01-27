@@ -33,5 +33,5 @@ export const ActivityPubVerifySenderGuard =
       return apiErrorResponse(400)
     }
 
-    return handle(request, { storage: database }, params)
+    return handle(request, { database }, params)
   }

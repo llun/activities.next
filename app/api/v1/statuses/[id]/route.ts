@@ -18,7 +18,7 @@ export const PUT = AuthenticatedGuard<Params>(async (req, context, params) => {
   const id = (await params?.params).id
   if (!id) return apiErrorResponse(400)
 
-  const { storage, currentActor } = context
+  const { database, currentActor } = context
   const statusId = `${currentActor.id}/statuses/${id}`
   const changes = EditNoteSchema.parse(await req.json())
   const updatedNote = await updateNoteFromUserInput({
@@ -26,7 +26,7 @@ export const PUT = AuthenticatedGuard<Params>(async (req, context, params) => {
     currentActor,
     text: changes.status,
     summary: changes.spoiler_text,
-    storage
+    database
   })
 
   if (!updatedNote) return apiErrorResponse(403)

@@ -13,7 +13,7 @@ export type OnlyLocalUserGuardParams = {
 }
 
 export type OnlyLocalUserGuardHandle = (
-  storage: Database,
+  database: Database,
   actor: Actor,
   request: NextRequest,
   query: AppRouterParams<OnlyLocalUserGuardParams>
@@ -25,7 +25,7 @@ export const OnlyLocalUserGuard =
     req: NextRequest,
     query: AppRouterParams<OnlyLocalUserGuardParams>
   ) => {
-    const database = await getDatabase()
+    const database = getDatabase()
     if (!database) return apiErrorResponse(500)
 
     const { username } = await query.params

@@ -6,13 +6,13 @@ import { FollowStatus } from '@/lib/models/follow'
 
 interface CreateFollowerParams {
   followRequest: FollowRequest
-  storage: Database
+  database: Database
 }
 export const createFollower = async ({
   followRequest,
-  storage
+  database
 }: CreateFollowerParams) => {
-  const targetActor = await storage.getActorFromId({
+  const targetActor = await database.getActorFromId({
     id: followRequest.object
   })
   if (!targetActor) return null
@@ -25,14 +25,14 @@ export const createFollower = async ({
 
   const followerActor = await recordActorIfNeeded({
     actorId: followRequest.actor,
-    storage
+    database
   })
   if (!followerActor) {
     return null
   }
 
   await Promise.all([
-    storage.createFollow({
+    database.createFollow({
       actorId: followerActor.id,
       targetActorId: targetActor.id,
       status: FollowStatus.enum.Accepted,

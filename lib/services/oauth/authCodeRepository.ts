@@ -16,13 +16,13 @@ import { Scope } from '@/lib/database/types/oauth'
 import { AuthCode } from '@/lib/models/oauth2/authCode'
 
 export class AuthCodeRepository implements OAuthAuthCodeRepository {
-  storage: Database
-  constructor(storage: Database) {
-    this.storage = storage
+  database: Database
+  constructor(database: Database) {
+    this.database = database
   }
 
   async getByIdentifier(authCodeCode: string): Promise<OAuthAuthCode> {
-    const authCode = await this.storage.getAuthCode({ code: authCodeCode })
+    const authCode = await this.database.getAuthCode({ code: authCodeCode })
     if (!authCode) throw new Error('Fail to find auth code')
     return authCode
   }
@@ -58,7 +58,7 @@ export class AuthCodeRepository implements OAuthAuthCodeRepository {
   }
 
   async persist(authCodeCode: OAuthAuthCode): Promise<void> {
-    await this.storage.createAuthCode({
+    await this.database.createAuthCode({
       code: authCodeCode.code,
       redirectUri: authCodeCode.redirectUri,
       codeChallenge: authCodeCode.codeChallenge,
@@ -72,6 +72,6 @@ export class AuthCodeRepository implements OAuthAuthCodeRepository {
   }
 
   async revoke(authCodeCode: string): Promise<void> {
-    await this.storage.revokeAuthCode({ code: authCodeCode })
+    await this.database.revokeAuthCode({ code: authCodeCode })
   }
 }

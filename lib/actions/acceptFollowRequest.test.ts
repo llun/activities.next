@@ -23,7 +23,7 @@ jest.mock('../services/email', () => ({
 }))
 
 describe('Accept follow action', () => {
-  const storage = getSQLDatabase({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -32,13 +32,13 @@ describe('Accept follow action', () => {
   })
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedDatabase(storage)
+    await database.migrate()
+    await seedDatabase(database)
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -49,7 +49,7 @@ describe('Accept follow action', () => {
   describe('#acceptFollow', () => {
     it('update follow status to Accepted and return follow', async () => {
       const targetActorId = 'https://somewhere.test/actors/request-following'
-      const followRequest = await storage.getAcceptedOrRequestedFollow({
+      const followRequest = await database.getAcceptedOrRequestedFollow({
         actorId: ACTOR1_ID,
         targetActorId
       })
@@ -61,17 +61,20 @@ describe('Accept follow action', () => {
         followResponseStatus: 'Accept',
         followId: `https://llun.test/${followRequest?.id}`
       }) as AcceptFollow
-      const updatedRequest = await acceptFollowRequest({ activity, storage })
+      const updatedRequest = await acceptFollowRequest({
+        activity,
+        database
+      })
       expect(updatedRequest).toBeTruthy()
 
-      const acceptedRequest = await storage.getFollowFromId({
+      const acceptedRequest = await database.getFollowFromId({
         followId: followRequest.id
       })
       expect(acceptedRequest?.status).toEqual(FollowStatus.enum.Accepted)
     })
 
     it('sends email when target actor is local account', async () => {
-      const followRequest = await storage.getAcceptedOrRequestedFollow({
+      const followRequest = await database.getAcceptedOrRequestedFollow({
         actorId: ACTOR5_ID,
         targetActorId: ACTOR1_ID
       })
@@ -83,13 +86,16 @@ describe('Accept follow action', () => {
         followResponseStatus: 'Accept',
         followId: `https://llun.test/${followRequest?.id}`
       }) as AcceptFollow
-      const updatedRequest = await acceptFollowRequest({ activity, storage })
+      const updatedRequest = await acceptFollowRequest({
+        activity,
+        database
+      })
       expect(updatedRequest).toBeTruthy()
 
-      const acceptedRequest = await storage.getFollowFromId({
+      const acceptedRequest = await database.getFollowFromId({
         followId: followRequest.id
       })
-      const actor5 = await storage.getActorFromId({ id: ACTOR5_ID })
+      const actor5 = await database.getActorFromId({ id: ACTOR5_ID })
       if (!actor5) fail('Actor5 should be exists')
       expect(acceptedRequest?.status).toEqual(FollowStatus.enum.Accepted)
       expect(sendMail).toHaveBeenCalledWith({
@@ -112,7 +118,10 @@ describe('Accept follow action', () => {
         followResponseStatus: 'Accept',
         followId: `https://llun.test/random-id`
       }) as AcceptFollow
-      const updatedRequest = await acceptFollowRequest({ activity, storage })
+      const updatedRequest = await acceptFollowRequest({
+        activity,
+        database
+      })
       expect(updatedRequest).toBeNull()
     })
   })

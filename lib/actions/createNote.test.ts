@@ -15,7 +15,7 @@ import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 enableFetchMocks()
 
 describe('Create note action', () => {
-  const storage = getSQLDatabase({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -26,21 +26,21 @@ describe('Create note action', () => {
   let actor2: Actor | undefined
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedDatabase(storage)
-    actor1 = await storage.getActorFromUsername({
+    await database.migrate()
+    await seedDatabase(database)
+    actor1 = await database.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain
     })
-    actor2 = await storage.getActorFromUsername({
+    actor2 = await database.getActorFromUsername({
       username: seedActor2.username,
       domain: seedActor2.domain
     })
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -55,7 +55,7 @@ describe('Create note action', () => {
       const status = await createNoteFromUserInput({
         text: 'Hello',
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
 
@@ -83,7 +83,7 @@ describe('Create note action', () => {
         text: 'Hello',
         currentActor: actor1,
         replyNoteId: `${actor2?.id}/statuses/post-2`,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
 
@@ -113,7 +113,7 @@ How are you?
       const status = await createNoteFromUserInput({
         text,
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
       expect(status.data).toMatchObject({
@@ -153,7 +153,7 @@ How are you?
       const status = await createNoteFromUserInput({
         text,
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
       expect(status.data).toMatchObject({
@@ -220,7 +220,7 @@ How are you?
       const status = await createNoteFromUserInput({
         text,
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
 

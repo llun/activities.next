@@ -43,14 +43,17 @@ const Page: FC<Props> = async ({ params }) => {
 
   const [username, domain] = parts
   const isLoggedIn = Boolean(session?.user?.email)
-  const storageActor = await database.getActorFromUsername({ username, domain })
+  const persistedActor = await database.getActorFromUsername({
+    username,
+    domain
+  })
 
-  if (!isLoggedIn && !storageActor?.account) {
+  if (!isLoggedIn && !persistedActor?.account) {
     return notFound()
   }
 
-  const actorProfile = storageActor?.account
-    ? await getInternalActorProfile(database, storageActor)
+  const actorProfile = persistedActor?.account
+    ? await getInternalActorProfile(database, persistedActor)
     : await getExternalActorProfile(database, decodedActorHandle)
   if (!actorProfile) {
     return notFound()

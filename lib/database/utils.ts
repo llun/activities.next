@@ -19,14 +19,14 @@ export type TestDatabaseTable = TestDatabaseTableItem[]
 
 type GetTestDatabase = () => {
   name: string
-  storage: Database
+  database: Database
   prepare: () => Promise<void> | void
 }
 
-const STORAGES: Record<string, GetTestDatabase> = {
+const DATABASES: Record<string, GetTestDatabase> = {
   sqlite: () => ({
     name: 'sqlite',
-    storage: getSQLDatabase({
+    database: getSQLDatabase({
       client: 'better-sqlite3',
       useNullAsDefault: true,
       connection: {
@@ -37,7 +37,7 @@ const STORAGES: Record<string, GetTestDatabase> = {
   }),
   firestore: () => ({
     name: 'firestore',
-    storage: new FirestoreStorage({
+    database: new FirestoreStorage({
       type: 'firebase',
       projectId: 'test',
       host: 'localhost:8080',
@@ -47,7 +47,7 @@ const STORAGES: Record<string, GetTestDatabase> = {
   }),
   pg: () => ({
     name: 'pg',
-    storage: getSQLDatabase({
+    database: getSQLDatabase({
       client: 'pg',
       connection: {
         ...TEST_PG_CONNECTION,
@@ -74,17 +74,17 @@ export const getTestDatabaseTable = (): TestDatabaseTable => {
     case 'sqlite':
     case 'firestore':
     case 'pg': {
-      const { name, storage, prepare } =
-        STORAGES[process.env.TEST_DATABASE_TYPE]()
-      return [[name, storage, prepare]]
+      const { name, database, prepare } =
+        DATABASES[process.env.TEST_DATABASE_TYPE]()
+      return [[name, database, prepare]]
     }
     default: {
-      const sqlite = STORAGES.sqlite()
-      const firestore = STORAGES.firestore()
+      const sqlite = DATABASES.sqlite()
+      const firestore = DATABASES.firestore()
       return [
-        [sqlite.name, sqlite.storage, sqlite.prepare],
+        [sqlite.name, sqlite.database, sqlite.prepare],
         // Enable this when run start:firestore emulator and clear the database manually
-        [firestore.name, firestore.storage, firestore.prepare]
+        [firestore.name, firestore.database, firestore.prepare]
       ]
     }
   }
@@ -93,9 +93,9 @@ export const getTestDatabaseTable = (): TestDatabaseTable => {
 export const databaseBeforeAll = async (table: TestDatabaseTable) => {
   await Promise.all(
     table.map(async (item) => {
-      const [, storage, prepare] = item
+      const [, database, prepare] = item
       await prepare()
-      await storage.migrate()
+      await database.migrate()
     })
   )
 }

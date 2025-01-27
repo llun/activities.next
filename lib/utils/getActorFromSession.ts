@@ -4,7 +4,7 @@ import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 
 export const getActorFromSession = async (
-  storage: Database,
+  database: Database,
   session: Session | null
 ) => {
   const config = getConfig()
@@ -16,5 +16,5 @@ export const getActorFromSession = async (
     return null
   }
 
-  return storage.getActorFromEmail({ email: session.user.email })
+  return database.getActorFromEmail({ email: session.user.email })
 }

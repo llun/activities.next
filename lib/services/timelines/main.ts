@@ -23,7 +23,7 @@ import { MainTimelineRule, Timeline } from './types'
  *
  */
 export const mainTimelineRule: MainTimelineRule = async ({
-  storage,
+  database,
   currentActor,
   status
 }) =>
@@ -37,7 +37,7 @@ export const mainTimelineRule: MainTimelineRule = async ({
     },
     async (span) => {
       if (status.type === StatusType.enum.Announce) {
-        const isFollowing = await storage.isCurrentActorFollowing({
+        const isFollowing = await database.isCurrentActorFollowing({
           currentActorId: currentActor.id,
           followingActorId: status.actorId
         })
@@ -48,7 +48,7 @@ export const mainTimelineRule: MainTimelineRule = async ({
 
         const originalStatus = status.originalStatus
         const timeline = await mainTimelineRule({
-          storage,
+          database,
           currentActor,
           status: originalStatus
         })
@@ -61,7 +61,7 @@ export const mainTimelineRule: MainTimelineRule = async ({
         span.end()
         return Timeline.MAIN
       }
-      const isFollowing = await storage.isCurrentActorFollowing({
+      const isFollowing = await database.isCurrentActorFollowing({
         currentActorId: currentActor.id,
         followingActorId: status.actorId
       })
@@ -72,7 +72,7 @@ export const mainTimelineRule: MainTimelineRule = async ({
         return null
       }
 
-      const repliedStatus = await storage.getStatus({
+      const repliedStatus = await database.getStatus({
         statusId: status.reply,
         withReplies: false
       })
@@ -90,7 +90,7 @@ export const mainTimelineRule: MainTimelineRule = async ({
         return null
       }
       const value = await mainTimelineRule({
-        storage,
+        database,
         currentActor,
         status: repliedStatus.data
       })

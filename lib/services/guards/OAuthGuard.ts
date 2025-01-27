@@ -45,7 +45,7 @@ export const OAuthGuard =
         email: session.user.email
       })
       if (!currentActor) return apiErrorResponse(401)
-      return handle(req, { currentActor, storage: database }, params)
+      return handle(req, { currentActor, database }, params)
     }
 
     const authorizationToken = req.headers.get('Authorization')
@@ -77,7 +77,7 @@ export const OAuthGuard =
 
       return handle(
         req,
-        { currentActor: new Actor(accessToken.user.actor), storage: database },
+        { currentActor: new Actor(accessToken.user.actor), database },
         params
       )
     } catch (e) {

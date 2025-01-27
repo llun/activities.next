@@ -12,7 +12,7 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 enableFetchMocks()
 
 describe('Accept follow action', () => {
-  const storage = getSQLDatabase({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -21,13 +21,13 @@ describe('Accept follow action', () => {
   })
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedDatabase(storage)
+    await database.migrate()
+    await seedDatabase(database)
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -38,7 +38,7 @@ describe('Accept follow action', () => {
   describe('#rejectFollow', () => {
     it('update follow status to Rejected and return follow', async () => {
       const targetActorId = 'https://somewhere.test/actors/request-following'
-      const followRequest = await storage.getAcceptedOrRequestedFollow({
+      const followRequest = await database.getAcceptedOrRequestedFollow({
         actorId: ACTOR1_ID,
         targetActorId
       })
@@ -50,10 +50,10 @@ describe('Accept follow action', () => {
         followResponseStatus: 'Reject',
         followId: `https://llun.test/${followRequest?.id}`
       }) as RejectFollow
-      const updatedRequest = await rejectFollowRequest({ activity, storage })
+      const updatedRequest = await rejectFollowRequest({ activity, database })
       expect(updatedRequest).toBeTruthy()
 
-      const acceptedRequest = await storage.getFollowFromId({
+      const acceptedRequest = await database.getFollowFromId({
         followId: followRequest.id
       })
       expect(acceptedRequest?.status).toEqual(FollowStatus.enum.Rejected)
@@ -68,7 +68,7 @@ describe('Accept follow action', () => {
         followResponseStatus: 'Reject',
         followId: `https://llun.test/random-id`
       }) as RejectFollow
-      const updatedRequest = await rejectFollowRequest({ activity, storage })
+      const updatedRequest = await rejectFollowRequest({ activity, database })
       expect(updatedRequest).toBeNull()
     })
   })

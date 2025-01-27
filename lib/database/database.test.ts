@@ -90,9 +90,9 @@ describe('Database', () => {
     await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(table)(`%s`, (_, storage) => {
+  describe.each(table)(`%s`, (_, database) => {
     beforeAll(async () => {
-      await storage.createAccount({
+      await database.createAccount({
         email: TEST_EMAIL,
         username: TEST_USERNAME,
         passwordHash: TEST_PASSWORD_HASH,
@@ -104,7 +104,7 @@ describe('Database', () => {
       const idWithAccounts = [3, 4, 5, 6, 7, 8, 11, 12, 14, 15]
       await Promise.all(
         idWithAccounts.map((id) =>
-          storage.createAccount({
+          database.createAccount({
             email: `user${id}@llun.dev`,
             username: `user${id}`,
             passwordHash: TEST_PASSWORD_HASH,
@@ -116,13 +116,13 @@ describe('Database', () => {
       )
 
       await Promise.all([
-        storage.createClient({
+        database.createClient({
           name: 'application1',
           redirectUris: ['https://application1.llun.dev/oauth/redirect'],
           scopes: [Scope.enum.read],
           secret: 'secret'
         }),
-        storage.createClient({
+        database.createClient({
           name: 'application2',
           redirectUris: ['https://application2.llun.dev/oauth/redirect'],
           scopes: [Scope.enum.read, Scope.enum.write],
@@ -134,10 +134,10 @@ describe('Database', () => {
     describe('accounts', () => {
       it('returns false when account is not created yet', async () => {
         expect(
-          await storage.isAccountExists({ email: TEST_EMAIL2 })
+          await database.isAccountExists({ email: TEST_EMAIL2 })
         ).toBeFalse()
         expect(
-          await storage.isUsernameExists({
+          await database.isUsernameExists({
             username: TEST_USERNAME2,
             domain: TEST_DOMAIN
           })
@@ -145,7 +145,7 @@ describe('Database', () => {
       })
 
       it('creates account and actor', async () => {
-        await storage.createAccount({
+        await database.createAccount({
           email: TEST_EMAIL2,
           username: TEST_USERNAME2,
           passwordHash: TEST_PASSWORD_HASH,
@@ -153,9 +153,11 @@ describe('Database', () => {
           privateKey: 'privateKey2',
           publicKey: 'publicKey2'
         })
-        expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
         expect(
-          await storage.isUsernameExists({
+          await database.isAccountExists({ email: TEST_EMAIL2 })
+        ).toBeTrue()
+        expect(
+          await database.isUsernameExists({
             username: TEST_USERNAME2,
             domain: TEST_DOMAIN
           })
@@ -176,18 +178,18 @@ describe('Database', () => {
           privateKey: expect.toBeString()
         }
         expect(
-          (await storage.getActorFromEmail({ email: TEST_EMAIL }))?.data
+          (await database.getActorFromEmail({ email: TEST_EMAIL }))?.data
         ).toMatchObject(expectedActorAfterCreated)
         expect(
           (
-            await storage.getActorFromUsername({
+            await database.getActorFromUsername({
               username: TEST_USERNAME,
               domain: TEST_DOMAIN
             })
           )?.data
         ).toMatchObject(expectedActorAfterCreated)
         expect(
-          (await storage.getActorFromId({ id: TEST_ID }))?.data
+          (await database.getActorFromId({ id: TEST_ID }))?.data
         ).toMatchObject(expectedActorAfterCreated)
       })
 
@@ -218,28 +220,28 @@ describe('Database', () => {
         }
 
         expect(
-          await storage.getMastodonActorFromEmail({ email: TEST_EMAIL })
+          await database.getMastodonActorFromEmail({ email: TEST_EMAIL })
         ).toMatchObject(expectedActorAfterCreated)
         expect(
-          await storage.getMastodonActorFromUsername({
+          await database.getMastodonActorFromUsername({
             username: TEST_USERNAME,
             domain: TEST_DOMAIN
           })
         ).toMatchObject(expectedActorAfterCreated)
         expect(
-          await storage.getMastodonActorFromId({ id: TEST_ID })
+          await database.getMastodonActorFromId({ id: TEST_ID })
         ).toMatchObject(expectedActorAfterCreated)
       })
 
       it('updates actor information', async () => {
-        await storage.updateActor({
+        await database.updateActor({
           actorId: TEST_ID,
           name: 'llun',
           summary: 'This is test actor'
         })
 
         expect(
-          await storage.getActorFromUsername({
+          await database.getActorFromUsername({
             username: TEST_USERNAME,
             domain: TEST_DOMAIN
           })
@@ -252,7 +254,7 @@ describe('Database', () => {
 
     describe('actors', () => {
       it('creates actor without account in storage', async () => {
-        await storage.createActor({
+        await database.createActor({
           actorId: TEST_ID10,
           username: TEST_USERNAME10,
           domain: TEST_DOMAIN10,
@@ -262,7 +264,7 @@ describe('Database', () => {
           publicKey: 'publicKey',
           createdAt: Date.now()
         })
-        const actor = await storage.getActorFromId({ id: TEST_ID10 })
+        const actor = await database.getActorFromId({ id: TEST_ID10 })
         expect(actor).toBeDefined()
         expect(actor?.username).toEqual(TEST_USERNAME10)
         expect(actor?.domain).toEqual(TEST_DOMAIN10)
@@ -272,7 +274,7 @@ describe('Database', () => {
 
       it('creates actor and returns actor in mastodon account format', async () => {
         const currentTime = Date.now()
-        const actor = await storage.createMastodonActor({
+        const actor = await database.createMastodonActor({
           actorId: TEST_ID16,
           username: TEST_USERNAME16,
           domain: TEST_DOMAIN,
@@ -316,13 +318,13 @@ describe('Database', () => {
     describe('follows', () => {
       it('returns empty followers and following', async () => {
         expect(
-          await storage.getActorFollowersCount({ actorId: TEST_ID })
+          await database.getActorFollowersCount({ actorId: TEST_ID })
         ).toEqual(0)
         expect(
-          await storage.getActorFollowingCount({ actorId: TEST_ID })
+          await database.getActorFollowingCount({ actorId: TEST_ID })
         ).toEqual(0)
         expect(
-          await storage.getFollowersInbox({ targetActorId: TEST_ID })
+          await database.getFollowersInbox({ targetActorId: TEST_ID })
         ).toEqual([])
       })
 
@@ -332,7 +334,7 @@ describe('Database', () => {
         const inbox = `${TEST_ID3}/inbox`
         const sharedInbox = 'https://llun.test/inbox'
 
-        await storage.createActor({
+        await database.createActor({
           actorId: targetActorId,
           domain: TEST_DOMAIN_2,
           username: 'null',
@@ -343,7 +345,7 @@ describe('Database', () => {
           createdAt: Date.now()
         })
 
-        const follow = await storage.createFollow({
+        const follow = await database.createFollow({
           actorId: TEST_ID3,
           targetActorId,
           status: FollowStatus.enum.Requested,
@@ -364,14 +366,14 @@ describe('Database', () => {
           updatedAt: expect.toBeNumber()
         })
         expect(
-          await storage.isCurrentActorFollowing({
+          await database.isCurrentActorFollowing({
             currentActorId: TEST_ID3,
             followingActorId: targetActorId
           })
         ).toBeFalse()
 
         expect(
-          await storage.getAcceptedOrRequestedFollow({
+          await database.getAcceptedOrRequestedFollow({
             actorId: TEST_ID3,
             targetActorId
           })
@@ -389,21 +391,21 @@ describe('Database', () => {
         })
 
         expect(
-          await storage.getActorFollowingCount({ actorId: TEST_ID3 })
+          await database.getActorFollowingCount({ actorId: TEST_ID3 })
         ).toEqual(0)
 
-        await storage.updateFollowStatus({
+        await database.updateFollowStatus({
           followId: follow.id,
           status: FollowStatus.enum.Rejected
         })
         expect(
-          await storage.isCurrentActorFollowing({
+          await database.isCurrentActorFollowing({
             currentActorId: TEST_ID3,
             followingActorId: targetActorId
           })
         ).toBeFalse()
         expect(
-          await storage.getAcceptedOrRequestedFollow({
+          await database.getAcceptedOrRequestedFollow({
             actorId: TEST_ID3,
             targetActorId
           })
@@ -412,7 +414,7 @@ describe('Database', () => {
         // Make sure that second follow time is not the same as first follow
         await new Promise((resolve) => setTimeout(resolve, 10))
 
-        const secondFollow = await storage.createFollow({
+        const secondFollow = await database.createFollow({
           actorId: TEST_ID3,
           targetActorId,
           status: FollowStatus.enum.Requested,
@@ -421,10 +423,10 @@ describe('Database', () => {
         })
         expect(secondFollow.id).not.toEqual(follow.id)
         expect(
-          await storage.getFollowFromId({ followId: secondFollow.id })
+          await database.getFollowFromId({ followId: secondFollow.id })
         ).toEqual(secondFollow)
         expect(
-          await storage.getAcceptedOrRequestedFollow({
+          await database.getAcceptedOrRequestedFollow({
             actorId: TEST_ID3,
             targetActorId
           })
@@ -443,12 +445,12 @@ describe('Database', () => {
 
         // Artificial wait because test is too fast, so the updated time is equal to insert sometime.
         await waitFor(100)
-        await storage.updateFollowStatus({
+        await database.updateFollowStatus({
           followId: secondFollow.id,
           status: FollowStatus.enum.Accepted
         })
         const secondFollowAfterUpdated =
-          await storage.getAcceptedOrRequestedFollow({
+          await database.getAcceptedOrRequestedFollow({
             actorId: TEST_ID3,
             targetActorId
           })
@@ -468,21 +470,21 @@ describe('Database', () => {
           secondFollow.updatedAt
         )
         expect(
-          await storage.isCurrentActorFollowing({
+          await database.isCurrentActorFollowing({
             currentActorId: TEST_ID3,
             followingActorId: targetActorId
           })
         ).toBeTrue()
 
         expect(
-          await storage.getActorFollowingCount({ actorId: TEST_ID3 })
+          await database.getActorFollowingCount({ actorId: TEST_ID3 })
         ).toEqual(1)
 
-        expect(await storage.getFollowersInbox({ targetActorId })).toEqual([
+        expect(await database.getFollowersInbox({ targetActorId })).toEqual([
           sharedInbox
         ])
 
-        const actors = await storage.getLocalActorsFromFollowerUrl({
+        const actors = await database.getLocalActorsFromFollowerUrl({
           followerUrl: `https://${TEST_DOMAIN_2}/f/null`
         })
         expect(actors.length).toEqual(1)
@@ -495,7 +497,7 @@ describe('Database', () => {
         const inbox = `${actorId}/inbox`
         const sharedInbox = `https://${TEST_DOMAIN_2}/inbox`
 
-        await storage.createFollow({
+        await database.createFollow({
           actorId,
           targetActorId: TEST_ID4,
           status: FollowStatus.enum.Accepted,
@@ -503,19 +505,19 @@ describe('Database', () => {
           sharedInbox
         })
         expect(
-          await storage.getActorFollowersCount({ actorId: TEST_ID4 })
+          await database.getActorFollowersCount({ actorId: TEST_ID4 })
         ).toEqual(1)
 
         expect(
-          await storage.getFollowersInbox({ targetActorId: TEST_ID4 })
+          await database.getFollowersInbox({ targetActorId: TEST_ID4 })
         ).toEqual([sharedInbox])
 
-        const follows = await storage.getLocalFollowersForActorId({
+        const follows = await database.getLocalFollowersForActorId({
           targetActorId: TEST_ID4
         })
         expect(follows.length).toEqual(0)
 
-        await storage.createFollow({
+        await database.createFollow({
           actorId: TEST_ID3,
           targetActorId: TEST_ID4,
           status: FollowStatus.enum.Accepted,
@@ -523,13 +525,13 @@ describe('Database', () => {
           sharedInbox: `https://${TEST_DOMAIN}/inbox`
         })
         const followsAfterLocalFollow =
-          await storage.getLocalFollowersForActorId({
+          await database.getLocalFollowersForActorId({
             targetActorId: TEST_ID4
           })
         expect(followsAfterLocalFollow.length).toEqual(1)
 
         const OUTSIDE_NETWORK_ID = `https://${TEST_DOMAIN_3}/u/outside-network`
-        await storage.createActor({
+        await database.createActor({
           actorId: OUTSIDE_NETWORK_ID,
           domain: TEST_DOMAIN_3,
           username: 'outside-network',
@@ -540,7 +542,7 @@ describe('Database', () => {
           createdAt: Date.now()
         })
 
-        await storage.createFollow({
+        await database.createFollow({
           actorId: OUTSIDE_NETWORK_ID,
           targetActorId: TEST_ID4,
           status: FollowStatus.enum.Accepted,
@@ -548,7 +550,7 @@ describe('Database', () => {
           sharedInbox: `https://${TEST_DOMAIN_3}/i/outside-network`
         })
         const followsAfterOutsideFollow =
-          await storage.getLocalFollowersForActorId({
+          await database.getLocalFollowersForActorId({
             targetActorId: TEST_ID4
           })
         expect(followsAfterOutsideFollow.length).toEqual(1)
@@ -559,7 +561,7 @@ describe('Database', () => {
         const inbox = `${actorId}/inbox`
         const sharedInbox = `https://${TEST_DOMAIN_2}/inbox`
 
-        const createdFollow = await storage.createFollow({
+        const createdFollow = await database.createFollow({
           actorId,
           targetActorId: TEST_ID5,
           status: FollowStatus.enum.Accepted,
@@ -567,7 +569,7 @@ describe('Database', () => {
           sharedInbox
         })
 
-        const followsFromInbox = await storage.getLocalFollowsFromInboxUrl({
+        const followsFromInbox = await database.getLocalFollowsFromInboxUrl({
           followerInboxUrl: inbox,
           targetActorId: TEST_ID5
         })
@@ -575,7 +577,7 @@ describe('Database', () => {
         expect(followsFromInbox[0]).toEqual(createdFollow)
 
         const followsFromSharedInbox =
-          await storage.getLocalFollowsFromInboxUrl({
+          await database.getLocalFollowsFromInboxUrl({
             followerInboxUrl: sharedInbox,
             targetActorId: TEST_ID5
           })
@@ -589,7 +591,7 @@ describe('Database', () => {
         const postId = 'post-1'
         const id = `${TEST_ID}/statuses/${postId}`
 
-        const status = await storage.createNote({
+        const status = await database.createNote({
           id,
           url: id,
           actorId: TEST_ID,
@@ -599,7 +601,7 @@ describe('Database', () => {
           cc: []
         })
 
-        const actor = await storage.getActorFromId({ id: TEST_ID })
+        const actor = await database.getActorFromId({ id: TEST_ID })
         expect(status.data).toEqual({
           id,
           url: id,
@@ -624,7 +626,7 @@ describe('Database', () => {
           updatedAt: expect.toBeNumber()
         })
         expect(
-          await storage.getActorStatusesCount({ actorId: TEST_ID })
+          await database.getActorStatusesCount({ actorId: TEST_ID })
         ).toEqual(1)
       })
 
@@ -632,7 +634,7 @@ describe('Database', () => {
         const postId = 'post-2'
         const id = `${TEST_ID}/statuses/${postId}`
 
-        await storage.createNote({
+        await database.createNote({
           id,
           url: id,
           actorId: TEST_ID,
@@ -641,7 +643,7 @@ describe('Database', () => {
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
         })
-        const attachment = await storage.createAttachment({
+        const attachment = await database.createAttachment({
           actorId: TEST_ID,
           statusId: id,
           mediaType: 'image/png',
@@ -650,7 +652,7 @@ describe('Database', () => {
           height: 150
         })
 
-        const persistedStatus = await storage.getStatus({ statusId: id })
+        const persistedStatus = await database.getStatus({ statusId: id })
         if (persistedStatus?.data.type !== StatusType.enum.Note) {
           fail('status type must be Note')
         }
@@ -663,7 +665,7 @@ describe('Database', () => {
       it('returns tags with status', async () => {
         const postId = 'post-3'
         const id = `${TEST_ID}/statuses/${postId}`
-        await storage.createNote({
+        await database.createNote({
           id,
           url: id,
           actorId: TEST_ID,
@@ -672,13 +674,13 @@ describe('Database', () => {
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
         })
-        const tag = await storage.createTag({
+        const tag = await database.createTag({
           statusId: id,
           name: `@test2@${TEST_DOMAIN}`,
           value: `https://${TEST_DOMAIN}/@test2`,
           type: 'mention'
         })
-        const persistedStatus = await storage.getStatus({ statusId: id })
+        const persistedStatus = await database.getStatus({ statusId: id })
         if (persistedStatus?.data.type !== StatusType.enum.Note) {
           fail('status type must be Note')
         }
@@ -688,7 +690,7 @@ describe('Database', () => {
 
       it('returns main timeline statuses', async () => {
         const sender = 'https://llun.dev/users/null'
-        await storage.createFollow({
+        await database.createFollow({
           actorId: TEST_ID5,
           targetActorId: sender,
           status: FollowStatus.enum.Accepted,
@@ -697,7 +699,7 @@ describe('Database', () => {
         })
         for (let i = 0; i < 50; i++) {
           const statusId = `https://llun.dev/users/null/statuses/post-${i + 1}`
-          const status = await storage.createNote({
+          const status = await database.createNote({
             id: statusId,
             url: statusId,
             actorId: sender,
@@ -706,18 +708,18 @@ describe('Database', () => {
             to: [ACTIVITY_STREAM_PUBLIC],
             cc: [TEST_ID5]
           })
-          await addStatusToTimelines(storage, status)
+          await addStatusToTimelines(database, status)
           // Making sure the timeline is in order.
           await waitFor(2)
         }
-        const statuses = await storage.getTimeline({
+        const statuses = await database.getTimeline({
           timeline: Timeline.MAIN,
           actorId: TEST_ID5
         })
         expect(statuses.length).toEqual(30)
         for (const index in statuses) {
           const statusId = `https://llun.dev/users/null/statuses/post-${50 - parseInt(index, 10)}`
-          const expectedStatus = await storage.getStatus({ statusId })
+          const expectedStatus = await database.getStatus({ statusId })
           expect(statuses[index].toJson()).toEqual(expectedStatus?.toJson())
         }
       }, 10000)
@@ -732,7 +734,7 @@ describe('Database', () => {
 
         // Mock status for reply
         const mainStatusForReplyId = `${TEST_ID}/statuses/post-for-reply2`
-        const mainStatusForReply = await storage.createNote({
+        const mainStatusForReply = await database.createNote({
           id: mainStatusForReplyId,
           url: mainStatusForReplyId,
           actorId: TEST_ID,
@@ -741,16 +743,16 @@ describe('Database', () => {
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
         })
-        await addStatusToTimelines(storage, mainStatusForReply)
+        await addStatusToTimelines(database, mainStatusForReply)
 
-        await storage.createFollow({
+        await database.createFollow({
           actorId: TEST_ID8,
           targetActorId: 'https://other.server/u/user1',
           status: FollowStatus.enum.Accepted,
           inbox: 'https://other.server/u/user1/inbox',
           sharedInbox: 'https://other.server/u/user1/inbox'
         })
-        await storage.createFollow({
+        await database.createFollow({
           actorId: TEST_ID8,
           targetActorId: 'https://other.mars/u/test2',
           status: FollowStatus.enum.Accepted,
@@ -760,7 +762,7 @@ describe('Database', () => {
 
         for (let i = 1; i <= 20; i++) {
           const statusId = `${TEST_ID8}/statuses/post-${i}`
-          const note = await storage.createNote({
+          const note = await database.createNote({
             id: statusId,
             url: statusId,
             actorId: TEST_ID8,
@@ -770,10 +772,10 @@ describe('Database', () => {
             to: [ACTIVITY_STREAM_PUBLIC],
             cc: []
           })
-          await addStatusToTimelines(storage, note)
+          await addStatusToTimelines(database, note)
 
           if (i % 11 === 0) {
-            const note = await storage.createNote({
+            const note = await database.createNote({
               id: otherServerUser1Status(i),
               url: otherServerUser1Status(i),
               actorId: otherServerUser1,
@@ -782,11 +784,11 @@ describe('Database', () => {
               to: [ACTIVITY_STREAM_PUBLIC],
               cc: [`${otherServerUser1}/followers`]
             })
-            await addStatusToTimelines(storage, note)
+            await addStatusToTimelines(database, note)
           }
 
           if (i % 17 === 0) {
-            const note = await storage.createNote({
+            const note = await database.createNote({
               id: otherServerUser2Status(i),
               url: otherServerUser2Status(i),
               actorId: otherServerUser2,
@@ -795,11 +797,11 @@ describe('Database', () => {
               to: [ACTIVITY_STREAM_PUBLIC],
               cc: [`${otherServerUser2}/followers`]
             })
-            await addStatusToTimelines(storage, note)
+            await addStatusToTimelines(database, note)
           }
 
           if (i % 19 === 0) {
-            const note = await storage.createNote({
+            const note = await database.createNote({
               id: otherServerUser2Status(i),
               url: otherServerUser2Status(i),
               actorId: otherServerUser2,
@@ -809,20 +811,20 @@ describe('Database', () => {
               cc: [`${otherServerUser2}/followers`],
               reply: otherServerUser1Status(11)
             })
-            await addStatusToTimelines(storage, note)
+            await addStatusToTimelines(database, note)
           }
 
           await new Promise((resolve) => setTimeout(resolve, 1))
         }
         expect(
-          await storage.getActorStatusesCount({ actorId: TEST_ID8 })
+          await database.getActorStatusesCount({ actorId: TEST_ID8 })
         ).toEqual(20)
-        const statuses = await storage.getTimeline({
+        const statuses = await database.getTimeline({
           timeline: Timeline.MAIN,
           actorId: TEST_ID8
         })
 
-        const otherServerStatus2 = await storage.getStatus({
+        const otherServerStatus2 = await database.getStatus({
           statusId: otherServerUser2Status(19)
         })
         expect(statuses).not.toContainValues([
@@ -834,7 +836,7 @@ describe('Database', () => {
       it('returns actor statuses', async () => {
         for (let i = 1; i <= 3; i++) {
           const statusId = `${TEST_ID6}/statuses/post-${i}`
-          await storage.createNote({
+          await database.createNote({
             id: statusId,
             url: statusId,
             actorId: TEST_ID6,
@@ -846,38 +848,38 @@ describe('Database', () => {
           await new Promise((resolve) => setTimeout(resolve, 1))
         }
         expect(
-          await storage.getActorStatusesCount({ actorId: TEST_ID6 })
+          await database.getActorStatusesCount({ actorId: TEST_ID6 })
         ).toEqual(3)
 
-        const statuses = await storage.getActorStatuses({ actorId: TEST_ID6 })
+        const statuses = await database.getActorStatuses({ actorId: TEST_ID6 })
         for (let i = 0; i < statuses.length; i++) {
-          const status = await storage.getStatus({
+          const status = await database.getStatus({
             statusId: `${TEST_ID6}/statuses/post-${3 - i}`
           })
           expect(statuses[i]).toEqual(status)
         }
 
-        await storage.deleteStatus({ statusId: `${TEST_ID6}/statuses/post-2` })
+        await database.deleteStatus({ statusId: `${TEST_ID6}/statuses/post-2` })
         expect(
-          await storage.getActorStatusesCount({ actorId: TEST_ID6 })
+          await database.getActorStatusesCount({ actorId: TEST_ID6 })
         ).toEqual(2)
 
-        const statusesAfterDelete = await storage.getActorStatuses({
+        const statusesAfterDelete = await database.getActorStatuses({
           actorId: TEST_ID6
         })
         expect(statusesAfterDelete.length).toEqual(2)
         expect(statusesAfterDelete[0]).toEqual(
-          await storage.getStatus({ statusId: `${TEST_ID6}/statuses/post-3` })
+          await database.getStatus({ statusId: `${TEST_ID6}/statuses/post-3` })
         )
         expect(statusesAfterDelete[1]).toEqual(
-          await storage.getStatus({ statusId: `${TEST_ID6}/statuses/post-1` })
+          await database.getStatus({ statusId: `${TEST_ID6}/statuses/post-1` })
         )
       })
 
       it('returns actor statuses with replies', async () => {
         // Mock status for reply
         const mainStatusForReplyId = `${TEST_ID}/statuses/post-for-reply`
-        await storage.createNote({
+        await database.createNote({
           id: mainStatusForReplyId,
           url: mainStatusForReplyId,
           actorId: TEST_ID,
@@ -889,7 +891,7 @@ describe('Database', () => {
 
         for (let i = 1; i <= 20; i++) {
           const statusId = `${TEST_ID7}/statuses/post-${i}`
-          await storage.createNote({
+          await database.createNote({
             id: statusId,
             url: statusId,
             actorId: TEST_ID7,
@@ -902,9 +904,9 @@ describe('Database', () => {
           await new Promise((resolve) => setTimeout(resolve, 1))
         }
         expect(
-          await storage.getActorStatusesCount({ actorId: TEST_ID7 })
+          await database.getActorStatusesCount({ actorId: TEST_ID7 })
         ).toEqual(20)
-        const statuses = await storage.getActorStatuses({
+        const statuses = await database.getActorStatuses({
           actorId: TEST_ID7
         })
         expect(statuses.length).toEqual(20)
@@ -912,7 +914,7 @@ describe('Database', () => {
 
       it('returns status with replies', async () => {
         const statusWithRepliesId = `${TEST_ID9}/s/post-with-replies`
-        await storage.createNote({
+        await database.createNote({
           id: statusWithRepliesId,
           url: statusWithRepliesId,
           actorId: TEST_ID9,
@@ -924,7 +926,7 @@ describe('Database', () => {
 
         const reply1ActorId = 'https://someone.else/u/user1'
         const reply1Id = `${reply1ActorId}/s/post-1`
-        const reply1 = await storage.createNote({
+        const reply1 = await database.createNote({
           id: reply1Id,
           url: reply1Id,
           actorId: reply1ActorId,
@@ -937,7 +939,7 @@ describe('Database', () => {
 
         const reply2ActorId = 'https://someone.else/u/user2'
         const reply2Id = `${reply2ActorId}/s/post-1`
-        const reply2 = await storage.createNote({
+        const reply2 = await database.createNote({
           id: reply2Id,
           url: reply2Id,
           actorId: reply2ActorId,
@@ -948,7 +950,7 @@ describe('Database', () => {
           cc: [TEST_ID9]
         })
 
-        const status = await storage.getStatus({
+        const status = await database.getStatus({
           statusId: statusWithRepliesId,
           withReplies: true
         })
@@ -971,20 +973,20 @@ describe('Database', () => {
 
         expect(note?.replies.totalItems).toEqual(2)
         expect(note?.replies.items).toContainAllValues([
-          (await storage.getStatus({ statusId: reply1Id }))?.toObject(),
-          (await storage.getStatus({ statusId: reply2Id }))?.toObject()
+          (await database.getStatus({ statusId: reply1Id }))?.toObject(),
+          (await database.getStatus({ statusId: reply2Id }))?.toObject()
         ])
       })
 
       it('returns status with boost status id', async () => {
-        await storage.createFollow({
+        await database.createFollow({
           actorId: TEST_ID14,
           targetActorId: TEST_ID11,
           status: FollowStatus.enum.Accepted,
           inbox: `${TEST_ID14}/inbox`,
           sharedInbox: `${TEST_ID14}/inbox`
         })
-        await storage.createFollow({
+        await database.createFollow({
           actorId: TEST_ID15,
           targetActorId: TEST_ID14,
           status: FollowStatus.enum.Accepted,
@@ -993,7 +995,7 @@ describe('Database', () => {
         })
 
         const firstPostId = `${TEST_ID11}/posts/1`
-        const note = await storage.createNote({
+        const note = await database.createNote({
           id: firstPostId,
           url: firstPostId,
           actorId: TEST_ID11,
@@ -1002,9 +1004,9 @@ describe('Database', () => {
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [`${TEST_ID11}/followers`]
         })
-        await addStatusToTimelines(storage, note)
+        await addStatusToTimelines(database, note)
         const secondPostId = `${TEST_ID14}/posts/2`
-        const announce = await storage.createAnnounce({
+        const announce = await database.createAnnounce({
           id: secondPostId,
           actorId: TEST_ID14,
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -1014,16 +1016,16 @@ describe('Database', () => {
         if (!announce) {
           fail('Announce must not be undefined')
         }
-        await addStatusToTimelines(storage, announce)
+        await addStatusToTimelines(database, announce)
 
-        const test14Statuses = await storage.getTimeline({
+        const test14Statuses = await database.getTimeline({
           timeline: Timeline.MAIN,
           actorId: TEST_ID14
         })
         const statusData = test14Statuses.shift()?.data as StatusNote
         expect(statusData.isActorAnnounced).toBeTrue()
 
-        const test15Statuses = await storage.getTimeline({
+        const test15Statuses = await database.getTimeline({
           timeline: Timeline.MAIN,
           actorId: TEST_ID15
         })
@@ -1040,7 +1042,7 @@ describe('Database', () => {
     describe('likes', () => {
       it('returns status with likes count', async () => {
         const statusId = `${TEST_ID12}/posts/1`
-        const status = await storage.createNote({
+        const status = await database.createNote({
           id: statusId,
           url: statusId,
           actorId: TEST_ID12,
@@ -1051,25 +1053,25 @@ describe('Database', () => {
         })
         expect((status?.data as StatusNote).totalLikes).toEqual(0)
 
-        await storage.createLike({ actorId: TEST_ID, statusId })
-        const statusAfterLiked = await storage.getStatus({ statusId })
+        await database.createLike({ actorId: TEST_ID, statusId })
+        const statusAfterLiked = await database.getStatus({ statusId })
         expect((statusAfterLiked?.data as StatusNote).totalLikes).toEqual(1)
-        expect(await storage.getLikeCount({ statusId })).toEqual(1)
+        expect(await database.getLikeCount({ statusId })).toEqual(1)
 
-        await storage.deleteLike({ actorId: TEST_ID, statusId })
-        const statusAfterUnliked = await storage.getStatus({ statusId })
+        await database.deleteLike({ actorId: TEST_ID, statusId })
+        const statusAfterUnliked = await database.getStatus({ statusId })
         expect((statusAfterUnliked?.data as StatusNote).totalLikes).toEqual(0)
-        expect(await storage.getLikeCount({ statusId })).toEqual(0)
+        expect(await database.getLikeCount({ statusId })).toEqual(0)
       })
 
       it('does not create like if the status is not exists', async () => {
         const nonExistsStatusId = `${TEST_ID12}/posts/non-exists`
-        await storage.createLike({
+        await database.createLike({
           actorId: TEST_ID,
           statusId: nonExistsStatusId
         })
         expect(
-          await storage.getLikeCount({ statusId: nonExistsStatusId })
+          await database.getLikeCount({ statusId: nonExistsStatusId })
         ).toEqual(0)
       })
     })
@@ -1078,7 +1080,7 @@ describe('Database', () => {
       // TODO: Create timeline model that can has different query
       describe('public', () => {
         beforeAll(async () => {
-          await storage.createActor({
+          await database.createActor({
             actorId: TEST_ID13,
             username: TEST_USERNAME13,
             domain: TEST_DOMAIN,
@@ -1089,7 +1091,7 @@ describe('Database', () => {
             followersUrl: `${TEST_ID13}/followers`,
             createdAt: Date.now()
           })
-          await storage.createNote({
+          await database.createNote({
             actorId: TEST_ID13,
             cc: [],
             to: [ACTIVITY_STREAM_PUBLIC],
@@ -1099,7 +1101,7 @@ describe('Database', () => {
             reply: '',
             createdAt: Date.now()
           })
-          await storage.createNote({
+          await database.createNote({
             actorId: TEST_ID13,
             cc: [ACTIVITY_STREAM_PUBLIC, `${TEST_ID13}/followers`],
             to: [],
@@ -1109,7 +1111,7 @@ describe('Database', () => {
             reply: '',
             createdAt: Date.now()
           })
-          await storage.createNote({
+          await database.createNote({
             actorId: TEST_ID13,
             cc: [TEST_ID12],
             to: [],
@@ -1122,12 +1124,12 @@ describe('Database', () => {
         }, 10000)
 
         afterAll(async () => {
-          await storage.deleteStatus({ statusId: `${TEST_ID13}/statuses/1` })
-          await storage.deleteActor({ actorId: TEST_ID13 })
+          await database.deleteStatus({ statusId: `${TEST_ID13}/statuses/1` })
+          await database.deleteActor({ actorId: TEST_ID13 })
         })
 
         it('returns all public posts from all local actors in instances', async () => {
-          const statuses = await storage.getTimeline({
+          const statuses = await database.getTimeline({
             timeline: Timeline.LOCAL_PUBLIC
           })
           for (const status of statuses) {
@@ -1139,7 +1141,7 @@ describe('Database', () => {
 
     describe('clients', () => {
       it('add client record and return client model', async () => {
-        const client = await storage.createClient({
+        const client = await database.createClient({
           name: 'application3',
           redirectUris: ['https://application3.llun.dev/oauth/redirect'],
           scopes: [Scope.enum.read, Scope.enum.write],
@@ -1159,7 +1161,7 @@ describe('Database', () => {
 
       it('returns null when failed validation', async () => {
         await expect(
-          storage.createClient({
+          database.createClient({
             name: 'application2',
             redirectUris: ['somerandomstring'],
             scopes: [Scope.enum.read, Scope.enum.write],
@@ -1170,7 +1172,7 @@ describe('Database', () => {
 
       it('returns null when application name is already exists', async () => {
         await expect(
-          storage.createClient({
+          database.createClient({
             name: 'application1',
             redirectUris: ['https://application1.llun.dev/oauth/redirect'],
             scopes: [Scope.enum.read, Scope.enum.write],
@@ -1180,10 +1182,10 @@ describe('Database', () => {
       })
 
       it('returns existing client in storage', async () => {
-        const application = await storage.getClientFromName({
+        const application = await database.getClientFromName({
           name: 'application1'
         })
-        const withIdApplication = await storage.getClientFromId({
+        const withIdApplication = await database.getClientFromId({
           clientId: (application as Client).id
         })
 
@@ -1210,19 +1212,19 @@ describe('Database', () => {
       })
 
       it('updates client and returns the updated client', async () => {
-        const existingClient = await storage.getClientFromName({
+        const existingClient = await database.getClientFromName({
           name: 'application2'
         })
         if (!existingClient) fail('Client must exists')
 
-        const client = await storage.updateClient({
+        const client = await database.updateClient({
           id: existingClient.id,
           name: 'application2',
           redirectUris: ['https://application2.llun.dev/oauth/redirect'],
           scopes: [Scope.enum.read],
           secret: 'secret'
         })
-        const updatedExistingClient = await storage.getClientFromName({
+        const updatedExistingClient = await database.getClientFromName({
           name: 'application2'
         })
 
@@ -1236,13 +1238,13 @@ describe('Database', () => {
 
         beforeAll(async () => {
           ;[actor, client] = await Promise.all([
-            storage.getActorFromEmail({
+            database.getActorFromEmail({
               email: TEST_EMAIL
             }),
-            storage.getClientFromName({ name: 'application1' })
+            database.getClientFromName({ name: 'application1' })
           ])
 
-          token = await storage.createAccessToken({
+          token = await database.createAccessToken({
             accessToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             accessTokenExpiresAt: new DateInterval('30d')
               .getEndDate()
@@ -1255,7 +1257,7 @@ describe('Database', () => {
         })
 
         it('adds token to the repository', async () => {
-          const token = await storage.createAccessToken({
+          const token = await database.createAccessToken({
             accessToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             accessTokenExpiresAt: new DateInterval('30d')
               .getEndDate()
@@ -1276,13 +1278,13 @@ describe('Database', () => {
             .getEndDate()
             .getTime()
 
-          await storage.updateRefreshToken({
+          await database.updateRefreshToken({
             accessToken: token?.accessToken as string,
             refreshToken,
             refreshTokenExpiresAt
           })
 
-          token = await storage.getAccessToken({
+          token = await database.getAccessToken({
             accessToken: token?.accessToken as string
           })
           expect(token?.refreshToken).toEqual(refreshToken)
@@ -1291,14 +1293,14 @@ describe('Database', () => {
           )
 
           const tokenFromRefreshToken =
-            await storage.getAccessTokenByRefreshToken({
+            await database.getAccessTokenByRefreshToken({
               refreshToken
             })
           expect(tokenFromRefreshToken).toEqual(token)
         })
 
         it('sets expires at for both accessToken and refreshToken when revoke accessToken', async () => {
-          const revokedToken = await storage.revokeAccessToken({
+          const revokedToken = await database.revokeAccessToken({
             accessToken: token?.accessToken as string
           })
           expect(revokedToken?.accessTokenExpiresAt).toBeDefined()
@@ -1316,13 +1318,13 @@ describe('Database', () => {
 
         beforeAll(async () => {
           ;[actor, client] = await Promise.all([
-            storage.getActorFromEmail({
+            database.getActorFromEmail({
               email: TEST_EMAIL
             }),
-            storage.getClientFromName({ name: 'application1' })
+            database.getClientFromName({ name: 'application1' })
           ])
 
-          code = await storage.createAuthCode({
+          code = await database.createAuthCode({
             code: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             redirectUri: 'https://application1.llun.dev/oauth/redirect',
             codeChallenge: 'challenge',
@@ -1339,7 +1341,7 @@ describe('Database', () => {
         })
 
         it('adds authCode to the repository', async () => {
-          const code = await storage.createAuthCode({
+          const code = await database.createAuthCode({
             code: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
             redirectUri: null,
             codeChallenge: null,
@@ -1360,14 +1362,14 @@ describe('Database', () => {
         })
 
         it('returns authCode from storage', async () => {
-          const codeFromStorage = await storage.getAuthCode({
+          const codeFromStorage = await database.getAuthCode({
             code: code?.code as string
           })
           expect(codeFromStorage).toEqual(code)
         })
 
         it('sets expires at when revoke authCode', async () => {
-          const revokedAuthCode = await storage.revokeAuthCode({
+          const revokedAuthCode = await database.revokeAuthCode({
             code: code?.code as string
           })
           expect(revokedAuthCode?.expiresAt).toBeDefined()

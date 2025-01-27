@@ -5,12 +5,12 @@ import { ActorData } from '@/lib/models/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const getMastodonAccount = async (
-  storage: Database,
+  database: Database,
   actor: ActorData
 ) => {
   const [statusesCount, statuses] = await Promise.all([
-    storage.getActorStatusesCount({ actorId: actor.id }),
-    storage.getActorStatuses({ actorId: actor.id })
+    database.getActorStatusesCount({ actorId: actor.id }),
+    database.getActorStatuses({ actorId: actor.id })
   ])
 
   return Mastodon.Account.parse({

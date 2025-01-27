@@ -12,9 +12,9 @@ export const metadata: Metadata = {
   title: 'Activities.next: Confirm account'
 }
 
-const isVerify = async (storage: Database, verificationCode?: string) => {
+const isVerify = async (database: Database, verificationCode?: string) => {
   if (!verificationCode) return false
-  return storage.verifyAccount({ verificationCode })
+  return database.verifyAccount({ verificationCode })
 }
 
 interface Props {

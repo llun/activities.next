@@ -17,7 +17,7 @@ interface CreatePollFromUserInputParams {
   replyStatusId?: string
   currentActor: Actor
   choices: string[]
-  storage: Database
+  database: Database
   endAt: number
 }
 export const createPollFromUserInput = async ({
@@ -25,7 +25,7 @@ export const createPollFromUserInput = async ({
   replyStatusId,
   currentActor,
   choices = [],
-  storage,
+  database,
   endAt
 }: CreatePollFromUserInputParams) => {
   const config = getConfig()
@@ -33,7 +33,7 @@ export const createPollFromUserInput = async ({
     replyStatusId
   })
   const replyStatus = replyStatusId
-    ? await storage.getStatus({ statusId: replyStatusId, withReplies: false })
+    ? await database.getStatus({ statusId: replyStatusId, withReplies: false })
     : undefined
 
   const postId = crypto.randomUUID()
@@ -43,7 +43,7 @@ export const createPollFromUserInput = async ({
   const to = statusRecipientsTo(currentActor, replyStatus)
   const cc = statusRecipientsCC(currentActor, mentions, replyStatus)
 
-  const createdPoll = await storage.createPoll({
+  const createdPoll = await database.createPoll({
     id: statusId,
     url: `https://${
       currentActor.domain
@@ -59,9 +59,9 @@ export const createPollFromUserInput = async ({
   })
 
   await Promise.all([
-    addStatusToTimelines(storage, createdPoll),
+    addStatusToTimelines(database, createdPoll),
     ...mentions.map((mention) =>
-      storage.createTag({
+      database.createTag({
         statusId,
         name: mention.name || '',
         value: mention.href,
@@ -70,7 +70,7 @@ export const createPollFromUserInput = async ({
     )
   ])
 
-  const status = await storage.getStatus({ statusId, withReplies: false })
+  const status = await database.getStatus({ statusId, withReplies: false })
   if (!status) {
     span.end()
     return null

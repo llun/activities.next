@@ -120,33 +120,35 @@ export const ActorSQLStorageMixin = (
   },
 
   async getActorFromEmail({ email }: GetActorFromEmailParams) {
-    const storageActor = await database('actors')
+    const persistedActor = await database('actors')
       .select<SQLActor>('actors.*')
       .leftJoin('accounts', 'actors.accountId', 'accounts.id')
       .where('accounts.email', email)
       .first()
-    if (!storageActor) return undefined
+    if (!persistedActor) return undefined
 
     const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
       await database.transaction(async (trx) => {
         return Promise.all([
-          trx<Account>('accounts').where('id', storageActor.accountId).first(),
+          trx<Account>('accounts')
+            .where('id', persistedActor.accountId)
+            .first(),
           trx('follows')
-            .where('targetActorId', storageActor.id)
+            .where('targetActorId', persistedActor.id)
             .andWhere('status', 'Accepted')
             .count<{ count: string }>('* as count')
             .first(),
           trx('follows')
-            .where('actorId', storageActor.id)
+            .where('actorId', persistedActor.id)
             .andWhere('status', 'Accepted')
             .count<{ count: string }>('* as count')
             .first(),
           trx('statuses')
-            .where('actorId', storageActor.id)
+            .where('actorId', persistedActor.id)
             .count<{ count: string }>('id as count')
             .first(),
           trx('statuses')
-            .where('actorId', storageActor.id)
+            .where('actorId', persistedActor.id)
             .orderBy('createdAt', 'desc')
             .first<{ createdAt: number | Date }>('createdAt')
         ])
@@ -154,7 +156,7 @@ export const ActorSQLStorageMixin = (
 
     const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return getActor(
-      storageActor,
+      persistedActor,
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
       parseInt(totalStatus?.count ?? '0', 10),
@@ -189,32 +191,34 @@ export const ActorSQLStorageMixin = (
   },
 
   async getActorFromUsername({ username, domain }: GetActorFromUsernameParams) {
-    const storageActor = await database<SQLActor>('actors')
+    const persistedActor = await database<SQLActor>('actors')
       .where('username', username)
       .andWhere('domain', domain)
       .first()
-    if (!storageActor) return undefined
+    if (!persistedActor) return undefined
 
     const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
       await database.transaction(async (trx) => {
         return Promise.all([
-          trx<Account>('accounts').where('id', storageActor.accountId).first(),
+          trx<Account>('accounts')
+            .where('id', persistedActor.accountId)
+            .first(),
           trx('follows')
-            .where('targetActorId', storageActor.id)
+            .where('targetActorId', persistedActor.id)
             .andWhere('status', 'Accepted')
             .count<{ count: string }>('* as count')
             .first(),
           trx('follows')
-            .where('actorId', storageActor.id)
+            .where('actorId', persistedActor.id)
             .andWhere('status', 'Accepted')
             .count<{ count: string }>('* as count')
             .first(),
           trx('statuses')
-            .where('actorId', storageActor.id)
+            .where('actorId', persistedActor.id)
             .count<{ count: string }>('id as count')
             .first(),
           trx('statuses')
-            .where('actorId', storageActor.id)
+            .where('actorId', persistedActor.id)
             .orderBy('createdAt', 'desc')
             .first<{ createdAt: number | Date }>('createdAt')
         ])
@@ -222,7 +226,7 @@ export const ActorSQLStorageMixin = (
 
     const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return getActor(
-      storageActor,
+      persistedActor,
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
       parseInt(totalStatus?.count ?? '0', 10),
@@ -248,31 +252,31 @@ export const ActorSQLStorageMixin = (
   },
 
   async getActorFromId({ id }: GetActorFromIdParams) {
-    const storageActor = await database<SQLActor>('actors')
+    const persistedActor = await database<SQLActor>('actors')
       .where('id', id)
       .first()
-    if (!storageActor) return undefined
+    if (!persistedActor) return undefined
 
-    if (!storageActor.accountId) {
+    if (!persistedActor.accountId) {
       const [totalFollowers, totalFollowing, totalStatus, lastStatus] =
         await database.transaction(async (trx) => {
           return Promise.all([
             trx('follows')
-              .where('targetActorId', storageActor.id)
+              .where('targetActorId', persistedActor.id)
               .andWhere('status', 'Accepted')
               .count<{ count: string }>('* as count')
               .first(),
             trx('follows')
-              .where('actorId', storageActor.id)
+              .where('actorId', persistedActor.id)
               .andWhere('status', 'Accepted')
               .count<{ count: string }>('* as count')
               .first(),
             trx('statuses')
-              .where('actorId', storageActor.id)
+              .where('actorId', persistedActor.id)
               .count<{ count: string }>('id as count')
               .first(),
             trx('statuses')
-              .where('actorId', storageActor.id)
+              .where('actorId', persistedActor.id)
               .orderBy('createdAt', 'desc')
               .first<{ createdAt: number | Date }>('createdAt')
           ])
@@ -282,7 +286,7 @@ export const ActorSQLStorageMixin = (
         ? lastStatus.createdAt
         : 0
       return getActor(
-        storageActor,
+        persistedActor,
         parseInt(totalFollowing?.count ?? '0', 10),
         parseInt(totalFollowers?.count ?? '0', 10),
         parseInt(totalStatus?.count ?? '0', 10),
@@ -295,23 +299,25 @@ export const ActorSQLStorageMixin = (
     const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
       await database.transaction(async (trx) => {
         return Promise.all([
-          trx<Account>('accounts').where('id', storageActor.accountId).first(),
+          trx<Account>('accounts')
+            .where('id', persistedActor.accountId)
+            .first(),
           trx('follows')
-            .where('targetActorId', storageActor.id)
+            .where('targetActorId', persistedActor.id)
             .andWhere('status', 'Accepted')
             .count<{ count: string }>('* as count')
             .first(),
           trx('follows')
-            .where('actorId', storageActor.id)
+            .where('actorId', persistedActor.id)
             .andWhere('status', 'Accepted')
             .count<{ count: string }>('* as count')
             .first(),
           trx('statuses')
-            .where('actorId', storageActor.id)
+            .where('actorId', persistedActor.id)
             .count<{ count: string }>('id as count')
             .first(),
           trx('statuses')
-            .where('actorId', storageActor.id)
+            .where('actorId', persistedActor.id)
             .orderBy('createdAt', 'desc')
             .first<{ createdAt: number | Date }>('createdAt')
         ])
@@ -319,7 +325,7 @@ export const ActorSQLStorageMixin = (
 
     const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return getActor(
-      storageActor,
+      persistedActor,
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
       parseInt(totalStatus?.count ?? '0', 10),
@@ -348,15 +354,15 @@ export const ActorSQLStorageMixin = (
     inboxUrl,
     sharedInboxUrl
   }: UpdateActorParams) {
-    const storageActor = await database<SQLActor>('actors')
+    const persistedActor = await database<SQLActor>('actors')
       .where('id', actorId)
       .first()
-    if (!storageActor) return undefined
+    if (!persistedActor) return undefined
 
     const storageSettings =
-      typeof storageActor.settings === 'string'
-        ? (JSON.parse(storageActor.settings) as ActorSettings)
-        : storageActor.settings
+      typeof persistedActor.settings === 'string'
+        ? (JSON.parse(persistedActor.settings) as ActorSettings)
+        : persistedActor.settings
 
     const settings: ActorSettings = {
       ...storageSettings,
@@ -406,10 +412,10 @@ export const ActorSQLStorageMixin = (
   },
 
   async isInternalActor({ actorId }: IsInternalActorParams) {
-    const storageActor = await database<SQLActor>('actors')
+    const persistedActor = await database<SQLActor>('actors')
       .where('id', actorId)
       .first()
-    if (!storageActor) return false
-    return Boolean(storageActor.accountId)
+    if (!persistedActor) return false
+    return Boolean(persistedActor.accountId)
   }
 })

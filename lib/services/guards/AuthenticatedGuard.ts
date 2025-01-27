@@ -24,5 +24,5 @@ export const AuthenticatedGuard =
       return Response.redirect(getRedirectUrl(req, '/signin'), 307)
     }
 
-    return handle(req, { currentActor, storage: database }, params)
+    return handle(req, { currentActor, database }, params)
   }

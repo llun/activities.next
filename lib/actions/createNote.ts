@@ -60,18 +60,18 @@ interface CreateNoteFromUserInputParams {
   replyNoteId?: string
   currentActor: Actor
   attachments?: PostBoxAttachment[]
-  storage: Database
+  database: Database
 }
 export const createNoteFromUserInput = async ({
   text,
   replyNoteId,
   currentActor,
   attachments = [],
-  storage
+  database
 }: CreateNoteFromUserInputParams) => {
   const span = getSpan('actions', 'createNoteFromUser', { text, replyNoteId })
   const replyStatus = replyNoteId
-    ? await storage.getStatus({ statusId: replyNoteId, withReplies: false })
+    ? await database.getStatus({ statusId: replyNoteId, withReplies: false })
     : undefined
 
   const postId = crypto.randomUUID()
@@ -81,7 +81,7 @@ export const createNoteFromUserInput = async ({
   const to = statusRecipientsTo(currentActor, replyStatus)
   const cc = statusRecipientsCC(currentActor, mentions, replyStatus)
 
-  const createdStatus = await storage.createNote({
+  const createdStatus = await database.createNote({
     id: statusId,
     url: `https://${
       currentActor.domain
@@ -99,9 +99,9 @@ export const createNoteFromUserInput = async ({
   })
 
   await Promise.all([
-    addStatusToTimelines(storage, createdStatus),
+    addStatusToTimelines(database, createdStatus),
     ...attachments.map((attachment) =>
-      storage.createAttachment({
+      database.createAttachment({
         actorId: currentActor.id,
         statusId,
         mediaType: attachment.mediaType,
@@ -112,7 +112,7 @@ export const createNoteFromUserInput = async ({
       })
     ),
     ...mentions.map((mention) =>
-      storage.createTag({
+      database.createTag({
         statusId,
         name: mention.name || '',
         value: mention.href,
@@ -121,7 +121,7 @@ export const createNoteFromUserInput = async ({
     )
   ])
 
-  const status = await storage.getStatus({ statusId, withReplies: false })
+  const status = await database.getStatus({ statusId, withReplies: false })
   if (!status) {
     span.end()
     return null
@@ -134,7 +134,7 @@ export const createNoteFromUserInput = async ({
         .filter((item) => !item.href.startsWith(currentActorUrl.origin))
         .map((item) => item.href)
         .map(async (id) => {
-          const actor = await storage.getActorFromId({ id })
+          const actor = await database.getActorFromId({ id })
           if (actor) return actor.sharedInboxUrl || actor.inboxUrl
 
           const profile = await getPublicProfile({ actorId: id })
@@ -145,7 +145,7 @@ export const createNoteFromUserInput = async ({
     )
   ).filter((item): item is string => item !== null)
 
-  const followersInbox = await storage.getFollowersInbox({
+  const followersInbox = await database.getFollowersInbox({
     targetActorId: currentActor.id
   })
 
@@ -168,13 +168,13 @@ export const createNoteFromUserInput = async ({
         logger.error({ inbox }, `Fail to send note`)
         const nodeError = e as NodeJS.ErrnoException
         if (UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code ?? '')) {
-          const follows = await storage.getLocalFollowsFromInboxUrl({
+          const follows = await database.getLocalFollowsFromInboxUrl({
             followerInboxUrl: inbox,
             targetActorId: currentActor.id
           })
           await Promise.all(
             follows.map((follow) =>
-              storage.updateFollowStatus({
+              database.updateFollowStatus({
                 followId: follow.id,
                 status: FollowStatus.enum.Rejected
               })

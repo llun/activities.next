@@ -20,7 +20,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 enableFetchMocks()
 
 describe('activities', () => {
-  const storage = getSQLDatabase({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -30,15 +30,15 @@ describe('activities', () => {
   let actor1: Actor | undefined
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedDatabase(storage)
+    await database.migrate()
+    await seedDatabase(database)
 
-    actor1 = await storage.getActorFromEmail({ email: seedActor1.email })
+    actor1 = await database.getActorFromEmail({ email: seedActor1.email })
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {

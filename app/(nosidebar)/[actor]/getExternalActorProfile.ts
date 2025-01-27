@@ -2,7 +2,7 @@ import { getActorPosts, getPublicProfileFromHandle } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
 
 export const getExternalActorProfile = async (
-  storage: Database,
+  database: Database,
   actorHandle: string
 ) => {
   const profile = await getPublicProfileFromHandle(actorHandle, true)
@@ -10,7 +10,7 @@ export const getExternalActorProfile = async (
 
   const [statuses, attachments] = await Promise.all([
     getActorPosts({ postsUrl: profile.urls?.posts }),
-    storage.getAttachmentsForActor({ actorId: profile.id })
+    database.getAttachmentsForActor({ actorId: profile.id })
   ])
   return {
     person: profile,
