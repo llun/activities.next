@@ -1,16 +1,16 @@
 import { noop } from 'lodash'
 import { Client as PostgresClient } from 'pg'
 
-import { FirestoreStorage } from '@/lib/database/firestore'
+import { getFirestoreDatabase } from '@/lib/database/firestore'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 
 const TEST_PG_TABLE = 'test'
 const TEST_PG_CONNECTION = {
-  host: 'localhost',
+  host: process.env.TEST_DATABASE_HOST,
   port: 5432,
-  user: 'admin',
-  password: 'password'
+  user: process.env.TEST_DATABASE_USERNAME,
+  password: process.env.TEST_DATABASE_PASSWORD
 }
 
 export type PrepareFunction = () => Promise<void> | void
@@ -37,7 +37,7 @@ const DATABASES: Record<string, GetTestDatabase> = {
   }),
   firestore: () => ({
     name: 'firestore',
-    database: new FirestoreStorage({
+    database: getFirestoreDatabase({
       type: 'firebase',
       projectId: 'test',
       host: 'localhost:8080',
