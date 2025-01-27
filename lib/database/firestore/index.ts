@@ -7,12 +7,14 @@ import { ActorFirestoreDatabaseMixin } from '@/lib/database/firestore/actor'
 import { FollowerFirestoreDatabaseMixin } from '@/lib/database/firestore/follow'
 import { LikeFirestoreDatabaseMixin } from '@/lib/database/firestore/like'
 import { MediaFirestoreDatabaseMixin } from '@/lib/database/firestore/media'
+import { OAuthFirestoreDatabaseMixin } from '@/lib/database/firestore/oauth'
 import { Database } from '@/lib/database/types'
 import { AccountDatabase } from '@/lib/database/types/account'
 import { ActorDatabase } from '@/lib/database/types/actor'
 import { FollowDatabase } from '@/lib/database/types/follow'
 import { LikeDatabase } from '@/lib/database/types/like'
 import { MediaDatabase } from '@/lib/database/types/media'
+import { OAuthDatabase } from '@/lib/database/types/oauth'
 
 export const getFirestoreDatabase = (
   config: FirestoreConfig
@@ -20,7 +22,8 @@ export const getFirestoreDatabase = (
   ActorDatabase &
   FollowDatabase &
   LikeDatabase &
-  MediaDatabase => {
+  MediaDatabase &
+  OAuthDatabase => {
   const firestore = (function () {
     if (process.env.FIREBASE_PRIVATE_KEY && config.credentials) {
       config.credentials.private_key = process.env.FIREBASE_PRIVATE_KEY
@@ -40,12 +43,18 @@ export const getFirestoreDatabase = (
   )
   const likeDatabase = LikeFirestoreDatabaseMixin(firestore)
   const mediaDatabase = MediaFirestoreDatabaseMixin(firestore)
+  const oauthDatabase = OAuthFirestoreDatabaseMixin(
+    firestore,
+    actorDatabase,
+    accountDatabase
+  )
 
   return {
     ...accountDatabase,
     ...actorDatabase,
     ...followDatabase,
     ...likeDatabase,
-    ...mediaDatabase
+    ...mediaDatabase,
+    ...oauthDatabase
   }
 }
