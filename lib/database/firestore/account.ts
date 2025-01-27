@@ -20,16 +20,16 @@ import { Account } from '@/lib/models/account'
 import { Session } from '@/lib/models/session'
 
 export const AccountFirestoreDatabaseMixin = (
-  database: Firestore
+  firestore: Firestore
 ): AccountDatabase => ({
   async isAccountExists({ email }: IsAccountExistsParams) {
-    const accounts = database.collection('accounts')
+    const accounts = firestore.collection('accounts')
     const snapshot = await accounts.where('email', '==', email).count().get()
     return snapshot.data().count === 1
   },
 
   async isUsernameExists({ username, domain }: IsUsernameExistsParams) {
-    const accounts = database.collection('actors')
+    const accounts = firestore.collection('actors')
     const snapshot = await accounts
       .where('username', '==', username)
       .where('domain', '==', domain)
@@ -53,7 +53,7 @@ export const AccountFirestoreDatabaseMixin = (
     }
 
     const currentTime = Date.now()
-    const accounts = database.collection('accounts')
+    const accounts = firestore.collection('accounts')
     const accountRef = await accounts.add({
       email,
       passwordHash,
@@ -91,12 +91,12 @@ export const AccountFirestoreDatabaseMixin = (
       updatedAt: currentTime
     }
 
-    await database.doc(`actors/${urlToId(actorId)}`).set(actorDoc)
+    await firestore.doc(`actors/${urlToId(actorId)}`).set(actorDoc)
     return accountRef.id
   },
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
-    const accounts = database.collection('accounts')
+    const accounts = firestore.collection('accounts')
     const snapshot = await accounts.doc(id).get()
     if (!snapshot) return
     return {
@@ -109,7 +109,7 @@ export const AccountFirestoreDatabaseMixin = (
     provider,
     accountId
   }: GetAccountFromProviderIdParams) {
-    const providers = await database
+    const providers = await firestore
       .collectionGroup('accountProviders')
       .where('provider', '==', provider)
       .where('providerAccountId', '==', accountId)
@@ -127,18 +127,18 @@ export const AccountFirestoreDatabaseMixin = (
     providerAccountId,
     provider
   }: LinkAccountWithProviderParams) {
-    const providers = await database
+    const providers = await firestore
       .collectionGroup('accountProviders')
       .where('provider', '==', provider)
       .where('accountId', '==', accountId)
       .get()
     if (providers.size === 1) return
 
-    const account = await database.doc(`accounts/${accountId}`).get()
+    const account = await firestore.doc(`accounts/${accountId}`).get()
     if (!account.exists) return
 
     const currentTime = Date.now()
-    await database
+    await firestore
       .doc(`accounts/${accountId}/accountProviders/${provider}`)
       .set({
         ...account.data(),
@@ -150,7 +150,7 @@ export const AccountFirestoreDatabaseMixin = (
   },
 
   async verifyAccount({ verificationCode }: VerifyAccountParams) {
-    const accounts = database.collection('accounts')
+    const accounts = firestore.collection('accounts')
     const snapshot = await accounts
       .where('verificationCode', '==', verificationCode)
       .get()
@@ -176,7 +176,7 @@ export const AccountFirestoreDatabaseMixin = (
     token
   }: CreateAccountSessionParams): Promise<void> {
     const currentTime = Date.now()
-    await database.doc(`accounts/${accountId}/sessions/${token}`).set({
+    await firestore.doc(`accounts/${accountId}/sessions/${token}`).set({
       accountId,
       token,
       expireAt,
@@ -190,7 +190,7 @@ export const AccountFirestoreDatabaseMixin = (
   }: GetAccountSessionParams): Promise<
     { account: Account; session: Session } | undefined
   > {
-    const tokenDocs = await database
+    const tokenDocs = await firestore
       .collectionGroup('sessions')
       .where('token', '==', token)
       .get()
@@ -206,7 +206,7 @@ export const AccountFirestoreDatabaseMixin = (
   async getAccountAllSessions({
     accountId
   }: GetAccountAllSessionsParams): Promise<Session[]> {
-    const sessionDocs = await database
+    const sessionDocs = await firestore
       .collection(`accounts/${accountId}/sessions`)
       .get()
     return sessionDocs.docs.map((doc) => doc.data() as Session)
@@ -218,7 +218,7 @@ export const AccountFirestoreDatabaseMixin = (
   }: UpdateAccountSessionParams): Promise<void> {
     if (!expireAt) return
 
-    const sessionDocs = await database
+    const sessionDocs = await firestore
       .collectionGroup('sessions')
       .where('token', '==', token)
       .get()
@@ -230,7 +230,7 @@ export const AccountFirestoreDatabaseMixin = (
   async deleteAccountSession({
     token
   }: DeleteAccountSessionParams): Promise<void> {
-    const sessions = await database
+    const sessions = await firestore
       .collectionGroup('sessions')
       .where('token', '==', token)
       .get()

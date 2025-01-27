@@ -3,10 +3,11 @@ import { Knex } from 'knex'
 import {
   CreateLikeParams,
   DeleteLikeParams,
-  GetLikeCountParams
+  GetLikeCountParams,
+  LikeDatabase
 } from '@/lib/database/types/like'
 
-export const LikeSQLDatabaseMixin = (database: Knex) => ({
+export const LikeSQLDatabaseMixin = (database: Knex): LikeDatabase => ({
   async createLike({ actorId, statusId }: CreateLikeParams) {
     const status = await database('statuses').where('id', statusId).first()
     if (!status) return

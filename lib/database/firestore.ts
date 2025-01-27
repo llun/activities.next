@@ -1642,6 +1642,7 @@ export class FirestoreStorage implements Database {
     )
   }
 
+  // tag?
   @Trace('db')
   async createTag({
     statusId,

@@ -4,7 +4,8 @@ import { PER_PAGE_LIMIT } from '@/lib/database'
 import { StatusDatabase } from '@/lib/database/types/status'
 import {
   CreateTimelineStatusParams,
-  GetTimelineParams
+  GetTimelineParams,
+  TimelineDatabase
 } from '@/lib/database/types/timeline'
 import { Status } from '@/lib/models/status'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -13,7 +14,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 export const TimelineSQLDatabaseMixin = (
   database: Knex,
   statusDatabase: StatusDatabase
-) => ({
+): TimelineDatabase => ({
   async getTimeline({
     timeline,
     actorId,

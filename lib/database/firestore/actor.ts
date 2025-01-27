@@ -22,7 +22,7 @@ import { FollowStatus } from '@/lib/models/follow'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const ActorFirestoreDatabaseMixin = (
-  database: Firestore,
+  firestore: Firestore,
   accountDatabase: AccountDatabase
 ): ActorDatabase => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,7 +130,7 @@ export const ActorFirestoreDatabaseMixin = (
         createdAt,
         updatedAt: currentTime
       }
-      await database.doc(`actors/${urlToId(actorId)}`).set(doc)
+      await firestore.doc(`actors/${urlToId(actorId)}`).set(doc)
       return this.getActorFromId({ id: actorId })
     },
 
@@ -174,7 +174,7 @@ export const ActorFirestoreDatabaseMixin = (
         createdAt,
         updatedAt: currentTime
       }
-      const docRef = database.doc(`actors/${urlToId(actorId)}`)
+      const docRef = firestore.doc(`actors/${urlToId(actorId)}`)
       const persistedDoc = await docRef.get()
       if (persistedDoc.exists) {
         return null
@@ -185,7 +185,7 @@ export const ActorFirestoreDatabaseMixin = (
     },
 
     async getActorFromEmail({ email }: GetActorFromEmailParams) {
-      const accounts = database.collection('accounts')
+      const accounts = firestore.collection('accounts')
       const accountsSnapshot = await accounts
         .where('email', '==', email)
         .limit(1)
@@ -193,7 +193,7 @@ export const ActorFirestoreDatabaseMixin = (
       if (accountsSnapshot.docs.length !== 1) return
 
       const accountId = accountsSnapshot.docs[0].id
-      const actors = database.collection('actors')
+      const actors = firestore.collection('actors')
       const actorsSnapshot = await actors
         .where('accountId', '==', accountId)
         .limit(1)
@@ -209,7 +209,7 @@ export const ActorFirestoreDatabaseMixin = (
     },
 
     async getMastodonActorFromEmail({ email }: GetActorFromEmailParams) {
-      const accounts = database.collection('accounts')
+      const accounts = firestore.collection('accounts')
       const accountsSnapshot = await accounts
         .where('email', '==', email)
         .limit(1)
@@ -217,7 +217,7 @@ export const ActorFirestoreDatabaseMixin = (
       if (accountsSnapshot.docs.length !== 1) return null
 
       const accountId = accountsSnapshot.docs[0].id
-      const actors = database.collection('actors')
+      const actors = firestore.collection('actors')
       const actorsSnapshot = await actors
         .where('accountId', '==', accountId)
         .limit(1)
@@ -232,7 +232,7 @@ export const ActorFirestoreDatabaseMixin = (
       username,
       domain
     }: GetActorFromUsernameParams) {
-      const actors = database.collection('actors')
+      const actors = firestore.collection('actors')
       const snapshot = await actors
         .where('username', '==', username)
         .where('domain', '==', domain)
@@ -254,7 +254,7 @@ export const ActorFirestoreDatabaseMixin = (
       username,
       domain
     }: GetActorFromUsernameParams) {
-      const actors = database.collection('actors')
+      const actors = firestore.collection('actors')
       const snapshot = await actors
         .where('username', '==', username)
         .where('domain', '==', domain)
@@ -266,7 +266,7 @@ export const ActorFirestoreDatabaseMixin = (
     },
 
     async getActorFromId({ id }: GetActorFromIdParams) {
-      const doc = await database.doc(`actors/${urlToId(id)}`).get()
+      const doc = await firestore.doc(`actors/${urlToId(id)}`).get()
       const data = doc.data()
       if (!data) return
 
@@ -281,7 +281,7 @@ export const ActorFirestoreDatabaseMixin = (
     },
 
     async getMastodonActorFromId({ id }: GetActorFromIdParams) {
-      const doc = await database.doc(`actors/${urlToId(id)}`).get()
+      const doc = await firestore.doc(`actors/${urlToId(id)}`).get()
       const data = doc.data()
       if (!data) return null
 
@@ -303,12 +303,12 @@ export const ActorFirestoreDatabaseMixin = (
       sharedInboxUrl
     }: UpdateActorParams) {
       const path = `actors/${urlToId(actorId)}`
-      const doc = await database.doc(path).get()
+      const doc = await firestore.doc(path).get()
       if (!doc.exists) return
 
       const currentTime = Date.now()
       const data = doc.data()
-      await database.doc(path).update({
+      await firestore.doc(path).update({
         ...data,
         ...(iconUrl ? { iconUrl } : null),
         ...(headerImageUrl ? { headerImageUrl } : null),
@@ -325,7 +325,7 @@ export const ActorFirestoreDatabaseMixin = (
     },
 
     async deleteActor({ actorId }: DeleteActorParams): Promise<void> {
-      const actors = database.collection('actors')
+      const actors = firestore.collection('actors')
       const snapshot = await actors.where('id', '==', actorId).get()
       await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()))
     },
@@ -334,7 +334,7 @@ export const ActorFirestoreDatabaseMixin = (
       currentActorId,
       followingActorId
     }: IsCurrentActorFollowingParams) {
-      const follows = database.collection('follows')
+      const follows = firestore.collection('follows')
       const snapshot = await follows
         .where('actorId', '==', currentActorId)
         .where('targetActorId', '==', followingActorId)
@@ -345,7 +345,7 @@ export const ActorFirestoreDatabaseMixin = (
     },
 
     async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
-      const follows = database.collection('follows')
+      const follows = firestore.collection('follows')
       const snapshot = await follows
         .where('actorId', '==', actorId)
         .where('status', '==', FollowStatus.enum.Accepted)
@@ -355,7 +355,7 @@ export const ActorFirestoreDatabaseMixin = (
     },
 
     async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
-      const follows = database.collection('follows')
+      const follows = firestore.collection('follows')
       const snapshot = await follows
         .where('targetActorId', '==', actorId)
         .where('status', '==', FollowStatus.enum.Accepted)
@@ -365,7 +365,7 @@ export const ActorFirestoreDatabaseMixin = (
     },
 
     async isInternalActor({ actorId }: IsInternalActorParams) {
-      const actorDoc = await database.doc(`actors/${urlToId(actorId)}`).get()
+      const actorDoc = await firestore.doc(`actors/${urlToId(actorId)}`).get()
       if (!actorDoc.exists) return false
       return Boolean(actorDoc?.data()?.accountId)
     }

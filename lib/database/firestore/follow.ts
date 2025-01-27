@@ -17,7 +17,7 @@ import { Actor } from '@/lib/models/actor'
 import { Follow, FollowStatus } from '@/lib/models/follow'
 
 export const FollowerFirestoreDatabaseMixin = (
-  database: Firestore,
+  firestore: Firestore,
   actorDatabase: ActorDatabase
 ): FollowDatabase => ({
   async createFollow({
@@ -47,12 +47,12 @@ export const FollowerFirestoreDatabaseMixin = (
       createdAt: currentTime,
       updatedAt: currentTime
     }
-    const follows = database.collection('follows')
+    const follows = firestore.collection('follows')
     const ref = await follows.add(content)
 
     if (status === FollowStatus.enum.Accepted) {
-      const actorRef = database.doc(`actors/${urlToId(actorId)}`)
-      const targetActorRef = database.doc(`actors/${urlToId(targetActorId)}`)
+      const actorRef = firestore.doc(`actors/${urlToId(actorId)}`)
+      const targetActorRef = firestore.doc(`actors/${urlToId(targetActorId)}`)
       const [actor, targetActor] = await Promise.all([
         actorRef.get(),
         targetActorRef.get()
@@ -76,7 +76,7 @@ export const FollowerFirestoreDatabaseMixin = (
   },
 
   async getFollowFromId({ followId }: GetFollowFromIdParams) {
-    const follows = database.collection('follows')
+    const follows = firestore.collection('follows')
     const snapshot = await follows.doc(followId).get()
     if (!snapshot) return
 
@@ -95,7 +95,7 @@ export const FollowerFirestoreDatabaseMixin = (
     const actor = await actorDatabase.getActorFromId({ id: targetActorId })
     // External actor, all followers are internal
     if (!actor?.privateKey) {
-      const follows = database.collection('follows')
+      const follows = firestore.collection('follows')
       const snapshot = await follows
         .where('targetActorId', '==', targetActorId)
         .where('status', '==', FollowStatus.enum.Accepted)
@@ -106,7 +106,7 @@ export const FollowerFirestoreDatabaseMixin = (
     }
 
     // Internal actor, returns only local followers
-    const localActors = await database
+    const localActors = await firestore
       .collection('actors')
       .where('privateKey', '!=', '')
       .get()
@@ -114,7 +114,7 @@ export const FollowerFirestoreDatabaseMixin = (
       new Set(localActors.docs.map((doc) => doc.data().domain))
     )
 
-    const follows = database.collection('follows')
+    const follows = firestore.collection('follows')
     const snapshot = await follows
       .where('targetActorId', '==', targetActorId)
       .where('status', '==', FollowStatus.enum.Accepted)
@@ -128,14 +128,14 @@ export const FollowerFirestoreDatabaseMixin = (
   async getLocalActorsFromFollowerUrl({
     followerUrl
   }: GetLocalActorsFromFollowerUrlParams) {
-    const actorFromFollowerUrl = await database
+    const actorFromFollowerUrl = await firestore
       .collection('actors')
       .where('followersUrl', '==', followerUrl)
       .get()
     if (!actorFromFollowerUrl.size) return []
     const id = actorFromFollowerUrl.docs[0].data().id
 
-    const follows = await database
+    const follows = await firestore
       .collection('follows')
       .where('targetActorId', '==', id)
       .where('status', '==', FollowStatus.enum.Accepted)
@@ -164,12 +164,12 @@ export const FollowerFirestoreDatabaseMixin = (
   }: GetLocalFollowsFromInboxUrlParams) {
     const [followsFromInboxSnapshot, followsFromSharedInboxSnapshot] =
       await Promise.all([
-        database
+        firestore
           .collection('follows')
           .where('targetActorId', '==', targetActorId)
           .where('inbox', '==', followerInboxUrl)
           .get(),
-        database
+        firestore
           .collection('follows')
           .where('targetActorId', '==', targetActorId)
           .where('sharedInbox', '==', followerInboxUrl)
@@ -195,7 +195,7 @@ export const FollowerFirestoreDatabaseMixin = (
     actorId,
     targetActorId
   }: GetAcceptedOrRequestedFollowParams) {
-    const follows = database.collection('follows')
+    const follows = firestore.collection('follows')
     const snapshot = await follows
       .where('actorId', '==', actorId)
       .where('targetActorId', '==', targetActorId)
@@ -218,7 +218,7 @@ export const FollowerFirestoreDatabaseMixin = (
   },
 
   async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {
-    const follows = database.collection('follows')
+    const follows = firestore.collection('follows')
     const snapshot = await follows
       .where('targetActorId', '==', targetActorId)
       .where('status', '==', FollowStatus.enum.Accepted)
@@ -237,8 +237,8 @@ export const FollowerFirestoreDatabaseMixin = (
     const follow = await this.getFollowFromId({ followId })
     if (!follow) return
 
-    const actorRef = database.doc(`actors/${urlToId(follow.actorId)}`)
-    const targetActorRef = database.doc(
+    const actorRef = firestore.doc(`actors/${urlToId(follow.actorId)}`)
+    const targetActorRef = firestore.doc(
       `actors/${urlToId(follow.targetActorId)}`
     )
     if (
@@ -269,7 +269,7 @@ export const FollowerFirestoreDatabaseMixin = (
       ])
     }
 
-    const ref = database.collection('follows').doc(follow.id)
+    const ref = firestore.collection('follows').doc(follow.id)
     await ref.update({
       status,
       updatedAt: Date.now()
