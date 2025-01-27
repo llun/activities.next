@@ -35,12 +35,20 @@ import {
 import { Tag, TagData } from '@/lib/models/tag'
 import { logger } from '@/lib/utils/logger'
 
+export interface FirestoreStatusDatabase extends StatusDatabase {
+  getStatusFromData(
+    data: any,
+    withReplies: boolean,
+    currentActorId?: string
+  ): Promise<Status | undefined>
+}
+
 export const StatusFirestoreDatabaseMixin = (
   firestore: Firestore,
   actorDatabase: ActorDatabase,
   likeDatabase: LikeDatabase,
   mediaDatabase: MediaDatabase
-): StatusDatabase => {
+): FirestoreStatusDatabase => {
   // Public
   async function createNote({
     id,
@@ -407,29 +415,6 @@ export const StatusFirestoreDatabaseMixin = (
     return snapshot.docs.map((item) => new Tag(item.data() as TagData))
   }
 
-  // Private
-  function createMD5(content: string) {
-    const hash = crypto.createHash('md5')
-    hash.update(content)
-    return hash.digest('hex')
-  }
-
-  async function getPollChoices(statusId: string) {
-    const snapshot = await firestore
-      .collection(`statuses/${urlToId(statusId)}/choices`)
-      .get()
-    return snapshot.docs.map(
-      (item) => new PollChoice(item.data() as PollChoiceData)
-    )
-  }
-
-  async function getEdits(statusId: string) {
-    const snapshot = await firestore
-      .collection(`statuses/${urlToId(statusId)}/history`)
-      .get()
-    return snapshot.docs.map((item) => item.data() as Edited)
-  }
-
   async function getStatusFromData(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
@@ -543,6 +528,29 @@ export const StatusFirestoreDatabaseMixin = (
     })
   }
 
+  // Private
+  function createMD5(content: string) {
+    const hash = crypto.createHash('md5')
+    hash.update(content)
+    return hash.digest('hex')
+  }
+
+  async function getPollChoices(statusId: string) {
+    const snapshot = await firestore
+      .collection(`statuses/${urlToId(statusId)}/choices`)
+      .get()
+    return snapshot.docs.map(
+      (item) => new PollChoice(item.data() as PollChoiceData)
+    )
+  }
+
+  async function getEdits(statusId: string) {
+    const snapshot = await firestore
+      .collection(`statuses/${urlToId(statusId)}/history`)
+      .get()
+    return snapshot.docs.map((item) => item.data() as Edited)
+  }
+
   async function getReplies(statusId: string) {
     const statuses = firestore.collection('statuses')
     const snapshot = await statuses
@@ -571,6 +579,7 @@ export const StatusFirestoreDatabaseMixin = (
 
     getStatus,
     getStatusReplies,
+    getStatusFromData,
 
     hasActorAnnouncedStatus,
 

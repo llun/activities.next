@@ -2,7 +2,7 @@ import memoize from 'lodash/memoize'
 
 import { getConfig } from '@/lib/config'
 import { KnexBaseDatabase } from '@/lib/config/database'
-import { FirestoreStorage } from '@/lib/database/firestore'
+import { getFirestoreDatabase } from '@/lib/database/firestore'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 
@@ -18,7 +18,7 @@ export const getDatabase = memoize((): Database | null => {
     }
     case 'firebase':
     case 'firestore':
-      return new FirestoreStorage(config.database)
+      return getFirestoreDatabase(config.database)
     default:
       return null
   }
