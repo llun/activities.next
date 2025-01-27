@@ -10,7 +10,7 @@ import { Status } from '@/lib/models/status'
 import { Timeline } from '@/lib/services/timelines/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
-export const TimelineSQLStorageMixin = (
+export const TimelineSQLDatabaseMixin = (
   database: Knex,
   statusDatabase: StatusDatabase
 ) => ({

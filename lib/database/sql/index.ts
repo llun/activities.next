@@ -1,14 +1,14 @@
 import { Mastodon } from '@llun/activities.schema'
 import knex, { Knex } from 'knex'
 
-import { AccountSQLStorageMixin } from '@/lib/database/sql/account'
-import { ActorSQLStorageMixin } from '@/lib/database/sql/actor'
-import { FollowerSQLStorageMixin } from '@/lib/database/sql/follow'
-import { LikeSQLStorageMixin } from '@/lib/database/sql/like'
-import { MediaSQLStorageMixin } from '@/lib/database/sql/media'
-import { OAuthStorageMixin } from '@/lib/database/sql/oauth'
-import { StatusSQLStorageMixin } from '@/lib/database/sql/status'
-import { TimelineSQLStorageMixin } from '@/lib/database/sql/timeline'
+import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
+import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
+import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
+import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
+import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
+import { OAuthDatabaseMixin } from '@/lib/database/sql/oauth'
+import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
+import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/database/types/sql'
 import { Account } from '@/lib/models/account'
@@ -167,26 +167,30 @@ export const getSQLDatabase = (config: Knex.Config): Database => {
     })
   }
 
-  const accountStorage = AccountSQLStorageMixin(database)
-  const actorStorage = ActorSQLStorageMixin(
+  const accountDatabase = AccountSQLDatabaseMixin(database)
+  const actorDatabase = ActorSQLDatabaseMixin(
     database,
     getActor,
     getMastodonActor
   )
-  const followerStorage = FollowerSQLStorageMixin(
+  const followerDatabase = FollowerSQLDatabaseMixin(
     database,
-    actorStorage,
+    actorDatabase,
     getActor
   )
-  const likeStorage = LikeSQLStorageMixin(database)
-  const mediaStorage = MediaSQLStorageMixin(database)
-  const oauthStorage = OAuthStorageMixin(database, accountStorage, actorStorage)
-  const statusStorage = StatusSQLStorageMixin(
+  const likeDatabase = LikeSQLDatabaseMixin(database)
+  const mediaDatabase = MediaSQLDatabaseMixin(database)
+  const oauthDatabase = OAuthDatabaseMixin(
     database,
-    actorStorage,
-    mediaStorage
+    accountDatabase,
+    actorDatabase
   )
-  const timelineStorage = TimelineSQLStorageMixin(database, statusStorage)
+  const statusDatabase = StatusSQLDatabaseMixin(
+    database,
+    actorDatabase,
+    mediaDatabase
+  )
+  const timelineDatabase = TimelineSQLDatabaseMixin(database, statusDatabase)
 
   return {
     async migrate() {
@@ -197,13 +201,13 @@ export const getSQLDatabase = (config: Knex.Config): Database => {
       await database.destroy()
     },
 
-    ...accountStorage,
-    ...actorStorage,
-    ...followerStorage,
-    ...likeStorage,
-    ...mediaStorage,
-    ...oauthStorage,
-    ...statusStorage,
-    ...timelineStorage
+    ...accountDatabase,
+    ...actorDatabase,
+    ...followerDatabase,
+    ...likeDatabase,
+    ...mediaDatabase,
+    ...oauthDatabase,
+    ...statusDatabase,
+    ...timelineDatabase
   }
 }

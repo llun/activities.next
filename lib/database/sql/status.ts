@@ -30,7 +30,7 @@ import {
 } from '@/lib/models/status'
 import { Tag, TagData } from '@/lib/models/tag'
 
-export const StatusSQLStorageMixin = (
+export const StatusSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
   mediaDatabase: MediaDatabase

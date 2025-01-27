@@ -9,7 +9,7 @@ import {
 } from '@/lib/database/types/media'
 import { Attachment, AttachmentData } from '@/lib/models/attachment'
 
-export const MediaSQLStorageMixin = (database: Knex): MediaDatabase => ({
+export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async createMedia({
     actorId,
     original,

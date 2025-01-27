@@ -30,7 +30,7 @@ export type GetMastodonActorFunction = (
   actorId: string
 ) => Promise<Mastodon.Account | null>
 
-export const ActorSQLStorageMixin = (
+export const ActorSQLDatabaseMixin = (
   database: Knex,
   getActor: GetActorFunction,
   getMastodonActor: GetMastodonActorFunction

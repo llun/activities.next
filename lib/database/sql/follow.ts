@@ -16,7 +16,7 @@ import {
 import { Account } from '@/lib/models/account'
 import { Follow, FollowStatus } from '@/lib/models/follow'
 
-export const FollowerSQLStorageMixin = (
+export const FollowerSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
   getActor: GetActorFunction

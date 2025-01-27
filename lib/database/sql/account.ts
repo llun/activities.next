@@ -19,7 +19,7 @@ import { ActorSettings } from '@/lib/database/types/sql'
 import { Account } from '@/lib/models/account'
 import { Session } from '@/lib/models/session'
 
-export const AccountSQLStorageMixin = (database: Knex): AccountDatabase => ({
+export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async isAccountExists({ email }: IsAccountExistsParams) {
     const result = await database('accounts')
       .where('email', email)

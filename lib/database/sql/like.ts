@@ -6,7 +6,7 @@ import {
   GetLikeCountParams
 } from '@/lib/database/types/like'
 
-export const LikeSQLStorageMixin = (database: Knex) => ({
+export const LikeSQLDatabaseMixin = (database: Knex) => ({
   async createLike({ actorId, statusId }: CreateLikeParams) {
     const status = await database('statuses').where('id', statusId).first()
     if (!status) return
