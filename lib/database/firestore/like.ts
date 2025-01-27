@@ -5,20 +5,9 @@ import {
   CreateLikeParams,
   DeleteLikeParams,
   GetLikeCountParams,
+  IsActorLikedStatusParams,
   LikeDatabase
 } from '@/lib/database/types/like'
-
-export const isActorLikedStatus = async (
-  fireStore: Firestore,
-  statusId: string,
-  actorId?: string
-) => {
-  if (!actorId) return false
-  const snapshot = await fireStore
-    .doc(`statuses/${urlToId(statusId)}/likes/${urlToId(actorId)}`)
-    .get()
-  return snapshot.exists
-}
 
 export const LikeFirestoreDatabaseMixin = (
   firestore: Firestore
@@ -28,7 +17,7 @@ export const LikeFirestoreDatabaseMixin = (
     if (!snapshot.exists) return
 
     const currentTime = Date.now()
-    const isLiked = await isActorLikedStatus(firestore, statusId, actorId)
+    const isLiked = await this.isActorLikedStatus({ statusId, actorId })
     if (isLiked) return
 
     await firestore
@@ -53,5 +42,12 @@ export const LikeFirestoreDatabaseMixin = (
       .count()
       .get()
     return countSnapshot.data().count ?? 0
+  },
+
+  async isActorLikedStatus({ statusId, actorId }: IsActorLikedStatusParams) {
+    const snapshot = await firestore
+      .doc(`statuses/${urlToId(statusId)}/likes/${urlToId(actorId)}`)
+      .get()
+    return snapshot.exists
   }
 })

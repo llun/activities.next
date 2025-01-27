@@ -67,7 +67,8 @@ import {
 import {
   CreateLikeParams,
   DeleteLikeParams,
-  GetLikeCountParams
+  GetLikeCountParams,
+  IsActorLikedStatusParams
 } from './types/like'
 import {
   CreateAttachmentParams,
@@ -1338,7 +1339,12 @@ export class FirestoreStorage implements Database {
       this.getTags({ statusId: data.id }),
       this.getActorFromId({ id: data.actorId }),
       this.getLikeCount({ statusId: data.id }),
-      this.isActorLikedStatus(data.id, currentActorId),
+      currentActorId
+        ? this.isActorLikedStatus({
+            statusId: data.id,
+            actorId: currentActorId
+          })
+        : false,
       this.hasActorAnnouncedStatus({
         statusId: data.id,
         actorId: currentActorId
@@ -1415,6 +1421,71 @@ export class FirestoreStorage implements Database {
     return snapshot.data().count === 1
   }
 
+  @Trace('db')
+  async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
+    const statuses = this.db.collection('statuses')
+    const snapshot = await statuses
+      .where('actorId', '==', actorId)
+      .count()
+      .get()
+    return snapshot.data().count
+  }
+
+  @Trace('db')
+  async getActorStatuses({ actorId }: GetActorStatusesParams) {
+    const statuses = this.db.collection('statuses')
+    const snapshot = await statuses
+      .where('actorId', '==', actorId)
+      .orderBy('createdAt', 'desc')
+      .limit(PER_PAGE_LIMIT)
+      .get()
+    const items = await Promise.all(
+      snapshot.docs.map((item) => {
+        const data = item.data()
+        return this.getStatusFromData(data, false)
+      })
+    )
+    return items.filter((item): item is Status => Boolean(item))
+  }
+
+  @Trace('db')
+  async deleteStatus({ statusId }: DeleteStatusParams) {
+    const repliesSnapshot = await this.db
+      .collection('statuses')
+      .where('reply', '==', statusId)
+      .get()
+
+    await Promise.all(
+      repliesSnapshot.docs
+        .map((doc) => doc.data().id)
+        .map((statusId) => this.deleteStatus({ statusId }))
+    )
+
+    const statusInTimelines = await this.db
+      .collectionGroup('timelines')
+      .where('statusId', '==', statusId)
+      .get()
+
+    await Promise.all([
+      ...statusInTimelines.docs.map((doc) => doc.ref.delete()),
+      this.db.doc(`statuses/${FirestoreStorage.urlToId(statusId)}`).delete()
+    ])
+  }
+
+  @Trace('db')
+  async getFavouritedBy({ statusId }: GetFavouritedByParams): Promise<Actor[]> {
+    const favouritedBySnapshot = await this.db
+      .collection(`statuses/${FirestoreStorage.urlToId(statusId)}/likes`)
+      .get()
+    const actors = await Promise.all(
+      favouritedBySnapshot.docs.map((doc) =>
+        this.getActorFromId({ id: doc.data().actorId })
+      )
+    )
+    return actors.filter((item): item is Actor => Boolean(item))
+  }
+
+  // Timeline
   @Trace('db')
   async getTimeline({
     timeline,
@@ -1521,68 +1592,81 @@ export class FirestoreStorage implements Database {
     })
   }
 
+  // tag?
   @Trace('db')
-  async getActorStatusesCount({ actorId }: GetActorStatusesCountParams) {
-    const statuses = this.db.collection('statuses')
-    const snapshot = await statuses
-      .where('actorId', '==', actorId)
-      .count()
-      .get()
-    return snapshot.data().count
+  async createTag({
+    statusId,
+    name,
+    value,
+    type
+  }: CreateTagParams): Promise<Tag> {
+    const currentTime = Date.now()
+    const id = crypto.randomUUID()
+    const data: TagData = {
+      id,
+      statusId,
+      type,
+      name,
+      value: value || '',
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
+    await this.db
+      .doc(`statuses/${FirestoreStorage.urlToId(statusId)}/tags/${id}`)
+      .set(data)
+    return new Tag(data)
   }
 
   @Trace('db')
-  async getActorStatuses({ actorId }: GetActorStatusesParams) {
+  async getTags({ statusId }: GetTagsParams) {
+    const snapshot = await this.db
+      .collection(`statuses/${FirestoreStorage.urlToId(statusId)}/tags`)
+      .get()
+    return snapshot.docs.map((item) => new Tag(item.data() as TagData))
+  }
+
+  @Trace('db')
+  private async getReplies(statusId: string) {
     const statuses = this.db.collection('statuses')
     const snapshot = await statuses
-      .where('actorId', '==', actorId)
+      .where('reply', '==', statusId)
       .orderBy('createdAt', 'desc')
-      .limit(PER_PAGE_LIMIT)
       .get()
-    const items = await Promise.all(
-      snapshot.docs.map((item) => {
+    const replies = await Promise.all(
+      snapshot.docs.map(async (item) => {
         const data = item.data()
-        return this.getStatusFromData(data, false)
+        const status = await this.getStatusFromData(data, false)
+        if (!status) return null
+        if (status.data.type !== StatusType.enum.Note) return null
+        return status.data
       })
     )
-    return items.filter((item): item is Status => Boolean(item))
+    return replies.filter((item): item is StatusNote => Boolean(item))
   }
 
+  // Media
   @Trace('db')
-  async deleteStatus({ statusId }: DeleteStatusParams) {
-    const repliesSnapshot = await this.db
-      .collection('statuses')
-      .where('reply', '==', statusId)
-      .get()
+  async createMedia({
+    actorId,
+    original,
+    thumbnail,
+    description
+  }: CreateMediaParams): Promise<Media | null> {
+    if (!actorId) return null
 
-    await Promise.all(
-      repliesSnapshot.docs
-        .map((doc) => doc.data().id)
-        .map((statusId) => this.deleteStatus({ statusId }))
-    )
-
-    const statusInTimelines = await this.db
-      .collectionGroup('timelines')
-      .where('statusId', '==', statusId)
-      .get()
-
-    await Promise.all([
-      ...statusInTimelines.docs.map((doc) => doc.ref.delete()),
-      this.db.doc(`statuses/${FirestoreStorage.urlToId(statusId)}`).delete()
-    ])
-  }
-
-  @Trace('db')
-  async getFavouritedBy({ statusId }: GetFavouritedByParams): Promise<Actor[]> {
-    const favouritedBySnapshot = await this.db
-      .collection(`statuses/${FirestoreStorage.urlToId(statusId)}/likes`)
-      .get()
-    const actors = await Promise.all(
-      favouritedBySnapshot.docs.map((doc) =>
-        this.getActorFromId({ id: doc.data().actorId })
-      )
-    )
-    return actors.filter((item): item is Actor => Boolean(item))
+    const id = crypto.randomUUID()
+    const currentTime = Date.now()
+    const media = {
+      id,
+      actorId,
+      original,
+      ...(thumbnail ? { thumbnail } : null),
+      ...(description ? { description } : null),
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
+    await this.db.doc(`medias/${id}`).set(media)
+    return media
   }
 
   @Trace('db')
@@ -1642,58 +1726,7 @@ export class FirestoreStorage implements Database {
     )
   }
 
-  // tag?
-  @Trace('db')
-  async createTag({
-    statusId,
-    name,
-    value,
-    type
-  }: CreateTagParams): Promise<Tag> {
-    const currentTime = Date.now()
-    const id = crypto.randomUUID()
-    const data: TagData = {
-      id,
-      statusId,
-      type,
-      name,
-      value: value || '',
-      createdAt: currentTime,
-      updatedAt: currentTime
-    }
-    await this.db
-      .doc(`statuses/${FirestoreStorage.urlToId(statusId)}/tags/${id}`)
-      .set(data)
-    return new Tag(data)
-  }
-
-  @Trace('db')
-  async getTags({ statusId }: GetTagsParams) {
-    const snapshot = await this.db
-      .collection(`statuses/${FirestoreStorage.urlToId(statusId)}/tags`)
-      .get()
-    return snapshot.docs.map((item) => new Tag(item.data() as TagData))
-  }
-
-  @Trace('db')
-  private async getReplies(statusId: string) {
-    const statuses = this.db.collection('statuses')
-    const snapshot = await statuses
-      .where('reply', '==', statusId)
-      .orderBy('createdAt', 'desc')
-      .get()
-    const replies = await Promise.all(
-      snapshot.docs.map(async (item) => {
-        const data = item.data()
-        const status = await this.getStatusFromData(data, false)
-        if (!status) return null
-        if (status.data.type !== StatusType.enum.Note) return null
-        return status.data
-      })
-    )
-    return replies.filter((item): item is StatusNote => Boolean(item))
-  }
-
+  // Like
   @Trace('db')
   async createLike({ actorId, statusId }: CreateLikeParams) {
     const snapshot = await this.db
@@ -1702,7 +1735,9 @@ export class FirestoreStorage implements Database {
     if (!snapshot.exists) return
 
     const currentTime = Date.now()
-    const isLiked = await this.isActorLikedStatus(statusId, actorId)
+    const isLiked = actorId
+      ? await this.isActorLikedStatus({ statusId, actorId })
+      : false
     if (isLiked) return
 
     await this.db
@@ -1740,8 +1775,7 @@ export class FirestoreStorage implements Database {
   }
 
   @Trace('db')
-  private async isActorLikedStatus(statusId: string, actorId?: string) {
-    if (!actorId) return false
+  async isActorLikedStatus({ statusId, actorId }: IsActorLikedStatusParams) {
     const snapshot = await this.db
       .doc(
         `statuses/${FirestoreStorage.urlToId(
@@ -1750,30 +1784,6 @@ export class FirestoreStorage implements Database {
       )
       .get()
     return snapshot.exists
-  }
-
-  @Trace('db')
-  async createMedia({
-    actorId,
-    original,
-    thumbnail,
-    description
-  }: CreateMediaParams): Promise<Media | null> {
-    if (!actorId) return null
-
-    const id = crypto.randomUUID()
-    const currentTime = Date.now()
-    const media = {
-      id,
-      actorId,
-      original,
-      ...(thumbnail ? { thumbnail } : null),
-      ...(description ? { description } : null),
-      createdAt: currentTime,
-      updatedAt: currentTime
-    }
-    await this.db.doc(`medias/${id}`).set(media)
-    return media
   }
 
   @Trace('db')

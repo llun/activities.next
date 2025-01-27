@@ -30,9 +30,12 @@ import {
 } from '@/lib/models/status'
 import { Tag, TagData } from '@/lib/models/tag'
 
+import { LikeDatabase } from '../types/like'
+
 export const StatusSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
+  likeDatabase: LikeDatabase,
   mediaDatabase: MediaDatabase
 ): StatusDatabase => {
   // Public
@@ -494,17 +497,6 @@ export const StatusSQLDatabaseMixin = (
     return raw.map((data) => new PollChoice(data))
   }
 
-  async function isActorLikedStatus(statusId: string, actorId?: string) {
-    if (!actorId) return false
-
-    const result = await database('likes')
-      .where('statusId', statusId)
-      .where('actorId', actorId)
-      .count<{ count: string }>('* as count')
-      .first()
-    return parseInt(result?.count ?? '0', 10) !== 0
-  }
-
   async function getStatusWithAttachmentsFromData(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
@@ -564,7 +556,12 @@ export const StatusSQLDatabaseMixin = (
         .where('statusId', data.id)
         .count<{ count: string }>('* as count')
         .first(),
-      isActorLikedStatus(data.id, currentActorId),
+      currentActorId
+        ? likeDatabase.isActorLikedStatus({
+            statusId: data.id,
+            actorId: currentActorId
+          })
+        : false,
       hasActorAnnouncedStatus({
         statusId: data.id,
         actorId: currentActorId

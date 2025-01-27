@@ -188,6 +188,7 @@ export const getSQLDatabase = (config: Knex.Config): Database => {
   const statusDatabase = StatusSQLDatabaseMixin(
     database,
     actorDatabase,
+    likeDatabase,
     mediaDatabase
   )
   const timelineDatabase = TimelineSQLDatabaseMixin(database, statusDatabase)

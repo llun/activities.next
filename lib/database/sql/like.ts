@@ -4,6 +4,7 @@ import {
   CreateLikeParams,
   DeleteLikeParams,
   GetLikeCountParams,
+  IsActorLikedStatusParams,
   LikeDatabase
 } from '@/lib/database/types/like'
 
@@ -36,5 +37,14 @@ export const LikeSQLDatabaseMixin = (database: Knex): LikeDatabase => ({
       .count<{ count: string }>('* as count')
       .first()
     return parseInt(result?.count ?? '0', 10)
+  },
+
+  async isActorLikedStatus({ statusId, actorId }: IsActorLikedStatusParams) {
+    const result = await database('likes')
+      .where('statusId', statusId)
+      .where('actorId', actorId)
+      .count<{ count: string }>('* as count')
+      .first()
+    return parseInt(result?.count ?? '0', 10) !== 0
   }
 })
