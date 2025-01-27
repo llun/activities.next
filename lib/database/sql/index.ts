@@ -1,4 +1,3 @@
-import { Mastodon } from '@llun/activities.schema'
 import knex, { Knex } from 'knex'
 
 import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
@@ -10,10 +9,6 @@ import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
-import { ActorSettings, SQLAccount, SQLActor } from '@/lib/database/types/sql'
-import { Account } from '@/lib/models/account'
-import { Actor } from '@/lib/models/actor'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const getSQLDatabase = (config: Knex.Config): Database => {
   const database = knex(config)

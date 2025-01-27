@@ -37,6 +37,7 @@ import { logger } from '@/lib/utils/logger'
 
 export interface FirestoreStatusDatabase extends StatusDatabase {
   getStatusFromData(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
     withReplies: boolean,
     currentActorId?: string
