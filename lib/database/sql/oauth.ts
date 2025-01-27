@@ -23,7 +23,7 @@ import { Client } from '@/lib/models/oauth2/client'
 import { Token } from '@/lib/models/oauth2/token'
 import { User } from '@/lib/models/oauth2/user'
 
-export const OAuthDatabaseMixin = (
+export const OAuthSQLDatabaseMixin = (
   database: Knex,
   accountDatabase: AccountDatabase,
   actorDatabase: ActorDatabase

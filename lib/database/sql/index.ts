@@ -6,7 +6,7 @@ import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
 import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
 import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
-import { OAuthDatabaseMixin } from '@/lib/database/sql/oauth'
+import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
@@ -180,7 +180,7 @@ export const getSQLDatabase = (config: Knex.Config): Database => {
   )
   const likeDatabase = LikeSQLDatabaseMixin(database)
   const mediaDatabase = MediaSQLDatabaseMixin(database)
-  const oauthDatabase = OAuthDatabaseMixin(
+  const oauthDatabase = OAuthSQLDatabaseMixin(
     database,
     accountDatabase,
     actorDatabase
