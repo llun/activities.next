@@ -1,7 +1,6 @@
 import { Knex } from 'knex'
 
-import { GetActorFunction } from '@/lib/database/sql/actor'
-import { ActorDatabase } from '@/lib/database/types/actor'
+import { SQLActorDatabase } from '@/lib/database/sql/actor'
 import {
   CreateFollowParams,
   FollowDatabase,
@@ -18,8 +17,7 @@ import { Follow, FollowStatus } from '@/lib/models/follow'
 
 export const FollowerSQLDatabaseMixin = (
   database: Knex,
-  actorDatabase: ActorDatabase,
-  getActor: GetActorFunction
+  actorDatabase: SQLActorDatabase
 ): FollowDatabase => ({
   async createFollow({
     actorId,
@@ -152,7 +150,7 @@ export const FollowerSQLDatabaseMixin = (
           const lastStatusCreatedAt = lastStatus?.createdAt
             ? lastStatus.createdAt
             : 0
-          return getActor(
+          return actorDatabase.getActor(
             actor,
             parseInt(totalFollowing?.count ?? '0', 10),
             parseInt(totalFollowers?.count ?? '0', 10),
