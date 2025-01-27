@@ -1,4 +1,7 @@
-import { databaseBeforeAll, getTestDatabaseTable } from '@/lib/database/utils'
+import {
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
 import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,

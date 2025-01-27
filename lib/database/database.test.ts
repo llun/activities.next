@@ -1,12 +1,12 @@
 import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
 
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
-import { Scope } from '@/lib/database/types/oauth'
 import {
   TestDatabaseTable,
   databaseBeforeAll,
   getTestDatabaseTable
-} from '@/lib/database/utils'
+} from '@/lib/database/testUtils'
+import { Scope } from '@/lib/database/types/oauth'
 import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
 import { FollowStatus } from '@/lib/models/follow'

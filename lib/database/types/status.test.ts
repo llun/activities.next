@@ -5,8 +5,8 @@ import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 
+import { databaseBeforeAll, getTestDatabaseTable } from '../testUtils'
 import { Database } from '../types'
-import { databaseBeforeAll, getTestDatabaseTable } from '../utils'
 
 describe('StatusDatabase', () => {
   const table = getTestDatabaseTable()

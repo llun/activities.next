@@ -1,5 +1,8 @@
+import {
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
-import { databaseBeforeAll, getTestDatabaseTable } from '@/lib/database/utils'
 import { Follow, FollowStatus } from '@/lib/models/follow'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'

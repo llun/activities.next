@@ -9,7 +9,7 @@ import {
   TestDatabaseTable,
   databaseBeforeAll,
   getTestDatabaseTable
-} from '../utils'
+} from '../testUtils'
 
 describe('AccountDatabase', () => {
   const table: TestDatabaseTable = getTestDatabaseTable()
