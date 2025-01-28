@@ -122,8 +122,7 @@ export const FollowerSQLDatabaseMixin = (
     followerUrl
   }: GetLocalActorsFromFollowerUrlParams) {
     const actor = await database('actors')
-      .jsonExtract('settings', '$.followersUrl', 'followersUrl')
-      .where('followersUrl', followerUrl)
+      .whereJsonPath('settings', '$.followersUrl', '=', followerUrl)
       .select('id')
       .first()
     if (!actor?.id) return []
@@ -215,7 +214,7 @@ export const FollowerSQLDatabaseMixin = (
   async updateFollowStatus({ followId, status }: UpdateFollowStatusParams) {
     await database('follows').where('id', followId).update({
       status,
-      updatedAt: Date.now()
+      updatedAt: new Date()
     })
   }
 })

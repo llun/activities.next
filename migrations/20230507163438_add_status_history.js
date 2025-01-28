@@ -7,7 +7,7 @@ exports.up = (knex) => {
     .createTable('status_history', function (table) {
       table.increments('id')
       table.string('statusId')
-      table.json('data')
+      table.jsonb('data')
 
       table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
       table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())

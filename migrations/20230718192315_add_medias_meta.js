@@ -4,8 +4,8 @@
  */
 exports.up = (knex) => {
   return knex.schema.alterTable('medias', function (table) {
-    table.json('originalMetaData')
-    table.json('thumbnailMetaData').nullable()
+    table.jsonb('originalMetaData')
+    table.jsonb('thumbnailMetaData').nullable()
   })
 }
 
