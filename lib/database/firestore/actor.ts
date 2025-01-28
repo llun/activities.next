@@ -25,8 +25,11 @@ export const ActorFirestoreDatabaseMixin = (
   firestore: Firestore,
   accountDatabase: AccountDatabase
 ): ActorDatabase => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function getActorFromDataAndAccount(data: any, account?: Account): Actor {
+  function getActorFromDataAndAccount(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: any,
+    account?: Account | null
+  ): Actor {
     return new Actor({
       id: data.id,
       username: data.username,

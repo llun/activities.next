@@ -121,7 +121,7 @@ describe('FollowDatabase', () => {
           actorId: ACTOR1_ID,
           targetActorId: ACTOR5_ID
         })
-        expect(follow).toBeUndefined()
+        expect(follow).toBeNull()
       })
     })
 

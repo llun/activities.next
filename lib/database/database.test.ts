@@ -409,7 +409,7 @@ describe('Database', () => {
             actorId: TEST_ID3,
             targetActorId
           })
-        ).toBeUndefined()
+        ).toBeNull()
 
         // Make sure that second follow time is not the same as first follow
         await new Promise((resolve) => setTimeout(resolve, 10))

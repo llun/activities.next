@@ -1,7 +1,7 @@
 import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database'
-import { getCompatibleTime } from '@/lib/database/sql/utils'
+import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { ActorDatabase } from '@/lib/database/types/actor'
 import { LikeDatabase } from '@/lib/database/types/like'
 import { MediaDatabase } from '@/lib/database/types/media'

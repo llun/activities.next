@@ -1,6 +1,7 @@
 import { Mastodon } from '@llun/activities.schema'
 import { Knex } from 'knex'
 
+import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   ActorDatabase,
   CreateActorParams,
@@ -18,8 +19,6 @@ import { ActorSettings, SQLAccount, SQLActor } from '@/lib/database/types/sql'
 import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-
-import { getCompatibleTime } from './utils'
 
 export interface SQLActorDatabase extends ActorDatabase {
   getActor: (
@@ -159,9 +158,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
       parseInt(totalStatus?.count ?? '0', 10),
-      typeof lastStatusCreatedAt === 'number'
-        ? lastStatusCreatedAt
-        : lastStatusCreatedAt.getTime(),
+      getCompatibleTime(lastStatusCreatedAt),
       account
     )
   },
@@ -229,9 +226,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
       parseInt(totalStatus?.count ?? '0', 10),
-      typeof lastStatusCreatedAt === 'number'
-        ? lastStatusCreatedAt
-        : lastStatusCreatedAt.getTime(),
+      getCompatibleTime(lastStatusCreatedAt),
       account
     )
   },
@@ -289,9 +284,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         parseInt(totalFollowing?.count ?? '0', 10),
         parseInt(totalFollowers?.count ?? '0', 10),
         parseInt(totalStatus?.count ?? '0', 10),
-        typeof lastStatusCreatedAt === 'number'
-          ? lastStatusCreatedAt
-          : lastStatusCreatedAt.getTime()
+        getCompatibleTime(lastStatusCreatedAt)
       )
     }
 
@@ -390,8 +383,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       statusCount,
       lastStatusAt,
 
-      createdAt: getCompatibleTime(sqlAccount?.createdAt),
-      updatedAt: getCompatibleTime(sqlAccount?.updatedAt)
+      createdAt: getCompatibleTime(sqlActor.createdAt),
+      updatedAt: getCompatibleTime(sqlActor.updatedAt)
     })
   },
 

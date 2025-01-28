@@ -1,7 +1,7 @@
 import { Knex } from 'knex'
-import { update } from 'lodash'
 
 import { SQLActorDatabase } from '@/lib/database/sql/actor'
+import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   CreateFollowParams,
   FollowDatabase,
@@ -16,14 +16,10 @@ import {
 import { Account } from '@/lib/models/account'
 import { Follow, FollowStatus } from '@/lib/models/follow'
 
-const fixFollowDataDate = (data: any): Follow => ({
+const fixFollowDataDate = (data: Follow): Follow => ({
   ...data,
-  createdAt:
-    typeof data.createdAt === 'number'
-      ? data.createdAt
-      : data.createdAt?.getTime(),
-  updatedAt:
-    data.updatedAt === 'number' ? data.updatedAt : data.updatedAt?.getTime()
+  createdAt: getCompatibleTime(data.createdAt),
+  updatedAt: getCompatibleTime(data.updatedAt)
 })
 
 export const FollowerSQLDatabaseMixin = (

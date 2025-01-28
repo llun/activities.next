@@ -1,6 +1,6 @@
 import { Knex } from 'knex'
 
-import { getCompatibleTime } from '@/lib/database/sql/utils'
+import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   AccountDatabase,
   CreateAccountParams,
