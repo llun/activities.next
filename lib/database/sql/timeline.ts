@@ -113,8 +113,8 @@ export const TimelineSQLDatabaseMixin = (
         statusId: status.id,
         statusActorId: status.actorId,
         timeline,
-        createdAt: status.createdAt,
-        updatedAt: Date.now()
+        createdAt: new Date(status.createdAt),
+        updatedAt: new Date()
       })
     })
   }

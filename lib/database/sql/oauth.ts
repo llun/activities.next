@@ -1,5 +1,6 @@
 import { Knex } from 'knex'
 import { omit } from 'lodash'
+import { createDynamicTrackingState } from 'next/dist/server/app-render/dynamic-rendering'
 
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
@@ -117,7 +118,7 @@ export const OAuthSQLDatabaseMixin = (
     await database('clients')
       .where('id', id)
       .update({
-        ...omit(updatedClient, ['allowedGrants']),
+        ...omit(updatedClient, ['allowedGrants', 'createdAt']),
         scopes: JSON.stringify(updatedClient.scopes.map((scope) => scope.name)),
         redirectUris: JSON.stringify(updatedClient.redirectUris),
         updatedAt: currentTime
