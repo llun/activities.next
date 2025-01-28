@@ -313,7 +313,7 @@ export const OAuthSQLDatabaseMixin = (
         ? { codeChallengeMethod: data.codeChallengeMethod }
         : null),
 
-      scopes: getCompatibleJSON(data.scope),
+      scopes: getCompatibleJSON(data.scopes),
       client: {
         ...client,
         scopes: client?.scopes.map((scope) => scope.name)
