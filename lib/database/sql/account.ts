@@ -1,5 +1,6 @@
 import { Knex } from 'knex'
 
+import { getCompatibleTime } from '@/lib/database/sql/utils'
 import {
   AccountDatabase,
   CreateAccountParams,
@@ -84,36 +85,48 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   },
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
-    return database<Account>('accounts').where('id', id).first()
+    const account = await database('accounts').where('id', id).first()
+    if (!account) return null
+    return {
+      ...account,
+      createdAt: getCompatibleTime(account.createdAt),
+      updatedAt: getCompatibleTime(account.updatedAt)
+    }
   },
 
   async getAccountFromProviderId({
     provider,
     accountId
-  }: GetAccountFromProviderIdParams): Promise<Account | undefined> {
-    return database('account_providers')
+  }: GetAccountFromProviderIdParams): Promise<Account | null> {
+    const account = await database('account_providers')
       .where('provider', provider)
       .where('providerId', accountId)
       .join('accounts', 'account_providers.accountId', '=', 'accounts.id')
       .select<Account>('accounts.*')
       .first()
+    if (!account) return null
+    return {
+      ...account,
+      createdAt: getCompatibleTime(account.createdAt),
+      updatedAt: getCompatibleTime(account.updatedAt)
+    }
   },
 
   async linkAccountWithProvider({
     accountId,
     providerAccountId,
     provider
-  }: LinkAccountWithProviderParams): Promise<Account | undefined> {
+  }: LinkAccountWithProviderParams): Promise<Account | null> {
     const [existingLinkAccount, account] = await Promise.all([
       database('account_providers')
         .where('provider', provider)
         .where('providerId', providerAccountId)
         .first(),
-      database('accounts').where('id', accountId).first<Account>()
+      database('accounts').where('id', accountId).first()
     ])
 
-    if (existingLinkAccount) return
-    if (!account) return
+    if (existingLinkAccount) return null
+    if (!account) return null
 
     const currentTime = new Date()
     await database('account_providers').insert({
@@ -125,14 +138,18 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       createdAt: currentTime,
       updatedAt: currentTime
     })
-    return account
+    return {
+      ...account,
+      createdAt: getCompatibleTime(account.createdAt),
+      updatedAt: getCompatibleTime(account.updatedAt)
+    }
   },
 
   async verifyAccount({ verificationCode }: VerifyAccountParams) {
     const account = await database('accounts')
       .where('verificationCode', verificationCode)
       .first<Account>()
-    if (!account) return
+    if (!account) return null
 
     const currentTime = new Date()
     await database('accounts').where('id', account.id).update({
@@ -162,13 +179,12 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     })
   },
 
-  async getAccountSession({
-    token
-  }: GetAccountSessionParams): Promise<
-    { account: Account; session: Session } | undefined
-  > {
+  async getAccountSession({ token }: GetAccountSessionParams): Promise<{
+    account: Account
+    session: Session
+  } | null> {
     const session = await database('sessions').where('token', token).first()
-    if (!session) return
+    if (!session) return null
 
     const {
       accountId,
@@ -178,7 +194,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       updatedAt
     } = session
     const account = await this.getAccountFromId({ id: accountId })
-    if (!account) return
+    if (!account) return null
 
     return {
       account,
@@ -186,8 +202,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         accountId,
         expireAt,
         token: sessionToken,
-        createdAt,
-        updatedAt
+        createdAt: getCompatibleTime(createdAt),
+        updatedAt: getCompatibleTime(updatedAt)
       }
     }
   },
@@ -195,7 +211,16 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async getAccountAllSessions({
     accountId
   }: GetAccountAllSessionsParams): Promise<Session[]> {
-    return database<Session>('sessions').where('accountId', accountId)
+    const session = await database<Session>('sessions').where(
+      'accountId',
+      accountId
+    )
+    if (!session) return []
+    return session.map((session) => ({
+      ...session,
+      createdAt: getCompatibleTime(session.createdAt),
+      updatedAt: getCompatibleTime(session.updatedAt)
+    }))
   },
 
   async updateAccountSession({

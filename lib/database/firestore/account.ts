@@ -98,7 +98,7 @@ export const AccountFirestoreDatabaseMixin = (
   async getAccountFromId({ id }: GetAccountFromIdParams) {
     const accounts = firestore.collection('accounts')
     const snapshot = await accounts.doc(id).get()
-    if (!snapshot) return
+    if (!snapshot) return null
     return {
       ...snapshot.data(),
       id
@@ -114,7 +114,7 @@ export const AccountFirestoreDatabaseMixin = (
       .where('provider', '==', provider)
       .where('providerAccountId', '==', accountId)
       .get()
-    if (providers.size !== 1) return
+    if (providers.size !== 1) return null
 
     const providerDoc = providers.docs[0]
     return this.getAccountFromId({
@@ -132,10 +132,10 @@ export const AccountFirestoreDatabaseMixin = (
       .where('provider', '==', provider)
       .where('accountId', '==', accountId)
       .get()
-    if (providers.size === 1) return
+    if (providers.size === 1) return null
 
     const account = await firestore.doc(`accounts/${accountId}`).get()
-    if (!account.exists) return
+    if (!account.exists) return null
 
     const currentTime = Date.now()
     await firestore
@@ -154,7 +154,7 @@ export const AccountFirestoreDatabaseMixin = (
     const snapshot = await accounts
       .where('verificationCode', '==', verificationCode)
       .get()
-    if (snapshot.docs.length !== 1) return
+    if (snapshot.docs.length !== 1) return null
 
     const currentTime = Date.now()
     await Promise.all(
@@ -187,18 +187,19 @@ export const AccountFirestoreDatabaseMixin = (
 
   async getAccountSession({
     token
-  }: GetAccountSessionParams): Promise<
-    { account: Account; session: Session } | undefined
-  > {
+  }: GetAccountSessionParams): Promise<{
+    account: Account
+    session: Session
+  } | null> {
     const tokenDocs = await firestore
       .collectionGroup('sessions')
       .where('token', '==', token)
       .get()
-    if (tokenDocs.size !== 1) return
+    if (tokenDocs.size !== 1) return null
 
     const session = tokenDocs.docs[0].data() as Session
     const account = await this.getAccountFromId({ id: session.accountId })
-    if (!account) return
+    if (!account) return null
 
     return { account, session }
   },

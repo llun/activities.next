@@ -19,6 +19,8 @@ import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
+import { getCompatibleTime } from './utils'
+
 export interface SQLActorDatabase extends ActorDatabase {
   getActor: (
     sqlActor: SQLActor,
@@ -326,9 +328,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
       parseInt(totalStatus?.count ?? '0', 10),
-      typeof lastStatusCreatedAt === 'number'
-        ? lastStatusCreatedAt
-        : lastStatusCreatedAt.getTime(),
+      getCompatibleTime(lastStatusCreatedAt),
       account
     )
   },
@@ -354,19 +354,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ? {
           account: Account.parse({
             ...sqlAccount,
-            createdAt:
-              typeof sqlAccount.createdAt === 'number'
-                ? sqlAccount.createdAt
-                : sqlAccount.createdAt.getTime(),
-            updatedAt:
-              typeof sqlAccount.updatedAt === 'number'
-                ? sqlAccount.updatedAt
-                : sqlAccount.updatedAt.getTime(),
+            createdAt: getCompatibleTime(sqlAccount.createdAt),
+            updatedAt: getCompatibleTime(sqlAccount.updatedAt),
             ...{
               verifiedAt: sqlAccount.verifiedAt
-                ? typeof sqlAccount.verifiedAt === 'number'
-                  ? sqlAccount.verifiedAt
-                  : sqlAccount.verifiedAt.getTime()
+                ? getCompatibleTime(sqlAccount.verifiedAt)
                 : null
             }
           })
@@ -398,14 +390,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       statusCount,
       lastStatusAt,
 
-      createdAt:
-        typeof sqlActor.createdAt === 'number'
-          ? sqlActor.createdAt
-          : sqlActor.createdAt.getTime(),
-      updatedAt:
-        typeof sqlActor.updatedAt === 'number'
-          ? sqlActor.updatedAt
-          : sqlActor.updatedAt.getTime()
+      createdAt: getCompatibleTime(sqlAccount?.createdAt),
+      updatedAt: getCompatibleTime(sqlAccount?.updatedAt)
     })
   },
 
@@ -467,17 +453,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       discoverable: true,
       noindex: false,
 
-      created_at: getISOTimeUTC(
-        typeof sqlActor.createdAt === 'number'
-          ? sqlActor.createdAt
-          : sqlActor.createdAt.getTime()
-      ),
+      created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
       last_status_at: lastStatusCreatedAt
-        ? getISOTimeUTC(
-            typeof lastStatusCreatedAt === 'number'
-              ? lastStatusCreatedAt
-              : lastStatusCreatedAt.getTime()
-          )
+        ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt))
         : null,
 
       followers_count: parseInt(totalFollowers?.count ?? '0', 10),

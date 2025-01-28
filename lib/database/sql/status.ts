@@ -1,7 +1,9 @@
 import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database'
+import { getCompatibleTime } from '@/lib/database/sql/utils'
 import { ActorDatabase } from '@/lib/database/types/actor'
+import { LikeDatabase } from '@/lib/database/types/like'
 import { MediaDatabase } from '@/lib/database/types/media'
 import {
   CreateAnnounceParams,
@@ -30,8 +32,6 @@ import {
 } from '@/lib/models/status'
 import { Tag, TagData } from '@/lib/models/tag'
 
-import { LikeDatabase } from '../types/like'
-
 export const StatusSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
@@ -50,7 +50,7 @@ export const StatusSQLDatabaseMixin = (
     reply = '',
     createdAt
   }: CreateNoteParams) {
-    const currentTime = Date.now()
+    const currentTime = new Date()
     const statusCreatedAt = createdAt || currentTime
     const statusUpdatedAt = currentTime
 
@@ -117,8 +117,8 @@ export const StatusSQLDatabaseMixin = (
       isActorLiked: false,
       isActorAnnounced: false,
       isLocalActor: Boolean(actor?.account),
-      createdAt: statusCreatedAt,
-      updatedAt: statusUpdatedAt
+      createdAt: getCompatibleTime(statusCreatedAt),
+      updatedAt: getCompatibleTime(statusUpdatedAt)
     })
   }
 
@@ -137,7 +137,7 @@ export const StatusSQLDatabaseMixin = (
       text: data.text,
       summary: data.summary
     }
-    const currentTime = Date.now()
+    const currentTime = new Date()
     await database.transaction(async (trx) => {
       await trx('status_history').insert({
         statusId: status.id,
@@ -167,7 +167,7 @@ export const StatusSQLDatabaseMixin = (
     originalStatusId,
     createdAt
   }: CreateAnnounceParams) {
-    const currentTime = Date.now()
+    const currentTime = new Date()
     const statusCreatedAt = createdAt || currentTime
     const statusUpdatedAt = currentTime
 
@@ -224,8 +224,8 @@ export const StatusSQLDatabaseMixin = (
       type: StatusType.enum.Announce,
       originalStatus: originalStatus?.data as StatusNote,
 
-      createdAt: statusUpdatedAt,
-      updatedAt: statusUpdatedAt
+      createdAt: getCompatibleTime(statusUpdatedAt),
+      updatedAt: getCompatibleTime(statusUpdatedAt)
     }
 
     return new Status(announceData)
@@ -244,7 +244,7 @@ export const StatusSQLDatabaseMixin = (
     choices,
     createdAt
   }: CreatePollParams) {
-    const currentTime = Date.now()
+    const currentTime = new Date()
     const statusCreatedAt = createdAt || currentTime
     const statusUpdatedAt = currentTime
 
@@ -323,8 +323,8 @@ export const StatusSQLDatabaseMixin = (
       isActorLiked: false,
       isActorAnnounced: false,
       endAt,
-      createdAt: statusCreatedAt,
-      updatedAt: statusUpdatedAt
+      createdAt: getCompatibleTime(statusCreatedAt),
+      updatedAt: getCompatibleTime(statusUpdatedAt)
     })
   }
 
@@ -338,7 +338,7 @@ export const StatusSQLDatabaseMixin = (
       .where('id', statusId)
       .first()
     if (!existingStatus) return
-    const currentTime = Date.now()
+    const currentTime = new Date()
 
     await database.transaction(async (trx) => {
       if (text !== existingStatus.text || summary !== existingStatus.summary) {
@@ -469,7 +469,7 @@ export const StatusSQLDatabaseMixin = (
     value,
     type
   }: CreateTagParams): Promise<Tag> {
-    const currentTime = Date.now()
+    const currentTime = new Date()
 
     const data: TagData = {
       id: crypto.randomUUID(),
@@ -477,8 +477,8 @@ export const StatusSQLDatabaseMixin = (
       type,
       name,
       value: value || '',
-      createdAt: currentTime,
-      updatedAt: currentTime
+      createdAt: getCompatibleTime(currentTime),
+      updatedAt: getCompatibleTime(currentTime)
     }
     await database('tags').insert(data)
     return new Tag(data)
@@ -525,8 +525,8 @@ export const StatusSQLDatabaseMixin = (
         edits: [],
         originalStatus: originalStatus?.data as StatusNote,
 
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt
+        createdAt: getCompatibleTime(data.createdAt),
+        updatedAt: getCompatibleTime(data.updatedAt)
       }
 
       return new Status(announceData)
@@ -602,8 +602,8 @@ export const StatusSQLDatabaseMixin = (
       isLocalActor: Boolean(actor?.account),
       attachments: attachments.map((attachment) => attachment.toJson()),
       tags: tags.map((tag) => tag.toJson()),
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
+      createdAt: getCompatibleTime(data.createdAt),
+      updatedAt: getCompatibleTime(data.updatedAt),
 
       edits: edits.map((item) => {
         const content = JSON.parse(item.data)
