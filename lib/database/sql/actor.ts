@@ -530,7 +530,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         ...(publicKey ? { publicKey } : null),
 
         settings: JSON.stringify(settings),
-        updatedAt: Date.now()
+        updatedAt: new Date()
       })
     return this.getActorFromId({ id: actorId })
   },
