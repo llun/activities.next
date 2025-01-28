@@ -27,7 +27,7 @@ export type UpdateFollowStatusParams = {
 
 export interface FollowDatabase {
   createFollow(params: CreateFollowParams): Promise<Follow>
-  getFollowFromId(params: GetFollowFromIdParams): Promise<Follow | undefined>
+  getFollowFromId(params: GetFollowFromIdParams): Promise<Follow | null>
   getLocalFollowersForActorId(
     params: GetLocalFollowersForActorIdParams
   ): Promise<Follow[]>
@@ -39,7 +39,7 @@ export interface FollowDatabase {
   ): Promise<Actor[]>
   getAcceptedOrRequestedFollow(
     params: GetAcceptedOrRequestedFollowParams
-  ): Promise<Follow | undefined>
+  ): Promise<Follow | null>
   getFollowersInbox(params: GetFollowersInboxParams): Promise<string[]>
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
 }

@@ -78,7 +78,7 @@ export const FollowerFirestoreDatabaseMixin = (
   async getFollowFromId({ followId }: GetFollowFromIdParams) {
     const follows = firestore.collection('follows')
     const snapshot = await follows.doc(followId).get()
-    if (!snapshot) return
+    if (!snapshot) return null
 
     const data = snapshot.data()
     return Follow.parse({
@@ -206,7 +206,7 @@ export const FollowerFirestoreDatabaseMixin = (
       .orderBy('createdAt', 'desc')
       .limit(1)
       .get()
-    if (snapshot.docs.length !== 1) return
+    if (snapshot.docs.length !== 1) return null
     const document = snapshot.docs[0]
     const data = document.data()
     return Follow.parse({

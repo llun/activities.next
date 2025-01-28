@@ -1,4 +1,5 @@
 import { Knex } from 'knex'
+import { update } from 'lodash'
 
 import { SQLActorDatabase } from '@/lib/database/sql/actor'
 import {
@@ -14,6 +15,16 @@ import {
 } from '@/lib/database/types/follow'
 import { Account } from '@/lib/models/account'
 import { Follow, FollowStatus } from '@/lib/models/follow'
+
+const fixFollowDataDate = (data: any): Follow => ({
+  ...data,
+  createdAt:
+    typeof data.createdAt === 'number'
+      ? data.createdAt
+      : data.createdAt?.getTime(),
+  updatedAt:
+    data.updatedAt === 'number' ? data.updatedAt : data.updatedAt?.getTime()
+})
 
 export const FollowerSQLDatabaseMixin = (
   database: Knex,
@@ -34,7 +45,7 @@ export const FollowerSQLDatabaseMixin = (
       return existingFollow
     }
 
-    const currentTime = Date.now()
+    const currentTime = new Date()
     const follow: Follow = {
       id: crypto.randomUUID(),
       actorId,
@@ -44,15 +55,23 @@ export const FollowerSQLDatabaseMixin = (
       status,
       inbox,
       sharedInbox,
+      createdAt: currentTime.getTime(),
+      updatedAt: currentTime.getTime()
+    }
+    await database('follows').insert({
+      ...follow,
+      inbox,
+      sharedInbox,
       createdAt: currentTime,
       updatedAt: currentTime
-    }
-    await database('follows').insert({ ...follow, inbox, sharedInbox })
+    })
     return follow
   },
 
   async getFollowFromId({ followId }: GetFollowFromIdParams) {
-    return database<Follow>('follows').where('id', followId).first()
+    const data = await database('follows').where('id', followId).first()
+    if (!data) return null
+    return fixFollowDataDate(data)
   },
 
   async getLocalFollowersForActorId({
@@ -61,10 +80,12 @@ export const FollowerSQLDatabaseMixin = (
     const actor = await actorDatabase.getActorFromId({ id: targetActorId })
     // External actor, all followers are internal
     if (!actor?.privateKey) {
-      return database<Follow>('follows')
+      const follows = await database('follows')
         .where('targetActorId', targetActorId)
         .whereIn('status', [FollowStatus.enum.Accepted])
         .orderBy('createdAt', 'desc')
+
+      return follows.map(fixFollowDataDate)
     }
 
     const domains = (
@@ -73,12 +94,12 @@ export const FollowerSQLDatabaseMixin = (
         .select('domain')
         .distinct()
     ).map((item) => item.domain)
-
-    return database<Follow>('follows')
+    const follows = database('follows')
       .where('targetActorId', targetActorId)
       .whereIn('actorHost', domains)
       .whereIn('status', [FollowStatus.enum.Accepted])
       .orderBy('createdAt', 'desc')
+    return (await follows).map(fixFollowDataDate)
   },
 
   async getLocalFollowsFromInboxUrl({
@@ -98,7 +119,7 @@ export const FollowerSQLDatabaseMixin = (
       uniqueFollows[follow.id] = follow
     }
 
-    return Object.values(uniqueFollows)
+    return Object.values(uniqueFollows).map(fixFollowDataDate)
   },
 
   async getLocalActorsFromFollowerUrl({
@@ -169,7 +190,7 @@ export const FollowerSQLDatabaseMixin = (
     actorId,
     targetActorId
   }: GetAcceptedOrRequestedFollowParams) {
-    return database<Follow>('follows')
+    const follow = await database<Follow>('follows')
       .where('actorId', actorId)
       .where('targetActorId', targetActorId)
       .whereIn('status', [
@@ -178,6 +199,8 @@ export const FollowerSQLDatabaseMixin = (
       ])
       .orderBy('createdAt', 'desc')
       .first()
+    if (!follow) return null
+    return fixFollowDataDate(follow)
   },
 
   async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {
