@@ -480,13 +480,24 @@ export const StatusSQLDatabaseMixin = (
       createdAt: getCompatibleTime(currentTime),
       updatedAt: getCompatibleTime(currentTime)
     }
-    await database('tags').insert(data)
+    await database('tags').insert({
+      ...data,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
     return new Tag(data)
   }
 
   async function getTags({ statusId }: GetTagsParams) {
     const data = await database<TagData>('tags').where('statusId', statusId)
-    return data.map((item) => new Tag(item))
+    return data.map(
+      (item) =>
+        new Tag({
+          ...item,
+          createdAt: getCompatibleTime(item.createdAt),
+          updatedAt: getCompatibleTime(item.updatedAt)
+        })
+    )
   }
 
   // Private
@@ -494,7 +505,14 @@ export const StatusSQLDatabaseMixin = (
     const raw = await database('poll_choices')
       .where('statusId', statusId)
       .orderBy('choiceId', 'asc')
-    return raw.map((data) => new PollChoice(data))
+    return raw.map(
+      (data) =>
+        new PollChoice({
+          ...data,
+          createdAt: getCompatibleTime(data.createdAt),
+          updatedAt: getCompatibleTime(data.updatedAt)
+        })
+    )
   }
 
   async function getStatusWithAttachmentsFromData(

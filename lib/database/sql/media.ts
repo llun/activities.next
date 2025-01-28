@@ -9,6 +9,8 @@ import {
 } from '@/lib/database/types/media'
 import { Attachment, AttachmentData } from '@/lib/models/attachment'
 
+import { getCompatibleTime } from './utils/getCompatibleTime'
+
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async createMedia({
     actorId,
@@ -54,7 +56,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     height,
     name = ''
   }: CreateAttachmentParams): Promise<Attachment> {
-    const currentTime = Date.now()
+    const currentTime = new Date()
     const data: AttachmentData = {
       id: crypto.randomUUID(),
       actorId,
@@ -65,10 +67,14 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       width,
       height,
       name,
+      createdAt: currentTime.getTime(),
+      updatedAt: currentTime.getTime()
+    }
+    await database('attachments').insert({
+      ...data,
       createdAt: currentTime,
       updatedAt: currentTime
-    }
-    await database('attachments').insert(data)
+    })
     return new Attachment(data)
   },
 
@@ -77,7 +83,14 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       'statusId',
       statusId
     )
-    return data.map((item) => new Attachment(item))
+    return data.map(
+      (item) =>
+        new Attachment({
+          ...item,
+          createdAt: getCompatibleTime(item.createdAt),
+          updatedAt: getCompatibleTime(item.updatedAt)
+        })
+    )
   },
 
   async getAttachmentsForActor({
@@ -87,6 +100,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .where('actorId', actorId)
       .orderBy('createdAt')
       .limit(30)
-    return data.map((item) => new Attachment(item))
+    return data.map(
+      (item) =>
+        new Attachment({
+          ...item,
+          createdAt: getCompatibleTime(item.createdAt),
+          updatedAt: getCompatibleTime(item.updatedAt)
+        })
+    )
   }
 })
