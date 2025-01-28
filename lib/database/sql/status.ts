@@ -51,7 +51,7 @@ export const StatusSQLDatabaseMixin = (
     createdAt
   }: CreateNoteParams) {
     const currentTime = new Date()
-    const statusCreatedAt = createdAt || currentTime
+    const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
     const statusUpdatedAt = currentTime
 
     await database.transaction(async (trx) => {
@@ -168,7 +168,7 @@ export const StatusSQLDatabaseMixin = (
     createdAt
   }: CreateAnnounceParams) {
     const currentTime = new Date()
-    const statusCreatedAt = createdAt || currentTime
+    const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
     const statusUpdatedAt = currentTime
 
     await database.transaction(async (trx) => {
@@ -245,7 +245,7 @@ export const StatusSQLDatabaseMixin = (
     createdAt
   }: CreatePollParams) {
     const currentTime = new Date()
-    const statusCreatedAt = createdAt || currentTime
+    const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
     const statusUpdatedAt = currentTime
 
     await database.transaction(async (trx) => {
