@@ -89,6 +89,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     if (!account) return null
     return {
       ...account,
+      ...(account.verifiedAt
+        ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
+        : null),
       createdAt: getCompatibleTime(account.createdAt),
       updatedAt: getCompatibleTime(account.updatedAt)
     }
@@ -107,6 +110,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     if (!account) return null
     return {
       ...account,
+      ...(account.verifiedAt
+        ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
+        : null),
       createdAt: getCompatibleTime(account.createdAt),
       updatedAt: getCompatibleTime(account.updatedAt)
     }
@@ -140,6 +146,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     })
     return {
       ...account,
+      ...(account.verifiedAt
+        ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
+        : null),
       createdAt: getCompatibleTime(account.createdAt),
       updatedAt: getCompatibleTime(account.updatedAt)
     }
@@ -218,6 +227,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     if (!session) return []
     return session.map((session) => ({
       ...session,
+      expireAt: getCompatibleTime(session.expireAt),
       createdAt: getCompatibleTime(session.createdAt),
       updatedAt: getCompatibleTime(session.updatedAt)
     }))
@@ -229,7 +239,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   }: UpdateAccountSessionParams): Promise<void> {
     if (!expireAt) return
 
-    return database('sessions').where('token', token).update({ expireAt })
+    return database('sessions')
+      .where('token', token)
+      .update({ expireAt: new Date(expireAt) })
   },
 
   async deleteAccountSession({

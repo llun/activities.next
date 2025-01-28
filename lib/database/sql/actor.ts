@@ -1,6 +1,7 @@
 import { Mastodon } from '@llun/activities.schema'
 import { Knex } from 'knex'
 
+import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   ActorDatabase,
@@ -338,11 +339,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     lastStatusAt: number,
     sqlAccount?: SQLAccount
   ): Actor {
-    const settings =
-      typeof sqlActor.settings === 'string'
-        ? (JSON.parse(sqlActor.settings || '{}') as ActorSettings)
-        : sqlActor.settings
-
+    const settings = getCompatibleJSON(sqlActor.settings)
     const account = sqlAccount
       ? {
           account: Account.parse({
@@ -419,10 +416,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         ])
       )
 
-    const settings =
-      typeof sqlActor.settings === 'string'
-        ? (JSON.parse(sqlActor.settings || '{}') as ActorSettings)
-        : sqlActor.settings
+    const settings = getCompatibleJSON(sqlActor.settings)
     const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return Mastodon.Account.parse({
       id: sqlActor.id,
@@ -476,13 +470,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return undefined
 
-    const storageSettings =
-      typeof persistedActor.settings === 'string'
-        ? (JSON.parse(persistedActor.settings) as ActorSettings)
-        : persistedActor.settings
-
+    const persistedSettings = getCompatibleJSON(persistedActor.settings)
     const settings: ActorSettings = {
-      ...storageSettings,
+      ...persistedSettings,
       ...(iconUrl ? { iconUrl } : null),
       ...(headerImageUrl ? { headerImageUrl } : null),
       ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null),

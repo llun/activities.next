@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 import { omit } from 'lodash'
 
+import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { AccountDatabase } from '@/lib/database/types/account'
 import { ActorDatabase } from '@/lib/database/types/actor'
@@ -72,7 +73,7 @@ export const OAuthSQLDatabaseMixin = (
       id: clientData.id,
       name: clientData.name,
       secret: clientData.secret,
-      scopes: JSON.parse(clientData.scopes),
+      scopes: getCompatibleJSON(clientData.scopes),
       redirectUris: JSON.parse(clientData.redirectUris),
       ...(clientData.website ? { website: clientData.website } : null),
       updatedAt: getCompatibleTime(clientData.updatedAt),
@@ -88,7 +89,7 @@ export const OAuthSQLDatabaseMixin = (
       id: clientData.id,
       name: clientData.name,
       secret: clientData.secret,
-      scopes: JSON.parse(clientData.scopes),
+      scopes: getCompatibleJSON(clientData.scopes),
       redirectUris: JSON.parse(clientData.redirectUris),
       ...(clientData.website ? { website: clientData.website } : null),
       updatedAt: getCompatibleTime(clientData.updatedAt),
@@ -138,14 +139,16 @@ export const OAuthSQLDatabaseMixin = (
 
     return Token.parse({
       accessToken: data.accessToken,
-      accessTokenExpiresAt: data.accessTokenExpiresAt,
+      accessTokenExpiresAt: getCompatibleTime(data.accessTokenExpiresAt),
 
       ...(data.refreshToken ? { refreshToken: data.refreshToken } : null),
       ...(data.refreshTokenExpiresAt
-        ? { refreshTokenExpiresAt: data.refreshTokenExpiresAt }
+        ? {
+            refreshTokenExpiresAt: getCompatibleTime(data.refreshTokenExpiresAt)
+          }
         : null),
 
-      scopes: JSON.parse(data.scopes),
+      scopes: getCompatibleJSON(data.scopes),
 
       client: {
         ...client,
@@ -195,21 +198,19 @@ export const OAuthSQLDatabaseMixin = (
 
     const token = {
       accessToken,
-      accessTokenExpiresAt,
+      accessTokenExpiresAt: new Date(accessTokenExpiresAt),
       ...(refreshToken ? { refreshToken } : null),
-      ...(refreshTokenExpiresAt ? { refreshTokenExpiresAt } : null),
+      ...(refreshTokenExpiresAt
+        ? { refreshTokenExpiresAt: new Date(refreshTokenExpiresAt) }
+        : null),
       scopes: JSON.stringify(scopes),
       clientId,
       actorId,
       accountId,
-      createdAt: getCompatibleTime(currentTime),
-      updatedAt: getCompatibleTime(currentTime)
-    }
-    await database('tokens').insert({
-      ...token,
       createdAt: currentTime,
       updatedAt: currentTime
-    })
+    }
+    await database('tokens').insert(token)
     return this.getAccessToken({ accessToken })
   },
 
@@ -230,11 +231,15 @@ export const OAuthSQLDatabaseMixin = (
     if (parseInt(refreshTokenCount?.count ?? '0', 10) > 0) {
       return null
     }
-    await database('tokens').where('accessToken', accessToken).update({
-      refreshToken,
-      refreshTokenExpiresAt,
-      updatedAt: new Date()
-    })
+    await database('tokens')
+      .where('accessToken', accessToken)
+      .update({
+        refreshToken,
+        updatedAt: new Date(),
+        ...(refreshTokenExpiresAt
+          ? { refreshTokenExpiresAt: new Date(refreshTokenExpiresAt) }
+          : null)
+      })
     return this.getAccessToken({ accessToken })
   },
 
@@ -281,7 +286,7 @@ export const OAuthSQLDatabaseMixin = (
       clientId,
       actorId,
       accountId,
-      expiresAt,
+      expiresAt: new Date(expiresAt),
       createdAt: currentTime,
       updatedAt: currentTime
     }
@@ -308,7 +313,7 @@ export const OAuthSQLDatabaseMixin = (
         ? { codeChallengeMethod: data.codeChallengeMethod }
         : null),
 
-      scopes: JSON.parse(data.scopes),
+      scopes: getCompatibleJSON(data.scope),
       client: {
         ...client,
         scopes: client?.scopes.map((scope) => scope.name)
