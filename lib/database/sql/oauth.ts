@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 import { omit } from 'lodash'
 
+import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { AccountDatabase } from '@/lib/database/types/account'
 import { ActorDatabase } from '@/lib/database/types/actor'
 import {
@@ -40,7 +41,7 @@ export const OAuthSQLDatabaseMixin = (
     }
 
     const id = crypto.randomUUID()
-    const currentTime = Date.now()
+    const currentTime = new Date()
     const client = Client.parse({
       id,
       name,
@@ -51,13 +52,15 @@ export const OAuthSQLDatabaseMixin = (
 
       ...(rest.website ? { website: rest.website } : null),
 
-      createdAt: currentTime,
-      updatedAt: currentTime
+      createdAt: getCompatibleTime(currentTime),
+      updatedAt: getCompatibleTime(currentTime)
     })
     await database('clients').insert({
       ...omit(client, ['allowedGrants']),
       scopes: JSON.stringify(scopes),
-      redirectUris: JSON.stringify(redirectUris)
+      redirectUris: JSON.stringify(redirectUris),
+      createdAt: currentTime,
+      updatedAt: currentTime
     })
     return client
   },
@@ -72,8 +75,8 @@ export const OAuthSQLDatabaseMixin = (
       scopes: JSON.parse(clientData.scopes),
       redirectUris: JSON.parse(clientData.redirectUris),
       ...(clientData.website ? { website: clientData.website } : null),
-      updatedAt: clientData.updatedAt,
-      createdAt: clientData.createdAt
+      updatedAt: getCompatibleTime(clientData.updatedAt),
+      createdAt: getCompatibleTime(clientData.createdAt)
     })
     return client
   },
@@ -88,8 +91,8 @@ export const OAuthSQLDatabaseMixin = (
       scopes: JSON.parse(clientData.scopes),
       redirectUris: JSON.parse(clientData.redirectUris),
       ...(clientData.website ? { website: clientData.website } : null),
-      updatedAt: clientData.updatedAt,
-      createdAt: clientData.createdAt
+      updatedAt: getCompatibleTime(clientData.updatedAt),
+      createdAt: getCompatibleTime(clientData.createdAt)
     })
   },
 
@@ -99,7 +102,7 @@ export const OAuthSQLDatabaseMixin = (
     const client = await database('clients').where('id', id).first()
     if (!client) return null
 
-    const currentTime = Date.now()
+    const currentTime = new Date()
     const updatedClient = Client.parse({
       id: client.id,
       name,
@@ -107,15 +110,16 @@ export const OAuthSQLDatabaseMixin = (
       scopes,
       redirectUris,
       ...(rest.website ? { website: rest.website } : null),
-      updatedAt: currentTime,
-      createdAt: client.createdAt
+      updatedAt: getCompatibleTime(currentTime),
+      createdAt: getCompatibleTime(client.createdAt)
     })
     await database('clients')
       .where('id', id)
       .update({
         ...omit(updatedClient, ['allowedGrants']),
         scopes: JSON.stringify(updatedClient.scopes.map((scope) => scope.name)),
-        redirectUris: JSON.stringify(updatedClient.redirectUris)
+        redirectUris: JSON.stringify(updatedClient.redirectUris),
+        updatedAt: currentTime
       })
     return updatedClient
   },
@@ -153,8 +157,8 @@ export const OAuthSQLDatabaseMixin = (
         account
       }),
 
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt
+      createdAt: getCompatibleTime(data.createdAt),
+      updatedAt: getCompatibleTime(data.updatedAt)
     })
   },
 
@@ -179,7 +183,7 @@ export const OAuthSQLDatabaseMixin = (
       actorId,
       accountId
     } = CreateAccessTokenParams.parse(params)
-    const currentTime = Date.now()
+    const currentTime = new Date()
     const tokenCountResult = await database('tokens')
       .where('accessToken', accessToken)
       .count<{ count: string }>('accessToken as count')
@@ -198,10 +202,14 @@ export const OAuthSQLDatabaseMixin = (
       clientId,
       actorId,
       accountId,
+      createdAt: getCompatibleTime(currentTime),
+      updatedAt: getCompatibleTime(currentTime)
+    }
+    await database('tokens').insert({
+      ...token,
       createdAt: currentTime,
       updatedAt: currentTime
-    }
-    await database('tokens').insert(token)
+    })
     return this.getAccessToken({ accessToken })
   },
 
@@ -225,14 +233,14 @@ export const OAuthSQLDatabaseMixin = (
     await database('tokens').where('accessToken', accessToken).update({
       refreshToken,
       refreshTokenExpiresAt,
-      updatedAt: Date.now()
+      updatedAt: new Date()
     })
     return this.getAccessToken({ accessToken })
   },
 
   async revokeAccessToken(params: RevokeAccessTokenParams) {
     const { accessToken } = RevokeAccessTokenParams.parse(params)
-    const currentTime = Date.now()
+    const currentTime = new Date()
     await database('tokens').where('accessToken', accessToken).update({
       accessTokenExpiresAt: currentTime,
       refreshTokenExpiresAt: currentTime
@@ -252,7 +260,7 @@ export const OAuthSQLDatabaseMixin = (
       scopes,
       expiresAt
     } = CreateAuthCodeParams.parse(params)
-    const currentTime = Date.now()
+    const currentTime = new Date()
     const codeCountResult = await database('auth_codes')
       .where('code', code)
       .count<{ count: string }>('* as count')
@@ -311,15 +319,15 @@ export const OAuthSQLDatabaseMixin = (
         account
       }),
 
-      expiresAt: data.expiresAt,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt
+      expiresAt: getCompatibleTime(data.expiresAt),
+      createdAt: getCompatibleTime(data.createdAt),
+      updatedAt: getCompatibleTime(data.updatedAt)
     })
   },
 
   async revokeAuthCode(params: RevokeAuthCodeParams) {
     const { code } = RevokeAuthCodeParams.parse(params)
-    const currentTime = Date.now()
+    const currentTime = new Date()
     await database('auth_codes').where('code', code).update({
       expiresAt: currentTime
     })
