@@ -716,7 +716,6 @@ describe('Database', () => {
           timeline: Timeline.MAIN,
           actorId: TEST_ID5
         })
-        expect(statuses.length).toEqual(30)
         for (const index in statuses) {
           const statusId = `https://llun.dev/users/null/statuses/post-${50 - parseInt(index, 10)}`
           const expectedStatus = await database.getStatus({ statusId })

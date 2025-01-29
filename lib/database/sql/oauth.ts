@@ -227,7 +227,7 @@ export const OAuthSQLDatabaseMixin = (
         .count<{ count: string }>('* as count')
         .first()
     ])
-    if (!tokenCount?.count) return null
+    if (!tokenCount || !parseInt(tokenCount.count, 10)) return null
     if (parseInt(refreshTokenCount?.count ?? '0', 10) > 0) {
       return null
     }

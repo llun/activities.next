@@ -106,7 +106,7 @@ export const TimelineSQLDatabaseMixin = (
         .andWhere('timeline', timeline)
         .count<{ count: string }>('* as count')
         .first()
-      if (exists && exists.count) return
+      if (exists && parseInt(exists.count, 10)) return
 
       return trx('timelines').insert({
         actorId,
