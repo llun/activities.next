@@ -1,4 +1,4 @@
-import { MockActor } from '../stub/actor'
+import { MockActor } from '@/lib/stub/actor'
 
 describe('Actor', () => {
   describe('#getActorPage', () => {

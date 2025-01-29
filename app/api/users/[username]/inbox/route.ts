@@ -23,30 +23,36 @@ const Activity = z.union([Accept, Reject, Follow, Like, Undo])
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
+export const POST = OnlyLocalUserGuard(async (database, _, req) => {
   try {
     const activity = Activity.parse(await req.json())
     switch (activity.type) {
       case 'Accept': {
-        const follow = await acceptFollowRequest({ activity, storage })
+        const follow = await acceptFollowRequest({
+          activity,
+          database
+        })
         if (!follow) return apiErrorResponse(404)
         return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
       }
       case 'Reject': {
-        const follow = await rejectFollowRequest({ activity, storage })
+        const follow = await rejectFollowRequest({
+          activity,
+          database
+        })
         if (!follow) return apiErrorResponse(404)
         return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
       }
       case 'Follow': {
         const follow = await createFollower({
           followRequest: activity as FollowRequest,
-          storage
+          database
         })
         if (!follow) return apiErrorResponse(404)
         return apiResponse(req, CORS_HEADERS, { target: follow.object }, 202)
       }
       case 'Like': {
-        await likeRequest({ activity, storage })
+        await likeRequest({ activity, database })
         return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
       }
       case 'Undo': {
@@ -54,7 +60,7 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
         switch (undoRequest.object.type) {
           case 'Follow': {
             const result = await undoFollowRequest({
-              storage,
+              database,
               request: undoRequest as UndoFollow
             })
             if (result) return apiErrorResponse(404)
@@ -66,7 +72,7 @@ export const POST = OnlyLocalUserGuard(async (storage, _, req) => {
             )
           }
           case 'Like': {
-            await storage.deleteLike({
+            await database.deleteLike({
               actorId: undoRequest.object.actor,
               statusId:
                 typeof undoRequest.object.object === 'string'

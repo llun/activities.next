@@ -44,7 +44,7 @@ export type GetAttachmentsForActorParams = {
   actorId: string
 }
 
-export interface MediaStorage {
+export interface MediaDatabase {
   createMedia(params: CreateMediaParams): Promise<Media | null>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>

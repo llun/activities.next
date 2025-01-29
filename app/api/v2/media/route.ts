@@ -6,10 +6,10 @@ import { apiErrorResponse } from '@/lib/utils/response'
 
 export const POST = AuthenticatedGuard(async (req, context) => {
   try {
-    const { storage, currentActor } = context
+    const { database, currentActor } = context
     const form = await req.formData()
     const media = MediaSchema.parse(Object.fromEntries(form.entries()))
-    const response = await saveMedia(storage, currentActor, media)
+    const response = await saveMedia(database, currentActor, media)
     if (!response) return apiErrorResponse(422)
     return Response.json(response)
   } catch (e) {

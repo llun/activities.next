@@ -5,52 +5,28 @@ import {
   TEST_USERNAME2
 } from '@/lib/stub/const'
 
-import { FirestoreStorage } from '../firestore'
-import { SqlStorage } from '../sql'
-import { AccountStorage } from './acount'
-import { ActorStorage } from './actor'
-import { BaseStorage } from './base'
+import {
+  TestDatabaseTable,
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '../testUtils'
 
-type AccountAndActorStorage = AccountStorage & ActorStorage & BaseStorage
-type TestStorage = [string, AccountAndActorStorage]
-
-describe('AccountStorage', () => {
-  const testStorages: TestStorage[] = [
-    [
-      'sqlite',
-      new SqlStorage({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-    ],
-    // Enable this when run start:firestore emulator and clear the database manually
-    [
-      'firestore',
-      new FirestoreStorage({
-        type: 'firebase',
-        projectId: 'test',
-        host: 'localhost:8080',
-        ssl: false
-      })
-    ]
-  ]
+describe('AccountDatabase', () => {
+  const table: TestDatabaseTable = getTestDatabaseTable()
 
   beforeAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].migrate()))
+    await databaseBeforeAll(table)
   })
 
   afterAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].destroy()))
+    await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(testStorages)('%s', (name, storage) => {
+  describe.each(table)('%s', (_, database) => {
     it('returns false when account is not created yet', async () => {
-      expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeFalse()
+      expect(await database.isAccountExists({ email: TEST_EMAIL2 })).toBeFalse()
       expect(
-        await storage.isUsernameExists({
+        await database.isUsernameExists({
           username: TEST_USERNAME2,
           domain: TEST_DOMAIN
         })
@@ -58,7 +34,7 @@ describe('AccountStorage', () => {
     })
 
     it('creates account and actor', async () => {
-      await storage.createAccount({
+      await database.createAccount({
         email: TEST_EMAIL2,
         username: TEST_USERNAME2,
         passwordHash: TEST_PASSWORD_HASH,
@@ -66,14 +42,14 @@ describe('AccountStorage', () => {
         privateKey: 'privateKey2',
         publicKey: 'publicKey2'
       })
-      const actor = await storage.getMastodonActorFromUsername({
+      const actor = await database.getMastodonActorFromUsername({
         username: TEST_USERNAME2,
         domain: TEST_DOMAIN
       })
 
-      expect(await storage.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
+      expect(await database.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
       expect(
-        await storage.isUsernameExists({
+        await database.isUsernameExists({
           username: TEST_USERNAME2,
           domain: TEST_DOMAIN
         })

@@ -1,14 +1,14 @@
-import { SqlStorage } from '../storage/sql'
-import { ACTOR2_ID } from '../stub/seed/actor2'
-import { ACTOR3_ID } from '../stub/seed/actor3'
-import { seedStorage } from '../stub/storage'
-import { MockUndoFollowRequest } from '../stub/undoRequest'
-import { undoFollowRequest } from './undoFollowRequest'
+import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
+import { getSQLDatabase } from '@/lib/database/sql'
+import { seedDatabase } from '@/lib/stub/database'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { MockUndoFollowRequest } from '@/lib/stub/undoRequest'
 
 jest.mock('../activities')
 
 describe('#undoFollowRequest', () => {
-  const storage = new SqlStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -17,41 +17,41 @@ describe('#undoFollowRequest', () => {
   })
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
+    await database.migrate()
+    await seedDatabase(database)
   })
 
   afterAll(async () => {
-    await storage.destroy()
+    await database.destroy()
   })
 
   it('updates follow status to undo and return true', async () => {
-    const totalActor3Following = await storage.getActorFollowingCount({
+    const totalActor3Following = await database.getActorFollowingCount({
       actorId: ACTOR3_ID
     })
-    const totalActor2Followers = await storage.getActorFollowersCount({
+    const totalActor2Followers = await database.getActorFollowersCount({
       actorId: ACTOR2_ID
     })
     const request = MockUndoFollowRequest({
       actorId: ACTOR3_ID,
       targetActorId: ACTOR2_ID
     })
-    expect(await undoFollowRequest({ storage, request })).toBeTrue()
+    expect(await undoFollowRequest({ database, request })).toBeTrue()
 
     expect(
-      await storage.getMastodonActorFromId({ id: ACTOR2_ID })
+      await database.getMastodonActorFromId({ id: ACTOR2_ID })
     ).toMatchObject({
       followers_count: totalActor2Followers - 1
     })
     expect(
-      await storage.getActorFollowersCount({ actorId: ACTOR2_ID })
+      await database.getActorFollowersCount({ actorId: ACTOR2_ID })
     ).toEqual(totalActor2Followers - 1)
 
     expect(
-      await storage.getMastodonActorFromId({ id: ACTOR3_ID })
+      await database.getMastodonActorFromId({ id: ACTOR3_ID })
     ).toMatchObject({ following_count: totalActor3Following - 1 })
     expect(
-      await storage.getActorFollowingCount({ actorId: ACTOR3_ID })
+      await database.getActorFollowingCount({ actorId: ACTOR3_ID })
     ).toEqual(totalActor3Following - 1)
   })
 
@@ -60,6 +60,6 @@ describe('#undoFollowRequest', () => {
       actorId: ACTOR3_ID,
       targetActorId: 'https://notfound.test/actor'
     })
-    expect(await undoFollowRequest({ storage, request })).toBeFalse()
+    expect(await undoFollowRequest({ database, request })).toBeFalse()
   })
 })

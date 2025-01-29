@@ -10,9 +10,9 @@ import { CREATE_POLL_JOB_NAME } from './names'
 
 export const createPollJob = createJobHandle(
   CREATE_POLL_JOB_NAME,
-  async (storage, message) => {
+  async (database, message) => {
     const question = Question.parse(message.data)
-    const existingStatus = await storage.getStatus({
+    const existingStatus = await database.getStatus({
       statusId: question.id,
       withReplies: false
     })
@@ -34,8 +34,11 @@ export const createPollJob = createJobHandle(
     const choices = compactQuestion.oneOf.map((item) => item.name)
 
     const [, status] = await Promise.all([
-      recordActorIfNeeded({ actorId: compactQuestion.attributedTo, storage }),
-      storage.createPoll({
+      recordActorIfNeeded({
+        actorId: compactQuestion.attributedTo,
+        database
+      }),
+      database.createPoll({
         id: compactQuestion.id,
         url: compactQuestion.url || compactQuestion.id,
 
@@ -60,17 +63,17 @@ export const createPollJob = createJobHandle(
 
     const tags = getTags(question as unknown as Note)
     await Promise.all([
-      addStatusToTimelines(storage, status),
+      addStatusToTimelines(database, status),
       ...tags.map((item) => {
         if (item.type === 'Emoji') {
-          return storage.createTag({
+          return database.createTag({
             statusId: compactQuestion.id,
             name: item.name,
             value: item.icon.url,
             type: 'emoji'
           })
         }
-        return storage.createTag({
+        return database.createTag({
           statusId: compactQuestion.id,
           name: item.name || '',
           value: item.href,

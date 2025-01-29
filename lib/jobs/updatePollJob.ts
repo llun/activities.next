@@ -9,9 +9,9 @@ import { UPDATE_POLL_JOB_NAME } from './names'
 
 export const updatePollJob = createJobHandle(
   UPDATE_POLL_JOB_NAME,
-  async (storage, message) => {
+  async (database, message) => {
     const question = Question.parse(message.data)
-    const existingStatus = await storage.getStatus({
+    const existingStatus = await database.getStatus({
       statusId: question.id,
       withReplies: false
     })
@@ -30,7 +30,7 @@ export const updatePollJob = createJobHandle(
     // TODO: Move Poll to schema
     const text = getContent(compactQuestion as unknown as Note)
     const summary = getSummary(compactQuestion as unknown as Note)
-    await storage.updatePoll({
+    await database.updatePoll({
       statusId: compactQuestion.id,
       summary,
       text,

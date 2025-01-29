@@ -1,16 +1,16 @@
+import { Database } from '@/lib/database/types'
 import { ActorData } from '@/lib/models/actor'
 import { StatusData } from '@/lib/models/status'
-import { Storage } from '@/lib/storage/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { getMastodonAccount } from './getMastodonAccount'
 import { MastodonStatus, ReblogMastodonStatus } from './types'
 
 export const getMastodonStatus = async (
-  storage: Storage,
+  database: Database,
   status: StatusData
 ): Promise<MastodonStatus | ReblogMastodonStatus> => {
-  const account = await getMastodonAccount(storage, status.actor as ActorData)
+  const account = await getMastodonAccount(database, status.actor as ActorData)
   if (status.type === 'Announce') {
     return ReblogMastodonStatus.parse({
       id: status.id,
@@ -33,7 +33,7 @@ export const getMastodonStatus = async (
       bookmarked: false,
       content: '',
       filtered: [],
-      reblog: await getMastodonStatus(storage, status.originalStatus),
+      reblog: await getMastodonStatus(database, status.originalStatus),
       account,
       media_attachments: [],
       mentions: [],

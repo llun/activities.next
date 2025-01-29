@@ -1,5 +1,5 @@
-import { Actor } from '../../models/actor'
-import { Follow, FollowStatus } from '../../models/follow'
+import { Actor } from '@/lib/models/actor'
+import { Follow, FollowStatus } from '@/lib/models/follow'
 
 export type CreateFollowParams = {
   actorId: string
@@ -25,9 +25,9 @@ export type UpdateFollowStatusParams = {
   status: FollowStatus
 }
 
-export interface FollowerStorage {
+export interface FollowDatabase {
   createFollow(params: CreateFollowParams): Promise<Follow>
-  getFollowFromId(params: GetFollowFromIdParams): Promise<Follow | undefined>
+  getFollowFromId(params: GetFollowFromIdParams): Promise<Follow | null>
   getLocalFollowersForActorId(
     params: GetLocalFollowersForActorIdParams
   ): Promise<Follow[]>
@@ -39,7 +39,7 @@ export interface FollowerStorage {
   ): Promise<Actor[]>
   getAcceptedOrRequestedFollow(
     params: GetAcceptedOrRequestedFollowParams
-  ): Promise<Follow | undefined>
+  ): Promise<Follow | null>
   getFollowersInbox(params: GetFollowersInboxParams): Promise<string[]>
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
 }

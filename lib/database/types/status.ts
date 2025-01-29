@@ -1,7 +1,6 @@
+import { Actor } from '@/lib/models/actor'
+import { Status } from '@/lib/models/status'
 import { Tag, TagType } from '@/lib/models/tag'
-
-import { Actor } from '../../models/actor'
-import { Status } from '../../models/status'
 
 interface BaseCreateStatusParams {
   id: string
@@ -42,7 +41,10 @@ export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> &
     choices: { title: string; totalVotes: number }[]
   }
 
-export type GetStatusParams = BaseStatusParams & { withReplies?: boolean }
+export type GetStatusParams = BaseStatusParams & {
+  currentActorId?: string
+  withReplies?: boolean
+}
 export type GetStatusRepliesParams = BaseStatusParams
 export type GetActorStatusesCountParams = { actorId: string }
 export type GetActorStatusesParams = { actorId: string }
@@ -62,7 +64,7 @@ export type GetTagsParams = {
   statusId: string
 }
 
-export interface StatusStorage {
+export interface StatusDatabase {
   createNote(params: CreateNoteParams): Promise<Status>
   updateNote(params: UpdateNoteParams): Promise<Status | undefined>
 

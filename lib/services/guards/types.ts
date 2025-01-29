@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
-import { Storage } from '@/lib/storage/types'
 
 export type AppRouterParams<P> = { params: Promise<P> }
 export type AppRouterApiHandle<P> = (
@@ -11,12 +11,12 @@ export type AppRouterApiHandle<P> = (
 
 export type AuthenticatedApiHandle<P> = (
   request: NextRequest,
-  context: { storage: Storage; currentActor: Actor },
+  context: { database: Database; currentActor: Actor },
   params: AppRouterParams<P>
 ) => Promise<Response> | Response
 
 export type ActivityPubVerifiedSenderHandle<P> = (
   request: NextRequest,
-  context: { storage: Storage },
+  context: { database: Database },
   params: AppRouterParams<P>
 ) => Promise<Response> | Response

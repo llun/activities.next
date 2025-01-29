@@ -4,7 +4,7 @@ import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
 
-export const GET = OnlyLocalUserGuard(async (storage, actor, req) => {
+export const GET = OnlyLocalUserGuard(async (database, actor, req) => {
   const url = new URL(req.url)
   const pageParam = url.searchParams.get('page')
   if (!pageParam) {
@@ -19,7 +19,7 @@ export const GET = OnlyLocalUserGuard(async (storage, actor, req) => {
     })
   }
 
-  const statuses = await storage.getActorStatuses({ actorId: actor.id })
+  const statuses = await database.getActorStatuses({ actorId: actor.id })
   const items = statuses.map((status) => {
     if (status.data.type === StatusType.enum.Announce) {
       return {

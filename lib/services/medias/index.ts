@@ -1,27 +1,26 @@
-import { Storage } from '@/lib/storage/types'
-
-import { getConfig } from '../../config'
-import { MediaStorageType } from '../../config/mediaStorage'
-import { Actor } from '../../models/actor'
-import { S3FileStorage } from './S3StorageFile'
-import { LocalFileStorage } from './localFile'
-import { MediaSchema, PresigedMediaInput } from './types'
+import { getConfig } from '@/lib/config'
+import { MediaStorageType } from '@/lib/config/mediaStorage'
+import { Database } from '@/lib/database/types'
+import { Actor } from '@/lib/models/actor'
+import { S3FileStorage } from '@/lib/services/medias/S3StorageFile'
+import { LocalFileStorage } from '@/lib/services/medias/localFile'
+import { MediaSchema, PresigedMediaInput } from '@/lib/services/medias/types'
 
 export const saveMedia = async (
-  storage: Storage,
+  database: Database,
   actor: Actor,
   media: MediaSchema
 ) => {
   const { mediaStorage, host } = getConfig()
   switch (mediaStorage?.type) {
     case MediaStorageType.LocalFile: {
-      return LocalFileStorage.getStorage(mediaStorage, host, storage).saveFile(
+      return LocalFileStorage.getStorage(mediaStorage, host, database).saveFile(
         actor,
         media
       )
     }
     case MediaStorageType.ObjectStorage: {
-      return S3FileStorage.getStorage(mediaStorage, host, storage).saveFile(
+      return S3FileStorage.getStorage(mediaStorage, host, database).saveFile(
         actor,
         media
       )
@@ -32,7 +31,7 @@ export const saveMedia = async (
 }
 
 export const getPresignedUrl = async (
-  storage: Storage,
+  database: Database,
   actor: Actor,
   presignedMediaInput: PresigedMediaInput
 ) => {
@@ -43,7 +42,7 @@ export const getPresignedUrl = async (
       return S3FileStorage.getStorage(
         mediaStorage,
         host,
-        storage
+        database
       ).getPresigedForSaveFileUrl(actor, presignedMediaInput)
     }
     default:
@@ -51,17 +50,19 @@ export const getPresignedUrl = async (
   }
 }
 
-export const getMedia = async (storage: Storage, path: string) => {
+export const getMedia = async (database: Database, path: string) => {
   const { mediaStorage, host } = getConfig()
   switch (mediaStorage?.type) {
     case MediaStorageType.LocalFile: {
-      return LocalFileStorage.getStorage(mediaStorage, host, storage).getFile(
+      return LocalFileStorage.getStorage(mediaStorage, host, database).getFile(
         path
       )
     }
     case MediaStorageType.S3Storage:
     case MediaStorageType.ObjectStorage: {
-      return S3FileStorage.getStorage(mediaStorage, host, storage).getFile(path)
+      return S3FileStorage.getStorage(mediaStorage, host, database).getFile(
+        path
+      )
     }
     default:
       return null

@@ -1,18 +1,18 @@
-import { acceptFollow, getPublicProfile } from '../activities'
-import { FollowRequest } from '../activities/actions/follow'
-import { FollowStatus } from '../models/follow'
-import { Storage } from '../storage/types'
-import { recordActorIfNeeded } from './utils'
+import { recordActorIfNeeded } from '@/lib/actions/utils'
+import { acceptFollow, getPublicProfile } from '@/lib/activities'
+import { FollowRequest } from '@/lib/activities/actions/follow'
+import { Database } from '@/lib/database/types'
+import { FollowStatus } from '@/lib/models/follow'
 
 interface CreateFollowerParams {
   followRequest: FollowRequest
-  storage: Storage
+  database: Database
 }
 export const createFollower = async ({
   followRequest,
-  storage
+  database
 }: CreateFollowerParams) => {
-  const targetActor = await storage.getActorFromId({
+  const targetActor = await database.getActorFromId({
     id: followRequest.object
   })
   if (!targetActor) return null
@@ -25,14 +25,14 @@ export const createFollower = async ({
 
   const followerActor = await recordActorIfNeeded({
     actorId: followRequest.actor,
-    storage
+    database
   })
   if (!followerActor) {
     return null
   }
 
   await Promise.all([
-    storage.createFollow({
+    database.createFollow({
       actorId: followerActor.id,
       targetActorId: targetActor.id,
       status: FollowStatus.enum.Accepted,

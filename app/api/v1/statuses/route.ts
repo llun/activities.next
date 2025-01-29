@@ -13,7 +13,7 @@ const NoteSchema = z.object({
 })
 
 export const POST = AuthenticatedGuard(async (req, context) => {
-  const { currentActor, storage } = context
+  const { currentActor, database } = context
   try {
     const content = await req.json()
     const note = NoteSchema.parse(content)
@@ -22,7 +22,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
       text: note.status,
       replyNoteId: note.in_reply_to_id,
       attachments: [],
-      storage
+      database
     })
     if (!status) return apiErrorResponse(422)
     return Response.json({

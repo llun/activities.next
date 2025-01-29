@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 import path from 'path'
 
+import { getDatabase } from '@/lib/database'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { getMedia } from '@/lib/services/medias'
-import { getStorage } from '@/lib/storage'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 interface Params {
@@ -18,12 +18,12 @@ export const GET = async (
   const userPath = path
     .normalize(Array.isArray(pathname) ? pathname.join('/') : pathname)
     .replace(/^(\.\.(\/|\\|$))+/, '')
-  const storage = await getStorage()
-  if (!storage) {
+  const database = getDatabase()
+  if (!database) {
     return apiErrorResponse(500)
   }
 
-  const media = await getMedia(storage, userPath)
+  const media = await getMedia(database, userPath)
   if (!media) return apiErrorResponse(404)
 
   switch (media.type) {

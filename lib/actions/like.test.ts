@@ -1,18 +1,18 @@
 import { Note } from '@llun/activities.schema'
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { StatusType } from '../models/status'
-import { SqlStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { ACTOR1_ID } from '../stub/seed/actor1'
-import { ACTOR2_ID } from '../stub/seed/actor2'
-import { seedStorage } from '../stub/storage'
-import { likeRequest } from './like'
+import { likeRequest } from '@/lib/actions/like'
+import { getSQLDatabase } from '@/lib/database/sql'
+import { StatusType } from '@/lib/models/status'
+import { mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 
 enableFetchMocks()
 
 describe('Accept follow action', () => {
-  const storage = new SqlStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -21,13 +21,13 @@ describe('Accept follow action', () => {
   })
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
+    await database.migrate()
+    await seedDatabase(database)
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -44,9 +44,9 @@ describe('Accept follow action', () => {
           type: 'Like',
           object: `${ACTOR1_ID}/statuses/post-1`
         },
-        storage
+        database
       })
-      const status = await storage.getStatus({
+      const status = await database.getStatus({
         statusId: `${ACTOR1_ID}/statuses/post-1`
       })
       if (status?.data.type !== StatusType.enum.Note) {
@@ -57,7 +57,7 @@ describe('Accept follow action', () => {
     })
 
     it('create new like base on Note object', async () => {
-      const status = await storage.getStatus({
+      const status = await database.getStatus({
         statusId: `${ACTOR2_ID}/statuses/post-2`
       })
       await likeRequest({
@@ -67,9 +67,9 @@ describe('Accept follow action', () => {
           type: 'Like',
           object: status?.toObject() as Note
         },
-        storage
+        database
       })
-      const afterLikeStatus = await storage.getStatus({
+      const afterLikeStatus = await database.getStatus({
         statusId: `${ACTOR2_ID}/statuses/post-2`
       })
       if (afterLikeStatus?.data.type !== StatusType.enum.Note) {

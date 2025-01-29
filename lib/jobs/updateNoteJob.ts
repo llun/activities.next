@@ -9,9 +9,9 @@ import { UPDATE_NOTE_JOB_NAME } from './names'
 
 export const updateNoteJob = createJobHandle(
   UPDATE_NOTE_JOB_NAME,
-  async (storage, message) => {
+  async (database, message) => {
     const note = Note.parse(message.data)
-    const existingStatus = await storage.getStatus({
+    const existingStatus = await database.getStatus({
       statusId: note.id,
       withReplies: false
     })
@@ -29,7 +29,7 @@ export const updateNoteJob = createJobHandle(
 
     const text = getContent(compactNote)
     const summary = getSummary(compactNote)
-    await storage.updateNote({
+    await database.updateNote({
       statusId: compactNote.id,
       summary,
       text

@@ -1,66 +1,32 @@
 import { TagType } from '@/lib/models/tag'
+import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
-import { seedStorage } from '@/lib/stub/storage'
 
-import { FirestoreStorage } from '../firestore'
-import { SqlStorage } from '../sql'
-import { Storage } from '../types'
-import { AccountStorage } from './acount'
-import { ActorStorage } from './actor'
-import { BaseStorage } from './base'
-import { MediaStorage } from './media'
-import { StatusStorage } from './status'
+import { databaseBeforeAll, getTestDatabaseTable } from '../testUtils'
+import { Database } from '../types'
 
-type AccountAndStatusStorage = AccountStorage &
-  ActorStorage &
-  StatusStorage &
-  MediaStorage &
-  BaseStorage
-type TestStorage = [string, AccountAndStatusStorage]
-
-describe('StatusStorage', () => {
-  const testStorages: TestStorage[] = [
-    [
-      'sqlite',
-      new SqlStorage({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-    ],
-    // Enable this when run start:firestore emulator and clear the database manually
-    [
-      'firestore',
-      new FirestoreStorage({
-        type: 'firebase',
-        projectId: 'test',
-        host: 'localhost:8080',
-        ssl: false
-      })
-    ]
-  ]
+describe('StatusDatabase', () => {
+  const table = getTestDatabaseTable()
 
   beforeAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].migrate()))
+    await databaseBeforeAll(table)
   })
 
   afterAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].destroy()))
+    await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(testStorages)('%s', (_, storage) => {
+  describe.each(table)('%s', (_, database) => {
     beforeAll(async () => {
-      await seedStorage(storage as Storage)
+      await seedDatabase(database as Database)
     })
 
     describe('getStatus', () => {
       it('returns status without replies by default', async () => {
-        const status = await storage.getStatus({
+        const status = await database.getStatus({
           statusId: `${ACTOR1_ID}/statuses/post-1`
         })
         expect(status?.toJson()).toEqual({
@@ -100,7 +66,7 @@ describe('StatusStorage', () => {
       })
 
       it('returns status with replies', async () => {
-        const status = await storage.getStatus({
+        const status = await database.getStatus({
           statusId: `${ACTOR1_ID}/statuses/post-1`,
           withReplies: true
         })
@@ -139,7 +105,7 @@ describe('StatusStorage', () => {
       })
 
       it('returns status with attachments', async () => {
-        const status = await storage.getStatus({
+        const status = await database.getStatus({
           statusId: `${ACTOR1_ID}/statuses/post-3`
         })
         expect(status?.data.attachments).toHaveLength(2)
@@ -174,7 +140,7 @@ describe('StatusStorage', () => {
       })
 
       it('returns status with tags', async () => {
-        const status = await storage.getStatus({
+        const status = await database.getStatus({
           statusId: `${ACTOR2_ID}/statuses/post-2`
         })
         expect(status?.data.tags).toHaveLength(1)
@@ -192,7 +158,7 @@ describe('StatusStorage', () => {
       })
 
       it('returns announce status', async () => {
-        const status = await storage.getStatus({
+        const status = await database.getStatus({
           statusId: `${ACTOR2_ID}/statuses/post-3`
         })
         expect(status?.data).toMatchObject({
@@ -213,7 +179,7 @@ describe('StatusStorage', () => {
       })
 
       it('returns poll status', async () => {
-        const status = await storage.getStatus({
+        const status = await database.getStatus({
           statusId: `${ACTOR3_ID}/statuses/poll-1`
         })
         expect(status?.data).toMatchObject({
@@ -241,7 +207,7 @@ describe('StatusStorage', () => {
 
     describe('getActorStatuses', () => {
       it('returns statuses for specific actor', async () => {
-        const statuses = await storage.getActorStatuses({
+        const statuses = await database.getActorStatuses({
           actorId: ACTOR1_ID
         })
         expect(statuses).toHaveLength(3)
@@ -255,7 +221,7 @@ describe('StatusStorage', () => {
 
     describe('getActorStatusesCount', () => {
       it('returns total number of statuses for the specific actor', async () => {
-        const count = await storage.getActorStatusesCount({
+        const count = await database.getActorStatusesCount({
           actorId: ACTOR1_ID
         })
         expect(count).toBe(3)
@@ -264,7 +230,7 @@ describe('StatusStorage', () => {
 
     describe('getStatusReplies', () => {
       it('returns replies for specific status', async () => {
-        const replies = await storage.getStatusReplies({
+        const replies = await database.getStatusReplies({
           statusId: `${ACTOR1_ID}/statuses/post-1`
         })
         expect(replies).toHaveLength(1)
@@ -276,7 +242,7 @@ describe('StatusStorage', () => {
 
     describe('hasActorAnnouncedStatus', () => {
       it('returns true if actor has announced status', async () => {
-        const result = await storage.hasActorAnnouncedStatus({
+        const result = await database.hasActorAnnouncedStatus({
           statusId: `${ACTOR2_ID}/statuses/post-2`,
           actorId: ACTOR2_ID
         })
@@ -284,7 +250,7 @@ describe('StatusStorage', () => {
       })
 
       it('returns false if actor has not announced status', async () => {
-        const result = await storage.hasActorAnnouncedStatus({
+        const result = await database.hasActorAnnouncedStatus({
           statusId: `${ACTOR1_ID}/statuses/post-1`,
           actorId: ACTOR1_ID
         })
@@ -294,14 +260,14 @@ describe('StatusStorage', () => {
 
     describe('getFavouritedBy', () => {
       it('returns actors who favourited the status', async () => {
-        const actors = await storage.getFavouritedBy({
+        const actors = await database.getFavouritedBy({
           statusId: `${ACTOR1_ID}/statuses/post-1`
         })
         expect(actors).toHaveLength(0)
       })
 
       it('returns actors who favourited the status', async () => {
-        const actors = await storage.getFavouritedBy({
+        const actors = await database.getFavouritedBy({
           statusId: `${ACTOR3_ID}/statuses/poll-1`
         })
         expect(actors).toHaveLength(1)
@@ -311,7 +277,7 @@ describe('StatusStorage', () => {
 
     describe('createNote', () => {
       it('creates a new note', async () => {
-        const status = await storage.createNote({
+        const status = await database.createNote({
           id: `${ACTOR4_ID}/statuses/new-post`,
           url: `${ACTOR4_ID}/statuses/new-post`,
           actorId: ACTOR4_ID,
@@ -323,7 +289,7 @@ describe('StatusStorage', () => {
       })
 
       it('creates a new note with attachments', async () => {
-        await storage.createNote({
+        await database.createNote({
           id: `${ACTOR4_ID}/statuses/new-post-2`,
           url: `${ACTOR4_ID}/statuses/new-post-2`,
           actorId: ACTOR4_ID,
@@ -331,7 +297,7 @@ describe('StatusStorage', () => {
           cc: [],
           text: 'This is a new post with attachments'
         })
-        await storage.createAttachment({
+        await database.createAttachment({
           actorId: ACTOR4_ID,
           statusId: `${ACTOR4_ID}/statuses/new-post-2`,
           mediaType: 'image/png',
@@ -339,7 +305,7 @@ describe('StatusStorage', () => {
           width: 150,
           height: 150
         })
-        await storage.createAttachment({
+        await database.createAttachment({
           actorId: ACTOR4_ID,
           statusId: `${ACTOR4_ID}/statuses/new-post-2`,
           mediaType: 'image/png',
@@ -347,7 +313,7 @@ describe('StatusStorage', () => {
           width: 150,
           height: 150
         })
-        const status = await storage.getStatus({
+        const status = await database.getStatus({
           statusId: `${ACTOR4_ID}/statuses/new-post-2`
         })
         expect(status?.data.text).toBe('This is a new post with attachments')
@@ -355,7 +321,7 @@ describe('StatusStorage', () => {
       })
 
       it('creates a new note with tags', async () => {
-        await storage.createNote({
+        await database.createNote({
           id: `${ACTOR4_ID}/statuses/new-post-3`,
           url: `${ACTOR4_ID}/statuses/new-post-3`,
           actorId: ACTOR4_ID,
@@ -363,13 +329,13 @@ describe('StatusStorage', () => {
           cc: [],
           text: 'This is a new post with tags'
         })
-        const tag = await storage.createTag({
+        const tag = await database.createTag({
           statusId: `${ACTOR4_ID}/statuses/new-post-3`,
           type: TagType.enum.mention,
           name: '@test1',
           value: 'https://llun.test/@test1'
         })
-        const status = await storage.getStatus({
+        const status = await database.getStatus({
           statusId: `${ACTOR4_ID}/statuses/new-post-3`
         })
         expect(status?.data.text).toBe('This is a new post with tags')

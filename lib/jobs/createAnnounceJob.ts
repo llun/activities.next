@@ -12,14 +12,14 @@ import { CREATE_ANNOUNCE_JOB_NAME, CREATE_NOTE_JOB_NAME } from './names'
 
 export const createAnnounceJob: JobHandle = createJobHandle(
   CREATE_ANNOUNCE_JOB_NAME,
-  async (storage, message) => {
+  async (database, message) => {
     const status = Announce.parse(message.data)
     const compactedStatus = (await compact({
       '@context': ACTIVITY_STREAM_URL,
       ...status
     })) as Announce
     const { object } = compactedStatus
-    const existingStatus = await storage.getStatus({
+    const existingStatus = await database.getStatus({
       statusId: object,
       withReplies: false
     })
@@ -28,13 +28,13 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       if (!boostedStatus) {
         return
       }
-      await createNoteJob(storage, {
+      await createNoteJob(database, {
         id: boostedStatus.id,
         name: CREATE_NOTE_JOB_NAME,
         data: boostedStatus
       })
     }
-    const existingAnnounce = await storage.getStatus({
+    const existingAnnounce = await database.getStatus({
       statusId: compactedStatus.id,
       withReplies: false
     })
@@ -42,8 +42,8 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       return
     }
     const [, announce] = await Promise.all([
-      recordActorIfNeeded({ actorId: compactedStatus.actor, storage }),
-      storage.createAnnounce({
+      recordActorIfNeeded({ actorId: compactedStatus.actor, database }),
+      database.createAnnounce({
         id: compactedStatus.id,
         actorId: compactedStatus.actor,
         to: Array.isArray(status.to)
@@ -58,6 +58,6 @@ export const createAnnounceJob: JobHandle = createJobHandle(
     if (!announce) {
       return
     }
-    await addStatusToTimelines(storage, announce)
+    await addStatusToTimelines(database, announce)
   }
 )

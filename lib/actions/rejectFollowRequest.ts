@@ -1,21 +1,21 @@
-import { RejectFollow } from '../activities/actions/rejectFollow'
-import { FollowStatus } from '../models/follow'
-import { Storage } from '../storage/types'
+import { RejectFollow } from '@/lib/activities/actions/rejectFollow'
+import { Database } from '@/lib/database/types'
+import { FollowStatus } from '@/lib/models/follow'
 
 interface RejectFollowRequestParams {
   activity: RejectFollow
-  storage: Storage
+  database: Database
 }
 
 export const rejectFollowRequest = async ({
   activity,
-  storage
+  database
 }: RejectFollowRequestParams) => {
   const followRequestId = new URL(activity.object.id)
   const followId = followRequestId.pathname.slice(1)
-  const follow = await storage.getFollowFromId({ followId })
+  const follow = await database.getFollowFromId({ followId })
   if (!follow) return null
-  await storage.updateFollowStatus({
+  await database.updateFollowStatus({
     followId,
     status: FollowStatus.enum.Rejected
   })

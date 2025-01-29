@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/Button'
+import { UsableScopes } from '@/lib/database/types/oauth'
 import { Client } from '@/lib/models/oauth2/client'
-import { UsableScopes } from '@/lib/storage/types/oauth'
 
 import { SearchParams } from './types'
 

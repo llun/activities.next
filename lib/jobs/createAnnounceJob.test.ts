@@ -1,22 +1,20 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { Actor } from '../models/actor'
-import { StatusType } from '../models/status'
-import { SqlStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { MockAnnounceStatus } from '../stub/announce'
-import { stubNoteId } from '../stub/note'
-import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
-import { seedStorage } from '../stub/storage'
-import {
-  CREATE_ANNOUNCE_JOB_NAME,
-  createAnnounceJob
-} from './createAnnounceJob'
+import { getSQLDatabase } from '@/lib/database/sql'
+import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
+import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { Actor } from '@/lib/models/actor'
+import { StatusType } from '@/lib/models/status'
+import { mockRequests } from '@/lib/stub/activities'
+import { MockAnnounceStatus } from '@/lib/stub/announce'
+import { seedDatabase } from '@/lib/stub/database'
+import { stubNoteId } from '@/lib/stub/note'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 enableFetchMocks()
 
 describe('Announce action', () => {
-  const storage = new SqlStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -25,13 +23,13 @@ describe('Announce action', () => {
   })
   let actor1: Actor | undefined
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
-    actor1 = await storage.getActorFromEmail({ email: seedActor1.email })
+    await database.migrate()
+    await seedDatabase(database)
+    actor1 = await database.getActorFromEmail({ email: seedActor1.email })
   })
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
   beforeEach(() => {
     fetchMock.resetMocks()
@@ -41,7 +39,7 @@ describe('Announce action', () => {
   it('loads announce status and save it locally', async () => {
     const statusId = stubNoteId()
     const announceStatusId = 'https://somewhere.test/statuses/announce-status'
-    await createAnnounceJob(storage, {
+    await createAnnounceJob(database, {
       id: 'id',
       name: CREATE_ANNOUNCE_JOB_NAME,
       data: MockAnnounceStatus({
@@ -50,11 +48,11 @@ describe('Announce action', () => {
         announceStatusId
       })
     })
-    const status = await storage.getStatus({
+    const status = await database.getStatus({
       statusId: `${statusId}/activity`
     })
     expect(status).toBeDefined()
-    const boostedStatus = await storage.getStatus({
+    const boostedStatus = await database.getStatus({
       statusId: announceStatusId
     })
     const statusData = status?.toJson()
@@ -68,7 +66,7 @@ describe('Announce action', () => {
     const statusId = stubNoteId()
     const announceStatusId =
       'https://somewhere.test/statuses/announce-status-attachments'
-    await createAnnounceJob(storage, {
+    await createAnnounceJob(database, {
       id: 'id',
       name: CREATE_ANNOUNCE_JOB_NAME,
       data: MockAnnounceStatus({
@@ -77,7 +75,7 @@ describe('Announce action', () => {
         announceStatusId
       })
     })
-    const boostedStatus = await storage.getStatus({
+    const boostedStatus = await database.getStatus({
       statusId: announceStatusId
     })
     if (boostedStatus?.data.type !== StatusType.enum.Note) {
@@ -90,7 +88,7 @@ describe('Announce action', () => {
     const statusId = stubNoteId()
     const announceStatusId =
       'https://somewhere.test/actors/test1/lp/litepub-status'
-    await createAnnounceJob(storage, {
+    await createAnnounceJob(database, {
       id: 'id',
       name: CREATE_ANNOUNCE_JOB_NAME,
       data: MockAnnounceStatus({
@@ -99,11 +97,11 @@ describe('Announce action', () => {
         announceStatusId
       })
     })
-    const status = await storage.getStatus({
+    const status = await database.getStatus({
       statusId: `${statusId}/activity`
     })
     expect(status).toBeDefined()
-    const boostedStatus = await storage.getStatus({
+    const boostedStatus = await database.getStatus({
       statusId: announceStatusId
     })
     expect(boostedStatus).toBeDefined()
@@ -116,7 +114,7 @@ describe('Announce action', () => {
   it('does not load and create status that already exists', async () => {
     const statusId = stubNoteId()
     const announceStatusId = `${actor1?.id}/statuses/post-1`
-    await createAnnounceJob(storage, {
+    await createAnnounceJob(database, {
       id: 'id',
       name: CREATE_ANNOUNCE_JOB_NAME,
       data: MockAnnounceStatus({
@@ -133,7 +131,7 @@ describe('Announce action', () => {
     const friend2Id = 'https://somewhere.test/actors/friend2'
     const statusId = stubNoteId()
     const announceStatusId = 'https://somewhere.test/s/friend2/announce-status'
-    await createAnnounceJob(storage, {
+    await createAnnounceJob(database, {
       id: 'id',
       name: CREATE_ANNOUNCE_JOB_NAME,
       data: MockAnnounceStatus({
@@ -142,7 +140,7 @@ describe('Announce action', () => {
         announceStatusId
       })
     })
-    const actor = await storage.getActorFromId({ id: friendId })
+    const actor = await database.getActorFromId({ id: friendId })
     expect(actor).toBeDefined()
     expect(actor).toMatchObject({
       id: friendId,
@@ -150,7 +148,7 @@ describe('Announce action', () => {
       domain: 'somewhere.test',
       createdAt: expect.toBeNumber()
     })
-    const originalStatusActor = await storage.getActorFromId({
+    const originalStatusActor = await database.getActorFromId({
       id: friend2Id
     })
     expect(originalStatusActor).toBeDefined()

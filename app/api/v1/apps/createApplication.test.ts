@@ -1,11 +1,11 @@
-import { SqlStorage } from '@/lib/storage/sql'
-import { seedStorage } from '@/lib/stub/storage'
+import { getSQLDatabase } from '@/lib/database/sql'
+import { seedDatabase } from '@/lib/stub/database'
 
 import { createApplication } from './createApplication'
 import { SuccessResponse } from './types'
 
 describe('createApplication', () => {
-  const storage = new SqlStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -14,9 +14,9 @@ describe('createApplication', () => {
   })
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
-    await createApplication(storage, {
+    await database.migrate()
+    await seedDatabase(database)
+    await createApplication(database, {
       client_name: 'existsClient',
       redirect_uris: 'https://exists.llun.dev/apps/redirect',
       scopes: 'read write',
@@ -25,12 +25,12 @@ describe('createApplication', () => {
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
-  test('it generates secret and create application in storage and returns application response', async () => {
-    const response = (await createApplication(storage, {
+  test('it generates secret and create application in database and returns application response', async () => {
+    const response = (await createApplication(database, {
       redirect_uris: 'https://test.llun.dev/apps/redirect',
       client_name: 'client1',
       scopes: 'read write',
@@ -49,7 +49,7 @@ describe('createApplication', () => {
   })
 
   test('it returns existing application without updating it', async () => {
-    const response = await createApplication(storage, {
+    const response = await createApplication(database, {
       client_name: 'existsClient',
       redirect_uris: 'https://test.llun.dev/apps/redirect',
       scopes: 'read write',
@@ -67,7 +67,7 @@ describe('createApplication', () => {
   })
 
   test('it errors with message validation failed when scope is not valid', async () => {
-    const response = await createApplication(storage, {
+    const response = await createApplication(database, {
       client_name: 'newClient',
       redirect_uris: 'https://test.llun.dev/apps/redirect',
       scopes: 'read write something else',

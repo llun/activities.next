@@ -6,21 +6,21 @@ import {
   getPublicProfileFromHandle,
   getWebfingerSelf,
   sendNote
-} from '.'
-import { Actor } from '../models/actor'
-import { SqlStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { MockActor } from '../stub/actor'
-import { MockMastodonNote } from '../stub/note'
-import { MockPerson } from '../stub/person'
-import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
-import { TEST_SHARED_INBOX, seedStorage } from '../stub/storage'
-import { CreateStatus } from './actions/createStatus'
+} from '@/lib/activities'
+import { CreateStatus } from '@/lib/activities/actions/createStatus'
+import { getSQLDatabase } from '@/lib/database/sql'
+import { Actor } from '@/lib/models/actor'
+import { mockRequests } from '@/lib/stub/activities'
+import { MockActor } from '@/lib/stub/actor'
+import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
+import { MockMastodonNote } from '@/lib/stub/note'
+import { MockPerson } from '@/lib/stub/person'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 enableFetchMocks()
 
 describe('activities', () => {
-  const storage = new SqlStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -30,15 +30,15 @@ describe('activities', () => {
   let actor1: Actor | undefined
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
+    await database.migrate()
+    await seedDatabase(database)
 
-    actor1 = await storage.getActorFromEmail({ email: seedActor1.email })
+    actor1 = await database.getActorFromEmail({ email: seedActor1.email })
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {

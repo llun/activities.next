@@ -1,20 +1,19 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
+import { getSQLDatabase } from '@/lib/database/sql'
+import { Actor } from '@/lib/models/actor'
+import { Status } from '@/lib/models/status'
+import { expectCall, mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { getNoteFromStatusData } from '@/lib/utils/getNoteFromStatusData'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
-
-import { Actor } from '../models/actor'
-import { Status } from '../models/status'
-import { SqlStorage } from '../storage/sql'
-import { expectCall, mockRequests } from '../stub/activities'
-import { seedActor1 } from '../stub/seed/actor1'
-import { seedStorage } from '../stub/storage'
-import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
-import { updateNoteFromUserInput } from './updateNote'
 
 enableFetchMocks()
 
 describe('Update note action', () => {
-  const storage = new SqlStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -24,17 +23,17 @@ describe('Update note action', () => {
   let actor1: Actor | undefined
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
-    actor1 = await storage.getActorFromUsername({
+    await database.migrate()
+    await seedDatabase(database)
+    actor1 = await database.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain
     })
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -49,7 +48,7 @@ describe('Update note action', () => {
       const status = (await updateNoteFromUserInput({
         statusId: `${actor1.id}/statuses/post-1`,
         currentActor: actor1,
-        storage,
+        database,
         text: '<p>This is an updated note</p>'
       })) as Status
 
@@ -77,7 +76,7 @@ describe('Update note action', () => {
       const status = await updateNoteFromUserInput({
         statusId: `${actor1.id}/statuses/post-1`,
         currentActor: actor1,
-        storage,
+        database,
         text: 'This is markdown **text** that should get format'
       })
 

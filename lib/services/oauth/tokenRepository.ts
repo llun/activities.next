@@ -9,19 +9,19 @@ import {
 } from '@jmondi/oauth2-server'
 
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
+import { Database } from '@/lib/database/types'
+import { Scope } from '@/lib/database/types/oauth'
 import { Token } from '@/lib/models/oauth2/token'
-import { Storage } from '@/lib/storage/types'
-import { Scope } from '@/lib/storage/types/oauth'
 
 export class TokenRepository implements OAuthTokenRepository {
-  storage: Storage
+  database: Database
 
-  constructor(storage: Storage) {
-    this.storage = storage
+  constructor(database: Database) {
+    this.database = database
   }
 
   async findById(accessToken: string): Promise<OAuthToken> {
-    const token = await this.storage.getAccessToken({ accessToken })
+    const token = await this.database.getAccessToken({ accessToken })
     if (!token) throw new Error('Fail to find token')
     return token
   }
@@ -49,7 +49,7 @@ export class TokenRepository implements OAuthTokenRepository {
   }
 
   async getByRefreshToken(refreshToken: string): Promise<OAuthToken> {
-    const token = await this.storage.getAccessTokenByRefreshToken({
+    const token = await this.database.getAccessTokenByRefreshToken({
       refreshToken
     })
     if (!token) throw new Error('Fail to find refresh token')
@@ -61,7 +61,7 @@ export class TokenRepository implements OAuthTokenRepository {
   }
 
   async issueRefreshToken(token: OAuthToken): Promise<OAuthToken> {
-    const updatedToken = await this.storage.updateRefreshToken({
+    const updatedToken = await this.database.updateRefreshToken({
       accessToken: token.accessToken,
       refreshToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
       refreshTokenExpiresAt: new DateInterval('7d').getEndDate().getTime()
@@ -71,12 +71,12 @@ export class TokenRepository implements OAuthTokenRepository {
   }
 
   async persist(token: OAuthToken): Promise<void> {
-    const existingToken = await this.storage.getAccessToken({
+    const existingToken = await this.database.getAccessToken({
       accessToken: token.accessToken
     })
     if (existingToken) return
 
-    await this.storage.createAccessToken({
+    await this.database.createAccessToken({
       accessToken: token.accessToken,
       accessTokenExpiresAt: token.accessTokenExpiresAt.getTime(),
       refreshToken: token.refreshToken,
@@ -89,6 +89,6 @@ export class TokenRepository implements OAuthTokenRepository {
   }
 
   async revoke(token: OAuthToken): Promise<void> {
-    await this.storage.revokeAccessToken({ accessToken: token.accessToken })
+    await this.database.revokeAccessToken({ accessToken: token.accessToken })
   }
 }

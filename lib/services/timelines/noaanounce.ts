@@ -24,7 +24,7 @@ import { NoAnnounceTimelineRule, Timeline } from './types'
  *
  */
 export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
-  storage,
+  database,
   currentActor,
   status
 }) =>
@@ -45,7 +45,7 @@ export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
         span.end()
         return Timeline.NOANNOUNCE
       }
-      const isFollowing = await storage.isCurrentActorFollowing({
+      const isFollowing = await database.isCurrentActorFollowing({
         currentActorId: currentActor.id,
         followingActorId: status.actorId
       })
@@ -56,7 +56,7 @@ export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
         return null
       }
 
-      const repliedStatus = await storage.getStatus({
+      const repliedStatus = await database.getStatus({
         statusId: status.reply,
         withReplies: false
       })
@@ -74,7 +74,7 @@ export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
         return null
       }
       const value = await noannounceTimelineRule({
-        storage,
+        database,
         currentActor,
         status: repliedStatus.data
       })

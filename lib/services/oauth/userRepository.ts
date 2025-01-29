@@ -1,17 +1,17 @@
 import { OAuthUser, OAuthUserRepository } from '@jmondi/oauth2-server'
 
+import { Database } from '@/lib/database/types'
 import { User } from '@/lib/models/oauth2/user'
-import { Storage } from '@/lib/storage/types'
 
 export class UserRepository implements OAuthUserRepository {
-  storage: Storage
+  database: Database
 
-  constructor(storage: Storage) {
-    this.storage = storage
+  constructor(database: Database) {
+    this.database = database
   }
 
   async getUserByCredentials(identifier: string): Promise<OAuthUser> {
-    const actor = await this.storage.getActorFromId({ id: identifier })
+    const actor = await this.database.getActorFromId({ id: identifier })
     if (!actor || !actor.account) throw new Error('Fail to find actor')
     return User.parse({
       id: actor.id,

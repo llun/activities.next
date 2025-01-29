@@ -21,12 +21,12 @@ const CORS_HEADERS = [
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = AuthenticatedGuard(async (req, context) => {
-  const { storage, currentActor } = context
+  const { database, currentActor } = context
   const params = new URL(req.url).searchParams
   const targetActorId = params.get('targetActorId')
   if (!targetActorId) return apiErrorResponse(404)
 
-  const follow = await storage.getAcceptedOrRequestedFollow({
+  const follow = await database.getAcceptedOrRequestedFollow({
     actorId: currentActor.id,
     targetActorId: targetActorId as string
   })
@@ -34,13 +34,13 @@ export const GET = AuthenticatedGuard(async (req, context) => {
 })
 
 export const POST = AuthenticatedGuard(async (req, context) => {
-  const { storage, currentActor } = context
+  const { database, currentActor } = context
   const body = await req.json()
   const { target } = FollowRequest.parse(body)
   const profile = await getPublicProfile({ actorId: target })
   if (!profile) return apiErrorResponse(404)
 
-  const followItem = await storage.createFollow({
+  const followItem = await database.createFollow({
     actorId: currentActor.id,
     targetActorId: target,
     status: FollowStatus.enum.Requested,
@@ -52,19 +52,19 @@ export const POST = AuthenticatedGuard(async (req, context) => {
 })
 
 export const DELETE = AuthenticatedGuard(async (req, context) => {
-  const { storage, currentActor } = context
+  const { database, currentActor } = context
   const body = await req.json()
   const { target } = FollowRequest.parse(body)
   const profile = await getPublicProfile({ actorId: target })
   if (!profile) return apiErrorResponse(404)
-  const follow = await storage.getAcceptedOrRequestedFollow({
+  const follow = await database.getAcceptedOrRequestedFollow({
     actorId: currentActor.id,
     targetActorId: target
   })
   if (!follow) return apiErrorResponse(404)
   await Promise.all([
     unfollow(currentActor, follow),
-    storage.updateFollowStatus({
+    database.updateFollowStatus({
       followId: follow.id,
       status: FollowStatus.enum.Undo
     })

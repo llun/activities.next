@@ -1,13 +1,13 @@
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
-import { Storage } from '@/lib/storage/types'
 
 export const getInternalActorProfile = async (
-  storage: Storage,
+  database: Database,
   actor: Actor
 ) => {
   const [statuses, attachments] = await Promise.all([
-    storage.getActorStatuses({ actorId: actor.id }),
-    storage.getAttachmentsForActor({ actorId: actor.id })
+    database.getActorStatuses({ actorId: actor.id }),
+    database.getAttachmentsForActor({ actorId: actor.id })
   ])
   return {
     person: actor.toPublicProfile(),

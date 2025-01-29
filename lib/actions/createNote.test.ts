@@ -1,22 +1,21 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { createNoteFromUserInput } from '@/lib/actions/createNote'
+import { getSQLDatabase } from '@/lib/database/sql'
+import { Actor } from '@/lib/models/actor'
+import { expectCall, mockRequests } from '@/lib/stub/activities'
+import { TEST_DOMAIN } from '@/lib/stub/const'
+import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { getNoteFromStatusData } from '@/lib/utils/getNoteFromStatusData'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
-
-import { Actor } from '../models/actor'
-import { SqlStorage } from '../storage/sql'
-import { expectCall, mockRequests } from '../stub/activities'
-import { TEST_DOMAIN } from '../stub/const'
-import { seedActor1 } from '../stub/seed/actor1'
-import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
-import { seedStorage } from '../stub/storage'
-import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
-import { convertMarkdownText } from '../utils/text/convertMarkdownText'
-import { createNoteFromUserInput } from './createNote'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 enableFetchMocks()
 
 describe('Create note action', () => {
-  const storage = new SqlStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -27,21 +26,21 @@ describe('Create note action', () => {
   let actor2: Actor | undefined
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
-    actor1 = await storage.getActorFromUsername({
+    await database.migrate()
+    await seedDatabase(database)
+    actor1 = await database.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain
     })
-    actor2 = await storage.getActorFromUsername({
+    actor2 = await database.getActorFromUsername({
       username: seedActor2.username,
       domain: seedActor2.domain
     })
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -56,7 +55,7 @@ describe('Create note action', () => {
       const status = await createNoteFromUserInput({
         text: 'Hello',
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
 
@@ -84,7 +83,7 @@ describe('Create note action', () => {
         text: 'Hello',
         currentActor: actor1,
         replyNoteId: `${actor2?.id}/statuses/post-2`,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
 
@@ -114,7 +113,7 @@ How are you?
       const status = await createNoteFromUserInput({
         text,
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
       expect(status.data).toMatchObject({
@@ -154,7 +153,7 @@ How are you?
       const status = await createNoteFromUserInput({
         text,
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
       expect(status.data).toMatchObject({
@@ -221,7 +220,7 @@ How are you?
       const status = await createNoteFromUserInput({
         text,
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
 

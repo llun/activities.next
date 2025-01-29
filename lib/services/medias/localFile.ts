@@ -6,8 +6,8 @@ import process from 'process'
 import sharp from 'sharp'
 
 import { MediaStorageFileConfig } from '@/lib/config/mediaStorage'
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
-import { Storage } from '@/lib/storage/types'
 import { logger } from '@/lib/utils/logger'
 
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
@@ -26,23 +26,27 @@ export class LocalFileStorage implements MediaStorage {
 
   private _config: MediaStorageFileConfig
   private _host: string
-  private _storage: Storage
+  private _database: Database
 
   static getStorage(
     config: MediaStorageFileConfig,
     host: string,
-    storage: Storage
+    database: Database
   ) {
     if (!LocalFileStorage._instance) {
-      LocalFileStorage._instance = new LocalFileStorage(config, host, storage)
+      LocalFileStorage._instance = new LocalFileStorage(config, host, database)
     }
     return LocalFileStorage._instance
   }
 
-  constructor(config: MediaStorageFileConfig, host: string, storage: Storage) {
+  constructor(
+    config: MediaStorageFileConfig,
+    host: string,
+    database: Database
+  ) {
     this._config = config
     this._host = host
-    this._storage = storage
+    this._database = database
   }
 
   async getFile(filePath: string) {
@@ -86,7 +90,7 @@ export class LocalFileStorage implements MediaStorage {
       : previewImage
         ? await this._saveImageBuffer(`video-thumbnail.jpg`, previewImage, true)
         : null
-    const storedMedia = await this._storage.createMedia({
+    const storedMedia = await this._database.createMedia({
       actorId: actor.id,
       original: {
         path,

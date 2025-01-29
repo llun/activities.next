@@ -1,22 +1,21 @@
 import { Note } from '@llun/activities.schema'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { getSQLDatabase } from '@/lib/database/sql'
+import { Actor } from '@/lib/models/actor'
+import { Status, StatusType } from '@/lib/models/status'
+import { mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
+import { MockMastodonNote } from '@/lib/stub/note'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { compact } from '@/lib/utils/jsonld'
-
-import { SqlStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { MockMastodonNote } from '../stub/note'
-import { ACTOR1_ID, seedActor1 } from '../stub/seed/actor1'
-import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
-import { seedStorage } from '../stub/storage'
-import { Actor } from './actor'
-import { Status, StatusType } from './status'
 
 enableFetchMocks()
 
 describe('Status', () => {
-  const storage = new SqlStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -25,13 +24,13 @@ describe('Status', () => {
   })
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
+    await database.migrate()
+    await seedDatabase(database)
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -109,11 +108,11 @@ describe('Status', () => {
     let actor2: Actor | undefined
 
     beforeAll(async () => {
-      actor1 = await storage.getActorFromUsername({
+      actor1 = await database.getActorFromUsername({
         username: seedActor1.username,
         domain: seedActor1.domain
       })
-      actor2 = await storage.getActorFromUsername({
+      actor2 = await database.getActorFromUsername({
         username: seedActor2.username,
         domain: seedActor2.domain
       })
@@ -122,7 +121,7 @@ describe('Status', () => {
     describe('Note', () => {
       it('converts status to Note object', async () => {
         const statusId = `${actor1?.id}/statuses/post-1`
-        const status = await storage.getStatus({
+        const status = await database.getStatus({
           statusId,
           withReplies: true
         })
@@ -150,7 +149,7 @@ describe('Status', () => {
             totalItems: 1,
             items: [
               (
-                await storage.getStatus({
+                await database.getStatus({
                   statusId: `${ACTOR2_ID}/statuses/post-2`
                 })
               )?.toObject()
@@ -161,7 +160,7 @@ describe('Status', () => {
 
       it('add mentions into Note object', async () => {
         const statusId = `${actor2?.id}/statuses/post-2`
-        const status = await storage.getStatus({
+        const status = await database.getStatus({
           statusId
         })
         const note = status?.toObject()
@@ -177,13 +176,13 @@ describe('Status', () => {
     describe('Announce', () => {
       it('converts status to Announce object', async () => {
         const status2Id = `${actor2?.id}/statuses/post-2`
-        const status2 = await storage.getStatus({
+        const status2 = await database.getStatus({
           statusId: status2Id
         })
         const note2 = status2?.toObject()
 
         const status3Id = `${actor2?.id}/statuses/post-3`
-        const status3 = await storage.getStatus({
+        const status3 = await database.getStatus({
           statusId: status3Id
         })
         const note3 = status3?.toObject()

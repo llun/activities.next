@@ -1,7 +1,7 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
+import { getDatabase } from '@/lib/database'
 import { JOBS } from '@/lib/jobs'
-import { getStorage } from '@/lib/storage'
 import { logger } from '@/lib/utils/logger'
 import { getTracer } from '@/lib/utils/trace'
 
@@ -11,12 +11,12 @@ export const defaultJobHandle =
   (queueName: string) => async (message: JobMessage) => {
     await getTracer().startActiveSpan('queue.handle', async (span) => {
       logger.debug({ message }, `${queueName} handle job`)
-      const storage = await getStorage()
-      if (!storage) {
-        logger.error('Storage is not available')
+      const database = getDatabase()
+      if (!database) {
+        logger.error('Database is not available')
         span.setStatus({
           code: SpanStatusCode.ERROR,
-          message: 'Storage is not available'
+          message: 'Database is not available'
         })
         span.end()
         return
@@ -33,6 +33,6 @@ export const defaultJobHandle =
         return
       }
 
-      await job(storage, message)
+      await job(database, message)
     })
   }

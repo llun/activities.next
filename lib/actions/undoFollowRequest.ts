@@ -1,23 +1,23 @@
-import { UndoFollow } from '../activities/actions/undoFollow'
-import { FollowStatus } from '../models/follow'
-import { Storage } from '../storage/types'
+import { UndoFollow } from '@/lib/activities/actions/undoFollow'
+import { Database } from '@/lib/database/types'
+import { FollowStatus } from '@/lib/models/follow'
 
 interface UndoFollowRequestParams {
-  storage: Storage
+  database: Database
   request: UndoFollow
 }
 
 export const undoFollowRequest = async ({
-  storage,
+  database,
   request
 }: UndoFollowRequestParams) => {
-  const follow = await storage.getAcceptedOrRequestedFollow({
+  const follow = await database.getAcceptedOrRequestedFollow({
     actorId: request.object.actor,
     targetActorId: request.object.object
   })
   if (!follow) return false
 
-  await storage.updateFollowStatus({
+  await database.updateFollowStatus({
     followId: follow.id,
     status: FollowStatus.enum.Undo
   })

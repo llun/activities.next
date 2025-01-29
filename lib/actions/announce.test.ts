@@ -1,19 +1,18 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { userAnnounce } from '@/lib/actions/announce'
+import { getSQLDatabase } from '@/lib/database/sql'
+import { Actor } from '@/lib/models/actor'
+import { StatusType } from '@/lib/models/status'
+import { mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
-
-import { Actor } from '../models/actor'
-import { StatusType } from '../models/status'
-import { SqlStorage } from '../storage/sql'
-import { mockRequests } from '../stub/activities'
-import { seedActor1 } from '../stub/seed/actor1'
-import { seedStorage } from '../stub/storage'
-import { userAnnounce } from './announce'
 
 enableFetchMocks()
 
 describe('Announce action', () => {
-  const storage = new SqlStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -23,15 +22,15 @@ describe('Announce action', () => {
   let actor1: Actor | undefined
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
+    await database.migrate()
+    await seedDatabase(database)
 
-    actor1 = await storage.getActorFromEmail({ email: seedActor1.email })
+    actor1 = await database.getActorFromEmail({ email: seedActor1.email })
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -47,10 +46,10 @@ describe('Announce action', () => {
       const status = await userAnnounce({
         currentActor: actor1,
         statusId: `${actor1.id}/statuses/post-2`,
-        storage
+        database
       })
 
-      const originalStatus = await storage.getStatus({
+      const originalStatus = await database.getStatus({
         statusId: `${actor1.id}/statuses/post-2`
       })
       expect(status?.data).toMatchObject({
@@ -78,14 +77,14 @@ describe('Announce action', () => {
       const status = await userAnnounce({
         currentActor: actor1,
         statusId: `${actor1.id}/statuses/post-3`,
-        storage
+        database
       })
       expect(status).not.toBeNull()
 
       const duplicateStatus = await userAnnounce({
         currentActor: actor1,
         statusId: `${actor1.id}/statuses/post-3`,
-        storage
+        database
       })
       expect(duplicateStatus).toBeNull()
     })

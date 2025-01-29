@@ -1,4 +1,8 @@
 import {
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
+import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,
   TEST_EMAIL,
@@ -7,50 +11,20 @@ import {
 } from '@/lib/stub/const'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-import { FirestoreStorage } from '../firestore'
-import { SqlStorage } from '../sql'
-import { AccountStorage } from './acount'
-import { ActorStorage } from './actor'
-import { BaseStorage } from './base'
-
-type AccountAndActorStorage = AccountStorage & ActorStorage & BaseStorage
-type TestStorage = [string, AccountAndActorStorage]
-
-describe('ActorStorage', () => {
-  const testStorages: TestStorage[] = [
-    [
-      'sqlite',
-      new SqlStorage({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-    ],
-    // Enable this when run start:firestore emulator and clear the database manually
-    [
-      'firestore',
-      new FirestoreStorage({
-        type: 'firebase',
-        projectId: 'test',
-        host: 'localhost:8080',
-        ssl: false
-      })
-    ]
-  ]
+describe('ActorDatabase', () => {
+  const table = getTestDatabaseTable()
 
   beforeAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].migrate()))
+    await databaseBeforeAll(table)
   })
 
   afterAll(async () => {
-    await Promise.all(testStorages.map((item) => item[1].destroy()))
+    await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(testStorages)('%s', (name, storage) => {
+  describe.each(table)('%s', (_, database) => {
     beforeAll(async () => {
-      await storage.createAccount({
+      await database.createAccount({
         email: TEST_EMAIL,
         username: TEST_USERNAME3,
         passwordHash: TEST_PASSWORD_HASH,
@@ -59,7 +33,7 @@ describe('ActorStorage', () => {
         publicKey: 'publicKey1'
       })
 
-      await storage.createActor({
+      await database.createActor({
         actorId: EXTERNAL_ACTORS[0].id,
         username: EXTERNAL_ACTORS[0].username,
         domain: EXTERNAL_ACTORS[0].domain,
@@ -74,7 +48,7 @@ describe('ActorStorage', () => {
     describe('deprecated actor', () => {
       it('returns actor from id', async () => {
         const id = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-        const actor = await storage.getActorFromId({
+        const actor = await database.getActorFromId({
           id
         })
 
@@ -93,7 +67,7 @@ describe('ActorStorage', () => {
       })
 
       it('returns actor from username', async () => {
-        const actor = await storage.getActorFromUsername({
+        const actor = await database.getActorFromUsername({
           username: TEST_USERNAME3,
           domain: TEST_DOMAIN
         })
@@ -113,7 +87,7 @@ describe('ActorStorage', () => {
       })
 
       it('returns actor from email', async () => {
-        const actor = await storage.getActorFromEmail({
+        const actor = await database.getActorFromEmail({
           email: TEST_EMAIL
         })
 
@@ -134,7 +108,7 @@ describe('ActorStorage', () => {
 
     describe('mastodon actor', () => {
       it('returns mastodon actor from id', async () => {
-        const actor = await storage.getMastodonActorFromId({
+        const actor = await database.getMastodonActorFromId({
           id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
         })
 
@@ -165,7 +139,7 @@ describe('ActorStorage', () => {
       })
 
       it('returns mastodon actor from username', async () => {
-        const actor = await storage.getMastodonActorFromUsername({
+        const actor = await database.getMastodonActorFromUsername({
           username: TEST_USERNAME3,
           domain: TEST_DOMAIN
         })
@@ -197,7 +171,7 @@ describe('ActorStorage', () => {
       })
 
       it('returns mastodon actor from email', async () => {
-        const actor = await storage.getMastodonActorFromEmail({
+        const actor = await database.getMastodonActorFromEmail({
           email: TEST_EMAIL
         })
 
@@ -229,8 +203,8 @@ describe('ActorStorage', () => {
     })
 
     describe('external actors', () => {
-      it('creates actor without account in the storage and returns deprecated actor model', async () => {
-        const actor = await storage.getActorFromId({
+      it('creates actor without account in the database and returns deprecated actor model', async () => {
+        const actor = await database.getActorFromId({
           id: EXTERNAL_ACTORS[0].id
         })
         expect(actor).toBeDefined()
@@ -243,9 +217,9 @@ describe('ActorStorage', () => {
         expect(actor?.privateKey).toEqual('')
       })
 
-      it('creates actor without account in the storage and returns mastodon actor model', async () => {
+      it('creates actor without account in the database and returns mastodon actor model', async () => {
         const currentTime = Date.now()
-        const actor = await storage.createMastodonActor({
+        const actor = await database.createMastodonActor({
           actorId: EXTERNAL_ACTORS[1].id,
           username: EXTERNAL_ACTORS[1].username,
           name: EXTERNAL_ACTORS[1].name,
@@ -289,7 +263,7 @@ describe('ActorStorage', () => {
 
     describe('#updateActor', () => {
       it('updates actor information and returns it in mastodon actor', async () => {
-        await storage.updateActor({
+        await database.updateActor({
           actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           name: 'name',
           summary: 'summary',
@@ -299,7 +273,7 @@ describe('ActorStorage', () => {
           publicKey: 'publicKey'
         })
 
-        const actor = await storage.getMastodonActorFromUsername({
+        const actor = await database.getMastodonActorFromUsername({
           username: TEST_USERNAME3,
           domain: TEST_DOMAIN
         })
@@ -331,7 +305,7 @@ describe('ActorStorage', () => {
       })
 
       it('updates actor information and returns it in actor', async () => {
-        await storage.updateActor({
+        await database.updateActor({
           actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
           name: 'name2',
           summary: 'summary2',
@@ -341,7 +315,7 @@ describe('ActorStorage', () => {
           publicKey: 'publicKey2'
         })
 
-        const actor = await storage.getActorFromUsername({
+        const actor = await database.getActorFromUsername({
           username: TEST_USERNAME3,
           domain: TEST_DOMAIN
         })
@@ -363,21 +337,21 @@ describe('ActorStorage', () => {
 
     describe('#isInternalActor', () => {
       it('returns true when actor is internal', async () => {
-        const result = await storage.isInternalActor({
+        const result = await database.isInternalActor({
           actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
         })
         expect(result).toBeTrue()
       })
 
       it('returns false when actor is external', async () => {
-        const result = await storage.isInternalActor({
+        const result = await database.isInternalActor({
           actorId: EXTERNAL_ACTORS[0].id
         })
         expect(result).toBeFalse()
       })
 
       it('returns false when actor is not exists', async () => {
-        const result = await storage.isInternalActor({
+        const result = await database.isInternalActor({
           actorId: 'https://notfound.test/actor'
         })
         expect(result).toBeFalse()

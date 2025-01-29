@@ -1,6 +1,6 @@
 import { Mastodon } from '@llun/activities.schema'
 
-import { Actor } from '../../models/actor'
+import { Actor } from '@/lib/models/actor'
 
 export type CreateActorParams = {
   actorId: string
@@ -52,7 +52,7 @@ export type GetActorFollowersCountParams = { actorId: string }
 
 export type IsInternalActorParams = { actorId: string }
 
-export interface ActorStorage {
+export interface ActorDatabase {
   createActor(params: CreateActorParams): Promise<Actor | undefined>
   createMastodonActor(
     params: CreateActorParams

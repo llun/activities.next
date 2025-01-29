@@ -8,7 +8,7 @@ import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { FollowAction } from '@/lib/components/FollowAction'
 import { Profile } from '@/lib/components/Profile'
 import { getConfig } from '@/lib/config'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 
 import { ActorTimelines } from './ActorTimelines'
 import styles from './[actor].module.scss'
@@ -30,12 +30,10 @@ export const generateMetadata = async ({
 
 const Page: FC<Props> = async ({ params }) => {
   const { host } = getConfig()
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
-  if (!storage) throw new Error('Storage is not available')
+  const database = getDatabase()
+  if (!database) throw new Error('Database is not available')
 
+  const session = await getServerSession(getAuthOptions())
   const { actor } = await params
   const decodedActorHandle = decodeURIComponent(actor)
   const parts = decodedActorHandle.split('@').slice(1)
@@ -45,15 +43,18 @@ const Page: FC<Props> = async ({ params }) => {
 
   const [username, domain] = parts
   const isLoggedIn = Boolean(session?.user?.email)
-  const storageActor = await storage.getActorFromUsername({ username, domain })
+  const persistedActor = await database.getActorFromUsername({
+    username,
+    domain
+  })
 
-  if (!isLoggedIn && !storageActor?.account) {
+  if (!isLoggedIn && !persistedActor?.account) {
     return notFound()
   }
 
-  const actorProfile = storageActor?.account
-    ? await getInternalActorProfile(storage, storageActor)
-    : await getExternalActorProfile(storage, decodedActorHandle)
+  const actorProfile = persistedActor?.account
+    ? await getInternalActorProfile(database, persistedActor)
+    : await getExternalActorProfile(database, decodedActorHandle)
   if (!actorProfile) {
     return notFound()
   }

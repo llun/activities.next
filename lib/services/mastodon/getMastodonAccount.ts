@@ -1,16 +1,16 @@
 import { Mastodon } from '@llun/activities.schema'
 
+import { Database } from '@/lib/database/types'
 import { ActorData } from '@/lib/models/actor'
-import { Storage } from '@/lib/storage/types'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const getMastodonAccount = async (
-  storage: Storage,
+  database: Database,
   actor: ActorData
 ) => {
   const [statusesCount, statuses] = await Promise.all([
-    storage.getActorStatusesCount({ actorId: actor.id }),
-    storage.getActorStatuses({ actorId: actor.id })
+    database.getActorStatusesCount({ actorId: actor.id }),
+    database.getActorStatuses({ actorId: actor.id })
   ])
 
   return Mastodon.Account.parse({

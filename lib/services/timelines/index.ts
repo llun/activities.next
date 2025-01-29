@@ -1,6 +1,6 @@
+import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
-import { Storage } from '@/lib/storage/types'
 import { getTracer } from '@/lib/utils/trace'
 
 import { mainTimelineRule } from './main'
@@ -8,7 +8,7 @@ import { mentionTimelineRule } from './mention'
 import { noannounceTimelineRule } from './noaanounce'
 
 export const addStatusToTimelines = async (
-  storage: Storage,
+  database: Database,
   status: Status
 ): Promise<void> => {
   return getTracer().startActiveSpan(
@@ -19,7 +19,7 @@ export const addStatusToTimelines = async (
       const recipients = [...to, ...cc, actorId]
       const localActors = (
         await Promise.all(
-          recipients.map((id) => storage.getActorFromId({ id }))
+          recipients.map((id) => database.getActorFromId({ id }))
         )
       ).filter(
         (actor): actor is Actor =>
@@ -28,7 +28,7 @@ export const addStatusToTimelines = async (
       const getLocalActorsFromFollowerUrl = (
         await Promise.all(
           recipients.map((id) =>
-            storage.getLocalActorsFromFollowerUrl({ followerUrl: id })
+            database.getLocalActorsFromFollowerUrl({ followerUrl: id })
           )
         )
       ).flat()
@@ -55,10 +55,10 @@ export const addStatusToTimelines = async (
               const timeline = await timelineFunction({
                 currentActor: actor,
                 status: status.data,
-                storage
+                database
               })
               if (!timeline) return
-              return storage.createTimelineStatus({
+              return database.createTimelineStatus({
                 actorId: actor.id,
                 status,
                 timeline
