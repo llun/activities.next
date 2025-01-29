@@ -32,6 +32,8 @@ import {
 } from '@/lib/models/status'
 import { Tag, TagData } from '@/lib/models/tag'
 
+import { getCompatibleJSON } from './utils/getCompatibleJSON'
+
 export const StatusSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
@@ -342,7 +344,7 @@ export const StatusSQLDatabaseMixin = (
 
     await database.transaction(async (trx) => {
       if (text !== existingStatus.text || summary !== existingStatus.summary) {
-        const data = JSON.parse(existingStatus.content)
+        const data = getCompatibleJSON(existingStatus.content)
         const previousData = {
           text: data.text,
           summary: data.summary
@@ -601,7 +603,7 @@ export const StatusSQLDatabaseMixin = (
       )
       .filter((item): item is StatusNote => Boolean(item))
 
-    const content = JSON.parse(data.content)
+    const content = getCompatibleJSON(data.content)
     return new Status({
       id: data.id,
       url: content.url,
@@ -624,11 +626,11 @@ export const StatusSQLDatabaseMixin = (
       updatedAt: getCompatibleTime(data.updatedAt),
 
       edits: edits.map((item) => {
-        const content = JSON.parse(item.data)
+        const content = getCompatibleJSON(item.data)
         return {
           text: content.text,
           summary: content.summary ?? null,
-          createdAt: item.createdAt
+          createdAt: getCompatibleTime(item.createdAt)
         }
       }),
 

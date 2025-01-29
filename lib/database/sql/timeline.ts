@@ -31,6 +31,7 @@ export const TimelineSQLDatabaseMixin = (
           .where('statuses.reply', '')
           .orderBy('recipients.createdAt', 'desc')
           .limit(PER_PAGE_LIMIT)
+        console.log(query.toQuery())
         const local = await query
         const statuses = (
           await Promise.all(

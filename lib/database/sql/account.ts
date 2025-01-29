@@ -181,7 +181,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       accountId,
       token,
 
-      expireAt,
+      expireAt: new Date(expireAt),
 
       createdAt: currentTime,
       updatedAt: currentTime
