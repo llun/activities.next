@@ -144,7 +144,7 @@ export const StatusSQLDatabaseMixin = (
       await trx('status_history').insert({
         statusId: status.id,
         data: JSON.stringify(previousData),
-        createdAt: status.createdAt,
+        createdAt: new Date(status.createdAt),
         updatedAt: currentTime
       })
       await trx('statuses')
@@ -352,7 +352,7 @@ export const StatusSQLDatabaseMixin = (
         await trx('status_history').insert({
           statusId,
           data: JSON.stringify(previousData),
-          createdAt: existingStatus.createdAt,
+          createdAt: new Date(existingStatus.createdAt),
           updatedAt: currentTime
         })
         await trx('statuses')
