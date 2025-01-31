@@ -100,7 +100,7 @@ export const StatusSQLDatabaseMixin = (
     })
 
     const actor = await actorDatabase.getActorFromId({ id: actorId })
-    return new Status({
+    return Status.parse({
       id,
       url,
       actorId,
@@ -128,16 +128,15 @@ export const StatusSQLDatabaseMixin = (
     statusId,
     text,
     summary
-  }: UpdateNoteParams): Promise<Status | undefined> {
+  }: UpdateNoteParams): Promise<Status | null> {
     const status = await getStatus({ statusId })
-    if (!status) return
+    if (!status) return null
 
-    const data = status.data
-    if (data.type !== StatusType.enum.Note) return
+    if (status.type !== StatusType.enum.Note) return null
 
     const previousData = {
-      text: data.text,
-      summary: data.summary
+      text: status.text,
+      summary: status.summary
     }
     const currentTime = new Date()
     await database.transaction(async (trx) => {
@@ -216,7 +215,7 @@ export const StatusSQLDatabaseMixin = (
       getStatus({ statusId: originalStatusId }),
       actorDatabase.getActorFromId({ id: actorId })
     ])
-    const announceData: StatusAnnounce = {
+    return Status.parse({
       id,
       actorId,
       actor: actor?.toProfile() || null,
@@ -224,13 +223,11 @@ export const StatusSQLDatabaseMixin = (
       cc,
       edits: [],
       type: StatusType.enum.Announce,
-      originalStatus: originalStatus?.data as StatusNote,
+      originalStatus: originalStatus as StatusNote,
 
       createdAt: getCompatibleTime(statusUpdatedAt),
       updatedAt: getCompatibleTime(statusUpdatedAt)
-    }
-
-    return new Status(announceData)
+    })
   }
 
   async function createPoll({
@@ -306,7 +303,7 @@ export const StatusSQLDatabaseMixin = (
     })
 
     const actor = await actorDatabase.getActorFromId({ id: actorId })
-    return new Status({
+    return Status.parse({
       id,
       url,
       actorId,
@@ -339,7 +336,7 @@ export const StatusSQLDatabaseMixin = (
     const existingStatus = await database('statuses')
       .where('id', statusId)
       .first()
-    if (!existingStatus) return
+    if (!existingStatus) return null
     const currentTime = new Date()
 
     await database.transaction(async (trx) => {
@@ -387,7 +384,7 @@ export const StatusSQLDatabaseMixin = (
     currentActorId
   }: GetStatusParams) {
     const status = await database('statuses').where('id', statusId).first()
-    if (!status) return
+    if (!status) return null
 
     return getStatusWithAttachmentsFromData(status, currentActorId, withReplies)
   }
@@ -535,7 +532,7 @@ export const StatusSQLDatabaseMixin = (
         getStatus({ statusId: originalStatusId, currentActorId })
       ])
 
-      const announceData: StatusAnnounce = {
+      return StatusAnnounce.parse({
         id: data.id,
         actorId: data.actorId,
         actor: actor?.toProfile() || null,
@@ -543,13 +540,11 @@ export const StatusSQLDatabaseMixin = (
         to: to.map((item) => item.actorId),
         cc: cc.map((item) => item.actorId),
         edits: [],
-        originalStatus: originalStatus?.data as StatusNote,
+        originalStatus: originalStatus as StatusNote,
 
         createdAt: getCompatibleTime(data.createdAt),
         updatedAt: getCompatibleTime(data.updatedAt)
-      }
-
-      return new Status(announceData)
+      })
     }
 
     const [
@@ -594,17 +589,17 @@ export const StatusSQLDatabaseMixin = (
       await Promise.all(replies.map((item) => getStatus({ statusId: item.id })))
     )
       .map((item) =>
-        item?.data.type &&
+        item?.type &&
         [StatusType.enum.Note, StatusType.enum.Poll].includes(
-          item?.data.type as any // eslint-disable-line @typescript-eslint/no-explicit-any
+          item?.type as any // eslint-disable-line @typescript-eslint/no-explicit-any
         )
-          ? item.data
+          ? item
           : null
       )
       .filter((item): item is StatusNote => Boolean(item))
 
     const content = getCompatibleJSON(data.content)
-    return new Status({
+    return Status.parse({
       id: data.id,
       url: content.url,
       to: to.map((item) => item.actorId),

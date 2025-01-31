@@ -2,12 +2,12 @@ import { z } from 'zod'
 
 import { SecondsToDurationText } from '@/lib/components/PostBox/PollChoices'
 import { PostBoxAttachment } from '@/lib/models/attachment'
-import { StatusData } from '@/lib/models/status'
+import { Status } from '@/lib/models/status'
 
 export const CreateNoteRequest = z.object({
   type: z.literal('note'),
   message: z.string(),
-  replyStatus: StatusData.optional(),
+  replyStatus: Status.optional(),
   attachments: PostBoxAttachment.array().optional()
 })
 export type CreateNoteRequest = z.infer<typeof CreateNoteRequest>
@@ -23,7 +23,7 @@ export const CreatePollRequest = z.object({
         Object.keys(SecondsToDurationText).map(parseInt).includes(value),
       `Supported duration are ${Object.keys(SecondsToDurationText).join(',')}`
     ),
-  replyStatus: StatusData.optional()
+  replyStatus: Status.optional()
 })
 export type CreatePollRequest = z.infer<typeof CreatePollRequest>
 

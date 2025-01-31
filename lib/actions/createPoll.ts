@@ -34,7 +34,7 @@ export const createPollFromUserInput = async ({
   })
   const replyStatus = replyStatusId
     ? await database.getStatus({ statusId: replyStatusId, withReplies: false })
-    : undefined
+    : null
 
   const postId = crypto.randomUUID()
   const statusId = `${currentActor.id}/statuses/${postId}`
@@ -53,7 +53,7 @@ export const createPollFromUserInput = async ({
     summary: '',
     to,
     cc,
-    reply: replyStatus?.data.id || '',
+    reply: replyStatus?.id || '',
     choices,
     endAt
   })

@@ -52,9 +52,9 @@ describe('Announce action', () => {
       const originalStatus = await database.getStatus({
         statusId: `${actor1.id}/statuses/post-2`
       })
-      expect(status?.data).toMatchObject({
+      expect(status).toMatchObject({
         type: StatusType.enum.Announce,
-        originalStatus: originalStatus?.data
+        originalStatus: originalStatus
       })
 
       const lastCall = fetchMock.mock.lastCall

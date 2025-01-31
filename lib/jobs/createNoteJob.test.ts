@@ -4,7 +4,7 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
-import { StatusType } from '@/lib/models/status'
+import { Status, StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockImageDocument } from '@/lib/stub/imageDocument'
@@ -53,18 +53,18 @@ describe('createNoteJob', () => {
       data: note
     })
 
-    const status = await database.getStatus({ statusId: note.id })
-    if (status?.data.type !== StatusType.enum.Note) {
+    const status = (await database.getStatus({ statusId: note.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
     expect(status).toBeDefined()
-    expect(status?.data.id).toEqual(note.id)
-    expect(status?.data.text).toEqual('<p>Hello</p>')
-    expect(status?.data.actorId).toEqual(note.attributedTo)
-    expect(status?.data.to).toEqual(note.to)
-    expect(status?.data.cc).toEqual(note.cc)
-    expect(status?.data.type).toEqual(StatusType.enum.Note)
-    expect(status?.data.createdAt).toEqual(new Date(note.published).getTime())
+    expect(status.id).toEqual(note.id)
+    expect(status.text).toEqual('<p>Hello</p>')
+    expect(status.actorId).toEqual(note.attributedTo)
+    expect(status.to).toEqual(note.to)
+    expect(status.cc).toEqual(note.cc)
+    expect(status.type).toEqual(StatusType.enum.Note)
+    expect(status.createdAt).toEqual(new Date(note.published).getTime())
   })
 
   it('adds litepub note into database and returns note', async () => {
@@ -75,18 +75,18 @@ describe('createNoteJob', () => {
       data: note
     })
 
-    const status = await database.getStatus({ statusId: note.id })
-    if (status?.data.type !== StatusType.enum.Note) {
+    const status = (await database.getStatus({ statusId: note.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
     expect(status).toBeDefined()
-    expect(status?.data.id).toEqual(note.id)
-    expect(status?.data.text).toEqual('<p>Hello</p>')
-    expect(status?.data.actorId).toEqual(note.attributedTo)
-    expect(status?.data.to).toEqual(note.to)
-    expect(status?.data.cc).toEqual(note.cc)
-    expect(status?.data.type).toEqual(StatusType.enum.Note)
-    expect(status?.data.createdAt).toEqual(new Date(note.published).getTime())
+    expect(status.id).toEqual(note.id)
+    expect(status.text).toEqual('<p>Hello</p>')
+    expect(status.actorId).toEqual(note.attributedTo)
+    expect(status.to).toEqual(note.to)
+    expect(status.cc).toEqual(note.cc)
+    expect(status.type).toEqual(StatusType.enum.Note)
+    expect(status.createdAt).toEqual(new Date(note.published).getTime())
   })
 
   it('add status and attachments with status id into database', async () => {
@@ -105,12 +105,12 @@ describe('createNoteJob', () => {
       name: CREATE_NOTE_JOB_NAME,
       data: note
     })
-    const status = await database.getStatus({ statusId: note.id })
-    if (status?.data.type !== StatusType.enum.Note) {
+    const status = (await database.getStatus({ statusId: note.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
-    expect(status?.data.attachments.length).toEqual(2)
-    expect(status?.data.attachments[0]).toMatchObject({
+    expect(status.attachments.length).toEqual(2)
+    expect(status.attachments[0]).toMatchObject({
       statusId: note.id,
       mediaType: 'image/jpeg',
       name: '',
@@ -118,7 +118,7 @@ describe('createNoteJob', () => {
       width: 2000,
       height: 1500
     })
-    expect(status?.data.attachments[1]).toMatchObject({
+    expect(status.attachments[1]).toMatchObject({
       statusId: note.id,
       mediaType: 'image/jpeg',
       url: 'https://llun.dev/images/test2.jpg',
@@ -174,11 +174,11 @@ describe('createNoteJob', () => {
       name: CREATE_NOTE_JOB_NAME,
       data: note
     })
-    const status = await database.getStatus({ statusId: note.id })
-    if (status?.data.type !== StatusType.enum.Note) {
+    const status = (await database.getStatus({ statusId: note.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
-    expect(status.data.text).toEqual('<p>Hello</p>')
+    expect(status.text).toEqual('<p>Hello</p>')
   })
 
   it('adds note with content is array from wordpress', async () => {
@@ -191,10 +191,10 @@ describe('createNoteJob', () => {
       name: CREATE_NOTE_JOB_NAME,
       data: note
     })
-    const status = await database.getStatus({ statusId: note.id })
-    if (status?.data.type !== StatusType.enum.Note) {
+    const status = (await database.getStatus({ statusId: note.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
-    expect(status.data.text).toEqual('<p>Hello</p>')
+    expect(status.text).toEqual('<p>Hello</p>')
   })
 })

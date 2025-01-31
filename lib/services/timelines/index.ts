@@ -54,7 +54,7 @@ export const addStatusToTimelines = async (
             ].map(async (timelineFunction) => {
               const timeline = await timelineFunction({
                 currentActor: actor,
-                status: status.data,
+                status,
                 database
               })
               if (!timeline) return

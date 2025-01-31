@@ -9,7 +9,7 @@ import { MENTION_GLOBAL_REGEX, MentionMatchGroup } from './convertMarkdownText'
 interface GetMentionsParams {
   text: string
   currentActor: Actor
-  replyStatus?: Status
+  replyStatus: Status | null
 }
 export const getMentions = async ({
   text,

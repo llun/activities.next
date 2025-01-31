@@ -22,21 +22,19 @@ export const Edited = z.object({
 
 export type Edited = z.infer<typeof Edited>
 
-const StatusBase = z
-  .object({
-    id: z.string(),
-    actorId: z.string(),
-    actor: ActorProfile.nullable(),
+const StatusBase = z.object({
+  id: z.string(),
+  actorId: z.string(),
+  actor: ActorProfile.nullable(),
 
-    to: z.string().array(),
-    cc: z.string().array(),
+  to: z.string().array(),
+  cc: z.string().array(),
 
-    edits: Edited.array(),
+  edits: Edited.array(),
 
-    createdAt: z.number(),
-    updatedAt: z.number()
-  })
-  .passthrough()
+  createdAt: z.number(),
+  updatedAt: z.number()
+})
 
 export const StatusNote = StatusBase.extend({
   type: z.literal(StatusType.enum.Note),
@@ -84,208 +82,146 @@ export const StatusPoll = StatusBase.extend({
 
 export type StatusPoll = z.infer<typeof StatusPoll>
 
-export const StatusData = z.union([StatusNote, StatusAnnounce, StatusPoll])
-export type StatusData = z.infer<typeof StatusData>
+export const Status = z.union([StatusNote, StatusAnnounce, StatusPoll])
+export type Status = z.infer<typeof Status>
 
-export const EditableStatusData = z.union([StatusNote, StatusPoll])
-export type EditableStatusData = z.infer<typeof EditableStatusData>
+export const EditableStatus = z.union([StatusNote, StatusPoll])
+export type EditableStatus = z.infer<typeof EditableStatus>
 
-export class Status {
-  readonly data: StatusData
+export const fromNote = (note: Note): StatusNote => {
+  const currentTime = Date.now()
+  const attachments = (
+    Array.isArray(note.attachment) ? note.attachment : [note.attachment]
+  ).filter((item): item is Document => item?.type === 'Document')
 
-  constructor(params: StatusData) {
-    this.data = StatusData.parse(params)
-  }
+  return StatusNote.parse({
+    id: note.id,
+    url: note.url || note.id,
 
-  get id() {
-    return this.data.id
-  }
+    actorId: note.attributedTo,
+    actor: null,
 
-  get actorId() {
-    return this.data.actorId
-  }
+    type: StatusType.enum.Note,
 
-  get actor() {
-    return this.data.actor
-  }
+    text: getContent(note),
+    summary: getSummary(note),
 
-  get type() {
-    return this.data.type
-  }
+    to: Array.isArray(note.to) ? note.to : [note.to],
+    cc: Array.isArray(note.cc) ? note.cc : [note.cc],
+    edits: [],
 
-  get to() {
-    return this.data.to
-  }
+    reply: note.inReplyTo || '',
+    replies: [],
 
-  get cc() {
-    return this.data.cc
-  }
-
-  get reply() {
-    if (this.data.type === StatusType.enum.Note) return this.data.reply
-    return null
-  }
-
-  get url() {
-    if (this.data.type === StatusType.enum.Note) return this.data.url
-    return null
-  }
-
-  get content() {
-    if (this.data.type === StatusType.enum.Note) return this.data.text
-    return null
-  }
-
-  get attachments() {
-    if (this.data.type === StatusType.enum.Note) return this.data.attachments
-    return []
-  }
-
-  get createdAt() {
-    return this.data.createdAt
-  }
-
-  get updatedAt() {
-    return this.data.updatedAt
-  }
-
-  static fromNote(note: Note) {
-    const attachments = (
-      Array.isArray(note.attachment) ? note.attachment : [note.attachment]
-    ).filter((item): item is Document => item?.type === 'Document')
-
-    return new Status({
-      id: note.id,
-      url: note.url || note.id,
-
+    attachments: attachments.map((attachment) => ({
+      id: attachment.url,
       actorId: note.attributedTo,
-      actor: null,
+      statusId: note.id,
+      type: 'Document',
+      mediaType: attachment.mediaType,
+      url: attachment.url,
+      name: attachment.name ?? '',
 
-      type: StatusType.enum.Note,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })),
+    tags: [],
 
-      text: getContent(note),
-      summary: getSummary(note),
+    isActorAnnounced: false,
+    isActorLiked: false,
+    isLocalActor: false,
+    totalLikes: 0,
 
-      to: Array.isArray(note.to) ? note.to : [note.to],
-      cc: Array.isArray(note.cc) ? note.cc : [note.cc],
-      edits: [],
+    createdAt: new Date(note.published).getTime(),
+    updatedAt: currentTime
+  })
+}
 
-      reply: note.inReplyTo || '',
-      replies: [],
+export const fromAnnoucne = (
+  announce: AnnounceStatus,
+  originalStatus: StatusNote
+): StatusAnnounce => {
+  const currentTime = Date.now()
+  return StatusAnnounce.parse({
+    id: announce.id,
 
-      attachments: attachments.map((attachment) => ({
-        id: attachment.url,
-        actorId: note.attributedTo,
-        statusId: note.id,
-        type: 'Document',
-        mediaType: attachment.mediaType,
-        url: attachment.url,
-        name: attachment.name ?? '',
+    actorId: announce.actor,
+    actor: null,
 
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      })),
-      tags: [],
+    type: StatusType.enum.Announce,
 
-      isActorAnnounced: false,
-      isActorLiked: false,
-      isLocalActor: false,
-      totalLikes: 0,
+    to: Array.isArray(announce.to) ? announce.to : [announce.to],
+    cc: Array.isArray(announce.cc) ? announce.cc : [announce.cc],
+    edits: [],
 
-      createdAt: new Date(note.published).getTime(),
-      updatedAt: Date.now()
-    })
-  }
+    originalStatus,
 
-  static fromAnnoucne(announce: AnnounceStatus, originalStatus: StatusNote) {
-    return new Status({
-      id: announce.id,
+    createdAt: new Date(announce.published).getTime(),
+    updatedAt: currentTime
+  })
+}
 
-      actorId: announce.actor,
-      actor: null,
+export const toMastodonObject = (status: Status): Note | Question => {
+  if (status.type === StatusType.enum.Poll) {
+    return Question.parse({
+      id: status.id,
+      type: ENTITY_TYPE_QUESTION,
+      summary: status.summary || null,
 
-      type: StatusType.enum.Announce,
+      url: status.url,
+      attributedTo: status.actorId,
+      to: status.to,
+      cc: status.cc,
+      inReplyTo: status.reply || null,
+      content: status.text,
+      tag: status.tags.map((tag) => new Tag(tag).toObject()),
 
-      to: Array.isArray(announce.to) ? announce.to : [announce.to],
-      cc: Array.isArray(announce.cc) ? announce.cc : [announce.cc],
-      edits: [],
-
-      originalStatus,
-
-      createdAt: new Date(announce.published).getTime(),
-      updatedAt: Date.now()
-    })
-  }
-
-  toObject(): Note | Question {
-    if (this.data.type === StatusType.enum.Poll) {
-      const data = this.data
-      return {
-        id: data.id,
-        type: ENTITY_TYPE_QUESTION,
-        summary: data.summary || null,
-
-        url: data.url,
-        attributedTo: data.actorId,
-        to: data.to,
-        cc: data.cc,
-        inReplyTo: data.reply || null,
-        content: data.text,
-        tag: data.tags.map((tag) => new Tag(tag).toObject()),
-
-        oneOf: [],
-        replies: {
-          id: `${data.id}/replies`,
-          type: 'Collection',
-          totalItems: data.replies.length,
-          items: data.replies.map((reply) => {
-            const status = new Status(StatusData.parse(reply))
-            return status.toObject()
-          })
-        },
-
-        published: getISOTimeUTC(data.createdAt),
-        endTime: getISOTimeUTC(data.endAt),
-        ...(data.updatedAt ? { updated: getISOTimeUTC(data.updatedAt) } : null)
-      } as Question
-    }
-
-    const data =
-      this.data.type === StatusType.enum.Announce
-        ? this.data.originalStatus
-        : this.data
-
-    return {
-      id: data.id,
-      type: data.type,
-      summary: data.summary || null,
-      url: data.url,
-      attributedTo: data.actorId,
-      to: data.to,
-      cc: data.cc,
-      inReplyTo: data.reply || null,
-      content: data.text,
-      attachment: data.attachments.map((attachment) =>
-        new Attachment(attachment).toObject()
-      ),
-      tag: data.tags.map((tag) => new Tag(tag).toObject()),
+      oneOf: [],
       replies: {
-        id: `${data.id}/replies`,
+        id: `${status.id}/replies`,
         type: 'Collection',
-        totalItems: data.replies.length,
-        items: data.replies.map((reply) => {
-          const status = new Status(StatusData.parse(reply))
-          return status.toObject()
-        })
+        totalItems: status.replies.length,
+        items: status.replies.map((reply) =>
+          toMastodonObject(Status.parse(reply))
+        )
       },
 
-      published: getISOTimeUTC(data.createdAt),
-      ...(data.updatedAt ? { updated: getISOTimeUTC(data.updatedAt) } : null)
-    } as Note
+      published: getISOTimeUTC(status.createdAt),
+      endTime: getISOTimeUTC(status.endAt),
+      ...(status.updatedAt
+        ? { updated: getISOTimeUTC(status.updatedAt) }
+        : null)
+    })
   }
 
-  toJson(): StatusData {
-    // TODO: Find a better way to clean the data
-    return JSON.parse(JSON.stringify(this.data))
-  }
+  const originalStatus =
+    status.type === StatusType.enum.Announce ? status.originalStatus : status
+  return Note.parse({
+    id: originalStatus.id,
+    type: originalStatus.type,
+    summary: originalStatus.summary || null,
+    url: originalStatus.url,
+    attributedTo: originalStatus.actorId,
+    to: originalStatus.to,
+    cc: originalStatus.cc,
+    inReplyTo: originalStatus.reply || null,
+    content: originalStatus.text,
+    attachment: originalStatus.attachments.map((attachment) =>
+      new Attachment(attachment).toObject()
+    ),
+    tag: originalStatus.tags.map((tag) => new Tag(tag).toObject()),
+    replies: {
+      id: `${originalStatus.id}/replies`,
+      type: 'Collection',
+      totalItems: originalStatus.replies.length,
+      items: originalStatus.replies.map((reply) =>
+        toMastodonObject(Status.parse(reply))
+      )
+    },
+
+    published: getISOTimeUTC(originalStatus.createdAt),
+    ...(originalStatus.updatedAt
+      ? { updated: getISOTimeUTC(originalStatus.updatedAt) }
+      : null)
+  })
 }

@@ -4,12 +4,13 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
-import { StatusType } from '@/lib/models/status'
+import { Status, StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockAnnounceStatus } from '@/lib/stub/announce'
 import { seedDatabase } from '@/lib/stub/database'
 import { stubNoteId } from '@/lib/stub/note'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { cleanJson } from '@/lib/utils/cleanJson'
 
 enableFetchMocks()
 
@@ -52,14 +53,14 @@ describe('Announce action', () => {
       statusId: `${statusId}/activity`
     })
     expect(status).toBeDefined()
-    const boostedStatus = await database.getStatus({
+    const boostedStatus = (await database.getStatus({
       statusId: announceStatusId
-    })
-    const statusData = status?.toJson()
+    })) as Status
+    const statusData = cleanJson(status)
     if (statusData?.type !== StatusType.enum.Announce) {
       fail('Status type must be announce')
     }
-    expect(statusData.originalStatus).toEqual(boostedStatus?.toJson())
+    expect(statusData.originalStatus).toEqual(cleanJson(boostedStatus))
   })
 
   it('loads announce with attachments and save both locally', async () => {
@@ -75,13 +76,13 @@ describe('Announce action', () => {
         announceStatusId
       })
     })
-    const boostedStatus = await database.getStatus({
+    const boostedStatus = (await database.getStatus({
       statusId: announceStatusId
-    })
-    if (boostedStatus?.data.type !== StatusType.enum.Note) {
+    })) as Status
+    if (boostedStatus.type !== StatusType.enum.Note) {
       fail('Status type must be note')
     }
-    expect(boostedStatus?.data.attachments).toHaveLength(2)
+    expect(boostedStatus.attachments).toHaveLength(2)
   })
 
   it('record content from content map if content is undefined', async () => {
@@ -101,14 +102,14 @@ describe('Announce action', () => {
       statusId: `${statusId}/activity`
     })
     expect(status).toBeDefined()
-    const boostedStatus = await database.getStatus({
+    const boostedStatus = (await database.getStatus({
       statusId: announceStatusId
-    })
+    })) as Status
     expect(boostedStatus).toBeDefined()
-    if (boostedStatus?.data.type !== StatusType.enum.Note) {
+    if (boostedStatus.type !== StatusType.enum.Note) {
       fail('Boost status must be note')
     }
-    expect(boostedStatus.data.text).toEqual('This is litepub status')
+    expect(boostedStatus.text).toEqual('This is litepub status')
   })
 
   it('does not load and create status that already exists', async () => {

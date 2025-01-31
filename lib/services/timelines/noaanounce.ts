@@ -76,7 +76,7 @@ export const noannounceTimelineRule: NoAnnounceTimelineRule = async ({
       const value = await noannounceTimelineRule({
         database,
         currentActor,
-        status: repliedStatus.data
+        status: repliedStatus
       })
       span.end()
       return value

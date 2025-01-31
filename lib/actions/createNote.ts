@@ -6,9 +6,9 @@ import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
 import { PostBoxAttachment } from '@/lib/models/attachment'
 import { FollowStatus } from '@/lib/models/follow'
-import { Status } from '@/lib/models/status'
+import { Status, StatusNote } from '@/lib/models/status'
 import { addStatusToTimelines } from '@/lib/services/timelines'
-import { getNoteFromStatusData } from '@/lib/utils/getNoteFromStatusData'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
@@ -19,7 +19,10 @@ import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
 
 // TODO: Support status visibility public, unlist, followers only, mentions only
-export const statusRecipientsTo = (actor: Actor, replyStatus?: Status) => {
+export const statusRecipientsTo = (
+  actor: Actor,
+  replyStatus: Status | null
+) => {
   if (!replyStatus) {
     return [ACTIVITY_STREAM_PUBLIC]
   }
@@ -38,7 +41,7 @@ export const statusRecipientsTo = (actor: Actor, replyStatus?: Status) => {
 export const statusRecipientsCC = (
   actor: Actor,
   mentions: Mention[],
-  replyStatus?: Status
+  replyStatus: Status | null
 ) => {
   if (!replyStatus) {
     return [actor.followersUrl, ...mentions.map((item) => item.href)]
@@ -72,7 +75,7 @@ export const createNoteFromUserInput = async ({
   const span = getSpan('actions', 'createNoteFromUser', { text, replyNoteId })
   const replyStatus = replyNoteId
     ? await database.getStatus({ statusId: replyNoteId, withReplies: false })
-    : undefined
+    : null
 
   const postId = crypto.randomUUID()
   const statusId = `${currentActor.id}/statuses/${postId}`
@@ -95,7 +98,7 @@ export const createNoteFromUserInput = async ({
     to,
     cc,
 
-    reply: replyStatus?.data.id || ''
+    reply: replyStatus?.id || ''
   })
 
   await Promise.all([
@@ -121,7 +124,10 @@ export const createNoteFromUserInput = async ({
     )
   ])
 
-  const status = await database.getStatus({ statusId, withReplies: false })
+  const status = (await database.getStatus({
+    statusId,
+    withReplies: false
+  })) as StatusNote
   if (!status) {
     span.end()
     return null
@@ -149,7 +155,7 @@ export const createNoteFromUserInput = async ({
     targetActorId: currentActor.id
   })
 
-  const note = getNoteFromStatusData(status.data)
+  const note = getNoteFromStatus(status)
   if (!note) {
     span.end()
     return status
