@@ -167,11 +167,13 @@ export const StatusFirestoreDatabaseMixin = (
     if (!originalStatus) return null
     if (originalStatus.type !== StatusType.enum.Note) return null
 
+    const actor = await actorDatabase.getActorFromId({ id: actorId })
     return StatusAnnounce.parse({
       ...status,
       ...(originalStatus && { originalStatus }),
       edits: [],
       type: StatusType.enum.Announce,
+      isLocalActor: Boolean(actor?.account),
       actor: null
     })
   }
@@ -244,6 +246,7 @@ export const StatusFirestoreDatabaseMixin = (
       totalLikes: 0,
       isActorLiked: false,
       isActorAnnounced: false,
+      isLocalActor: Boolean(actor?.account),
       edits: [],
       tags: [],
       replies: [],

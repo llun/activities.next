@@ -19,13 +19,15 @@ describe('Announce action', () => {
       filename: ':memory:'
     }
   })
-  let actor1: Actor | undefined
+  let actor1: Actor
 
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
 
-    actor1 = await database.getActorFromEmail({ email: seedActor1.email })
+    actor1 = (await database.getActorFromEmail({
+      email: seedActor1.email
+    })) as Actor
   })
 
   afterAll(async () => {
@@ -40,9 +42,6 @@ describe('Announce action', () => {
 
   describe('#userAnnounce', () => {
     it('create announce status and send to followers inbox', async () => {
-      if (!actor1) {
-        fail('Actor1 is required')
-      }
       const status = await userAnnounce({
         currentActor: actor1,
         statusId: `${actor1.id}/statuses/post-2`,
@@ -71,9 +70,6 @@ describe('Announce action', () => {
     })
 
     it('does not create duplicate announce', async () => {
-      if (!actor1) {
-        fail('Actor1 is required')
-      }
       const status = await userAnnounce({
         currentActor: actor1,
         statusId: `${actor1.id}/statuses/post-3`,

@@ -28,6 +28,7 @@ import {
   Status,
   StatusAnnounce,
   StatusNote,
+  StatusPoll,
   StatusType
 } from '@/lib/models/status'
 import { Tag, TagData } from '@/lib/models/tag'
@@ -100,7 +101,7 @@ export const StatusSQLDatabaseMixin = (
     })
 
     const actor = await actorDatabase.getActorFromId({ id: actorId })
-    return Status.parse({
+    return StatusNote.parse({
       id,
       url,
       actorId,
@@ -215,7 +216,7 @@ export const StatusSQLDatabaseMixin = (
       getStatus({ statusId: originalStatusId }),
       actorDatabase.getActorFromId({ id: actorId })
     ])
-    return Status.parse({
+    return StatusAnnounce.parse({
       id,
       actorId,
       actor: actor?.toProfile() || null,
@@ -225,6 +226,7 @@ export const StatusSQLDatabaseMixin = (
       type: StatusType.enum.Announce,
       originalStatus: originalStatus as StatusNote,
 
+      isLocalActor: Boolean(actor?.account),
       createdAt: getCompatibleTime(statusUpdatedAt),
       updatedAt: getCompatibleTime(statusUpdatedAt)
     })
@@ -303,7 +305,7 @@ export const StatusSQLDatabaseMixin = (
     })
 
     const actor = await actorDatabase.getActorFromId({ id: actorId })
-    return Status.parse({
+    return StatusPoll.parse({
       id,
       url,
       actorId,
@@ -315,6 +317,7 @@ export const StatusSQLDatabaseMixin = (
       to,
       cc,
       edits: [],
+      attachments: [],
       tags: [],
       replies: [],
       choices: [],
@@ -322,6 +325,7 @@ export const StatusSQLDatabaseMixin = (
       isActorLiked: false,
       isActorAnnounced: false,
       endAt,
+      isLocalActor: Boolean(actor?.account),
       createdAt: getCompatibleTime(statusCreatedAt),
       updatedAt: getCompatibleTime(statusUpdatedAt)
     })
@@ -540,7 +544,7 @@ export const StatusSQLDatabaseMixin = (
         cc: cc.map((item) => item.actorId),
         edits: [],
         originalStatus: originalStatus as StatusNote,
-
+        isLocalActor: Boolean(actor?.account),
         createdAt: getCompatibleTime(data.createdAt),
         updatedAt: getCompatibleTime(data.updatedAt)
       })
