@@ -531,7 +531,6 @@ export const StatusSQLDatabaseMixin = (
         actorDatabase.getActorFromId({ id: data.actorId }),
         getStatus({ statusId: originalStatusId, currentActorId })
       ])
-
       return StatusAnnounce.parse({
         id: data.id,
         actorId: data.actorId,

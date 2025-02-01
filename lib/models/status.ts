@@ -42,7 +42,7 @@ export const StatusNote = StatusBase.extend({
   text: z.string(),
   summary: z.string().nullable().optional(),
   reply: z.string(),
-  replies: StatusBase.array(),
+  replies: StatusBase.passthrough().array(),
 
   isActorAnnounced: z.boolean(),
   isActorLiked: z.boolean(),
@@ -52,14 +52,12 @@ export const StatusNote = StatusBase.extend({
   attachments: AttachmentData.array(),
   tags: TagData.array()
 })
-
 export type StatusNote = z.infer<typeof StatusNote>
 
 export const StatusAnnounce = StatusBase.extend({
   type: z.literal(StatusType.enum.Announce),
   originalStatus: StatusNote
 })
-
 export type StatusAnnounce = z.infer<typeof StatusAnnounce>
 
 export const StatusPoll = StatusBase.extend({
@@ -68,7 +66,7 @@ export const StatusPoll = StatusBase.extend({
   text: z.string(),
   summary: z.string().nullable().optional(),
   reply: z.string(),
-  replies: StatusBase.array(),
+  replies: StatusBase.passthrough().array(),
 
   isActorAnnounced: z.boolean(),
   isActorLiked: z.boolean(),
@@ -79,7 +77,6 @@ export const StatusPoll = StatusBase.extend({
 
   endAt: z.number()
 })
-
 export type StatusPoll = z.infer<typeof StatusPoll>
 
 export const Status = z.union([StatusNote, StatusAnnounce, StatusPoll])

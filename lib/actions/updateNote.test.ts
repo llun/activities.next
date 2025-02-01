@@ -7,7 +7,7 @@ import { Status } from '@/lib/models/status'
 import { expectCall, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { getNoteFromStatusData } from '@/lib/utils/getNoteFromStatus'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
 enableFetchMocks()
@@ -66,7 +66,7 @@ describe('Update note action', () => {
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
-        object: getNoteFromStatusData(status)
+        object: getNoteFromStatus(status)
       })
     })
 

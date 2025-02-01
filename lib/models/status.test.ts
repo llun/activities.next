@@ -5,6 +5,7 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import {
   Status,
+  StatusNote,
   StatusType,
   fromNote,
   toMastodonObject
@@ -129,11 +130,8 @@ describe('Status', () => {
         const status = (await database.getStatus({
           statusId,
           withReplies: true
-        })) as Status
+        })) as StatusNote
         const note = toMastodonObject(status)
-        if (status.type !== StatusType.enum.Note) {
-          fail('Status type must be Note')
-        }
         expect(note).toEqual({
           id: statusId,
           type: StatusType.enum.Note,
