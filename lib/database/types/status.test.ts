@@ -30,7 +30,7 @@ describe('StatusDatabase', () => {
         const status = await database.getStatus({
           statusId: `${ACTOR1_ID}/statuses/post-1`
         })
-        expect(toMastodonObject(status as Status)).toEqual({
+        expect(status).toEqual({
           id: 'https://llun.test/users/test1/statuses/post-1',
           actorId: 'https://llun.test/users/test1',
           actor: {
@@ -67,12 +67,12 @@ describe('StatusDatabase', () => {
       })
 
       it('returns status with replies', async () => {
-        const status = await database.getStatus({
+        const status = (await database.getStatus({
           statusId: `${ACTOR1_ID}/statuses/post-1`,
           withReplies: true
-        })
-        expect(toMastodonObject(status as Status).replies).toHaveLength(1)
-        expect(toMastodonObject(status as Status)).toMatchObject({
+        })) as StatusNote
+        expect(status.replies).toHaveLength(1)
+        expect(status).toMatchObject({
           id: 'https://llun.test/users/test1/statuses/post-1',
           actorId: 'https://llun.test/users/test1',
           actor: {
