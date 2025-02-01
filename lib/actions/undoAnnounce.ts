@@ -1,7 +1,7 @@
 import { undoAnnounce } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
-import { StatusAnnounce, StatusType } from '@/lib/models/status'
+import { StatusType } from '@/lib/models/status'
 
 interface UserUndoAnnounceParams {
   currentActor: Actor

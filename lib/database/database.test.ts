@@ -1,4 +1,5 @@
 import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
+import { CollectionWithItems } from '@llun/activities.schema'
 
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
 import {
@@ -13,10 +14,16 @@ import { FollowStatus } from '@/lib/models/follow'
 import { AuthCode } from '@/lib/models/oauth2/authCode'
 import { Client } from '@/lib/models/oauth2/client'
 import { Token } from '@/lib/models/oauth2/token'
-import { StatusNote, StatusType } from '@/lib/models/status'
+import {
+  Status,
+  StatusNote,
+  StatusType,
+  toMastodonObject
+} from '@/lib/models/status'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
 import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '@/lib/stub/const'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { waitFor } from '@/lib/utils/waitFor'
@@ -602,7 +609,7 @@ describe('Database', () => {
         })
 
         const actor = await database.getActorFromId({ id: TEST_ID })
-        expect(status.data).toEqual({
+        expect(status).toEqual({
           id,
           url: id,
           actorId: actor?.id,
@@ -652,14 +659,11 @@ describe('Database', () => {
           height: 150
         })
 
-        const persistedStatus = await database.getStatus({ statusId: id })
-        if (persistedStatus?.data.type !== StatusType.enum.Note) {
-          fail('status type must be Note')
-        }
-        expect(persistedStatus?.data.attachments).toHaveLength(1)
-        expect(persistedStatus?.data.attachments[0]).toMatchObject(
-          attachment.data
-        )
+        const persistedStatus = (await database.getStatus({
+          statusId: id
+        })) as StatusNote
+        expect(persistedStatus.attachments).toHaveLength(1)
+        expect(persistedStatus.attachments[0]).toMatchObject(attachment.data)
       })
 
       it('returns tags with status', async () => {
@@ -680,12 +684,11 @@ describe('Database', () => {
           value: `https://${TEST_DOMAIN}/@test2`,
           type: 'mention'
         })
-        const persistedStatus = await database.getStatus({ statusId: id })
-        if (persistedStatus?.data.type !== StatusType.enum.Note) {
-          fail('status type must be Note')
-        }
-        expect(persistedStatus?.data.tags).toHaveLength(1)
-        expect(persistedStatus?.data.tags[0]).toMatchObject(tag.data)
+        const persistedStatus = (await database.getStatus({
+          statusId: id
+        })) as StatusNote
+        expect(persistedStatus.tags).toHaveLength(1)
+        expect(persistedStatus.tags[0]).toMatchObject(tag.data)
       })
 
       it('returns main timeline statuses', async () => {
@@ -719,7 +722,7 @@ describe('Database', () => {
         for (const index in statuses) {
           const statusId = `https://llun.dev/users/null/statuses/post-${50 - parseInt(index, 10)}`
           const expectedStatus = await database.getStatus({ statusId })
-          expect(statuses[index].toJson()).toEqual(expectedStatus?.toJson())
+          expect(cleanJson(statuses[index])).toEqual(cleanJson(expectedStatus))
         }
       }, 10000)
 
@@ -827,8 +830,8 @@ describe('Database', () => {
           statusId: otherServerUser2Status(19)
         })
         expect(statuses).not.toContainValues([
-          mainStatusForReply.toJson(),
-          otherServerStatus2?.toJson()
+          cleanJson(mainStatusForReply),
+          cleanJson(otherServerStatus2)
         ])
       })
 
@@ -949,31 +952,23 @@ describe('Database', () => {
           cc: [TEST_ID9]
         })
 
-        const status = await database.getStatus({
+        const status = (await database.getStatus({
           statusId: statusWithRepliesId,
           withReplies: true
-        })
-        if (status?.data.type !== StatusType.enum.Note) {
-          fail('Status type must be Note')
-        }
-        expect(status?.data.replies).toHaveLength(2)
-        expect(status?.data.replies).toContainAllValues([
-          reply1.data,
-          reply2.data
-        ])
+        })) as StatusNote
+        expect(status.replies).toHaveLength(2)
+        expect(status.replies).toContainAllValues([reply1, reply2])
 
-        const note = status?.toObject()
-
-        if (!note) fail('Note must be exist')
-        if (!note.replies) fail('Note must have replies')
-        if (!('totalItems' in note.replies)) {
-          fail('Replies must have totalItems')
-        }
-
-        expect(note?.replies.totalItems).toEqual(2)
-        expect(note?.replies.items).toContainAllValues([
-          (await database.getStatus({ statusId: reply1Id }))?.toObject(),
-          (await database.getStatus({ statusId: reply2Id }))?.toObject()
+        const note = toMastodonObject(status)
+        const replies = note.replies as CollectionWithItems
+        expect(replies.totalItems).toEqual(2)
+        expect(replies.items).toContainAllValues([
+          toMastodonObject(
+            (await database.getStatus({ statusId: reply1Id })) as Status
+          ),
+          toMastodonObject(
+            (await database.getStatus({ statusId: reply2Id })) as Status
+          )
         ])
       })
 
@@ -1021,7 +1016,7 @@ describe('Database', () => {
           timeline: Timeline.MAIN,
           actorId: TEST_ID14
         })
-        const statusData = test14Statuses.shift()?.data as StatusNote
+        const statusData = test14Statuses.shift() as StatusNote
         expect(statusData.isActorAnnounced).toBeTrue()
 
         const test15Statuses = await database.getTimeline({
@@ -1029,11 +1024,11 @@ describe('Database', () => {
           actorId: TEST_ID15
         })
         const announceStatus = test15Statuses.shift()
-        if (announceStatus?.data.type !== StatusType.enum.Announce) {
+        if (announceStatus?.type !== StatusType.enum.Announce) {
           fail('Status must be announce')
         }
 
-        const originalStatus = announceStatus.data.originalStatus
+        const originalStatus = announceStatus.originalStatus
         expect(originalStatus.id).toEqual(note.id)
       })
     })
@@ -1041,7 +1036,7 @@ describe('Database', () => {
     describe('likes', () => {
       it('returns status with likes count', async () => {
         const statusId = `${TEST_ID12}/posts/1`
-        const status = await database.createNote({
+        const status = (await database.createNote({
           id: statusId,
           url: statusId,
           actorId: TEST_ID12,
@@ -1049,17 +1044,21 @@ describe('Database', () => {
           text: 'Status without likes',
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
-        })
-        expect((status?.data as StatusNote).totalLikes).toEqual(0)
+        })) as StatusNote
+        expect(status.totalLikes).toEqual(0)
 
         await database.createLike({ actorId: TEST_ID, statusId })
-        const statusAfterLiked = await database.getStatus({ statusId })
-        expect((statusAfterLiked?.data as StatusNote).totalLikes).toEqual(1)
+        const statusAfterLiked = (await database.getStatus({
+          statusId
+        })) as StatusNote
+        expect(statusAfterLiked.totalLikes).toEqual(1)
         expect(await database.getLikeCount({ statusId })).toEqual(1)
 
         await database.deleteLike({ actorId: TEST_ID, statusId })
-        const statusAfterUnliked = await database.getStatus({ statusId })
-        expect((statusAfterUnliked?.data as StatusNote).totalLikes).toEqual(0)
+        const statusAfterUnliked = (await database.getStatus({
+          statusId
+        })) as StatusNote
+        expect(statusAfterUnliked.totalLikes).toEqual(0)
         expect(await database.getLikeCount({ statusId })).toEqual(0)
       })
 

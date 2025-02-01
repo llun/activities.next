@@ -96,7 +96,7 @@ describe('#mainTimelineRule', () => {
       await mainTimelineRule({
         database,
         currentActor: actor,
-        status: status
+        status
       })
     ).toBeNull()
   })

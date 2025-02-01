@@ -169,7 +169,7 @@ export const StatusFirestoreDatabaseMixin = (
 
     return StatusAnnounce.parse({
       ...status,
-      ...(originalStatus && { originalStatus: originalStatus }),
+      ...(originalStatus && { originalStatus }),
       edits: [],
       type: StatusType.enum.Announce,
       actor: null
@@ -473,7 +473,7 @@ export const StatusFirestoreDatabaseMixin = (
         cc: data.cc,
         edits: [],
 
-        originalStatus: originalStatus,
+        originalStatus,
 
         createdAt: data.createdAt,
         updatedAt: data.updatedAt
@@ -563,23 +563,6 @@ export const StatusFirestoreDatabaseMixin = (
       .collection(`statuses/${urlToId(statusId)}/history`)
       .get()
     return snapshot.docs.map((item) => item.data() as Edited)
-  }
-
-  async function getReplies(statusId: string) {
-    const statuses = firestore.collection('statuses')
-    const snapshot = await statuses
-      .where('reply', '==', statusId)
-      .orderBy('createdAt', 'desc')
-      .get()
-    const replies = await Promise.all(
-      snapshot.docs.map(async (item) => {
-        const data = item.data()
-        const status = await getStatusFromData(data, false)
-        if (status?.type !== StatusType.enum.Note) return null
-        return status
-      })
-    )
-    return replies.filter((item): item is StatusNote => Boolean(item))
   }
 
   return {

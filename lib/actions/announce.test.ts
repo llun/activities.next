@@ -54,7 +54,7 @@ describe('Announce action', () => {
       })
       expect(status).toMatchObject({
         type: StatusType.enum.Announce,
-        originalStatus: originalStatus
+        originalStatus
       })
 
       const lastCall = fetchMock.mock.lastCall
