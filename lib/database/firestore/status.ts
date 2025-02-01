@@ -30,6 +30,7 @@ import {
   Status,
   StatusAnnounce,
   StatusNote,
+  StatusPoll,
   StatusType
 } from '@/lib/models/status'
 import { Tag, TagData } from '@/lib/models/tag'
@@ -41,7 +42,7 @@ export interface FirestoreStatusDatabase extends StatusDatabase {
     data: any,
     withReplies: boolean,
     currentActorId?: string
-  ): Promise<Status | undefined>
+  ): Promise<Status | null>
 }
 
 export const StatusFirestoreDatabaseMixin = (
@@ -89,7 +90,7 @@ export const StatusFirestoreDatabaseMixin = (
     ])
 
     const profile = actor?.toProfile()
-    return new Status({
+    return Status.parse({
       ...status,
       actor: profile
         ? {
@@ -113,18 +114,17 @@ export const StatusFirestoreDatabaseMixin = (
     statusId,
     text,
     summary
-  }: UpdateNoteParams): Promise<Status | undefined> {
+  }: UpdateNoteParams): Promise<Status | null> {
     const status = await getStatus({ statusId })
-    if (!status) return
+    if (!status) return null
 
-    const data = status.data
-    if (data.type !== StatusType.enum.Note) return
+    if (status.type !== StatusType.enum.Note) return null
 
     const currentTime = Date.now()
     const previousData = {
       statusId,
-      text: data.text,
-      summary: data.summary,
+      text: status.text,
+      summary: status.summary,
       createdAt: status.createdAt,
       updatedAt: currentTime
     }
@@ -165,17 +165,18 @@ export const StatusFirestoreDatabaseMixin = (
       statusId: originalStatusId,
       withReplies: false
     })
-    if (!originalStatus) return
-    if (originalStatus.data.type !== StatusType.enum.Note) return
+    if (!originalStatus) return null
+    if (originalStatus.type !== StatusType.enum.Note) return null
 
-    const announceData = StatusAnnounce.parse({
+    const actor = await actorDatabase.getActorFromId({ id: actorId })
+    return StatusAnnounce.parse({
       ...status,
-      ...(originalStatus?.data && { originalStatus: originalStatus.data }),
+      ...(originalStatus && { originalStatus }),
       edits: [],
       type: StatusType.enum.Announce,
+      isLocalActor: Boolean(actor?.account),
       actor: null
     })
-    return new Status(announceData)
   }
 
   async function createPoll({
@@ -234,7 +235,7 @@ export const StatusFirestoreDatabaseMixin = (
     )
 
     const profile = actor?.toProfile()
-    return new Status({
+    return StatusPoll.parse({
       ...status,
       actor: profile
         ? {
@@ -246,7 +247,9 @@ export const StatusFirestoreDatabaseMixin = (
       totalLikes: 0,
       isActorLiked: false,
       isActorAnnounced: false,
+      isLocalActor: Boolean(actor?.account),
       edits: [],
+      attachments: [],
       tags: [],
       replies: [],
       choices: choicesData.map((data) => new PollChoice(data).toJson())
@@ -261,7 +264,7 @@ export const StatusFirestoreDatabaseMixin = (
   }: UpdatePollParams) {
     const statusPath = `statuses/${urlToId(statusId)}`
     const snapshot = await firestore.doc(statusPath).get()
-    if (!snapshot.exists) return
+    if (!snapshot.exists) return null
 
     const snapshotData = snapshot.data()
     const currentTime = Date.now()
@@ -299,12 +302,25 @@ export const StatusFirestoreDatabaseMixin = (
   }: GetStatusParams) {
     const snapshot = await firestore.doc(`statuses/${urlToId(statusId)}`).get()
     const data = snapshot.data()
-    if (!data) return
+    if (!data) return null
     return getStatusFromData(data, withReplies, currentActorId)
   }
 
   async function getStatusReplies({ statusId }: GetStatusRepliesParams) {
-    return (await getReplies(statusId)).map((note) => new Status(note))
+    const statuses = firestore.collection('statuses')
+    const snapshot = await statuses
+      .where('reply', '==', statusId)
+      .orderBy('createdAt', 'desc')
+      .get()
+    const replies = await Promise.all(
+      snapshot.docs.map(async (item) => {
+        const data = item.data()
+        const status = await getStatusFromData(data, false)
+        if (status?.type !== StatusType.enum.Note) return null
+        return status
+      })
+    )
+    return replies.filter((item): item is StatusNote => Boolean(item))
   }
 
   async function hasActorAnnouncedStatus({
@@ -421,20 +437,20 @@ export const StatusFirestoreDatabaseMixin = (
     data: any,
     withReplies: boolean,
     currentActorId?: string
-  ): Promise<Status | undefined> {
-    if (!data) return
+  ): Promise<Status | null> {
+    if (!data) return null
 
     if (data.type === StatusType.enum.Announce) {
       if (!data.originalStatusId) {
-        logger.error('Announce status original status id is undefined', data.id)
-        return
+        logger.error('Announce status original status id is null', data.id)
+        return null
       }
 
       const snapshot = await firestore
         .doc(`statuses/${urlToId(data.originalStatusId)}`)
         .get()
       const originalStatusData = snapshot.data()
-      if (!originalStatusData) return
+      if (!originalStatusData) return null
 
       if (originalStatusData.type === StatusType.enum.Announce) {
         logger.error(
@@ -442,7 +458,7 @@ export const StatusFirestoreDatabaseMixin = (
           data.id,
           data.originalStatusId
         )
-        return
+        return null
       }
 
       const [originalStatus, actor] = await Promise.all([
@@ -451,8 +467,8 @@ export const StatusFirestoreDatabaseMixin = (
           id: data.actorId
         })
       ])
-      if (!originalStatus) return
-      return new Status({
+      if (!originalStatus) return null
+      return StatusAnnounce.parse({
         id: data.id,
         actorId: data.actorId,
         actor: actor?.toProfile() ?? null,
@@ -462,7 +478,8 @@ export const StatusFirestoreDatabaseMixin = (
         cc: data.cc,
         edits: [],
 
-        originalStatus: originalStatus?.data as StatusNote,
+        originalStatus,
+        isLocalActor: Boolean(actor?.account),
 
         createdAt: data.createdAt,
         updatedAt: data.updatedAt
@@ -497,8 +514,10 @@ export const StatusFirestoreDatabaseMixin = (
       getEdits(data.id)
     ])
 
-    const replies = withReplies ? await getReplies(data.id) : []
-    return new Status({
+    const replies = withReplies
+      ? await getStatusReplies({ statusId: data.id })
+      : []
+    return Status.parse({
       id: data.id,
       url: data.url,
       to: data.to,
@@ -550,24 +569,6 @@ export const StatusFirestoreDatabaseMixin = (
       .collection(`statuses/${urlToId(statusId)}/history`)
       .get()
     return snapshot.docs.map((item) => item.data() as Edited)
-  }
-
-  async function getReplies(statusId: string) {
-    const statuses = firestore.collection('statuses')
-    const snapshot = await statuses
-      .where('reply', '==', statusId)
-      .orderBy('createdAt', 'desc')
-      .get()
-    const replies = await Promise.all(
-      snapshot.docs.map(async (item) => {
-        const data = item.data()
-        const status = await getStatusFromData(data, false)
-        if (!status) return null
-        if (status.data.type !== StatusType.enum.Note) return null
-        return status.data
-      })
-    )
-    return replies.filter((item): item is StatusNote => Boolean(item))
   }
 
   return {

@@ -8,7 +8,7 @@ import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 import { ActorProfile } from '../../models/actor'
-import { EditableStatusData, StatusData, StatusType } from '../../models/status'
+import { EditableStatus, Status, StatusType } from '../../models/status'
 import { cleanClassName } from '../../utils/text/cleanClassName'
 import { Actions } from './Actions'
 import { Actor } from './Actor'
@@ -20,17 +20,17 @@ export interface PostProps {
   host: string
   currentActor?: ActorProfile
   currentTime: Date
-  status: StatusData
+  status: Status
   editable?: boolean
   showActions?: boolean
-  onReply?: (status: StatusData) => void
-  onEdit?: (status: EditableStatusData) => void
-  onPostDeleted?: (status: StatusData) => void
-  onPostReposted?: (status: StatusData) => void
+  onReply?: (status: Status) => void
+  onEdit?: (status: EditableStatus) => void
+  onPostDeleted?: (status: Status) => void
+  onPostReposted?: (status: Status) => void
   onShowAttachment: OnMediaSelectedHandle
 }
 
-const getActualStatus = (status: StatusData) => {
+const getActualStatus = (status: Status) => {
   switch (status.type) {
     case StatusType.enum.Announce:
       return status.originalStatus
@@ -40,7 +40,7 @@ const getActualStatus = (status: StatusData) => {
 }
 
 interface BoostStatusProps {
-  status: StatusData
+  status: Status
 }
 export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   if (status.type !== StatusType.enum.Announce) return null

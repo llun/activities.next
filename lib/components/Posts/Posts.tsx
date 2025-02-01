@@ -5,7 +5,7 @@ import { FC, useState } from 'react'
 
 import { ActorProfile } from '../../models/actor'
 import { AttachmentData } from '../../models/attachment'
-import { EditableStatusData, StatusData } from '../../models/status'
+import { EditableStatus, Status } from '../../models/status'
 import { MediasModal } from '../MediasModal'
 import { Post } from './Post'
 import styles from './Posts.module.scss'
@@ -16,10 +16,10 @@ interface Props {
   currentActor?: ActorProfile
   showActions?: boolean
   currentTime: Date
-  statuses: StatusData[]
-  onReply?: (status: StatusData) => void
-  onEdit?: (status: EditableStatusData) => void
-  onPostDeleted?: (status: StatusData) => void
+  statuses: Status[]
+  onReply?: (status: Status) => void
+  onEdit?: (status: EditableStatus) => void
+  onPostDeleted?: (status: Status) => void
 }
 
 export const Posts: FC<Props> = ({

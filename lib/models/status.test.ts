@@ -3,7 +3,13 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
-import { Status, StatusType } from '@/lib/models/status'
+import {
+  Status,
+  StatusNote,
+  StatusType,
+  fromNote,
+  toMastodonObject
+} from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonNote } from '@/lib/stub/note'
@@ -46,8 +52,8 @@ describe('Status', () => {
         withContext: true
       })
       const compactedNote = (await compact(note)) as Note
-      const status = Status.fromNote(compactedNote)
-      expect(status.data).toEqual({
+      const status = fromNote(compactedNote)
+      expect(status).toEqual({
         id: note.id,
         url: note.url,
         actorId: ACTOR1_ID,
@@ -77,8 +83,8 @@ describe('Status', () => {
         withContext: true
       })
       const compactedNote = (await compact(note)) as Note
-      const status = Status.fromNote(compactedNote)
-      expect(status.data).toEqual({
+      const status = fromNote(compactedNote)
+      expect(status).toEqual({
         id: note.id,
         url: note.url,
         actorId: ACTOR1_ID,
@@ -121,38 +127,35 @@ describe('Status', () => {
     describe('Note', () => {
       it('converts status to Note object', async () => {
         const statusId = `${actor1?.id}/statuses/post-1`
-        const status = await database.getStatus({
+        const status = (await database.getStatus({
           statusId,
           withReplies: true
-        })
-        const note = status?.toObject()
-        if (status?.data.type !== StatusType.enum.Note) {
-          fail('Status type must be Note')
-        }
+        })) as StatusNote
+        const note = toMastodonObject(status)
         expect(note).toEqual({
           id: statusId,
           type: StatusType.enum.Note,
           summary: null,
           inReplyTo: null,
-          published: getISOTimeUTC(status?.data.createdAt ?? 0),
+          published: getISOTimeUTC(status?.createdAt ?? 0),
           updated: getISOTimeUTC(status?.updatedAt ?? 0),
-          url: status?.data.url,
-          attributedTo: status?.data.actorId,
-          to: status?.data.to,
-          cc: status?.data.cc,
-          content: status?.data.text,
+          url: status.url,
+          attributedTo: status.actorId,
+          to: status.to,
+          cc: status.cc,
+          content: status.text,
           attachment: [],
           tag: [],
           replies: {
-            id: `${status?.data.id}/replies`,
+            id: `${status.id}/replies`,
             type: 'Collection',
             totalItems: 1,
             items: [
-              (
-                await database.getStatus({
+              toMastodonObject(
+                (await database.getStatus({
                   statusId: `${ACTOR2_ID}/statuses/post-2`
-                })
-              )?.toObject()
+                })) as Status
+              )
             ]
           }
         })
@@ -160,12 +163,12 @@ describe('Status', () => {
 
       it('add mentions into Note object', async () => {
         const statusId = `${actor2?.id}/statuses/post-2`
-        const status = await database.getStatus({
+        const status = (await database.getStatus({
           statusId
-        })
-        const note = status?.toObject()
-        expect(note?.tag).toHaveLength(1)
-        expect(note?.tag).toContainValue({
+        })) as Status
+        const note = toMastodonObject(status)
+        expect(note.tag).toHaveLength(1)
+        expect(note.tag).toContainValue({
           type: 'Mention',
           name: '@test1',
           href: 'https://llun.test/@test1'
@@ -176,16 +179,16 @@ describe('Status', () => {
     describe('Announce', () => {
       it('converts status to Announce object', async () => {
         const status2Id = `${actor2?.id}/statuses/post-2`
-        const status2 = await database.getStatus({
+        const status2 = (await database.getStatus({
           statusId: status2Id
-        })
-        const note2 = status2?.toObject()
+        })) as Status
+        const note2 = toMastodonObject(status2)
 
         const status3Id = `${actor2?.id}/statuses/post-3`
-        const status3 = await database.getStatus({
+        const status3 = (await database.getStatus({
           statusId: status3Id
-        })
-        const note3 = status3?.toObject()
+        })) as Status
+        const note3 = toMastodonObject(status3)
         expect(note3).toEqual(note2)
       })
     })

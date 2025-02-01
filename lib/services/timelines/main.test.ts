@@ -32,7 +32,7 @@ const createStatus = async (
     reply,
     text
   })
-  return status.data
+  return status
 }
 
 const createAnnounce = async (
@@ -48,7 +48,7 @@ const createAnnounce = async (
     id: `${actorId}/statuses/${id}/activity`,
     originalStatusId
   })
-  return status?.data
+  return status
 }
 
 describe('#mainTimelineRule', () => {
@@ -96,7 +96,7 @@ describe('#mainTimelineRule', () => {
       await mainTimelineRule({
         database,
         currentActor: actor,
-        status: status.data
+        status
       })
     ).toBeNull()
   })

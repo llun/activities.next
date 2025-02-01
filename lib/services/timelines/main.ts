@@ -92,7 +92,7 @@ export const mainTimelineRule: MainTimelineRule = async ({
       const value = await mainTimelineRule({
         database,
         currentActor,
-        status: repliedStatus.data
+        status: repliedStatus
       })
       span.end()
       return value

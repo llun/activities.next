@@ -1,3 +1,4 @@
+import { toMastodonObject } from '@/lib/models/status'
 import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardHandle
@@ -17,7 +18,7 @@ export const GET = OnlyLocalUserGuard(
     const status = await database.getStatus({ statusId: id, withReplies: true })
     if (!status) return apiErrorResponse(404)
 
-    const note = status.toObject()
+    const note = toMastodonObject(status)
     if (!note) return apiErrorResponse(404)
 
     const acceptHeader = req.headers.get('accept')

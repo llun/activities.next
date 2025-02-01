@@ -1,3 +1,4 @@
+import { StatusNote } from '@/lib/models/status'
 import { TagType } from '@/lib/models/tag'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -29,7 +30,7 @@ describe('StatusDatabase', () => {
         const status = await database.getStatus({
           statusId: `${ACTOR1_ID}/statuses/post-1`
         })
-        expect(status?.toJson()).toEqual({
+        expect(status).toEqual({
           id: 'https://llun.test/users/test1/statuses/post-1',
           actorId: 'https://llun.test/users/test1',
           actor: {
@@ -66,12 +67,12 @@ describe('StatusDatabase', () => {
       })
 
       it('returns status with replies', async () => {
-        const status = await database.getStatus({
+        const status = (await database.getStatus({
           statusId: `${ACTOR1_ID}/statuses/post-1`,
           withReplies: true
-        })
-        expect(status?.toJson().replies).toHaveLength(1)
-        expect(status?.toJson()).toMatchObject({
+        })) as StatusNote
+        expect(status.replies).toHaveLength(1)
+        expect(status).toMatchObject({
           id: 'https://llun.test/users/test1/statuses/post-1',
           actorId: 'https://llun.test/users/test1',
           actor: {
@@ -105,11 +106,11 @@ describe('StatusDatabase', () => {
       })
 
       it('returns status with attachments', async () => {
-        const status = await database.getStatus({
+        const status = (await database.getStatus({
           statusId: `${ACTOR1_ID}/statuses/post-3`
-        })
-        expect(status?.data.attachments).toHaveLength(2)
-        expect(status?.data.attachments).toMatchObject([
+        })) as StatusNote
+        expect(status.attachments).toHaveLength(2)
+        expect(status.attachments).toMatchObject([
           {
             id: expect.toBeString(),
             actorId: 'https://llun.test/users/test1',
@@ -140,11 +141,11 @@ describe('StatusDatabase', () => {
       })
 
       it('returns status with tags', async () => {
-        const status = await database.getStatus({
+        const status = (await database.getStatus({
           statusId: `${ACTOR2_ID}/statuses/post-2`
-        })
-        expect(status?.data.tags).toHaveLength(1)
-        expect(status?.data.tags).toMatchObject([
+        })) as StatusNote
+        expect(status.tags).toHaveLength(1)
+        expect(status.tags).toMatchObject([
           {
             id: expect.toBeString(),
             statusId: 'https://llun.test/users/test2/statuses/post-2',
@@ -161,7 +162,7 @@ describe('StatusDatabase', () => {
         const status = await database.getStatus({
           statusId: `${ACTOR2_ID}/statuses/post-3`
         })
-        expect(status?.data).toMatchObject({
+        expect(status).toMatchObject({
           id: `${ACTOR2_ID}/statuses/post-3`,
           actorId: ACTOR2_ID,
           actor: {
@@ -182,7 +183,7 @@ describe('StatusDatabase', () => {
         const status = await database.getStatus({
           statusId: `${ACTOR3_ID}/statuses/poll-1`
         })
-        expect(status?.data).toMatchObject({
+        expect(status).toMatchObject({
           id: `${ACTOR3_ID}/statuses/poll-1`,
           actorId: ACTOR3_ID,
           type: 'Poll',
@@ -211,7 +212,7 @@ describe('StatusDatabase', () => {
           actorId: ACTOR1_ID
         })
         expect(statuses).toHaveLength(3)
-        expect(statuses.map((item) => item.data.text)).toEqual([
+        expect(statuses.map((item) => (item as StatusNote).text)).toEqual([
           'This is Actor1 post 3',
           'This is Actor1 post 2',
           'This is Actor1 post'
@@ -234,7 +235,7 @@ describe('StatusDatabase', () => {
           statusId: `${ACTOR1_ID}/statuses/post-1`
         })
         expect(replies).toHaveLength(1)
-        expect(replies[0].data.text).toBe(
+        expect((replies[0] as StatusNote).text).toBe(
           '<p><span class="h-card"><a href="https://test.llun.dev/@test1@llun.test" target="_blank" class="u-url mention">@<span>test1</span></a></span> This is Actor1 post</p>'
         )
       })
@@ -277,15 +278,15 @@ describe('StatusDatabase', () => {
 
     describe('createNote', () => {
       it('creates a new note', async () => {
-        const status = await database.createNote({
+        const status = (await database.createNote({
           id: `${ACTOR4_ID}/statuses/new-post`,
           url: `${ACTOR4_ID}/statuses/new-post`,
           actorId: ACTOR4_ID,
           to: ['https://www.w3.org/ns/activitystreams#Public'],
           cc: [],
           text: 'This is a new post'
-        })
-        expect(status?.data.text).toBe('This is a new post')
+        })) as StatusNote
+        expect(status.text).toBe('This is a new post')
       })
 
       it('creates a new note with attachments', async () => {
@@ -313,11 +314,11 @@ describe('StatusDatabase', () => {
           width: 150,
           height: 150
         })
-        const status = await database.getStatus({
+        const status = (await database.getStatus({
           statusId: `${ACTOR4_ID}/statuses/new-post-2`
-        })
-        expect(status?.data.text).toBe('This is a new post with attachments')
-        expect(status?.data.attachments).toHaveLength(2)
+        })) as StatusNote
+        expect(status.text).toBe('This is a new post with attachments')
+        expect(status.attachments).toHaveLength(2)
       })
 
       it('creates a new note with tags', async () => {
@@ -335,12 +336,12 @@ describe('StatusDatabase', () => {
           name: '@test1',
           value: 'https://llun.test/@test1'
         })
-        const status = await database.getStatus({
+        const status = (await database.getStatus({
           statusId: `${ACTOR4_ID}/statuses/new-post-3`
-        })
-        expect(status?.data.text).toBe('This is a new post with tags')
-        expect(status?.data.tags).toHaveLength(1)
-        expect(status?.data.tags).toMatchObject([
+        })) as StatusNote
+        expect(status.text).toBe('This is a new post with tags')
+        expect(status.tags).toHaveLength(1)
+        expect(status.tags).toMatchObject([
           {
             id: tag.data.id,
             statusId: `${ACTOR4_ID}/statuses/new-post-3`,

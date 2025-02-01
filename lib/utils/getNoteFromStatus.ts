@@ -1,19 +1,19 @@
 import { Note } from '@llun/activities.schema'
 
-import { getConfig } from '../config'
-import { Attachment } from '../models/attachment'
-import { StatusData, StatusType } from '../models/status'
-import { Tag } from '../models/tag'
-import { getISOTimeUTC } from './getISOTimeUTC'
-import { convertMarkdownText } from './text/convertMarkdownText'
+import { getConfig } from '@/lib/config'
+import { Attachment } from '@/lib/models/attachment'
+import { Status, StatusType } from '@/lib/models/status'
+import { Tag } from '@/lib/models/tag'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
-export const getNoteFromStatusData = (status: StatusData): Note | null => {
+export const getNoteFromStatus = (status: Status): Note | null => {
   if (status.type === StatusType.enum.Poll) return null
 
   const actualStatus =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
 
-  return {
+  return Note.parse({
     id: actualStatus.id,
     type: actualStatus.type,
     ...(actualStatus.summary ? { summary: actualStatus.summary } : null),
@@ -33,11 +33,11 @@ export const getNoteFromStatusData = (status: StatusData): Note | null => {
       type: 'Collection',
       totalItems: actualStatus.replies.length,
       items: actualStatus.replies.map((reply) =>
-        getNoteFromStatusData(StatusData.parse(reply))
+        getNoteFromStatus(Status.parse(reply))
       )
     },
     ...(actualStatus.updatedAt
       ? { updated: getISOTimeUTC(actualStatus.updatedAt) }
       : null)
-  } as Note
+  })
 }

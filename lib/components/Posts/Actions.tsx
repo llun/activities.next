@@ -1,7 +1,7 @@
 import cn from 'classnames'
 import { FC } from 'react'
 
-import { StatusData, StatusType } from '../../models/status'
+import { Status, StatusType } from '../../models/status'
 import { DeleteButton } from './Actions/DeleteButton'
 import { EditButton } from './Actions/EditButton'
 import { EditHistoryButton } from './Actions/EditHistoryButton'
@@ -11,7 +11,7 @@ import { RepostButton } from './Actions/RepostButton'
 import { PostProps } from './Post'
 
 interface Props extends PostProps {
-  onShowEdits?: (status: StatusData) => void
+  onShowEdits?: (status: Status) => void
 }
 
 export const Actions: FC<Props> = ({

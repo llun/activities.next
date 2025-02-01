@@ -5,6 +5,8 @@ import { FC } from 'react'
 import { Posts } from '@/lib/components/Posts/Posts'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { StatusType } from '@/lib/models/status'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
@@ -57,15 +59,20 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   const previouses = []
-  if (status.reply) {
+  if (status.type !== StatusType.enum.Announce && status.reply) {
     let replyStatus = await database.getStatus({
       statusId: status.reply,
       withReplies: false
     })
     while (previouses.length < 3 && replyStatus) {
-      previouses.push(replyStatus.toJson())
+      previouses.push(replyStatus)
+      // This should be impossible
+      if (replyStatus.type === StatusType.enum.Announce) {
+        replyStatus = null
+        break
+      }
       if (!replyStatus.reply) {
-        replyStatus = undefined
+        replyStatus = null
         break
       }
       replyStatus = await database.getStatus({
@@ -87,14 +94,14 @@ const Page: FC<Props> = async ({ params }) => {
         <StatusBox
           host={host}
           currentTime={currentTime}
-          status={status.toJson()}
+          status={cleanJson(status)}
         />
       </section>
       <Posts
         className="mt-4"
         currentTime={currentTime}
         host={host}
-        statuses={replies.map((reply) => reply.toJson())}
+        statuses={replies.map((reply) => cleanJson(reply))}
       />
     </>
   )

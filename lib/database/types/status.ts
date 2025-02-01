@@ -66,14 +66,14 @@ export type GetTagsParams = {
 
 export interface StatusDatabase {
   createNote(params: CreateNoteParams): Promise<Status>
-  updateNote(params: UpdateNoteParams): Promise<Status | undefined>
+  updateNote(params: UpdateNoteParams): Promise<Status | null>
 
-  createAnnounce(params: CreateAnnounceParams): Promise<Status | undefined>
+  createAnnounce(params: CreateAnnounceParams): Promise<Status | null>
 
   createPoll(params: CreatePollParams): Promise<Status>
-  updatePoll(params: UpdatePollParams): Promise<Status | undefined>
+  updatePoll(params: UpdatePollParams): Promise<Status | null>
 
-  getStatus(params: GetStatusParams): Promise<Status | undefined>
+  getStatus(params: GetStatusParams): Promise<Status | null>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
   hasActorAnnouncedStatus(
     params: HasActorAnnouncedStatusParams

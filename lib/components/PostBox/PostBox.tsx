@@ -11,13 +11,10 @@ import sanitizeHtml from 'sanitize-html'
 
 import { createNote, createPoll, updateNote } from '../../client'
 import { Actor, ActorProfile } from '../../models/actor'
+import { Attachment, UploadedAttachment } from '../../models/attachment'
 import {
-  Attachment,
-  UploadedAttachment
-} from '../../models/attachment'
-import {
-  EditableStatusData,
-  StatusData,
+  EditableStatus,
+  Status,
   StatusNote,
   StatusType
 } from '../../models/status'
@@ -40,12 +37,12 @@ import {
 interface Props {
   host: string
   profile: ActorProfile
-  replyStatus?: StatusData
-  editStatus?: EditableStatusData
+  replyStatus?: Status
+  editStatus?: EditableStatus
   isMediaUploadEnabled?: boolean
   onDiscardReply: () => void
-  onPostCreated: (status: StatusData, attachments: Attachment[]) => void
-  onPostUpdated: (status: StatusData) => void
+  onPostCreated: (status: Status, attachments: Attachment[]) => void
+  onPostUpdated: (status: Status) => void
   onDiscardEdit: () => void
 }
 

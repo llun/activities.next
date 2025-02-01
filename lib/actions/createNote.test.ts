@@ -8,7 +8,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
-import { getNoteFromStatusData } from '@/lib/utils/getNoteFromStatusData'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
@@ -59,7 +59,7 @@ describe('Create note action', () => {
       })
       if (!status) fail('Fail to create status')
 
-      expect(status.data).toMatchObject({
+      expect(status).toMatchObject({
         actorId: actor1.id,
         text: 'Hello',
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -72,7 +72,7 @@ describe('Create note action', () => {
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [actor1.followersUrl],
-        object: getNoteFromStatusData(status.data)
+        object: getNoteFromStatus(status)
       })
     })
 
@@ -87,7 +87,7 @@ describe('Create note action', () => {
       })
       if (!status) fail('Fail to create status')
 
-      expect(status.data).toMatchObject({
+      expect(status).toMatchObject({
         reply: `${actor2?.id}/statuses/post-2`,
         cc: expect.toContainValue(actor2?.id)
       })
@@ -98,7 +98,7 @@ describe('Create note action', () => {
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC, actor1.followersUrl],
         cc: [ACTOR2_ID],
-        object: getNoteFromStatusData(status.data)
+        object: getNoteFromStatus(status)
       })
     })
 
@@ -116,14 +116,14 @@ How are you?
         database
       })
       if (!status) fail('Fail to create status')
-      expect(status.data).toMatchObject({
+      expect(status).toMatchObject({
         actorId: actor1.id,
         text,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [`${actor1.id}/followers`, ACTOR2_ID]
       })
 
-      const note = getNoteFromStatusData(status.data)
+      const note = getNoteFromStatus(status)
       expect(note?.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
       expect(note?.tag).toHaveLength(1)
       expect(note?.tag).toContainValue({
@@ -138,7 +138,7 @@ How are you?
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [actor1.followersUrl, ACTOR2_ID],
-        object: getNoteFromStatusData(status.data)
+        object: getNoteFromStatus(status)
       })
     })
 
@@ -156,18 +156,18 @@ How are you?
         database
       })
       if (!status) fail('Fail to create status')
-      expect(status.data).toMatchObject({
+      expect(status).toMatchObject({
         actorId: actor1.id,
         text,
         to: [ACTIVITY_STREAM_PUBLIC]
       })
-      expect(status.data.cc).toContainAllValues([
+      expect(status.cc).toContainAllValues([
         `${actor1.id}/followers`,
         'https://somewhere.test/actors/test3',
         ACTOR2_ID
       ])
 
-      const note = getNoteFromStatusData(status.data)
+      const note = getNoteFromStatus(status)
       expect(note?.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
       expect(note?.tag).toHaveLength(2)
       expect(note?.tag).toContainValue({
@@ -203,7 +203,7 @@ How are you?
           ACTOR2_ID,
           'https://somewhere.test/actors/test3'
         ]),
-        object: getNoteFromStatusData(status.data)
+        object: getNoteFromStatus(status)
       })
     })
 
@@ -236,7 +236,7 @@ How are you?
           'https://no.shared.inbox/users/test4',
           'https://somewhere.test/actors/test5'
         ]),
-        object: getNoteFromStatusData(status.data)
+        object: getNoteFromStatus(status)
       }
 
       expectCall(

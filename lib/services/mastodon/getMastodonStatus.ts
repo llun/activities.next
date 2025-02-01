@@ -1,6 +1,6 @@
 import { Database } from '@/lib/database/types'
 import { ActorData } from '@/lib/models/actor'
-import { StatusData } from '@/lib/models/status'
+import { Status } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { getMastodonAccount } from './getMastodonAccount'
@@ -8,7 +8,7 @@ import { MastodonStatus, ReblogMastodonStatus } from './types'
 
 export const getMastodonStatus = async (
   database: Database,
-  status: StatusData
+  status: Status
 ): Promise<MastodonStatus | ReblogMastodonStatus> => {
   const account = await getMastodonAccount(database, status.actor as ActorData)
   if (status.type === 'Announce') {
@@ -67,7 +67,12 @@ export const getMastodonStatus = async (
     content: status.text,
     filtered: [],
     account,
-    media_attachments: [],
+    media_attachments: status.attachments.map((attachment) => ({
+      id: attachment.id,
+      type: attachment.mediaType,
+      url: attachment.url,
+      description: attachment.name
+    })),
     mentions: [],
     tags: [],
     emojis: [],
