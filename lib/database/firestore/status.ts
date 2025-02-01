@@ -30,6 +30,7 @@ import {
   Status,
   StatusAnnounce,
   StatusNote,
+  StatusPoll,
   StatusType
 } from '@/lib/models/status'
 import { Tag, TagData } from '@/lib/models/tag'
@@ -234,7 +235,7 @@ export const StatusFirestoreDatabaseMixin = (
     )
 
     const profile = actor?.toProfile()
-    return Status.parse({
+    return StatusPoll.parse({
       ...status,
       actor: profile
         ? {
@@ -248,6 +249,7 @@ export const StatusFirestoreDatabaseMixin = (
       isActorAnnounced: false,
       isLocalActor: Boolean(actor?.account),
       edits: [],
+      attachments: [],
       tags: [],
       replies: [],
       choices: choicesData.map((data) => new PollChoice(data).toJson())
@@ -466,7 +468,7 @@ export const StatusFirestoreDatabaseMixin = (
         })
       ])
       if (!originalStatus) return null
-      return Status.parse({
+      return StatusAnnounce.parse({
         id: data.id,
         actorId: data.actorId,
         actor: actor?.toProfile() ?? null,
@@ -477,6 +479,7 @@ export const StatusFirestoreDatabaseMixin = (
         edits: [],
 
         originalStatus,
+        isLocalActor: Boolean(actor?.account),
 
         createdAt: data.createdAt,
         updatedAt: data.updatedAt
