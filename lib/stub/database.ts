@@ -177,7 +177,7 @@ export const seedDatabase = async (database: Database) => {
     reply: `${actors[0].id}/statuses/post-1`
   })
   await database.createTag({
-    statusId: post2.data.id,
+    statusId: post2.id,
     name: '@test1',
     value: 'https://llun.test/@test1',
     type: 'mention'

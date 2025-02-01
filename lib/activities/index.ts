@@ -380,12 +380,12 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) =>
     }
   )
 
-interface GetStatusParams {
+interface GetNoteParams {
   statusId: string
 }
 export const getNote = async ({
   statusId
-}: GetStatusParams): Promise<Note | null> =>
+}: GetNoteParams): Promise<Note | null> =>
   getTracer().startActiveSpan(
     'activities.getNote',
     { attributes: { statusId } },

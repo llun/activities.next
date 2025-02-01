@@ -1,14 +1,17 @@
 import { Announce } from '@llun/activities.schema'
 
-import { recordActorIfNeeded } from '../actions/utils'
-import { getStatus } from '../activities'
-import { JobHandle } from '../services/queue/type'
-import { addStatusToTimelines } from '../services/timelines'
-import { compact } from '../utils/jsonld'
-import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
-import { createJobHandle } from './createJobHandle'
-import { createNoteJob } from './createNoteJob'
-import { CREATE_ANNOUNCE_JOB_NAME, CREATE_NOTE_JOB_NAME } from './names'
+import { recordActorIfNeeded } from '@/lib/actions/utils'
+import { getNote } from '@/lib/activities'
+import { createJobHandle } from '@/lib/jobs/createJobHandle'
+import { createNoteJob } from '@/lib/jobs/createNoteJob'
+import {
+  CREATE_ANNOUNCE_JOB_NAME,
+  CREATE_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
+import { JobHandle } from '@/lib/services/queue/type'
+import { addStatusToTimelines } from '@/lib/services/timelines'
+import { compact } from '@/lib/utils/jsonld'
+import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
 
 export const createAnnounceJob: JobHandle = createJobHandle(
   CREATE_ANNOUNCE_JOB_NAME,
@@ -24,7 +27,7 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       withReplies: false
     })
     if (!existingStatus) {
-      const boostedStatus = await getStatus({ statusId: object })
+      const boostedStatus = await getNote({ statusId: object })
       if (!boostedStatus) {
         return
       }
