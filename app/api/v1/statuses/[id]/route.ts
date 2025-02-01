@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
+import { StatusType } from '@/lib/models/status'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { apiErrorResponse } from '@/lib/utils/response'
@@ -30,12 +31,15 @@ export const PUT = AuthenticatedGuard<Params>(async (req, context, params) => {
   })
 
   if (!updatedNote) return apiErrorResponse(403)
+  if (updatedNote.type === StatusType.enum.Announce) {
+    return apiErrorResponse(500)
+  }
 
   return Response.json({
     id: updatedNote.id,
     created_at: getISOTimeUTC(updatedNote.createdAt),
     in_reply_to_id: updatedNote.reply,
     edited_at: getISOTimeUTC(updatedNote.updatedAt),
-    content: updatedNote.content
+    content: updatedNote.text
   })
 })

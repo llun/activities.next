@@ -67,7 +67,12 @@ export const getMastodonStatus = async (
     content: status.text,
     filtered: [],
     account,
-    media_attachments: [],
+    media_attachments: status.attachments.map((attachment) => ({
+      id: attachment.id,
+      type: attachment.mediaType,
+      url: attachment.url,
+      description: attachment.name
+    })),
     mentions: [],
     tags: [],
     emojis: [],

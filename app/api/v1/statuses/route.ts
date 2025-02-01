@@ -28,7 +28,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     return Response.json({
       id: status.id,
       created_at: getISOTimeUTC(status.createdAt),
-      content: status.content
+      content: status.text
     })
   } catch {
     return apiErrorResponse(400)

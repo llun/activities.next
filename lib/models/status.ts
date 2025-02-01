@@ -32,6 +32,8 @@ const StatusBase = z.object({
 
   edits: Edited.array(),
 
+  isLocalActor: z.boolean(),
+
   createdAt: z.number(),
   updatedAt: z.number()
 })
@@ -46,7 +48,6 @@ export const StatusNote = StatusBase.extend({
 
   isActorAnnounced: z.boolean(),
   isActorLiked: z.boolean(),
-  isLocalActor: z.boolean(),
   totalLikes: z.number(),
 
   attachments: AttachmentData.array(),
@@ -70,9 +71,9 @@ export const StatusPoll = StatusBase.extend({
 
   isActorAnnounced: z.boolean(),
   isActorLiked: z.boolean(),
-  isLocalActor: z.boolean(),
   totalLikes: z.number(),
 
+  attachments: AttachmentData.array(),
   tags: TagData.array(),
   choices: PollChoiceData.array(),
 
