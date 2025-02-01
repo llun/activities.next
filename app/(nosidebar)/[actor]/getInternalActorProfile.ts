@@ -13,6 +13,6 @@ export const getInternalActorProfile = async (
   return {
     person: actor.toPublicProfile(),
     statuses: statuses.map((item) => cleanJson(item)),
-    attachments: attachments.map((item) => cleanJson(item))
+    attachments: attachments.map((item) => item.toJson())
   }
 }
