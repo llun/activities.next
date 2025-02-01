@@ -6,12 +6,12 @@ import { ActorAttachments } from '@/lib/components/ActorAttachments'
 import { ActorTab, ActorTabs } from '@/lib/components/ActorTab'
 import { Posts } from '@/lib/components/Posts/Posts'
 import { AttachmentData } from '@/lib/models/attachment'
-import { StatusData } from '@/lib/models/status'
+import { Status } from '@/lib/models/status'
 
 interface Props {
   host: string
   currentTime: Date
-  statuses: StatusData[]
+  statuses: Status[]
   attachments: AttachmentData[]
 }
 

@@ -1,4 +1,4 @@
-import { Status, StatusNote, toMastodonObject } from '@/lib/models/status'
+import { StatusNote } from '@/lib/models/status'
 import { TagType } from '@/lib/models/tag'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { Timeline } from '@/lib/services/timelines/types'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
@@ -35,7 +36,7 @@ const Page = async () => {
   return (
     <MainPageTimeline
       host={host}
-      statuses={statuses.map((item) => item.toJson())}
+      statuses={statuses.map((item) => cleanJson(item))}
       profile={actor.toProfile()}
       isMediaUploadEnabled={Boolean(mediaStorage)}
     />

@@ -2,14 +2,14 @@ import cn from 'classnames'
 import { FC, useState } from 'react'
 
 import { repostStatus, undoRepostStatus } from '@/lib/client'
+import { Button } from '@/lib/components/Button'
 import { ActorProfile } from '@/lib/models/actor'
-import { StatusData, StatusType } from '@/lib/models/status'
-import { Button } from '../../Button'
+import { Status, StatusType } from '@/lib/models/status'
 
 interface RepostButtonProps {
   currentActor?: ActorProfile
-  status: StatusData
-  onPostReposted?: (status: StatusData) => void
+  status: Status
+  onPostReposted?: (status: Status) => void
 }
 export const RepostButton: FC<RepostButtonProps> = ({
   currentActor,

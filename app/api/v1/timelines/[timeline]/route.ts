@@ -3,6 +3,7 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,
@@ -44,7 +45,7 @@ export const GET = OAuthGuard<Params>(
     })
     if (format === TimelineFormat.enum.activities_next) {
       return apiResponse(req, CORS_HEADERS, {
-        statuses: statuses.map((item) => item.toJson())
+        statuses: statuses.map((item) => cleanJson(item))
       })
     }
 
@@ -52,7 +53,7 @@ export const GET = OAuthGuard<Params>(
       req,
       CORS_HEADERS,
       await Promise.all(
-        statuses.map((item) => getMastodonStatus(database, item.data))
+        statuses.map((item) => getMastodonStatus(database, item))
       )
     )
   }

@@ -5,12 +5,12 @@ import { FC, useState } from 'react'
 import { MediasModal } from '@/lib/components/MediasModal'
 import { Post } from '@/lib/components/Posts/Post'
 import { AttachmentData } from '@/lib/models/attachment'
-import { StatusData } from '@/lib/models/status'
+import { Status } from '@/lib/models/status'
 
 interface Props {
   host: string
   currentTime: Date
-  status: StatusData
+  status: Status
 }
 
 export const StatusBox: FC<Props> = ({ host, currentTime, status }) => {

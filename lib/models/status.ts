@@ -70,6 +70,7 @@ export const StatusPoll = StatusBase.extend({
 
   isActorAnnounced: z.boolean(),
   isActorLiked: z.boolean(),
+  isLocalActor: z.boolean(),
   totalLikes: z.number(),
 
   tags: TagData.array(),

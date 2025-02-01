@@ -4,13 +4,12 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
-import { Status, StatusType } from '@/lib/models/status'
+import { Status, StatusAnnounce, StatusNote } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockAnnounceStatus } from '@/lib/stub/announce'
 import { seedDatabase } from '@/lib/stub/database'
 import { stubNoteId } from '@/lib/stub/note'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
-import { cleanJson } from '@/lib/utils/cleanJson'
 
 enableFetchMocks()
 
@@ -49,18 +48,14 @@ describe('Announce action', () => {
         announceStatusId
       })
     })
-    const status = await database.getStatus({
+    const status = (await database.getStatus({
       statusId: `${statusId}/activity`
-    })
+    })) as StatusAnnounce
     expect(status).toBeDefined()
     const boostedStatus = (await database.getStatus({
       statusId: announceStatusId
     })) as Status
-    const statusData = cleanJson(status)
-    if (statusData?.type !== StatusType.enum.Announce) {
-      fail('Status type must be announce')
-    }
-    expect(statusData.originalStatus).toEqual(cleanJson(boostedStatus))
+    expect(status.originalStatus).toEqual(boostedStatus)
   })
 
   it('loads announce with attachments and save both locally', async () => {
@@ -78,10 +73,7 @@ describe('Announce action', () => {
     })
     const boostedStatus = (await database.getStatus({
       statusId: announceStatusId
-    })) as Status
-    if (boostedStatus.type !== StatusType.enum.Note) {
-      fail('Status type must be note')
-    }
+    })) as StatusNote
     expect(boostedStatus.attachments).toHaveLength(2)
   })
 
@@ -104,11 +96,8 @@ describe('Announce action', () => {
     expect(status).toBeDefined()
     const boostedStatus = (await database.getStatus({
       statusId: announceStatusId
-    })) as Status
+    })) as StatusNote
     expect(boostedStatus).toBeDefined()
-    if (boostedStatus.type !== StatusType.enum.Note) {
-      fail('Boost status must be note')
-    }
     expect(boostedStatus.text).toEqual('This is litepub status')
   })
 

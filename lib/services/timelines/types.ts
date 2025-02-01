@@ -1,6 +1,6 @@
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
-import { StatusData } from '@/lib/models/status'
+import { Status } from '@/lib/models/status'
 
 export enum Timeline {
   MAIN = 'main',
@@ -13,7 +13,7 @@ export enum Timeline {
 export interface TimelineRuleParams {
   database: Database
   currentActor: Actor
-  status: StatusData
+  status: Status
 }
 
 export type MainTimelineRule = (

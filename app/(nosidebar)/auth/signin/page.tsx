@@ -10,6 +10,7 @@ import { Posts } from '@/lib/components/Posts/Posts'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { Timeline } from '@/lib/services/timelines/types'
+import { cleanJson } from '@/lib/utils/cleanJson'
 
 import { CredentialForm } from './CredentialForm'
 import { SigninButton } from './SigninButton'
@@ -57,7 +58,7 @@ const Page: FC = async () => {
             host={host}
             className="mt-4"
             currentTime={new Date()}
-            statuses={statuses?.map((status) => status.toJson())}
+            statuses={statuses?.map((status) => cleanJson(status))}
           />
         </div>
       )}
