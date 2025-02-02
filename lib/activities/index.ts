@@ -240,6 +240,7 @@ export const getPublicProfileFromHandle = async (
         return null
       }
 
+      console.log('actorId', actorId)
       const publicProfile = await getPublicProfile({
         actorId,
         withCollectionCount
