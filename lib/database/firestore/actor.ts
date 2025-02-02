@@ -30,7 +30,7 @@ export const ActorFirestoreDatabaseMixin = (
     data: any,
     account?: Account | null
   ): Actor {
-    return new Actor({
+    return Actor.parse({
       id: data.id,
       username: data.username,
       domain: data.domain,
