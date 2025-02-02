@@ -25,7 +25,7 @@ import {
 } from '@/lib/activities/entities/orderedCollection'
 import { OrderedCollectionPage } from '@/lib/activities/entities/orderedCollectionPage'
 import { Person } from '@/lib/activities/entities/person'
-import { WebFinger } from '@/lib/activities/types'
+import { getWebfingerSelf } from '@/lib/activities/requests/getWebfingerSelf'
 import { Actor, ActorProfile } from '@/lib/models/actor'
 import { Follow } from '@/lib/models/follow'
 import {
@@ -48,37 +48,6 @@ import { signedHeaders } from '@/lib/utils/signature'
 import { getSpan, getTracer } from '@/lib/utils/trace'
 
 const DEFAULT_ACCEPT = 'application/activity+json, application/ld+json'
-
-export const getWebfingerSelf = async (account: string) => {
-  const [user, domain] = account.split('@')
-  if (!user || !domain) return null
-  const span = getSpan('activities', 'getWebfingerSelf', { account })
-  try {
-    const { statusCode, body } = await request({
-      url: `https://${domain}/.well-known/webfinger?resource=acct:${account}`,
-      headers: {
-        Accept: 'application/json'
-      }
-    })
-    if (statusCode !== 200) {
-      return null
-    }
-
-    const json = JSON.parse(body) as WebFinger
-    const item = json.links.find((item) => item.rel === 'self')
-    if (!item || !('href' in item)) {
-      return null
-    }
-    return item.href
-  } catch (error) {
-    const nodeError = error as NodeJS.ErrnoException
-    span.recordException(nodeError)
-    logger.error(`[getWebfingerSelf] ${nodeError.message}`)
-    return null
-  } finally {
-    span.end()
-  }
-}
 
 // TODO: Remove PublicProfile and use Profile in model
 export interface PublicProfile {
@@ -265,7 +234,7 @@ export const getPublicProfileFromHandle = async (
       const accountWithoutAt = account.startsWith('@')
         ? account.slice(1)
         : account
-      const actorId = await getWebfingerSelf(accountWithoutAt)
+      const actorId = await getWebfingerSelf({ account: accountWithoutAt })
       if (!actorId) {
         span.end()
         return null

@@ -34,6 +34,11 @@ const Page: FC<Props> = async ({ params }) => {
   if (!database) throw new Error('Database is not available')
 
   const session = await getServerSession(getAuthOptions())
+  const isLoggedIn = Boolean(session?.user?.email)
+  if (!isLoggedIn) {
+    return notFound()
+  }
+
   const { actor } = await params
   const decodedActorHandle = decodeURIComponent(actor)
   const parts = decodedActorHandle.split('@').slice(1)
@@ -42,16 +47,10 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   const [username, domain] = parts
-  const isLoggedIn = Boolean(session?.user?.email)
   const persistedActor = await database.getActorFromUsername({
     username,
     domain
   })
-
-  if (!isLoggedIn && !persistedActor?.account) {
-    return notFound()
-  }
-
   const actorProfile = persistedActor?.account
     ? await getInternalActorProfile(database, persistedActor)
     : await getExternalActorProfile(database, decodedActorHandle)
@@ -74,7 +73,7 @@ const Page: FC<Props> = async ({ params }) => {
           )}
           <Profile
             className="flex-fill"
-            name={person.name}
+            name={person.name ?? ''}
             url={person.url}
             username={person.username}
             domain={person.domain}

@@ -1,12 +1,7 @@
 /** eslint-disable @typescript-eslint/no-explicit-any */
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import {
-  follow,
-  getPublicProfileFromHandle,
-  getWebfingerSelf,
-  sendNote
-} from '@/lib/activities'
+import { follow, getPublicProfileFromHandle, sendNote } from '@/lib/activities'
 import { CreateStatus } from '@/lib/activities/actions/createStatus'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
@@ -44,18 +39,6 @@ describe('activities', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-  })
-
-  describe('#getWebfingerSelf', () => {
-    it('returns self href from the webfinger', async () => {
-      const selfUrl = await getWebfingerSelf('test1@llun.test')
-      expect(selfUrl).toEqual('https://llun.test/users/test1')
-    })
-
-    it('returns null for not found account', async () => {
-      const selfUrl = await getWebfingerSelf('notexist@llun.test')
-      expect(selfUrl).toBeNull()
-    })
   })
 
   describe('#getPublicProfileFromHandle', () => {
