@@ -22,7 +22,7 @@ import {
   UpdateNoteParams,
   UpdatePollParams
 } from '@/lib/database/types/status'
-import { Actor } from '@/lib/models/actor'
+import { Actor, getActorProfile } from '@/lib/models/actor'
 import { PollChoice } from '@/lib/models/pollChoice'
 import {
   Status,
@@ -105,7 +105,7 @@ export const StatusSQLDatabaseMixin = (
       id,
       url,
       actorId,
-      actor: actor?.toProfile() || null,
+      actor: actor ? getActorProfile(actor) : null,
       type: StatusType.enum.Note,
       text,
       summary,
@@ -219,7 +219,7 @@ export const StatusSQLDatabaseMixin = (
     return StatusAnnounce.parse({
       id,
       actorId,
-      actor: actor?.toProfile() || null,
+      actor: actor ? getActorProfile(actor) : null,
       to,
       cc,
       edits: [],
@@ -309,7 +309,7 @@ export const StatusSQLDatabaseMixin = (
       id,
       url,
       actorId,
-      actor: actor?.toProfile() || null,
+      actor: actor ? getActorProfile(actor) : null,
       type: StatusType.enum.Poll,
       text,
       summary,
@@ -538,7 +538,7 @@ export const StatusSQLDatabaseMixin = (
       return StatusAnnounce.parse({
         id: data.id,
         actorId: data.actorId,
-        actor: actor?.toProfile() || null,
+        actor: actor ? getActorProfile(actor) : null,
         type: StatusType.enum.Announce,
         to: to.map((item) => item.actorId),
         cc: cc.map((item) => item.actorId),
@@ -608,7 +608,7 @@ export const StatusSQLDatabaseMixin = (
       to: to.map((item) => item.actorId),
       cc: cc.map((item) => item.actorId),
       actorId: data.actorId,
-      actor: actor?.toProfile() || null,
+      actor: actor ? getActorProfile(actor) : null,
       type: data.type,
       text: content.text,
       summary: content.summary,

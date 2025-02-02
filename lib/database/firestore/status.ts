@@ -23,7 +23,7 @@ import {
   UpdateNoteParams,
   UpdatePollParams
 } from '@/lib/database/types/status'
-import { Actor } from '@/lib/models/actor'
+import { Actor, getActorProfile } from '@/lib/models/actor'
 import { PollChoice, PollChoiceData } from '@/lib/models/pollChoice'
 import {
   Edited,
@@ -89,7 +89,7 @@ export const StatusFirestoreDatabaseMixin = (
         : null
     ])
 
-    const profile = actor?.toProfile()
+    const profile = actor ? getActorProfile(actor) : null
     return Status.parse({
       ...status,
       actor: profile
@@ -234,7 +234,7 @@ export const StatusFirestoreDatabaseMixin = (
       )
     )
 
-    const profile = actor?.toProfile()
+    const profile = actor ? getActorProfile(actor) : null
     return StatusPoll.parse({
       ...status,
       actor: profile
@@ -471,7 +471,7 @@ export const StatusFirestoreDatabaseMixin = (
       return StatusAnnounce.parse({
         id: data.id,
         actorId: data.actorId,
-        actor: actor?.toProfile() ?? null,
+        actor: actor ? getActorProfile(actor) : null,
         type: data.type,
 
         to: data.to,
@@ -523,7 +523,7 @@ export const StatusFirestoreDatabaseMixin = (
       to: data.to,
       cc: data.cc,
       actorId: data.actorId,
-      actor: actor?.toProfile() ?? null,
+      actor: actor ? getActorProfile(actor) : null,
       type: data.type,
       text: data.text,
       summary: data.summary,
