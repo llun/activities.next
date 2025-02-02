@@ -17,7 +17,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   })
   authRequest.user = User.parse({
     id: currentActor.id,
-    actor: currentActor.data,
+    actor: currentActor,
     account: currentActor.account
   })
   authRequest.isAuthorizationApproved = true

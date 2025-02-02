@@ -3,10 +3,6 @@ import { z } from 'zod'
 import { Account } from '@/lib/models/account'
 import { logger } from '@/lib/utils/logger'
 
-import { PublicProfile } from '../activities'
-import { Image } from '../activities/entities/image'
-import { Person } from '../activities/entities/person'
-
 export const ActorProfile = z.object({
   id: z.string(),
   username: z.string(),

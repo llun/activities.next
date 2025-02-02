@@ -1,5 +1,5 @@
 import { Database } from '@/lib/database/types'
-import { ActorData } from '@/lib/models/actor'
+import { Actor } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
@@ -10,7 +10,7 @@ export const getMastodonStatus = async (
   database: Database,
   status: Status
 ): Promise<MastodonStatus | ReblogMastodonStatus> => {
-  const account = await getMastodonAccount(database, status.actor as ActorData)
+  const account = await getMastodonAccount(database, status.actor as Actor)
   if (status.type === 'Announce') {
     return ReblogMastodonStatus.parse({
       id: status.id,
