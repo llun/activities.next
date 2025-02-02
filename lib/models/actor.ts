@@ -1,14 +1,11 @@
 import { z } from 'zod'
 
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
-import { W3ID_URL } from '@/lib/utils/jsonld/w3id'
+import { Account } from '@/lib/models/account'
+import { logger } from '@/lib/utils/logger'
 
 import { PublicProfile } from '../activities'
 import { Image } from '../activities/entities/image'
 import { Person } from '../activities/entities/person'
-import { logger } from '../utils/logger'
-import { Account } from './account'
 
 export const ActorProfile = z.object({
   id: z.string(),
@@ -35,239 +32,274 @@ export const ActorProfile = z.object({
 
 export type ActorProfile = z.infer<typeof ActorProfile>
 
-export const ActorData = ActorProfile.extend({
+export const Actor = ActorProfile.extend({
   privateKey: z.string().optional(),
   publicKey: z.string(),
   account: Account.optional(),
   updatedAt: z.number()
 })
+export type Actor = z.infer<typeof Actor>
 
-export type ActorData = z.infer<typeof ActorData>
+export const getActorProfile = (actor: Actor) => ActorProfile.parse(actor)
 
-export class Actor {
-  readonly data: ActorData
-
-  constructor(data: ActorData) {
-    this.data = ActorData.parse(data)
+export const getMention = (actor: ActorProfile, withDomain = false) => {
+  if (!withDomain) {
+    return `@${actor.username}`
   }
 
-  get id(): string {
-    return this.data.id
-  }
+  return `@${actor.username}@${actor.domain}`
+}
 
-  get name(): string {
-    return this.data.name || ''
-  }
+export const getActorURL = (actor: Actor, withDomain = false) => {
+  return `https://${actor.domain}/${getMention(actor, withDomain)}`
+}
 
-  get summary(): string {
-    return this.data.summary || ''
-  }
+export const getMentionDomainFromActorID = (actorId: string) => {
+  const url = new URL(actorId)
+  return `@${url.hostname}`
+}
 
-  get username(): string {
-    return this.data.username
-  }
-
-  get domain(): string {
-    return this.data.domain
-  }
-
-  get iconUrl(): string {
-    return this.data.iconUrl || ''
-  }
-
-  get headerImageUrl(): string {
-    return this.data.headerImageUrl || ''
-  }
-
-  get appleSharedAlbumToken(): string {
-    return this.data.appleSharedAlbumToken || ''
-  }
-
-  get publicKey(): string {
-    return this.data.publicKey
-  }
-
-  get privateKey(): string {
-    return this.data.privateKey || ''
-  }
-
-  get inboxUrl(): string {
-    return this.data.inboxUrl
-  }
-
-  get sharedInboxUrl(): string {
-    return this.data.sharedInboxUrl
-  }
-
-  get followersUrl(): string {
-    return this.data.followersUrl
-  }
-
-  get account(): Account | undefined {
-    return this.data.account
-  }
-
-  get createdAt(): number {
-    return this.data.createdAt
-  }
-
-  static getMentionHostnameFromId(actorId: string) {
-    const url = new URL(actorId)
-    return `@${url.hostname}`
-  }
-
-  static getMentionFromId(actorId: string, withDomain = false): string {
-    try {
-      // This method assume that all actor id has a username in the end,
-      // however this might not be true especially for Misskey.io that use
-      // random id in the actor id instead of username.
-      const id = actorId.split('/').pop()
-      if (!withDomain) {
-        return `@${id}`
-      }
-
-      return `@${id}${Actor.getMentionHostnameFromId(actorId)}`
-    } catch {
-      logger.error(`Fail to split the actor id, (${JSON.stringify(actorId)})`)
-      return actorId
-    }
-  }
-
-  static getMentionFromProfile(
-    profile: ActorProfile,
-    withDomain = true
-  ): string {
+export const getMentionFromActorID = (actorId: string, withDomain = false) => {
+  try {
+    // This method assume that all actor id has a username in the end,
+    // however this might not be true especially for Misskey.io that use
+    // random id in the actor id instead of username.
+    const id = actorId.split('/').pop()
     if (!withDomain) {
-      return `@${profile.username}`
+      return `@${id}`
     }
 
-    return `@${profile.username}@${profile.domain}`
-  }
-
-  getMention(withDomain = false): string {
-    if (!withDomain) {
-      return `@${this.username}`
-    }
-
-    return `@${this.username}@${this.domain}`
-  }
-
-  getActorPage(withDomain = false): string {
-    return `https://${this.domain}/${this.getMention(withDomain)}`
-  }
-
-  toProfile(): ActorProfile {
-    return {
-      id: this.data.id,
-      username: this.data.username,
-      domain: this.data.domain,
-      ...(this.data.name ? { name: this.data.name } : null),
-      ...(this.data.domain ? { domain: this.data.domain } : null),
-      ...(this.data.summary ? { summary: this.data.summary } : null),
-      ...(this.data.iconUrl ? { iconUrl: this.data.iconUrl } : null),
-      ...(this.data.headerImageUrl
-        ? { headerImageUrl: this.data.headerImageUrl }
-        : null),
-      ...(this.data.appleSharedAlbumToken
-        ? { appleSharedAlbumToken: this.data.appleSharedAlbumToken }
-        : null),
-
-      followersUrl: this.data.followersUrl ?? '',
-      inboxUrl: this.data.inboxUrl ?? '',
-      sharedInboxUrl: this.data.sharedInboxUrl ?? '',
-
-      followersCount: this.data.followersCount,
-      followingCount: this.data.followingCount,
-
-      statusCount: this.data.statusCount,
-      lastStatusAt: this.data.lastStatusAt ?? null,
-
-      createdAt: this.data.createdAt
-    }
-  }
-
-  toPerson(): Person {
-    const icon = this.data.iconUrl
-      ? {
-          icon: {
-            type: 'Image',
-            mediaType: 'image/jpeg',
-            url: this.data.iconUrl
-          } as Image
-        }
-      : null
-    const headerImage = this.data.headerImageUrl
-      ? {
-          image: {
-            type: 'Image',
-            mediaType: 'image/png',
-            url: this.data.headerImageUrl
-          } as Image
-        }
-      : null
-
-    return {
-      '@context': [ACTIVITY_STREAM_URL, W3ID_URL],
-      id: this.data.id,
-      type: 'Person',
-      following: `https://${this.data.domain}/users/${this.data.username}/following`,
-      followers: `https://${this.data.domain}/users/${this.data.username}/followers`,
-      inbox: `https://${this.data.domain}/users/${this.data.username}/inbox`,
-      outbox: `https://${this.data.domain}/users/${this.data.username}/outbox`,
-      preferredUsername: this.data.username,
-      name: this.data.name || '',
-      summary: this.data.summary || '',
-      url: `https://${this.data.domain}/@${this.data.username}`,
-      published: getISOTimeUTC(this.data.createdAt),
-      publicKey: {
-        id: `${this.data.id}#main-key`,
-        owner: this.data.id,
-        publicKeyPem: this.data.publicKey
-      },
-      endpoints: {
-        sharedInbox: `https://${this.data.domain}/inbox`
-      },
-      ...icon,
-      ...headerImage
-    }
-  }
-
-  toPublicProfile(): PublicProfile {
-    const icon = this.data.iconUrl
-      ? {
-          icon: {
-            type: 'Image',
-            mediaType: 'image/jpeg',
-            url: this.data.iconUrl
-          } as Image
-        }
-      : null
-    return {
-      id: this.data.id,
-      username: this.data.username,
-      domain: this.data.domain,
-      ...(icon || null),
-      url: `https://${this.data.domain}/@${this.data.username}`,
-      name: this.data.name || '',
-      summary: this.data.summary || '',
-
-      followersCount: this.data.followersCount,
-      followingCount: this.data.followingCount,
-      totalPosts: this.data.statusCount,
-
-      endpoints: {
-        following: `https://${this.data.domain}/users/${this.data.username}/following`,
-        followers: this.data.followersUrl,
-        inbox: this.data.inboxUrl,
-        outbox: `https://${this.data.domain}/users/${this.data.username}/outbox`,
-        sharedInbox: this.data.sharedInboxUrl ?? this.data.inboxUrl
-      },
-
-      createdAt: this.data.createdAt
-    }
-  }
-
-  toJson(): ActorProfile {
-    return this.toProfile()
+    return `@${id}${getMentionDomainFromActorID(actorId)}`
+  } catch {
+    logger.error(`Fail to split the actor id, (${JSON.stringify(actorId)})`)
+    return actorId
   }
 }
+
+// export class Actor {
+//   readonly data: ActorData
+
+//   constructor(data: ActorData) {
+//     this.data = ActorData.parse(data)
+//   }
+
+//   get id(): string {
+//     return this.data.id
+//   }
+
+//   get name(): string {
+//     return this.data.name || ''
+//   }
+
+//   get summary(): string {
+//     return this.data.summary || ''
+//   }
+
+//   get username(): string {
+//     return this.data.username
+//   }
+
+//   get domain(): string {
+//     return this.data.domain
+//   }
+
+//   get iconUrl(): string {
+//     return this.data.iconUrl || ''
+//   }
+
+//   get headerImageUrl(): string {
+//     return this.data.headerImageUrl || ''
+//   }
+
+//   get appleSharedAlbumToken(): string {
+//     return this.data.appleSharedAlbumToken || ''
+//   }
+
+//   get publicKey(): string {
+//     return this.data.publicKey
+//   }
+
+//   get privateKey(): string {
+//     return this.data.privateKey || ''
+//   }
+
+//   get inboxUrl(): string {
+//     return this.data.inboxUrl
+//   }
+
+//   get sharedInboxUrl(): string {
+//     return this.data.sharedInboxUrl
+//   }
+
+//   get followersUrl(): string {
+//     return this.data.followersUrl
+//   }
+
+//   get account(): Account | undefined {
+//     return this.data.account
+//   }
+
+//   get createdAt(): number {
+//     return this.data.createdAt
+//   }
+
+//   static getMentionHostnameFromId(actorId: string) {
+//     const url = new URL(actorId)
+//     return `@${url.hostname}`
+//   }
+
+//   static getMentionFromId(actorId: string, withDomain = false): string {
+//     try {
+//       // This method assume that all actor id has a username in the end,
+//       // however this might not be true especially for Misskey.io that use
+//       // random id in the actor id instead of username.
+//       const id = actorId.split('/').pop()
+//       if (!withDomain) {
+//         return `@${id}`
+//       }
+
+//       return `@${id}${Actor.getMentionHostnameFromId(actorId)}`
+//     } catch {
+//       logger.error(`Fail to split the actor id, (${JSON.stringify(actorId)})`)
+//       return actorId
+//     }
+//   }
+
+//   static getMentionFromProfile(
+//     profile: ActorProfile,
+//     withDomain = true
+//   ): string {
+//     if (!withDomain) {
+//       return `@${profile.username}`
+//     }
+
+//     return `@${profile.username}@${profile.domain}`
+//   }
+
+//   getMention(withDomain = false): string {
+//     if (!withDomain) {
+//       return `@${this.username}`
+//     }
+
+//     return `@${this.username}@${this.domain}`
+//   }
+
+//   getActorPage(withDomain = false): string {
+//     return `https://${this.domain}/${this.getMention(withDomain)}`
+//   }
+
+//   toProfile(): ActorProfile {
+//     return {
+//       id: this.data.id,
+//       username: this.data.username,
+//       domain: this.data.domain,
+//       ...(this.data.name ? { name: this.data.name } : null),
+//       ...(this.data.domain ? { domain: this.data.domain } : null),
+//       ...(this.data.summary ? { summary: this.data.summary } : null),
+//       ...(this.data.iconUrl ? { iconUrl: this.data.iconUrl } : null),
+//       ...(this.data.headerImageUrl
+//         ? { headerImageUrl: this.data.headerImageUrl }
+//         : null),
+//       ...(this.data.appleSharedAlbumToken
+//         ? { appleSharedAlbumToken: this.data.appleSharedAlbumToken }
+//         : null),
+
+//       followersUrl: this.data.followersUrl ?? '',
+//       inboxUrl: this.data.inboxUrl ?? '',
+//       sharedInboxUrl: this.data.sharedInboxUrl ?? '',
+
+//       followersCount: this.data.followersCount,
+//       followingCount: this.data.followingCount,
+
+//       statusCount: this.data.statusCount,
+//       lastStatusAt: this.data.lastStatusAt ?? null,
+
+//       createdAt: this.data.createdAt
+//     }
+//   }
+
+//   toPerson(): Person {
+//     const icon = this.data.iconUrl
+//       ? {
+//           icon: {
+//             type: 'Image',
+//             mediaType: 'image/jpeg',
+//             url: this.data.iconUrl
+//           } as Image
+//         }
+//       : null
+//     const headerImage = this.data.headerImageUrl
+//       ? {
+//           image: {
+//             type: 'Image',
+//             mediaType: 'image/png',
+//             url: this.data.headerImageUrl
+//           } as Image
+//         }
+//       : null
+
+//     return {
+//       '@context': [ACTIVITY_STREAM_URL, W3ID_URL],
+//       id: this.data.id,
+//       type: 'Person',
+//       following: `https://${this.data.domain}/users/${this.data.username}/following`,
+//       followers: `https://${this.data.domain}/users/${this.data.username}/followers`,
+//       inbox: `https://${this.data.domain}/users/${this.data.username}/inbox`,
+//       outbox: `https://${this.data.domain}/users/${this.data.username}/outbox`,
+//       preferredUsername: this.data.username,
+//       name: this.data.name || '',
+//       summary: this.data.summary || '',
+//       url: `https://${this.data.domain}/@${this.data.username}`,
+//       published: getISOTimeUTC(this.data.createdAt),
+//       publicKey: {
+//         id: `${this.data.id}#main-key`,
+//         owner: this.data.id,
+//         publicKeyPem: this.data.publicKey
+//       },
+//       endpoints: {
+//         sharedInbox: `https://${this.data.domain}/inbox`
+//       },
+//       ...icon,
+//       ...headerImage
+//     }
+//   }
+
+//   toPublicProfile(): PublicProfile {
+//     const icon = this.data.iconUrl
+//       ? {
+//           icon: {
+//             type: 'Image',
+//             mediaType: 'image/jpeg',
+//             url: this.data.iconUrl
+//           } as Image
+//         }
+//       : null
+//     return {
+//       id: this.data.id,
+//       username: this.data.username,
+//       domain: this.data.domain,
+//       ...(icon || null),
+//       url: `https://${this.data.domain}/@${this.data.username}`,
+//       name: this.data.name || '',
+//       summary: this.data.summary || '',
+
+//       followersCount: this.data.followersCount,
+//       followingCount: this.data.followingCount,
+//       totalPosts: this.data.statusCount,
+
+//       endpoints: {
+//         following: `https://${this.data.domain}/users/${this.data.username}/following`,
+//         followers: this.data.followersUrl,
+//         inbox: this.data.inboxUrl,
+//         outbox: `https://${this.data.domain}/users/${this.data.username}/outbox`,
+//         sharedInbox: this.data.sharedInboxUrl ?? this.data.inboxUrl
+//       },
+
+//       createdAt: this.data.createdAt
+//     }
+//   }
+
+//   toJson(): ActorProfile {
+//     return this.toProfile()
+//   }
+// }
