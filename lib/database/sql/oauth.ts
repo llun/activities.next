@@ -156,7 +156,7 @@ export const OAuthSQLDatabaseMixin = (
       },
       user: User.parse({
         id: actor?.id,
-        actor: actor?.data,
+        actor,
         account
       }),
 
@@ -320,7 +320,7 @@ export const OAuthSQLDatabaseMixin = (
       },
       user: User.parse({
         id: actor?.id,
-        actor: actor?.data,
+        actor,
         account
       }),
 

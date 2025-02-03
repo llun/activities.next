@@ -9,7 +9,7 @@ import {
 } from '@/lib/database/testUtils'
 import { Scope } from '@/lib/database/types/oauth'
 import { Account } from '@/lib/models/account'
-import { Actor } from '@/lib/models/actor'
+import { Actor, getActorProfile } from '@/lib/models/actor'
 import { FollowStatus } from '@/lib/models/follow'
 import { AuthCode } from '@/lib/models/oauth2/authCode'
 import { Client } from '@/lib/models/oauth2/client'
@@ -185,19 +185,17 @@ describe('Database', () => {
           privateKey: expect.toBeString()
         }
         expect(
-          (await database.getActorFromEmail({ email: TEST_EMAIL }))?.data
+          await database.getActorFromEmail({ email: TEST_EMAIL })
         ).toMatchObject(expectedActorAfterCreated)
         expect(
-          (
-            await database.getActorFromUsername({
-              username: TEST_USERNAME,
-              domain: TEST_DOMAIN
-            })
-          )?.data
+          await database.getActorFromUsername({
+            username: TEST_USERNAME,
+            domain: TEST_DOMAIN
+          })
         ).toMatchObject(expectedActorAfterCreated)
-        expect(
-          (await database.getActorFromId({ id: TEST_ID }))?.data
-        ).toMatchObject(expectedActorAfterCreated)
+        expect(await database.getActorFromId({ id: TEST_ID })).toMatchObject(
+          expectedActorAfterCreated
+        )
       })
 
       it('returns mastodon actor from getMastodonActor methods', async () => {
@@ -276,7 +274,6 @@ describe('Database', () => {
         expect(actor?.username).toEqual(TEST_USERNAME10)
         expect(actor?.domain).toEqual(TEST_DOMAIN10)
         expect(actor?.followersUrl).toEqual(`${TEST_ID10}/followers`)
-        expect(actor?.privateKey).toEqual('')
       })
 
       it('creates actor and returns actor in mastodon account format', async () => {
@@ -608,12 +605,12 @@ describe('Database', () => {
           cc: []
         })
 
-        const actor = await database.getActorFromId({ id: TEST_ID })
+        const actor = (await database.getActorFromId({ id: TEST_ID })) as Actor
         expect(status).toEqual({
           id,
           url: id,
-          actorId: actor?.id,
-          actor: actor?.toProfile(),
+          actorId: actor.id,
+          actor: getActorProfile(actor),
           type: StatusType.enum.Note,
 
           text: 'Test Status',
