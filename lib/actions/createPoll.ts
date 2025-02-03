@@ -6,7 +6,7 @@ import {
 } from '@/lib/actions/createNote'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
+import { Actor, getMention } from '@/lib/models/actor'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 import { getMentions } from '@/lib/utils/text/getMentions'
@@ -45,9 +45,7 @@ export const createPollFromUserInput = async ({
 
   const createdPoll = await database.createPoll({
     id: statusId,
-    url: `https://${
-      currentActor.domain
-    }/${currentActor.getMention()}/${postId}`,
+    url: `https://${currentActor.domain}/${getMention(currentActor)}/${postId}`,
     actorId: currentActor.id,
     text: convertMarkdownText(config.host)(text),
     summary: '',

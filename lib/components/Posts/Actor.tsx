@@ -2,7 +2,14 @@ import cn from 'classnames'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { Actor as ActorModel, ActorProfile } from '../../models/actor'
+import {
+  Actor as ActorModel,
+  ActorProfile,
+  getMention,
+  getMentionDomainFromActorID,
+  getMentionFromActorID
+} from '@/lib/models/actor'
+
 import styles from './Actor.module.scss'
 
 interface Props {
@@ -17,7 +24,7 @@ export const Actor: FC<Props> = ({ actor, actorId, className }) => {
       <div className={className}>
         <Link
           prefetch={false}
-          href={`/${ActorModel.getMentionFromProfile(actor, true)}`}
+          href={`/${getMention(actor, true)}`}
           target="_blank"
         >
           <span
@@ -43,10 +50,10 @@ export const Actor: FC<Props> = ({ actor, actorId, className }) => {
       <div className={className}>
         <Link
           prefetch={false}
-          href={`/${ActorModel.getMentionFromId(actorId, true)}`}
+          href={`/${getMentionFromActorID(actorId, true)}`}
         >
-          <strong>{ActorModel.getMentionFromId(actorId, false)}</strong>
-          <small>{ActorModel.getMentionHostnameFromId(actorId)}</small>
+          <strong>{getMentionFromActorID(actorId, false)}</strong>
+          <small>{getMentionDomainFromActorID(actorId)}</small>
 
           <i className="ms-2 bi bi-person-badge"></i>
         </Link>

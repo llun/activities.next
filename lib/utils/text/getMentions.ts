@@ -1,10 +1,13 @@
 import { Mention } from '@llun/activities.schema'
 
-import { getPublicProfileFromHandle } from '../../activities'
-import { Actor, getMention, getMentionFromActorID } from '../../models/actor'
-import { Status } from '../../models/status'
-import { getSpan } from '../trace'
-import { MENTION_GLOBAL_REGEX, MentionMatchGroup } from './convertMarkdownText'
+import { getPublicProfileFromHandle } from '@/lib/activities'
+import { Actor, getMention, getMentionFromActorID } from '@/lib/models/actor'
+import { Status } from '@/lib/models/status'
+import {
+  MENTION_GLOBAL_REGEX,
+  MentionMatchGroup
+} from '@/lib/utils/text/convertMarkdownText'
+import { getSpan } from '@/lib/utils/trace'
 
 interface GetMentionsParams {
   text: string
