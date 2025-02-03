@@ -1263,7 +1263,7 @@ describe('Database', () => {
             scopes: [Scope.enum.read]
           })
           expect(token?.client).toEqual(client)
-          expect(token?.user?.actor).toEqual(actor?.data)
+          expect(token?.user?.actor).toEqual(actor)
           expect(token?.user?.id).toEqual(actor?.id)
         })
 
@@ -1352,7 +1352,7 @@ describe('Database', () => {
           })
 
           expect(code?.client).toEqual(client)
-          expect(code?.user?.actor).toEqual(actor?.data)
+          expect(code?.user?.actor).toEqual(actor)
           expect(code?.user?.id).toEqual(actor?.id)
         })
 
