@@ -35,7 +35,7 @@ describe('#getActorPosts', () => {
     mockRequests(fetchMock)
   })
 
-  it('returns posts from outbox api', async () => {
+  it('returns posts with total posts actor have', async () => {
     const person = (await getActorPerson({
       actorId: ACTOR1_ID
     })) as Person

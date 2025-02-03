@@ -9,6 +9,7 @@ import { FollowAction } from '@/lib/components/FollowAction'
 import { Profile } from '@/lib/components/Profile'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getMentionDomainFromActorID } from '@/lib/models/actor'
 
 import { ActorTimelines } from './ActorTimelines'
 import styles from './[actor].module.scss'
@@ -71,11 +72,11 @@ const Page: FC<Props> = async ({ params }) => {
             name={person.name ?? ''}
             url={person.url}
             username={person.preferredUsername}
-            domain={person.domain}
+            domain={getMentionDomainFromActorID(person.id)}
             totalPosts={statusesCount}
             followersCount={person.followersCount}
             followingCount={person.followingCount}
-            createdAt={person.createdAt}
+            createdAt={new Date(person.published).getTime()}
           />
           <FollowAction targetActorId={person.id} isLoggedIn={isLoggedIn} />
         </div>
@@ -84,7 +85,7 @@ const Page: FC<Props> = async ({ params }) => {
         host={host}
         currentTime={new Date()}
         statuses={statuses}
-        attachments={attachments}
+        attachments={attachments.map((attachment) => (attachment.data)}
       />
     </>
   )

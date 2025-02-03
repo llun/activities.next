@@ -1,16 +1,19 @@
 import { Person } from '@llun/activities.schema'
 
+import { DEFAULT_ACCEPT } from '@/lib/activities/consts'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { getTracer } from '@/lib/utils/trace'
 
-import { DEFAULT_ACCEPT } from '../consts'
-
-interface Params {
+type GetActorPersonFunction = (params: {
   actorId: string
   withNetworkRetry?: boolean
-}
-export const getActorPerson = ({ actorId, withNetworkRetry = true }: Params) =>
+}) => Promise<Person | null>
+
+export const getActorPerson: GetActorPersonFunction = ({
+  actorId,
+  withNetworkRetry = true
+}) =>
   getTracer().startActiveSpan('activities.getActorProfile', async (span) => {
     try {
       const { statusCode, body } = await request({

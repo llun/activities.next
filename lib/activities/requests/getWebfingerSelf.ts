@@ -3,10 +3,11 @@ import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { getTracer } from '@/lib/utils/trace'
 
-interface Params {
+type GetWebfingerSelfFunction = (params: {
   account: string
-}
-export const getWebfingerSelf = async ({ account }: Params) =>
+}) => Promise<string | null>
+
+export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
   getTracer().startActiveSpan(
     'activities.getWebfingerSelf',
     { attributes: { account } },
