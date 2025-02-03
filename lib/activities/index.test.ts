@@ -8,7 +8,7 @@ import { Actor } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
-import { MockMastodonNote } from '@/lib/stub/note'
+import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { MockPerson } from '@/lib/stub/person'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -56,7 +56,7 @@ describe('activities', () => {
   describe('#sendNote', () => {
     it('fetch to shared inbox', async () => {
       const actor = MockActor({})
-      const note = MockMastodonNote({
+      const note = MockMastodonActivityPubNote({
         content: '<p>Hello</p>',
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: ['https://chat.llun.dev/users/me/followers']

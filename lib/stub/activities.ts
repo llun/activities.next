@@ -1,7 +1,7 @@
 import { FetchMock } from 'jest-fetch-mock'
 
 import { MockImageDocument } from './imageDocument'
-import { MockLitepubNote, MockMastodonNote } from './note'
+import { MockLitepubNote, MockMastodonActivityPubNote } from './note'
 import { MockActivityPubPerson } from './person'
 import { MockWebfinger } from './webfinger'
 
@@ -49,7 +49,7 @@ export const mockRequests = (fetchMock: FetchMock) => {
           return {
             status: 200,
             body: JSON.stringify(
-              MockMastodonNote({
+              MockMastodonActivityPubNote({
                 id: req.url,
                 from,
                 content: 'This is status with attachments',
@@ -71,7 +71,7 @@ export const mockRequests = (fetchMock: FetchMock) => {
         return {
           status: 200,
           body: JSON.stringify(
-            MockMastodonNote({
+            MockMastodonActivityPubNote({
               id: req.url,
               from,
               content: 'This is status',
@@ -103,7 +103,7 @@ export const mockRequests = (fetchMock: FetchMock) => {
         return {
           status: 200,
           body: JSON.stringify(
-            MockMastodonNote({
+            MockMastodonActivityPubNote({
               id: req.url,
               from: `https://${url.hostname}/actors/${username}`,
               content: 'This is status',

@@ -1,5 +1,6 @@
 import { Person } from '@llun/activities.schema'
 
+import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { Attachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
@@ -32,5 +33,14 @@ export const getProfileData = async (
     }
   }
 
-  return null
+  const person = await getActorPerson({ actorId: actorHandle })
+  if (!person) {
+    return null
+  }
+
+  const [statuses, attachments] = await Promise.all([
+    getActorPosts({ postsUrl: profile.urls?.posts }),
+    database.getAttachmentsForActor({ actorId: profile.id })
+  ])
+  return { person, statuses: [], attachments: [] }
 }

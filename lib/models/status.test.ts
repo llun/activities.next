@@ -12,7 +12,7 @@ import {
 } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
-import { MockMastodonNote } from '@/lib/stub/note'
+import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
@@ -46,7 +46,7 @@ describe('Status', () => {
 
   describe('#fromNote', () => {
     it('returns status from json', async () => {
-      const note = MockMastodonNote({
+      const note = MockMastodonActivityPubNote({
         content: 'Hello',
         inReplyTo: 'https://other.network/users/test/status/1',
         withContext: true
@@ -78,7 +78,7 @@ describe('Status', () => {
     })
 
     it('returns empty string for undefined reply', async () => {
-      const note = MockMastodonNote({
+      const note = MockMastodonActivityPubNote({
         content: 'Hello',
         withContext: true
       })

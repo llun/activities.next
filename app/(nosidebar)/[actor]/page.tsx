@@ -14,6 +14,7 @@ import { ActorTimelines } from './ActorTimelines'
 import styles from './[actor].module.scss'
 import { getExternalActorProfile } from './getExternalActorProfile'
 import { getInternalActorProfile } from './getInternalActorProfile'
+import { getProfileData } from './getProfileData'
 
 interface Props {
   params: Promise<{ actor: string }>
@@ -51,13 +52,18 @@ const Page: FC<Props> = async ({ params }) => {
     username,
     domain
   })
-  const actorProfile = persistedActor?.account
-    ? await getInternalActorProfile(database, persistedActor)
-    : await getExternalActorProfile(database, decodedActorHandle)
+  // const actorProfile = persistedActor?.account
+  //   ? await getInternalActorProfile(database, persistedActor)
+  //   : await getExternalActorProfile(database, decodedActorHandle)
+  // if (!actorProfile) {
+  //   return notFound()
+  // }
+
+  // const { person, statuses, attachments } = actorProfile
+  const actorProfile = await getProfileData(database, decodedActorHandle)
   if (!actorProfile) {
     return notFound()
   }
-
   const { person, statuses, attachments } = actorProfile
 
   return (
@@ -75,7 +81,7 @@ const Page: FC<Props> = async ({ params }) => {
             className="flex-fill"
             name={person.name ?? ''}
             url={person.url}
-            username={person.username}
+            username={person.preferredUsername}
             domain={person.domain}
             totalPosts={person.totalPosts}
             followersCount={person.followersCount}
