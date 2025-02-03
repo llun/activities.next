@@ -1,5 +1,7 @@
 import { Person } from '@llun/activities.schema'
 
+import { getActorFollowers } from '@/lib/activities/requests/getActorFollowers'
+import { getActorFollowing } from '@/lib/activities/requests/getActorFollowing'
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { getActorPosts } from '@/lib/activities/requests/getActorPosts'
 import { Database } from '@/lib/database/types'
@@ -12,6 +14,8 @@ type ProfileData = {
   statuses: Status[]
   statusesCount: number
   attachments: Attachment[]
+  followingCount: number
+  followersCount: number
 }
 
 export const getProfileData = async (
@@ -24,16 +28,26 @@ export const getProfileData = async (
     domain
   })
   if (persistedActor?.account) {
-    const [statuses, statusesCount, attachments] = await Promise.all([
+    const [
+      statuses,
+      statusesCount,
+      attachments,
+      followingCount,
+      followersCount
+    ] = await Promise.all([
       database.getActorStatuses({ actorId: persistedActor.id }),
       database.getActorStatusesCount({ actorId: persistedActor.id }),
-      database.getAttachmentsForActor({ actorId: persistedActor.id })
+      database.getAttachmentsForActor({ actorId: persistedActor.id }),
+      database.getActorFollowingCount({ actorId: persistedActor.id }),
+      database.getActorFollowersCount({ actorId: persistedActor.id })
     ])
     return {
       person: getPersonFromActor(persistedActor),
       statuses,
       statusesCount,
-      attachments
+      attachments,
+      followingCount,
+      followersCount
     }
   }
 
@@ -42,13 +56,22 @@ export const getProfileData = async (
     return null
   }
 
-  const [actorPostsResponse, attachments] = await Promise.all([
+  const [
+    actorPostsResponse,
+    attachments,
+    actorFollowingResponse,
+    actorFollowersResponse
+  ] = await Promise.all([
     getActorPosts({ database, person }),
-    database.getAttachmentsForActor({ actorId: person.id })
+    database.getAttachmentsForActor({ actorId: person.id }),
+    getActorFollowing({ person }),
+    getActorFollowers({ person })
   ])
   return {
     ...actorPostsResponse,
     person,
-    attachments
+    attachments,
+    followingCount: actorFollowingResponse.followingCount,
+    followersCount: actorFollowersResponse.followerCount
   }
 }

@@ -1,5 +1,6 @@
 import { FetchMock } from 'jest-fetch-mock'
 
+import { MockActivityPubFollowers } from './followers'
 import { MockActivityPubFollowing } from './following'
 import { MockImageDocument } from './imageDocument'
 import { MockLitepubNote, MockMastodonActivityPubNote } from './note'
@@ -167,6 +168,34 @@ export const mockRequests = (fetchMock: FetchMock) => {
           status: 200,
           body: JSON.stringify(
             MockActivityPubFollowing({
+              actorId: `https://${url.hostname}/users/${username}`
+            })
+          )
+        }
+      }
+
+      // Mock Person followers
+      if (
+        url.pathname.startsWith('/users') &&
+        url.pathname.includes('/followers')
+      ) {
+        const [, username] = url.pathname.slice(1).split('/')
+        if (url.searchParams.has('page')) {
+          return {
+            status: 200,
+            body: JSON.stringify(
+              MockActivityPubFollowers({
+                actorId: `https://${url.hostname}/users/${username}`,
+                withPage: true
+              })
+            )
+          }
+        }
+
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubFollowers({
               actorId: `https://${url.hostname}/users/${username}`
             })
           )

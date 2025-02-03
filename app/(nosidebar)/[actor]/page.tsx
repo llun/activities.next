@@ -13,8 +13,6 @@ import { getMentionDomainFromActorID } from '@/lib/models/actor'
 
 import { ActorTimelines } from './ActorTimelines'
 import styles from './[actor].module.scss'
-import { getExternalActorProfile } from './getExternalActorProfile'
-import { getInternalActorProfile } from './getInternalActorProfile'
 import { getProfileData } from './getProfileData'
 
 interface Props {
@@ -48,13 +46,19 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
-  const [username, domain] = parts
   const actorProfile = await getProfileData(database, decodedActorHandle)
   if (!actorProfile) {
     return notFound()
   }
 
-  const { person, statuses, statusesCount, attachments } = actorProfile
+  const {
+    person,
+    statuses,
+    statusesCount,
+    attachments,
+    followingCount,
+    followersCount
+  } = actorProfile
 
   return (
     <>
@@ -74,8 +78,8 @@ const Page: FC<Props> = async ({ params }) => {
             username={person.preferredUsername}
             domain={getMentionDomainFromActorID(person.id)}
             totalPosts={statusesCount}
-            followersCount={person.followersCount}
-            followingCount={person.followingCount}
+            followersCount={followersCount}
+            followingCount={followingCount}
             createdAt={new Date(person.published).getTime()}
           />
           <FollowAction targetActorId={person.id} isLoggedIn={isLoggedIn} />
@@ -85,7 +89,7 @@ const Page: FC<Props> = async ({ params }) => {
         host={host}
         currentTime={new Date()}
         statuses={statuses}
-        attachments={attachments.map((attachment) => (attachment.data)}
+        attachments={attachments.map((attachment) => attachment.data)}
       />
     </>
   )
