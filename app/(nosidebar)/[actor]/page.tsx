@@ -48,23 +48,12 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   const [username, domain] = parts
-  const persistedActor = await database.getActorFromUsername({
-    username,
-    domain
-  })
-  // const actorProfile = persistedActor?.account
-  //   ? await getInternalActorProfile(database, persistedActor)
-  //   : await getExternalActorProfile(database, decodedActorHandle)
-  // if (!actorProfile) {
-  //   return notFound()
-  // }
-
-  // const { person, statuses, attachments } = actorProfile
   const actorProfile = await getProfileData(database, decodedActorHandle)
   if (!actorProfile) {
     return notFound()
   }
-  const { person, statuses, attachments } = actorProfile
+
+  const { person, statuses, statusesCount, attachments } = actorProfile
 
   return (
     <>
@@ -83,7 +72,7 @@ const Page: FC<Props> = async ({ params }) => {
             url={person.url}
             username={person.preferredUsername}
             domain={person.domain}
-            totalPosts={person.totalPosts}
+            totalPosts={statusesCount}
             followersCount={person.followersCount}
             followingCount={person.followingCount}
             createdAt={person.createdAt}
