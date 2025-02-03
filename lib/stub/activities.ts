@@ -2,6 +2,7 @@ import { FetchMock } from 'jest-fetch-mock'
 
 import { MockImageDocument } from './imageDocument'
 import { MockLitepubNote, MockMastodonActivityPubNote } from './note'
+import { MockActivityPubOutbox } from './outbox'
 import { MockActivityPubPerson } from './person'
 import { MockWebfinger } from './webfinger'
 
@@ -107,6 +108,36 @@ export const mockRequests = (fetchMock: FetchMock) => {
               id: req.url,
               from: `https://${url.hostname}/actors/${username}`,
               content: 'This is status',
+              withContext: true
+            })
+          )
+        }
+      }
+
+      // Mock Person outbox
+      if (
+        url.pathname.startsWith('/users') &&
+        url.pathname.includes('/outbox')
+      ) {
+        const [, username] = url.pathname.slice(1).split('/')
+        if (url.searchParams.has('page')) {
+          return {
+            status: 200,
+            body: JSON.stringify(
+              MockActivityPubOutbox({
+                actorId: `https://${url.hostname}/users/${username}`,
+                withPage: true,
+                withContext: true
+              })
+            )
+          }
+        }
+
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubOutbox({
+              actorId: `https://${url.hostname}/users/${username}`,
               withContext: true
             })
           )

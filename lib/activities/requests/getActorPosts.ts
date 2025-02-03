@@ -9,7 +9,7 @@ import {
 } from '@/lib/activities/entities/orderedCollection'
 import { OrderedCollectionPage } from '@/lib/activities/entities/orderedCollectionPage'
 import { Database } from '@/lib/database/types'
-import { fromAnnoucne, fromNote } from '@/lib/models/status'
+import { Status, fromAnnoucne, fromNote } from '@/lib/models/status'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { getTracer } from '@/lib/utils/trace'
@@ -18,7 +18,16 @@ interface Params {
   database: Database
   person: Person
 }
-export const getActorPosts = async ({ database, person }: Params) =>
+
+interface Response {
+  totalStatusesCount: number
+  statuses: Status[]
+}
+
+export const getActorPosts = async ({
+  database,
+  person
+}: Params): Promise<Response> =>
   getTracer().startActiveSpan(
     'activities.getActorPosts',
     {
@@ -26,7 +35,7 @@ export const getActorPosts = async ({ database, person }: Params) =>
     },
     async (span) => {
       const outboxResponse = await request({
-        url: `${person.outbox}?page=true`,
+        url: person.outbox,
         headers: { Accept: DEFAULT_ACCEPT }
       })
       if (outboxResponse.statusCode !== 200) {
@@ -38,14 +47,13 @@ export const getActorPosts = async ({ database, person }: Params) =>
           new Error(`Outbox URL returns ${outboxResponse.statusCode}`)
         )
         span.end()
-        return []
+        return { totalStatusesCount: 0, statuses: [] }
       }
 
-      console.log(outboxResponse.body)
-      return []
       const outboxCollection = JSON.parse(
         outboxResponse.body
       ) as OrderedCollection
+      const totalItems = outboxCollection.totalItems ?? 0
       const postsUrl = getOrderCollectionFirstPage(outboxCollection)
 
       if (!postsUrl) {
@@ -53,7 +61,7 @@ export const getActorPosts = async ({ database, person }: Params) =>
           new Error('Outbox response doesn not contain posts url')
         )
         span.end()
-        return []
+        return { totalStatusesCount: totalItems, statuses: [] }
       }
 
       try {
@@ -69,11 +77,11 @@ export const getActorPosts = async ({ database, person }: Params) =>
           span.recordException(
             new Error(`Posts URL returns ${postsResponse.statusCode}`)
           )
-          return []
+          return { totalStatusesCount: totalItems, statuses: [] }
         }
 
         const json: OrderedCollectionPage = JSON.parse(postsResponse.body)
-        const items = json.orderedItems || []
+        const items = json.orderedItems ?? []
         const statuses = await Promise.all(
           items.map(async (item) => {
             if (item.type === AnnounceAction) {
@@ -97,12 +105,15 @@ export const getActorPosts = async ({ database, person }: Params) =>
           })
         )
 
-        return statuses.filter((item) => item !== null)
+        return {
+          totalStatusesCount: totalItems,
+          statuses: statuses.filter((item) => item !== null)
+        }
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)
         logger.error(`[getActorPosts] ${nodeError.message}`)
-        return []
+        return { totalStatusesCount: 0, statuses: [] }
       } finally {
         span.end()
       }

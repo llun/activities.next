@@ -9,7 +9,7 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { getActorPerson } from './getActorPerson'
 import { getActorPosts } from './getActorPosts'
 
-// enableFetchMocks()
+enableFetchMocks()
 
 describe('#getActorPosts', () => {
   const database = getSQLDatabase({
@@ -30,14 +30,14 @@ describe('#getActorPosts', () => {
     await database.destroy()
   })
 
-  // beforeEach(() => {
-  //   fetchMock.resetMocks()
-  //   mockRequests(fetchMock)
-  // })
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    mockRequests(fetchMock)
+  })
 
   it('returns posts from outbox api', async () => {
     const person = (await getActorPerson({
-      actorId: 'https://mastodon.in.th/users/llun'
+      actorId: ACTOR1_ID
     })) as Person
     const posts = await getActorPosts({ database, person })
     console.log(posts)
