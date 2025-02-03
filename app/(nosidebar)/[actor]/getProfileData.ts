@@ -1,6 +1,7 @@
 import { Person } from '@llun/activities.schema'
 
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
+import { getActorPosts } from '@/lib/activities/requests/getActorPosts'
 import { Database } from '@/lib/database/types'
 import { Attachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
@@ -9,6 +10,7 @@ import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 type ProfileData = {
   person: Person
   statuses: Status[]
+  statusesCount: number
   attachments: Attachment[]
 }
 
@@ -22,13 +24,15 @@ export const getProfileData = async (
     domain
   })
   if (persistedActor?.account) {
-    const [statuses, attachments] = await Promise.all([
+    const [statuses, statusesCount, attachments] = await Promise.all([
       database.getActorStatuses({ actorId: persistedActor.id }),
+      database.getActorStatusesCount({ actorId: persistedActor.id }),
       database.getAttachmentsForActor({ actorId: persistedActor.id })
     ])
     return {
       person: getPersonFromActor(persistedActor),
       statuses,
+      statusesCount,
       attachments
     }
   }
@@ -38,9 +42,13 @@ export const getProfileData = async (
     return null
   }
 
-  const [statuses, attachments] = await Promise.all([
-    getActorPosts({ postsUrl: profile.urls?.posts }),
-    database.getAttachmentsForActor({ actorId: profile.id })
+  const [actorPostsResponse, attachments] = await Promise.all([
+    getActorPosts({ database, person }),
+    database.getAttachmentsForActor({ actorId: person.id })
   ])
-  return { person, statuses: [], attachments: [] }
+  return {
+    ...actorPostsResponse,
+    person,
+    attachments
+  }
 }

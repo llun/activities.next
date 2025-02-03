@@ -20,7 +20,7 @@ interface Params {
 }
 
 interface Response {
-  totalStatusesCount: number
+  statusesCount: number
   statuses: Status[]
 }
 
@@ -47,7 +47,7 @@ export const getActorPosts = async ({
           new Error(`Outbox URL returns ${outboxResponse.statusCode}`)
         )
         span.end()
-        return { totalStatusesCount: 0, statuses: [] }
+        return { statusesCount: 0, statuses: [] }
       }
 
       const outboxCollection = JSON.parse(
@@ -61,7 +61,7 @@ export const getActorPosts = async ({
           new Error('Outbox response doesn not contain posts url')
         )
         span.end()
-        return { totalStatusesCount: totalItems, statuses: [] }
+        return { statusesCount: totalItems, statuses: [] }
       }
 
       try {
@@ -77,7 +77,7 @@ export const getActorPosts = async ({
           span.recordException(
             new Error(`Posts URL returns ${postsResponse.statusCode}`)
           )
-          return { totalStatusesCount: totalItems, statuses: [] }
+          return { statusesCount: totalItems, statuses: [] }
         }
 
         const json: OrderedCollectionPage = JSON.parse(postsResponse.body)
@@ -106,14 +106,14 @@ export const getActorPosts = async ({
         )
 
         return {
-          totalStatusesCount: totalItems,
+          statusesCount: totalItems,
           statuses: statuses.filter((item) => item !== null)
         }
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)
         logger.error(`[getActorPosts] ${nodeError.message}`)
-        return { totalStatusesCount: 0, statuses: [] }
+        return { statusesCount: 0, statuses: [] }
       } finally {
         span.end()
       }

@@ -39,7 +39,41 @@ describe('#getActorPosts', () => {
     const person = (await getActorPerson({
       actorId: ACTOR1_ID
     })) as Person
-    const posts = await getActorPosts({ database, person })
-    console.log(posts)
+    const response = await getActorPosts({ database, person })
+    expect(response).toMatchObject({
+      statusesCount: 10,
+      statuses: [
+        {
+          id: expect.stringContaining(ACTOR1_ID),
+          actorId: ACTOR1_ID,
+          isLocalActor: false,
+          createdAt: expect.toBeNumber(),
+          updatedAt: expect.toBeNumber(),
+          type: 'Note',
+          url: expect.stringContaining(ACTOR1_ID),
+          text: expect.toBeString()
+        },
+        {
+          id: expect.stringContaining(ACTOR1_ID),
+          actorId: ACTOR1_ID,
+          isLocalActor: false,
+          createdAt: expect.toBeNumber(),
+          updatedAt: expect.toBeNumber(),
+          type: 'Note',
+          url: expect.stringContaining(ACTOR1_ID),
+          text: expect.toBeString()
+        },
+        {
+          id: expect.stringContaining(ACTOR1_ID),
+          actorId: ACTOR1_ID,
+          isLocalActor: false,
+          createdAt: expect.toBeNumber(),
+          updatedAt: expect.toBeNumber(),
+          type: 'Note',
+          url: expect.stringContaining(ACTOR1_ID),
+          text: expect.toBeString()
+        }
+      ]
+    })
   })
 })

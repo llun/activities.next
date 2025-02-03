@@ -8,13 +8,13 @@ export const getExternalActorProfile = async (
   const profile = await getPublicProfileFromHandle(actorHandle, true)
   if (!profile) return null
 
-  const [statuses, attachments] = await Promise.all([
+  const [actorPostsResponse, attachments] = await Promise.all([
     getActorPosts({ postsUrl: profile.urls?.posts }),
     database.getAttachmentsForActor({ actorId: profile.id })
   ])
   return {
     person: profile,
-    statuses,
+    statuses: actorPostsResponse,
     attachments: attachments.map((item) => item.toJson())
   }
 }
