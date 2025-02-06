@@ -7,15 +7,15 @@ import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { FC, ReactNode } from 'react'
 
+import { Modal } from '@/app/Modal'
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Header } from '@/lib/components/Header'
 import { Profile as ProfileComponent } from '@/lib/components/Profile'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
-import { Actor } from '@/lib/models/actor'
+import { getActorProfile, getMention } from '@/lib/models/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { Modal } from '../Modal'
-import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
 import styles from './(timeline).module.scss'
 
 export const viewport = {
@@ -43,7 +43,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
     return redirect(`https://${getConfig().host}/auth/signin`)
   }
 
-  const profile = actor.toProfile()
+  const profile = getActorProfile(actor)
   return (
     <html lang="en">
       <body className="">
@@ -62,9 +62,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
               )}
               <ProfileComponent
                 name={profile.name || ''}
-                url={`https://${profile.domain}/${Actor.getMentionFromProfile(
-                  profile
-                )}`}
+                url={`https://${profile.domain}/${getMention(profile)}`}
                 username={profile.username}
                 domain={profile.domain}
                 createdAt={profile.createdAt}

@@ -354,7 +354,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           })
         }
       : null
-    return new Actor({
+    return Actor.parse({
       id: sqlActor.id,
       username: sqlActor.username,
       domain: sqlActor.domain,

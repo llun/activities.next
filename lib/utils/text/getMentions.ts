@@ -1,10 +1,13 @@
 import { Mention } from '@llun/activities.schema'
 
-import { getPublicProfileFromHandle } from '../../activities'
-import { Actor } from '../../models/actor'
-import { Status } from '../../models/status'
-import { getSpan } from '../trace'
-import { MENTION_GLOBAL_REGEX, MentionMatchGroup } from './convertMarkdownText'
+import { getPublicProfileFromHandle } from '@/lib/activities'
+import { Actor, getMention, getMentionFromActorID } from '@/lib/models/actor'
+import { Status } from '@/lib/models/status'
+import {
+  MENTION_GLOBAL_REGEX,
+  MentionMatchGroup
+} from '@/lib/utils/text/convertMarkdownText'
+import { getSpan } from '@/lib/utils/trace'
 
 interface GetMentionsParams {
   text: string
@@ -45,8 +48,8 @@ export const getMentions = async ({
 
   if (replyStatus) {
     const name = replyStatus.actor
-      ? Actor.getMentionFromProfile(replyStatus.actor, true)
-      : Actor.getMentionFromId(replyStatus.actorId, true)
+      ? getMention(replyStatus.actor, true)
+      : getMentionFromActorID(replyStatus.actorId, true)
 
     mentions.push({
       type: 'Mention',

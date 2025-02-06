@@ -214,7 +214,6 @@ describe('ActorDatabase', () => {
         expect(actor?.inboxUrl).toEqual(EXTERNAL_ACTORS[0].inbox_url)
         expect(actor?.sharedInboxUrl).toEqual(EXTERNAL_ACTORS[0].inbox_url)
         expect(actor?.publicKey).toEqual('publicKey')
-        expect(actor?.privateKey).toEqual('')
       })
 
       it('creates actor without account in the database and returns mastodon actor model', async () => {

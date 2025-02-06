@@ -1,19 +1,14 @@
 /** eslint-disable @typescript-eslint/no-explicit-any */
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import {
-  follow,
-  getPublicProfileFromHandle,
-  getWebfingerSelf,
-  sendNote
-} from '@/lib/activities'
+import { follow, getPublicProfileFromHandle, sendNote } from '@/lib/activities'
 import { CreateStatus } from '@/lib/activities/actions/createStatus'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Actor } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
-import { MockMastodonNote } from '@/lib/stub/note'
+import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { MockPerson } from '@/lib/stub/person'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -46,18 +41,6 @@ describe('activities', () => {
     mockRequests(fetchMock)
   })
 
-  describe('#getWebfingerSelf', () => {
-    it('returns self href from the webfinger', async () => {
-      const selfUrl = await getWebfingerSelf('test1@llun.test')
-      expect(selfUrl).toEqual('https://llun.test/users/test1')
-    })
-
-    it('returns null for not found account', async () => {
-      const selfUrl = await getWebfingerSelf('notexist@llun.test')
-      expect(selfUrl).toBeNull()
-    })
-  })
-
   describe('#getPublicProfileFromHandle', () => {
     it('get url from webFinger and getPerson info from user id', async () => {
       const person = await getPublicProfileFromHandle('@test1@llun.test')
@@ -73,7 +56,7 @@ describe('activities', () => {
   describe('#sendNote', () => {
     it('fetch to shared inbox', async () => {
       const actor = MockActor({})
-      const note = MockMastodonNote({
+      const note = MockMastodonActivityPubNote({
         content: '<p>Hello</p>',
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: ['https://chat.llun.dev/users/me/followers']

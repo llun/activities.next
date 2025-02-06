@@ -10,6 +10,6 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = OAuthGuard([Scope.enum.read], async (req, context) => {
   const { currentActor, database } = context
-  const mastodonAccount = await getMastodonAccount(database, currentActor.data)
+  const mastodonAccount = await getMastodonAccount(database, currentActor)
   return apiResponse(req, CORS_HEADERS, mastodonAccount)
 })

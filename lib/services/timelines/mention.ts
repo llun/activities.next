@@ -1,4 +1,5 @@
 import { getConfig } from '@/lib/config'
+import { getActorURL } from '@/lib/models/actor'
 import { StatusType } from '@/lib/models/status'
 import { sendMail } from '@/lib/services/email'
 import {
@@ -34,7 +35,7 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         return Timeline.MENTION
       }
 
-      if (status.text.includes(currentActor.getActorPage())) {
+      if (status.text.includes(getActorURL(currentActor))) {
         const account = currentActor.account
         if (config.email && account && status.actor) {
           await sendMail({

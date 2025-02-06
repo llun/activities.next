@@ -8,7 +8,7 @@ import { Status, StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockImageDocument } from '@/lib/stub/imageDocument'
-import { MockLitepubNote, MockMastodonNote } from '@/lib/stub/note'
+import { MockLitepubNote, MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
 enableFetchMocks()
@@ -46,7 +46,7 @@ describe('createNoteJob', () => {
   })
 
   it('adds note into database and returns note', async () => {
-    const note = MockMastodonNote({ content: '<p>Hello</p>' })
+    const note = MockMastodonActivityPubNote({ content: '<p>Hello</p>' })
     await createNoteJob(database, {
       id: 'id',
       name: CREATE_NOTE_JOB_NAME,
@@ -90,7 +90,7 @@ describe('createNoteJob', () => {
   })
 
   it('add status and attachments with status id into database', async () => {
-    const note = MockMastodonNote({
+    const note = MockMastodonActivityPubNote({
       content: 'Hello',
       documents: [
         MockImageDocument({ url: 'https://llun.dev/images/test1.jpg' }),
@@ -129,7 +129,7 @@ describe('createNoteJob', () => {
   })
 
   it('does not add duplicate note into database', async () => {
-    const note = MockMastodonNote({
+    const note = MockMastodonActivityPubNote({
       id: `${actor1?.id}/statuses/post-1`,
       content: 'Test duplicate'
     })
@@ -145,7 +145,7 @@ describe('createNoteJob', () => {
   })
 
   it('get public profile and add non-exist actor to database', async () => {
-    const note = MockMastodonNote({
+    const note = MockMastodonActivityPubNote({
       from: FRIEND_ACTOR_ID,
       content: '<p>Hello</p>'
     })
@@ -165,7 +165,7 @@ describe('createNoteJob', () => {
   })
 
   it('adds note with single content map when contentMap is array', async () => {
-    const note = MockMastodonNote({
+    const note = MockMastodonActivityPubNote({
       content: '<p>Hello</p>',
       contentMap: ['<p>Hello</p>']
     })
@@ -182,7 +182,7 @@ describe('createNoteJob', () => {
   })
 
   it('adds note with content is array from wordpress', async () => {
-    const note = MockMastodonNote({
+    const note = MockMastodonActivityPubNote({
       content: ['<p>Hello</p>'],
       contentMap: {}
     })

@@ -14,7 +14,7 @@ export const GET = OnlyLocalUserGuard(async (database, actor, req) => {
       '@context': ACTIVITY_STREAM_URL,
       id: outboxId,
       type: 'OrderedCollection',
-      totalItems: actor.data.statusCount,
+      totalItems: actor.statusCount,
       first: `${outboxId}?page=true`,
       last: `${outboxId}?min_id=0&page=true`
     })

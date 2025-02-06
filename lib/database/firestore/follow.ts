@@ -152,9 +152,8 @@ export const FollowerFirestoreDatabaseMixin = (
         )
       )
     ).filter(
-      (actor): actor is Actor => actor !== undefined && actor.privateKey !== ''
+      (actor): actor is Actor => actor !== undefined && !!actor.privateKey
     )
-
     return actors
   },
 

@@ -7,6 +7,7 @@ import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/Button'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getActorProfile } from '@/lib/models/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AuthenticationProviders } from './AuthenticationProviders'
@@ -33,7 +34,7 @@ const Page = async () => {
     return redirect(`https://${getConfig().host}/auth/signin`)
   }
 
-  const profile = actor.toProfile()
+  const profile = getActorProfile(actor)
   const nonCredentialsProviders =
     (providers &&
       Object.values(providers).filter(

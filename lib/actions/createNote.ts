@@ -3,7 +3,7 @@ import crypto from 'crypto'
 
 import { getPublicProfile, sendNote } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
+import { Actor, getMention } from '@/lib/models/actor'
 import { PostBoxAttachment } from '@/lib/models/attachment'
 import { FollowStatus } from '@/lib/models/follow'
 import { Status, StatusNote } from '@/lib/models/status'
@@ -86,9 +86,7 @@ export const createNoteFromUserInput = async ({
 
   const createdStatus = await database.createNote({
     id: statusId,
-    url: `https://${
-      currentActor.domain
-    }/${currentActor.getMention()}/${postId}`,
+    url: `https://${currentActor.domain}/${getMention(currentActor)}/${postId}`,
 
     actorId: currentActor.id,
 

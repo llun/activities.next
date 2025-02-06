@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getActorProfile } from '@/lib/models/actor'
 import { Timeline } from '@/lib/services/timelines/types'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -37,7 +38,7 @@ const Page = async () => {
     <MainPageTimeline
       host={host}
       statuses={statuses.map((item) => cleanJson(item))}
-      profile={actor.toProfile()}
+      profile={getActorProfile(actor)}
       isMediaUploadEnabled={Boolean(mediaStorage)}
     />
   )

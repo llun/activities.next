@@ -29,7 +29,7 @@ interface MockNoteParams {
 
   withContext?: boolean
 }
-export const MockMastodonNote = ({
+export const MockMastodonActivityPubNote = ({
   id = stubNoteId(),
   published = Date.now(),
   content,
@@ -73,6 +73,16 @@ export const MockMastodonNote = ({
         partOf: `${id}/replies`,
         items: []
       }
+    },
+    likes: {
+      id: `${id}/likes`,
+      type: 'Collection',
+      totalItems: 0
+    },
+    shares: {
+      id: `${id}/shares`,
+      type: 'Collection',
+      totalItems: 1
     }
   }) as Note
 

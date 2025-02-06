@@ -77,7 +77,7 @@ export const OAuthGuard =
 
       return handle(
         req,
-        { currentActor: new Actor(accessToken.user.actor), database },
+        { currentActor: Actor.parse(accessToken.user.actor), database },
         params
       )
     } catch (e) {
