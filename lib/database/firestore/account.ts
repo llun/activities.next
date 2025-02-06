@@ -185,9 +185,7 @@ export const AccountFirestoreDatabaseMixin = (
     })
   },
 
-  async getAccountSession({
-    token
-  }: GetAccountSessionParams): Promise<{
+  async getAccountSession({ token }: GetAccountSessionParams): Promise<{
     account: Account
     session: Session
   } | null> {
@@ -197,7 +195,7 @@ export const AccountFirestoreDatabaseMixin = (
       .get()
     if (tokenDocs.size !== 1) return null
 
-    const session = tokenDocs.docs[0].data() as Session
+    const session = Session.parse(tokenDocs.docs[0].data())
     const account = await this.getAccountFromId({ id: session.accountId })
     if (!account) return null
 
@@ -210,7 +208,7 @@ export const AccountFirestoreDatabaseMixin = (
     const sessionDocs = await firestore
       .collection(`accounts/${accountId}/sessions`)
       .get()
-    return sessionDocs.docs.map((doc) => doc.data() as Session)
+    return sessionDocs.docs.map((doc) => Session.parse(doc.data()))
   },
 
   async updateAccountSession({
