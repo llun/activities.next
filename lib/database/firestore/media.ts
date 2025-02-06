@@ -9,7 +9,7 @@ import {
   Media,
   MediaDatabase
 } from '@/lib/database/types/media'
-import { Attachment, AttachmentData } from '@/lib/models/attachment'
+import { Attachment } from '@/lib/models/attachment'
 
 export const MediaFirestoreDatabaseMixin = (
   firestore: Firestore
@@ -48,7 +48,7 @@ export const MediaFirestoreDatabaseMixin = (
   }: CreateAttachmentParams): Promise<Attachment> {
     const currentTime = Date.now()
     const id = crypto.randomUUID()
-    const data: AttachmentData = {
+    const data = Attachment.parse({
       id,
       actorId,
       statusId,
@@ -61,20 +61,18 @@ export const MediaFirestoreDatabaseMixin = (
 
       createdAt: currentTime,
       updatedAt: currentTime
-    }
+    })
     await firestore
       .doc(`statuses/${urlToId(statusId)}/attachments/${id}`)
       .set(data)
-    return new Attachment(data)
+    return data
   },
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
     const snapshot = await firestore
       .collection(`statuses/${urlToId(statusId)}/attachments`)
       .get()
-    return snapshot.docs.map(
-      (item) => new Attachment(item.data() as AttachmentData)
-    )
+    return snapshot.docs.map((item) => Attachment.parse(item.data()))
   },
 
   async getAttachmentsForActor({
@@ -86,8 +84,6 @@ export const MediaFirestoreDatabaseMixin = (
       .orderBy('createdAt', 'desc')
       .limit(30)
       .get()
-    return attachments.docs.map(
-      (item) => new Attachment(item.data() as AttachmentData)
-    )
+    return attachments.docs.map((item) => Attachment.parse(item.data()))
   }
 })

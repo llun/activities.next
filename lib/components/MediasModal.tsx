@@ -4,10 +4,10 @@ import { FC, useState } from 'react'
 import styles from '@/lib/components/MediasModal.module.scss'
 import { Modal } from '@/lib/components/Modal'
 import { Media } from '@/lib/components/Posts/Media'
-import { AttachmentData } from '@/lib/models/attachment'
+import { Attachment } from '@/lib/models/attachment'
 
 interface Props {
-  medias: AttachmentData[] | null
+  medias: Attachment[] | null
   initialSelection: number
   onClosed: () => void
 }

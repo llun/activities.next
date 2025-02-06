@@ -5,14 +5,14 @@ import { FC, useState } from 'react'
 import { ActorAttachments } from '@/lib/components/ActorAttachments'
 import { ActorTab, ActorTabs } from '@/lib/components/ActorTab'
 import { Posts } from '@/lib/components/Posts/Posts'
-import { AttachmentData } from '@/lib/models/attachment'
+import { Attachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
 
 interface Props {
   host: string
   currentTime: Date
   statuses: Status[]
-  attachments: AttachmentData[]
+  attachments: Attachment[]
 }
 
 export const ActorTimelines: FC<Props> = ({

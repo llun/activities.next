@@ -1,11 +1,11 @@
 import { FC, MouseEvent } from 'react'
 
-import { AttachmentData } from '../../models/attachment'
+import { Attachment } from '../../models/attachment'
 
 interface Props {
   caption?: string
   className?: string
-  attachment?: AttachmentData
+  attachment?: Attachment
   showVideoControl?: boolean
   onClick?: (event: MouseEvent) => void
 }

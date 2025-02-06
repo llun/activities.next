@@ -7,7 +7,7 @@ import {
   GetAttachmentsParams,
   MediaDatabase
 } from '@/lib/database/types/media'
-import { Attachment, AttachmentData } from '@/lib/models/attachment'
+import { Attachment } from '@/lib/models/attachment'
 
 import { getCompatibleTime } from './utils/getCompatibleTime'
 
@@ -57,7 +57,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     name = ''
   }: CreateAttachmentParams): Promise<Attachment> {
     const currentTime = new Date()
-    const data: AttachmentData = {
+    const data = Attachment.parse({
       id: crypto.randomUUID(),
       actorId,
       statusId,
@@ -69,44 +69,42 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       name,
       createdAt: currentTime.getTime(),
       updatedAt: currentTime.getTime()
-    }
+    })
     await database('attachments').insert({
       ...data,
       createdAt: currentTime,
       updatedAt: currentTime
     })
-    return new Attachment(data)
+    return data
   },
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
-    const data = await database<AttachmentData>('attachments').where(
+    const data = await database<Attachment>('attachments').where(
       'statusId',
       statusId
     )
-    return data.map(
-      (item) =>
-        new Attachment({
-          ...item,
-          createdAt: getCompatibleTime(item.createdAt),
-          updatedAt: getCompatibleTime(item.updatedAt)
-        })
+    return data.map((item) =>
+      Attachment.parse({
+        ...item,
+        createdAt: getCompatibleTime(item.createdAt),
+        updatedAt: getCompatibleTime(item.updatedAt)
+      })
     )
   },
 
   async getAttachmentsForActor({
     actorId
   }: GetAttachmentsForActorParams): Promise<Attachment[]> {
-    const data = await database<AttachmentData>('attachments')
+    const data = await database<Attachment>('attachments')
       .where('actorId', actorId)
       .orderBy('createdAt')
       .limit(30)
-    return data.map(
-      (item) =>
-        new Attachment({
-          ...item,
-          createdAt: getCompatibleTime(item.createdAt),
-          updatedAt: getCompatibleTime(item.updatedAt)
-        })
+    return data.map((item) =>
+      Attachment.parse({
+        ...item,
+        createdAt: getCompatibleTime(item.createdAt),
+        updatedAt: getCompatibleTime(item.updatedAt)
+      })
     )
   }
 })

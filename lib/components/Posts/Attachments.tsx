@@ -1,13 +1,13 @@
 import cn from 'classnames'
 import { FC } from 'react'
 
-import { AttachmentData } from '../../models/attachment'
+import { Attachment } from '../../models/attachment'
 import { Status, StatusType } from '../../models/status'
 import styles from './Attachments.module.scss'
 import { Media } from './Media'
 
 export type OnMediaSelectedHandle = (
-  allMedias: AttachmentData[],
+  allMedias: Attachment[],
   selectedMediaIndex: number
 ) => void
 
