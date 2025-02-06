@@ -5,7 +5,7 @@ import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/Button'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -13,12 +13,10 @@ export const metadata: Metadata = {
 }
 
 const Page: FC = async () => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
+  const database = getDatabase()
+  if (!database) throw new Error('Database is not available')
 
-  if (!storage) throw new Error('Storage is not available')
+  const session = await getServerSession(getAuthOptions())
   if (session && session.user) {
     return redirect('/')
   }

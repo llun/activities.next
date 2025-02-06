@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { Scope } from '@/lib/storage/types/oauth'
+import { Scope } from '@/lib/database/types/oauth'
 
 import { Client } from './client'
 import { User } from './user'

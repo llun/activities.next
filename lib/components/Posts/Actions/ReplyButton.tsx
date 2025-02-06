@@ -1,12 +1,12 @@
 import { FC } from 'react'
 
-import { StatusData } from '@/lib/models/status'
-import { Button } from '../../Button'
+import { Button } from '@/lib/components/Button'
+import { Status } from '@/lib/models/status'
 
 interface Props {
   className?: string
-  status: StatusData
-  onReply?: (status: StatusData) => void
+  status: Status
+  onReply?: (status: Status) => void
 }
 
 export const ReplyButton: FC<Props> = ({ className, status, onReply }) => {

@@ -1,13 +1,13 @@
-import { Actor } from '../../models/actor'
-import { SqlStorage } from '../../storage/sql'
-import { mockRequests } from '../../stub/activities'
-import { ACTOR1_ID, seedActor1 } from '../../stub/seed/actor1'
-import { seedActor2 } from '../../stub/seed/actor2'
-import { seedStorage } from '../../stub/storage'
-import { getMentions } from './getMentions'
+import { getSQLDatabase } from '@/lib/database/sql'
+import { Actor, getMention } from '@/lib/models/actor'
+import { mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { getMentions } from '@/lib/utils/text/getMentions'
 
 describe('#getMentions', () => {
-  const storage = new SqlStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -18,21 +18,21 @@ describe('#getMentions', () => {
   let actor2: Actor | undefined
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
-    actor1 = await storage.getActorFromUsername({
+    await database.migrate()
+    await seedDatabase(database)
+    actor1 = await database.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain
     })
-    actor2 = await storage.getActorFromUsername({
+    actor2 = await database.getActorFromUsername({
       username: seedActor2.username,
       domain: seedActor2.domain
     })
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -41,20 +41,20 @@ describe('#getMentions', () => {
   })
 
   it('returns empty array for text with no mentions', async () => {
-    if (!actor1) fail('Actor1 is required')
     expect(
       await getMentions({
         text: 'Text without mentions',
-        currentActor: actor1
+        currentActor: actor1 as Actor,
+        replyStatus: null
       })
     ).toEqual([])
   })
 
   it('returns Mentions from text', async () => {
-    if (!actor1) fail('Actor1 is required')
     const mentions = await getMentions({
       text: '@llun@somewhere.test @test1@llun.test Test mentions',
-      currentActor: actor1
+      currentActor: actor1 as Actor,
+      replyStatus: null
     })
     expect(mentions).toHaveLength(2)
     expect(mentions[0]).toEqual({
@@ -70,10 +70,10 @@ describe('#getMentions', () => {
   })
 
   it('returns mention with hostname the same as actor when mention without hostname', async () => {
-    if (!actor1) fail('Actor1 is required')
     const mentions = await getMentions({
       text: '@test2 Hello',
-      currentActor: actor1
+      currentActor: actor1 as Actor,
+      replyStatus: null
     })
     expect(mentions).toContainValue({
       type: 'Mention',
@@ -83,20 +83,19 @@ describe('#getMentions', () => {
   })
 
   it('returns no mentions if it cannot fetch user', async () => {
-    if (!actor1) fail('Actor1 is required')
     const mentions = await getMentions({
       text: '@notexist@else Hello',
-      currentActor: actor1
+      currentActor: actor1 as Actor,
+      replyStatus: null
     })
     expect(mentions).toHaveLength(0)
   })
 
   it('returns single mentions if mentions more than once', async () => {
-    if (!actor1) fail('Actor1 is required')
-
     const mentions = await getMentions({
       text: '@llun@somewhere.test @llun@somewhere.test Test mentions',
-      currentActor: actor1
+      currentActor: actor1 as Actor,
+      replyStatus: null
     })
     expect(mentions).toHaveLength(1)
     expect(mentions).toContainValue({
@@ -107,16 +106,13 @@ describe('#getMentions', () => {
   })
 
   it('adds reply actor into mention', async () => {
-    if (!actor1) fail('Actor1 is required')
-    if (!actor2) fail('Actor2 is required')
-
-    const status = await storage.getStatus({
-      statusId: `${actor2.id}/statuses/post-2`
+    const status = await database.getStatus({
+      statusId: `${actor2?.id}/statuses/post-2`
     })
 
     const mentions = await getMentions({
       text: '@llun@somewhere.test @llun@somewhere.test Test mentions',
-      currentActor: actor1,
+      currentActor: actor1 as Actor,
       replyStatus: status
     })
     expect(mentions).toHaveLength(2)
@@ -127,8 +123,8 @@ describe('#getMentions', () => {
     })
     expect(mentions).toContainValue({
       type: 'Mention',
-      href: actor2.id,
-      name: actor2.getMention(true)
+      href: actor2?.id,
+      name: getMention(actor2 as Actor, true)
     })
   })
 })

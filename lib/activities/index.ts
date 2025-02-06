@@ -1,85 +1,53 @@
 import { Note } from '@llun/activities.schema'
 import crypto from 'crypto'
 
-import { Actor, ActorProfile } from '@/lib/models/actor'
-import { Follow } from '@/lib/models/follow'
-import {
-  Status,
-  StatusAnnounce,
-  StatusData,
-  StatusNote,
-  StatusType
-} from '@/lib/models/status'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { compact } from '@/lib/utils/jsonld'
-import {
-  ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_URL
-} from '@/lib/utils/jsonld/activitystream'
-import { request } from '@/lib/utils/request'
-import { signedHeaders } from '@/lib/utils/signature'
-import { getSpan, getTracer } from '@/lib/utils/trace'
-
-import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
-import { logger } from '../utils/logger'
-import { AcceptFollow } from './actions/acceptFollow'
-import { AnnounceStatus } from './actions/announceStatus'
-import { CreateStatus } from './actions/createStatus'
-import { DeleteStatus } from './actions/deleteStatus'
-import { FollowRequest } from './actions/follow'
-import { LikeStatus } from './actions/like'
+import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
+import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
+import { CreateStatus } from '@/lib/activities/actions/createStatus'
+import { DeleteStatus } from '@/lib/activities/actions/deleteStatus'
+import { FollowRequest } from '@/lib/activities/actions/follow'
+import { LikeStatus } from '@/lib/activities/actions/like'
 import {
   AnnounceAction,
   CreateAction,
   DeleteAction,
   UndoAction,
   UpdateAction
-} from './actions/types'
-import { UndoFollow } from './actions/undoFollow'
-import { UndoLike } from './actions/undoLike'
-import { UndoStatus } from './actions/undoStatus'
-import { UpdateStatus } from './actions/updateStatus'
-import { Image } from './entities/image'
+} from '@/lib/activities/actions/types'
+import { UndoFollow } from '@/lib/activities/actions/undoFollow'
+import { UndoLike } from '@/lib/activities/actions/undoLike'
+import { UndoStatus } from '@/lib/activities/actions/undoStatus'
+import { UpdateStatus } from '@/lib/activities/actions/updateStatus'
+import { Image } from '@/lib/activities/entities/image'
 import {
   OrderedCollection,
   getOrderCollectionFirstPage
-} from './entities/orderedCollection'
-import { OrderedCollectionPage } from './entities/orderedCollectionPage'
-import { Person } from './entities/person'
-import { WebFinger } from './types'
+} from '@/lib/activities/entities/orderedCollection'
+import { OrderedCollectionPage } from '@/lib/activities/entities/orderedCollectionPage'
+import { Person } from '@/lib/activities/entities/person'
+import { getWebfingerSelf } from '@/lib/activities/requests/getWebfingerSelf'
+import { Actor, ActorProfile } from '@/lib/models/actor'
+import { Follow } from '@/lib/models/follow'
+import {
+  Status,
+  StatusAnnounce,
+  StatusType,
+  fromAnnoucne,
+  fromNote
+} from '@/lib/models/status'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
+import { compact } from '@/lib/utils/jsonld'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_URL
+} from '@/lib/utils/jsonld/activitystream'
+import { logger } from '@/lib/utils/logger'
+import { request } from '@/lib/utils/request'
+import { signedHeaders } from '@/lib/utils/signature'
+import { getSpan, getTracer } from '@/lib/utils/trace'
 
 const DEFAULT_ACCEPT = 'application/activity+json, application/ld+json'
-
-export const getWebfingerSelf = async (account: string) => {
-  const [user, domain] = account.split('@')
-  if (!user || !domain) return null
-  const span = getSpan('activities', 'getWebfingerSelf', { account })
-  try {
-    const { statusCode, body } = await request({
-      url: `https://${domain}/.well-known/webfinger?resource=acct:${account}`,
-      headers: {
-        Accept: 'application/json'
-      }
-    })
-    if (statusCode !== 200) {
-      return null
-    }
-
-    const json = JSON.parse(body) as WebFinger
-    const item = json.links.find((item) => item.rel === 'self')
-    if (!item || !('href' in item)) {
-      return null
-    }
-    return item.href
-  } catch (error) {
-    const nodeError = error as NodeJS.ErrnoException
-    span.recordException(nodeError)
-    logger.error(`[getWebfingerSelf] ${nodeError.message}`)
-    return null
-  } finally {
-    span.end()
-  }
-}
 
 // TODO: Remove PublicProfile and use Profile in model
 export interface PublicProfile {
@@ -264,7 +232,7 @@ export const getPublicProfileFromHandle = async (
       const accountWithoutAt = account.startsWith('@')
         ? account.slice(1)
         : account
-      const actorId = await getWebfingerSelf(accountWithoutAt)
+      const actorId = await getWebfingerSelf({ account: accountWithoutAt })
       if (!actorId) {
         span.end()
         return null
@@ -349,16 +317,14 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) =>
         const json: OrderedCollectionPage = JSON.parse(body)
         const items = json.orderedItems || []
 
-        const statusData = await Promise.all(
+        const statuses = await Promise.all(
           items.map(async (item) => {
+            if (typeof item === 'string') return null
             if (item.type === AnnounceAction) {
-              const note = await getStatus({ statusId: item.object })
+              const note = await getNote({ statusId: item.object })
               if (!note) return null
-              const originalStatus = Status.fromNote(note)
-              return Status.fromAnnoucne(
-                item,
-                originalStatus.data as StatusNote
-              ).toJson()
+              const originalStatus = fromNote(note)
+              return fromAnnoucne(item, originalStatus)
             }
 
             // Unsupported activity
@@ -366,11 +332,11 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) =>
             // Unsupported Object
             if (item.object.type !== 'Note') return null
 
-            return Status.fromNote(item.object).toJson()
+            return fromNote(item.object)
           })
         )
 
-        return statusData.filter((item): item is StatusData => item !== null)
+        return statuses.filter((item) => item !== null)
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)
@@ -382,14 +348,14 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) =>
     }
   )
 
-interface GetStatusParams {
+interface GetNoteParams {
   statusId: string
 }
-export const getStatus = async ({
+export const getNote = async ({
   statusId
-}: GetStatusParams): Promise<Note | null> =>
+}: GetNoteParams): Promise<Note | null> =>
   getTracer().startActiveSpan(
-    'activities.getStatus',
+    'activities.getNote',
     { attributes: { statusId } },
     async (span) => {
       try {
@@ -402,7 +368,7 @@ export const getStatus = async ({
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)
-        logger.error(`[getStatus] ${nodeError.message}`)
+        logger.error(`[getNote] ${nodeError.message}`)
         return null
       } finally {
         span.end()
@@ -480,7 +446,7 @@ export const sendUpdateNote = async ({
       }
     },
     async (span) => {
-      const note = getNoteFromStatusData(status.data)
+      const note = getNoteFromStatus(status)
       if (!note) {
         span.end()
         return
@@ -541,7 +507,7 @@ export const sendAnnounce = async ({
       }
     },
     async (span) => {
-      if (status.data.type !== StatusType.enum.Announce) {
+      if (status.type !== StatusType.enum.Announce) {
         span.end()
         return null
       }
@@ -554,7 +520,7 @@ export const sendAnnounce = async ({
         published: getISOTimeUTC(status.createdAt),
         to: status.to,
         cc: status.cc,
-        object: status.data.originalStatus.id
+        object: status.originalStatus.id
       }
       const method = 'POST'
       try {

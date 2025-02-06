@@ -1,11 +1,11 @@
 import { z } from 'zod'
 
-import { Account } from '../account'
-import { ActorData } from '../actor'
+import { Account } from '@/lib/models/account'
+import { Actor } from '@/lib/models/actor'
 
 export const User = z.object({
   id: z.string(),
-  actor: ActorData,
+  actor: Actor,
   account: Account
 })
 

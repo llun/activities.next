@@ -1,21 +1,20 @@
+import { sendUpdateNote } from '@/lib/activities'
+import { Database } from '@/lib/database/types'
+import { Actor } from '@/lib/models/actor'
+import { StatusType } from '@/lib/models/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
 } from '@/lib/utils/jsonld/activitystream'
-
-import { sendUpdateNote } from '../activities'
-import { Actor } from '../models/actor'
-import { StatusType } from '../models/status'
-import { Storage } from '../storage/types'
-import { logger } from '../utils/logger'
-import { getSpan } from '../utils/trace'
+import { logger } from '@/lib/utils/logger'
+import { getSpan } from '@/lib/utils/trace'
 
 interface UpdateNoteFromUserInput {
   statusId: string
   currentActor: Actor
   text: string
   summary?: string
-  storage: Storage
+  database: Database
 }
 
 export const updateNoteFromUserInput = async ({
@@ -23,10 +22,10 @@ export const updateNoteFromUserInput = async ({
   currentActor,
   text,
   summary,
-  storage
+  database
 }: UpdateNoteFromUserInput) => {
   const span = getSpan('actions', 'updateNoteFromUser', { statusId })
-  const status = await storage.getStatus({ statusId })
+  const status = await database.getStatus({ statusId })
   if (
     !status ||
     status.type !== StatusType.enum.Note ||
@@ -36,7 +35,7 @@ export const updateNoteFromUserInput = async ({
     return null
   }
 
-  const updatedStatus = await storage.updateNote({
+  const updatedStatus = await database.updateNote({
     statusId,
     summary,
     text
@@ -53,7 +52,7 @@ export const updateNoteFromUserInput = async ({
     updatedStatus.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
     updatedStatus.cc.includes(ACTIVITY_STREAM_PUBLIC_COMACT)
   ) {
-    const followersInbox = await storage.getFollowersInbox({
+    const followersInbox = await database.getFollowersInbox({
       targetActorId: currentActor.id
     })
     inboxes.push(...followersInbox)
@@ -67,7 +66,7 @@ export const updateNoteFromUserInput = async ({
             item !== ACTIVITY_STREAM_PUBLIC &&
             item !== ACTIVITY_STREAM_PUBLIC_COMACT
         )
-        .map(async (item) => storage.getActorFromId({ id: item }))
+        .map(async (item) => database.getActorFromId({ id: item }))
     )
   )
     .filter((actor): actor is Actor => Boolean(actor))

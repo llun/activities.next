@@ -5,12 +5,12 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import GithubProvider from 'next-auth/providers/github'
 
 import { getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
 import {
   StorageAdapter,
   userFromAccount
 } from '@/lib/services/auth/storageAdapter'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { getStorage } from '@/lib/storage'
 
 export const getAuthOptions = memoize(() => {
   try {
@@ -30,10 +30,10 @@ export const getAuthOptions = memoize(() => {
             const hostname = headerHost(request.headers)
             if (!credentials) return null
 
-            const storage = await getStorage()
+            const database = getDatabase()
             const { actorId, password } = credentials
             const [username, domain] = actorId.split('@')
-            const actor = await storage?.getActorFromUsername({
+            const actor = await database?.getActorFromUsername({
               username,
               domain: domain ?? hostname
             })
@@ -62,10 +62,10 @@ export const getAuthOptions = memoize(() => {
       },
       callbacks: {
         async signIn({ user }) {
-          const storage = await getStorage()
-          if (!storage) return false
+          const database = getDatabase()
+          if (!database) return false
 
-          const account = await storage.getAccountFromId({ id: user.id })
+          const account = await database.getAccountFromId({ id: user.id })
           if (!account?.verifiedAt) return false
 
           return true

@@ -3,8 +3,8 @@ import { z } from 'zod'
 export const Account = z.object({
   id: z.string(),
   email: z.string(),
-  passwordHash: z.string().optional().nullable(),
-  verificationCode: z.string().nullable().optional(),
+  passwordHash: z.string().nullish(),
+  verificationCode: z.string().nullish(),
 
   createdAt: z.number(),
   updatedAt: z.number(),

@@ -1,13 +1,12 @@
 import { Note, Question } from '@llun/activities.schema'
 import * as jsonld from 'jsonld'
 
+import { BaseActivity } from '@/lib/activities/actions/base'
+import { CreateAction } from '@/lib/activities/actions/types'
+import { ContextEntity } from '@/lib/activities/entities/base'
+import { Signature } from '@/lib/activities/types'
+import { Status, toMastodonObject } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-
-import { Status } from '../../models/status'
-import { ContextEntity } from '../entities/base'
-import { Signature } from '../types'
-import { BaseActivity } from './base'
-import { CreateAction } from './types'
 
 export interface CreateStatus extends BaseActivity, ContextEntity {
   type: CreateAction
@@ -23,17 +22,17 @@ interface CompactParams {
 }
 
 export const compact = ({ status }: CompactParams) => {
-  const published = getISOTimeUTC(status.data.createdAt)
+  const published = getISOTimeUTC(status.createdAt)
   const context = { '@context': 'https://www.w3.org/ns/activitystreams' }
   const document = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${status.data.id}/activity`,
+    id: `${status.id}/activity`,
     type: CreateAction,
-    actor: status.data.actorId,
+    actor: status.actorId,
     published,
-    to: status.data.to,
-    cc: status.data.cc,
-    object: status.toObject()
+    to: status.to,
+    cc: status.cc,
+    object: toMastodonObject(status)
   }
   return jsonld.compact(document, context)
 }

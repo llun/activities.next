@@ -1,8 +1,8 @@
 import { Adapter, AdapterAccount, AdapterUser } from 'next-auth/adapters'
 import { JWT, decode } from 'next-auth/jwt'
 
-import { Account } from '../../models/account'
-import { getStorage } from '../../storage'
+import { getDatabase } from '@/lib/database'
+import { Account } from '@/lib/models/account'
 
 const NoImplementationError = new Error('No implmentation')
 
@@ -16,8 +16,8 @@ export function StorageAdapter(secret: string): Adapter {
   return {
     async createUser(user: AdapterUser) {
       const { email } = user
-      const storage = await getStorage()
-      const actor = await storage?.getActorFromEmail({ email })
+      const database = getDatabase()
+      const actor = await database?.getActorFromEmail({ email })
       if (!actor) {
         throw NoImplementationError
       }
@@ -30,19 +30,15 @@ export function StorageAdapter(secret: string): Adapter {
       return userFromAccount(account)
     },
     async getUser(id) {
-      const storage = await getStorage()
-      if (!storage) return null
-
-      const account = await storage.getAccountFromId({ id })
+      const database = getDatabase()
+      const account = await database?.getAccountFromId({ id })
       if (!account) return null
 
       return userFromAccount(account)
     },
     async getUserByEmail(email) {
-      const storage = await getStorage()
-      if (!storage) return null
-
-      const actor = await storage?.getActorFromEmail({ email })
+      const database = getDatabase()
+      const actor = await database?.getActorFromEmail({ email })
       if (!actor) return null
 
       const account = actor.account
@@ -51,10 +47,8 @@ export function StorageAdapter(secret: string): Adapter {
       return userFromAccount(account)
     },
     async getUserByAccount({ provider, providerAccountId }) {
-      const storage = await getStorage()
-      if (!storage) return null
-
-      const account = await storage?.getAccountFromProviderId({
+      const database = getDatabase()
+      const account = await database?.getAccountFromProviderId({
         provider,
         accountId: providerAccountId
       })
@@ -68,10 +62,8 @@ export function StorageAdapter(secret: string): Adapter {
       throw NoImplementationError
     },
     async linkAccount({ provider, providerAccountId, userId }: AdapterAccount) {
-      const storage = await getStorage()
-      if (!storage) return
-
-      await storage.linkAccountWithProvider({
+      const database = getDatabase()
+      await database?.linkAccountWithProvider({
         accountId: userId,
         provider,
         providerAccountId
@@ -82,9 +74,8 @@ export function StorageAdapter(secret: string): Adapter {
     },
     async createSession(session) {
       const { sessionToken, userId, expires } = session
-      const storage = await getStorage()
-
-      await storage?.createAccountSession({
+      const database = getDatabase()
+      await database?.createAccountSession({
         accountId: userId,
         token: sessionToken,
         expireAt: expires.getTime()
@@ -92,10 +83,8 @@ export function StorageAdapter(secret: string): Adapter {
       return session
     },
     async getSessionAndUser(sessionToken) {
-      const storage = await getStorage()
-      if (!storage) return null
-
-      const accountAndSession = await storage.getAccountSession({
+      const database = getDatabase()
+      const accountAndSession = await database?.getAccountSession({
         token: sessionToken
       })
       if (accountAndSession) {
@@ -122,7 +111,7 @@ export function StorageAdapter(secret: string): Adapter {
           iat: number
         }
         if (!decodedJWT?.email) return null
-        const actor = await storage.getActorFromEmail({
+        const actor = await database?.getActorFromEmail({
           email: decodedJWT.email
         })
         if (!actor || !actor.account) return null
@@ -145,14 +134,14 @@ export function StorageAdapter(secret: string): Adapter {
     },
     async updateSession(session) {
       const { sessionToken, expires } = session
-      const storage = await getStorage()
-      if (!storage) return null
+      const database = getDatabase()
+      if (!database) return null
 
-      await storage.updateAccountSession({
+      await database.updateAccountSession({
         token: sessionToken,
         expireAt: expires?.getTime()
       })
-      const accountAndSession = await storage.getAccountSession({
+      const accountAndSession = await database.getAccountSession({
         token: sessionToken
       })
       if (!accountAndSession) return null
@@ -163,10 +152,8 @@ export function StorageAdapter(secret: string): Adapter {
       }
     },
     async deleteSession(sessionToken) {
-      const storage = await getStorage()
-      if (!storage) return
-
-      await storage.deleteAccountSession({ token: sessionToken })
+      const database = getDatabase()
+      await database?.deleteAccountSession({ token: sessionToken })
     },
     async createVerificationToken(/* verificationToken */) {
       throw NoImplementationError

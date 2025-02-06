@@ -8,6 +8,7 @@ interface Params {
   id: string
   url?: string
   createdAt?: number
+  withContext?: boolean
 }
 export const MockPerson = ({ id, url, createdAt = Date.now() }: Params) => {
   const userUrl = new URL(id)
@@ -33,14 +34,15 @@ export const MockPerson = ({ id, url, createdAt = Date.now() }: Params) => {
 export const MockActivityPubPerson = ({
   id,
   url,
-  createdAt = Date.now()
+  createdAt = Date.now(),
+  withContext = true
 }: Params): Person => {
   const userUrl = new URL(id)
   const username = userUrl.pathname.split('/').pop()
 
   if (id.startsWith('https://no.shared.inbox')) {
     return {
-      '@context': [ACTIVITY_STREAM_URL, W3ID_URL],
+      ...(withContext ? { '@context': [ACTIVITY_STREAM_URL, W3ID_URL] } : null),
       id,
       type: 'Person',
       following: `${id}/following`,
@@ -61,7 +63,7 @@ export const MockActivityPubPerson = ({
   }
 
   return {
-    '@context': [ACTIVITY_STREAM_URL, W3ID_URL],
+    ...(withContext ? { '@context': [ACTIVITY_STREAM_URL, W3ID_URL] } : null),
     id,
     type: 'Person',
     following: `${id}/following`,

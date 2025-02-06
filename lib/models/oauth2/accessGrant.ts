@@ -14,3 +14,4 @@ export const AccessGrant = z.object({
   createdAt: z.number(),
   revokedAt: z.number()
 })
+export type AccessGrant = z.infer<typeof AccessGrant>

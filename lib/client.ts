@@ -3,14 +3,14 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { Duration } from './components/PostBox/PollChoices'
 import { Attachment, PostBoxAttachment } from './models/attachment'
 import { Follow, FollowStatus } from './models/follow'
-import { StatusData } from './models/status'
+import { Status } from './models/status'
 import { PresignedUrlOutput } from './services/medias/types'
 import { TimelineFormat } from './services/timelines/const'
 import { getMediaWidthAndHeight } from './utils/getMediaWidthAndHeight'
 
 export interface CreateNoteParams {
   message: string
-  replyStatus?: StatusData
+  replyStatus?: Status
   attachments?: PostBoxAttachment[]
 }
 export const createNote = async ({
@@ -40,7 +40,7 @@ export const createNote = async ({
 
   const json = await response.json()
   return {
-    status: json.status as StatusData,
+    status: json.status as Status,
     attachments: json.attachments as Attachment[]
   }
 }
@@ -74,7 +74,7 @@ export interface CreatePollParams {
   message: string
   choices: string[]
   durationInSeconds: Duration
-  replyStatus?: StatusData
+  replyStatus?: Status
 }
 
 export const createPoll = async ({
@@ -251,7 +251,7 @@ export const getTimeline = async ({
   })
   if (response.status !== 200) return []
   const data = await response.json()
-  return data.statuses as StatusData[]
+  return data.statuses as Status[]
 }
 
 interface DeleteSessionParams {

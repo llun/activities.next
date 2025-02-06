@@ -1,39 +1,39 @@
 import cn from 'classnames'
 import { FC } from 'react'
 
+import { CloseButton } from '@/lib/components/CloseButton'
+import { Actor } from '@/lib/components/Posts/Actor'
+import { Poll } from '@/lib/components/Posts/Poll'
+import { EditableStatus, Status, StatusType } from '@/lib/models/status'
+import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
-import { StatusData, StatusType } from '../../models/status'
-import { cleanClassName } from '../../utils/text/cleanClassName'
-import { CloseButton } from '../CloseButton'
-import { Actor } from '../Posts/Actor'
-import { Poll } from '../Posts/Poll'
 import styles from './ReplyPreview.module.scss'
 
 interface Props {
   host: string
-  status?: StatusData
+  status?: Status
   onClose?: () => void
 }
 
-const getText = (statusData: StatusData) => {
-  switch (statusData.type) {
+const getText = (status: Status) => {
+  switch (status.type) {
     case StatusType.enum.Note:
     case StatusType.enum.Poll:
-      return statusData.text
+      return status.text
     case StatusType.enum.Announce:
-      return statusData.originalStatus.text
+      return status.originalStatus.text
     default:
       return ''
   }
 }
 
-const getTags = (statusData: StatusData) => {
-  switch (statusData.type) {
+const getTags = (status: Status) => {
+  switch (status.type) {
     case StatusType.enum.Note:
     case StatusType.enum.Poll:
-      return statusData.tags
+      return status.tags
     default:
       return []
   }
@@ -55,7 +55,7 @@ export const ReplyPreview: FC<Props> = ({ host, status, onClose }) => {
       <div>
         <Actor actorId={status.actorId || ''} />
         {cleanClassName(
-          status.isLocalActor
+          (status as EditableStatus).isLocalActor
             ? convertMarkdownText(host)(getText(status))
             : convertEmojisToImages(getText(status), getTags(status))
         )}

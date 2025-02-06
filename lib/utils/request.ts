@@ -1,6 +1,6 @@
 import got, { Headers, Method } from 'got'
 
-import { getConfig } from '../config'
+import { getConfig } from '@/lib/config'
 
 const USER_AGENT = 'activities.next/0.1'
 const DEFAULT_RESPONSE_TIMEOUT = 4000

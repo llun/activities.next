@@ -8,7 +8,7 @@ import { Posts } from '@/lib/components/Posts/Posts'
 import { TimelineLoadMoreButton } from '@/lib/components/TimelineLoadMoreButton'
 import { Tab, TimelineTabs } from '@/lib/components/TimelineTabs'
 import { ActorProfile } from '@/lib/models/actor'
-import { EditableStatusData, StatusData } from '@/lib/models/status'
+import { EditableStatus, Status } from '@/lib/models/status'
 import { Timeline } from '@/lib/services/timelines/types'
 
 import {
@@ -28,7 +28,7 @@ interface MainPageTimelineProps {
   host: string
   profile: ActorProfile
   isMediaUploadEnabled: boolean
-  statuses: StatusData[]
+  statuses: Status[]
 }
 
 export const MainPageTimeline: FC<MainPageTimelineProps> = ({
@@ -42,21 +42,21 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     statusActionReducer,
     {}
   )
-  const [currentStatuses, setCurrentStatuses] = useState<StatusData[]>(statuses)
+  const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
 
-  const onReply = (status: StatusData) => {
+  const onReply = (status: Status) => {
     dispatchStatusAction(replyAction(status))
     window.scrollTo({ top: 0 })
   }
 
-  const onEdit = (status: EditableStatusData) => {
+  const onEdit = (status: EditableStatus) => {
     dispatchStatusAction(editAction(status))
     window.scrollTo({ top: 0 })
   }
 
-  const onPostDeleted = (status: StatusData) => {
+  const onPostDeleted = (status: Status) => {
     const statusIndex = currentStatuses.indexOf(status)
     setCurrentStatuses([
       ...currentStatuses.slice(0, statusIndex),
@@ -74,11 +74,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         isMediaUploadEnabled={isMediaUploadEnabled}
         onDiscardReply={() => dispatchStatusAction(clearAction())}
         onDiscardEdit={() => dispatchStatusAction(clearAction())}
-        onPostCreated={(status: StatusData) => {
+        onPostCreated={(status: Status) => {
           setCurrentStatuses((previousValue) => [status, ...previousValue])
           dispatchStatusAction(clearAction())
         }}
-        onPostUpdated={(updatedStatus: StatusData) => {
+        onPostUpdated={(updatedStatus: Status) => {
           const index = currentStatuses.findIndex(
             (status) => status.id === updatedStatus.id
           )

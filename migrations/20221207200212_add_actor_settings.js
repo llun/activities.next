@@ -4,7 +4,7 @@
  */
 exports.up = (knex) => {
   return knex.schema.alterTable('actors', function (table) {
-    table.json('settings')
+    table.jsonb('settings')
   })
 }
 

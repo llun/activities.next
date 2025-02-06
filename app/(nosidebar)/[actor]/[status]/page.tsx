@@ -4,7 +4,9 @@ import { FC } from 'react'
 
 import { Posts } from '@/lib/components/Posts/Posts'
 import { getConfig } from '@/lib/config'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
+import { StatusType } from '@/lib/models/status'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
@@ -28,8 +30,8 @@ export const generateMetadata = async ({
 
 const Page: FC<Props> = async ({ params }) => {
   const { host } = getConfig()
-  const storage = await getStorage()
-  if (!storage) throw new Error('Storage is not available')
+  const database = getDatabase()
+  if (!database) throw new Error('Database is not available')
 
   const { actor, status: id } = await params
   const currentTime = new Date()
@@ -40,8 +42,8 @@ const Page: FC<Props> = async ({ params }) => {
 
   const statusId = `https://${parts[1]}/users/${parts[0]}/statuses/${id}`
   const [status, replies] = await Promise.all([
-    storage.getStatus({ statusId, withReplies: false }),
-    storage.getStatusReplies({ statusId })
+    database.getStatus({ statusId, withReplies: false }),
+    database.getStatusReplies({ statusId })
   ])
   if (!status) {
     return notFound()
@@ -57,18 +59,23 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   const previouses = []
-  if (status.reply) {
-    let replyStatus = await storage.getStatus({
+  if (status.type !== StatusType.enum.Announce && status.reply) {
+    let replyStatus = await database.getStatus({
       statusId: status.reply,
       withReplies: false
     })
     while (previouses.length < 3 && replyStatus) {
-      previouses.push(replyStatus.toJson())
-      if (!replyStatus.reply) {
-        replyStatus = undefined
+      previouses.push(replyStatus)
+      // This should be impossible
+      if (replyStatus.type === StatusType.enum.Announce) {
+        replyStatus = null
         break
       }
-      replyStatus = await storage.getStatus({
+      if (!replyStatus.reply) {
+        replyStatus = null
+        break
+      }
+      replyStatus = await database.getStatus({
         statusId: replyStatus.reply,
         withReplies: false
       })
@@ -87,14 +94,14 @@ const Page: FC<Props> = async ({ params }) => {
         <StatusBox
           host={host}
           currentTime={currentTime}
-          status={status.toJson()}
+          status={cleanJson(status)}
         />
       </section>
       <Posts
         className="mt-4"
         currentTime={currentTime}
         host={host}
-        statuses={replies.map((reply) => reply.toJson())}
+        statuses={replies.map((reply) => cleanJson(reply))}
       />
     </>
   )

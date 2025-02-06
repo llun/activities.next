@@ -4,11 +4,11 @@ import { PresigedMediaInput } from '@/lib/services/medias/types'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 export const POST = AuthenticatedGuard(async (req, context) => {
-  const { storage, currentActor } = context
+  const { database, currentActor } = context
   try {
     const content = await req.json()
     const presigned = await getPresignedUrl(
-      storage,
+      database,
       currentActor,
       PresigedMediaInput.parse(content)
     )

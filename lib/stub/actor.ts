@@ -80,7 +80,7 @@ export const MockActor = ({
   id = 'https://chat.llun.dev/users/me',
   sharedInboxUrl = 'https://chat.llun.dev/inbox'
 }: Params): Actor =>
-  new Actor({
+  Actor.parse({
     id,
     username: new URL(id).pathname.split('/').pop() ?? 'me',
     domain: 'chat.llun.dev',

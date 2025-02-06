@@ -4,7 +4,7 @@ import { z } from 'zod'
 export const TagType = z.enum(['emoji', 'mention'])
 export type TagType = z.infer<typeof TagType>
 
-export const TagData = z.object({
+export const Tag = z.object({
   id: z.string(),
   statusId: z.string(),
   type: TagType,
@@ -15,24 +15,11 @@ export const TagData = z.object({
   updatedAt: z.number()
 })
 
-export type TagData = z.infer<typeof TagData>
+export type Tag = z.infer<typeof Tag>
 
-export class Tag {
-  readonly data: TagData
-  constructor(params: TagData) {
-    this.data = TagData.parse(params)
-  }
-
-  toObject() {
-    const data = this.data
-    return Mention.parse({
-      type: [data.type[0].toUpperCase(), data.type.slice(1)].join(''),
-      name: data.name,
-      href: data.value
-    })
-  }
-
-  toJson(): TagData {
-    return this.data
-  }
-}
+export const getMentionFromTag = (tag: Tag) =>
+  Mention.parse({
+    type: [tag.type[0].toUpperCase(), tag.type.slice(1)].join(''),
+    name: tag.name,
+    href: tag.value
+  })

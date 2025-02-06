@@ -1,7 +1,10 @@
 import { FetchMock } from 'jest-fetch-mock'
 
+import { MockActivityPubFollowers } from './followers'
+import { MockActivityPubFollowing } from './following'
 import { MockImageDocument } from './imageDocument'
-import { MockLitepubNote, MockMastodonNote } from './note'
+import { MockLitepubNote, MockMastodonActivityPubNote } from './note'
+import { MockActivityPubOutbox } from './outbox'
 import { MockActivityPubPerson } from './person'
 import { MockWebfinger } from './webfinger'
 
@@ -49,7 +52,7 @@ export const mockRequests = (fetchMock: FetchMock) => {
           return {
             status: 200,
             body: JSON.stringify(
-              MockMastodonNote({
+              MockMastodonActivityPubNote({
                 id: req.url,
                 from,
                 content: 'This is status with attachments',
@@ -71,7 +74,7 @@ export const mockRequests = (fetchMock: FetchMock) => {
         return {
           status: 200,
           body: JSON.stringify(
-            MockMastodonNote({
+            MockMastodonActivityPubNote({
               id: req.url,
               from,
               content: 'This is status',
@@ -103,11 +106,97 @@ export const mockRequests = (fetchMock: FetchMock) => {
         return {
           status: 200,
           body: JSON.stringify(
-            MockMastodonNote({
+            MockMastodonActivityPubNote({
               id: req.url,
               from: `https://${url.hostname}/actors/${username}`,
               content: 'This is status',
               withContext: true
+            })
+          )
+        }
+      }
+
+      // Mock Person outbox
+      if (
+        url.pathname.startsWith('/users') &&
+        url.pathname.includes('/outbox')
+      ) {
+        const [, username] = url.pathname.slice(1).split('/')
+        if (url.searchParams.has('page')) {
+          return {
+            status: 200,
+            body: JSON.stringify(
+              MockActivityPubOutbox({
+                actorId: `https://${url.hostname}/users/${username}`,
+                withPage: true,
+                withContext: true
+              })
+            )
+          }
+        }
+
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubOutbox({
+              actorId: `https://${url.hostname}/users/${username}`,
+              withContext: true
+            })
+          )
+        }
+      }
+
+      // Mock Person following
+      if (
+        url.pathname.startsWith('/users') &&
+        url.pathname.includes('/following')
+      ) {
+        const [, username] = url.pathname.slice(1).split('/')
+        if (url.searchParams.has('page')) {
+          return {
+            status: 200,
+            body: JSON.stringify(
+              MockActivityPubFollowing({
+                actorId: `https://${url.hostname}/users/${username}`,
+                withPage: true
+              })
+            )
+          }
+        }
+
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubFollowing({
+              actorId: `https://${url.hostname}/users/${username}`
+            })
+          )
+        }
+      }
+
+      // Mock Person followers
+      if (
+        url.pathname.startsWith('/users') &&
+        url.pathname.includes('/followers')
+      ) {
+        const [, username] = url.pathname.slice(1).split('/')
+        if (url.searchParams.has('page')) {
+          return {
+            status: 200,
+            body: JSON.stringify(
+              MockActivityPubFollowers({
+                actorId: `https://${url.hostname}/users/${username}`,
+                withPage: true
+              })
+            )
+          }
+        }
+
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubFollowers({
+              actorId: `https://${url.hostname}/users/${username}`
             })
           )
         }

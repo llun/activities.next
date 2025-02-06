@@ -3,9 +3,9 @@ import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
 import { sendMail } from '@/lib/services/email'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
-import { getStorage } from '@/lib/storage'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -25,14 +25,16 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = async (request: NextRequest) => {
   const config = getConfig()
-  const storage = await getStorage()
-  if (!storage) {
+  const database = getDatabase()
+  if (!database) {
     return apiErrorResponse(500)
   }
 
   const { host: domain, allowEmails } = config
-  const body = await request.json()
-  const content = CreateAccountRequest.safeParse(body)
+  const body = await request.formData()
+  const content = CreateAccountRequest.safeParse(
+    body.entries().reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {})
+  )
   if (!content.success) {
     const error = content.error
     const fields = error.flatten((issue) => ({
@@ -63,8 +65,8 @@ export const POST = async (request: NextRequest) => {
   }
 
   const [isAccountExists, isUsernameExists] = await Promise.all([
-    storage.isAccountExists({ email: form.email }),
-    storage.isUsernameExists({ username: form.username, domain })
+    database.isAccountExists({ email: form.email }),
+    database.isUsernameExists({ username: form.username, domain })
   ])
 
   const errorDetails: {
@@ -106,7 +108,7 @@ export const POST = async (request: NextRequest) => {
     ? crypto.randomBytes(32).toString('base64url')
     : null
 
-  await storage.createAccount({
+  await database.createAccount({
     domain,
     email: form.email,
     username: form.username,

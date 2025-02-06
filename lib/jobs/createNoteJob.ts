@@ -16,9 +16,9 @@ import { CREATE_NOTE_JOB_NAME } from './names'
 
 export const createNoteJob = createJobHandle(
   CREATE_NOTE_JOB_NAME,
-  async (storage, message) => {
+  async (database, message) => {
     const note = Note.parse(message.data)
-    const existingStatus = await storage.getStatus({
+    const existingStatus = await database.getStatus({
       statusId: note.id,
       withReplies: false
     })
@@ -38,8 +38,8 @@ export const createNoteJob = createJobHandle(
     const summary = getSummary(compactNote)
 
     const [, status] = await Promise.all([
-      recordActorIfNeeded({ actorId: compactNote.attributedTo, storage }),
-      storage.createNote({
+      recordActorIfNeeded({ actorId: compactNote.attributedTo, database }),
+      database.createNote({
         id: compactNote.id,
         url: compactNote.url || compactNote.id,
 
@@ -60,10 +60,10 @@ export const createNoteJob = createJobHandle(
     const tags = getTags(note)
 
     await Promise.all([
-      addStatusToTimelines(storage, status),
+      addStatusToTimelines(database, status),
       ...attachments.map(async (attachment) => {
         if (attachment.type !== 'Document') return
-        return storage.createAttachment({
+        return database.createAttachment({
           actorId: compactNote.attributedTo,
           statusId: compactNote.id,
           mediaType: attachment.mediaType,
@@ -75,14 +75,14 @@ export const createNoteJob = createJobHandle(
       }),
       ...tags.map((item) => {
         if (item.type === 'Emoji') {
-          return storage.createTag({
+          return database.createTag({
             statusId: compactNote.id,
             name: item.name,
             value: item.icon.url,
             type: 'emoji'
           })
         }
-        return storage.createTag({
+        return database.createTag({
           statusId: compactNote.id,
           name: item.name || '',
           value: item.href,

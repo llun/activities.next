@@ -1,17 +1,20 @@
-import { LikeStatus } from '../activities/actions/like'
-import { Storage } from '../storage/types'
+import { LikeStatus } from '@/lib/activities/actions/like'
+import { Database } from '@/lib/database/types'
 
 interface LikeRequestParams {
   activity: LikeStatus
-  storage: Storage
+  database: Database
 }
 
-export const likeRequest = async ({ activity, storage }: LikeRequestParams) => {
+export const likeRequest = async ({
+  activity,
+  database
+}: LikeRequestParams) => {
   const request = activity as LikeStatus
   const statusId =
     typeof request.object === 'string' ? request.object : request.object.id
 
-  await storage.createLike({
+  await database.createLike({
     statusId,
     actorId: request.actor
   })

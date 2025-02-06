@@ -4,17 +4,17 @@ import {
   OAuthClientRepository
 } from '@jmondi/oauth2-server'
 
-import { Storage } from '@/lib/storage/types'
+import { Database } from '@/lib/database/types'
 
 export class ClientRepository implements OAuthClientRepository {
-  private storage: Storage
+  private database: Database
 
-  constructor(storage: Storage) {
-    this.storage = storage
+  constructor(database: Database) {
+    this.database = database
   }
 
   async getByIdentifier(clientId: string): Promise<OAuthClient> {
-    const application = await this.storage.getClientFromId({ clientId })
+    const application = await this.database.getClientFromId({ clientId })
     if (!application) {
       throw new Error('Application is not exists')
     }

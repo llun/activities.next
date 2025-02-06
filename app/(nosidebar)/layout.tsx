@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth'
 import { FC, ReactNode } from 'react'
 
 import { Header } from '@/lib/components/Header'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
 
 import { Modal } from '../Modal'
 import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
@@ -24,15 +24,12 @@ interface LayoutProps {
 }
 
 const Layout: FC<LayoutProps> = async ({ children }) => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
-
-  if (!storage) {
-    throw new Error('Fail to load storage')
+  const database = getDatabase()
+  if (!database) {
+    throw new Error('Fail to load database')
   }
 
+  const session = await getServerSession(getAuthOptions())
   return (
     <html lang="en">
       <body className="">

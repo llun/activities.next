@@ -1,13 +1,14 @@
 import { FC } from 'react'
 
 import { deleteStatus } from '@/lib/client'
-import { StatusData, StatusNote, StatusPoll } from '@/lib/models/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/models/status'
+
 import { Button } from '../../Button'
 
 interface Props {
   className?: string
   status: StatusNote | StatusPoll
-  onPostDeleted?: (status: StatusData) => void
+  onPostDeleted?: (status: Status) => void
 }
 
 export const DeleteButton: FC<Props> = ({

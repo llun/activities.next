@@ -1,17 +1,17 @@
 import crypto from 'crypto'
 
-import { Storage } from '@/lib/storage/types'
-import { Scope } from '@/lib/storage/types/oauth'
+import { Database } from '@/lib/database/types'
+import { Scope } from '@/lib/database/types/oauth'
 
 import { PostRequest, PostResponse } from './types'
 
 export const createApplication = async (
-  storage: Storage,
+  database: Database,
   request: PostRequest
 ): Promise<PostResponse> => {
   const scopes = request.scopes ?? Scope.enum.read
   try {
-    const existingApplication = await storage.getClientFromName({
+    const existingApplication = await database.getClientFromName({
       name: request.client_name
     })
     if (existingApplication) {
@@ -26,7 +26,7 @@ export const createApplication = async (
       }
     }
 
-    const application = await storage.createClient({
+    const application = await database.createClient({
       name: request.client_name,
       redirectUris: request.redirect_uris.split(' '),
       scopes: scopes.split(' ').map((scope) => Scope.parse(scope)),

@@ -1,10 +1,11 @@
 import { AnnounceAction, CreateAction } from '@/lib/activities/actions/types'
 import { StatusType } from '@/lib/models/status'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
 
-export const GET = OnlyLocalUserGuard(async (storage, actor, req) => {
+export const GET = OnlyLocalUserGuard(async (database, actor, req) => {
   const url = new URL(req.url)
   const pageParam = url.searchParams.get('page')
   if (!pageParam) {
@@ -13,15 +14,15 @@ export const GET = OnlyLocalUserGuard(async (storage, actor, req) => {
       '@context': ACTIVITY_STREAM_URL,
       id: outboxId,
       type: 'OrderedCollection',
-      totalItems: actor.data.statusCount,
+      totalItems: actor.statusCount,
       first: `${outboxId}?page=true`,
       last: `${outboxId}?min_id=0&page=true`
     })
   }
 
-  const statuses = await storage.getActorStatuses({ actorId: actor.id })
+  const statuses = await database.getActorStatuses({ actorId: actor.id })
   const items = statuses.map((status) => {
-    if (status.data.type === StatusType.enum.Announce) {
+    if (status.type === StatusType.enum.Announce) {
       return {
         id: status.id,
         type: AnnounceAction,
@@ -29,7 +30,7 @@ export const GET = OnlyLocalUserGuard(async (storage, actor, req) => {
         published: getISOTimeUTC(status.createdAt),
         ...(status.to ? { to: status.to } : null),
         ...(status.cc ? { cc: status.cc } : null),
-        object: status.data.originalStatus.id
+        object: status.originalStatus.id
       }
     }
 
@@ -40,7 +41,7 @@ export const GET = OnlyLocalUserGuard(async (storage, actor, req) => {
       published: getISOTimeUTC(status.createdAt),
       ...(status.to ? { to: status.to } : null),
       ...(status.cc ? { cc: status.cc } : null),
-      object: status.toObject()
+      object: cleanJson(status)
     }
   })
 

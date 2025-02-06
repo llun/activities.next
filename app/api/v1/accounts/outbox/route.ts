@@ -1,5 +1,6 @@
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
+import { toMastodonObject } from '@/lib/models/status'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
@@ -21,7 +22,7 @@ const CORS_HEADERS = [
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = AuthenticatedGuard(async (req, context) => {
-  const { currentActor, storage } = context
+  const { currentActor, database } = context
   const body = await req.json()
   try {
     const request = PostRequest.parse(body)
@@ -33,12 +34,12 @@ export const POST = AuthenticatedGuard(async (req, context) => {
           text: message,
           replyNoteId: replyStatus?.id,
           attachments,
-          storage
+          database
         })
         if (!status) return apiErrorResponse(404)
         return apiResponse(req, CORS_HEADERS, {
-          status: status.toJson(),
-          note: status.toObject(),
+          status,
+          note: toMastodonObject(status),
           attachments: status.attachments
         })
       }
@@ -54,13 +55,13 @@ export const POST = AuthenticatedGuard(async (req, context) => {
 })
 
 export const DELETE = AuthenticatedGuard(async (req, context) => {
-  const { currentActor, storage } = context
+  const { currentActor, database } = context
   const body = await req.json()
   try {
     const request = DeleteStatusRequest.parse(body)
     await deleteStatusFromUserInput({
       currentActor,
-      storage,
+      database,
       statusId: request.statusId
     })
     return apiResponse(req, CORS_HEADERS, DEFAULT_202)

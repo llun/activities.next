@@ -1,22 +1,21 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { createNoteFromUserInput } from '@/lib/actions/createNote'
+import { getSQLDatabase } from '@/lib/database/sql'
+import { Actor } from '@/lib/models/actor'
+import { expectCall, mockRequests } from '@/lib/stub/activities'
+import { TEST_DOMAIN } from '@/lib/stub/const'
+import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
-
-import { Actor } from '../models/actor'
-import { SqlStorage } from '../storage/sql'
-import { expectCall, mockRequests } from '../stub/activities'
-import { TEST_DOMAIN } from '../stub/const'
-import { seedActor1 } from '../stub/seed/actor1'
-import { ACTOR2_ID, seedActor2 } from '../stub/seed/actor2'
-import { seedStorage } from '../stub/storage'
-import { getNoteFromStatusData } from '../utils/getNoteFromStatusData'
-import { convertMarkdownText } from '../utils/text/convertMarkdownText'
-import { createNoteFromUserInput } from './createNote'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 enableFetchMocks()
 
 describe('Create note action', () => {
-  const storage = new SqlStorage({
+  const database = getSQLDatabase({
     client: 'better-sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -27,21 +26,21 @@ describe('Create note action', () => {
   let actor2: Actor | undefined
 
   beforeAll(async () => {
-    await storage.migrate()
-    await seedStorage(storage)
-    actor1 = await storage.getActorFromUsername({
+    await database.migrate()
+    await seedDatabase(database)
+    actor1 = await database.getActorFromUsername({
       username: seedActor1.username,
       domain: seedActor1.domain
     })
-    actor2 = await storage.getActorFromUsername({
+    actor2 = await database.getActorFromUsername({
       username: seedActor2.username,
       domain: seedActor2.domain
     })
   })
 
   afterAll(async () => {
-    if (!storage) return
-    await storage.destroy()
+    if (!database) return
+    await database.destroy()
   })
 
   beforeEach(() => {
@@ -56,11 +55,11 @@ describe('Create note action', () => {
       const status = await createNoteFromUserInput({
         text: 'Hello',
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
 
-      expect(status.data).toMatchObject({
+      expect(status).toMatchObject({
         actorId: actor1.id,
         text: 'Hello',
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -73,7 +72,7 @@ describe('Create note action', () => {
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [actor1.followersUrl],
-        object: getNoteFromStatusData(status.data)
+        object: getNoteFromStatus(status)
       })
     })
 
@@ -84,11 +83,11 @@ describe('Create note action', () => {
         text: 'Hello',
         currentActor: actor1,
         replyNoteId: `${actor2?.id}/statuses/post-2`,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
 
-      expect(status.data).toMatchObject({
+      expect(status).toMatchObject({
         reply: `${actor2?.id}/statuses/post-2`,
         cc: expect.toContainValue(actor2?.id)
       })
@@ -99,7 +98,7 @@ describe('Create note action', () => {
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC, actor1.followersUrl],
         cc: [ACTOR2_ID],
-        object: getNoteFromStatusData(status.data)
+        object: getNoteFromStatus(status)
       })
     })
 
@@ -114,17 +113,17 @@ How are you?
       const status = await createNoteFromUserInput({
         text,
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
-      expect(status.data).toMatchObject({
+      expect(status).toMatchObject({
         actorId: actor1.id,
         text,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [`${actor1.id}/followers`, ACTOR2_ID]
       })
 
-      const note = getNoteFromStatusData(status.data)
+      const note = getNoteFromStatus(status)
       expect(note?.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
       expect(note?.tag).toHaveLength(1)
       expect(note?.tag).toContainValue({
@@ -139,7 +138,7 @@ How are you?
         actor: actor1.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [actor1.followersUrl, ACTOR2_ID],
-        object: getNoteFromStatusData(status.data)
+        object: getNoteFromStatus(status)
       })
     })
 
@@ -154,21 +153,21 @@ How are you?
       const status = await createNoteFromUserInput({
         text,
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
-      expect(status.data).toMatchObject({
+      expect(status).toMatchObject({
         actorId: actor1.id,
         text,
         to: [ACTIVITY_STREAM_PUBLIC]
       })
-      expect(status.data.cc).toContainAllValues([
+      expect(status.cc).toContainAllValues([
         `${actor1.id}/followers`,
         'https://somewhere.test/actors/test3',
         ACTOR2_ID
       ])
 
-      const note = getNoteFromStatusData(status.data)
+      const note = getNoteFromStatus(status)
       expect(note?.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
       expect(note?.tag).toHaveLength(2)
       expect(note?.tag).toContainValue({
@@ -204,7 +203,7 @@ How are you?
           ACTOR2_ID,
           'https://somewhere.test/actors/test3'
         ]),
-        object: getNoteFromStatusData(status.data)
+        object: getNoteFromStatus(status)
       })
     })
 
@@ -221,7 +220,7 @@ How are you?
       const status = await createNoteFromUserInput({
         text,
         currentActor: actor1,
-        storage
+        database
       })
       if (!status) fail('Fail to create status')
 
@@ -237,7 +236,7 @@ How are you?
           'https://no.shared.inbox/users/test4',
           'https://somewhere.test/actors/test5'
         ]),
-        object: getNoteFromStatusData(status.data)
+        object: getNoteFromStatus(status)
       }
 
       expectCall(

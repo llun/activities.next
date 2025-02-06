@@ -5,7 +5,7 @@
 exports.up = (knex) => {
   return knex.schema.alterTable('accounts', function (table) {
     table.string('verificationCode')
-    table.boolean('verifiedAt')
+    table.timestamp('verifiedAt', { useTz: true }).defaultTo(knex.fn.now())
 
     table.index('verificationCode', 'verificationCodeIndex')
   })

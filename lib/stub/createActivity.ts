@@ -2,7 +2,7 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { CreateStatus } from '../activities/actions/createStatus'
 import { Document } from '../activities/entities/document'
-import { MockMastodonNote } from './note'
+import { MockMastodonActivityPubNote } from './note'
 import { ACTOR1_ID } from './seed/actor1'
 
 const CONTEXT = {
@@ -49,7 +49,7 @@ export const MockMastodonCreateActivity = ({
     published: getISOTimeUTC(published),
     to,
     cc,
-    object: MockMastodonNote({
+    object: MockMastodonActivityPubNote({
       id,
       content,
       conversation,

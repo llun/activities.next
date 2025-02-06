@@ -19,25 +19,25 @@ const CORS_HEADERS = [
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = AuthenticatedGuard(async (req, context) => {
-  const { storage, currentActor } = context
+  const { database, currentActor } = context
   const body = await req.json()
   const { statusId } = LikeStatusRequest.parse(body)
-  const status = await storage.getStatus({ statusId, withReplies: false })
+  const status = await database.getStatus({ statusId, withReplies: false })
   if (!status) return apiErrorResponse(404)
 
-  await storage.createLike({ actorId: currentActor.id, statusId })
+  await database.createLike({ actorId: currentActor.id, statusId })
   await sendLike({ currentActor, status })
   return apiResponse(req, CORS_HEADERS, DEFAULT_202)
 })
 
 export const DELETE = AuthenticatedGuard(async (req, context) => {
-  const { storage, currentActor } = context
+  const { database, currentActor } = context
   const body = await req.json()
   const { statusId } = LikeStatusRequest.parse(body)
-  const status = await storage.getStatus({ statusId, withReplies: false })
+  const status = await database.getStatus({ statusId, withReplies: false })
   if (!status) return apiErrorResponse(404)
 
-  await storage.deleteLike({ actorId: currentActor.id, statusId })
+  await database.deleteLike({ actorId: currentActor.id, statusId })
   await sendUndoLike({ currentActor, status })
   return apiResponse(req, CORS_HEADERS, DEFAULT_202)
 })

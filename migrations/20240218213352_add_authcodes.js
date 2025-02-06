@@ -14,7 +14,7 @@ exports.up = function (knex) {
     table.string('actorId')
     table.string('accountId')
 
-    table.json('scopes')
+    table.jsonb('scopes')
 
     table.timestamp('expiresAt', { useTz: true })
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())

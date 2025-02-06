@@ -17,17 +17,17 @@ const CORS_HEADERS = [
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = AuthenticatedGuard(async (req, context) => {
-  const { storage, currentActor } = context
+  const { database, currentActor } = context
   const body = await req.json()
   const { statusId } = RepostRequest.parse(body)
-  await userAnnounce({ currentActor, statusId, storage })
+  await userAnnounce({ currentActor, statusId, database })
   return apiResponse(req, CORS_HEADERS, DEFAULT_202)
 })
 
 export const DELETE = AuthenticatedGuard(async (req, context) => {
-  const { storage, currentActor } = context
+  const { database, currentActor } = context
   const body = await req.json()
   const { statusId } = RepostRequest.parse(body)
-  await userUndoAnnounce({ currentActor, statusId, storage })
+  await userUndoAnnounce({ currentActor, statusId, database })
   return apiResponse(req, CORS_HEADERS, DEFAULT_202)
 })

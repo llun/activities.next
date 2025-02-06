@@ -1,16 +1,16 @@
 import { HTTPError } from 'got'
 
 import { getPublicProfile } from '@/lib/activities'
-import { Storage } from '@/lib/storage/types'
+import { Database } from '@/lib/database/types'
 import { getTracer } from '@/lib/utils/trace'
 
-export async function getSenderPublicKey(storage: Storage, actorId: string) {
+export async function getSenderPublicKey(database: Database, actorId: string) {
   const tracer = getTracer()
   return tracer.startActiveSpan(
     'guard.getSenderPublicKey',
     { attributes: { actorId } },
     async (span) => {
-      const localActor = await storage.getActorFromId({ id: actorId })
+      const localActor = await database.getActorFromId({ id: actorId })
       if (localActor) {
         span.end()
         return localActor.publicKey

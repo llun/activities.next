@@ -1,8 +1,11 @@
-export interface Session {
-  token: string
-  accountId: string
-  expireAt: number
+import { z } from 'zod'
 
-  createdAt: number
-  updatedAt: number
-}
+export const Session = z.object({
+  token: z.string(),
+  accountId: z.string(),
+  expireAt: z.number(),
+
+  createdAt: z.number(),
+  updatedAt: z.number()
+})
+export type Session = z.infer<typeof Session>

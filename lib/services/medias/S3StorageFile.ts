@@ -12,14 +12,13 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import sharp from 'sharp'
 
+import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
+import { Database } from '@/lib/database/types'
+import { Media } from '@/lib/database/types/media'
 import { Actor } from '@/lib/models/actor'
-import { Storage } from '@/lib/storage/types'
-
-import { MediaStorageS3Config } from '../../config/mediaStorage'
-import { Media } from '../../storage/types/media'
-import { MAX_HEIGHT, MAX_WIDTH } from './constants'
-import { extractVideoImage } from './extractVideoImage'
-import { extractVideoMeta } from './extractVideoMeta'
+import { MAX_HEIGHT, MAX_WIDTH } from '@/lib/services/medias/constants'
+import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
+import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import {
   MediaSchema,
   MediaStorage,
@@ -29,32 +28,32 @@ import {
   MediaType,
   PresigedMediaInput,
   PresignedUrlOutput
-} from './types'
+} from '@/lib/services/medias/types'
 
 export class S3FileStorage implements MediaStorage {
   private static _instance: MediaStorage
 
   private _config: MediaStorageS3Config
   private _host: string
-  private _storage: Storage
+  private _database: Database
 
   private _client: S3Client
 
   static getStorage(
     config: MediaStorageS3Config,
     host: string,
-    storage: Storage
+    database: Database
   ) {
     if (!S3FileStorage._instance) {
-      S3FileStorage._instance = new S3FileStorage(config, host, storage)
+      S3FileStorage._instance = new S3FileStorage(config, host, database)
     }
     return S3FileStorage._instance
   }
 
-  constructor(config: MediaStorageS3Config, host: string, storage: Storage) {
+  constructor(config: MediaStorageS3Config, host: string, database: Database) {
     this._config = config
     this._host = host
-    this._storage = storage
+    this._database = database
     this._client = new S3Client({ region: config.region })
   }
 
@@ -118,7 +117,7 @@ export class S3FileStorage implements MediaStorage {
       ],
       Expires: 600
     })
-    const storedMedia = await this._storage.createMedia({
+    const storedMedia = await this._database.createMedia({
       actorId: actor.id,
       original: {
         path: key,
@@ -175,7 +174,7 @@ export class S3FileStorage implements MediaStorage {
         previewImage,
         true
       )
-      const storedMedia = await this._storage.createMedia({
+      const storedMedia = await this._database.createMedia({
         actorId: actor.id,
         original: {
           path,
@@ -204,7 +203,7 @@ export class S3FileStorage implements MediaStorage {
     }
 
     const { metaData, path } = await this._uploadImageToS3(currentTime, file)
-    const storedMedia = await this._storage.createMedia({
+    const storedMedia = await this._database.createMedia({
       actorId: actor.id,
       original: {
         path,

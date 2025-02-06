@@ -1,6 +1,6 @@
-import { TagData } from '../../models/tag'
+import { Tag } from '../../models/tag'
 
-export const convertEmojisToImages = (text: string, tags: TagData[]) =>
+export const convertEmojisToImages = (text: string, tags: Tag[]) =>
   tags
     .filter((tag) => tag.type === 'emoji')
     .reduce(

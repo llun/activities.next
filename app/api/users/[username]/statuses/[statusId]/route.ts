@@ -1,3 +1,4 @@
+import { toMastodonObject } from '@/lib/models/status'
 import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardHandle
@@ -11,13 +12,13 @@ type StatusParams = OnlyLocalUserGuardHandle & {
 }
 
 export const GET = OnlyLocalUserGuard(
-  async (storage, actor, req, query: unknown) => {
+  async (database, actor, req, query: unknown) => {
     const { statusId } = await (query as AppRouterParams<StatusParams>).params
     const id = `${actor.id}/statuses/${statusId}`
-    const status = await storage.getStatus({ statusId: id, withReplies: true })
+    const status = await database.getStatus({ statusId: id, withReplies: true })
     if (!status) return apiErrorResponse(404)
 
-    const note = status.toObject()
+    const note = toMastodonObject(status)
     if (!note) return apiErrorResponse(404)
 
     const acceptHeader = req.headers.get('accept')

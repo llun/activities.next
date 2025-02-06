@@ -6,12 +6,12 @@ import { DELETE_OBJECT_JOB_NAME } from './names'
 
 export const deleteObjectJob = createJobHandle(
   DELETE_OBJECT_JOB_NAME,
-  async (storage, message) => {
+  async (database, message) => {
     const data = message.data
     if (typeof data === 'string') {
       await getTracer().startActiveSpan('deleteUser', async (span) => {
         span.setAttribute('actorId', data)
-        await storage.deleteActor({
+        await database.deleteActor({
           actorId: data
         })
       })
@@ -21,7 +21,7 @@ export const deleteObjectJob = createJobHandle(
     const tombStone = Tombstone.parse(data)
     await getTracer().startActiveSpan('deleteStatus', async (span) => {
       span.setAttribute('statusId', tombStone.id)
-      await storage.deleteStatus({
+      await database.deleteStatus({
         statusId: tombStone.id
       })
     })

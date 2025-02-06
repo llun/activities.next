@@ -1,10 +1,10 @@
 import { formatDistance } from 'date-fns'
 import { FC } from 'react'
 
-import { StatusData, StatusType } from '../../models/status'
+import { Status, StatusType } from '../../models/status'
 
 interface Props {
-  status: StatusData
+  status: Status
   currentTime: Date
 }
 

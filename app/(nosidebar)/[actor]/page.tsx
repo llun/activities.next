@@ -8,12 +8,12 @@ import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { FollowAction } from '@/lib/components/FollowAction'
 import { Profile } from '@/lib/components/Profile'
 import { getConfig } from '@/lib/config'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
+import { getMentionDomainFromActorID } from '@/lib/models/actor'
 
 import { ActorTimelines } from './ActorTimelines'
 import styles from './[actor].module.scss'
-import { getExternalActorProfile } from './getExternalActorProfile'
-import { getInternalActorProfile } from './getInternalActorProfile'
+import { getProfileData } from './getProfileData'
 
 interface Props {
   params: Promise<{ actor: string }>
@@ -30,11 +30,14 @@ export const generateMetadata = async ({
 
 const Page: FC<Props> = async ({ params }) => {
   const { host } = getConfig()
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
-  if (!storage) throw new Error('Storage is not available')
+  const database = getDatabase()
+  if (!database) throw new Error('Database is not available')
+
+  const session = await getServerSession(getAuthOptions())
+  const isLoggedIn = Boolean(session?.user?.email)
+  if (!isLoggedIn) {
+    return notFound()
+  }
 
   const { actor } = await params
   const decodedActorHandle = decodeURIComponent(actor)
@@ -43,22 +46,19 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
-  const [username, domain] = parts
-  const isLoggedIn = Boolean(session?.user?.email)
-  const storageActor = await storage.getActorFromUsername({ username, domain })
-
-  if (!isLoggedIn && !storageActor?.account) {
-    return notFound()
-  }
-
-  const actorProfile = storageActor?.account
-    ? await getInternalActorProfile(storage, storageActor)
-    : await getExternalActorProfile(storage, decodedActorHandle)
+  const actorProfile = await getProfileData(database, decodedActorHandle)
   if (!actorProfile) {
     return notFound()
   }
 
-  const { person, statuses, attachments } = actorProfile
+  const {
+    person,
+    statuses,
+    statusesCount,
+    attachments,
+    followingCount,
+    followersCount
+  } = actorProfile
 
   return (
     <>
@@ -73,14 +73,14 @@ const Page: FC<Props> = async ({ params }) => {
           )}
           <Profile
             className="flex-fill"
-            name={person.name}
+            name={person.name ?? ''}
             url={person.url}
-            username={person.username}
-            domain={person.domain}
-            totalPosts={person.totalPosts}
-            followersCount={person.followersCount}
-            followingCount={person.followingCount}
-            createdAt={person.createdAt}
+            username={person.preferredUsername}
+            domain={getMentionDomainFromActorID(person.id)}
+            totalPosts={statusesCount}
+            followersCount={followersCount}
+            followingCount={followingCount}
+            createdAt={new Date(person.published).getTime()}
           />
           <FollowAction targetActorId={person.id} isLoggedIn={isLoggedIn} />
         </div>

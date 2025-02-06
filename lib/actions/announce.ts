@@ -1,30 +1,29 @@
 import crypto from 'crypto'
 
+import { sendAnnounce } from '@/lib/activities'
+import { Database } from '@/lib/database/types'
+import { Actor } from '@/lib/models/actor'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
-
-import { sendAnnounce } from '../activities'
-import { Actor } from '../models/actor'
-import { Storage } from '../storage/types'
-import { getSpan } from '../utils/trace'
+import { getSpan } from '@/lib/utils/trace'
 
 interface UserAnnounceParams {
   currentActor: Actor
   statusId: string
-  storage: Storage
+  database: Database
 }
 export const userAnnounce = async ({
   currentActor,
   statusId,
-  storage
+  database
 }: UserAnnounceParams) => {
   const span = getSpan('actions', 'userAnnounce')
   const [originalStatus, hasActorAnnouncedStatus] = await Promise.all([
-    storage.getStatus({
+    database.getStatus({
       statusId,
       withReplies: false
     }),
-    storage.hasActorAnnouncedStatus({ statusId, actorId: currentActor.id })
+    database.hasActorAnnouncedStatus({ statusId, actorId: currentActor.id })
   ])
   if (!originalStatus || hasActorAnnouncedStatus) {
     span.end()
@@ -32,7 +31,7 @@ export const userAnnounce = async ({
   }
 
   const id = `${currentActor.id}/statuses/${crypto.randomUUID()}`
-  const status = await storage.createAnnounce({
+  const status = await database.createAnnounce({
     id,
     actorId: currentActor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
@@ -43,8 +42,8 @@ export const userAnnounce = async ({
     span.end()
     return null
   }
-  await addStatusToTimelines(storage, status)
-  const inboxes = await storage.getFollowersInbox({
+  await addStatusToTimelines(database, status)
+  const inboxes = await database.getFollowersInbox({
     targetActorId: currentActor.id
   })
   await Promise.all(

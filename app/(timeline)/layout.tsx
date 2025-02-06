@@ -7,15 +7,15 @@ import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { FC, ReactNode } from 'react'
 
+import { Modal } from '@/app/Modal'
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Header } from '@/lib/components/Header'
 import { Profile as ProfileComponent } from '@/lib/components/Profile'
 import { getConfig } from '@/lib/config'
-import { Actor } from '@/lib/models/actor'
-import { getStorage } from '@/lib/storage'
+import { getDatabase } from '@/lib/database'
+import { getActorProfile, getMention } from '@/lib/models/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { Modal } from '../Modal'
-import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
 import styles from './(timeline).module.scss'
 
 export const viewport = {
@@ -32,21 +32,18 @@ interface LayoutProps {
 }
 
 const Layout: FC<LayoutProps> = async ({ children }) => {
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
-
-  if (!storage) {
-    throw new Error('Fail to load storage')
+  const database = getDatabase()
+  if (!database) {
+    throw new Error('Fail to load database')
   }
 
-  const actor = await getActorFromSession(storage, session)
+  const session = await getServerSession(getAuthOptions())
+  const actor = await getActorFromSession(database, session)
   if (!actor) {
     return redirect(`https://${getConfig().host}/auth/signin`)
   }
 
-  const profile = actor.toProfile()
+  const profile = getActorProfile(actor)
   return (
     <html lang="en">
       <body className="">
@@ -65,9 +62,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
               )}
               <ProfileComponent
                 name={profile.name || ''}
-                url={`https://${profile.domain}/${Actor.getMentionFromProfile(
-                  profile
-                )}`}
+                url={`https://${profile.domain}/${getMention(profile)}`}
                 username={profile.username}
                 domain={profile.domain}
                 createdAt={profile.createdAt}

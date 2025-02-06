@@ -9,19 +9,21 @@ import {
 } from 'react'
 import sanitizeHtml from 'sanitize-html'
 
-import { createNote, createPoll, updateNote } from '../../client'
-import { Actor, ActorProfile } from '../../models/actor'
+import { createNote, createPoll, updateNote } from '@/lib/client'
+import { Button } from '@/lib/components/Button'
 import {
-  Attachment,
-  UploadedAttachment
-} from '../../models/attachment'
+  ActorProfile,
+  getMention,
+  getMentionFromActorID
+} from '@/lib/models/actor'
+import { Attachment, UploadedAttachment } from '@/lib/models/attachment'
 import {
-  EditableStatusData,
-  StatusData,
+  EditableStatus,
+  Status,
   StatusNote,
   StatusType
-} from '../../models/status'
-import { Button } from '../Button'
+} from '@/lib/models/status'
+
 import { Duration, PollChoices } from './PollChoices'
 import styles from './PostBox.module.scss'
 import { ReplyPreview } from './ReplyPreview'
@@ -40,12 +42,12 @@ import {
 interface Props {
   host: string
   profile: ActorProfile
-  replyStatus?: StatusData
-  editStatus?: EditableStatusData
+  replyStatus?: Status
+  editStatus?: EditableStatus
   isMediaUploadEnabled?: boolean
   onDiscardReply: () => void
-  onPostCreated: (status: StatusData, attachments: Attachment[]) => void
-  onPostUpdated: (status: StatusData) => void
+  onPostCreated: (status: Status, attachments: Attachment[]) => void
+  onPostUpdated: (status: Status) => void
   onDiscardEdit: () => void
 }
 
@@ -190,13 +192,11 @@ export const PostBox: FC<Props> = ({
     if (replyStatus.actorId === profile.id) return null
 
     const message = replyStatus.actor
-      ? `${Actor.getMentionFromProfile(replyStatus.actor, true)} `
-      : `${Actor.getMentionFromId(replyStatus.actorId, true)} `
+      ? `${getMention(replyStatus.actor, true)} `
+      : `${getMentionFromActorID(replyStatus.actorId, true)} `
     const others = replyStatus.tags
       .filter((item) => item.type === 'mention')
-      .filter(
-        (item) => item.name !== Actor.getMentionFromProfile(profile, true)
-      )
+      .filter((item) => item.name !== getMention(profile, true))
       .map((item) => {
         if (item.name.slice(1).includes('@')) return item.name
         try {

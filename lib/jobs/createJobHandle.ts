@@ -5,10 +5,10 @@ export const createJobHandle = (
   jobName: string,
   handle: JobHandle
 ): JobHandle => {
-  return async (storage, message) => {
+  return async (database, message) => {
     await getTracer().startActiveSpan(jobName, async (span) => {
       try {
-        await handle(storage, message)
+        await handle(database, message)
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)

@@ -3,8 +3,10 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
 import { getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
+import { getActorProfile } from '@/lib/models/actor'
 import { Timeline } from '@/lib/services/timelines/types'
-import { getStorage } from '@/lib/storage'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
@@ -17,29 +19,26 @@ export const metadata: Metadata = {
 
 const Page = async () => {
   const { host, mediaStorage } = getConfig()
-  const [storage, session] = await Promise.all([
-    getStorage(),
-    getServerSession(getAuthOptions())
-  ])
-
-  if (!storage) {
-    throw new Error('Fail to load storage')
+  const database = getDatabase()
+  if (!database) {
+    throw new Error('Fail to load database')
   }
 
-  const actor = await getActorFromSession(storage, session)
+  const session = await getServerSession(getAuthOptions())
+  const actor = await getActorFromSession(database, session)
   if (!actor) {
     return redirect(`https://${host}/auth/signin`)
   }
 
-  const statuses = await storage.getTimeline({
+  const statuses = await database.getTimeline({
     timeline: Timeline.MAIN,
     actorId: actor.id
   })
   return (
     <MainPageTimeline
       host={host}
-      statuses={statuses.map((item) => item.toJson())}
-      profile={actor.toProfile()}
+      statuses={statuses.map((item) => cleanJson(item))}
+      profile={getActorProfile(actor)}
       isMediaUploadEnabled={Boolean(mediaStorage)}
     />
   )

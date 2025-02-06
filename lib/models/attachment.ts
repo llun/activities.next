@@ -1,6 +1,5 @@
+import { Document } from '@llun/activities.schema'
 import { z } from 'zod'
-
-import { Document } from '../activities/entities/document'
 
 export const UploadedAttachment = z.object({
   type: z.literal('upload'),
@@ -19,7 +18,7 @@ export const PostBoxAttachment = UploadedAttachment
 
 export type PostBoxAttachment = z.infer<typeof PostBoxAttachment>
 
-export const AttachmentData = z.object({
+export const Attachment = z.object({
   id: z.string(),
   actorId: z.string(),
   statusId: z.string(),
@@ -34,29 +33,14 @@ export const AttachmentData = z.object({
   updatedAt: z.number()
 })
 
-export type AttachmentData = z.infer<typeof AttachmentData>
+export type Attachment = z.infer<typeof Attachment>
 
-export class Attachment {
-  readonly data: AttachmentData
-
-  constructor(params: AttachmentData) {
-    this.data = AttachmentData.parse(params)
-  }
-
-  toObject() {
-    const data = this.data
-    const document: Document = {
-      type: 'Document',
-      mediaType: data.mediaType,
-      url: data.url,
-      ...(data.width ? { width: data.width } : null),
-      ...(data.height ? { height: data.height } : null),
-      name: data.name
-    }
-    return document
-  }
-
-  toJson(): AttachmentData {
-    return this.data
-  }
-}
+export const getDocumentFromAttachment = (attachment: Attachment) =>
+  Document.parse({
+    type: 'Document',
+    mediaType: attachment.mediaType,
+    url: attachment.url,
+    ...(attachment.width ? { width: attachment.width } : null),
+    ...(attachment.height ? { height: attachment.height } : null),
+    name: attachment.name
+  })

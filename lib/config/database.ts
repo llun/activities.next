@@ -68,6 +68,7 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
               type: process.env.ACTIVITIES_DATABASE_TYPE,
               client: process.env.ACTIVITIES_DATABASE_CLIENT,
               connection: {
+                application_name: 'Activities.next',
                 ...(process.env.ACTIVITIES_DATABASE_PG_HOST
                   ? { host: process.env.ACTIVITIES_DATABASE_PG_HOST }
                   : {}),

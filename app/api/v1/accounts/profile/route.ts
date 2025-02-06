@@ -18,11 +18,11 @@ const ProfileRequest = z.object({
 })
 
 export const POST = AuthenticatedGuard(async (req, context) => {
-  const { currentActor, storage } = context
+  const { currentActor, database } = context
   const body = await req.formData()
   const json = Object.fromEntries(body.entries())
 
-  await storage.updateActor({
+  await database.updateActor({
     actorId: currentActor.id,
     ...ProfileRequest.parse(json)
   })
