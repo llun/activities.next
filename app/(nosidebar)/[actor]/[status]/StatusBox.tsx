@@ -4,7 +4,7 @@ import { FC, useState } from 'react'
 
 import { MediasModal } from '@/lib/components/MediasModal'
 import { Post } from '@/lib/components/Posts/Post'
-import { AttachmentData } from '@/lib/models/attachment'
+import { Attachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
 
 export const StatusBox: FC<Props> = ({ host, currentTime, status }) => {
   const [modalMedias, setModalMedias] = useState<{
-    medias: AttachmentData[]
+    medias: Attachment[]
     initialSelection: number
   } | null>(null)
 

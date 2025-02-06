@@ -533,7 +533,7 @@ export const StatusFirestoreDatabaseMixin = (
       isActorLiked: isActorLikedStatus,
       isActorAnnounced: isActorAnnouncedStatus,
       isLocalActor: Boolean(actor?.account),
-      attachments: attachments.map((attachment) => attachment.toJson()),
+      attachments,
       tags,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,

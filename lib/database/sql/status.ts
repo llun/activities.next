@@ -617,7 +617,7 @@ export const StatusSQLDatabaseMixin = (
       isActorLiked: isActorLikedStatusResult,
       isActorAnnounced: isActorAnnouncedStatus,
       isLocalActor: Boolean(actor?.account),
-      attachments: attachments.map((attachment) => attachment.toJson()),
+      attachments,
       tags,
       createdAt: getCompatibleTime(data.createdAt),
       updatedAt: getCompatibleTime(data.updatedAt),

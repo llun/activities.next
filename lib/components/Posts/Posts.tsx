@@ -4,7 +4,7 @@ import cn from 'classnames'
 import { FC, useState } from 'react'
 
 import { ActorProfile } from '../../models/actor'
-import { AttachmentData } from '../../models/attachment'
+import { Attachment } from '../../models/attachment'
 import { EditableStatus, Status } from '../../models/status'
 import { MediasModal } from '../MediasModal'
 import { Post } from './Post'
@@ -34,7 +34,7 @@ export const Posts: FC<Props> = ({
   onPostDeleted
 }) => {
   const [modalMedias, setModalMedias] = useState<{
-    medias: AttachmentData[]
+    medias: Attachment[]
     initialSelection: number
   } | null>(null)
 

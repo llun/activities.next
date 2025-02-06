@@ -1,15 +1,14 @@
 import { ENTITY_TYPE_QUESTION, Note, Question } from '@llun/activities.schema'
 import { z } from 'zod'
 
+import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
+import { Document } from '@/lib/activities/entities/document'
+import { getContent, getSummary } from '@/lib/activities/entities/note'
+import { ActorProfile } from '@/lib/models/actor'
+import { Attachment, getDocumentFromAttachment } from '@/lib/models/attachment'
+import { PollChoiceData } from '@/lib/models/pollChoice'
+import { Tag, getMentionFromTag } from '@/lib/models/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-
-import { AnnounceStatus } from '../activities/actions/announceStatus'
-import { Document } from '../activities/entities/document'
-import { getContent, getSummary } from '../activities/entities/note'
-import { ActorProfile } from './actor'
-import { Attachment, AttachmentData } from './attachment'
-import { PollChoiceData } from './pollChoice'
-import { Tag, getMentionFromTag } from './tag'
 
 export const StatusType = z.enum(['Note', 'Announce', 'Poll'])
 export type StatusType = z.infer<typeof StatusType>
@@ -50,7 +49,7 @@ export const StatusNote = StatusBase.extend({
   isActorLiked: z.boolean(),
   totalLikes: z.number(),
 
-  attachments: AttachmentData.array(),
+  attachments: Attachment.array(),
   tags: Tag.array()
 })
 export type StatusNote = z.infer<typeof StatusNote>
@@ -73,7 +72,7 @@ export const StatusPoll = StatusBase.extend({
   isActorLiked: z.boolean(),
   totalLikes: z.number(),
 
-  attachments: AttachmentData.array(),
+  attachments: Attachment.array(),
   tags: Tag.array(),
   choices: PollChoiceData.array(),
 
@@ -206,7 +205,7 @@ export const toMastodonObject = (status: Status): Note | Question => {
     inReplyTo: originalStatus.reply || null,
     content: originalStatus.text,
     attachment: originalStatus.attachments.map((attachment) =>
-      new Attachment(attachment).toObject()
+      getDocumentFromAttachment(attachment)
     ),
     tag: originalStatus.tags.map((tag) => getMentionFromTag(tag)),
     replies: {

@@ -660,7 +660,7 @@ describe('Database', () => {
           statusId: id
         })) as StatusNote
         expect(persistedStatus.attachments).toHaveLength(1)
-        expect(persistedStatus.attachments[0]).toMatchObject(attachment.data)
+        expect(persistedStatus.attachments[0]).toMatchObject(attachment)
       })
 
       it('returns tags with status', async () => {
