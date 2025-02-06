@@ -89,7 +89,7 @@ const Page: FC<Props> = async ({ params }) => {
         host={host}
         currentTime={new Date()}
         statuses={statuses}
-        attachments={attachments.map((attachment) => attachment.data)}
+        attachments={attachments}
       />
     </>
   )
