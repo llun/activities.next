@@ -343,13 +343,13 @@ describe('StatusDatabase', () => {
         expect(status.tags).toHaveLength(1)
         expect(status.tags).toMatchObject([
           {
-            id: tag.data.id,
+            id: tag.id,
             statusId: `${ACTOR4_ID}/statuses/new-post-3`,
             type: TagType.enum.mention,
             name: '@test1',
             value: 'https://llun.test/@test1',
-            createdAt: tag.data.createdAt,
-            updatedAt: tag.data.updatedAt
+            createdAt: tag.createdAt,
+            updatedAt: tag.updatedAt
           }
         ])
       })

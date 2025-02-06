@@ -1,10 +1,10 @@
-import { TagData } from '../../models/tag'
+import { Tag } from '../../models/tag'
 import { convertEmojisToImages } from './convertEmojisToImages'
 
 describe('#convertEmojisToImages', () => {
   it('converts all emojis inside text to image tags', () => {
     const time = Date.now()
-    const tags: TagData[] = [
+    const tags: Tag[] = [
       {
         type: 'emoji',
         createdAt: time,
@@ -33,7 +33,7 @@ describe('#convertEmojisToImages', () => {
 
   it('converts only emojis inside text', () => {
     const time = Date.now()
-    const tags: TagData[] = [
+    const tags: Tag[] = [
       {
         id: '3',
         name: ':image3:',

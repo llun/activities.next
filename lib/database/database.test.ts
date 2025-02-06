@@ -685,7 +685,7 @@ describe('Database', () => {
           statusId: id
         })) as StatusNote
         expect(persistedStatus.tags).toHaveLength(1)
-        expect(persistedStatus.tags[0]).toMatchObject(tag.data)
+        expect(persistedStatus.tags[0]).toMatchObject(tag)
       })
 
       it('returns main timeline statuses', async () => {

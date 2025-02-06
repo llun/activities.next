@@ -207,13 +207,13 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
     return {
       account,
-      session: {
+      session: Session.parse({
         accountId,
         expireAt,
         token: sessionToken,
         createdAt: getCompatibleTime(createdAt),
         updatedAt: getCompatibleTime(updatedAt)
-      }
+      })
     }
   },
 
@@ -225,12 +225,14 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       accountId
     )
     if (!session) return []
-    return session.map((session) => ({
-      ...session,
-      expireAt: getCompatibleTime(session.expireAt),
-      createdAt: getCompatibleTime(session.createdAt),
-      updatedAt: getCompatibleTime(session.updatedAt)
-    }))
+    return session.map((session) =>
+      Session.parse({
+        ...session,
+        expireAt: getCompatibleTime(session.expireAt),
+        createdAt: getCompatibleTime(session.createdAt),
+        updatedAt: getCompatibleTime(session.updatedAt)
+      })
+    )
   },
 
   async updateAccountSession({
