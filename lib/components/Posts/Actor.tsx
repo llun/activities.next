@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { FC } from 'react'
 
 import {
-  Actor as ActorModel,
   ActorProfile,
   getMention,
   getMentionDomainFromActorID,

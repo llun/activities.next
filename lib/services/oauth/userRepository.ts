@@ -15,7 +15,7 @@ export class UserRepository implements OAuthUserRepository {
     if (!actor || !actor.account) throw new Error('Fail to find actor')
     return User.parse({
       id: actor.id,
-      actor: actor.data,
+      actor,
       account: actor.account
     })
   }

@@ -316,7 +316,7 @@ export const OAuthFirestoreDatabaseMixin = (
       },
       user: User.parse({
         id: actor?.id,
-        actor: actor,
+        actor,
         account
       }),
 

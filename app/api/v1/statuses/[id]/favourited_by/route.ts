@@ -29,7 +29,7 @@ export const GET = OAuthGuard<Params>(
       req,
       CORS_HEADERS,
       await Promise.all(
-        actors.map((actor) => getMastodonAccount(database, actor.data))
+        actors.map((actor) => getMastodonAccount(database, actor))
       )
     )
   }

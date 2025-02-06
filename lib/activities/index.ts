@@ -322,6 +322,7 @@ export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) =>
 
         const statuses = await Promise.all(
           items.map(async (item) => {
+            if (typeof item === 'string') return null
             if (item.type === AnnounceAction) {
               const note = await getNote({ statusId: item.object })
               if (!note) return null
