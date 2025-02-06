@@ -31,7 +31,7 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/models/status'
-import { Tag, TagData } from '@/lib/models/tag'
+import { Tag } from '@/lib/models/tag'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
@@ -474,7 +474,7 @@ export const StatusSQLDatabaseMixin = (
   }: CreateTagParams): Promise<Tag> {
     const currentTime = new Date()
 
-    const data: TagData = {
+    const data = Tag.parse({
       id: crypto.randomUUID(),
       statusId,
       type,
@@ -482,24 +482,23 @@ export const StatusSQLDatabaseMixin = (
       value: value || '',
       createdAt: getCompatibleTime(currentTime),
       updatedAt: getCompatibleTime(currentTime)
-    }
+    })
     await database('tags').insert({
       ...data,
       createdAt: currentTime,
       updatedAt: currentTime
     })
-    return new Tag(data)
+    return data
   }
 
   async function getTags({ statusId }: GetTagsParams) {
-    const data = await database<TagData>('tags').where('statusId', statusId)
-    return data.map(
-      (item) =>
-        new Tag({
-          ...item,
-          createdAt: getCompatibleTime(item.createdAt),
-          updatedAt: getCompatibleTime(item.updatedAt)
-        })
+    const data = await database<Tag>('tags').where('statusId', statusId)
+    return data.map((item) =>
+      Tag.parse({
+        ...item,
+        createdAt: getCompatibleTime(item.createdAt),
+        updatedAt: getCompatibleTime(item.updatedAt)
+      })
     )
   }
 
@@ -619,7 +618,7 @@ export const StatusSQLDatabaseMixin = (
       isActorAnnounced: isActorAnnouncedStatus,
       isLocalActor: Boolean(actor?.account),
       attachments: attachments.map((attachment) => attachment.toJson()),
-      tags: tags.map((tag) => tag.toJson()),
+      tags,
       createdAt: getCompatibleTime(data.createdAt),
       updatedAt: getCompatibleTime(data.updatedAt),
 

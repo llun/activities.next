@@ -3,7 +3,7 @@ import { Note } from '@llun/activities.schema'
 import { getConfig } from '@/lib/config'
 import { Attachment } from '@/lib/models/attachment'
 import { Status, StatusType } from '@/lib/models/status'
-import { Tag } from '@/lib/models/tag'
+import { getMentionFromTag } from '@/lib/models/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
@@ -27,7 +27,7 @@ export const getNoteFromStatus = (status: Status): Note | null => {
     attachment: actualStatus.attachments.map((attachment) =>
       new Attachment(attachment).toObject()
     ),
-    tag: actualStatus.tags.map((tag) => new Tag(tag).toObject()),
+    tag: actualStatus.tags.map((tag) => getMentionFromTag(tag)),
     replies: {
       id: `${actualStatus.id}/replies`,
       type: 'Collection',

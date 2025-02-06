@@ -9,7 +9,7 @@ import { getContent, getSummary } from '../activities/entities/note'
 import { ActorProfile } from './actor'
 import { Attachment, AttachmentData } from './attachment'
 import { PollChoiceData } from './pollChoice'
-import { Tag, TagData } from './tag'
+import { Tag, getMentionFromTag } from './tag'
 
 export const StatusType = z.enum(['Note', 'Announce', 'Poll'])
 export type StatusType = z.infer<typeof StatusType>
@@ -51,7 +51,7 @@ export const StatusNote = StatusBase.extend({
   totalLikes: z.number(),
 
   attachments: AttachmentData.array(),
-  tags: TagData.array()
+  tags: Tag.array()
 })
 export type StatusNote = z.infer<typeof StatusNote>
 
@@ -74,7 +74,7 @@ export const StatusPoll = StatusBase.extend({
   totalLikes: z.number(),
 
   attachments: AttachmentData.array(),
-  tags: TagData.array(),
+  tags: Tag.array(),
   choices: PollChoiceData.array(),
 
   endAt: z.number()
@@ -173,7 +173,7 @@ export const toMastodonObject = (status: Status): Note | Question => {
       cc: status.cc,
       inReplyTo: status.reply || null,
       content: status.text,
-      tag: status.tags.map((tag) => new Tag(tag).toObject()),
+      tag: status.tags.map((tag) => getMentionFromTag(tag)),
 
       oneOf: [],
       replies: {
@@ -208,7 +208,7 @@ export const toMastodonObject = (status: Status): Note | Question => {
     attachment: originalStatus.attachments.map((attachment) =>
       new Attachment(attachment).toObject()
     ),
-    tag: originalStatus.tags.map((tag) => new Tag(tag).toObject()),
+    tag: originalStatus.tags.map((tag) => getMentionFromTag(tag)),
     replies: {
       id: `${originalStatus.id}/replies`,
       type: 'Collection',

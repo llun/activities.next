@@ -33,7 +33,7 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/models/status'
-import { Tag, TagData } from '@/lib/models/tag'
+import { Tag } from '@/lib/models/tag'
 import { logger } from '@/lib/utils/logger'
 
 export interface FirestoreStatusDatabase extends StatusDatabase {
@@ -412,7 +412,7 @@ export const StatusFirestoreDatabaseMixin = (
   }: CreateTagParams): Promise<Tag> {
     const currentTime = Date.now()
     const id = crypto.randomUUID()
-    const data: TagData = {
+    const data = Tag.parse({
       id,
       statusId,
       type,
@@ -420,16 +420,16 @@ export const StatusFirestoreDatabaseMixin = (
       value: value || '',
       createdAt: currentTime,
       updatedAt: currentTime
-    }
+    })
     await firestore.doc(`statuses/${urlToId(statusId)}/tags/${id}`).set(data)
-    return new Tag(data)
+    return data
   }
 
   async function getTags({ statusId }: GetTagsParams) {
     const snapshot = await firestore
       .collection(`statuses/${urlToId(statusId)}/tags`)
       .get()
-    return snapshot.docs.map((item) => new Tag(item.data() as TagData))
+    return snapshot.docs.map((item) => Tag.parse(item.data()))
   }
 
   async function getStatusFromData(
@@ -534,7 +534,7 @@ export const StatusFirestoreDatabaseMixin = (
       isActorAnnounced: isActorAnnouncedStatus,
       isLocalActor: Boolean(actor?.account),
       attachments: attachments.map((attachment) => attachment.toJson()),
-      tags: tags.map((tag) => tag.toJson()),
+      tags,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
 
