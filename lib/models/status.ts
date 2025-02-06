@@ -6,7 +6,7 @@ import { Document } from '@/lib/activities/entities/document'
 import { getContent, getSummary } from '@/lib/activities/entities/note'
 import { ActorProfile } from '@/lib/models/actor'
 import { Attachment, getDocumentFromAttachment } from '@/lib/models/attachment'
-import { PollChoiceData } from '@/lib/models/pollChoice'
+import { PollChoice } from '@/lib/models/pollChoice'
 import { Tag, getMentionFromTag } from '@/lib/models/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
@@ -74,7 +74,7 @@ export const StatusPoll = StatusBase.extend({
 
   attachments: Attachment.array(),
   tags: Tag.array(),
-  choices: PollChoiceData.array(),
+  choices: PollChoice.array(),
 
   endAt: z.number()
 })

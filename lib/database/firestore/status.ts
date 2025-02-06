@@ -24,7 +24,7 @@ import {
   UpdatePollParams
 } from '@/lib/database/types/status'
 import { Actor, getActorProfile } from '@/lib/models/actor'
-import { PollChoice, PollChoiceData } from '@/lib/models/pollChoice'
+import { PollChoice } from '@/lib/models/pollChoice'
 import {
   Edited,
   Status,
@@ -208,13 +208,15 @@ export const StatusFirestoreDatabaseMixin = (
       updatedAt: currentTime
     }
     const statusPath = `statuses/${urlToId(id)}`
-    const choicesData: PollChoiceData[] = choices.map((choice) => ({
-      statusId: id,
-      title: choice,
-      totalVotes: 0,
-      createdAt: createdAt || currentTime,
-      updatedAt: currentTime
-    }))
+    const choicesData = choices.map((choice) =>
+      PollChoice.parse({
+        statusId: id,
+        title: choice,
+        totalVotes: 0,
+        createdAt: createdAt || currentTime,
+        updatedAt: currentTime
+      })
+    )
 
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     await Promise.all([
@@ -252,7 +254,7 @@ export const StatusFirestoreDatabaseMixin = (
       attachments: [],
       tags: [],
       replies: [],
-      choices: choicesData.map((data) => new PollChoice(data).toJson())
+      choices: choicesData
     })
   }
 
@@ -541,7 +543,7 @@ export const StatusFirestoreDatabaseMixin = (
       edits,
       ...(data.type === StatusType.enum.Poll
         ? {
-            choices: pollChoices.map((choice) => choice.toJson()),
+            choices: pollChoices,
             endAt: data.endAt
           }
         : null)
@@ -559,9 +561,7 @@ export const StatusFirestoreDatabaseMixin = (
     const snapshot = await firestore
       .collection(`statuses/${urlToId(statusId)}/choices`)
       .get()
-    return snapshot.docs.map(
-      (item) => new PollChoice(item.data() as PollChoiceData)
-    )
+    return snapshot.docs.map((item) => PollChoice.parse(item.data()))
   }
 
   async function getEdits(statusId: string) {

@@ -507,13 +507,12 @@ export const StatusSQLDatabaseMixin = (
     const raw = await database('poll_choices')
       .where('statusId', statusId)
       .orderBy('choiceId', 'asc')
-    return raw.map(
-      (data) =>
-        new PollChoice({
-          ...data,
-          createdAt: getCompatibleTime(data.createdAt),
-          updatedAt: getCompatibleTime(data.updatedAt)
-        })
+    return raw.map((data) =>
+      PollChoice.parse({
+        ...data,
+        createdAt: getCompatibleTime(data.createdAt),
+        updatedAt: getCompatibleTime(data.updatedAt)
+      })
     )
   }
 
@@ -633,7 +632,7 @@ export const StatusSQLDatabaseMixin = (
 
       ...(data.type === StatusType.enum.Poll
         ? {
-            choices: pollChoices.map((choice) => choice.toJson()),
+            choices: pollChoices,
             endAt: content.endAt
           }
         : null)
