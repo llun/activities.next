@@ -1,7 +1,6 @@
 import { Note } from '@llun/activities.schema'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Actor } from '@/lib/models/actor'
 import {
