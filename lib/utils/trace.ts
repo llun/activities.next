@@ -3,7 +3,7 @@ import { trace } from '@opentelemetry/api'
 import { logger } from './logger'
 
 export const TRACE_APPLICATION_SCOPE = 'activities.next'
-export const TRACE_APPLICATION_VERSION = '0.1.6'
+export const TRACE_APPLICATION_VERSION = '0.1.7'
 
 export interface Data {
   [key: string]: string | boolean | number | undefined

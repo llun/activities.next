@@ -6,8 +6,6 @@ import { getFirestoreDatabase } from '@/lib/database/firestore'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 
-export const PER_PAGE_LIMIT = 30
-
 export const getDatabase = memoize((): Database | null => {
   const config = getConfig()
   switch (config.database.type) {

@@ -1,7 +1,7 @@
 import { FieldValue, Firestore } from '@google-cloud/firestore'
 import crypto from 'node:crypto'
 
-import { PER_PAGE_LIMIT } from '@/lib/database'
+import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { urlToId } from '@/lib/database/firestore/urlToId'
 import { ActorDatabase } from '@/lib/database/types/actor'
 import { LikeDatabase } from '@/lib/database/types/like'

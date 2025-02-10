@@ -1,83 +1,81 @@
+import { Mastodon } from '@llun/activities.schema'
+
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
+import { getMastodonAttachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { getMastodonAccount } from './getMastodonAccount'
-import { MastodonStatus, ReblogMastodonStatus } from './types'
 
 export const getMastodonStatus = async (
   database: Database,
   status: Status
-): Promise<MastodonStatus | ReblogMastodonStatus> => {
+): Promise<Mastodon.Status> => {
   const account = await getMastodonAccount(database, status.actor as Actor)
-  if (status.type === 'Announce') {
-    return ReblogMastodonStatus.parse({
-      id: status.id,
-      created_at: getISOTimeUTC(status.createdAt),
-      in_reply_to_id: null,
-      in_reply_to_account_id: null,
-      sensitive: false,
-      spoiler_text: '',
-      visibility: 'public',
-      language: null,
-      uri: status.id,
-      url: null,
-      replies_count: 0,
-      reblogs_count: 0,
-      favourites_count: 0,
-      edited_at: null,
-      favourited: false,
-      reblogged: false,
-      muted: false,
-      bookmarked: false,
-      content: '',
-      filtered: [],
-      reblog: await getMastodonStatus(database, status.originalStatus),
-      account,
-      media_attachments: [],
-      mentions: [],
-      tags: [],
-      emojis: [],
-      card: null,
-      poll: null,
-      application: null
-    })
-  }
-  return MastodonStatus.parse({
+  const baseData = {
+    // Identifiers & timestamps
     id: status.id,
     created_at: getISOTimeUTC(status.createdAt),
+    edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
+
+    // Reply information
     in_reply_to_id: null,
     in_reply_to_account_id: null,
+
+    // Visibility settings
     sensitive: false,
-    spoiler_text: status.summary || null,
+    spoiler_text: '',
     visibility: 'public',
     language: null,
+
+    // URI & URL
     uri: status.id,
-    url: status.url,
+    url: null,
+
+    // Count metrics
     replies_count: 0,
     reblogs_count: 0,
-    reblog: null,
-    favourites_count: status.totalLikes || 0,
-    edited_at: null,
-    favourited: status.isActorLiked ?? false,
-    reblogged: status.isActorAnnounced ?? false,
+    favourites_count: 0,
+
+    // Interaction flags
+    favourited: false,
+    reblogged: false,
     muted: false,
     bookmarked: false,
-    content: status.text,
-    filtered: [],
+
+    // Content and account info
+    content: '',
+    text: null,
     account,
-    media_attachments: status.attachments.map((attachment) => ({
-      id: attachment.id,
-      type: attachment.mediaType,
-      url: attachment.url,
-      description: attachment.name
-    })),
+
+    // Additional data
     mentions: [],
     tags: [],
     emojis: [],
     card: null,
-    poll: null,
-    application: null
+    poll: null
+  }
+
+  if (status.type === 'Announce') {
+    return Mastodon.Status.parse({
+      ...baseData,
+      reblog: await getMastodonStatus(database, status.originalStatus),
+      media_attachments: []
+    })
+  }
+  return Mastodon.Status.parse({
+    ...baseData,
+    spoiler_text: status.summary ?? '',
+    url: status.url,
+    favourites_count: status.totalLikes || 0,
+    edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
+    favourited: status.isActorLiked ?? false,
+    reblogged: status.isActorAnnounced ?? false,
+    content: status.text,
+    reblog: null,
+    media_attachments: status.attachments.map((attachment) =>
+      getMastodonAttachment(attachment)
+    )
   })
 }

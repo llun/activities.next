@@ -3,7 +3,7 @@
 import cn from 'classnames'
 import { FC, useState } from 'react'
 
-import { Button } from '../Button'
+import { Button } from '@/lib/components/Button'
 
 export const DEFAULT_DURATION = 21_600
 

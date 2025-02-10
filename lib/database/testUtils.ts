@@ -99,3 +99,12 @@ export const databaseBeforeAll = async (table: TestDatabaseTable) => {
     })
   )
 }
+
+export const getTestSQLDatabase = () =>
+  getSQLDatabase({
+    client: 'better-sqlite3',
+    useNullAsDefault: true,
+    connection: {
+      filename: ':memory:'
+    }
+  })

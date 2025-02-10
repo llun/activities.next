@@ -81,6 +81,15 @@ export const ActorFirestoreDatabaseMixin = (
       discoverable: true,
       noindex: false,
 
+      source: {
+        note: '',
+        fields: [],
+        privacy: 'public',
+        sensitive: false,
+        language: 'en',
+        follow_requests_count: 0
+      },
+
       created_at: getISOTimeUTC(data.createdAt),
       last_status_at: data.lastStatusAt
         ? getISOTimeUTC(data.lastStatusAt)

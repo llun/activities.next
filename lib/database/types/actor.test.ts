@@ -250,6 +250,15 @@ describe('ActorDatabase', () => {
           discoverable: true,
           noindex: false,
 
+          source: {
+            fields: [],
+            follow_requests_count: 0,
+            language: 'en',
+            note: '',
+            privacy: 'public',
+            sensitive: false
+          },
+
           created_at: getISOTimeUTC(currentTime),
           last_status_at: null,
 

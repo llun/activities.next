@@ -1,5 +1,5 @@
 import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
@@ -8,13 +8,7 @@ import { MockUndoFollowRequest } from '@/lib/stub/undoRequest'
 jest.mock('../activities')
 
 describe('#undoFollowRequest', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  const database = getTestSQLDatabase()
 
   beforeAll(async () => {
     await database.migrate()

@@ -2,7 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { acceptFollowRequest } from '@/lib/actions//acceptFollowRequest'
 import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { FollowStatus } from '@/lib/models/follow'
 import { sendMail } from '@/lib/services/email'
 import {
@@ -23,13 +23,7 @@ jest.mock('../services/email', () => ({
 }))
 
 describe('Accept follow action', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  const database = getTestSQLDatabase()
 
   beforeAll(async () => {
     await database.migrate()

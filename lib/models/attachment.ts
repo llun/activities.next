@@ -1,4 +1,4 @@
-import { Document } from '@llun/activities.schema'
+import { Document, Mastodon } from '@llun/activities.schema'
 import { z } from 'zod'
 
 export const UploadedAttachment = z.object({
@@ -44,3 +44,48 @@ export const getDocumentFromAttachment = (attachment: Attachment) =>
     ...(attachment.height ? { height: attachment.height } : null),
     name: attachment.name
   })
+
+export const getMastodonAttachment = (attachment: Attachment) => {
+  if (
+    attachment.mediaType.startsWith('image') &&
+    attachment.mediaType !== 'image/gif'
+  ) {
+    return Mastodon.MediaTypes.Image.parse({
+      id: attachment.id,
+      url: attachment.url,
+      preview_url: null,
+      remote_url: null,
+      description: attachment.name,
+      type: 'image',
+      meta: {
+        original: {
+          width: attachment.width ?? 0,
+          height: attachment.height ?? 0,
+          size: `${attachment.width}x${attachment.height}`,
+          aspect: (attachment.width ?? 0) / (attachment.height ?? 1)
+        }
+      },
+      blurhash: null
+    })
+  }
+  if (attachment.mediaType.startsWith('video')) {
+    return Mastodon.MediaTypes.Video.parse({
+      id: attachment.id,
+      url: attachment.url,
+      preview_url: null,
+      remote_url: null,
+      description: attachment.name,
+      type: 'video',
+      meta: {
+        original: {
+          width: attachment.width ?? 0,
+          height: attachment.height ?? 0,
+          size: `${attachment.width}x${attachment.height}`,
+          aspect: (attachment.width ?? 0) / (attachment.height ?? 1)
+        }
+      },
+      blurhash: null
+    })
+  }
+  return null
+}

@@ -12,11 +12,6 @@ export const GET = async () => {
   const statuses = await database.getTimeline({
     timeline: Timeline.LOCAL_PUBLIC
   })
-
-  if (statuses.length === 0) {
-    return Response.json([])
-  }
-
   const mastodonStatuses = await Promise.all(
     statuses.map((status) => getMastodonStatus(database, status))
   )

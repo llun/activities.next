@@ -1,6 +1,6 @@
 import { Knex } from 'knex'
 
-import { PER_PAGE_LIMIT } from '@/lib/database'
+import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { StatusDatabase } from '@/lib/database/types/status'
 import {
   CreateTimelineStatusParams,
