@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -14,13 +14,7 @@ import { addStatusToTimelines } from '.'
 import { Timeline } from './types'
 
 describe('#addStatusToTimeline', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  const database = getTestSQLDatabase()
 
   beforeAll(async () => {
     await database.migrate()

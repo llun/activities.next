@@ -1,6 +1,6 @@
 import { createFollower } from '@/lib/actions/createFollower'
 import { acceptFollow } from '@/lib/activities'
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Actor } from '@/lib/models/actor'
 import { testUserId } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
@@ -10,13 +10,7 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 jest.mock('../activities')
 
 describe('#createFollower', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  const database = getTestSQLDatabase()
   let actor: Actor
 
   beforeAll(async () => {

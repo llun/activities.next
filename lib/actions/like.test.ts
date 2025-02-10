@@ -1,7 +1,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { likeRequest } from '@/lib/actions/like'
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Status, StatusNote, toMastodonObject } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -11,13 +11,7 @@ import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 enableFetchMocks()
 
 describe('Accept follow action', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  const database = getTestSQLDatabase()
 
   beforeAll(async () => {
     await database.migrate()

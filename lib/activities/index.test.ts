@@ -3,7 +3,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { follow, getPublicProfileFromHandle, sendNote } from '@/lib/activities'
 import { CreateStatus } from '@/lib/activities/actions/createStatus'
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Actor } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
@@ -15,13 +15,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 enableFetchMocks()
 
 describe('activities', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  const database = getTestSQLDatabase()
   let actor1: Actor | undefined
 
   beforeAll(async () => {

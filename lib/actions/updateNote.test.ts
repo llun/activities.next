@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Actor } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
 import { expectCall, mockRequests } from '@/lib/stub/activities'
@@ -13,13 +13,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 enableFetchMocks()
 
 describe('Update note action', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  const database = getTestSQLDatabase()
   let actor1: Actor | undefined
 
   beforeAll(async () => {
