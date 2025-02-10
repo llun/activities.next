@@ -1,6 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
@@ -14,13 +14,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 enableFetchMocks()
 
 describe('Announce action', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  const database = getTestSQLDatabase()
   let actor1: Actor | undefined
   beforeAll(async () => {
     await database.migrate()

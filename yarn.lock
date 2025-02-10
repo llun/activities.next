@@ -2020,12 +2020,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@llun/activities.schema@npm:^0.2.20":
-  version: 0.2.20
-  resolution: "@llun/activities.schema@npm:0.2.20"
+"@llun/activities.schema@npm:^0.2.21":
+  version: 0.2.21
+  resolution: "@llun/activities.schema@npm:0.2.21"
   dependencies:
     zod: "npm:^3.24.1"
-  checksum: 10c0/3fb5fc8f4038a192659dfd921a7ec160080b56766f0a568c9f88a6f882ddf2f477a6119dd63c082b2b4d0267047b5e5f5e0b3aa87971b1ada8c06543dd66ddaf
+  checksum: 10c0/524d8569f826ebb5f0d4ca3c51d0aac6402f75b2eaedf86743050756765fda0839a2046723542b15dc95e596f8e5de3fb5ec4bc00043448a1753c80cc5ffa06e
   languageName: node
   linkType: hard
 
@@ -4061,7 +4061,7 @@ __metadata:
     "@date-fns/utc": "npm:^2.1.0"
     "@google-cloud/firestore": "npm:^7.11.0"
     "@jmondi/oauth2-server": "npm:^4.0.2"
-    "@llun/activities.schema": "npm:^0.2.20"
+    "@llun/activities.schema": "npm:^0.2.21"
     "@next/env": "npm:^15.1.6"
     "@opentelemetry/api": "npm:^1.9.0"
     "@swc-node/register": "npm:^1.10.9"

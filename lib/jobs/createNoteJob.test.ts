@@ -1,6 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
@@ -17,13 +17,7 @@ enableFetchMocks()
 const FRIEND_ACTOR_ID = 'https://somewhere.test/actors/friend'
 
 describe('createNoteJob', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  const database = getTestSQLDatabase()
   let actor1: Actor | undefined
 
   beforeAll(async () => {

@@ -2,6 +2,7 @@ import { Note } from '@llun/activities.schema'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Actor } from '@/lib/models/actor'
 import {
   Status,
@@ -21,14 +22,7 @@ import { compact } from '@/lib/utils/jsonld'
 enableFetchMocks()
 
 describe('Status', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
-
+  const database = getTestSQLDatabase()
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)

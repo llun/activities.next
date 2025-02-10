@@ -2,7 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
 import { RejectFollow } from '@/lib/activities/actions/rejectFollow'
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { FollowStatus } from '@/lib/models/follow'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -12,13 +12,7 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 enableFetchMocks()
 
 describe('Accept follow action', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  const database = getTestSQLDatabase()
 
   beforeAll(async () => {
     await database.migrate()

@@ -1,4 +1,4 @@
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Actor, getMention } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -7,13 +7,7 @@ import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { getMentions } from '@/lib/utils/text/getMentions'
 
 describe('#getMentions', () => {
-  const database = getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  const database = getTestSQLDatabase()
   let actor1: Actor | undefined
   let actor2: Actor | undefined
 
