@@ -7,12 +7,11 @@ import { Status } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { getMastodonAccount } from './getMastodonAccount'
-import { ReblogMastodonStatus } from './types'
 
 export const getMastodonStatus = async (
   database: Database,
   status: Status
-): Promise<Mastodon.Status | ReblogMastodonStatus> => {
+): Promise<Mastodon.Status> => {
   const account = await getMastodonAccount(database, status.actor as Actor)
   const baseData = {
     // Identifiers & timestamps
