@@ -32,7 +32,6 @@ export async function getSenderPublicKey(database: Database, actorId: string) {
         if (!(nodeError instanceof HTTPError)) {
           throw error
         }
-
         if (nodeError.response.statusCode === 410) {
           const url = new URL(actorId)
           const sender = await getPublicProfile({

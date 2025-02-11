@@ -222,11 +222,12 @@ export const getPublicProfile = async ({
           createdAt: new Date(person.published).getTime()
         }
       } catch (error) {
-        if (error instanceof TimeoutError) {
-          // Ignore timeout error from the opentelemetry record
+        const nodeError = error as NodeJS.ErrnoException
+        if (nodeError.code === 'ETIMEDOUT') {
+          span.setAttribute('timeout', true)
           return null
         }
-        const nodeError = error as NodeJS.ErrnoException
+
         span.recordException(nodeError)
         logger.error(`[getPublicProfile] ${nodeError.message}`)
         return null
