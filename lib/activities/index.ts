@@ -1,5 +1,6 @@
 import { Note } from '@llun/activities.schema'
 import crypto from 'crypto'
+import { TimeoutError } from 'got'
 
 import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
 import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
@@ -105,7 +106,9 @@ export const getPublicProfile = async ({
           url: actorId,
           headers: { Accept: DEFAULT_ACCEPT },
           // Use default retry by set it to undefined, otherwise 0 retry
-          numberOfRetry: withNetworkRetry ? undefined : 0
+          numberOfRetry: withNetworkRetry ? undefined : 0,
+          // Reduce timeout for public profile to just 50ms
+          responseTimeout: 50
         })
         if (statusCode !== 200) {
           span.end()
@@ -150,7 +153,9 @@ export const getPublicProfile = async ({
           person.followers
             ? request({
                 url: person.followers,
-                headers: { Accept: DEFAULT_ACCEPT }
+                headers: { Accept: DEFAULT_ACCEPT },
+                // Reduce timeout for public profile to just 50ms
+                responseTimeout: 50
               }).then((res) =>
                 res.statusCode === 200
                   ? (JSON.parse(res.body) as Promise<OrderedCollection>)
@@ -160,7 +165,9 @@ export const getPublicProfile = async ({
           person.following
             ? request({
                 url: person.following,
-                headers: { Accept: DEFAULT_ACCEPT }
+                headers: { Accept: DEFAULT_ACCEPT },
+                // Reduce timeout for public profile to just 50ms
+                responseTimeout: 50
               }).then((res) =>
                 res.statusCode === 200
                   ? (JSON.parse(res.body) as Promise<OrderedCollection>)
@@ -170,7 +177,9 @@ export const getPublicProfile = async ({
           person.outbox
             ? request({
                 url: person.outbox,
-                headers: { Accept: DEFAULT_ACCEPT }
+                headers: { Accept: DEFAULT_ACCEPT },
+                // Reduce timeout for public profile to just 50ms
+                responseTimeout: 50
               }).then((res) =>
                 res.statusCode === 200
                   ? (JSON.parse(res.body) as Promise<OrderedCollection>)
@@ -213,6 +222,10 @@ export const getPublicProfile = async ({
           createdAt: new Date(person.published).getTime()
         }
       } catch (error) {
+        if (error instanceof TimeoutError) {
+          // Ignore timeout error from the opentelemetry record
+          return null
+        }
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)
         logger.error(`[getPublicProfile] ${nodeError.message}`)
