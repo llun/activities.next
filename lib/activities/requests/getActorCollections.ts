@@ -1,6 +1,6 @@
 import { Person } from '@llun/activities.schema'
 
-import { DEFAULT_ACCEPT } from '@/lib/activities/consts'
+import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import {
   OrderedCollection,
   getOrderCollectionFirstPage
