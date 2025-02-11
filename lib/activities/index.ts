@@ -1,6 +1,5 @@
 import { Note } from '@llun/activities.schema'
 import crypto from 'crypto'
-import { TimeoutError } from 'got'
 
 import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
 import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
