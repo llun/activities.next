@@ -18,6 +18,10 @@ import { UndoFollow } from '@/lib/activities/actions/undoFollow'
 import { UndoLike } from '@/lib/activities/actions/undoLike'
 import { UndoStatus } from '@/lib/activities/actions/undoStatus'
 import { UpdateStatus } from '@/lib/activities/actions/updateStatus'
+import {
+  DEFAULT_ACCEPT,
+  DEFAULT_SHORT_REQUEST_TIMEOUT
+} from '@/lib/activities/constants'
 import { Image } from '@/lib/activities/entities/image'
 import {
   OrderedCollection,
@@ -46,8 +50,6 @@ import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { signedHeaders } from '@/lib/utils/signature'
 import { getSpan, getTracer } from '@/lib/utils/trace'
-
-const DEFAULT_ACCEPT = 'application/activity+json, application/ld+json'
 
 // TODO: Remove PublicProfile and use Profile in model
 export interface PublicProfile {
@@ -106,8 +108,7 @@ export const getPublicProfile = async ({
           headers: { Accept: DEFAULT_ACCEPT },
           // Use default retry by set it to undefined, otherwise 0 retry
           numberOfRetry: withNetworkRetry ? undefined : 0,
-          // Reduce timeout for public profile to just 50ms
-          responseTimeout: 50
+          responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
         })
         if (statusCode !== 200) {
           span.end()
@@ -153,8 +154,7 @@ export const getPublicProfile = async ({
             ? request({
                 url: person.followers,
                 headers: { Accept: DEFAULT_ACCEPT },
-                // Reduce timeout for public profile to just 50ms
-                responseTimeout: 50
+                responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
               }).then((res) =>
                 res.statusCode === 200
                   ? (JSON.parse(res.body) as Promise<OrderedCollection>)
@@ -165,8 +165,7 @@ export const getPublicProfile = async ({
             ? request({
                 url: person.following,
                 headers: { Accept: DEFAULT_ACCEPT },
-                // Reduce timeout for public profile to just 50ms
-                responseTimeout: 50
+                responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
               }).then((res) =>
                 res.statusCode === 200
                   ? (JSON.parse(res.body) as Promise<OrderedCollection>)
@@ -177,8 +176,7 @@ export const getPublicProfile = async ({
             ? request({
                 url: person.outbox,
                 headers: { Accept: DEFAULT_ACCEPT },
-                // Reduce timeout for public profile to just 50ms
-                responseTimeout: 50
+                responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
               }).then((res) =>
                 res.statusCode === 200
                   ? (JSON.parse(res.body) as Promise<OrderedCollection>)
