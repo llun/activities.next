@@ -2029,12 +2029,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@llun/activities.schema@npm:^0.2.26":
-  version: 0.2.26
-  resolution: "@llun/activities.schema@npm:0.2.26"
+"@llun/activities.schema@npm:^0.2.27":
+  version: 0.2.27
+  resolution: "@llun/activities.schema@npm:0.2.27"
   dependencies:
-    zod: "npm:^3.24.1"
-  checksum: 10c0/254758c5242e8fc095247830914bb53cbba32888879a512ab7cd0e508109b6ccd0aa26a562d09e7cae8d7f07c52e837cbe91fde762b99ec01adcef5dcd18ff95
+    zod: "npm:^3.24.2"
+  checksum: 10c0/4a0c72fc9c42381806db199d24d76b8c2483f81a32cb6507afc2307ad5094dc562c38957f89b65cc0191a1d421c423d7c74dd2acbe73249b02422a7d4ac6a2ac
   languageName: node
   linkType: hard
 
@@ -4182,7 +4182,7 @@ __metadata:
     "@date-fns/utc": "npm:^2.1.0"
     "@google-cloud/firestore": "npm:^7.11.0"
     "@jmondi/oauth2-server": "npm:^4.0.2"
-    "@llun/activities.schema": "npm:^0.2.26"
+    "@llun/activities.schema": "npm:^0.2.27"
     "@next/env": "npm:^15.1.7"
     "@opentelemetry/api": "npm:^1.9.0"
     "@swc-node/register": "npm:^1.10.9"
@@ -4218,7 +4218,7 @@ __metadata:
     content-type: "npm:^1.0.5"
     date-fns: "npm:^4.1.0"
     dotenv-flow: "npm:^4.1.0"
-    eslint: "npm:^9.20.0"
+    eslint: "npm:^9.20.1"
     eslint-config-next: "npm:15.1.7"
     eslint-config-prettier: "npm:^10.0.1"
     eslint-config-standard: "npm:^17.1.0"
@@ -4244,7 +4244,7 @@ __metadata:
     next-auth: "npm:4.24.11"
     nodemailer: "npm:^6.10.0"
     peggy: "npm:^4.2.0"
-    pg: "npm:^8.13.1"
+    pg: "npm:^8.13.2"
     pino: "npm:^9.6.0"
     postcss: "npm:^8.5.2"
     prettier: "npm:3.5.0"
@@ -4256,7 +4256,7 @@ __metadata:
     sass: "npm:^1.84.0"
     sharp: "npm:0.33.5"
     typescript: "npm:^5.7.3"
-    zod: "npm:^3.24.1"
+    zod: "npm:^3.24.2"
   languageName: unknown
   linkType: soft
 
@@ -6913,9 +6913,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eslint@npm:^9.20.0":
-  version: 9.20.0
-  resolution: "eslint@npm:9.20.0"
+"eslint@npm:^9.20.1":
+  version: 9.20.1
+  resolution: "eslint@npm:9.20.1"
   dependencies:
     "@eslint-community/eslint-utils": "npm:^4.2.0"
     "@eslint-community/regexpp": "npm:^4.12.1"
@@ -6958,7 +6958,7 @@ __metadata:
       optional: true
   bin:
     eslint: bin/eslint.js
-  checksum: 10c0/5eb2d9b5ed85a0b022871d19719417d110afb07a4abfedd856ad03d9a821def5f6bc31d7c407ca27f56e5e66e39375300fd2b877017245eb99c44060d6c983bd
+  checksum: 10c0/056789dd5a00897730376f8c0a191e22840e97b7276916068ec096341cb2ec3a918c8bd474bf94ccd7b457ad9fbc16e5c521a993c7cc6ebcf241933e2fd378b0
   languageName: node
   linkType: hard
 
@@ -11691,10 +11691,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pg-pool@npm:^3.7.1":
+  version: 3.7.1
+  resolution: "pg-pool@npm:3.7.1"
+  peerDependencies:
+    pg: ">=8.0"
+  checksum: 10c0/65bff013102684774f4cfdffbfe0a2b0614252234561d391608f7fd915477e44f5fd0e1968ecc2f42032dcf8bac241d2f724c4f3df90384567d22df37dd3b6ba
+  languageName: node
+  linkType: hard
+
 "pg-protocol@npm:*, pg-protocol@npm:^1.7.0":
   version: 1.7.0
   resolution: "pg-protocol@npm:1.7.0"
   checksum: 10c0/c4af854d9b843c808231c0040fed89f2b9101006157df8da2bb2f62a7dde702de748d852228dc22df41cc7ffddfb526af3bcb34b278b581e9f76a060789186c1
+  languageName: node
+  linkType: hard
+
+"pg-protocol@npm:^1.7.1":
+  version: 1.7.1
+  resolution: "pg-protocol@npm:1.7.1"
+  checksum: 10c0/3168d407ddc4c0fa2403eb9b49205399d4bc53dadbafdfcc5d25fa61b860a31c25df25704cf14c8140c80f0a41061d586e5fd5ce9bf800dfb91e9ce810bc2c37
   languageName: node
   linkType: hard
 
@@ -11726,7 +11742,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pg@npm:^8.11.3, pg@npm:^8.13.1":
+"pg@npm:^8.11.3":
   version: 8.13.1
   resolution: "pg@npm:8.13.1"
   dependencies:
@@ -11745,6 +11761,28 @@ __metadata:
     pg-native:
       optional: true
   checksum: 10c0/c13bc661cbdb115337bc8519254836faf4bd79106dfd7ed588c8ece8c8b2dd3b7376bfec9a9a2f7646fa095b0b310cec77a83c3ba2ea4872331446eb93fd9055
+  languageName: node
+  linkType: hard
+
+"pg@npm:^8.13.2":
+  version: 8.13.2
+  resolution: "pg@npm:8.13.2"
+  dependencies:
+    pg-cloudflare: "npm:^1.1.1"
+    pg-connection-string: "npm:^2.7.0"
+    pg-pool: "npm:^3.7.1"
+    pg-protocol: "npm:^1.7.1"
+    pg-types: "npm:^2.1.0"
+    pgpass: "npm:1.x"
+  peerDependencies:
+    pg-native: ">=3.0.1"
+  dependenciesMeta:
+    pg-cloudflare:
+      optional: true
+  peerDependenciesMeta:
+    pg-native:
+      optional: true
+  checksum: 10c0/955615fc6db2849e047472b3a314ce6b70ecdef2de1ecdbb663ac2cd39f6e9ae25da5de4727baceb0b6e439075e6ad0ac8548fd150e38d9cda6514c43c840a31
   languageName: node
   linkType: hard
 
@@ -14821,9 +14859,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:^3.24.1":
-  version: 3.24.1
-  resolution: "zod@npm:3.24.1"
-  checksum: 10c0/0223d21dbaa15d8928fe0da3b54696391d8e3e1e2d0283a1a070b5980a1dbba945ce631c2d1eccc088fdbad0f2dfa40155590bf83732d3ac4fcca2cc9237591b
+"zod@npm:^3.24.2":
+  version: 3.24.2
+  resolution: "zod@npm:3.24.2"
+  checksum: 10c0/c638c7220150847f13ad90635b3e7d0321b36cce36f3fc6050ed960689594c949c326dfe2c6fa87c14b126ee5d370ccdebd6efb304f41ef5557a4aaca2824565
   languageName: node
   linkType: hard
