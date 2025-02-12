@@ -2029,12 +2029,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@llun/activities.schema@npm:^0.2.25":
-  version: 0.2.25
-  resolution: "@llun/activities.schema@npm:0.2.25"
+"@llun/activities.schema@npm:^0.2.26":
+  version: 0.2.26
+  resolution: "@llun/activities.schema@npm:0.2.26"
   dependencies:
     zod: "npm:^3.24.1"
-  checksum: 10c0/55f033efacf07dff2db7c9a53cf8cf141a8b762adf82690b440a72ed7adc8b340b1538ec6417b5e7f204457224251c1a9e172c0cd89d43e583d7e4bac8ae1a8b
+  checksum: 10c0/254758c5242e8fc095247830914bb53cbba32888879a512ab7cd0e508109b6ccd0aa26a562d09e7cae8d7f07c52e837cbe91fde762b99ec01adcef5dcd18ff95
   languageName: node
   linkType: hard
 
@@ -4182,7 +4182,7 @@ __metadata:
     "@date-fns/utc": "npm:^2.1.0"
     "@google-cloud/firestore": "npm:^7.11.0"
     "@jmondi/oauth2-server": "npm:^4.0.2"
-    "@llun/activities.schema": "npm:^0.2.25"
+    "@llun/activities.schema": "npm:^0.2.26"
     "@next/env": "npm:^15.1.7"
     "@opentelemetry/api": "npm:^1.9.0"
     "@swc-node/register": "npm:^1.10.9"
