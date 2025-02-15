@@ -16,6 +16,7 @@ type ProfileData = {
   attachments: Attachment[]
   followingCount: number
   followersCount: number
+  isInternalAccount: boolean
 }
 
 export const getProfileData = async (
@@ -47,7 +48,8 @@ export const getProfileData = async (
       statusesCount,
       attachments,
       followingCount,
-      followersCount
+      followersCount,
+      isInternalAccount: true
     }
   }
 
@@ -72,6 +74,7 @@ export const getProfileData = async (
     person,
     attachments,
     followingCount: actorFollowingResponse.followingCount,
-    followersCount: actorFollowersResponse.followerCount
+    followersCount: actorFollowersResponse.followerCount,
+    isInternalAccount: false
   }
 }

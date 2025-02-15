@@ -35,10 +35,6 @@ const Page: FC<Props> = async ({ params }) => {
 
   const session = await getServerSession(getAuthOptions())
   const isLoggedIn = Boolean(session?.user?.email)
-  if (!isLoggedIn) {
-    return notFound()
-  }
-
   const { actor } = await params
   const decodedActorHandle = decodeURIComponent(actor)
   const parts = decodedActorHandle.split('@').slice(1)
@@ -48,6 +44,10 @@ const Page: FC<Props> = async ({ params }) => {
 
   const actorProfile = await getProfileData(database, decodedActorHandle)
   if (!actorProfile) {
+    return notFound()
+  }
+
+  if (!isLoggedIn && !actorProfile.isInternalAccount) {
     return notFound()
   }
 
