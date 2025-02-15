@@ -397,9 +397,12 @@ export const StatusSQLDatabaseMixin = (
     const statuses = await database('statuses')
       .where('reply', statusId)
       .orderBy('createdAt', 'desc')
-    return Promise.all(
-      statuses.map((status) => getStatusWithAttachmentsFromData(status))
-    )
+    const statusesWithAttachments = (
+      await Promise.all(
+        statuses.map((item) => getStatusWithAttachmentsFromData(item))
+      )
+    ).filter((status): status is Status => status !== null)
+    return statusesWithAttachments
   }
 
   async function hasActorAnnouncedStatus({
@@ -433,9 +436,12 @@ export const StatusSQLDatabaseMixin = (
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .limit(PER_PAGE_LIMIT)
-    return Promise.all(
-      statuses.map((item) => getStatusWithAttachmentsFromData(item))
-    )
+    const statusesWithAttachments = (
+      await Promise.all(
+        statuses.map((item) => getStatusWithAttachmentsFromData(item))
+      )
+    ).filter((status): status is Status => status !== null)
+    return statusesWithAttachments
   }
 
   async function deleteStatus({ statusId }: DeleteStatusParams) {
@@ -521,7 +527,7 @@ export const StatusSQLDatabaseMixin = (
     data: any,
     currentActorId?: string,
     withReplies?: boolean
-  ): Promise<Status> {
+  ): Promise<Status | null> {
     const [to, cc] = await Promise.all([
       database('recipients').where('statusId', data.id).andWhere('type', 'to'),
       database('recipients').where('statusId', data.id).andWhere('type', 'cc')
@@ -533,6 +539,7 @@ export const StatusSQLDatabaseMixin = (
         actorDatabase.getActorFromId({ id: data.actorId }),
         getStatus({ statusId: originalStatusId, currentActorId })
       ])
+      if (!originalStatus) return null
       return StatusAnnounce.parse({
         id: data.id,
         actorId: data.actorId,

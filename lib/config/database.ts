@@ -83,8 +83,12 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
                   : {}),
                 ...(process.env.ACTIVITIES_DATABASE_PG_DATABASE
                   ? { database: process.env.ACTIVITIES_DATABASE_PG_DATABASE }
+                  : {}),
+                ...(process.env.ACTIVITIES_DATABASE_PG_SSL_MODE
+                  ? { ssl: { rejectUnauthorized: false } }
                   : {})
-              }
+              },
+              pool: { min: 1, max: 2 }
             }
           }
         }
@@ -110,7 +114,8 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
                 ...(process.env.ACTIVITIES_DATABASE_MYSQL_DATABASE
                   ? { database: process.env.ACTIVITIES_DATABASE_MYSQL_DATABASE }
                   : {})
-              }
+              },
+              pool: { min: 1, max: 2 }
             }
           }
         }
