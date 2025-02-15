@@ -38,7 +38,7 @@ export const TimelineSQLDatabaseMixin = (
               statusDatabase.getStatus({ statusId: item.statusId })
             )
           )
-        ).filter((item): item is Status => item !== undefined)
+        ).filter((item): item is Status => !!item)
         return statuses
       }
       case Timeline.MAIN:
@@ -84,9 +84,7 @@ export const TimelineSQLDatabaseMixin = (
             )
         )
 
-        return statuses.filter(
-          (status): status is Status => status !== undefined
-        )
+        return statuses.filter((status): status is Status => !!status)
       }
       default: {
         return []

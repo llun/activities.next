@@ -209,7 +209,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       account,
       session: Session.parse({
         accountId,
-        expireAt,
+        expireAt: getCompatibleTime(expireAt),
         token: sessionToken,
         createdAt: getCompatibleTime(createdAt),
         updatedAt: getCompatibleTime(updatedAt)
