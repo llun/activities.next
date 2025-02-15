@@ -88,7 +88,10 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
                   ? { ssl: { rejectUnauthorized: false } }
                   : {})
               },
-              pool: { min: 1, max: 2 }
+              pool: {
+                min: process.env.ACTIVITIES_DATABASE_PG_POOL_MIN ?? 1,
+                max: process.env.ACTIVITIES_DATABASE_PG_POOL_MAX ?? 1
+              }
             }
           }
         }
@@ -115,7 +118,10 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
                   ? { database: process.env.ACTIVITIES_DATABASE_MYSQL_DATABASE }
                   : {})
               },
-              pool: { min: 1, max: 2 }
+              pool: {
+                min: process.env.ACTIVITIES_DATABASE_MYSQL_POOL_MIN ?? 1,
+                max: process.env.ACTIVITIES_DATABASE_MYSQL_POOL_MAX ?? 1
+              }
             }
           }
         }
