@@ -97,7 +97,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   }: GetAttachmentsForActorParams): Promise<Attachment[]> {
     const data = await database<Attachment>('attachments')
       .where('actorId', actorId)
-      .orderBy('createdAt')
+      .orderBy('createdAt', 'desc')
       .limit(30)
     return data.map((item) =>
       Attachment.parse({
