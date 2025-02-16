@@ -432,6 +432,11 @@ export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
         })
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
+        if (nodeError.code === 'ETIMEDOUT') {
+          span.setAttribute('timeout', true)
+          return
+        }
+
         span.recordException(nodeError)
         logger.error(`[sendNote] ${nodeError.message}`)
       } finally {
