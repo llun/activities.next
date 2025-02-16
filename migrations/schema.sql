@@ -43,8 +43,7 @@ CREATE TABLE
         with
             time zone DEFAULT CURRENT_TIMESTAMP,
             settings jsonb,
-            domain character varying(255),
-            urls text
+            domain character varying(255)
     );
 CREATE TABLE
     public.attachments (
@@ -365,8 +364,10 @@ CREATE INDEX "followsIndex" ON public.follows USING btree ("actorId", "actorHost
 CREATE INDEX "medias_accountId_originalMimeType_idx" ON public.medias USING btree ("accountId", "originalMimeType");
 CREATE INDEX "medias_actorId_originalMimeType_idx" ON public.medias USING btree ("actorId", "originalMimeType");
 CREATE INDEX "recipiences_statusId_type_idx" ON public.recipients USING btree ("statusId", type, "createdAt", "updatedAt");
+CREATE INDEX "recipientsTypeActorIdIndex" ON public.recipients USING btree (type, "actorId");
 CREATE INDEX "sessions_accountId_token_idx" ON public.sessions USING btree ("accountId", token);
 CREATE INDEX "status_history_statusId_idx" ON public.status_history USING btree ("statusId", "createdAt", "updatedAt");
+CREATE INDEX "statusesReplyIndex" ON public.statuses USING btree (reply);
 CREATE INDEX "statuses_actorId_idx" ON public.statuses USING btree ("actorId", "createdAt", "updatedAt");
 CREATE INDEX "tags_statusId_type_idx" ON public.tags USING btree ("statusId", type, "createdAt", "updatedAt");
 CREATE INDEX "verificationCodeIndex" ON public.accounts USING btree ("verificationCode");
