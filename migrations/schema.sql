@@ -370,6 +370,7 @@ CREATE INDEX "status_history_statusId_idx" ON public.status_history USING btree 
 CREATE INDEX "statusesReplyIndex" ON public.statuses USING btree (reply);
 CREATE INDEX "statuses_actorId_idx" ON public.statuses USING btree ("actorId", "createdAt", "updatedAt");
 CREATE INDEX "tags_statusId_type_idx" ON public.tags USING btree ("statusId", type, "createdAt", "updatedAt");
+CREATE INDEX "timelinesActorIdTimelineIndex" ON public.timelines USING btree ("actorId", timeline);
 CREATE INDEX "verificationCodeIndex" ON public.accounts USING btree ("verificationCode");
 ALTER TABLE ONLY public.actors
 ADD CONSTRAINT actors_accountid_foreign FOREIGN KEY ("accountId") REFERENCES public.accounts (id);

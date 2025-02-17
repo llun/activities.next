@@ -5,6 +5,7 @@ import {
   CreateMediaParams,
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
+  Media,
   MediaDatabase
 } from '@/lib/database/types/media'
 import { Attachment } from '@/lib/models/attachment'
@@ -43,9 +44,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       id: ids[0].id,
       actorId,
       original,
-      thumbnail,
-      description
-    }
+      ...(thumbnail ? { thumbnail } : null),
+      ...(description ? { description } : null)
+    } as Media
   },
   async createAttachment({
     actorId,
