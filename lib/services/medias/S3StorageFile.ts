@@ -132,12 +132,11 @@ export class S3FileStorage implements MediaStorage {
     if (!storedMedia) {
       return null
     }
-
     return PresignedUrlOutput.parse({
       url,
       fields,
       saveFileOutput: {
-        id: storedMedia.id,
+        id: `${storedMedia.id}`,
         type: presignedMedia.contentType.startsWith('video')
           ? MediaType.enum.video
           : MediaType.enum.image,
