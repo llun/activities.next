@@ -4,6 +4,7 @@ import { getActorFollowers } from '@/lib/activities/requests/getActorFollowers'
 import { getActorFollowing } from '@/lib/activities/requests/getActorFollowing'
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { getActorPosts } from '@/lib/activities/requests/getActorPosts'
+import { getWebfingerSelf } from '@/lib/activities/requests/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
 import { Attachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
@@ -53,10 +54,11 @@ export const getProfileData = async (
     }
   }
 
-  const person = await getActorPerson({ actorId: actorHandle })
-  if (!person) {
-    return null
-  }
+  const actorId = await getWebfingerSelf({ account: actorHandle.slice(1) })
+  if (!actorId) return null
+
+  const person = await getActorPerson({ actorId })
+  if (!person) return null
 
   const [
     actorPostsResponse,
