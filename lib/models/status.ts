@@ -154,6 +154,8 @@ export const fromAnnoucne = (
 
     originalStatus,
 
+    isLocalActor: false,
+
     createdAt: new Date(announce.published).getTime(),
     updatedAt: currentTime
   })
