@@ -378,6 +378,11 @@ export const getNote = async ({
         return JSON.parse(body)
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
+        if (nodeError.code === 'ETIMEDOUT') {
+          span.setAttribute('timeout', true)
+          return
+        }
+
         span.recordException(nodeError)
         logger.error(`[getNote] ${nodeError.message}`)
         return null
@@ -496,6 +501,11 @@ export const sendUpdateNote = async ({
         })
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
+        if (nodeError.code === 'ETIMEDOUT') {
+          span.setAttribute('timeout', true)
+          return
+        }
+
         span.recordException(nodeError)
         logger.error(`[sendUpdateNote] ${nodeError.message}`)
       } finally {
@@ -556,6 +566,11 @@ export const sendAnnounce = async ({
         })
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
+        if (nodeError.code === 'ETIMEDOUT') {
+          span.setAttribute('timeout', true)
+          return
+        }
+
         span.recordException(nodeError)
         logger.error(`[sendAnnounce] ${nodeError.message}`)
       } finally {
@@ -612,6 +627,11 @@ export const deleteStatus = async ({
         })
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
+        if (nodeError.code === 'ETIMEDOUT') {
+          span.setAttribute('timeout', true)
+          return
+        }
+
         span.recordException(nodeError)
         logger.error(`[deleteStatus] ${nodeError.message}`)
       } finally {
@@ -673,6 +693,11 @@ export const undoAnnounce = async ({
         })
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
+        if (nodeError.code === 'ETIMEDOUT') {
+          span.setAttribute('timeout', true)
+          return
+        }
+
         span.recordException(nodeError)
         logger.error(`[undoAnnounce] ${nodeError.message}`)
       } finally {
