@@ -1,6 +1,6 @@
 import { HTTPError } from 'got'
 
-import { getPublicProfile } from '@/lib/activities'
+import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { getTracer } from '@/lib/utils/trace'
 
@@ -17,15 +17,8 @@ export async function getSenderPublicKey(database: Database, actorId: string) {
       }
 
       try {
-        const sender = await getPublicProfile({
-          actorId,
-          withCollectionCount: false,
-          withPublicKey: true,
-          withNetworkRetry: false
-        })
-
-        if (sender) return sender.publicKey || ''
-        return ''
+        const sender = await getActorPerson({ actorId })
+        return sender?.publicKey.publicKeyPem ?? ''
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)
@@ -34,14 +27,10 @@ export async function getSenderPublicKey(database: Database, actorId: string) {
         }
         if (nodeError.response.statusCode === 410) {
           const url = new URL(actorId)
-          const sender = await getPublicProfile({
-            actorId: `${url.protocol}//${url.host}/actor#main-key`,
-            withPublicKey: true,
-            withNetworkRetry: false
+          const sender = await getActorPerson({
+            actorId: `${url.protocol}//${url.host}/actor#main-key`
           })
-
-          if (sender) return sender.publicKey || ''
-          return ''
+          return sender?.publicKey.publicKeyPem ?? ''
         }
 
         return ''

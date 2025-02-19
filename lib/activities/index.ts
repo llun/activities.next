@@ -51,6 +51,8 @@ import { request } from '@/lib/utils/request'
 import { signedHeaders } from '@/lib/utils/signature'
 import { getSpan, getTracer } from '@/lib/utils/trace'
 
+import { getActorPerson } from './requests/getActorPerson'
+
 // TODO: Remove PublicProfile and use Profile in model
 export interface PublicProfile {
   id: string
@@ -83,226 +85,6 @@ export interface PublicProfile {
 
   createdAt: number
 }
-
-export interface GetPublicProfileParams {
-  actorId: string
-  withCollectionCount?: boolean
-  withPublicKey?: boolean
-  withNetworkRetry?: boolean
-}
-export const getPublicProfile = async ({
-  actorId,
-  withCollectionCount = false,
-  withPublicKey = false,
-  withNetworkRetry = true
-}: GetPublicProfileParams): Promise<PublicProfile | null> =>
-  getTracer().startActiveSpan(
-    'activities.getPublicProfile',
-    {
-      attributes: { actorId, withCollectionCount, withPublicKey }
-    },
-    async (span) => {
-      try {
-        const { statusCode, body } = await request({
-          url: actorId,
-          headers: { Accept: DEFAULT_ACCEPT },
-          // Use default retry by set it to undefined, otherwise 0 retry
-          numberOfRetry: withNetworkRetry ? undefined : 0,
-          responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
-        })
-        if (statusCode !== 200) {
-          span.end()
-          return null
-        }
-
-        const data = JSON.parse(body)
-        const person: Person = (await compact(data)) as Person
-
-        if (!withCollectionCount) {
-          span.end()
-          return {
-            id: person.id,
-            username: person.preferredUsername,
-            domain: new URL(person.id).hostname,
-            ...(person.icon ? { icon: person.icon } : null),
-            url: person.url,
-            name: person.name || '',
-            summary: person.summary || '',
-
-            followersCount: 0,
-            followingCount: 0,
-            totalPosts: 0,
-
-            ...(withPublicKey
-              ? { publicKey: person.publicKey.publicKeyPem }
-              : null),
-
-            endpoints: {
-              following: person.following,
-              followers: person.followers,
-              inbox: person.inbox,
-              outbox: person.outbox,
-              sharedInbox: person.endpoints?.sharedInbox ?? person.inbox
-            },
-
-            createdAt: new Date(person.published).getTime()
-          }
-        }
-
-        const [followers, following, posts] = await Promise.all([
-          person.followers
-            ? request({
-                url: person.followers,
-                headers: { Accept: DEFAULT_ACCEPT },
-                responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
-              }).then((res) =>
-                res.statusCode === 200
-                  ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-                  : null
-              )
-            : null,
-          person.following
-            ? request({
-                url: person.following,
-                headers: { Accept: DEFAULT_ACCEPT },
-                responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
-              }).then((res) =>
-                res.statusCode === 200
-                  ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-                  : null
-              )
-            : null,
-          person.outbox
-            ? request({
-                url: person.outbox,
-                headers: { Accept: DEFAULT_ACCEPT },
-                responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
-              }).then((res) =>
-                res.statusCode === 200
-                  ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-                  : null
-              )
-            : null
-        ])
-
-        return {
-          id: person.id,
-          username: person.preferredUsername,
-          domain: new URL(person.id).hostname,
-          ...(person.icon ? { icon: person.icon } : null),
-          url: person.url ?? person.id,
-          name: person.name || '',
-          summary: person.summary || '',
-
-          ...(withPublicKey
-            ? { publicKey: person.publicKey.publicKeyPem }
-            : null),
-
-          followersCount: followers?.totalItems || 0,
-          followingCount: following?.totalItems || 0,
-          totalPosts: posts?.totalItems || 0,
-
-          endpoints: {
-            following: person?.following ?? null,
-            followers: person?.followers ?? null,
-            inbox: person.inbox,
-            outbox: person?.outbox ?? null,
-            sharedInbox: person.endpoints?.sharedInbox ?? person.outbox
-          },
-
-          urls: {
-            followers: getOrderCollectionFirstPage(followers),
-            following: getOrderCollectionFirstPage(following),
-            posts: getOrderCollectionFirstPage(posts)
-          },
-
-          createdAt: new Date(person.published).getTime()
-        }
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        if (nodeError.code === 'ETIMEDOUT') {
-          span.setAttribute('timeout', true)
-          return null
-        }
-
-        span.recordException(nodeError)
-        logger.error(`[getPublicProfile] ${nodeError.message}`)
-        return null
-      } finally {
-        span.end()
-      }
-    }
-  )
-
-export const getPublicProfileFromHandle = async (
-  account: string,
-  withCollectionCount = false
-) =>
-  getTracer().startActiveSpan(
-    'activities.getPublicProfileFromHandle',
-    { attributes: { account, withCollectionCount } },
-    async (span) => {
-      const accountWithoutAt = account.startsWith('@')
-        ? account.slice(1)
-        : account
-      const actorId = await getWebfingerSelf({ account: accountWithoutAt })
-      if (!actorId) {
-        span.end()
-        return null
-      }
-
-      const publicProfile = await getPublicProfile({
-        actorId,
-        withCollectionCount
-      })
-      span.end()
-      return publicProfile
-    }
-  )
-
-interface GetActorFromIdParams {
-  actorId: string
-}
-export const getActorProfileFromPublicProfile = async ({
-  actorId
-}: GetActorFromIdParams) =>
-  getTracer().startActiveSpan(
-    'activities.getActorProfileFromPublicProfile',
-    { attributes: { actorId } },
-    async (span) => {
-      const publicProfile = await getPublicProfile({
-        actorId,
-        withPublicKey: true
-      })
-      if (!publicProfile) {
-        span.end()
-        return null
-      }
-
-      const actor: ActorProfile = {
-        id: publicProfile.id,
-        username: publicProfile.username,
-        domain: publicProfile.domain,
-        name: publicProfile.name,
-        summary: publicProfile.summary,
-        iconUrl: publicProfile.icon?.url || '',
-
-        inboxUrl: publicProfile.endpoints.inbox,
-        sharedInboxUrl: publicProfile.endpoints.sharedInbox,
-        followersUrl: publicProfile.endpoints.followers,
-
-        followersCount: publicProfile.followersCount,
-        followingCount: publicProfile.followingCount,
-
-        statusCount: publicProfile.totalPosts,
-        lastStatusAt: 0,
-
-        createdAt: publicProfile.createdAt
-      }
-      span.end()
-      return actor
-    }
-  )
 
 interface GetActorPostsParams {
   postsUrl?: string | null
@@ -730,8 +512,8 @@ export const follow = async (
         actor: currentActor.id,
         object: targetActorId
       }
-      const publicProfile = await getPublicProfile({ actorId: targetActorId })
-      const targetInbox = publicProfile?.endpoints.inbox
+      const person = await getActorPerson({ actorId: targetActorId })
+      const targetInbox = person?.inbox
       if (!targetInbox) {
         span.end()
         return false
@@ -788,11 +570,8 @@ export const unfollow = async (currentActor: Actor, follow: Follow) =>
         }
       }
 
-      const publicProfile = await getPublicProfile({
-        actorId: follow.targetActorId
-      })
-      const targetInbox =
-        publicProfile?.endpoints.inbox ?? `${follow.targetActorId}/inbox`
+      const person = await getActorPerson({ actorId: follow.targetActorId })
+      const targetInbox = person?.inbox ?? `${follow.targetActorId}/inbox`
 
       const method = 'POST'
       try {
