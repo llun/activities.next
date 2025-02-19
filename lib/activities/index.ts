@@ -18,30 +18,13 @@ import { UndoFollow } from '@/lib/activities/actions/undoFollow'
 import { UndoLike } from '@/lib/activities/actions/undoLike'
 import { UndoStatus } from '@/lib/activities/actions/undoStatus'
 import { UpdateStatus } from '@/lib/activities/actions/updateStatus'
-import {
-  DEFAULT_ACCEPT,
-  DEFAULT_SHORT_REQUEST_TIMEOUT
-} from '@/lib/activities/constants'
+import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { Image } from '@/lib/activities/entities/image'
-import {
-  OrderedCollection,
-  getOrderCollectionFirstPage
-} from '@/lib/activities/entities/orderedCollection'
-import { OrderedCollectionPage } from '@/lib/activities/entities/orderedCollectionPage'
-import { Person } from '@/lib/activities/entities/person'
-import { getWebfingerSelf } from '@/lib/activities/requests/getWebfingerSelf'
-import { Actor, ActorProfile } from '@/lib/models/actor'
+import { Actor } from '@/lib/models/actor'
 import { Follow } from '@/lib/models/follow'
-import {
-  Status,
-  StatusAnnounce,
-  StatusType,
-  fromAnnoucne,
-  fromNote
-} from '@/lib/models/status'
+import { Status, StatusAnnounce, StatusType } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
-import { compact } from '@/lib/utils/jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
@@ -49,7 +32,7 @@ import {
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { signedHeaders } from '@/lib/utils/signature'
-import { getSpan, getTracer } from '@/lib/utils/trace'
+import { getTracer } from '@/lib/utils/trace'
 
 import { getActorPerson } from './requests/getActorPerson'
 
@@ -85,63 +68,6 @@ export interface PublicProfile {
 
   createdAt: number
 }
-
-interface GetActorPostsParams {
-  postsUrl?: string | null
-}
-export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) =>
-  getTracer().startActiveSpan(
-    'activities.getActorPosts',
-    { attributes: { postsUrl: postsUrl ?? '' } },
-    async () => {
-      if (!postsUrl) return []
-      const span = getSpan('activities', 'getActorPosts', {
-        postsUrl
-      })
-
-      try {
-        const { statusCode, body } = await request({
-          url: postsUrl,
-          headers: { Accept: DEFAULT_ACCEPT }
-        })
-        if (statusCode !== 200) {
-          span.end()
-          return []
-        }
-
-        const json: OrderedCollectionPage = JSON.parse(body)
-        const items = json.orderedItems || []
-
-        const statuses = await Promise.all(
-          items.map(async (item) => {
-            if (typeof item === 'string') return null
-            if (item.type === AnnounceAction) {
-              const note = await getNote({ statusId: item.object })
-              if (!note) return null
-              const originalStatus = fromNote(note)
-              return fromAnnoucne(item, originalStatus)
-            }
-
-            // Unsupported activity
-            if (item.type !== CreateAction) return null
-            // Unsupported Object
-            if (item.object.type !== 'Note') return null
-
-            return fromNote(item.object)
-          })
-        )
-
-        return statuses.filter((item) => item !== null)
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        logger.error(`[getActorPosts] ${nodeError.message}`)
-        return []
-      } finally {
-        span.end()
-      }
-    }
-  )
 
 interface GetNoteParams {
   statusId: string
