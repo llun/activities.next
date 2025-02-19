@@ -1,4 +1,5 @@
-import { follow, getPublicProfile, unfollow } from '@/lib/activities'
+import { follow, unfollow } from '@/lib/activities'
+import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { FollowStatus } from '@/lib/models/follow'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -37,9 +38,8 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   const { database, currentActor } = context
   const body = await req.json()
   const { target } = FollowRequest.parse(body)
-  const profile = await getPublicProfile({ actorId: target })
-  if (!profile) return apiErrorResponse(404)
-
+  const person = await getActorPerson({ actorId: target })
+  if (!person) return apiErrorResponse(404)
   const followItem = await database.createFollow({
     actorId: currentActor.id,
     targetActorId: target,
@@ -55,8 +55,6 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
   const { database, currentActor } = context
   const body = await req.json()
   const { target } = FollowRequest.parse(body)
-  const profile = await getPublicProfile({ actorId: target })
-  if (!profile) return apiErrorResponse(404)
   const follow = await database.getAcceptedOrRequestedFollow({
     actorId: currentActor.id,
     targetActorId: target

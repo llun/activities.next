@@ -1,7 +1,8 @@
 import { Mention, Note } from '@llun/activities.schema'
 import crypto from 'crypto'
 
-import { getPublicProfile, sendNote } from '@/lib/activities'
+import { sendNote } from '@/lib/activities'
+import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { Actor, getMention } from '@/lib/models/actor'
 import { PostBoxAttachment } from '@/lib/models/attachment'
@@ -141,9 +142,8 @@ export const createNoteFromUserInput = async ({
           const actor = await database.getActorFromId({ id })
           if (actor) return actor.sharedInboxUrl || actor.inboxUrl
 
-          const profile = await getPublicProfile({ actorId: id })
-          if (profile)
-            return profile.endpoints.sharedInbox || profile.endpoints.inbox
+          const person = await getActorPerson({ actorId: id })
+          if (person) return person.endpoints?.sharedInbox || person.inbox
           return null
         })
     )
