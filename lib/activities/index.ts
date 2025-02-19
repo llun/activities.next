@@ -19,6 +19,7 @@ import { UndoLike } from '@/lib/activities/actions/undoLike'
 import { UndoStatus } from '@/lib/activities/actions/undoStatus'
 import { UpdateStatus } from '@/lib/activities/actions/updateStatus'
 import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
+import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { Actor } from '@/lib/models/actor'
 import { Follow } from '@/lib/models/follow'
 import { Status, StatusAnnounce, StatusType } from '@/lib/models/status'
@@ -32,8 +33,6 @@ import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { signedHeaders } from '@/lib/utils/signature'
 import { getTracer } from '@/lib/utils/trace'
-
-import { getActorPerson } from './requests/getActorPerson'
 
 interface GetNoteParams {
   statusId: string
