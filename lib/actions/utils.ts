@@ -1,4 +1,4 @@
-import { getPublicProfile } from '@/lib/activities'
+import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { Database } from '@/lib/database/types'
 
 interface RecordActorIfNeededParams {
@@ -17,39 +17,33 @@ export const recordActorIfNeeded = async ({
     return existingActor
   }
   if (!existingActor) {
-    const profile = await getPublicProfile({
-      actorId,
-      withPublicKey: true
-    })
-    if (!profile) return undefined
+    const person = await getActorPerson({ actorId })
+    if (!person) return
     return database.createActor({
       actorId,
-      username: profile.username,
-      domain: profile.domain,
-      followersUrl: profile.endpoints.followers,
-      inboxUrl: profile.endpoints.inbox,
-      sharedInboxUrl: profile.endpoints.sharedInbox,
-      ...(profile.icon ? { iconUrl: profile.icon.url } : {}),
-      publicKey: profile.publicKey || '',
-      createdAt: profile.createdAt
+      username: person.preferredUsername,
+      domain: new URL(person.id).hostname,
+      followersUrl: person.followers,
+      inboxUrl: person.inbox,
+      sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
+      ...(person.icon ? { iconUrl: person.icon.url } : {}),
+      publicKey: person.publicKey.publicKeyPem || '',
+      createdAt: new Date(person.published).getTime()
     })
   }
 
   const currentTime = Date.now()
-  // Update actor if it's older than 30 days
-  if (currentTime - existingActor.updatedAt > 2_592_000_000) {
-    const profile = await getPublicProfile({
-      actorId,
-      withPublicKey: true
-    })
-    if (!profile) return undefined
+  // Update actor if it's older than 3 day
+  if (currentTime - existingActor.updatedAt > 3 * 86_400_000) {
+    const person = await getActorPerson({ actorId })
+    if (!person) return undefined
     return database.updateActor({
       actorId,
-      followersUrl: profile.endpoints.followers,
-      inboxUrl: profile.endpoints.inbox,
-      sharedInboxUrl: profile.endpoints.sharedInbox,
-      ...(profile.icon ? { iconUrl: profile.icon.url } : {}),
-      publicKey: profile.publicKey || ''
+      followersUrl: person.followers,
+      inboxUrl: person.inbox,
+      sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
+      ...(person.icon ? { iconUrl: person.icon.url } : {}),
+      publicKey: person.publicKey.publicKeyPem || ''
     })
   }
   return existingActor

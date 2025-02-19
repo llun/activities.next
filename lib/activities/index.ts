@@ -18,30 +18,12 @@ import { UndoFollow } from '@/lib/activities/actions/undoFollow'
 import { UndoLike } from '@/lib/activities/actions/undoLike'
 import { UndoStatus } from '@/lib/activities/actions/undoStatus'
 import { UpdateStatus } from '@/lib/activities/actions/updateStatus'
-import {
-  DEFAULT_ACCEPT,
-  DEFAULT_SHORT_REQUEST_TIMEOUT
-} from '@/lib/activities/constants'
-import { Image } from '@/lib/activities/entities/image'
-import {
-  OrderedCollection,
-  getOrderCollectionFirstPage
-} from '@/lib/activities/entities/orderedCollection'
-import { OrderedCollectionPage } from '@/lib/activities/entities/orderedCollectionPage'
-import { Person } from '@/lib/activities/entities/person'
-import { getWebfingerSelf } from '@/lib/activities/requests/getWebfingerSelf'
-import { Actor, ActorProfile } from '@/lib/models/actor'
+import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
+import { Actor } from '@/lib/models/actor'
 import { Follow } from '@/lib/models/follow'
-import {
-  Status,
-  StatusAnnounce,
-  StatusType,
-  fromAnnoucne,
-  fromNote
-} from '@/lib/models/status'
+import { Status, StatusAnnounce, StatusType } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
-import { compact } from '@/lib/utils/jsonld'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
@@ -49,317 +31,9 @@ import {
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { signedHeaders } from '@/lib/utils/signature'
-import { getSpan, getTracer } from '@/lib/utils/trace'
+import { getTracer } from '@/lib/utils/trace'
 
-// TODO: Remove PublicProfile and use Profile in model
-export interface PublicProfile {
-  id: string
-  username: string
-  domain: string
-  icon?: Image
-  url: string
-  name: string
-  summary: string
-
-  endpoints: {
-    following: string
-    followers: string
-    inbox: string
-    outbox: string
-    sharedInbox: string
-  }
-
-  urls?: {
-    followers: string | null
-    following: string | null
-    posts: string | null
-  }
-
-  publicKey?: string
-
-  followersCount: number
-  followingCount: number
-  totalPosts: number
-
-  createdAt: number
-}
-
-export interface GetPublicProfileParams {
-  actorId: string
-  withCollectionCount?: boolean
-  withPublicKey?: boolean
-  withNetworkRetry?: boolean
-}
-export const getPublicProfile = async ({
-  actorId,
-  withCollectionCount = false,
-  withPublicKey = false,
-  withNetworkRetry = true
-}: GetPublicProfileParams): Promise<PublicProfile | null> =>
-  getTracer().startActiveSpan(
-    'activities.getPublicProfile',
-    {
-      attributes: { actorId, withCollectionCount, withPublicKey }
-    },
-    async (span) => {
-      try {
-        const { statusCode, body } = await request({
-          url: actorId,
-          headers: { Accept: DEFAULT_ACCEPT },
-          // Use default retry by set it to undefined, otherwise 0 retry
-          numberOfRetry: withNetworkRetry ? undefined : 0,
-          responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
-        })
-        if (statusCode !== 200) {
-          span.end()
-          return null
-        }
-
-        const data = JSON.parse(body)
-        const person: Person = (await compact(data)) as Person
-
-        if (!withCollectionCount) {
-          span.end()
-          return {
-            id: person.id,
-            username: person.preferredUsername,
-            domain: new URL(person.id).hostname,
-            ...(person.icon ? { icon: person.icon } : null),
-            url: person.url,
-            name: person.name || '',
-            summary: person.summary || '',
-
-            followersCount: 0,
-            followingCount: 0,
-            totalPosts: 0,
-
-            ...(withPublicKey
-              ? { publicKey: person.publicKey.publicKeyPem }
-              : null),
-
-            endpoints: {
-              following: person.following,
-              followers: person.followers,
-              inbox: person.inbox,
-              outbox: person.outbox,
-              sharedInbox: person.endpoints?.sharedInbox ?? person.inbox
-            },
-
-            createdAt: new Date(person.published).getTime()
-          }
-        }
-
-        const [followers, following, posts] = await Promise.all([
-          person.followers
-            ? request({
-                url: person.followers,
-                headers: { Accept: DEFAULT_ACCEPT },
-                responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
-              }).then((res) =>
-                res.statusCode === 200
-                  ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-                  : null
-              )
-            : null,
-          person.following
-            ? request({
-                url: person.following,
-                headers: { Accept: DEFAULT_ACCEPT },
-                responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
-              }).then((res) =>
-                res.statusCode === 200
-                  ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-                  : null
-              )
-            : null,
-          person.outbox
-            ? request({
-                url: person.outbox,
-                headers: { Accept: DEFAULT_ACCEPT },
-                responseTimeout: DEFAULT_SHORT_REQUEST_TIMEOUT
-              }).then((res) =>
-                res.statusCode === 200
-                  ? (JSON.parse(res.body) as Promise<OrderedCollection>)
-                  : null
-              )
-            : null
-        ])
-
-        return {
-          id: person.id,
-          username: person.preferredUsername,
-          domain: new URL(person.id).hostname,
-          ...(person.icon ? { icon: person.icon } : null),
-          url: person.url ?? person.id,
-          name: person.name || '',
-          summary: person.summary || '',
-
-          ...(withPublicKey
-            ? { publicKey: person.publicKey.publicKeyPem }
-            : null),
-
-          followersCount: followers?.totalItems || 0,
-          followingCount: following?.totalItems || 0,
-          totalPosts: posts?.totalItems || 0,
-
-          endpoints: {
-            following: person?.following ?? null,
-            followers: person?.followers ?? null,
-            inbox: person.inbox,
-            outbox: person?.outbox ?? null,
-            sharedInbox: person.endpoints?.sharedInbox ?? person.outbox
-          },
-
-          urls: {
-            followers: getOrderCollectionFirstPage(followers),
-            following: getOrderCollectionFirstPage(following),
-            posts: getOrderCollectionFirstPage(posts)
-          },
-
-          createdAt: new Date(person.published).getTime()
-        }
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        if (nodeError.code === 'ETIMEDOUT') {
-          span.setAttribute('timeout', true)
-          return null
-        }
-
-        span.recordException(nodeError)
-        logger.error(`[getPublicProfile] ${nodeError.message}`)
-        return null
-      } finally {
-        span.end()
-      }
-    }
-  )
-
-export const getPublicProfileFromHandle = async (
-  account: string,
-  withCollectionCount = false
-) =>
-  getTracer().startActiveSpan(
-    'activities.getPublicProfileFromHandle',
-    { attributes: { account, withCollectionCount } },
-    async (span) => {
-      const accountWithoutAt = account.startsWith('@')
-        ? account.slice(1)
-        : account
-      const actorId = await getWebfingerSelf({ account: accountWithoutAt })
-      if (!actorId) {
-        span.end()
-        return null
-      }
-
-      const publicProfile = await getPublicProfile({
-        actorId,
-        withCollectionCount
-      })
-      span.end()
-      return publicProfile
-    }
-  )
-
-interface GetActorFromIdParams {
-  actorId: string
-}
-export const getActorProfileFromPublicProfile = async ({
-  actorId
-}: GetActorFromIdParams) =>
-  getTracer().startActiveSpan(
-    'activities.getActorProfileFromPublicProfile',
-    { attributes: { actorId } },
-    async (span) => {
-      const publicProfile = await getPublicProfile({
-        actorId,
-        withPublicKey: true
-      })
-      if (!publicProfile) {
-        span.end()
-        return null
-      }
-
-      const actor: ActorProfile = {
-        id: publicProfile.id,
-        username: publicProfile.username,
-        domain: publicProfile.domain,
-        name: publicProfile.name,
-        summary: publicProfile.summary,
-        iconUrl: publicProfile.icon?.url || '',
-
-        inboxUrl: publicProfile.endpoints.inbox,
-        sharedInboxUrl: publicProfile.endpoints.sharedInbox,
-        followersUrl: publicProfile.endpoints.followers,
-
-        followersCount: publicProfile.followersCount,
-        followingCount: publicProfile.followingCount,
-
-        statusCount: publicProfile.totalPosts,
-        lastStatusAt: 0,
-
-        createdAt: publicProfile.createdAt
-      }
-      span.end()
-      return actor
-    }
-  )
-
-interface GetActorPostsParams {
-  postsUrl?: string | null
-}
-export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) =>
-  getTracer().startActiveSpan(
-    'activities.getActorPosts',
-    { attributes: { postsUrl: postsUrl ?? '' } },
-    async () => {
-      if (!postsUrl) return []
-      const span = getSpan('activities', 'getActorPosts', {
-        postsUrl
-      })
-
-      try {
-        const { statusCode, body } = await request({
-          url: postsUrl,
-          headers: { Accept: DEFAULT_ACCEPT }
-        })
-        if (statusCode !== 200) {
-          span.end()
-          return []
-        }
-
-        const json: OrderedCollectionPage = JSON.parse(body)
-        const items = json.orderedItems || []
-
-        const statuses = await Promise.all(
-          items.map(async (item) => {
-            if (typeof item === 'string') return null
-            if (item.type === AnnounceAction) {
-              const note = await getNote({ statusId: item.object })
-              if (!note) return null
-              const originalStatus = fromNote(note)
-              return fromAnnoucne(item, originalStatus)
-            }
-
-            // Unsupported activity
-            if (item.type !== CreateAction) return null
-            // Unsupported Object
-            if (item.object.type !== 'Note') return null
-
-            return fromNote(item.object)
-          })
-        )
-
-        return statuses.filter((item) => item !== null)
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        logger.error(`[getActorPosts] ${nodeError.message}`)
-        return []
-      } finally {
-        span.end()
-      }
-    }
-  )
+import { getActorPerson } from './requests/getActorPerson'
 
 interface GetNoteParams {
   statusId: string
@@ -730,8 +404,8 @@ export const follow = async (
         actor: currentActor.id,
         object: targetActorId
       }
-      const publicProfile = await getPublicProfile({ actorId: targetActorId })
-      const targetInbox = publicProfile?.endpoints.inbox
+      const person = await getActorPerson({ actorId: targetActorId })
+      const targetInbox = person?.inbox
       if (!targetInbox) {
         span.end()
         return false
@@ -788,11 +462,8 @@ export const unfollow = async (currentActor: Actor, follow: Follow) =>
         }
       }
 
-      const publicProfile = await getPublicProfile({
-        actorId: follow.targetActorId
-      })
-      const targetInbox =
-        publicProfile?.endpoints.inbox ?? `${follow.targetActorId}/inbox`
+      const person = await getActorPerson({ actorId: follow.targetActorId })
+      const targetInbox = person?.inbox ?? `${follow.targetActorId}/inbox`
 
       const method = 'POST'
       try {

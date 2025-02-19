@@ -1,7 +1,7 @@
 /** eslint-disable @typescript-eslint/no-explicit-any */
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { follow, getPublicProfileFromHandle, sendNote } from '@/lib/activities'
+import { follow, sendNote } from '@/lib/activities'
 import { CreateStatus } from '@/lib/activities/actions/createStatus'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Actor } from '@/lib/models/actor'
@@ -9,8 +9,7 @@ import { mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
-import { MockPerson } from '@/lib/stub/person'
-import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
 
 enableFetchMocks()
 
@@ -33,18 +32,6 @@ describe('activities', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-  })
-
-  describe('#getPublicProfileFromHandle', () => {
-    it('get url from webFinger and getPerson info from user id', async () => {
-      const person = await getPublicProfileFromHandle('@test1@llun.test')
-      expect(person).toMatchObject({
-        ...MockPerson({
-          id: ACTOR1_ID
-        }),
-        createdAt: expect.toBeNumber()
-      })
-    })
   })
 
   describe('#sendNote', () => {
