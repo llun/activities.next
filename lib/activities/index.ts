@@ -36,39 +36,6 @@ import { getTracer } from '@/lib/utils/trace'
 
 import { getActorPerson } from './requests/getActorPerson'
 
-// TODO: Remove PublicProfile and use Profile in model
-export interface PublicProfile {
-  id: string
-  username: string
-  domain: string
-  icon?: Image
-  url: string
-  name: string
-  summary: string
-
-  endpoints: {
-    following: string
-    followers: string
-    inbox: string
-    outbox: string
-    sharedInbox: string
-  }
-
-  urls?: {
-    followers: string | null
-    following: string | null
-    posts: string | null
-  }
-
-  publicKey?: string
-
-  followersCount: number
-  followingCount: number
-  totalPosts: number
-
-  createdAt: number
-}
-
 interface GetNoteParams {
   statusId: string
 }
