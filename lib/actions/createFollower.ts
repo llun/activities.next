@@ -1,5 +1,5 @@
 import { recordActorIfNeeded } from '@/lib/actions/utils'
-import { acceptFollow, getPublicProfile } from '@/lib/activities'
+import { acceptFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/actions/follow'
 import { Database } from '@/lib/database/types'
 import { FollowStatus } from '@/lib/models/follow'
@@ -16,12 +16,6 @@ export const createFollower = async ({
     id: followRequest.object
   })
   if (!targetActor) return null
-
-  const person = await getPublicProfile({
-    actorId: followRequest.actor,
-    withPublicKey: true
-  })
-  if (!person) return null
 
   const followerActor = await recordActorIfNeeded({
     actorId: followRequest.actor,

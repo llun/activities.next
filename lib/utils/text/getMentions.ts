@@ -1,6 +1,6 @@
 import { Mention } from '@llun/activities.schema'
 
-import { getPublicProfileFromHandle } from '@/lib/activities'
+import { getWebfingerSelf } from '@/lib/activities/requests/getWebfingerSelf'
 import { Actor, getMention, getMentionFromActorID } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
 import {
@@ -30,14 +30,14 @@ export const getMentions = async ({
       const mention = match.groups as MentionMatchGroup
       try {
         const userHost = mention.domain ?? currentActor.domain
-        const person = await getPublicProfileFromHandle(
-          `${mention.username}@${userHost}`
-        )
-        if (!person) return null
+        const actorId = await getWebfingerSelf({
+          account: `${mention.username}@${userHost}`
+        })
+        if (!actorId) return null
+
         return Mention.parse({
           type: 'Mention',
-          href:
-            person?.id ?? `https://${mention.domain}/users/${mention.username}`,
+          href: actorId,
           name: match[0].trim()
         })
       } catch {

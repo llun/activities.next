@@ -8,6 +8,7 @@ import { MockFollowRequest } from '@/lib/stub/followRequest'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
 jest.mock('../activities')
+jest.mock('../activities/requests/getActorPerson')
 
 describe('#createFollower', () => {
   const database = getTestSQLDatabase()

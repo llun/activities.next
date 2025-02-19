@@ -5,7 +5,7 @@ import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { getTracer } from '@/lib/utils/trace'
 
-type GetActorPersonFunction = (params: {
+export type GetActorPersonFunction = (params: {
   actorId: string
   withNetworkRetry?: boolean
 }) => Promise<Person | null>

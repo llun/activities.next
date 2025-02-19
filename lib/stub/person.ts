@@ -1,8 +1,8 @@
+import { Person } from '@llun/activities.schema'
+
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
 import { W3ID_URL } from '@/lib/utils/jsonld/w3id'
-
-import { Person } from '../activities/entities/person'
 
 interface Params {
   id: string
