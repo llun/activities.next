@@ -287,6 +287,9 @@ describe('StatusDatabase', () => {
           text: 'This is a new post'
         })) as StatusNote
         expect(status.text).toBe('This is a new post')
+        expect(
+          await database.getActorStatusesCount({ actorId: ACTOR4_ID })
+        ).toBe(1)
       })
 
       it('creates a new note with attachments', async () => {
@@ -352,6 +355,43 @@ describe('StatusDatabase', () => {
             updatedAt: tag.updatedAt
           }
         ])
+      })
+    })
+
+    describe('deleteStatus', () => {
+      it('deletes a status', async () => {
+        await database.deleteStatus({
+          statusId: `${ACTOR1_ID}/statuses/post-2`
+        })
+        const count = await database.getActorStatusesCount({
+          actorId: ACTOR1_ID
+        })
+        expect(
+          await database.getStatus({
+            statusId: `${ACTOR1_ID}/statuses/post-2`
+          })
+        ).toBeNull()
+        expect(count).toBe(2)
+      })
+
+      it('deletes a status and attachments', async () => {
+        await database.deleteStatus({
+          statusId: `${ACTOR1_ID}/statuses/post-3`
+        })
+        const count = await database.getActorStatusesCount({
+          actorId: ACTOR1_ID
+        })
+        expect(
+          await database.getStatus({
+            statusId: `${ACTOR1_ID}/statuses/post-3`
+          })
+        ).toBeNull()
+        expect(
+          await database.getAttachments({
+            statusId: `${ACTOR1_ID}/statuses/post-3`
+          })
+        ).toBeArrayOfSize(0)
+        expect(count).toBe(1)
       })
     })
   })
