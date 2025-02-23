@@ -10,6 +10,12 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = OAuthGuard([Scope.enum.read], async (req, context) => {
   const { currentActor, database } = context
+
+  console.log(
+    'Current actor for timeline',
+    currentActor?.id,
+    Boolean(currentActor)
+  )
   const mastodonAccount = await getMastodonAccount(database, currentActor)
   return apiResponse(req, CORS_HEADERS, mastodonAccount)
 })
