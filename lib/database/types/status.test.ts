@@ -360,10 +360,13 @@ describe('StatusDatabase', () => {
 
     describe('deleteStatus', () => {
       it('deletes a status', async () => {
+        const beforeDeleteCount = await database.getActorStatusesCount({
+          actorId: ACTOR1_ID
+        })
         await database.deleteStatus({
           statusId: `${ACTOR1_ID}/statuses/post-2`
         })
-        const count = await database.getActorStatusesCount({
+        const afterDeleteCount = await database.getActorStatusesCount({
           actorId: ACTOR1_ID
         })
         expect(
@@ -371,14 +374,17 @@ describe('StatusDatabase', () => {
             statusId: `${ACTOR1_ID}/statuses/post-2`
           })
         ).toBeNull()
-        expect(count).toBe(2)
+        expect(afterDeleteCount).toBe(beforeDeleteCount - 1)
       })
 
       it('deletes a status and attachments', async () => {
+        const beforeDeleteCount = await database.getActorStatusesCount({
+          actorId: ACTOR1_ID
+        })
         await database.deleteStatus({
           statusId: `${ACTOR1_ID}/statuses/post-3`
         })
-        const count = await database.getActorStatusesCount({
+        const afterDeleteCount = await database.getActorStatusesCount({
           actorId: ACTOR1_ID
         })
         expect(
@@ -391,7 +397,7 @@ describe('StatusDatabase', () => {
             statusId: `${ACTOR1_ID}/statuses/post-3`
           })
         ).toBeArrayOfSize(0)
-        expect(count).toBe(1)
+        expect(afterDeleteCount).toBe(beforeDeleteCount - 1)
       })
     })
   })

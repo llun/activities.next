@@ -386,10 +386,15 @@ export const StatusFirestoreDatabaseMixin = (
       .where('statusId', '==', statusId)
       .get()
 
-    await Promise.all([
-      ...statusInTimelines.docs.map((doc) => doc.ref.delete()),
-      firestore.doc(`statuses/${urlToId(statusId)}`).delete()
-    ])
+    const bulkWriter = firestore.bulkWriter()
+    await Promise.all(
+      statusInTimelines.docs.map((doc) => bulkWriter.delete(doc.ref))
+    )
+    await firestore.recursiveDelete(
+      firestore.doc(`statuses/${urlToId(statusId)}`),
+      bulkWriter
+    )
+    await bulkWriter.close()
   }
 
   async function getFavouritedBy({
