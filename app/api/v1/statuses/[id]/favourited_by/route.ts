@@ -1,6 +1,5 @@
 import { Scope } from '@/lib/database/types/oauth'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
-import { getMastodonAccount } from '@/lib/services/mastodon/getMastodonAccount'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,
@@ -29,7 +28,7 @@ export const GET = OAuthGuard<Params>(
       req,
       CORS_HEADERS,
       await Promise.all(
-        actors.map((actor) => getMastodonAccount(database, actor))
+        actors.map((actor) => database.getMastodonActorFromId({ id: actor.id }))
       )
     )
   }
