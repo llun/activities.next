@@ -159,7 +159,16 @@ export const StatusFirestoreDatabaseMixin = (
       updatedAt: currentTime
     }
 
-    await firestore.doc(`statuses/${urlToId(id)}`).set(status)
+    const actor = await actorDatabase.getActorFromId({ id: actorId })
+    await Promise.all([
+      await firestore.doc(`statuses/${urlToId(id)}`).set(status),
+      actor
+        ? firestore.doc(`actors/${urlToId(actorId)}`).update({
+            statusCount: FieldValue.increment(1),
+            lastStatusAt: currentTime
+          })
+        : null
+    ])
 
     const originalStatus = await getStatus({
       statusId: originalStatusId,
@@ -168,7 +177,6 @@ export const StatusFirestoreDatabaseMixin = (
     if (!originalStatus) return null
     if (originalStatus.type !== StatusType.enum.Note) return null
 
-    const actor = await actorDatabase.getActorFromId({ id: actorId })
     return StatusAnnounce.parse({
       ...status,
       ...(originalStatus && { originalStatus }),
@@ -345,12 +353,9 @@ export const StatusFirestoreDatabaseMixin = (
   async function getActorStatusesCount({
     actorId
   }: GetActorStatusesCountParams) {
-    const statuses = firestore.collection('statuses')
-    const snapshot = await statuses
-      .where('actorId', '==', actorId)
-      .count()
-      .get()
-    return snapshot.data().count
+    const snapshot = await firestore.doc(`actors/${urlToId(actorId)}`).get()
+    const data = snapshot.data()
+    return data?.statusCount ?? 0
   }
 
   async function getActorStatuses({ actorId }: GetActorStatusesParams) {
@@ -370,6 +375,9 @@ export const StatusFirestoreDatabaseMixin = (
   }
 
   async function deleteStatus({ statusId }: DeleteStatusParams) {
+    const status = await getStatus({ statusId })
+    if (!status) return
+
     const repliesSnapshot = await firestore
       .collection('statuses')
       .where('reply', '==', statusId)
@@ -386,10 +394,21 @@ export const StatusFirestoreDatabaseMixin = (
       .where('statusId', '==', statusId)
       .get()
 
-    await Promise.all([
-      ...statusInTimelines.docs.map((doc) => doc.ref.delete()),
-      firestore.doc(`statuses/${urlToId(statusId)}`).delete()
-    ])
+    const bulkWriter = firestore.bulkWriter()
+    await Promise.all(
+      statusInTimelines.docs.map((doc) => bulkWriter.delete(doc.ref))
+    )
+    await firestore.recursiveDelete(
+      firestore.doc(`statuses/${urlToId(statusId)}`),
+      bulkWriter
+    )
+    if (status.isLocalActor) {
+      await firestore.doc(`actors/${urlToId(status.actorId)}`).update({
+        statusCount: FieldValue.increment(-1)
+      })
+    }
+
+    await bulkWriter.close()
   }
 
   async function getFavouritedBy({

@@ -71,6 +71,7 @@ export const StatusSQLDatabaseMixin = (
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })
+      await updateCount(actorId, currentTime, 'increment', trx)
       await Promise.all(
         to.map((actorId) =>
           trx('recipients').insert({
@@ -183,6 +184,7 @@ export const StatusSQLDatabaseMixin = (
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })
+      await updateCount(actorId, currentTime, 'increment', trx)
       await Promise.all(
         to.map((actorId) =>
           trx('recipients').insert({
@@ -264,6 +266,7 @@ export const StatusSQLDatabaseMixin = (
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })
+      await updateCount(actorId, currentTime, 'increment', trx)
       await Promise.all(
         choices.map((choice) =>
           trx('poll_choices').insert({
@@ -424,11 +427,11 @@ export const StatusSQLDatabaseMixin = (
   async function getActorStatusesCount({
     actorId
   }: GetActorStatusesCountParams) {
-    const result = await database('statuses')
-      .where('actorId', actorId)
-      .count<{ count: string }>('* as count')
+    const result = await database('counters')
+      .where('id', `total-status:${actorId}`)
       .first()
-    return parseInt(result?.count ?? '0', 10)
+    if (!result) return 0
+    return result.value
   }
 
   async function getActorStatuses({ actorId }: GetActorStatusesParams) {
@@ -444,22 +447,33 @@ export const StatusSQLDatabaseMixin = (
     return statusesWithAttachments
   }
 
-  async function deleteStatus({ statusId }: DeleteStatusParams) {
-    const replies = await database('statuses')
-      .where('reply', statusId)
-      .select('id')
-    await Promise.all(replies.map(({ id }) => deleteStatus({ statusId: id })))
+  async function deleteStatus({
+    statusId,
+    trx
+  }: DeleteStatusParams & { trx?: Knex.Transaction }) {
+    if (!trx) {
+      await database.transaction(async (trx) => {
+        await deleteStatus({ statusId, trx })
+      })
+      return
+    }
 
-    await database.transaction(async (trx) => {
-      await Promise.all([
-        trx('statuses').where('id', statusId).delete(),
-        trx('recipients').where('statusId', statusId).delete(),
-        trx('tags').where('statusId', statusId).delete(),
-        trx('attachments').where('statusId', statusId).delete(),
-        trx('poll_choices').where('statusId', statusId).delete(),
-        trx('timelines').where('statusId', statusId).delete()
-      ])
-    })
+    const status = await trx('statuses').where('id', statusId).first()
+    if (!status) return
+
+    const replies = await trx('statuses').where('reply', statusId).select('id')
+    await Promise.all(
+      replies.map(({ id }) => deleteStatus({ statusId: id, trx }))
+    )
+    await updateCount(status.actorId, new Date(), 'decrement', trx)
+    await Promise.all([
+      trx('statuses').where('id', statusId).delete(),
+      trx('recipients').where('statusId', statusId).delete(),
+      trx('tags').where('statusId', statusId).delete(),
+      trx('attachments').where('statusId', statusId).delete(),
+      trx('poll_choices').where('statusId', statusId).delete(),
+      trx('timelines').where('statusId', statusId).delete()
+    ])
   }
 
   async function getFavouritedBy({
@@ -644,6 +658,34 @@ export const StatusSQLDatabaseMixin = (
           }
         : null)
     })
+  }
+
+  async function updateCount(
+    actorId: string,
+    time: Date,
+    step: 'increment' | 'decrement',
+    trx: Knex.Transaction
+  ) {
+    const count = await trx('counters')
+      .where({
+        id: `total-status:${actorId}`
+      })
+      .first()
+    if (!count) {
+      await trx('counters').insert({
+        id: `total-status:${actorId}`,
+        value: 1,
+        createdAt: time,
+        updatedAt: time
+      })
+    } else {
+      await trx('counters')
+        .where({ id: `total-status:${actorId}` })
+        .update({
+          value: count.value + (step === 'increment' ? 1 : -1),
+          updatedAt: time
+        })
+    }
   }
 
   return {
