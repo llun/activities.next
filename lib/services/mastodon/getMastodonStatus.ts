@@ -1,18 +1,15 @@
 import { Mastodon } from '@llun/activities.schema'
 
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
 import { getMastodonAttachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-
-import { getMastodonAccount } from './getMastodonAccount'
 
 export const getMastodonStatus = async (
   database: Database,
   status: Status
 ): Promise<Mastodon.Status> => {
-  const account = await getMastodonAccount(database, status.actor as Actor)
+  const account = await database.getMastodonActorFromId({ id: status.actorId })
   const baseData = {
     // Identifiers & timestamps
     id: status.id,
