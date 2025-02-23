@@ -1,11 +1,19 @@
+import { NextRequest } from 'next/server'
+
 import { getConfig } from '@/lib/config'
 import { VERSION } from '@/lib/constants'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 
 export const dynamic = 'force-dynamic'
 
-export const GET = async () => {
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+export const GET = async (req: NextRequest) => {
   const config = getConfig()
-  return Response.json({
+  return apiResponse(req, CORS_HEADERS, {
     metadata: {
       accountActivationRequired: true,
       features: [],
