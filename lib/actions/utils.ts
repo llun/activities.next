@@ -28,7 +28,7 @@ export const recordActorIfNeeded = async ({
       sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
       ...(person.icon ? { iconUrl: person.icon.url } : {}),
       publicKey: person.publicKey.publicKeyPem || '',
-      createdAt: new Date(person.published).getTime()
+      createdAt: new Date(person.published ?? Date.now()).getTime()
     })
   }
 

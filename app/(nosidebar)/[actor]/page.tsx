@@ -80,7 +80,7 @@ const Page: FC<Props> = async ({ params }) => {
             totalPosts={statusesCount}
             followersCount={followersCount}
             followingCount={followingCount}
-            createdAt={new Date(person.published).getTime()}
+            createdAt={new Date(person.published ?? Date.now()).getTime()}
           />
           <FollowAction targetActorId={person.id} isLoggedIn={isLoggedIn} />
         </div>
