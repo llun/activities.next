@@ -1,9 +1,10 @@
 import { trace } from '@opentelemetry/api'
 
-import { logger } from './logger'
+import { VERSION } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 
 export const TRACE_APPLICATION_SCOPE = 'activities.next'
-export const TRACE_APPLICATION_VERSION = '0.1.7'
+export const TRACE_APPLICATION_VERSION = VERSION
 
 export interface Data {
   [key: string]: string | boolean | number | undefined
