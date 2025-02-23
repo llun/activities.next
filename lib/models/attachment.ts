@@ -77,6 +77,11 @@ export const getMastodonAttachment = (attachment: Attachment) => {
       description: attachment.name,
       type: 'video',
       meta: {
+        size: `${attachment.width}x${attachment.height}`,
+        width: attachment.width ?? 0,
+        height: attachment.height ?? 0,
+        aspect: (attachment.width ?? 0) / (attachment.height ?? 1),
+
         original: {
           width: attachment.width ?? 0,
           height: attachment.height ?? 0,
