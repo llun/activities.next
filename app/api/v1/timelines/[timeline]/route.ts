@@ -24,7 +24,9 @@ export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
   async (req, context, params) => {
     const url = new URL(req.url)
-    const startAfterStatusId = url.searchParams.get('startAfterStatusId')
+    const startAfterStatusId =
+      url.searchParams.get('startAfterStatusId') ||
+      url.searchParams.get('since_id')
     const format = url.searchParams.get('format')
 
     const { database, currentActor } = context
