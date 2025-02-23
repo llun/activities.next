@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
 import { UsableScopes } from '@/lib/database/types/oauth'
-import { HttpMethod, getCORSHeaders } from '@/lib/utils/getCORSHeaders'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 
 export const dynamic = 'force-dynamic'
