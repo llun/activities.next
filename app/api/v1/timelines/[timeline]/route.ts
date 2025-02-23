@@ -40,6 +40,11 @@ export const GET = OAuthGuard<Params>(
       return apiErrorResponse(404)
     }
 
+    console.log(
+      'Current actor for timeline',
+      currentActor?.id,
+      Boolean(currentActor)
+    )
     const statuses = await database.getTimeline({
       timeline,
       actorId: currentActor.id,
