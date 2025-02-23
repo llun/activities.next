@@ -142,9 +142,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
             .andWhere('status', 'Accepted')
             .count<{ count: string }>('* as count')
             .first(),
-          trx('statuses')
-            .where('actorId', persistedActor.id)
-            .count<{ count: string }>('id as count')
+          trx('counters')
+            .where('id', `total-status:${persistedActor.id}`)
             .first(),
           trx('statuses')
             .where('actorId', persistedActor.id)
@@ -158,7 +157,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       persistedActor,
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
-      parseInt(totalStatus?.count ?? '0', 10),
+      totalStatus?.value ?? 0,
       getCompatibleTime(lastStatusCreatedAt),
       account
     )
@@ -210,9 +209,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
             .andWhere('status', 'Accepted')
             .count<{ count: string }>('* as count')
             .first(),
-          trx('statuses')
-            .where('actorId', persistedActor.id)
-            .count<{ count: string }>('id as count')
+          trx('counters')
+            .where('id', `total-status:${persistedActor.id}`)
             .first(),
           trx('statuses')
             .where('actorId', persistedActor.id)
@@ -226,7 +224,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       persistedActor,
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
-      parseInt(totalStatus?.count ?? '0', 10),
+      totalStatus?.value ?? 0,
       getCompatibleTime(lastStatusCreatedAt),
       account
     )
@@ -266,9 +264,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
               .andWhere('status', 'Accepted')
               .count<{ count: string }>('* as count')
               .first(),
-            trx('statuses')
-              .where('actorId', persistedActor.id)
-              .count<{ count: string }>('id as count')
+            trx('counters')
+              .where('id', `total-status:${persistedActor.id}`)
               .first(),
             trx('statuses')
               .where('actorId', persistedActor.id)
@@ -284,7 +281,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         persistedActor,
         parseInt(totalFollowing?.count ?? '0', 10),
         parseInt(totalFollowers?.count ?? '0', 10),
-        parseInt(totalStatus?.count ?? '0', 10),
+        totalStatus?.value ?? 0,
         getCompatibleTime(lastStatusCreatedAt)
       )
     }
@@ -305,9 +302,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
             .andWhere('status', 'Accepted')
             .count<{ count: string }>('* as count')
             .first(),
-          trx('statuses')
-            .where('actorId', persistedActor.id)
-            .count<{ count: string }>('id as count')
+          trx('counters')
+            .where('id', `total-status:${persistedActor.id}`)
             .first(),
           trx('statuses')
             .where('actorId', persistedActor.id)
@@ -321,7 +317,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       persistedActor,
       parseInt(totalFollowing?.count ?? '0', 10),
       parseInt(totalFollowers?.count ?? '0', 10),
-      parseInt(totalStatus?.count ?? '0', 10),
+      totalStatus?.value ?? 0,
       getCompatibleTime(lastStatusCreatedAt),
       account
     )
@@ -399,10 +395,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
             .orderBy('createdAt', 'desc')
             .select('createdAt')
             .first<{ createdAt: number | Date }>(),
-          trx('statuses')
-            .where('actorId', actorId)
-            .count<{ count: string }>('* as count')
-            .first(),
+          trx('counters').where('id', `total-status:${actorId}`).first(),
           trx('follows')
             .where('targetActorId', actorId)
             .andWhere('status', 'Accepted')
@@ -456,7 +449,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       followers_count: parseInt(totalFollowers?.count ?? '0', 10),
       following_count: parseInt(totalFollowing?.count ?? '0', 10),
-      statuses_count: parseInt(totalStatus?.count ?? '0', 10)
+      statuses_count: totalStatus?.value ?? 0
     })
   },
 
