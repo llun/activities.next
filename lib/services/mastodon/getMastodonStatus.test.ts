@@ -1,5 +1,5 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Actor, getMentionFromActorID } from '@/lib/models/actor'
+import { getMentionFromActorID } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
