@@ -1,5 +1,5 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Actor, getMentionFromActorID } from '@/lib/models/actor'
+import { getMentionFromActorID } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -20,7 +20,6 @@ describe('#getMastodonStatus', () => {
   })
 
   it('returns mastodon status from status model', async () => {
-    const actor = (await database.getActorFromId({ id: ACTOR1_ID })) as Actor
     const status = (await database.getStatus({
       statusId: `${ACTOR1_ID}/statuses/post-1`
     })) as Status
