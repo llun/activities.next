@@ -32,7 +32,7 @@ describe('#getMastodonStatus', () => {
         id: ACTOR1_ID,
         username: getMentionFromActorID(ACTOR1_ID).slice(1),
         acct: getMentionFromActorID(ACTOR1_ID, true).slice(1),
-        url: getActorURL(actor),
+        url: ACTOR1_ID,
         created_at: expect.toBeString(),
         last_status_at: expect.toBeString(),
         statuses_count: 3,
