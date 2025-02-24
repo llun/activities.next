@@ -25,6 +25,7 @@ scripts/*.js
 scripts/cloudflared.sh
 .vscode
 *.sql
+docker-compose.yml
 
 # debug
 npm-debug.log*
@@ -47,6 +48,7 @@ next-env.d.ts
 
 # database
 *.sqlite3
+data/database
 
 # shared configuration
 config.json
