@@ -1,4 +1,5 @@
 import { ENTITY_TYPE_QUESTION, Note, Question } from '@llun/activities.schema'
+import identity from 'lodash/identity'
 import { z } from 'zod'
 
 import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
@@ -104,8 +105,8 @@ export const fromNote = (note: Note): StatusNote => {
     text: getContent(note),
     summary: getSummary(note),
 
-    to: Array.isArray(note.to) ? note.to : [note.to],
-    cc: Array.isArray(note.cc) ? note.cc : [note.cc],
+    to: Array.isArray(note.to) ? note.to : [note.to].filter(identity),
+    cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter(identity),
     edits: [],
 
     reply: note.inReplyTo || '',
@@ -148,8 +149,12 @@ export const fromAnnoucne = (
 
     type: StatusType.enum.Announce,
 
-    to: Array.isArray(announce.to) ? announce.to : [announce.to],
-    cc: Array.isArray(announce.cc) ? announce.cc : [announce.cc],
+    to: Array.isArray(announce.to)
+      ? announce.to
+      : [announce.to].filter(identity),
+    cc: Array.isArray(announce.cc)
+      ? announce.cc
+      : [announce.cc].filter(identity),
     edits: [],
 
     originalStatus,
