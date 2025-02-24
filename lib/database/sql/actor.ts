@@ -444,7 +444,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
       last_status_at: lastStatusCreatedAt
-        ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt))
+        ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt), true)
         : null,
 
       followers_count: parseInt(totalFollowers?.count ?? '0', 10),
