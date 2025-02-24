@@ -1,4 +1,5 @@
 import { Note } from '@llun/activities.schema'
+import identity from 'lodash/identity'
 
 import { recordActorIfNeeded } from '../actions/utils'
 import {
@@ -48,8 +49,8 @@ export const createNoteJob = createJobHandle(
         text,
         summary,
 
-        to: Array.isArray(note.to) ? note.to : [note.to].filter((item) => item),
-        cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter((item) => item),
+        to: Array.isArray(note.to) ? note.to : [note.to].filter(identity),
+        cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter(identity),
 
         reply: compactNote.inReplyTo || '',
         createdAt: new Date(compactNote.published).getTime()
