@@ -1,9 +1,19 @@
 import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
-import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { Scope } from '@/lib/database/types/oauth'
+import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { apiErrorResponse } from '@/lib/utils/response'
+import {
+  apiErrorResponse,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const NoteSchema = z.object({
   status: z.string(),
@@ -12,7 +22,7 @@ const NoteSchema = z.object({
   media_ids: z.array(z.string()).optional()
 })
 
-export const POST = AuthenticatedGuard(async (req, context) => {
+export const POST = OAuthGuard([Scope.enum.write], async (req, context) => {
   const { currentActor, database } = context
   try {
     const content = await req.json()
@@ -25,7 +35,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
       database
     })
     if (!status) return apiErrorResponse(422)
-    return Response.json({
+    return apiResponse(req, CORS_HEADERS, {
       id: status.id,
       created_at: getISOTimeUTC(status.createdAt),
       content: status.text
