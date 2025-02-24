@@ -1,3 +1,25 @@
+SET
+    statement_timeout = 0;
+SET
+    lock_timeout = 0;
+SET
+    idle_in_transaction_session_timeout = 0;
+SET
+    transaction_timeout = 0;
+SET
+    client_encoding = 'UTF8';
+SET
+    standard_conforming_strings = on;
+SELECT
+    pg_catalog.set_config ('search_path', '', false);
+SET
+    check_function_bodies = false;
+SET
+    xmloption = content;
+SET
+    client_min_messages = warning;
+SET
+    row_security = off;
 CREATE TABLE
     public.account_providers (
         id character varying(255) NOT NULL,
@@ -91,6 +113,17 @@ CREATE TABLE
         "redirectUris" text,
         scopes text,
         website character varying(255),
+        "createdAt" timestamp
+        with
+            time zone DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" timestamp
+        with
+            time zone DEFAULT CURRENT_TIMESTAMP
+    );
+CREATE TABLE
+    public.counters (
+        id character varying(255) NOT NULL,
+        value integer DEFAULT 0,
         "createdAt" timestamp
         with
             time zone DEFAULT CURRENT_TIMESTAMP,
@@ -325,6 +358,8 @@ ALTER TABLE ONLY public.attachments
 ADD CONSTRAINT attachments_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.auth_codes
 ADD CONSTRAINT auth_codes_pkey PRIMARY KEY (code);
+ALTER TABLE ONLY public.counters
+ADD CONSTRAINT counters_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.follows
 ADD CONSTRAINT follows_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.knex_migrations_lock
@@ -360,6 +395,7 @@ CREATE INDEX "accountsIndex" ON public.accounts USING btree (email, "createdAt",
 CREATE INDEX "actorsIndex" ON public.actors USING btree (username, "createdAt", "updatedAt");
 CREATE INDEX "attachmentsIndex" ON public.attachments USING btree ("statusId", "createdAt", "updatedAt");
 CREATE INDEX "attachments_actorId_idx" ON public.attachments USING btree ("actorId");
+CREATE INDEX "countersIndex" ON public.counters USING btree (id, "createdAt", "updatedAt");
 CREATE INDEX "followsIndex" ON public.follows USING btree ("actorId", "actorHost", "targetActorId", "targetActorHost", status, "createdAt", "updatedAt");
 CREATE INDEX "medias_accountId_originalMimeType_idx" ON public.medias USING btree ("accountId", "originalMimeType");
 CREATE INDEX "medias_actorId_originalMimeType_idx" ON public.medias USING btree ("actorId", "originalMimeType");
@@ -370,7 +406,8 @@ CREATE INDEX "status_history_statusId_idx" ON public.status_history USING btree 
 CREATE INDEX "statusesReplyIndex" ON public.statuses USING btree (reply);
 CREATE INDEX "statuses_actorId_idx" ON public.statuses USING btree ("actorId", "createdAt", "updatedAt");
 CREATE INDEX "tags_statusId_type_idx" ON public.tags USING btree ("statusId", type, "createdAt", "updatedAt");
-CREATE INDEX "timelinesActorIdTimelineIndex" ON public.timelines USING btree ("actorId", timeline);
+CREATE INDEX "timelinesActorIdTimelineCreatedAtIndex" ON public.timelines USING btree ("actorId", timeline, "createdAt");
+CREATE INDEX "timelinesTimelineStatusIdIndex" ON public.timelines USING btree (timeline, "statusId");
 CREATE INDEX "verificationCodeIndex" ON public.accounts USING btree ("verificationCode");
 ALTER TABLE ONLY public.actors
 ADD CONSTRAINT actors_accountid_foreign FOREIGN KEY ("accountId") REFERENCES public.accounts (id);
