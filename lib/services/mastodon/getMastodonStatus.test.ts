@@ -20,7 +20,6 @@ describe('#getMastodonStatus', () => {
   })
 
   it('returns mastodon status from status model', async () => {
-    const actor = (await database.getActorFromId({ id: ACTOR1_ID })) as Actor
     const status = (await database.getStatus({
       statusId: `${ACTOR1_ID}/statuses/post-1`
     })) as Status
