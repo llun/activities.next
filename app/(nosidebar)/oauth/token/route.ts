@@ -21,10 +21,10 @@ export const POST = async (req: NextRequest) => {
     body
   }
   const oauthResponse = await server.respondToAccessTokenRequest(request)
-  return apiResponse(
+  return apiResponse({
     req,
-    CORS_HEADERS,
-    oauthResponse.body,
-    oauthResponse.status as StatusCode
-  )
+    allowedMethods: CORS_HEADERS,
+    data: oauthResponse.body,
+    responseStatusCode: oauthResponse.status as StatusCode
+  })
 }

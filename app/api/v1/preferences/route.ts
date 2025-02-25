@@ -17,5 +17,9 @@ const DEFAULT_USER_PREFERENCES = {
 }
 
 export const GET = OAuthGuard([Scope.enum.read], async (req) => {
-  return apiResponse(req, CORS_HEADERS, DEFAULT_USER_PREFERENCES)
+  return apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: DEFAULT_USER_PREFERENCES
+  })
 })

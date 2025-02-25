@@ -46,17 +46,21 @@ export const GET = OAuthGuard<Params>(
       startAfterStatusId
     })
     if (format === TimelineFormat.enum.activities_next) {
-      return apiResponse(req, CORS_HEADERS, {
-        statuses: statuses.map((item) => cleanJson(item))
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {
+          statuses: statuses.map((item) => cleanJson(item))
+        }
       })
     }
 
-    return apiResponse(
+    return apiResponse({
       req,
-      CORS_HEADERS,
-      await Promise.all(
+      allowedMethods: CORS_HEADERS,
+      data: await Promise.all(
         statuses.map((item) => getMastodonStatus(database, item))
       )
-    )
+    })
   }
 )

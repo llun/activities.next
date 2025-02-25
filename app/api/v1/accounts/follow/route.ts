@@ -31,7 +31,7 @@ export const GET = AuthenticatedGuard(async (req, context) => {
     actorId: currentActor.id,
     targetActorId: targetActorId as string
   })
-  return apiResponse(req, CORS_HEADERS, { follow })
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { follow } })
 })
 
 export const POST = AuthenticatedGuard(async (req, context) => {
@@ -48,7 +48,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     sharedInbox: `https://${currentActor.domain}/inbox`
   })
   await follow(followItem.id, currentActor, target)
-  return apiResponse(req, CORS_HEADERS, DEFAULT_202)
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
 })
 
 export const DELETE = AuthenticatedGuard(async (req, context) => {
@@ -67,5 +67,5 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
       status: FollowStatus.enum.Undo
     })
   ])
-  return apiResponse(req, CORS_HEADERS, DEFAULT_202)
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
 })

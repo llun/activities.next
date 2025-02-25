@@ -37,10 +37,14 @@ export const POST = AuthenticatedGuard(async (req, context) => {
           database
         })
         if (!status) return apiErrorResponse(404)
-        return apiResponse(req, CORS_HEADERS, {
-          status,
-          note: toMastodonObject(status),
-          attachments: status.attachments
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            status,
+            note: toMastodonObject(status),
+            attachments: status.attachments
+          }
         })
       }
       default: {
@@ -64,7 +68,7 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
       database,
       statusId: request.statusId
     })
-    return apiResponse(req, CORS_HEADERS, DEFAULT_202)
+    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
   } catch {
     return apiErrorResponse(400)
   }

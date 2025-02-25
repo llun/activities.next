@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server'
 import { Config, getConfig } from '@/lib/config'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getQueue } from '@/lib/services/queue'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
 
@@ -43,5 +44,9 @@ export const POST = async (request: NextRequest) => {
     logger.error(e)
     return apiErrorResponse(400)
   }
-  return apiResponse(request, ['POST'], {})
+  return apiResponse({
+    req: request,
+    allowedMethods: [HttpMethod.enum.POST],
+    data: {}
+  })
 }

@@ -73,14 +73,26 @@ export const defaultOptions =
     })
   }
 
-export const apiResponse = (
-  req: NextRequest,
-  methods: HttpMethod[],
-  data: unknown,
-  code: StatusCode = 200
-) => {
+type APIResponseParams = {
+  req: NextRequest
+  allowedMethods: HttpMethod[]
+  data: unknown
+  responseStatusCode?: StatusCode
+  additionalHeaders?: [string, string][]
+}
+
+export const apiResponse = ({
+  req,
+  allowedMethods,
+  data,
+  responseStatusCode = 200,
+  additionalHeaders = []
+}: APIResponseParams) => {
   return Response.json(data, {
-    ...defaultStatusOption(code),
-    headers: new Headers(Object.entries(getCORSHeaders(methods, req.headers)))
+    ...defaultStatusOption(responseStatusCode),
+    headers: new Headers([
+      ...Object.entries(getCORSHeaders(allowedMethods, req.headers)),
+      ...additionalHeaders
+    ])
   })
 }
