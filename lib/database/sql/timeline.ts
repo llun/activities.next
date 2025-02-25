@@ -72,7 +72,7 @@ export const TimelineSQLDatabaseMixin = (
             ).id
           : 0
 
-        if (maxId - minId < 1) {
+        if (maxId - minId < 0) {
           return []
         }
 
