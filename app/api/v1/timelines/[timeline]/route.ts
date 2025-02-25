@@ -27,7 +27,9 @@ export const GET = OAuthGuard<Params>(
     const url = new URL(req.url)
     const startAfterStatusId =
       url.searchParams.get('startAfterStatusId') ||
-      url.searchParams.get('since_id')
+      url.searchParams.get('since_id') ||
+      url.searchParams.get('min_id')
+    const startBeforeStatusId = url.searchParams.get('max_id')
     const format = url.searchParams.get('format')
 
     const { database, currentActor } = context
