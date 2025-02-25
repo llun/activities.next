@@ -1,5 +1,6 @@
 import { Scope } from '@/lib/database/types/oauth'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -55,12 +56,18 @@ export const GET = OAuthGuard<Params>(
       })
     }
 
+    const host = headerHost(req.headers)
+    const nextLink = `https://${host}/api/v1/timelines/${timeline}?limit=20&max_id=${encodeURIComponent(statuses[statuses.length - 1].id)}`
+    const prevLink = `https://${host}/api/v1/timelines/${timeline}?limit=20&min_id=${encodeURIComponent(statuses[0].id)}`
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
       data: await Promise.all(
         statuses.map((item) => getMastodonStatus(database, item))
-      )
+      ),
+      additionalHeaders: [
+        ['Link', `<${nextLink}>; rel="next", <${prevLink}>; rel="prev`]
+      ]
     })
   }
 )

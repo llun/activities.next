@@ -1,6 +1,7 @@
 import { NextApiResponse } from 'next'
 import { NextRequest } from 'next/server'
 
+import { SERVICE_NAME } from '../constants'
 import { HttpMethod, getCORSHeaders } from './getCORSHeaders'
 
 export const ERROR_500 = { status: 'Internal Server Error' }
@@ -91,6 +92,7 @@ export const apiResponse = ({
   return Response.json(data, {
     ...defaultStatusOption(responseStatusCode),
     headers: new Headers([
+      ['Server', SERVICE_NAME],
       ...Object.entries(getCORSHeaders(allowedMethods, req.headers)),
       ...additionalHeaders
     ])
