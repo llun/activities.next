@@ -78,7 +78,7 @@ export const TimelineFirestoreDatabaseMixin = (
             .where('statusId', '==', minStatusId)
             .get()
           if (lastStatus.size === 1) {
-            query = query.startAt(lastStatus.docs[0])
+            query = query.startAfter(lastStatus.docs[0])
           }
         }
         if (maxStatusId) {
@@ -88,7 +88,7 @@ export const TimelineFirestoreDatabaseMixin = (
             .where('statusId', '==', maxStatusId)
             .get()
           if (firstStatus.size === 1) {
-            query = query.endAt(firstStatus.docs[0])
+            query = query.endBefore(firstStatus.docs[0])
           }
         }
 
