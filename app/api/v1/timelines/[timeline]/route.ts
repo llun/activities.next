@@ -1,3 +1,4 @@
+import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { Scope } from '@/lib/database/types/oauth'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
@@ -25,11 +26,10 @@ export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
   async (req, context, params) => {
     const url = new URL(req.url)
-    const startAfterStatusId =
-      url.searchParams.get('startAfterStatusId') ||
-      url.searchParams.get('since_id') ||
-      url.searchParams.get('min_id')
-    const startBeforeStatusId = url.searchParams.get('max_id')
+    const minStatusId =
+      url.searchParams.get('since_id') || url.searchParams.get('min_id')
+    const maxStatusId = url.searchParams.get('max_id')
+    const limit = url.searchParams.get('limit')
     const format = url.searchParams.get('format')
 
     const { database, currentActor } = context
@@ -46,7 +46,9 @@ export const GET = OAuthGuard<Params>(
     const statuses = await database.getTimeline({
       timeline,
       actorId: currentActor.id,
-      startAfterStatusId
+      minStatusId,
+      maxStatusId,
+      limit: limit ? parseInt(limit, 10) : PER_PAGE_LIMIT
     })
     if (format === TimelineFormat.enum.activities_next) {
       return apiResponse({
