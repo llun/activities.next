@@ -33,7 +33,12 @@ export const POST = OnlyLocalUserGuard(async (database, _, req) => {
           database
         })
         if (!follow) return apiErrorResponse(404)
-        return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: DEFAULT_202,
+          responseStatusCode: 202
+        })
       }
       case 'Reject': {
         const follow = await rejectFollowRequest({
@@ -41,7 +46,12 @@ export const POST = OnlyLocalUserGuard(async (database, _, req) => {
           database
         })
         if (!follow) return apiErrorResponse(404)
-        return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: DEFAULT_202,
+          responseStatusCode: 202
+        })
       }
       case 'Follow': {
         const follow = await createFollower({
@@ -49,11 +59,21 @@ export const POST = OnlyLocalUserGuard(async (database, _, req) => {
           database
         })
         if (!follow) return apiErrorResponse(404)
-        return apiResponse(req, CORS_HEADERS, { target: follow.object }, 202)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { target: follow.object },
+          responseStatusCode: 202
+        })
       }
       case 'Like': {
         await likeRequest({ activity, database })
-        return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: DEFAULT_202,
+          responseStatusCode: 202
+        })
       }
       case 'Undo': {
         const undoRequest = activity as UndoFollow | UndoLike
@@ -64,12 +84,12 @@ export const POST = OnlyLocalUserGuard(async (database, _, req) => {
               request: undoRequest as UndoFollow
             })
             if (result) return apiErrorResponse(404)
-            return apiResponse(
+            return apiResponse({
               req,
-              CORS_HEADERS,
-              { target: undoRequest.object.object },
-              202
-            )
+              allowedMethods: CORS_HEADERS,
+              data: { target: undoRequest.object.object },
+              responseStatusCode: 202
+            })
           }
           case 'Like': {
             await database.deleteLike({
@@ -79,15 +99,30 @@ export const POST = OnlyLocalUserGuard(async (database, _, req) => {
                   ? undoRequest.object.object
                   : undoRequest.object.object.id
             })
-            return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: DEFAULT_202,
+              responseStatusCode: 202
+            })
           }
           default: {
-            return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: DEFAULT_202,
+              responseStatusCode: 202
+            })
           }
         }
       }
       default:
-        return apiResponse(req, CORS_HEADERS, DEFAULT_202, 202)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: DEFAULT_202,
+          responseStatusCode: 202
+        })
     }
   } catch {
     return apiErrorResponse(400)

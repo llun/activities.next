@@ -24,12 +24,12 @@ export const GET = OAuthGuard<Params>(
     const { currentActor, database } = context
     const statusId = `${currentActor.id}/statuses/${uuid}`
     const actors = await database.getFavouritedBy({ statusId })
-    return apiResponse(
+    return apiResponse({
       req,
-      CORS_HEADERS,
-      await Promise.all(
+      allowedMethods: CORS_HEADERS,
+      data: await Promise.all(
         actors.map((actor) => database.getMastodonActorFromId({ id: actor.id }))
       )
-    )
+    })
   }
 )

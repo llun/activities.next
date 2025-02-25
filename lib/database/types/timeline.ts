@@ -4,7 +4,9 @@ import { Timeline } from '@/lib/services/timelines/types'
 export type GetTimelineParams = {
   timeline: Timeline
   actorId?: string
-  startAfterStatusId?: string | null
+  minStatusId?: string | null
+  maxStatusId?: string | null
+  limit?: number
 }
 export type CreateTimelineStatusParams = {
   timeline: Timeline
@@ -16,7 +18,9 @@ export interface TimelineDatabase {
   getTimeline({
     timeline,
     actorId,
-    startAfterStatusId
+    minStatusId,
+    maxStatusId,
+    limit
   }: GetTimelineParams): Promise<Status[]>
   createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
 }

@@ -18,7 +18,9 @@ export const TimelineFirestoreDatabaseMixin = (
   async getTimeline({
     timeline,
     actorId,
-    startAfterStatusId
+    minStatusId,
+    maxStatusId,
+    limit = PER_PAGE_LIMIT
   }: GetTimelineParams) {
     switch (timeline) {
       case Timeline.LOCAL_PUBLIC: {
@@ -40,7 +42,7 @@ export const TimelineFirestoreDatabaseMixin = (
               )
               .where('reply', '==', '')
               .orderBy('createdAt', 'desc')
-              .limit(PER_PAGE_LIMIT)
+              .limit(limit)
               .get()
           )
         )
@@ -54,7 +56,7 @@ export const TimelineFirestoreDatabaseMixin = (
         )
         return statuses
           .filter((status): status is Status => Boolean(status))
-          .slice(0, PER_PAGE_LIMIT)
+          .slice(0, limit)
       }
       case Timeline.HOME:
       case Timeline.MAIN:
@@ -68,15 +70,25 @@ export const TimelineFirestoreDatabaseMixin = (
           .collection(`actors/${urlToId(actorId)}/timelines`)
           .where('timeline', '==', actualTimeline)
           .orderBy('createdAt', 'desc')
-          .limit(PER_PAGE_LIMIT)
-        if (startAfterStatusId) {
+          .limit(limit)
+        if (minStatusId) {
           const lastStatus = await firestore
             .collection(`actors/${urlToId(actorId)}/timelines`)
             .where('timeline', '==', actualTimeline)
-            .where('statusId', '==', startAfterStatusId)
+            .where('statusId', '==', minStatusId)
             .get()
           if (lastStatus.size === 1) {
-            query = query.startAfter(lastStatus.docs[0])
+            query = query.startAt(lastStatus.docs[0])
+          }
+        }
+        if (maxStatusId) {
+          const firstStatus = await firestore
+            .collection(`actors/${urlToId(actorId)}/timelines`)
+            .where('timeline', '==', actualTimeline)
+            .where('statusId', '==', maxStatusId)
+            .get()
+          if (firstStatus.size === 1) {
+            query = query.endAt(firstStatus.docs[0])
           }
         }
 

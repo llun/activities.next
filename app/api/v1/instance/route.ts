@@ -51,5 +51,5 @@ export const GET = async (req: NextRequest) => {
       }
     }
   }
-  return apiResponse(req, CORS_HEADERS, data)
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
 }

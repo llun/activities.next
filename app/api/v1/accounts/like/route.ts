@@ -27,7 +27,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
 
   await database.createLike({ actorId: currentActor.id, statusId })
   await sendLike({ currentActor, status })
-  return apiResponse(req, CORS_HEADERS, DEFAULT_202)
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
 })
 
 export const DELETE = AuthenticatedGuard(async (req, context) => {
@@ -39,5 +39,5 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
 
   await database.deleteLike({ actorId: currentActor.id, statusId })
   await sendUndoLike({ currentActor, status })
-  return apiResponse(req, CORS_HEADERS, DEFAULT_202)
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
 })

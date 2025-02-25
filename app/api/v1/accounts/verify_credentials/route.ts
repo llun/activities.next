@@ -10,5 +10,5 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 export const GET = OAuthGuard([Scope.enum.read], async (req, context) => {
   const { currentActor, database } = context
   const actor = await database.getMastodonActorFromId({ id: currentActor.id })
-  return apiResponse(req, CORS_HEADERS, actor)
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: actor })
 })

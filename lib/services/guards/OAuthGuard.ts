@@ -82,6 +82,10 @@ export const OAuthGuard =
       )
     } catch (e) {
       const nodeErr = e as NodeJS.ErrnoException
+      if (nodeErr.message === 'jwt expired') {
+        return apiErrorResponse(401)
+      }
+
       logger.error(nodeErr)
       return apiErrorResponse(500)
     }

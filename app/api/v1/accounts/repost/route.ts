@@ -21,7 +21,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   const body = await req.json()
   const { statusId } = RepostRequest.parse(body)
   await userAnnounce({ currentActor, statusId, database })
-  return apiResponse(req, CORS_HEADERS, DEFAULT_202)
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
 })
 
 export const DELETE = AuthenticatedGuard(async (req, context) => {
@@ -29,5 +29,5 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
   const body = await req.json()
   const { statusId } = RepostRequest.parse(body)
   await userUndoAnnounce({ currentActor, statusId, database })
-  return apiResponse(req, CORS_HEADERS, DEFAULT_202)
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
 })

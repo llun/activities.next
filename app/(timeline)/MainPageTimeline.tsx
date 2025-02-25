@@ -122,7 +122,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           setLoadingMoreStatuses(true)
           const statuses = await getTimeline({
             timeline: currentTab.timeline,
-            startAfterStatusId: currentStatuses[currentStatuses.length - 1].id
+            minStatusId: currentStatuses[currentStatuses.length - 1].id
           })
           setCurrentStatuses([...currentStatuses, ...statuses])
           setLoadingMoreStatuses(false)

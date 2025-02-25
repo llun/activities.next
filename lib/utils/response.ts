@@ -1,6 +1,7 @@
 import { NextApiResponse } from 'next'
 import { NextRequest } from 'next/server'
 
+import { SERVICE_NAME } from '../constants'
 import { HttpMethod, getCORSHeaders } from './getCORSHeaders'
 
 export const ERROR_500 = { status: 'Internal Server Error' }
@@ -73,14 +74,27 @@ export const defaultOptions =
     })
   }
 
-export const apiResponse = (
-  req: NextRequest,
-  methods: HttpMethod[],
-  data: unknown,
-  code: StatusCode = 200
-) => {
+type APIResponseParams = {
+  req: NextRequest
+  allowedMethods: HttpMethod[]
+  data: unknown
+  responseStatusCode?: StatusCode
+  additionalHeaders?: [string, string][]
+}
+
+export const apiResponse = ({
+  req,
+  allowedMethods,
+  data,
+  responseStatusCode = 200,
+  additionalHeaders = []
+}: APIResponseParams) => {
   return Response.json(data, {
-    ...defaultStatusOption(code),
-    headers: new Headers(Object.entries(getCORSHeaders(methods, req.headers)))
+    ...defaultStatusOption(responseStatusCode),
+    headers: new Headers([
+      ['Server', SERVICE_NAME],
+      ...Object.entries(getCORSHeaders(allowedMethods, req.headers)),
+      ...additionalHeaders
+    ])
   })
 }

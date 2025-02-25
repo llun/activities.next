@@ -232,16 +232,26 @@ export const unfollow = async ({ targetActorId }: FollowParams) => {
 
 interface GetTimelineParams {
   timeline: Timeline
-  startAfterStatusId?: string
+  minStatusId?: string
+  maxStatusId?: string
+  limit?: number
 }
 export const getTimeline = async ({
   timeline,
-  startAfterStatusId
+  minStatusId,
+  maxStatusId,
+  limit
 }: GetTimelineParams) => {
   const path = `/api/v1/timelines/${timeline}?format=${TimelineFormat.enum.activities_next}`
   const url = new URL(`${window.origin}${path}`)
-  if (startAfterStatusId) {
-    url.searchParams.append('startAfterStatusId', startAfterStatusId)
+  if (minStatusId) {
+    url.searchParams.append('min_id', minStatusId)
+  }
+  if (maxStatusId) {
+    url.searchParams.append('max_id', maxStatusId)
+  }
+  if (limit) {
+    url.searchParams.append('limit', `${limit}`)
   }
   const response = await fetch(url.toString(), {
     method: 'GET',

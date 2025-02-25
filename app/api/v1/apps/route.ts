@@ -31,5 +31,5 @@ export const POST = async (req: NextRequest) => {
     return apiErrorResponse(422)
   }
 
-  return apiResponse(req, CORS_HEADERS, rest)
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: rest })
 }

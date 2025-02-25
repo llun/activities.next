@@ -41,27 +41,27 @@ export const POST = async (request: NextRequest) => {
       error: 'ERR_INVALID',
       description: issue.message
     }))
-    return apiResponse(
-      request,
-      CORS_HEADERS,
-      { error: MAIN_ERROR_MESSAGE, details: fields },
-      422
-    )
+    return apiResponse({
+      req: request,
+      allowedMethods: CORS_HEADERS,
+      data: { error: MAIN_ERROR_MESSAGE, details: fields },
+      responseStatusCode: 422
+    })
   }
 
   const form = content.data
   if (allowEmails.length && !allowEmails.includes(form.email)) {
-    return apiResponse(
-      request,
-      CORS_HEADERS,
-      {
+    return apiResponse({
+      req: request,
+      allowedMethods: CORS_HEADERS,
+      data: {
         error: MAIN_ERROR_MESSAGE,
         details: {
           email: [{ error: 'ERR_TAKEN', description: 'Email is already taken' }]
         }
       },
-      422
-    )
+      responseStatusCode: 422
+    })
   }
 
   const [isAccountExists, isUsernameExists] = await Promise.all([
@@ -90,12 +90,12 @@ export const POST = async (request: NextRequest) => {
     ]
   }
   if (Object.keys(errorDetails).length > 0) {
-    return apiResponse(
-      request,
-      CORS_HEADERS,
-      { error: MAIN_ERROR_MESSAGE, details: errorDetails },
-      422
-    )
+    return apiResponse({
+      req: request,
+      allowedMethods: CORS_HEADERS,
+      data: { error: MAIN_ERROR_MESSAGE, details: errorDetails },
+      responseStatusCode: 422
+    })
   }
 
   // TODO: If the request has auth bearer, return 200 instead
