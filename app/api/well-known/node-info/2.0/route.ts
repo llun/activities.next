@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { VERSION } from '@/lib/constants'
+import { NODE_SOFTWARE } from '@/lib/constants'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 
@@ -112,7 +112,7 @@ export const GET = async (req: NextRequest) => {
     openRegistrations: false,
     protocols: ['activitypub'],
     services: { inbound: [], outbound: [] },
-    software: { name: 'mastodon', version: `activities.next-${VERSION}` },
+    software: NODE_SOFTWARE,
     usage: { localPosts: 150, users: { total: 1 } },
     version: '2.0'
   })

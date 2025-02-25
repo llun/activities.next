@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { VERSION } from '@/lib/constants'
+import { NODE_SOFTWARE } from '@/lib/constants'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 
@@ -13,10 +13,7 @@ export const GET = async (req: NextRequest) => {
   const config = getConfig()
   return apiResponse(req, CORS_HEADERS, {
     version: '2.0',
-    software: {
-      name: 'mastodon',
-      version: `activities.next-${VERSION}`
-    },
+    software: NODE_SOFTWARE,
     protocols: ['activitypub'],
     services: {
       outbound: [],

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { VERSION } from '@/lib/constants'
+import { NODE_SOFTWARE } from '@/lib/constants'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 
@@ -13,10 +13,7 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 export const GET = async (req: NextRequest) => {
   return apiResponse(req, CORS_HEADERS, {
     version: '2.0',
-    software: {
-      name: 'llun.activities',
-      version: VERSION
-    },
+    software: NODE_SOFTWARE,
     protocols: ['activitypub'],
     usage: {
       users: {
