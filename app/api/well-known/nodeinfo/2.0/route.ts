@@ -11,26 +11,30 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = async (req: NextRequest) => {
   const config = getConfig()
-  return apiResponse(req, CORS_HEADERS, {
-    version: '2.0',
-    software: NODE_SOFTWARE,
-    protocols: ['activitypub'],
-    services: {
-      outbound: [],
-      inbound: []
-    },
-    usage: {
-      users: {
-        total: 1,
-        activeMonth: 126,
-        activeHalfyear: 288
+  return apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: {
+      version: '2.0',
+      software: NODE_SOFTWARE,
+      protocols: ['activitypub'],
+      services: {
+        outbound: [],
+        inbound: []
       },
-      localPosts: 150
-    },
-    openRegistrations: false,
-    metadata: {
-      nodeName: config.serviceName,
-      nodeDescription: ''
+      usage: {
+        users: {
+          total: 1,
+          activeMonth: 126,
+          activeHalfyear: 288
+        },
+        localPosts: 150
+      },
+      openRegistrations: false,
+      metadata: {
+        nodeName: config.serviceName,
+        nodeDescription: ''
+      }
     }
   })
 }

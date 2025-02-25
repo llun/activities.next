@@ -31,6 +31,6 @@ export const DELETE = AuthenticatedGuard<Params>(
     }
 
     await database.deleteAccountSession({ token })
-    return apiResponse(req, CORS_HEADERS, DEFAULT_202)
+    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
   }
 )

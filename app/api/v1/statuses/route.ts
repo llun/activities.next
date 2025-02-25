@@ -35,10 +35,14 @@ export const POST = OAuthGuard([Scope.enum.write], async (req, context) => {
       database
     })
     if (!status) return apiErrorResponse(422)
-    return apiResponse(req, CORS_HEADERS, {
-      id: status.id,
-      created_at: getISOTimeUTC(status.createdAt),
-      content: status.text
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: {
+        id: status.id,
+        created_at: getISOTimeUTC(status.createdAt),
+        content: status.text
+      }
     })
   } catch {
     return apiErrorResponse(400)

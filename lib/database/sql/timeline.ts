@@ -18,7 +18,9 @@ export const TimelineSQLDatabaseMixin = (
   async getTimeline({
     timeline,
     actorId,
-    startAfterStatusId
+    minStatusId,
+    maxStatusId,
+    limit = PER_PAGE_LIMIT
   }: GetTimelineParams) {
     switch (timeline) {
       case Timeline.LOCAL_PUBLIC: {
@@ -30,7 +32,7 @@ export const TimelineSQLDatabaseMixin = (
           .whereNotNull('actors.privateKey')
           .where('statuses.reply', '')
           .orderBy('recipients.createdAt', 'desc')
-          .limit(PER_PAGE_LIMIT)
+          .limit(limit)
         const local = await query
         const statuses = (
           await Promise.all(
@@ -49,23 +51,37 @@ export const TimelineSQLDatabaseMixin = (
 
         const actualTimeline =
           timeline === Timeline.HOME ? Timeline.MAIN : timeline
-        const limit = PER_PAGE_LIMIT
-        const startAfterId = startAfterStatusId
+        const minId = minStatusId
           ? (
               await database('timelines')
                 .where('actorId', actorId)
                 .where('timeline', actualTimeline)
-                .where('statusId', startAfterStatusId)
+                .where('statusId', minStatusId)
+                .select('id')
+                .first<{ id: number }>()
+            ).id
+          : 0
+        const maxId = maxStatusId
+          ? (
+              await database('timelines')
+                .where('actorId', actorId)
+                .where('timeline', actualTimeline)
+                .where('statusId', maxStatusId)
                 .select('id')
                 .first<{ id: number }>()
             ).id
           : 0
 
-        const statusesId = await (startAfterStatusId
+        if (maxId - minId < 0) {
+          return []
+        }
+
+        const statusesId = await (minId || maxId
           ? database('timelines')
               .where('actorId', actorId)
               .where('timeline', actualTimeline)
-              .where('id', '<', startAfterId)
+              .where('id', '<=', maxId)
+              .where('id', '>=', minId)
               .select('statusId')
               .orderBy('createdAt', 'desc')
               .limit(limit)

@@ -25,5 +25,10 @@ export const POST = ActivityPubVerifySenderGuard(async (request) => {
   }
 
   await getQueue().publish(jobMessage)
-  return apiResponse(request, CORS_HEADERS, DEFAULT_202, 202)
+  return apiResponse({
+    req: request,
+    allowedMethods: CORS_HEADERS,
+    data: DEFAULT_202,
+    responseStatusCode: 202
+  })
 })

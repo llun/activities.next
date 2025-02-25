@@ -13,5 +13,5 @@ interface Params {
 }
 
 export const GET = OAuthGuard<Params>([Scope.enum.read], async (req) => {
-  return apiResponse(req, CORS_HEADERS, [])
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
 })

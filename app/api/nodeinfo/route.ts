@@ -10,19 +10,22 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = async (req: NextRequest) => {
-  return apiResponse(req, CORS_HEADERS, {
-    version: '2.0',
-    software: NODE_SOFTWARE,
-    protocols: ['activitypub'],
-    usage: {
-      users: {
-        total: 1,
-        activeMonth: 1,
-        activeHalfyear: 1
+export const GET = async (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: {
+      version: '2.0',
+      software: NODE_SOFTWARE,
+      protocols: ['activitypub'],
+      usage: {
+        users: {
+          total: 1,
+          activeMonth: 1,
+          activeHalfyear: 1
+        },
+        localPosts: 1
       },
-      localPosts: 1
-    },
-    openRegistrations: false
+      openRegistrations: false
+    }
   })
-}
