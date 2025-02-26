@@ -4,7 +4,7 @@
  */
 exports.up = function (knex) {
   return knex.schema.alterTable('timelines', function (table) {
-    table.index(['timeline', 'statusId'], 'timelinesTimelineStatusIdIndex')
+    table.index('statusId', 'timelinesStatusIdIndex')
   })
 }
 
@@ -14,6 +14,6 @@ exports.up = function (knex) {
  */
 exports.down = function (knex) {
   return knex.schema.alterTable('timelines', function (table) {
-    table.dropIndex(['timeline', 'statusId'], 'timelinesTimelineStatusIdIndex')
+    table.dropIndex('statusId', 'timelinesStatusIdIndex')
   })
 }

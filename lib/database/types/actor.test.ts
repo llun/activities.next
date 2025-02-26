@@ -113,7 +113,9 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          id: encodeURIComponent(
+            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+          ),
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
@@ -145,7 +147,9 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          id: encodeURIComponent(
+            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+          ),
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
@@ -176,7 +180,9 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          id: encodeURIComponent(
+            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+          ),
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
@@ -230,7 +236,7 @@ describe('ActorDatabase', () => {
           createdAt: currentTime
         })
         expect(actor).toEqual({
-          id: EXTERNAL_ACTORS[1].id,
+          id: encodeURIComponent(EXTERNAL_ACTORS[1].id),
           username: EXTERNAL_ACTORS[1].username,
           acct: `${EXTERNAL_ACTORS[1].username}@${EXTERNAL_ACTORS[1].domain}`,
           url: EXTERNAL_ACTORS[1].id,
@@ -287,7 +293,9 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          id: encodeURIComponent(
+            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+          ),
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,

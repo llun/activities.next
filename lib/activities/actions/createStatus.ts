@@ -5,7 +5,7 @@ import { BaseActivity } from '@/lib/activities/actions/base'
 import { CreateAction } from '@/lib/activities/actions/types'
 import { ContextEntity } from '@/lib/activities/entities/base'
 import { Signature } from '@/lib/activities/types'
-import { Status, toMastodonObject } from '@/lib/models/status'
+import { Status, toActivityPubObject } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export interface CreateStatus extends BaseActivity, ContextEntity {
@@ -32,7 +32,7 @@ export const compact = ({ status }: CompactParams) => {
     published,
     to: status.to,
     cc: status.cc,
-    object: toMastodonObject(status)
+    object: toActivityPubObject(status)
   }
   return jsonld.compact(document, context)
 }

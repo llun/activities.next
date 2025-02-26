@@ -52,24 +52,24 @@ export const TimelineSQLDatabaseMixin = (
         const actualTimeline =
           timeline === Timeline.HOME ? Timeline.MAIN : timeline
         const minId = minStatusId
-          ? (
+          ? ((
               await database('timelines')
                 .where('actorId', actorId)
                 .where('timeline', actualTimeline)
                 .where('statusId', minStatusId)
                 .select('id')
                 .first<{ id: number }>()
-            ).id
+            )?.id ?? 0)
           : 0
         const maxId = maxStatusId
-          ? (
+          ? ((
               await database('timelines')
                 .where('actorId', actorId)
                 .where('timeline', actualTimeline)
                 .where('statusId', maxStatusId)
                 .select('id')
                 .first<{ id: number }>()
-            ).id
+            )?.id ?? 0)
           : 0
 
         if (maxId - minId < 0) {

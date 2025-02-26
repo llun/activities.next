@@ -12,13 +12,9 @@ export const getMastodonStatus = async (
   const account = await database.getMastodonActorFromId({ id: status.actorId })
   const baseData = {
     // Identifiers & timestamps
-    id: status.id,
+    id: encodeURIComponent(status.id),
     created_at: getISOTimeUTC(status.createdAt),
     edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
-
-    // Reply information
-    in_reply_to_id: null,
-    in_reply_to_account_id: null,
 
     // Visibility settings
     sensitive: false,
@@ -28,7 +24,7 @@ export const getMastodonStatus = async (
 
     // URI & URL
     uri: status.id,
-    url: null,
+    url: status.id,
 
     // Count metrics
     replies_count: 0,
@@ -57,20 +53,42 @@ export const getMastodonStatus = async (
   if (status.type === 'Announce') {
     return Mastodon.Status.parse({
       ...baseData,
+
+      in_reply_to_id: null,
+      in_reply_to_account_id: null,
+
       reblog: await getMastodonStatus(database, status.originalStatus),
       media_attachments: []
     })
   }
+
+  const replyStatus = status.reply
+    ? await database.getStatus({ statusId: status.reply })
+    : null
+
   return Mastodon.Status.parse({
     ...baseData,
     spoiler_text: status.summary ?? '',
     url: status.url,
+
+    // Reply information
+    in_reply_to_id: replyStatus ? encodeURIComponent(replyStatus.id) : null,
+    in_reply_to_account_id: replyStatus
+      ? encodeURIComponent(replyStatus.actorId)
+      : null,
+
+    replies_count: status.replies.length,
+
     favourites_count: status.totalLikes || 0,
-    edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
     favourited: status.isActorLiked ?? false,
+
+    edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
+
     reblogged: status.isActorAnnounced ?? false,
     content: status.text,
+
     reblog: null,
+
     media_attachments: status.attachments.map((attachment) =>
       getMastodonAttachment(attachment)
     )

@@ -1,6 +1,6 @@
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
-import { toMastodonObject } from '@/lib/models/status'
+import { toActivityPubObject } from '@/lib/models/status'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
@@ -42,7 +42,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
           allowedMethods: CORS_HEADERS,
           data: {
             status,
-            note: toMastodonObject(status),
+            note: toActivityPubObject(status),
             attachments: status.attachments
           }
         })

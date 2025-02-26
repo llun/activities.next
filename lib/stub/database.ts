@@ -192,6 +192,17 @@ export const seedDatabase = async (database: Database) => {
     originalStatusId: `${actors[1].id}/statuses/post-2`
   })
 
+  // Actor2 reply to Actor1
+  await database.createNote({
+    id: `${actors[1].id}/statuses/reply-1`,
+    url: `${actors[1].id}/statuses/reply-1`,
+    actorId: actors[1].id,
+    to: [ACTIVITY_STREAM_PUBLIC],
+    cc: [`${actors[1].id}/followers`],
+    text: 'This is Actor2 reply to Actor1',
+    reply: `${actors[0].id}/statuses/post-1`
+  })
+
   // Actor 3 poll
   await database.createPoll({
     id: `${actors[2].id}/statuses/poll-1`,

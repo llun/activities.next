@@ -2,7 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { likeRequest } from '@/lib/actions/like'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Status, StatusNote, toMastodonObject } from '@/lib/models/status'
+import { Status, StatusNote, toActivityPubObject } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -54,7 +54,7 @@ describe('Accept follow action', () => {
           actor: ACTOR1_ID,
           id: `${ACTOR1_ID}/like-post-2`,
           type: 'Like',
-          object: toMastodonObject(status)
+          object: toActivityPubObject(status)
         },
         database
       })
