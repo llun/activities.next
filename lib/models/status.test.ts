@@ -142,8 +142,13 @@ describe('Status', () => {
           replies: {
             id: `${status.id}/replies`,
             type: 'Collection',
-            totalItems: 1,
+            totalItems: 2,
             items: [
+              toMastodonObject(
+                (await database.getStatus({
+                  statusId: `${ACTOR2_ID}/statuses/reply-1`
+                })) as Status
+              ),
               toMastodonObject(
                 (await database.getStatus({
                   statusId: `${ACTOR2_ID}/statuses/post-2`
