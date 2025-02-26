@@ -18,7 +18,7 @@ import {
   Status,
   StatusNote,
   StatusType,
-  toMastodonObject
+  toActivityPubObject
 } from '@/lib/models/status'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -200,7 +200,7 @@ describe('Database', () => {
 
       it('returns mastodon actor from getMastodonActor methods', async () => {
         const expectedActorAfterCreated = {
-          id: TEST_ID,
+          id: encodeURIComponent(TEST_ID),
           username: TEST_USERNAME,
           acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
           url: TEST_ID,
@@ -289,7 +289,7 @@ describe('Database', () => {
           createdAt: currentTime
         })
         expect(actor).toEqual({
-          id: TEST_ID16,
+          id: encodeURIComponent(TEST_ID16),
           username: TEST_USERNAME16,
           acct: `${TEST_USERNAME16}@${TEST_DOMAIN}`,
           url: TEST_ID16,
@@ -965,14 +965,14 @@ describe('Database', () => {
         expect(status.replies).toHaveLength(2)
         expect(status.replies).toContainAllValues([reply1, reply2])
 
-        const note = toMastodonObject(status)
+        const note = toActivityPubObject(status)
         const replies = note.replies as CollectionWithItems
         expect(replies.totalItems).toEqual(2)
         expect(replies.items).toContainAllValues([
-          toMastodonObject(
+          toActivityPubObject(
             (await database.getStatus({ statusId: reply1Id })) as Status
           ),
-          toMastodonObject(
+          toActivityPubObject(
             (await database.getStatus({ statusId: reply2Id })) as Status
           )
         ])

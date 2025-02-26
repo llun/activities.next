@@ -71,7 +71,7 @@ describe('StatusDatabase', () => {
           statusId: `${ACTOR1_ID}/statuses/post-1`,
           withReplies: true
         })) as StatusNote
-        expect(status.replies).toHaveLength(1)
+        expect(status.replies).toHaveLength(2)
         expect(status).toMatchObject({
           id: 'https://llun.test/users/test1/statuses/post-1',
           actorId: 'https://llun.test/users/test1',
@@ -234,8 +234,12 @@ describe('StatusDatabase', () => {
         const replies = await database.getStatusReplies({
           statusId: `${ACTOR1_ID}/statuses/post-1`
         })
-        expect(replies).toHaveLength(1)
+        expect(replies).toHaveLength(2)
+
         expect((replies[0] as StatusNote).text).toBe(
+          'This is Actor2 reply to Actor1'
+        )
+        expect((replies[1] as StatusNote).text).toBe(
           '<p><span class="h-card"><a href="https://test.llun.dev/@test1@llun.test" target="_blank" class="u-url mention">@<span>test1</span></a></span> This is Actor1 post</p>'
         )
       })

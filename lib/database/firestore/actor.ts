@@ -61,7 +61,7 @@ export const ActorFirestoreDatabaseMixin = (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function getMastodonActorFromData(data: any): Mastodon.Account {
     return Mastodon.Account.parse({
-      id: data.id,
+      id: encodeURIComponent(data.id),
       username: data.username,
       acct: `${data.username}@${data.domain}`,
       url: data.id,
