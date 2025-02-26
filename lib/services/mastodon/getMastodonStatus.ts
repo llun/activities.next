@@ -75,12 +75,18 @@ export const getMastodonStatus = async (
     in_reply_to_id: replyStatus?.id ?? null,
     in_reply_to_account_id: replyStatus?.actorId ?? null,
 
+    replies_count: status.replies.length,
+
     favourites_count: status.totalLikes || 0,
-    edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
     favourited: status.isActorLiked ?? false,
+
+    edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
+
     reblogged: status.isActorAnnounced ?? false,
     content: status.text,
+
     reblog: null,
+
     media_attachments: status.attachments.map((attachment) =>
       getMastodonAttachment(attachment)
     )
