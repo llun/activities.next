@@ -55,7 +55,9 @@ describe('AccountDatabase', () => {
         })
       ).toBeTrue()
       expect(actor).toMatchObject({
-        id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`,
+        id: encodeURIComponent(
+          `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`
+        ),
         username: TEST_USERNAME2,
         acct: `${TEST_USERNAME2}@${TEST_DOMAIN}`,
         url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`,

@@ -200,7 +200,7 @@ describe('Database', () => {
 
       it('returns mastodon actor from getMastodonActor methods', async () => {
         const expectedActorAfterCreated = {
-          id: TEST_ID,
+          id: encodeURIComponent(TEST_ID),
           username: TEST_USERNAME,
           acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
           url: TEST_ID,
@@ -289,7 +289,7 @@ describe('Database', () => {
           createdAt: currentTime
         })
         expect(actor).toEqual({
-          id: TEST_ID16,
+          id: encodeURIComponent(TEST_ID16),
           username: TEST_USERNAME16,
           acct: `${TEST_USERNAME16}@${TEST_DOMAIN}`,
           url: TEST_ID16,
