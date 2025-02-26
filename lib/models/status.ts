@@ -55,31 +55,18 @@ export const StatusNote = StatusBase.extend({
 })
 export type StatusNote = z.infer<typeof StatusNote>
 
-export const StatusAnnounce = StatusBase.extend({
-  type: z.literal(StatusType.enum.Announce),
-  originalStatus: StatusNote
-})
-export type StatusAnnounce = z.infer<typeof StatusAnnounce>
-
-export const StatusPoll = StatusBase.extend({
+export const StatusPoll = StatusNote.extend({
   type: z.literal(StatusType.enum.Poll),
-  url: z.string(),
-  text: z.string(),
-  summary: z.string().nullable().optional(),
-  reply: z.string(),
-  replies: StatusBase.passthrough().array(),
-
-  isActorAnnounced: z.boolean(),
-  isActorLiked: z.boolean(),
-  totalLikes: z.number(),
-
-  attachments: Attachment.array(),
-  tags: Tag.array(),
   choices: PollChoice.array(),
-
   endAt: z.number()
 })
 export type StatusPoll = z.infer<typeof StatusPoll>
+
+export const StatusAnnounce = StatusBase.extend({
+  type: z.literal(StatusType.enum.Announce),
+  originalStatus: z.union([StatusNote, StatusPoll])
+})
+export type StatusAnnounce = z.infer<typeof StatusAnnounce>
 
 export const Status = z.union([StatusNote, StatusAnnounce, StatusPoll])
 export type Status = z.infer<typeof Status>
