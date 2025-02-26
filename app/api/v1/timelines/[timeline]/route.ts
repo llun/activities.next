@@ -26,9 +26,9 @@ export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
   async (req, context, params) => {
     const url = new URL(req.url)
-    const minStatusId =
+    const minStatusIdParam =
       url.searchParams.get('since_id') || url.searchParams.get('min_id')
-    const maxStatusId = url.searchParams.get('max_id')
+    const maxStatusIdParam = url.searchParams.get('max_id')
     const limit = url.searchParams.get('limit')
     const format = url.searchParams.get('format')
 
@@ -42,6 +42,13 @@ export const GET = OAuthGuard<Params>(
     ) {
       return apiErrorResponse(404)
     }
+
+    const minStatusId = minStatusIdParam
+      ? decodeURIComponent(minStatusIdParam)
+      : null
+    const maxStatusId = maxStatusIdParam
+      ? decodeURIComponent(maxStatusIdParam)
+      : null
 
     const statuses = await database.getTimeline({
       timeline,
@@ -61,8 +68,16 @@ export const GET = OAuthGuard<Params>(
     }
 
     const host = headerHost(req.headers)
-    const nextLink = `https://${host}/api/v1/timelines/${timeline}?limit=20&max_id=${encodeURIComponent(statuses[statuses.length - 1].id)}`
-    const prevLink = `https://${host}/api/v1/timelines/${timeline}?limit=20&min_id=${encodeURIComponent(statuses[0].id)}`
+    const nextLink =
+      statuses.length > 0
+        ? `<https://${host}/api/v1/timelines/${timeline}?limit=20&max_id=${encodeURIComponent(statuses[statuses.length - 1].id)}>; rel="next"`
+        : null
+    const prevLink =
+      statuses.length > 0
+        ? `<https://${host}/api/v1/timelines/${timeline}?limit=20&min_id=${encodeURIComponent(statuses[0].id)}>; rel="prev"`
+        : null
+    const links = [nextLink, prevLink].filter(Boolean).join(', ')
+
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
@@ -70,7 +85,7 @@ export const GET = OAuthGuard<Params>(
         statuses.map((item) => getMastodonStatus(database, item))
       ),
       additionalHeaders: [
-        ['Link', `<${nextLink}>; rel="next", <${prevLink}>; rel="prev`]
+        ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
       ]
     })
   }
