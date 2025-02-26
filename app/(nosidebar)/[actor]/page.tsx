@@ -1,7 +1,7 @@
 import cn from 'classnames'
 import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
@@ -48,7 +48,7 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   if (!isLoggedIn && !actorProfile.isInternalAccount) {
-    return notFound()
+    return redirect(actorProfile.person.url)
   }
 
   const {
