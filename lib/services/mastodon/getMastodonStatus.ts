@@ -12,7 +12,7 @@ export const getMastodonStatus = async (
   const account = await database.getMastodonActorFromId({ id: status.actorId })
   const baseData = {
     // Identifiers & timestamps
-    id: status.id,
+    id: encodeURIComponent(status.id),
     created_at: getISOTimeUTC(status.createdAt),
     edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
 
@@ -72,8 +72,10 @@ export const getMastodonStatus = async (
     url: status.url,
 
     // Reply information
-    in_reply_to_id: replyStatus?.id ?? null,
-    in_reply_to_account_id: replyStatus?.actorId ?? null,
+    in_reply_to_id: replyStatus ? encodeURIComponent(replyStatus.id) : null,
+    in_reply_to_account_id: replyStatus
+      ? encodeURIComponent(replyStatus.actorId)
+      : null,
 
     replies_count: status.replies.length,
 

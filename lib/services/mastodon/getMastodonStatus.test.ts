@@ -25,10 +25,10 @@ describe('#getMastodonStatus', () => {
     })) as Status
     const mastodonStatus = await getMastodonStatus(database, status)
     expect(mastodonStatus).toMatchObject({
-      id: `${ACTOR1_ID}/statuses/post-1`,
+      id: encodeURIComponent(`${ACTOR1_ID}/statuses/post-1`),
       uri: `${ACTOR1_ID}/statuses/post-1`,
       account: {
-        id: ACTOR1_ID,
+        id: encodeURIComponent(ACTOR1_ID),
         username: getMentionFromActorID(ACTOR1_ID).slice(1),
         acct: getMentionFromActorID(ACTOR1_ID, true).slice(1),
         url: ACTOR1_ID,
@@ -98,14 +98,14 @@ describe('#getMastodonStatus', () => {
     })) as Status
     const mastodonStatus = await getMastodonStatus(database, status)
     expect(mastodonStatus).toMatchObject({
-      id: `${ACTOR2_ID}/statuses/post-3`,
+      id: encodeURIComponent(`${ACTOR2_ID}/statuses/post-3`),
       uri: `${ACTOR2_ID}/statuses/post-3`,
       content: '',
       reblog: {
-        id: `${ACTOR2_ID}/statuses/post-2`,
+        id: encodeURIComponent(`${ACTOR2_ID}/statuses/post-2`),
         uri: `${ACTOR2_ID}/statuses/post-2`,
         account: {
-          id: ACTOR2_ID,
+          id: encodeURIComponent(ACTOR2_ID),
           username: getMentionFromActorID(ACTOR2_ID).slice(1),
           acct: getMentionFromActorID(ACTOR2_ID, true).slice(1),
           created_at: expect.toBeString(),
@@ -130,8 +130,8 @@ describe('#getMastodonStatus', () => {
     })) as Status
     const mastodonStatus = await getMastodonStatus(database, status)
     expect(mastodonStatus).toMatchObject({
-      in_reply_to_id: `${ACTOR1_ID}/statuses/post-1`,
-      in_reply_to_account_id: ACTOR1_ID
+      in_reply_to_id: encodeURIComponent(`${ACTOR1_ID}/statuses/post-1`),
+      in_reply_to_account_id: encodeURIComponent(ACTOR1_ID)
     })
   })
 })

@@ -412,7 +412,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const settings = getCompatibleJSON(sqlActor.settings)
     const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return Mastodon.Account.parse({
-      id: sqlActor.id,
+      id: encodeURIComponent(sqlActor.id),
       username: sqlActor.username,
       acct: `${sqlActor.username}@${sqlActor.domain}`,
       url: sqlActor.id,
