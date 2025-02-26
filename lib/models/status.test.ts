@@ -8,7 +8,7 @@ import {
   StatusNote,
   StatusType,
   fromNote,
-  toMastodonObject
+  toActivityPubObject
 } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -124,7 +124,7 @@ describe('Status', () => {
           statusId,
           withReplies: true
         })) as StatusNote
-        const note = toMastodonObject(status)
+        const note = toActivityPubObject(status)
         expect(note).toEqual({
           id: statusId,
           type: StatusType.enum.Note,
@@ -144,12 +144,12 @@ describe('Status', () => {
             type: 'Collection',
             totalItems: 2,
             items: [
-              toMastodonObject(
+              toActivityPubObject(
                 (await database.getStatus({
                   statusId: `${ACTOR2_ID}/statuses/reply-1`
                 })) as Status
               ),
-              toMastodonObject(
+              toActivityPubObject(
                 (await database.getStatus({
                   statusId: `${ACTOR2_ID}/statuses/post-2`
                 })) as Status
@@ -164,7 +164,7 @@ describe('Status', () => {
         const status = (await database.getStatus({
           statusId
         })) as Status
-        const note = toMastodonObject(status)
+        const note = toActivityPubObject(status)
         expect(note.tag).toHaveLength(1)
         expect(note.tag).toContainValue({
           type: 'Mention',
@@ -180,13 +180,13 @@ describe('Status', () => {
         const status2 = (await database.getStatus({
           statusId: status2Id
         })) as Status
-        const note2 = toMastodonObject(status2)
+        const note2 = toActivityPubObject(status2)
 
         const status3Id = `${actor2?.id}/statuses/post-3`
         const status3 = (await database.getStatus({
           statusId: status3Id
         })) as Status
-        const note3 = toMastodonObject(status3)
+        const note3 = toActivityPubObject(status3)
         expect(note3).toEqual(note2)
       })
     })

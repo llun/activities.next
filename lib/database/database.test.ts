@@ -18,7 +18,7 @@ import {
   Status,
   StatusNote,
   StatusType,
-  toMastodonObject
+  toActivityPubObject
 } from '@/lib/models/status'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -965,14 +965,14 @@ describe('Database', () => {
         expect(status.replies).toHaveLength(2)
         expect(status.replies).toContainAllValues([reply1, reply2])
 
-        const note = toMastodonObject(status)
+        const note = toActivityPubObject(status)
         const replies = note.replies as CollectionWithItems
         expect(replies.totalItems).toEqual(2)
         expect(replies.items).toContainAllValues([
-          toMastodonObject(
+          toActivityPubObject(
             (await database.getStatus({ statusId: reply1Id })) as Status
           ),
-          toMastodonObject(
+          toActivityPubObject(
             (await database.getStatus({ statusId: reply2Id })) as Status
           )
         ])

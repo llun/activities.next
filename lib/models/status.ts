@@ -166,7 +166,7 @@ export const fromAnnoucne = (
   })
 }
 
-export const toMastodonObject = (status: Status): Note | Question => {
+export const toActivityPubObject = (status: Status): Note | Question => {
   if (status.type === StatusType.enum.Poll) {
     return Question.parse({
       id: status.id,
@@ -187,7 +187,7 @@ export const toMastodonObject = (status: Status): Note | Question => {
         type: 'Collection',
         totalItems: status.replies.length,
         items: status.replies.map((reply) =>
-          toMastodonObject(Status.parse(reply))
+          toActivityPubObject(Status.parse(reply))
         )
       },
 
@@ -220,7 +220,7 @@ export const toMastodonObject = (status: Status): Note | Question => {
       type: 'Collection',
       totalItems: originalStatus.replies.length,
       items: originalStatus.replies.map((reply) =>
-        toMastodonObject(Status.parse(reply))
+        toActivityPubObject(Status.parse(reply))
       )
     },
 
