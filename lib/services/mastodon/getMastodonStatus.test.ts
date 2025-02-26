@@ -110,7 +110,7 @@ describe('#getMastodonStatus', () => {
           acct: getMentionFromActorID(ACTOR2_ID, true).slice(1),
           created_at: expect.toBeString(),
           last_status_at: expect.toBeString(),
-          statuses_count: 2,
+          statuses_count: 3,
           followers_count: 2,
           following_count: 1
         },
@@ -121,6 +121,17 @@ describe('#getMastodonStatus', () => {
         created_at: expect.toBeString(),
         edited_at: expect.toBeString()
       }
+    })
+  })
+
+  it('returns mastodon status with in_reply_to information', async () => {
+    const status = (await database.getStatus({
+      statusId: `${ACTOR2_ID}/statuses/reply-1`
+    })) as Status
+    const mastodonStatus = await getMastodonStatus(database, status)
+    expect(mastodonStatus).toMatchObject({
+      in_reply_to_id: `${ACTOR1_ID}/statuses/post-1`,
+      in_reply_to_account_id: ACTOR1_ID
     })
   })
 })
