@@ -1,5 +1,5 @@
 import cn from 'classnames'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 
 import styles from '@/lib/components/MediasModal.module.scss'
 import { Modal } from '@/lib/components/Modal'
@@ -17,7 +17,10 @@ export const MediasModal: FC<Props> = ({
   initialSelection,
   onClosed
 }) => {
-  const [modalSelection, setModalSelection] = useState<number>(initialSelection)
+  const [modalSelection, setModalSelection] = useState<number>(0)
+  useEffect(() => {
+    setModalSelection(initialSelection)
+  }, [initialSelection])
 
   return (
     <Modal
