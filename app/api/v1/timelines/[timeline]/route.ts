@@ -12,7 +12,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
-import { urlToId } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const UNSUPPORTED_TIMELINE = [Timeline.LOCAL_PUBLIC]
@@ -44,12 +44,8 @@ export const GET = OAuthGuard<Params>(
       return apiErrorResponse(404)
     }
 
-    const minStatusId = minStatusIdParam
-      ? decodeURIComponent(minStatusIdParam)
-      : null
-    const maxStatusId = maxStatusIdParam
-      ? decodeURIComponent(maxStatusIdParam)
-      : null
+    const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
+    const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
 
     const statuses = await database.getTimeline({
       timeline,
