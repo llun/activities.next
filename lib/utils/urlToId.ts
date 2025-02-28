@@ -14,7 +14,7 @@ export const urlToId = (idInURLFormat: string) => {
       (url.search || '') + // Preserve query parameters
       (url.hash || '')
     ) // Preserve fragments
-  } catch (error) {
+  } catch {
     // If URL parsing fails, return the original string
     return idInURLFormat
   }
