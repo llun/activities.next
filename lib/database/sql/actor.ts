@@ -20,6 +20,7 @@ import { ActorSettings, SQLAccount, SQLActor } from '@/lib/database/types/sql'
 import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export interface SQLActorDatabase extends ActorDatabase {
   getActor: (
@@ -412,7 +413,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const settings = getCompatibleJSON(sqlActor.settings)
     const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return Mastodon.Account.parse({
-      id: encodeURIComponent(sqlActor.id),
+      id: urlToId(sqlActor.id),
       username: sqlActor.username,
       acct: `${sqlActor.username}@${sqlActor.domain}`,
       url: sqlActor.id,

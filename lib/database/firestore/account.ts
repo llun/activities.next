@@ -1,6 +1,5 @@
 import { Firestore } from '@google-cloud/firestore'
 
-import { urlToId } from '@/lib/database/firestore/urlToId'
 import {
   AccountDatabase,
   CreateAccountParams,
@@ -18,6 +17,7 @@ import {
 } from '@/lib/database/types/account'
 import { Account } from '@/lib/models/account'
 import { Session } from '@/lib/models/session'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export const AccountFirestoreDatabaseMixin = (
   firestore: Firestore

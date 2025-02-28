@@ -28,6 +28,8 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { waitFor } from '@/lib/utils/waitFor'
 
+import { urlToId } from '../utils/urlToId'
+
 const TEST_SHARED_INBOX = `https://${TEST_DOMAIN}/inbox`
 const TEST_PASSWORD_HASH = 'password_hash'
 
@@ -200,7 +202,7 @@ describe('Database', () => {
 
       it('returns mastodon actor from getMastodonActor methods', async () => {
         const expectedActorAfterCreated = {
-          id: encodeURIComponent(TEST_ID),
+          id: urlToId(TEST_ID),
           username: TEST_USERNAME,
           acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
           url: TEST_ID,
@@ -289,7 +291,7 @@ describe('Database', () => {
           createdAt: currentTime
         })
         expect(actor).toEqual({
-          id: encodeURIComponent(TEST_ID16),
+          id: urlToId(TEST_ID16),
           username: TEST_USERNAME16,
           acct: `${TEST_USERNAME16}@${TEST_DOMAIN}`,
           url: TEST_ID16,

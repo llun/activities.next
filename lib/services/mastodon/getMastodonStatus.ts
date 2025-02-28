@@ -4,6 +4,7 @@ import { Database } from '@/lib/database/types'
 import { getMastodonAttachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export const getMastodonStatus = async (
   database: Database,
@@ -12,7 +13,7 @@ export const getMastodonStatus = async (
   const account = await database.getMastodonActorFromId({ id: status.actorId })
   const baseData = {
     // Identifiers & timestamps
-    id: encodeURIComponent(status.id),
+    id: urlToId(status.id),
     created_at: getISOTimeUTC(status.createdAt),
     edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
 
@@ -72,10 +73,8 @@ export const getMastodonStatus = async (
     url: status.url,
 
     // Reply information
-    in_reply_to_id: replyStatus ? encodeURIComponent(replyStatus.id) : null,
-    in_reply_to_account_id: replyStatus
-      ? encodeURIComponent(replyStatus.actorId)
-      : null,
+    in_reply_to_id: replyStatus ? urlToId(replyStatus.id) : null,
+    in_reply_to_account_id: replyStatus ? urlToId(replyStatus.actorId) : null,
 
     replies_count: status.replies.length,
 

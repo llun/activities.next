@@ -1,6 +1,5 @@
 import { FieldValue, Firestore } from '@google-cloud/firestore'
 
-import { urlToId } from '@/lib/database/firestore/urlToId'
 import { ActorDatabase } from '@/lib/database/types/actor'
 import {
   CreateFollowParams,
@@ -15,6 +14,7 @@ import {
 } from '@/lib/database/types/follow'
 import { Actor } from '@/lib/models/actor'
 import { Follow, FollowStatus } from '@/lib/models/follow'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export const FollowerFirestoreDatabaseMixin = (
   firestore: Firestore,

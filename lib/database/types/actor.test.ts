@@ -10,6 +10,7 @@ import {
   TEST_USERNAME3
 } from '@/lib/stub/const'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { urlToId } from '@/lib/utils/urlToId'
 
 describe('ActorDatabase', () => {
   const table = getTestDatabaseTable()
@@ -113,9 +114,7 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: encodeURIComponent(
-            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-          ),
+          id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
@@ -147,9 +146,7 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: encodeURIComponent(
-            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-          ),
+          id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
@@ -180,9 +177,7 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: encodeURIComponent(
-            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-          ),
+          id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
@@ -236,7 +231,7 @@ describe('ActorDatabase', () => {
           createdAt: currentTime
         })
         expect(actor).toEqual({
-          id: encodeURIComponent(EXTERNAL_ACTORS[1].id),
+          id: urlToId(EXTERNAL_ACTORS[1].id),
           username: EXTERNAL_ACTORS[1].username,
           acct: `${EXTERNAL_ACTORS[1].username}@${EXTERNAL_ACTORS[1].domain}`,
           url: EXTERNAL_ACTORS[1].id,
@@ -293,9 +288,7 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: encodeURIComponent(
-            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-          ),
+          id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
           username: TEST_USERNAME3,
           acct: `${TEST_USERNAME3}@${TEST_DOMAIN}`,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,

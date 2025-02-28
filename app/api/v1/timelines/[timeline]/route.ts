@@ -12,6 +12,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const UNSUPPORTED_TIMELINE = [Timeline.LOCAL_PUBLIC]
@@ -43,12 +44,8 @@ export const GET = OAuthGuard<Params>(
       return apiErrorResponse(404)
     }
 
-    const minStatusId = minStatusIdParam
-      ? decodeURIComponent(minStatusIdParam)
-      : null
-    const maxStatusId = maxStatusIdParam
-      ? decodeURIComponent(maxStatusIdParam)
-      : null
+    const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
+    const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
 
     const statuses = await database.getTimeline({
       timeline,
@@ -70,11 +67,11 @@ export const GET = OAuthGuard<Params>(
     const host = headerHost(req.headers)
     const nextLink =
       statuses.length > 0
-        ? `<https://${host}/api/v1/timelines/${timeline}?limit=20&max_id=${encodeURIComponent(statuses[statuses.length - 1].id)}>; rel="next"`
+        ? `<https://${host}/api/v1/timelines/${timeline}?limit=20&max_id=${urlToId(statuses[statuses.length - 1].id)}>; rel="next"`
         : null
     const prevLink =
       statuses.length > 0
-        ? `<https://${host}/api/v1/timelines/${timeline}?limit=20&min_id=${encodeURIComponent(statuses[0].id)}>; rel="prev"`
+        ? `<https://${host}/api/v1/timelines/${timeline}?limit=20&min_id=${urlToId(statuses[0].id)}>; rel="prev"`
         : null
     const links = [nextLink, prevLink].filter(Boolean).join(', ')
 
