@@ -1,7 +1,6 @@
 import { Firestore } from '@google-cloud/firestore'
 import { Mastodon } from '@llun/activities.schema'
 
-import { urlToId } from '@/lib/database/firestore/urlToId'
 import { AccountDatabase } from '@/lib/database/types/account'
 import {
   ActorDatabase,
@@ -20,6 +19,7 @@ import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
 import { FollowStatus } from '@/lib/models/follow'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export const ActorFirestoreDatabaseMixin = (
   firestore: Firestore,
@@ -61,7 +61,7 @@ export const ActorFirestoreDatabaseMixin = (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function getMastodonActorFromData(data: any): Mastodon.Account {
     return Mastodon.Account.parse({
-      id: encodeURIComponent(data.id),
+      id: urlToId(data.id),
       username: data.username,
       acct: `${data.username}@${data.domain}`,
       url: data.id,

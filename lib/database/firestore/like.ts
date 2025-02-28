@@ -1,6 +1,5 @@
 import { Firestore } from '@google-cloud/firestore'
 
-import { urlToId } from '@/lib/database/firestore/urlToId'
 import {
   CreateLikeParams,
   DeleteLikeParams,
@@ -8,6 +7,7 @@ import {
   IsActorLikedStatusParams,
   LikeDatabase
 } from '@/lib/database/types/like'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export const LikeFirestoreDatabaseMixin = (
   firestore: Firestore

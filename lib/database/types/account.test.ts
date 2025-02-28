@@ -4,6 +4,7 @@ import {
   TEST_PASSWORD_HASH,
   TEST_USERNAME2
 } from '@/lib/stub/const'
+import { urlToId } from '@/lib/utils/urlToId'
 
 import {
   TestDatabaseTable,
@@ -55,9 +56,7 @@ describe('AccountDatabase', () => {
         })
       ).toBeTrue()
       expect(actor).toMatchObject({
-        id: encodeURIComponent(
-          `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`
-        ),
+        id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`),
         username: TEST_USERNAME2,
         acct: `${TEST_USERNAME2}@${TEST_DOMAIN}`,
         url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`,

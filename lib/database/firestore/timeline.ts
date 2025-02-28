@@ -2,7 +2,6 @@ import { Firestore } from '@google-cloud/firestore'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { FirestoreStatusDatabase } from '@/lib/database/firestore/status'
-import { urlToId } from '@/lib/database/firestore/urlToId'
 import {
   CreateTimelineStatusParams,
   GetTimelineParams,
@@ -10,6 +9,7 @@ import {
 } from '@/lib/database/types/timeline'
 import { Status } from '@/lib/models/status'
 import { Timeline } from '@/lib/services/timelines/types'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export const TimelineFirestoreDatabaseMixin = (
   firestore: Firestore,
