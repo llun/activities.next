@@ -1,6 +1,5 @@
 import { Firestore } from '@google-cloud/firestore'
 
-import { urlToId } from '@/lib/database/firestore/urlToId'
 import {
   CreateAttachmentParams,
   CreateMediaParams,
@@ -10,6 +9,7 @@ import {
   MediaDatabase
 } from '@/lib/database/types/media'
 import { Attachment } from '@/lib/models/attachment'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export const MediaFirestoreDatabaseMixin = (
   firestore: Firestore

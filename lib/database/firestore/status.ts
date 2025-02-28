@@ -2,7 +2,6 @@ import { FieldValue, Firestore } from '@google-cloud/firestore'
 import crypto from 'node:crypto'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
-import { urlToId } from '@/lib/database/firestore/urlToId'
 import { ActorDatabase } from '@/lib/database/types/actor'
 import { LikeDatabase } from '@/lib/database/types/like'
 import { MediaDatabase } from '@/lib/database/types/media'
@@ -35,6 +34,7 @@ import {
 } from '@/lib/models/status'
 import { Tag } from '@/lib/models/tag'
 import { logger } from '@/lib/utils/logger'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export interface FirestoreStatusDatabase extends StatusDatabase {
   getStatusFromData(

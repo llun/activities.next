@@ -1,7 +1,6 @@
 import { Firestore } from '@google-cloud/firestore'
 import { Mastodon } from '@llun/activities.schema'
 
-import { urlToId } from '@/lib/database/firestore/urlToId'
 import { AccountDatabase } from '@/lib/database/types/account'
 import {
   ActorDatabase,
@@ -20,6 +19,7 @@ import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
 import { FollowStatus } from '@/lib/models/follow'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export const ActorFirestoreDatabaseMixin = (
   firestore: Firestore,
