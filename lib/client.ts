@@ -1,12 +1,12 @@
+import { Duration } from '@/lib/components/PostBox/PollChoices'
+import { Attachment, PostBoxAttachment } from '@/lib/models/attachment'
+import { Follow, FollowStatus } from '@/lib/models/follow'
+import { Status } from '@/lib/models/status'
+import { PresignedUrlOutput } from '@/lib/services/medias/types'
+import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'
-
-import { Duration } from './components/PostBox/PollChoices'
-import { Attachment, PostBoxAttachment } from './models/attachment'
-import { Follow, FollowStatus } from './models/follow'
-import { Status } from './models/status'
-import { PresignedUrlOutput } from './services/medias/types'
-import { TimelineFormat } from './services/timelines/const'
-import { getMediaWidthAndHeight } from './utils/getMediaWidthAndHeight'
+import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export interface CreateNoteParams {
   message: string
@@ -245,10 +245,10 @@ export const getTimeline = async ({
   const path = `/api/v1/timelines/${timeline}?format=${TimelineFormat.enum.activities_next}`
   const url = new URL(`${window.origin}${path}`)
   if (minStatusId) {
-    url.searchParams.append('min_id', minStatusId)
+    url.searchParams.append('min_id', urlToId(minStatusId))
   }
   if (maxStatusId) {
-    url.searchParams.append('max_id', maxStatusId)
+    url.searchParams.append('max_id', urlToId(maxStatusId))
   }
   if (limit) {
     url.searchParams.append('limit', `${limit}`)
