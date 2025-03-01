@@ -7,7 +7,8 @@ const DEFAULT_DEV_DATABASE = {
   useNullAsDefault: true,
   connection: {
     filename:
-      process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME || './activities.sqlite'
+      process.env.ACTIVITIES_DEFAULT_DATABASE_SQLITE_FILENAME ||
+      './activities.sqlite'
   }
 }
 
