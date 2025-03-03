@@ -11,6 +11,10 @@ export const getMastodonStatus = async (
   status: Status
 ): Promise<Mastodon.Status> => {
   const account = await database.getMastodonActorFromId({ id: status.actorId })
+  if (!account) {
+    console.error('account not found', status.actorId)
+    throw new Error('account not found')
+  }
   const baseData = {
     // Identifiers & timestamps
     id: urlToId(status.id),
