@@ -28,7 +28,10 @@ export const getOAuth2Server = memoize(async () => {
   const authCodeRepository = new AuthCodeRepository(database)
   authorizationServer.enableGrantTypes(
     ['refresh_token', new DateInterval('30d')],
-    { grant: 'authorization_code', authCodeRepository, userRepository }
+    [
+      { grant: 'authorization_code', authCodeRepository, userRepository },
+      new DateInterval('30d')
+    ]
   )
   return authorizationServer
 })
