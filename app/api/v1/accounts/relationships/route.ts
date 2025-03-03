@@ -5,7 +5,7 @@ import { FollowStatus } from '@/lib/models/follow'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
-import { urlToId } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 export const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -28,8 +28,9 @@ export const GET = OAuthGuard([Scope.enum.read], async (req, context) => {
 
   // Fetch each account and build relationship data
   const relationships = await Promise.all(
-    accountIds.map(async (id) => {
+    accountIds.map(async (encodedAccountId) => {
       try {
+        const id = idToUrl(encodedAccountId)
         const actor = await database.getActorFromId({ id })
 
         if (!actor) {
@@ -67,12 +68,17 @@ export const GET = OAuthGuard([Scope.enum.read], async (req, context) => {
           muting: false,
           muting_notifications: false,
           requested: isRequested,
+          requested_by: false,
           domain_blocking: false,
           endorsed: false,
-          note: actor.summary
+          languages: ['en'],
+          note: actor.summary ?? ''
         })
       } catch (error) {
-        console.error(`Error processing relationship for ID ${id}:`, error)
+        console.error(
+          `Error processing relationship for ID ${encodedAccountId}:`,
+          error
+        )
         return null
       }
     })
