@@ -1,13 +1,10 @@
 import cn from 'classnames'
 import { FC, useState } from 'react'
 
-import {
-  getStatusFavouritedBy,
-  likeStatus,
-  undoLikeStatus
-} from '@/lib/client'
+import { getStatusFavouritedBy, likeStatus, undoLikeStatus } from '@/lib/client'
 import { ActorProfile } from '@/lib/models/actor'
 import { StatusNote, StatusPoll, StatusType } from '@/lib/models/status'
+
 import { Button } from '../../Button'
 import styles from './LikeButton.module.scss'
 
@@ -56,10 +53,9 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
           <div
             className={styles['like-info']}
             onClick={async () => {
-              const url = new URL(status.id)
-              const uuid = url.pathname.split('/').pop()
-              if (!uuid) return
-              const actors = await getStatusFavouritedBy({ uuid })
+              const actors = await getStatusFavouritedBy({
+                statusId: status.id
+              })
               setFavouritedByActors(actors)
               setShowFavouritedBy((current) => !current)
             }}

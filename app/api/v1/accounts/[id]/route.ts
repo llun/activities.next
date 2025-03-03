@@ -19,18 +19,22 @@ interface Params {
 export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
   async (req, context, params) => {
-    const encodedStatusId = (await params?.params).id
-    if (!encodedStatusId) return apiErrorResponse(404)
-
+    const encodedAccountId = (await params?.params).id
+    if (!encodedAccountId) {
+      return apiErrorResponse(400)
+    }
     const { database } = context
-    const statusId = idToUrl(encodedStatusId)
-    const actors = await database.getFavouritedBy({ statusId })
+    const id = idToUrl(encodedAccountId)
+    const actor = await database.getMastodonActorFromId({
+      id
+    })
+    if (!actor) {
+      return apiErrorResponse(404)
+    }
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: await Promise.all(
-        actors.map((actor) => database.getMastodonActorFromId({ id: actor.id }))
-      )
+      data: actor
     })
   }
 )
