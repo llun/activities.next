@@ -8,7 +8,7 @@ import {
 } from '@/lib/utils/response'
 import { idToUrl } from '@/lib/utils/urlToId'
 
-export const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
