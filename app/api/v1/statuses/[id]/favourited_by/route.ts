@@ -6,6 +6,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -18,11 +19,11 @@ interface Params {
 export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
   async (req, context, params) => {
-    const uuid = (await params?.params).id
-    if (!uuid) return apiErrorResponse(404)
+    const encodedStatusId = (await params?.params).id
+    if (!encodedStatusId) return apiErrorResponse(404)
 
-    const { currentActor, database } = context
-    const statusId = `${currentActor.id}/statuses/${uuid}`
+    const { database } = context
+    const statusId = idToUrl(encodedStatusId)
     const actors = await database.getFavouritedBy({ statusId })
     return apiResponse({
       req,
