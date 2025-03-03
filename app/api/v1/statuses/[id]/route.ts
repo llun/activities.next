@@ -18,7 +18,7 @@ const EditNoteSchema = z.object({
 
 export const PUT = AuthenticatedGuard<Params>(async (req, context, params) => {
   const encodedStatusId = (await params?.params).id
-  if (!encodedStatusId) return apiErrorResponse(400)
+  if (!encodedStatusId) return apiErrorResponse(404)
 
   const { database, currentActor } = context
   const statusId = idToUrl(encodedStatusId)

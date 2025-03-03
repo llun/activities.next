@@ -24,8 +24,6 @@ export const GET = OAuthGuard<Params>(
     const encodedStatusId = (await params?.params).id
     if (!encodedStatusId) return apiErrorResponse(404)
 
-    console.log(encodedStatusId)
-
     const { database } = context
     const statusId = idToUrl(encodedStatusId)
 
