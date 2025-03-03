@@ -161,16 +161,15 @@ export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
   })
 }
 
-interface DefaultUUIDStatusParams {
-  uuid: string
-}
-
 export const getStatusFavouritedBy = async ({
-  uuid
-}: DefaultUUIDStatusParams) => {
-  const response = await fetch(`/api/v1/statuses/${uuid}/favourited_by`, {
-    headers: { 'Content-Type': 'application/json' }
-  })
+  statusId
+}: DefaultStatusParams) => {
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(statusId)}/favourited_by`,
+    {
+      headers: { 'Content-Type': 'application/json' }
+    }
+  )
   if (response.status !== 200) return []
   return response.json()
 }
