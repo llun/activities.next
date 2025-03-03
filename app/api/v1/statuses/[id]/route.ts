@@ -5,6 +5,7 @@ import { StatusType } from '@/lib/models/status'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { apiErrorResponse } from '@/lib/utils/response'
+import { idToUrl } from '@/lib/utils/urlToId'
 
 interface Params {
   id: string
@@ -16,11 +17,11 @@ const EditNoteSchema = z.object({
 })
 
 export const PUT = AuthenticatedGuard<Params>(async (req, context, params) => {
-  const id = (await params?.params).id
-  if (!id) return apiErrorResponse(400)
+  const encodedStatusId = (await params?.params).id
+  if (!encodedStatusId) return apiErrorResponse(404)
 
   const { database, currentActor } = context
-  const statusId = `${currentActor.id}/statuses/${id}`
+  const statusId = idToUrl(encodedStatusId)
   const changes = EditNoteSchema.parse(await req.json())
   const updatedNote = await updateNoteFromUserInput({
     statusId,

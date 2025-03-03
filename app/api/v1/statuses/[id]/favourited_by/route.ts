@@ -19,7 +19,7 @@ export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
   async (req, context, params) => {
     const uuid = (await params?.params).id
-    if (!uuid) return apiErrorResponse(400)
+    if (!uuid) return apiErrorResponse(404)
 
     const { currentActor, database } = context
     const statusId = `${currentActor.id}/statuses/${uuid}`
