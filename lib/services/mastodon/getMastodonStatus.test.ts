@@ -1,8 +1,8 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { getMentionFromActorID } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
-import { seedDatabase } from '@/lib/stub/database'
 import { TEST_DOMAIN } from '@/lib/stub/const'
+import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -69,9 +69,9 @@ describe('#getMastodonStatus', () => {
     })
 
     markdownStatus.isLocalActor = true
-    
+
     const mastodonStatus = await getMastodonStatus(database, markdownStatus)
-    
+
     expect(mastodonStatus?.content).toContain('<strong>markdown</strong>')
   })
 
@@ -98,17 +98,19 @@ describe('#getMastodonStatus', () => {
     })) as Status
 
     const mastodonStatus = await getMastodonStatus(database, statusWithTags)
-    
-    expect(mastodonStatus?.content).toContain('<img class="emoji" src="https://test.host/emoji.png" alt=":emoji:"></img>')
+
+    expect(mastodonStatus?.content).toContain(
+      '<img class="emoji" src="https://test.host/emoji.png" alt=":emoji:"></img>'
+    )
   })
 
   it('returns content with HTML formatting', async () => {
     const status = (await database.getStatus({
       statusId: `${ACTOR1_ID}/statuses/post-1`
     })) as Status
-    
+
     const mastodonStatus = await getMastodonStatus(database, status)
-    
+
     expect(mastodonStatus?.content).toMatch(/<p>.*<\/p>/)
     expect(mastodonStatus?.content).toContain('This is Actor1 post')
   })
@@ -194,9 +196,9 @@ describe('#getMastodonStatus', () => {
     const status = (await database.getStatus({
       statusId: `${ACTOR2_ID}/statuses/post-2`
     })) as Status
-    
+
     const mastodonStatus = await getMastodonStatus(database, status)
-    
+
     expect(mastodonStatus?.content).toContain('<span class="h-card">')
     expect(mastodonStatus?.content).toContain('class="u-url mention"')
     expect(mastodonStatus?.content).toContain('@<span>test1</span>')
@@ -220,9 +222,9 @@ describe('#getMastodonStatus', () => {
       type: 'Note',
       text: 'Invalid status'
     } as Status
-    
+
     const mastodonStatus = await getMastodonStatus(database, invalidStatus)
-    
+
     expect(mastodonStatus).toBeNull()
   })
 })
