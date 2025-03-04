@@ -39,7 +39,7 @@ describe('#getMastodonStatus', () => {
         followers_count: 1,
         following_count: 2
       },
-      content: 'This is Actor1 post',
+      content: '<p>This is Actor1 post</p>',
       visibility: 'public',
       sensitive: false,
       url: `${ACTOR1_ID}/statuses/post-1`,
