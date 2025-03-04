@@ -1,5 +1,4 @@
 import { Mastodon } from '@llun/activities.schema'
-import { renderToString } from 'react-dom/server'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
@@ -94,7 +93,7 @@ export const getMastodonStatus = async (
     edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
 
     reblogged: status.isActorAnnounced ?? false,
-    content: renderToString(processStatusText(host, status)),
+    content: processStatusText(host, status),
 
     reblog: null,
 

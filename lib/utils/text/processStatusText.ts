@@ -1,8 +1,6 @@
 import _ from 'lodash'
-import { ReactNode } from 'react'
 
 import { Status, StatusType } from '@/lib/models/status'
-import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 import { sanitizeText } from '@/lib/utils/text/sanitizeText'
@@ -27,15 +25,14 @@ export const getActualStatus = (status: Status) => {
  *
  * @param host Server host for converting markdown text
  * @param status Status object that contains the text to process
- * @returns Processed text as ReactNode for use in React components or can be converted to string
+ * @returns Processed text as string for use in React components
  */
-export const processStatusText = (host: string, status: Status): ReactNode => {
+export const processStatusText = (host: string, status: Status) => {
   const actualStatus = getActualStatus(status)
 
   return _.chain(actualStatus.text)
     .thru(status.isLocalActor ? convertMarkdownText(host) : sanitizeText)
     .thru(_.curryRight(convertEmojisToImages)(actualStatus.tags))
     .thru(_.trim)
-    .thru(cleanClassName)
     .value()
 }

@@ -1,13 +1,16 @@
 import cn from 'classnames'
 import { formatDistance } from 'date-fns'
+import _ from 'lodash'
 import { FC } from 'react'
 
-import { ActorProfile } from '../../models/actor'
-import { EditableStatus, Status, StatusType } from '../../models/status'
+import { ActorProfile } from '@/lib/models/actor'
+import { EditableStatus, Status, StatusType } from '@/lib/models/status'
+import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import {
   getActualStatus,
   processStatusText
-} from '../../utils/text/processStatusText'
+} from '@/lib/utils/text/processStatusText'
+
 import { Actions } from './Actions'
 import { Actor } from './Actor'
 import { Attachments, OnMediaSelectedHandle } from './Attachments'
@@ -50,6 +53,11 @@ export const Post: FC<PostProps> = (props) => {
   const { host, status, currentTime, onShowAttachment } = props
   const actualStatus = getActualStatus(status)
 
+  const processedAndCleanedText = _.chain(status)
+    .thru((s) => processStatusText(host, s))
+    .thru(cleanClassName)
+    .value()
+
   return (
     <div key={status.id} className={cn(styles.post)}>
       <BoostStatus status={status} />
@@ -65,7 +73,7 @@ export const Post: FC<PostProps> = (props) => {
           </a>
         </div>
       </div>
-      <div className={'me-1 text-break'}>{processStatusText(host, status)}</div>
+      <div className={cn('me-1', 'text-break')}>{processedAndCleanedText}</div>
       <Poll status={actualStatus} currentTime={currentTime} />
       <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
       <Actions {...props} />
