@@ -3,13 +3,14 @@ import { formatDistance } from 'date-fns'
 import _ from 'lodash'
 import { FC } from 'react'
 
-import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
-import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
-import { sanitizeText } from '@/lib/utils/text/sanitizeText'
+import { ActorProfile } from '@/lib/models/actor'
+import { EditableStatus, Status, StatusType } from '@/lib/models/status'
+import { cleanClassName } from '@/lib/utils/text/cleanClassName'
+import {
+  getActualStatus,
+  processStatusText
+} from '@/lib/utils/text/processStatusText'
 
-import { ActorProfile } from '../../models/actor'
-import { EditableStatus, Status, StatusType } from '../../models/status'
-import { cleanClassName } from '../../utils/text/cleanClassName'
 import { Actions } from './Actions'
 import { Actor } from './Actor'
 import { Attachments, OnMediaSelectedHandle } from './Attachments'
@@ -28,15 +29,6 @@ export interface PostProps {
   onPostDeleted?: (status: Status) => void
   onPostReposted?: (status: Status) => void
   onShowAttachment: OnMediaSelectedHandle
-}
-
-const getActualStatus = (status: Status) => {
-  switch (status.type) {
-    case StatusType.enum.Announce:
-      return status.originalStatus
-    default:
-      return status
-  }
 }
 
 interface BoostStatusProps {
@@ -61,6 +53,11 @@ export const Post: FC<PostProps> = (props) => {
   const { host, status, currentTime, onShowAttachment } = props
   const actualStatus = getActualStatus(status)
 
+  const processedAndCleanedText = _.chain(actualStatus)
+    .thru((s) => processStatusText(host, s))
+    .thru(cleanClassName)
+    .value()
+
   return (
     <div key={status.id} className={cn(styles.post)}>
       <BoostStatus status={status} />
@@ -76,14 +73,7 @@ export const Post: FC<PostProps> = (props) => {
           </a>
         </div>
       </div>
-      <div className={'me-1 text-break'}>
-        {_.chain(actualStatus.text)
-          .thru(status.isLocalActor ? convertMarkdownText(host) : sanitizeText)
-          .thru(_.curryRight(convertEmojisToImages)(actualStatus.tags))
-          .thru(_.trim)
-          .thru(cleanClassName)
-          .value()}
-      </div>
+      <div className={cn('me-1', 'text-break')}>{processedAndCleanedText}</div>
       <Poll status={actualStatus} currentTime={currentTime} />
       <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
       <Actions {...props} />
