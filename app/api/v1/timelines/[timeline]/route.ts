@@ -74,13 +74,14 @@ export const GET = OAuthGuard<Params>(
         ? `<https://${host}/api/v1/timelines/${timeline}?limit=20&min_id=${urlToId(statuses[0].id)}>; rel="prev"`
         : null
     const links = [nextLink, prevLink].filter(Boolean).join(', ')
+    const mastodonStatuses = await Promise.all(
+      statuses.map((item) => getMastodonStatus(database, item))
+    )
 
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: await Promise.all(
-        statuses.map((item) => getMastodonStatus(database, item))
-      ),
+      data: mastodonStatuses.filter(Boolean),
       additionalHeaders: [
         ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
       ]
