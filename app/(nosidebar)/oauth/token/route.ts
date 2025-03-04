@@ -25,7 +25,10 @@ export const POST = async (req: NextRequest) => {
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
-    data: oauthResponse.body,
+    data: {
+      ...oauthResponse.body,
+      created_at: Math.floor(Date.now() / 1000)
+    },
     responseStatusCode: oauthResponse.status as StatusCode
   })
 }

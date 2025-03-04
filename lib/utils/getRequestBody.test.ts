@@ -5,7 +5,7 @@ import { getRequestBody } from './getRequestBody'
 const createMockRequest = (
   url: string,
   contentType?: string,
-  body?: any
+  body?: unknown
 ): NextRequest => {
   const headers = new Headers()
   if (contentType) {
