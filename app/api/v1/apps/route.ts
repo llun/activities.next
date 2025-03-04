@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { getRequestBody } from '@/lib/utils/getRequestBody'
 import {
   apiErrorResponse,
   apiResponse,
@@ -21,8 +22,7 @@ export const POST = async (req: NextRequest) => {
     return apiErrorResponse(500)
   }
 
-  const body = await req.formData()
-  const json = Object.fromEntries(body.entries())
+  const json = await getRequestBody(req)
   const postRequest = PostRequest.parse(json)
   const response = await createApplication(database, postRequest)
 
