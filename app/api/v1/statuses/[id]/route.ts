@@ -38,10 +38,13 @@ export const GET = OAuthGuard<Params>(
     const status = await database.getStatus({ statusId })
     if (!status) return apiErrorResponse(404)
 
+    const mastodonStatus = await getMastodonStatus(database, status)
+    if (!mastodonStatus) return apiErrorResponse(404)
+
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: await getMastodonStatus(database, status)
+      data: mastodonStatus
     })
   }
 )

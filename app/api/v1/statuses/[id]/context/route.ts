@@ -40,7 +40,13 @@ export const GET = OAuthGuard<Params>(
               status ? getMastodonStatus(database, status) : null
             )
         : Promise.resolve(null),
-      database.getStatusReplies({ statusId })
+      database
+        .getStatusReplies({ statusId })
+        .then((statuses) =>
+          Promise.all(
+            statuses.map((status) => getMastodonStatus(database, status))
+          )
+        )
     ])
 
     return apiResponse({
@@ -48,9 +54,7 @@ export const GET = OAuthGuard<Params>(
       allowedMethods: CORS_HEADERS,
       data: {
         ancestors: ancestor ? [ancestor] : [],
-        descendants: await Promise.all(
-          descendants.map((status) => getMastodonStatus(database, status))
-        )
+        descendants: descendants.filter(Boolean)
       }
     })
   }

@@ -15,5 +15,5 @@ export const GET = async () => {
   const mastodonStatuses = await Promise.all(
     statuses.map((status) => getMastodonStatus(database, status))
   )
-  return Response.json(mastodonStatuses)
+  return Response.json(mastodonStatuses.filter(Boolean))
 }
