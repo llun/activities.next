@@ -53,7 +53,7 @@ export const Post: FC<PostProps> = (props) => {
   const { host, status, currentTime, onShowAttachment } = props
   const actualStatus = getActualStatus(status)
 
-  const processedAndCleanedText = _.chain(status)
+  const processedAndCleanedText = _.chain(actualStatus)
     .thru((s) => processStatusText(host, s))
     .thru(cleanClassName)
     .value()
