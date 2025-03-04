@@ -9,8 +9,11 @@ import { urlToId } from '@/lib/utils/urlToId'
 export const getMastodonStatus = async (
   database: Database,
   status: Status
-): Promise<Mastodon.Status> => {
+): Promise<Mastodon.Status | null> => {
   const account = await database.getMastodonActorFromId({ id: status.actorId })
+  if (!account) {
+    return null
+  }
   const baseData = {
     // Identifiers & timestamps
     id: urlToId(status.id),
