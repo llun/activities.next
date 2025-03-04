@@ -1,9 +1,11 @@
 import { Mastodon } from '@llun/activities.schema'
 
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { getMastodonAttachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { processStatusText } from '@/lib/utils/text/processStatusText'
 import { urlToId } from '@/lib/utils/urlToId'
 
 export const getMastodonStatus = async (
@@ -14,6 +16,10 @@ export const getMastodonStatus = async (
   if (!account) {
     return null
   }
+
+  // Get the host from the global config
+  const host = getConfig().host
+
   const baseData = {
     // Identifiers & timestamps
     id: urlToId(status.id),
@@ -87,7 +93,7 @@ export const getMastodonStatus = async (
     edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
 
     reblogged: status.isActorAnnounced ?? false,
-    content: status.text,
+    content: processStatusText(host, status),
 
     reblog: null,
 
