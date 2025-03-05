@@ -29,7 +29,6 @@ export type GetFollowingParams = {
   actorId: string
   limit: number
   maxId?: string | null
-  sinceId?: string | null
   minId?: string | null
 }
 

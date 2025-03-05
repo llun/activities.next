@@ -225,13 +225,7 @@ export const FollowerSQLDatabaseMixin = (
   },
 
   // New method to get the follows with pagination
-  async getFollowing({
-    actorId,
-    limit,
-    maxId,
-    sinceId,
-    minId
-  }: GetFollowingParams) {
+  async getFollowing({ actorId, limit, maxId, minId }: GetFollowingParams) {
     const query = database('follows')
       .where('actorId', actorId)
       .andWhere('status', FollowStatus.enum.Accepted)
@@ -240,10 +234,6 @@ export const FollowerSQLDatabaseMixin = (
 
     if (maxId) {
       query.where('id', '<', maxId)
-    }
-
-    if (sinceId) {
-      query.where('id', '>', sinceId)
     }
 
     if (minId) {

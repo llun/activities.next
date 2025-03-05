@@ -44,63 +44,31 @@ export const GET = async (
     return apiErrorResponse(404)
   }
 
-  // Parse query parameters
   const url = new URL(req.url)
   const limit = Math.min(
     parseInt(url.searchParams.get('limit') || `${DEFAULT_LIMIT}`, 10),
     MAX_LIMIT
   )
   const maxId = url.searchParams.get('max_id')
-  const sinceId = url.searchParams.get('since_id')
-  const minId = url.searchParams.get('min_id')
+  const minId =
+    url.searchParams.get('min_id') || url.searchParams.get('since_id')
 
-  // Get the list of follows for this actor using the database method
   const follows = await database.getFollowing({
     actorId: id,
     limit,
-    maxId: maxId || undefined,
-    sinceId: sinceId || undefined,
-    minId: minId || undefined
+    maxId,
+    minId
   })
 
-  // Get the target actors (the ones being followed)
   const followingActors = await Promise.all(
     follows.map((follow: Follow) =>
       database.getMastodonActorFromId({ id: follow.targetActorId })
     )
   )
 
-  // Filter out any null results
-  const validActors = followingActors.filter(Boolean)
-
-  // Build Link header for pagination
-  const additionalHeaders: [string, string][] = []
-  if (follows.length > 0) {
-    const linkHeader = []
-
-    if (follows.length === limit) {
-      const lastFollow = follows[follows.length - 1]
-      const nextUrl = new URL(req.url)
-      nextUrl.searchParams.set('max_id', lastFollow.id)
-      linkHeader.push(`<${nextUrl.toString()}>; rel="next"`)
-    }
-
-    if (follows.length > 0 && (maxId || sinceId || minId)) {
-      const firstFollow = follows[0]
-      const prevUrl = new URL(req.url)
-      prevUrl.searchParams.set('since_id', firstFollow.id)
-      linkHeader.push(`<${prevUrl.toString()}>; rel="prev"`)
-    }
-
-    if (linkHeader.length > 0) {
-      additionalHeaders.push(['Link', linkHeader.join(', ')])
-    }
-  }
-
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
-    data: validActors,
-    additionalHeaders
+    data: followingActors.filter(Boolean)
   })
 }

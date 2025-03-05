@@ -276,13 +276,7 @@ export const FollowerFirestoreDatabaseMixin = (
     })
   },
 
-  async getFollowing({
-    actorId,
-    limit,
-    maxId,
-    sinceId,
-    minId
-  }: GetFollowingParams) {
+  async getFollowing({ actorId, limit, maxId, minId }: GetFollowingParams) {
     const follows = firestore.collection('follows')
     let query = follows
       .where('actorId', '==', actorId)
@@ -291,32 +285,11 @@ export const FollowerFirestoreDatabaseMixin = (
       .limit(limit)
 
     if (maxId) {
-      query = query.startAfter(maxId)
-    }
-
-    if (sinceId) {
-      // In Firestore, we need to use two separate queries for this case
-      const sinceDoc = await follows.doc(sinceId).get()
-      if (sinceDoc.exists) {
-        query = follows
-          .where('actorId', '==', actorId)
-          .where('status', '==', FollowStatus.enum.Accepted)
-          .orderBy('id', 'asc')
-          .startAfter(sinceDoc)
-          .limit(limit)
-      }
+      query = query.endBefore(maxId)
     }
 
     if (minId) {
-      const minDoc = await follows.doc(minId).get()
-      if (minDoc.exists) {
-        query = follows
-          .where('actorId', '==', actorId)
-          .where('status', '==', FollowStatus.enum.Accepted)
-          .orderBy('id', 'asc')
-          .startAfter(minDoc)
-          .limit(limit)
-      }
+      query = query.startAfter(minId)
     }
 
     const snapshot = await query.get()
