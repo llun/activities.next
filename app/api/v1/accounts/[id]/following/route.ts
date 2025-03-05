@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { Follow } from '@/lib/models/follow'
+import { AppRouterParams } from '@/lib/services/guards/types'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,
