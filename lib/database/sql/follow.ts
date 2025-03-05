@@ -248,7 +248,6 @@ export const FollowerSQLDatabaseMixin = (
 
     if (minId) {
       query.where('id', '>', minId)
-      query.orderBy('id', 'asc')
     }
 
     const follows = await query
