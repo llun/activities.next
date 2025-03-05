@@ -434,11 +434,36 @@ export const StatusSQLDatabaseMixin = (
     return result.value
   }
 
-  async function getActorStatuses({ actorId }: GetActorStatusesParams) {
-    const statuses = await database('statuses')
+  async function getActorStatuses({
+    actorId,
+    minStatusId,
+    maxStatusId,
+    limit = PER_PAGE_LIMIT
+  }: GetActorStatusesParams) {
+    let query = database('statuses')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
-      .limit(PER_PAGE_LIMIT)
+      .limit(limit)
+
+    if (minStatusId) {
+      const minStatus = await database('statuses')
+        .where('id', minStatusId)
+        .first()
+      if (minStatus) {
+        query = query.where('createdAt', '>', minStatus.createdAt)
+      }
+    }
+
+    if (maxStatusId) {
+      const maxStatus = await database('statuses')
+        .where('id', maxStatusId)
+        .first()
+      if (maxStatus) {
+        query = query.where('createdAt', '<', maxStatus.createdAt)
+      }
+    }
+
+    const statuses = await query
     const statusesWithAttachments = (
       await Promise.all(
         statuses.map((item) => getStatusWithAttachmentsFromData(item))

@@ -47,7 +47,12 @@ export type GetStatusParams = BaseStatusParams & {
 }
 export type GetStatusRepliesParams = BaseStatusParams
 export type GetActorStatusesCountParams = { actorId: string }
-export type GetActorStatusesParams = { actorId: string }
+export type GetActorStatusesParams = {
+  actorId: string
+  minStatusId?: string | null
+  maxStatusId?: string | null
+  limit?: number
+}
 export type DeleteStatusParams = BaseStatusParams
 export type HasActorAnnouncedStatusParams = BaseStatusParams & {
   actorId?: string

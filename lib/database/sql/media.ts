@@ -84,13 +84,16 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       'statusId',
       statusId
     )
-    return data.map((item) =>
-      Attachment.parse({
-        ...item,
-        createdAt: getCompatibleTime(item.createdAt),
-        updatedAt: getCompatibleTime(item.updatedAt)
+    return data
+      .map((item) => {
+        if (!item.actorId) return null
+        return Attachment.parse({
+          ...item,
+          createdAt: getCompatibleTime(item.createdAt),
+          updatedAt: getCompatibleTime(item.updatedAt)
+        })
       })
-    )
+      .filter((item): item is Attachment => Boolean(item))
   },
 
   async getAttachmentsForActor({
