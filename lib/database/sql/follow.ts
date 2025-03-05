@@ -207,14 +207,13 @@ export const FollowerSQLDatabaseMixin = (
         targetActorId,
         status: FollowStatus.enum.Accepted
       })
-    const inboxes = [
-      ...new Set([
-        ...follows.map((item) => item.inbox),
-        ...follows
-          .map((item) => item.sharedInbox)
-          .filter((inbox): inbox is string => !!inbox)
-      ])
-    ]
+    const inboxes = Array.from(
+      follows.reduce((uniqueInboxes, follow) => {
+        if (follow.sharedInbox) uniqueInboxes.add(follow.sharedInbox)
+        else uniqueInboxes.add(follow.inbox)
+        return uniqueInboxes
+      }, new Set<string>())
+    )
     return inboxes
   },
 
