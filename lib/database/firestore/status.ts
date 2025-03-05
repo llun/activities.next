@@ -358,13 +358,40 @@ export const StatusFirestoreDatabaseMixin = (
     return data?.statusCount ?? 0
   }
 
-  async function getActorStatuses({ actorId }: GetActorStatusesParams) {
+  async function getActorStatuses({
+    actorId,
+    minStatusId,
+    maxStatusId,
+    limit = PER_PAGE_LIMIT
+  }: GetActorStatusesParams) {
     const statuses = firestore.collection('statuses')
-    const snapshot = await statuses
+    let query = statuses
       .where('actorId', '==', actorId)
       .orderBy('createdAt', 'desc')
-      .limit(PER_PAGE_LIMIT)
-      .get()
+
+    if (minStatusId || maxStatusId) {
+      if (minStatusId) {
+        const minStatus = await firestore
+          .doc(`statuses/${urlToId(minStatusId)}`)
+          .get()
+        if (minStatus.exists) {
+          const minStatusData = minStatus.data()
+          query = query.where('createdAt', '>', minStatusData?.createdAt)
+        }
+      }
+
+      if (maxStatusId) {
+        const maxStatus = await firestore
+          .doc(`statuses/${urlToId(maxStatusId)}`)
+          .get()
+        if (maxStatus.exists) {
+          const maxStatusData = maxStatus.data()
+          query = query.where('createdAt', '<', maxStatusData?.createdAt)
+        }
+      }
+    }
+
+    const snapshot = await query.limit(limit).get()
     const items = await Promise.all(
       snapshot.docs.map((item) => {
         const data = item.data()

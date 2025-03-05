@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { Scope } from '@/lib/database/types/oauth'
 import { StatusType } from '@/lib/models/status'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
@@ -55,7 +56,10 @@ export const GET = OAuthGuard<Params>(
     const parsedParams = StatusQueryParams.parse(queryParams)
 
     const {
-      limit,
+      limit = 20,
+      max_id: maxId,
+      min_id: minId,
+      since_id: sinceId,
       only_media: onlyMedia,
       exclude_replies: excludeReplies,
       exclude_reblogs: excludeReblogs,
@@ -79,7 +83,13 @@ export const GET = OAuthGuard<Params>(
       })
     }
 
-    const statuses = await database.getActorStatuses({ actorId: id })
+    const statuses = await database.getActorStatuses({
+      actorId: id,
+      maxStatusId: maxId,
+      minStatusId: minId || sinceId,
+      limit: limit + 1
+    })
+
     let filteredStatuses = statuses
 
     if (onlyMedia === 'true') {
@@ -112,7 +122,11 @@ export const GET = OAuthGuard<Params>(
       )
     }
 
-    filteredStatuses = filteredStatuses.slice(0, limit)
+    const hasMore = filteredStatuses.length > limit
+
+    if (hasMore) {
+      filteredStatuses = filteredStatuses.slice(0, limit)
+    }
 
     const mastodonStatuses = await Promise.all(
       filteredStatuses.map((status) => getMastodonStatus(database, status))
@@ -122,10 +136,28 @@ export const GET = OAuthGuard<Params>(
       (status) => status !== null
     )
 
+    const host = headerHost(req.headers)
+    const pathBase = `/api/v1/accounts/${encodedAccountId}/statuses`
+
+    const nextLink =
+      validMastodonStatuses.length > 0 && hasMore
+        ? `<https://${host}${pathBase}?limit=${limit}&max_id=${validMastodonStatuses[validMastodonStatuses.length - 1].id}>; rel="next"`
+        : null
+
+    const prevLink =
+      validMastodonStatuses.length > 0
+        ? `<https://${host}${pathBase}?limit=${limit}&min_id=${validMastodonStatuses[0].id}>; rel="prev"`
+        : null
+
+    const links = [nextLink, prevLink].filter(Boolean).join(', ')
+
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: validMastodonStatuses
+      data: validMastodonStatuses,
+      additionalHeaders: [
+        ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
+      ]
     })
   }
 )
