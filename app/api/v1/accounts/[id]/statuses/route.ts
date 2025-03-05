@@ -1,7 +1,7 @@
+import { Mastodon } from '@llun/activities.schema'
 import { z } from 'zod'
 
 import { Scope } from '@/lib/database/types/oauth'
-import { StatusType } from '@/lib/models/status'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
@@ -59,94 +59,33 @@ export const GET = OAuthGuard<Params>(
       limit = 20,
       max_id: maxId,
       min_id: minId,
-      since_id: sinceId,
-      only_media: onlyMedia,
-      exclude_replies: excludeReplies,
-      exclude_reblogs: excludeReblogs,
-      pinned,
-      tagged
+      since_id: sinceId
     } = parsedParams
-
-    if (tagged) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: []
-      })
-    }
-
-    if (pinned === 'true') {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: []
-      })
-    }
 
     const statuses = await database.getActorStatuses({
       actorId: id,
       maxStatusId: maxId,
       minStatusId: minId || sinceId,
-      limit: limit + 1
+      limit
     })
 
-    let filteredStatuses = statuses
-
-    if (onlyMedia === 'true') {
-      filteredStatuses = filteredStatuses.filter((status) => {
-        if (
-          status.type === StatusType.enum.Note ||
-          status.type === StatusType.enum.Poll
-        ) {
-          return status.attachments && status.attachments.length > 0
-        }
-        return false
-      })
-    }
-
-    if (excludeReplies === 'true') {
-      filteredStatuses = filteredStatuses.filter((status) => {
-        if (
-          status.type === StatusType.enum.Note ||
-          status.type === StatusType.enum.Poll
-        ) {
-          return !status.reply
-        }
-        return true
-      })
-    }
-
-    if (excludeReblogs === 'true') {
-      filteredStatuses = filteredStatuses.filter(
-        (status) => status.type !== StatusType.enum.Announce
+    const mastodonStatuses = (
+      await Promise.all(
+        statuses.map((status) => getMastodonStatus(database, status))
       )
-    }
-
-    const hasMore = filteredStatuses.length > limit
-
-    if (hasMore) {
-      filteredStatuses = filteredStatuses.slice(0, limit)
-    }
-
-    const mastodonStatuses = await Promise.all(
-      filteredStatuses.map((status) => getMastodonStatus(database, status))
-    )
-
-    const validMastodonStatuses = mastodonStatuses.filter(
-      (status) => status !== null
-    )
+    ).filter((status): status is Mastodon.Status => status !== null)
 
     const host = headerHost(req.headers)
     const pathBase = `/api/v1/accounts/${encodedAccountId}/statuses`
 
     const nextLink =
-      validMastodonStatuses.length > 0 && hasMore
-        ? `<https://${host}${pathBase}?limit=${limit}&max_id=${validMastodonStatuses[validMastodonStatuses.length - 1].id}>; rel="next"`
+      mastodonStatuses.length > 0
+        ? `<https://${host}${pathBase}?limit=${limit}&max_id=${mastodonStatuses[mastodonStatuses.length - 1].id}>; rel="next"`
         : null
 
     const prevLink =
-      validMastodonStatuses.length > 0
-        ? `<https://${host}${pathBase}?limit=${limit}&min_id=${validMastodonStatuses[0].id}>; rel="prev"`
+      mastodonStatuses.length > 0
+        ? `<https://${host}${pathBase}?limit=${limit}&min_id=${mastodonStatuses[0].id}>; rel="prev"`
         : null
 
     const links = [nextLink, prevLink].filter(Boolean).join(', ')
@@ -154,7 +93,7 @@ export const GET = OAuthGuard<Params>(
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: validMastodonStatuses,
+      data: mastodonStatuses,
       additionalHeaders: [
         ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
       ]
