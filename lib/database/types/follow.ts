@@ -24,6 +24,14 @@ export type UpdateFollowStatusParams = {
   followId: string
   status: FollowStatus
 }
+// New type for getting follows with pagination
+export type GetFollowingParams = {
+  actorId: string
+  limit: number
+  maxId?: string | null
+  sinceId?: string | null
+  minId?: string | null
+}
 
 export interface FollowDatabase {
   createFollow(params: CreateFollowParams): Promise<Follow>
@@ -42,4 +50,6 @@ export interface FollowDatabase {
   ): Promise<Follow | null>
   getFollowersInbox(params: GetFollowersInboxParams): Promise<string[]>
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
+  // New method for getting following with pagination
+  getFollowing(params: GetFollowingParams): Promise<Follow[]>
 }

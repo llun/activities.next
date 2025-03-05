@@ -8,6 +8,7 @@ import {
   GetAcceptedOrRequestedFollowParams,
   GetFollowFromIdParams,
   GetFollowersInboxParams,
+  GetFollowingParams,
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
   GetLocalFollowsFromInboxUrlParams,
@@ -186,13 +187,14 @@ export const FollowerSQLDatabaseMixin = (
     targetActorId
   }: GetAcceptedOrRequestedFollowParams) {
     const follow = await database<Follow>('follows')
-      .where('actorId', actorId)
-      .where('targetActorId', targetActorId)
+      .where({
+        actorId,
+        targetActorId
+      })
       .whereIn('status', [
         FollowStatus.enum.Accepted,
         FollowStatus.enum.Requested
       ])
-      .orderBy('createdAt', 'desc')
       .first()
     if (!follow) return null
     return fixFollowDataDate(follow)
@@ -200,15 +202,20 @@ export const FollowerSQLDatabaseMixin = (
 
   async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {
     const follows = await database<Follow>('follows')
-      .where('targetActorId', targetActorId)
-      .where('status', FollowStatus.enum.Accepted)
-    return Array.from(
-      follows.reduce((inboxes, follow) => {
-        if (follow.sharedInbox) inboxes.add(follow.sharedInbox)
-        else inboxes.add(follow.inbox)
-        return inboxes
-      }, new Set<string>())
-    )
+      .select(['inbox', 'sharedInbox'])
+      .where({
+        targetActorId,
+        status: FollowStatus.enum.Accepted
+      })
+    const inboxes = [
+      ...new Set([
+        ...follows.map((item) => item.inbox),
+        ...follows
+          .map((item) => item.sharedInbox)
+          .filter((inbox): inbox is string => !!inbox)
+      ])
+    ]
+    return inboxes
   },
 
   async updateFollowStatus({ followId, status }: UpdateFollowStatusParams) {
@@ -216,5 +223,40 @@ export const FollowerSQLDatabaseMixin = (
       status,
       updatedAt: new Date()
     })
+  },
+
+  // New method to get the follows with pagination
+  async getFollowing({
+    actorId,
+    limit,
+    maxId,
+    sinceId,
+    minId
+  }: GetFollowingParams) {
+    const query = database('follows')
+      .where('actorId', actorId)
+      .andWhere('status', FollowStatus.enum.Accepted)
+      .orderBy('id', 'desc')
+      .limit(limit)
+
+    if (maxId) {
+      query.where('id', '<', maxId)
+    }
+
+    if (sinceId) {
+      query.where('id', '>', sinceId)
+    }
+
+    if (minId) {
+      query.where('id', '>', minId)
+      query.orderBy('id', 'asc')
+    }
+
+    const follows = await query
+
+    // If using minId, we need to reverse the results to maintain chronological order
+    const orderedFollows = minId ? [...follows].reverse() : follows
+
+    return orderedFollows.map(fixFollowDataDate)
   }
 })

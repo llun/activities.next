@@ -7,6 +7,7 @@ import {
   GetAcceptedOrRequestedFollowParams,
   GetFollowFromIdParams,
   GetFollowersInboxParams,
+  GetFollowingParams,
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
   GetLocalFollowsFromInboxUrlParams,
@@ -273,5 +274,61 @@ export const FollowerFirestoreDatabaseMixin = (
       status,
       updatedAt: Date.now()
     })
+  },
+
+  async getFollowing({
+    actorId,
+    limit,
+    maxId,
+    sinceId,
+    minId
+  }: GetFollowingParams) {
+    const follows = firestore.collection('follows')
+    let query = follows
+      .where('actorId', '==', actorId)
+      .where('status', '==', FollowStatus.enum.Accepted)
+      .orderBy('id', 'desc')
+      .limit(limit)
+
+    if (maxId) {
+      query = query.startAfter(maxId)
+    }
+
+    if (sinceId) {
+      // In Firestore, we need to use two separate queries for this case
+      const sinceDoc = await follows.doc(sinceId).get()
+      if (sinceDoc.exists) {
+        query = follows
+          .where('actorId', '==', actorId)
+          .where('status', '==', FollowStatus.enum.Accepted)
+          .orderBy('id', 'asc')
+          .startAfter(sinceDoc)
+          .limit(limit)
+      }
+    }
+
+    if (minId) {
+      const minDoc = await follows.doc(minId).get()
+      if (minDoc.exists) {
+        query = follows
+          .where('actorId', '==', actorId)
+          .where('status', '==', FollowStatus.enum.Accepted)
+          .orderBy('id', 'asc')
+          .startAfter(minDoc)
+          .limit(limit)
+      }
+    }
+
+    const snapshot = await query.get()
+    let results = snapshot.docs.map((doc) =>
+      Follow.parse({ id: doc.id, ...doc.data() })
+    )
+
+    // If we used minId, we need to reverse the results to maintain chronological order
+    if (minId) {
+      results = results.reverse()
+    }
+
+    return results
   }
 })
