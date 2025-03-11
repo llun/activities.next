@@ -1159,7 +1159,7 @@ describe('Database', () => {
           secret: 'some random secret',
           scopes: [{ name: 'read' }, { name: 'write' }],
           redirectUris: ['https://application3.llun.dev/oauth/redirect'],
-          allowedGrants: ['authorization_code', 'refresh_token'],
+          allowedGrants: ['client_credentials', 'authorization_code', 'refresh_token'],
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
@@ -1201,7 +1201,7 @@ describe('Database', () => {
           secret: 'secret',
           scopes: [{ name: 'read' }],
           redirectUris: ['https://application1.llun.dev/oauth/redirect'],
-          allowedGrants: ['authorization_code', 'refresh_token'],
+          allowedGrants: ['client_credentials', 'authorization_code', 'refresh_token'],
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
@@ -1211,7 +1211,7 @@ describe('Database', () => {
           secret: 'secret',
           scopes: [{ name: 'read' }],
           redirectUris: ['https://application1.llun.dev/oauth/redirect'],
-          allowedGrants: ['authorization_code', 'refresh_token'],
+          allowedGrants: ['client_credentials', 'authorization_code', 'refresh_token'],
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
