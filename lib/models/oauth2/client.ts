@@ -11,6 +11,7 @@ export const Client = z.object({
     .default([Scope.enum.read])
     .transform((value) => value.map((scope) => ({ name: scope }))),
   allowedGrants: GrantIdentifiers.array().default([
+    'client_credentials',
     'authorization_code',
     'refresh_token'
   ]),

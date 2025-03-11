@@ -63,7 +63,8 @@ export const OAuthGuard =
       const accessToken = await database.getAccessToken({
         accessToken: decoded.jti ?? ''
       })
-      if (!accessToken) {
+      // This is guard for user access token
+      if (!accessToken || !accessToken.user) {
         return apiErrorResponse(401)
       }
 

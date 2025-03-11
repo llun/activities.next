@@ -131,11 +131,11 @@ export const OAuthSQLDatabaseMixin = (
       .first()
     if (!data) return null
 
-    const [client, actor, account] = await Promise.all([
-      this.getClientFromId({ clientId: data.clientId }),
-      actorDatabase.getActorFromId({ id: data.actorId }),
-      accountDatabase.getAccountFromId({ id: data.accountId })
-    ])
+    const client = await this.getClientFromId({ clientId: data.clientId })
+    const actor = data.actorId
+      ? await actorDatabase.getActorFromId({ id: data.actorId })
+      : null
+    const account = actor?.account
 
     return Token.parse({
       accessToken: data.accessToken,
@@ -154,11 +154,13 @@ export const OAuthSQLDatabaseMixin = (
         ...client,
         scopes: client?.scopes.map((scope) => scope.name)
       },
-      user: User.parse({
-        id: actor?.id,
-        actor,
-        account
-      }),
+      user: actor
+        ? User.parse({
+            id: actor?.id,
+            actor,
+            account
+          })
+        : null,
 
       createdAt: getCompatibleTime(data.createdAt),
       updatedAt: getCompatibleTime(data.updatedAt)
@@ -192,9 +194,6 @@ export const OAuthSQLDatabaseMixin = (
       .count<{ count: string }>('accessToken as count')
       .first()
     if (parseInt(tokenCountResult?.count ?? '0', 10) > 0) return null
-
-    const actor = await actorDatabase.getActorFromId({ id: actorId })
-    if (!actor?.account || actor.account.id !== accountId) return null
 
     const token = {
       accessToken,

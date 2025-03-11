@@ -131,11 +131,11 @@ export const OAuthFirestoreDatabaseMixin = (
     const data = snapshot.data()
     if (!data) return null
 
-    const [client, actor, account] = await Promise.all([
-      this.getClientFromId({ clientId: data.clientId }),
-      actorDatabase.getActorFromId({ id: data.actorId }),
-      accountDatabase.getAccountFromId({ id: data.accountId })
-    ])
+    const client = await this.getClientFromId({ clientId: data.clientId })
+    const actor = data.actorId
+      ? await actorDatabase.getActorFromId({ id: data.actorId })
+      : null
+    const account = actor?.account
 
     return Token.parse({
       accessToken: data.accessToken,
@@ -151,11 +151,13 @@ export const OAuthFirestoreDatabaseMixin = (
         ...client,
         scopes: client?.scopes.map((scope) => scope.name)
       },
-      user: User.parse({
-        id: actor?.id,
-        actor,
-        account
-      }),
+      user: actor
+        ? User.parse({
+            id: actor?.id,
+            actor,
+            account
+          })
+        : null,
 
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
@@ -190,9 +192,6 @@ export const OAuthFirestoreDatabaseMixin = (
     const currentTime = Date.now()
     const snapshot = await firestore.doc(`accessTokens/${accessToken}`).get()
     if (snapshot.exists) return null
-
-    const actor = await actorDatabase.getActorFromId({ id: actorId })
-    if (!actor?.account || actor.account.id !== accountId) return null
 
     await firestore.doc(`accessTokens/${accessToken}`).set({
       accessToken,

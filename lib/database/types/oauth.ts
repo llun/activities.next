@@ -68,8 +68,8 @@ export const CreateAccessTokenParams = z.object({
   clientId: z.string(),
   scopes: Scope.array(),
 
-  actorId: z.string(),
-  accountId: z.string()
+  actorId: z.string().nullish(),
+  accountId: z.string().nullish()
 })
 export type CreateAccessTokenParams = z.infer<typeof CreateAccessTokenParams>
 
