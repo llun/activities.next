@@ -27,9 +27,9 @@ const StatusQueryParams = z.object({
   min_id: z.string().optional(),
   limit: z.coerce.number().min(1).max(200).default(20).optional(),
   only_media: z.enum(['true', 'false']).optional(),
-  exclude_replies: z.enum(['true', 'false']).optional(),
-  exclude_reblogs: z.enum(['true', 'false']).optional(),
-  pinned: z.enum(['true', 'false']).optional(),
+  exclude_replies: z.enum(['true', 'false', '1', '0']).optional(),
+  exclude_reblogs: z.enum(['true', 'false', '1', '0']).optional(),
+  pinned: z.enum(['true', 'false', '1', '0']).optional(),
   tagged: z.string().optional()
 })
 

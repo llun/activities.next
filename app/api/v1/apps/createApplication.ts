@@ -25,6 +25,11 @@ export const createApplication = async (
           name: request.client_name
         })
         if (existingApplication) {
+          await database.updateClient({
+            ...existingApplication,
+            scopes: scopes.split(' ').map((scope) => Scope.parse(scope)),
+            redirectUris: request.redirect_uris.split(' ')
+          })
           return SuccessResponse.parse({
             type: 'success',
             id: existingApplication.id,
