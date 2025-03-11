@@ -17,7 +17,7 @@ export const Token = z.object({
 
   client: Client,
   scopes: Scope.array().transform((scopes) => scopes.map((name) => ({ name }))),
-  user: User,
+  user: User.nullish(),
 
   createdAt: z.number(),
   updatedAt: z.number()

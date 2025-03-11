@@ -32,8 +32,9 @@ export class TokenRepository implements OAuthTokenRepository {
     user?: OAuthUser
   ): Promise<OAuthToken> {
     const currentTime = Date.now()
-    return Token.parse({
-      accessToken: generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH),
+    const accessToken = generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH)
+    const token = Token.parse({
+      accessToken,
       accessTokenExpiresAt: new DateInterval('15m').getEndDate().getTime(),
       refreshToken: null,
       refreshTokenExpiresAt: null,
@@ -46,6 +47,17 @@ export class TokenRepository implements OAuthTokenRepository {
       createdAt: currentTime,
       updatedAt: currentTime
     })
+    await this.database.createAccessToken({
+      accessToken: token.accessToken,
+      accessTokenExpiresAt: token.accessTokenExpiresAt.getTime(),
+      refreshToken: token.refreshToken,
+      refreshTokenExpiresAt: token.refreshTokenExpiresAt?.getTime(),
+      accountId: token.user?.account.id ?? '',
+      actorId: token.user?.actor.id ?? '',
+      clientId: token.client.id,
+      scopes: token.scopes.map((scope) => scope.name as Scope)
+    })
+    return token
   }
 
   async getByRefreshToken(refreshToken: string): Promise<OAuthToken> {

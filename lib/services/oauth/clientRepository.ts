@@ -26,9 +26,6 @@ export class ClientRepository implements OAuthClientRepository {
     client: OAuthClient,
     clientSecret?: string
   ): Promise<boolean> {
-    if (client.secret && client.secret !== clientSecret) {
-      return false
-    }
-    return client.allowedGrants.includes(grantType)
+    return Boolean(client.secret) && client.secret === clientSecret
   }
 }
