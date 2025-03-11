@@ -28,7 +28,9 @@ export const createApplication = async (
           await database.updateClient({
             ...existingApplication,
             scopes: scopes.split(' ').map((scope) => Scope.parse(scope)),
-            redirectUris: request.redirect_uris.split(' ')
+            redirectUris: request.redirect_uris
+              .split(' ')
+              .map((uri) => uri.trim())
           })
           return SuccessResponse.parse({
             type: 'success',

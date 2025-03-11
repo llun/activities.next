@@ -52,8 +52,8 @@ export class TokenRepository implements OAuthTokenRepository {
       accessTokenExpiresAt: token.accessTokenExpiresAt.getTime(),
       refreshToken: token.refreshToken,
       refreshTokenExpiresAt: token.refreshTokenExpiresAt?.getTime(),
-      accountId: token.user?.account.id ?? '',
-      actorId: token.user?.actor.id ?? '',
+      accountId: token.user?.account?.id ?? null,
+      actorId: token.user?.actor?.id ?? null,
       clientId: token.client.id,
       scopes: token.scopes.map((scope) => scope.name as Scope)
     })
@@ -93,8 +93,8 @@ export class TokenRepository implements OAuthTokenRepository {
       accessTokenExpiresAt: token.accessTokenExpiresAt.getTime(),
       refreshToken: token.refreshToken,
       refreshTokenExpiresAt: token.refreshTokenExpiresAt?.getTime(),
-      accountId: token.user?.account.id,
-      actorId: token.user?.actor.id,
+      accountId: token.user?.account?.id ?? null,
+      actorId: token.user?.actor?.id ?? null,
       clientId: token.client.id,
       scopes: token.scopes.map((scope) => scope.name as Scope)
     })
