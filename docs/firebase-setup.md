@@ -123,3 +123,32 @@ For production deployment with Firestore:
 3. Be aware of Firestore pricing and quotas for your expected usage
 
 For Vercel deployment, add your Firestore configuration as an environment variable.
+
+### Docker Deployment with Firestore
+
+To deploy Activity.next with Firestore using Docker:
+
+```bash
+docker run -p 3000:3000 \
+  -e ACTIVITIES_HOST=your.domain.tld \
+  -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
+  -e NEXTAUTH_URL=https://your.domain.tld \
+  -e NEXTAUTH_SECRET=session-secret \
+  -e ACTIVITIES_DATABASE_TYPE=firebase \
+  -e ACTIVITIES_DATABASE='{"type":"firebase","projectId":"your-firebase-project-id","credentials":{"client_email":"client_email_from_service_account_key.json","private_key":"private_key_from_service_account_key.json"}}' \
+  ghcr.io/llun/activities.next:latest
+```
+
+Alternatively, you can mount a configuration file instead of passing the database configuration as an environment variable:
+
+```bash
+docker run -p 3000:3000 \
+  -e ACTIVITIES_HOST=your.domain.tld \
+  -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
+  -e NEXTAUTH_URL=https://your.domain.tld \
+  -e NEXTAUTH_SECRET=session-secret \
+  -v /path/to/config.json:/opt/activities.next/config.json \
+  ghcr.io/llun/activities.next:latest
+```
+
+Where `/path/to/config.json` contains your complete configuration including the Firebase credentials.

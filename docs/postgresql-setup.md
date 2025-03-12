@@ -141,3 +141,56 @@ When deploying to Vercel, add the database configuration as an environment varia
 ```
 ACTIVITIES_DATABASE='{"type":"sql","client":"pg","connection":{"host":"your-postgres-host.example.com","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext","ssl":true},"pool":{"min":2,"max":10}}'
 ```
+
+## Docker Deployment with PostgreSQL
+
+To deploy Activity.next with PostgreSQL using Docker:
+
+```bash
+docker run -p 3000:3000 \
+  -e ACTIVITIES_HOST=your.domain.tld \
+  -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
+  -e NEXTAUTH_URL=https://your.domain.tld \
+  -e NEXTAUTH_SECRET=session-secret \
+  -e ACTIVITIES_DATABASE_TYPE=sql \
+  -e ACTIVITIES_DATABASE_CLIENT=pg \
+  -e ACTIVITIES_DATABASE='{"type":"sql","client":"pg","connection":{"host":"postgres-host","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext"},"pool":{"min":2,"max":10}}' \
+  ghcr.io/llun/activities.next:latest
+```
+
+For a complete setup with both PostgreSQL and Activity.next in Docker, you can use docker-compose:
+
+```yaml
+version: '3'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: activitynext
+      POSTGRES_PASSWORD: your_strong_password
+      POSTGRES_DB: activitynext
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  activitynext:
+    image: ghcr.io/llun/activities.next:latest
+    depends_on:
+      - postgres
+    environment:
+      ACTIVITIES_HOST: your.domain.tld
+      ACTIVITIES_SECRET_PHASE: random-secret-for-cookie
+      NEXTAUTH_URL: https://your.domain.tld
+      NEXTAUTH_SECRET: session-secret
+      ACTIVITIES_DATABASE_TYPE: sql
+      ACTIVITIES_DATABASE_CLIENT: pg
+      ACTIVITIES_DATABASE: '{"type":"sql","client":"pg","connection":{"host":"postgres","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext"},"pool":{"min":2,"max":10}}'
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+```
+
+Save this as `docker-compose.yml` and run with `docker-compose up -d`.

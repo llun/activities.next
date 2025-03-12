@@ -101,3 +101,22 @@ For production deployment with SQLite:
 3. Implement regular database backups
 
 Remember that SQLite is best suited for low to moderate traffic instances. For higher traffic or multi-server deployments, consider using PostgreSQL instead.
+
+### Docker Deployment with SQLite
+
+To deploy Activity.next with SQLite using Docker:
+
+```bash
+docker run -p 3000:3000 \
+  -e ACTIVITIES_HOST=your.domain.tld \
+  -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
+  -e NEXTAUTH_URL=https://your.domain.tld \
+  -e NEXTAUTH_SECRET=session-secret \
+  -e ACTIVITIES_DATABASE_TYPE=sql \
+  -e ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
+  -e ACTIVITIES_DATABASE_SQLITE_FILENAME=/opt/activities.next/data.sqlite \
+  -v /path/to/local/storage:/opt/activities.next \
+  ghcr.io/llun/activities.next:latest
+```
+
+The `-v` option mounts a local directory to the container's `/opt/activities.next` directory, which allows the SQLite database to persist between container restarts. Make sure to create this directory with appropriate permissions beforehand.

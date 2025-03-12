@@ -92,7 +92,31 @@ After starting the application:
 
 Activity.next can be deployed in various ways:
 
-- [Vercel Deployment Guide](#host-it-on-vercel)
-- [Docker Deployment Guide](#host-with-docker)
+### Vercel Deployment
 
-Check the main README.md for specific deployment instructions.
+To deploy on Vercel:
+
+1. Fork this repository
+2. Connect it to your Vercel account
+3. Add the required environment variables (see database-specific setup guides)
+
+### Docker Deployment
+
+Activity.next provides official Docker images at `ghcr.io/llun/activities.next:latest`.
+
+Basic docker run command:
+
+```bash
+docker run -p 3000:3000 \
+  -e ACTIVITIES_HOST=your.domain.tld \
+  -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
+  -e NEXTAUTH_URL=https://your.domain.tld \
+  -e NEXTAUTH_SECRET=session-secret \
+  -v /path/to/local/storage:/opt/activities.next \
+  ghcr.io/llun/activities.next:latest
+```
+
+For database-specific Docker deployment instructions:
+- [SQLite Docker Deployment](sqlite-setup.md#docker-deployment-with-sqlite)
+- [PostgreSQL Docker Deployment](postgresql-setup.md#docker-deployment-with-postgresql)
+- [Firestore Docker Deployment](firebase-setup.md#docker-deployment-with-firestore)

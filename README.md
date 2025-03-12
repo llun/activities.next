@@ -1,19 +1,8 @@
-# Activity.next: A Modern ActivityPub Server
+# Activity.next
 
-Activity.next is a modern, flexible ActivityPub server built with Next.js and TypeScript. It enables you to participate in the Fediverse - the decentralized social media network that includes platforms like Mastodon, Pleroma, and many others.
+Activity.next is an ActivityPub server built with Next.js and TypeScript. It enables you to host your own instance in the Fediverse - the decentralized social media network.
 
-## Features
-
-- **ActivityPub Protocol**: Full implementation of ActivityPub for federated social networking
-- **Modern Tech Stack**: Built with Next.js, React, and TypeScript
-- **Flexible Storage**: Supports SQLite, PostgreSQL, and Firebase/Firestore
-- **Media Handling**: Upload and serve images with various storage backends (S3, local, etc.)
-- **Authentication Options**: Local accounts, OAuth, GitHub integration
-- **Responsive Interface**: Mobile-friendly web interface
-- **Developer Friendly**: Well-structured codebase, comprehensive documentation
-- **API Compatible**: Aiming for Mastodon API compatibility for client support
-
-See our complete [feature roadmap](docs/features.md) for current and planned features.
+See our [feature roadmap](docs/features.md) for current and planned features.
 
 ## Getting Started
 
@@ -58,35 +47,23 @@ To deploy on Vercel:
 
 1. Fork this repository
 2. Connect it to your Vercel account
-3. Add the following environment variables:
-
-```
-ACTIVITIES_HOST=your-domain.tld
-ACTIVITIES_DATABASE='{"type":"sql","client":"better-sqlite3","useNullAsDefault":true,"connection":{"filename":"./dev.sqlite3"}}'
-ACTIVITIES_SECRET_PHASE='random-hash-for-cookie'
-ACTIVITIES_ALLOW_EMAILS='["your-email@example.com"]'
-ACTIVITIES_ALLOW_MEDIA_DOMAINS='[]'
-ACTIVITIES_AUTH='{"github":{"id":"GITHUB_APP_CLIENT_ID","secret":"GITHUB_APP_SECRET"}}'
-ACTIVITIES_EMAIL='{"type":"smtp","host":"email-smtp.example.com","port":465,"secure":true,"debug":true,"serviceFromAddress":"Service <email@domain.tld>","auth":{"user":"username","pass":"password"}}'
-```
-
-For production, consider using PostgreSQL instead of SQLite by changing the database client configuration.
+3. Add the required environment variables (see [Setup Guide](docs/setup.md))
 
 ### Deploy with Docker
 
-When running the Docker image, provide these environment variables:
+To run using Docker:
 
-```
-NEXTAUTH_URL=https://your.domain.tld
-NEXTAUTH_SECRET=session-secret
-ACTIVITIES_HOST=your.domain.tld
-ACTIVITIES_SECRET_PHASE='random-hash-for-cookie'
-ACTIVITIES_DATABASE_TYPE=sql
-ACTIVITIES_DATABASE_CLIENT=sqlite3
-ACTIVITIES_DATABASE_SQLITE_FILENAME=data.sqlite
+```bash
+docker run -p 3000:3000 \
+  -e ACTIVITIES_HOST=your.domain.tld \
+  -e ACTIVITIES_SECRET_PHASE=random-secret \
+  -e NEXTAUTH_URL=https://your.domain.tld \
+  -e NEXTAUTH_SECRET=session-secret \
+  -v /path/to/data:/opt/activities.next \
+  ghcr.io/llun/activities.next:latest
 ```
 
-If you don't provide a database config, the database will persist in the container at `/opt/activities.next/data.sqlite`. You can mount this file when starting the container.
+For more Docker options, see the database-specific setup guides.
 
 ## Documentation
 
