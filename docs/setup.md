@@ -1,133 +1,122 @@
-# Setup
+# Activity.next Setup Guide
 
-How to setup this project and run in your localhost or in the Vercel.
+This guide provides an overview of how to set up Activity.next for development or production.
 
-## Prepare the database
+## Database Setup
 
-Activities.next supports two types of database, SQL via Knex.js (currently
-tested with SQLite only in development) and [Google Firestore/Firebase Firestore](https://cloud.google.com/firestore)
+Activity.next supports multiple database backends. Choose the one that best suits your needs:
 
-### Using SQL
+- [SQLite Setup Guide](sqlite-setup.md) - Best for development or small instances
+- [PostgreSQL Setup Guide](postgresql-setup.md) - Recommended for production deployments
+- [Firebase/Firestore Setup Guide](firebase-setup.md) - Alternative cloud-based option
 
-Set `ACTIVITIES_DATABASE` environment variable with JSON string below by stringify it with `JSON.stringify()` and use the string in variable.
+## General Configuration
 
-```json
-{
-  "type": "sql",
-  "client": "better-sqlite3",
-  "useNullAsDefault": true,
-  "connection": {
-    "filename": "./dev.sqlite3"
-  }
-}
-```
+Regardless of which database you choose, you'll need the following configuration:
 
-and run `yarn migrate`, this will run the migration via knex migration scripts
-in [this directory](https://github.com/llun/activities.next/tree/main/migrations)
+### Domain Name Configuration
 
-### Using Firestore
-
-To use Firestore, create a Firestore in the GCP console or Firebase.
-
-![Create database with production secure rule](https://github.com/llun/activities.next/blob/main/docs/images/firestore-create-database.png?raw=true)
-
-The security rules here doesn't matter because we're going to disable it and don't
-allow access from client side.
-
-Add below indexes into Firestore indexes.
-
-- Collection `statuses`, `actorId` Ascending, `createdAt` Descending
-- Collection `statuses`, `reply` Ascending, `createdAt` Descending
-- Collection `statuses`, `actorId` Ascending, `reply` Ascending, `createdAt` Descending
-- Collection `statuses`, `to` Arrays, `actorId` Ascending, `createdAt` Descending
-- Collection `follows`, `actorId` Ascending, `status` Ascending, `targetActorId` Ascending, `createdAt` Descending
-- Collection `timelines`, `timeline` Ascending, `createdAt` Descending
-- Collection group `accountProviders`, `provider` Ascending, `accountId` Ascending
-- Collection group `accountProviders`, `provider` Ascending, `providerAccountId` Ascending
-- Collection group `attachments`, `actorId` Ascending, `createdAt` Descending
-- Collection group `attachments`, `actorId` Ascending, `createdAt` Ascending
-- Exemptions collection group `sessions`, `token` Ascending
-- Exemptions collection group `timeline`, `statusId` Ascending
-- Exemptions collection group `attachments`, `actorId` Descending
-
-then go to `Service accounts` to create a private key for SDK access.
-
-![Create firebase account key](https://github.com/llun/activities.next/blob/main/docs/images/firestore-service-accounts-key.png?raw=true)
-
-Add the below database configuration into `config.json` file with the private key
-from the Firestore.
+Set your instance's domain name:
 
 ```json
 {
-  "database": {
-    "type": "firebase",
-    "projectId": "Firebase project id or GCP project id",
-    "credentials": {
-      "client_email": "client email from json file downloads from service accounts tab",
-      "private_key": "private key from json file downloads from service accounts tab"
-    }
-  }
+  "host": "your-domain.tld"
 }
 ```
 
-## Set default domain name to the instance
+### Access Control
 
-Add below configuration to tell what is the domain that will use for this ActivityPub server
+Restrict who can sign up to your instance by specifying allowed emails:
 
 ```json
 {
-  "host": "domain.tld"
+  "allowEmails": ["your_email@example.com"]
 }
 ```
 
-## Add allow email/domain list
+### Authentication Secret
 
-Activities.next is still in very early development, to make sure that your instance
-is use only you, add the emails that allow to use the service in config.
+Set a secret phrase for cookies and JWT sessions:
 
 ```json
 {
-  "allowEmails": ["your_email@domain.tld"]
+  "secretPhase": "your-random-secret-for-sessions"
 }
 ```
 
-## Authentication
+### Authentication Providers
 
-Setup the secret for the cookie and jwt session
+The service includes local username/password authentication by default.
 
-```json
-{
-  "secretPhase": "super secret for cookie and jwt session"
-}
-```
+For GitHub OAuth authentication:
 
-the service come with the local credentials username/password authentication
-however, if you want to use Github (oAuth), create personal oAuth app from Github
-settings.
+1. Create a GitHub OAuth app in your GitHub settings
+   ![GitHub OAuth app settings](images/github-settings-oauth-apps.png)
 
-![Github settings oAuth apps list](https://github.com/llun/activities.next/blob/main/docs/images/github-settings-oauth-apps.png?raw=true)
+2. Set the callback URL to `https://your-domain.tld/api/auth/callback/github`
 
-The callback URL is `https://{host}/api/auth/callback/github` and click register application
-which Github will provider the app id and secret. Copy those value to the config.
+3. Add the credentials to your config:
 
 ```json
 {
   "auth": {
     "github": {
-      "id": "github personal app id",
-      "secret": "github personal app secret"
+      "id": "github-app-client-id",
+      "secret": "github-app-secret"
     }
   }
 }
 ```
 
-## Start the app
+## Starting the Application
 
-To run the ActivityPub locally and talk to other federate servers, you will need a tunnel.
-Personally, I use [Cloudflare Tunnel](https://www.cloudflare.com/products/tunnel/) but
-any tunnel should work including [ngrok](https://ngrok.com/)
+### Development Environment
 
-Point the tunnel to localhost at port 3000 and start the service with `yarn dev` then
-sign up your personal account at `https://{host}/auth/signup` then login. after this
-you should be able to use your ActivityPub server to follow other or post to other in
-Fediverse.
+To run the service locally:
+
+```bash
+yarn dev
+```
+
+To communicate with other servers in the fediverse while running locally, you'll need a tunnel service like [Cloudflare Tunnel](https://www.cloudflare.com/products/tunnel/) or [ngrok](https://ngrok.com/).
+
+### First-Time Setup
+
+After starting the application:
+
+1. Sign up at `https://your-domain.tld/auth/signup` (if your email is in the allowlist)
+2. Log in with your new account
+3. You can now interact with other ActivityPub servers in the fediverse
+
+## Deployment Options
+
+Activity.next can be deployed in various ways:
+
+### Vercel Deployment
+
+To deploy on Vercel:
+
+1. Fork this repository
+2. Connect it to your Vercel account
+3. Add the required environment variables (see database-specific setup guides)
+
+### Docker Deployment
+
+Activity.next provides official Docker images at `ghcr.io/llun/activities.next:latest`.
+
+Basic docker run command:
+
+```bash
+docker run -p 3000:3000 \
+  -e ACTIVITIES_HOST=your.domain.tld \
+  -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
+  -e NEXTAUTH_URL=https://your.domain.tld \
+  -e NEXTAUTH_SECRET=session-secret \
+  -v /path/to/local/storage:/opt/activities.next \
+  ghcr.io/llun/activities.next:latest
+```
+
+For database-specific Docker deployment instructions:
+- [SQLite Docker Deployment](sqlite-setup.md#docker-deployment-with-sqlite)
+- [PostgreSQL Docker Deployment](postgresql-setup.md#docker-deployment-with-postgresql)
+- [Firestore Docker Deployment](firebase-setup.md#docker-deployment-with-firestore)
