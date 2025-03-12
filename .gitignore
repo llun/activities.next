@@ -26,6 +26,7 @@ scripts/cloudflared.sh
 .vscode
 *.sql
 docker-compose.yml
+.cursorrules
 
 # debug
 npm-debug.log*
