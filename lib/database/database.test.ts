@@ -146,7 +146,7 @@ describe('Database', () => {
           attachments: [],
           totalLikes: 0,
           isActorLiked: false,
-          isActorAnnounced: false,
+          actorAnnounceStatusId: null,
           isLocalActor: true,
           tags: [],
           reply: '',

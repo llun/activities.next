@@ -119,7 +119,7 @@ export const StatusSQLDatabaseMixin = (
       replies: [],
       totalLikes: 0,
       isActorLiked: false,
-      isActorAnnounced: false,
+      actorAnnounceStatusId: null,
       isLocalActor: Boolean(actor?.account),
       createdAt: getCompatibleTime(statusCreatedAt),
       updatedAt: getCompatibleTime(statusUpdatedAt)
@@ -326,7 +326,7 @@ export const StatusSQLDatabaseMixin = (
       choices: [],
       totalLikes: 0,
       isActorLiked: false,
-      isActorAnnounced: false,
+      actorAnnounceStatusId: null,
       endAt,
       isLocalActor: Boolean(actor?.account),
       createdAt: getCompatibleTime(statusCreatedAt),
