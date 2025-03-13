@@ -6,7 +6,6 @@ import { StatusType } from '@/lib/models/status'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import {
   apiErrorResponse,
   apiResponse,
@@ -76,12 +75,13 @@ export const PUT = OAuthGuard<Params>(
       return apiErrorResponse(500)
     }
 
-    return Response.json({
-      id: updatedNote.id,
-      created_at: getISOTimeUTC(updatedNote.createdAt),
-      in_reply_to_id: updatedNote.reply,
-      edited_at: getISOTimeUTC(updatedNote.updatedAt),
-      content: updatedNote.text
+    const mastodonStatus = await getMastodonStatus(database, updatedNote)
+    if (!mastodonStatus) return apiErrorResponse(500)
+
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: mastodonStatus
     })
   }
 )
