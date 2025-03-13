@@ -27,11 +27,13 @@ export const RepostButton: FC<RepostButtonProps> = ({
       disabled={isLoading}
       variant="link"
       title="Repost"
-      className={cn({ 'text-danger': mainStatus.isActorAnnounced })}
+      className={cn({
+        'text-danger': mainStatus.actorAnnounceStatusId !== null
+      })}
       onClick={async () => {
         if (isLoading) return
 
-        if (mainStatus.isActorAnnounced) {
+        if (mainStatus.actorAnnounceStatusId) {
           setIsLoading(true)
           await undoRepostStatus({ statusId: mainStatus.id })
           setIsLoading(false)

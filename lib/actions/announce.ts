@@ -12,20 +12,22 @@ interface UserAnnounceParams {
   statusId: string
   database: Database
 }
+
 export const userAnnounce = async ({
   currentActor,
   statusId,
   database
 }: UserAnnounceParams) => {
   const span = getSpan('actions', 'userAnnounce')
-  const [originalStatus, hasActorAnnouncedStatus] = await Promise.all([
+  const [originalStatus, actorAnnounceStatus] = await Promise.all([
     database.getStatus({
       statusId,
       withReplies: false
     }),
-    database.hasActorAnnouncedStatus({ statusId, actorId: currentActor.id })
+    database.getActorAnnounceStatus({ statusId, actorId: currentActor.id })
   ])
-  if (!originalStatus || hasActorAnnouncedStatus) {
+
+  if (!originalStatus || actorAnnounceStatus) {
     span.end()
     return null
   }

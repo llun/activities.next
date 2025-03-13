@@ -424,6 +424,22 @@ export const StatusSQLDatabaseMixin = (
     return parseInt(result.count, 10) !== 0
   }
 
+  async function getActorAnnounceStatus({
+    actorId,
+    statusId
+  }: HasActorAnnouncedStatusParams): Promise<Status | null> {
+    if (!actorId) return null
+
+    const data = await database('statuses')
+      .where('type', StatusType.enum.Announce)
+      .where('content', statusId)
+      .where('actorId', actorId)
+      .first()
+
+    if (!data) return null
+    return getStatusWithAttachmentsFromData(data)
+  }
+
   async function getActorStatusesCount({
     actorId
   }: GetActorStatusesCountParams) {
@@ -601,7 +617,7 @@ export const StatusSQLDatabaseMixin = (
       actor,
       totalLikes,
       isActorLikedStatusResult,
-      isActorAnnouncedStatus,
+      actorAnnounceStatus,
       pollChoices,
       edits
     ] = await Promise.all([
@@ -624,10 +640,12 @@ export const StatusSQLDatabaseMixin = (
             actorId: currentActorId
           })
         : false,
-      hasActorAnnouncedStatus({
-        statusId: data.id,
-        actorId: currentActorId
-      }),
+      currentActorId
+        ? getActorAnnounceStatus({
+            statusId: data.id,
+            actorId: currentActorId
+          })
+        : null,
       getPollChoices(data.id),
       database('status_history').where('statusId', data.id)
     ])
@@ -660,7 +678,7 @@ export const StatusSQLDatabaseMixin = (
       replies: repliesNote,
       totalLikes: parseInt(totalLikes?.count ?? '0', 10),
       isActorLiked: isActorLikedStatusResult,
-      isActorAnnounced: isActorAnnouncedStatus,
+      actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
       isLocalActor: Boolean(actor?.account),
       attachments,
       tags,
@@ -722,6 +740,7 @@ export const StatusSQLDatabaseMixin = (
     getStatus,
     getStatusReplies,
     hasActorAnnouncedStatus,
+    getActorAnnounceStatus,
     getActorStatusesCount,
     getActorStatuses,
     deleteStatus,

@@ -350,6 +350,25 @@ export const StatusFirestoreDatabaseMixin = (
     return snapshot.data().count === 1
   }
 
+  async function getActorAnnounceStatus({
+    actorId,
+    statusId
+  }: HasActorAnnouncedStatusParams): Promise<Status | null> {
+    if (!actorId) return null
+
+    const statuses = firestore.collection('statuses')
+    const snapshot = await statuses
+      .where('originalStatusId', '==', statusId)
+      .where('type', '==', 'Announce')
+      .where('actorId', '==', actorId)
+      .limit(1)
+      .get()
+
+    if (snapshot.empty) return null
+    const doc = snapshot.docs[0]
+    return getStatusFromData(doc.data(), false, actorId)
+  }
+
   async function getActorStatusesCount({
     actorId
   }: GetActorStatusesCountParams) {
@@ -540,7 +559,7 @@ export const StatusFirestoreDatabaseMixin = (
       actor,
       totalLikes,
       isActorLikedStatus,
-      isActorAnnouncedStatus,
+      actorAnnounceStatus,
       pollChoices,
       edits
     ] = await Promise.all([
@@ -554,10 +573,12 @@ export const StatusFirestoreDatabaseMixin = (
             actorId: currentActorId
           })
         : false,
-      hasActorAnnouncedStatus({
-        statusId: data.id,
-        actorId: currentActorId
-      }),
+      currentActorId
+        ? getActorAnnounceStatus({
+            statusId: data.id,
+            actorId: currentActorId
+          })
+        : null,
       getPollChoices(data.id),
       getEdits(data.id)
     ])
@@ -579,7 +600,7 @@ export const StatusFirestoreDatabaseMixin = (
       replies,
       totalLikes,
       isActorLiked: isActorLikedStatus,
-      isActorAnnounced: isActorAnnouncedStatus,
+      actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
       isLocalActor: Boolean(actor?.account),
       attachments,
       tags,
@@ -630,6 +651,7 @@ export const StatusFirestoreDatabaseMixin = (
     getStatusFromData,
 
     hasActorAnnouncedStatus,
+    getActorAnnounceStatus,
 
     getActorStatusesCount,
     getActorStatuses,
