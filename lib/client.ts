@@ -67,7 +67,19 @@ export const updateNote = async ({ statusId, message }: UpdateNoteParams) => {
     throw new Error('Fail to create a new note')
   }
 
-  return response.json()
+  const mastodonStatus = await response.json()
+  return {
+    content: mastodonStatus.content,
+    status: {
+      id: mastodonStatus.id,
+      text: mastodonStatus.content,
+      createdAt: new Date(mastodonStatus.created_at),
+      updatedAt: mastodonStatus.edited_at
+        ? new Date(mastodonStatus.edited_at)
+        : undefined,
+      reply: mastodonStatus.in_reply_to_id || ''
+    }
+  }
 }
 
 export interface CreatePollParams {

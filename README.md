@@ -1,72 +1,82 @@
-# Activity.next, ActivityPub server with Next.JS
+# Activity.next
 
-Activity.Next is single actor ActivityPub server (but plan to support
-multiple actors under the same account later.) Currently it's in very
-alpha stage and has only few features supported.
+Activity.next is an ActivityPub server built with Next.js and TypeScript. It enables you to host your own instance in the Fediverse - the decentralized social media network.
 
-## Plan features and progress
+See our [feature roadmap](docs/features.md) for current and planned features.
 
-- ✅ User authenticate with Github (via NextAuth.js)
-- ✅ Note, both receive and send
-- ✅ Reply
-- ✅ Image attachment via Apple Shared Album
-- ✅ Boost/Repost
-- ✅ Undo Boost/Repost
-- ✅ Like
-- ✅ Storage adapter, current supports are SQL via Knex.js (Tested with SQLite locally) and Firebase
-- ✅ Account setup with username and password
-- [ ] Add actor under the same account (for different handle and type e.g. for `@ride@llun.dev`)
-- ✅ Support different domain for different actor
-- 🚧 Poll
-  - ✅ View poll and poll result
-  - [ ] Vote on the poll
-  - [ ] Create a poll
-- ✅ Image storage via Object Storage(S3, GCS, etc)
-- [ ] Streaming
-- 🚧 Timelines
-  - ✅ Main timeline
-  - 🚧 Notifications timeline
-  - [ ] Medias timeline
-- ✅ OAuth Bearer
-- 🚧 Mastodon API compatible and clients supports
-- [ ] GPS Activity e.g. Bicycle ride, Running etc
+## Getting Started
 
-## Setup
+### Prerequisites
 
-Follow [this document](docs/setup.md) to setup your local server
+- Node.js 18 or higher
+- Yarn package manager
+- A domain name (for federation)
 
-### Host it on Vercel
+### Quick Start
 
-Fork the project and setup Vercel to the Github repo and add
-below environment variables
-
-```
-ACTIVITIES_HOST=domain.tld
-ACTIVITIES_DATABASE='{"type":"sql","client":"better-sqlite3","useNullAsDefault":true,"connection":{"filename":"./dev.sqlite3"}}'
-ACTIVITIES_SECRET_PHASE='random-hash-for-cookie'
-ACTIVITIES_ALLOW_EMAILS='[]'
-ACTIVITIES_ALLOW_MEDIA_DOMAINS='[]'
-ACTIVITIES_AUTH='{"github":{"id":"GITHUB_APP_CLIENT_ID","secret":"GITHUB_APP_SECRET"}}'
-ACTIVITIES_EMAIL='{"type":"smtp","host":"email-smtp.eu-central-1.amazonaws.com","port":465,"secure":true,"debug":true,"serviceFromAddress":"Service <email@domain.tld>","auth":{"user":"username","pass":"password"}}'
+1. Clone the repository:
+```bash
+git clone https://github.com/llun/activities.next.git
+cd activities.next
 ```
 
-Change the database client to your database type e.g. pg and update
-the connection with your database configuration.
-
-### Host with Docker
-
-When running the docker image, provides these variables
-
-```
-NEXTAUTH_URL=https://your.domain.tld
-NEXTAUTH_SECRET=session secret
-ACTIVITIES_HOST=your.domain.tld
-ACTIVITIES_SECRET_PHASE='random-hash-for-cookie'
-ACTIVITIES_DATABASE_TYPE=sql
-ACTIVITIES_DATABASE_CLIENT=sqlite3
-ACTIVITIES_DATABASE_SQLITE_FILENAME=data.sqlite
+2. Install dependencies:
+```bash
+yarn install
 ```
 
-If you don't provide the database config, the database will persist in container
-in the path `/opt/activities.next/data.sqlite`. You can mount this file out when
-starting the container too.
+3. Configure your environment (see the [Setup Guide](docs/setup.md))
+
+4. Run database migrations (if using SQL):
+```bash
+yarn migrate
+```
+
+5. Start the development server:
+```bash
+yarn dev
+```
+
+For detailed setup instructions, see the [Setup Guide](docs/setup.md).
+
+## Deployment Options
+
+### Deploy on Vercel
+
+To deploy on Vercel:
+
+1. Fork this repository
+2. Connect it to your Vercel account
+3. Add the required environment variables (see [Setup Guide](docs/setup.md))
+
+### Deploy with Docker
+
+To run using Docker:
+
+```bash
+docker run -p 3000:3000 \
+  -e ACTIVITIES_HOST=your.domain.tld \
+  -e ACTIVITIES_SECRET_PHASE=random-secret \
+  -e NEXTAUTH_URL=https://your.domain.tld \
+  -e NEXTAUTH_SECRET=session-secret \
+  -v /path/to/data:/opt/activities.next \
+  ghcr.io/llun/activities.next:latest
+```
+
+For more Docker options, see the database-specific setup guides.
+
+## Documentation
+
+- [Setup Guide](docs/setup.md)
+- [SQLite Setup](docs/sqlite-setup.md)
+- [PostgreSQL Setup](docs/postgresql-setup.md)
+- [Firebase Setup](docs/firebase-setup.md)
+- [Feature Roadmap](docs/features.md)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE.md file for details.

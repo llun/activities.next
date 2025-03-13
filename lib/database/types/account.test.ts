@@ -1,16 +1,18 @@
 import {
+  TestDatabaseTable,
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
+import { Database } from '@/lib/database/types'
+import {
   TEST_DOMAIN,
   TEST_EMAIL2,
   TEST_PASSWORD_HASH,
   TEST_USERNAME2
 } from '@/lib/stub/const'
+import { seedDatabase } from '@/lib/stub/database'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { urlToId } from '@/lib/utils/urlToId'
-
-import {
-  TestDatabaseTable,
-  databaseBeforeAll,
-  getTestDatabaseTable
-} from '../testUtils'
 
 describe('AccountDatabase', () => {
   const table: TestDatabaseTable = getTestDatabaseTable()
@@ -24,6 +26,10 @@ describe('AccountDatabase', () => {
   })
 
   describe.each(table)('%s', (_, database) => {
+    beforeAll(async () => {
+      await seedDatabase(database as Database)
+    })
+
     it('returns false when account is not created yet', async () => {
       expect(await database.isAccountExists({ email: TEST_EMAIL2 })).toBeFalse()
       expect(
@@ -78,6 +84,42 @@ describe('AccountDatabase', () => {
         statuses_count: 0,
         followers_count: 0,
         following_count: 0
+      })
+    })
+
+    it('returns actor from getActor methods', async () => {
+      const actor = await database.getActorFromEmail({ email: TEST_EMAIL2 })
+      expect(actor).toMatchObject({
+        id: expect.toBeString(),
+        username: TEST_USERNAME2,
+        domain: TEST_DOMAIN,
+        account: {
+          id: expect.toBeString(),
+          email: TEST_EMAIL2
+        },
+        followersUrl: expect.toBeString(),
+        publicKey: expect.toBeString(),
+        privateKey: expect.toBeString()
+      })
+    })
+
+    it('returns actor from getMastodonActor methods', async () => {
+      const actor = await database.getMastodonActorFromId({ id: ACTOR1_ID })
+      expect(actor).toMatchObject({
+        id: urlToId(ACTOR1_ID),
+        username: seedActor1.username,
+        acct: `${seedActor1.username}@${seedActor1.domain}`,
+        url: `https://${seedActor1.domain}/users/${seedActor1.username}`,
+        display_name: '',
+        note: '',
+        avatar: '',
+        avatar_static: '',
+        header: '',
+        header_static: '',
+        locked: false,
+        fields: [],
+        emojis: [],
+        bot: false
       })
     })
   })

@@ -26,6 +26,8 @@ scripts/cloudflared.sh
 .vscode
 *.sql
 docker-compose.yml
+.cursorrules
+CLAUDE.md
 
 # debug
 npm-debug.log*
@@ -61,3 +63,6 @@ wallaby.js
 # Sentry
 .sentryclirc
 sentry.properties
+
+# PR Description
+PR_DESCRIPTION.md

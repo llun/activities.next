@@ -23,6 +23,7 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/models/status'
+import { urlToId } from '@/lib/utils/urlToId'
 
 import { Duration, PollChoices } from './PollChoices'
 import styles from './PostBox.module.scss'
@@ -92,11 +93,10 @@ export const PostBox: FC<Props> = ({
       }
 
       if (editStatus) {
-        const uuid = new URL(editStatus.id).pathname.split('/').pop()
-        if (!uuid) return
-
-        // TODO: Update updateNote api to return full status?
-        const { content } = await updateNote({ statusId: uuid, message })
+        const { content } = await updateNote({
+          statusId: urlToId(editStatus.id),
+          message
+        })
         editStatus.text = content
         onPostUpdated(editStatus)
         dispatch(resetExtension())
