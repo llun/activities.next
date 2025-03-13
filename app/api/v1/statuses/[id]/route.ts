@@ -81,7 +81,13 @@ export const PUT = OAuthGuard<Params>(
       created_at: getISOTimeUTC(updatedNote.createdAt),
       in_reply_to_id: updatedNote.reply,
       edited_at: getISOTimeUTC(updatedNote.updatedAt),
-      content: updatedNote.text
+      content: updatedNote.text,
+      type: updatedNote.type,
+      actor_id: updatedNote.actorId,
+      to: updatedNote.to,
+      cc: updatedNote.cc,
+      summary: updatedNote.summary,
+      tags: updatedNote.tags
     })
   }
 )
