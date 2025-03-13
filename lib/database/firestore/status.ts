@@ -528,31 +528,77 @@ export const StatusFirestoreDatabaseMixin = (
         return null
       }
 
-      const [originalStatus, actor] = await Promise.all([
-        getStatusFromData(originalStatusData, withReplies, currentActorId),
-        actorDatabase.getActorFromId({
-          id: data.actorId
-        })
-      ])
+      // For Announce statuses, limit the depth of the queries to avoid recursion
+      // Get only essential data for the original status
+      const actor = await actorDatabase.getActorFromId({
+        id: data.actorId
+      })
+
+      // Load the original status without unnecessary nested operations
+      const originalStatus = await getStatusFromData(
+        { ...originalStatusData, __isNestedLoad: true },
+        false,
+        currentActorId
+      )
+
       if (!originalStatus) return null
+
       return StatusAnnounce.parse({
         id: data.id,
         actorId: data.actorId,
         actor: actor ? getActorProfile(actor) : null,
         type: data.type,
-
         to: data.to,
         cc: data.cc,
         edits: [],
-
         originalStatus,
         isLocalActor: Boolean(actor?.account),
-
         createdAt: data.createdAt,
         updatedAt: data.updatedAt
       })
     }
 
+    // If this is a nested load (part of an Announce status), simplify operations
+    const isNestedLoad = data.__isNestedLoad === true
+
+    // Prepare all the async operations based on whether this is a nested load
+    const attachmentsPromise = mediaDatabase.getAttachments({
+      statusId: data.id
+    })
+    const tagsPromise = getTags({ statusId: data.id })
+    const actorPromise = actorDatabase.getActorFromId({ id: data.actorId })
+    const totalLikesPromise = likeDatabase.getLikeCount({ statusId: data.id })
+
+    // Only load these items if not a nested load to avoid deep recursion
+    const isActorLikedStatusPromise =
+      !isNestedLoad && currentActorId
+        ? likeDatabase.isActorLikedStatus({
+            statusId: data.id,
+            actorId: currentActorId
+          })
+        : Promise.resolve(false)
+
+    const actorAnnounceStatusPromise =
+      !isNestedLoad && currentActorId
+        ? getActorAnnounceStatus({
+            statusId: data.id,
+            actorId: currentActorId
+          })
+        : Promise.resolve(null)
+
+    const pollChoicesPromise =
+      data.type === StatusType.enum.Poll
+        ? getPollChoices(data.id)
+        : Promise.resolve([])
+
+    const editsPromise = !isNestedLoad ? getEdits(data.id) : Promise.resolve([])
+
+    const repliesPromise =
+      !isNestedLoad && withReplies
+        ? getStatusReplies({ statusId: data.id })
+        : Promise.resolve([])
+
+    // Execute all promises in parallel
     const [
       attachments,
       tags,
@@ -561,31 +607,20 @@ export const StatusFirestoreDatabaseMixin = (
       isActorLikedStatus,
       actorAnnounceStatus,
       pollChoices,
-      edits
+      edits,
+      replies
     ] = await Promise.all([
-      mediaDatabase.getAttachments({ statusId: data.id }),
-      getTags({ statusId: data.id }),
-      actorDatabase.getActorFromId({ id: data.actorId }),
-      likeDatabase.getLikeCount({ statusId: data.id }),
-      currentActorId
-        ? likeDatabase.isActorLikedStatus({
-            statusId: data.id,
-            actorId: currentActorId
-          })
-        : false,
-      currentActorId
-        ? getActorAnnounceStatus({
-            statusId: data.id,
-            actorId: currentActorId
-          })
-        : null,
-      getPollChoices(data.id),
-      getEdits(data.id)
+      attachmentsPromise,
+      tagsPromise,
+      actorPromise,
+      totalLikesPromise,
+      isActorLikedStatusPromise,
+      actorAnnounceStatusPromise,
+      pollChoicesPromise,
+      editsPromise,
+      repliesPromise
     ])
 
-    const replies = withReplies
-      ? await getStatusReplies({ statusId: data.id })
-      : []
     return Status.parse({
       id: data.id,
       url: data.url,
