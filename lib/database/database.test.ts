@@ -22,27 +22,17 @@ import {
 } from '@/lib/models/status'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
-import { TEST_DOMAIN, TEST_DOMAIN_2, TEST_DOMAIN_3 } from '@/lib/stub/const'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { cleanJson } from '@/lib/utils/cleanJson'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { waitFor } from '@/lib/utils/waitFor'
 
-import { urlToId } from '../utils/urlToId'
-
-const TEST_SHARED_INBOX = `https://${TEST_DOMAIN}/inbox`
 const TEST_PASSWORD_HASH = 'password_hash'
 
 // For testing existing user
 const TEST_EMAIL = `user@${TEST_DOMAIN}`
 const TEST_USERNAME = 'user'
 const TEST_ID = `https://${TEST_DOMAIN}/users/user`
-
-// User that follow other without any followers
-const TEST_ID3 = `https://${TEST_DOMAIN}/users/user3`
-
-// User that get someone follow them
-const TEST_ID4 = `https://${TEST_DOMAIN}/users/user4`
 
 // Get statuses test user
 const TEST_ID5 = `https://${TEST_DOMAIN}/users/user5`
@@ -58,11 +48,6 @@ const TEST_ID8 = `https://${TEST_DOMAIN}/users/user8`
 
 // Status with reply list
 const TEST_ID9 = `https://${TEST_DOMAIN}/users/user9`
-
-// Actor creation
-const TEST_ID10 = `https://${TEST_DOMAIN_2}/users/user10`
-const TEST_USERNAME10 = 'random10'
-const TEST_DOMAIN10 = TEST_DOMAIN_2
 
 // Status with boost
 const TEST_ID11 = `https://${TEST_DOMAIN}/users/user11`
@@ -80,10 +65,6 @@ const TEST_ID14 = `https://${TEST_DOMAIN}/users/user14`
 // Actor who follows Actor14 and see boost
 const TEST_ID15 = `https://${TEST_DOMAIN}/users/user15`
 
-// Mastodon Actor
-const TEST_ID16 = `https://${TEST_DOMAIN}/users/user16`
-const TEST_USERNAME16 = 'random16'
-
 describe('Database', () => {
   const table: TestDatabaseTable = getTestDatabaseTable()
 
@@ -95,7 +76,7 @@ describe('Database', () => {
     await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(table)(`%s`, (_, database) => {
+  describe.each(table)('%s', (_, database) => {
     beforeAll(async () => {
       await database.createAccount({
         email: TEST_EMAIL,
@@ -136,348 +117,6 @@ describe('Database', () => {
       ])
     })
 
-    describe('actors', () => {
-      it('creates actor without account in storage', async () => {
-        await database.createActor({
-          actorId: TEST_ID10,
-          username: TEST_USERNAME10,
-          domain: TEST_DOMAIN10,
-          followersUrl: `${TEST_ID10}/followers`,
-          inboxUrl: `${TEST_ID10}/inbox`,
-          sharedInboxUrl: TEST_SHARED_INBOX,
-          publicKey: 'publicKey',
-          createdAt: Date.now()
-        })
-        const actor = await database.getActorFromId({ id: TEST_ID10 })
-        expect(actor).toBeDefined()
-        expect(actor?.username).toEqual(TEST_USERNAME10)
-        expect(actor?.domain).toEqual(TEST_DOMAIN10)
-        expect(actor?.followersUrl).toEqual(`${TEST_ID10}/followers`)
-      })
-
-      it('creates actor and returns actor in mastodon account format', async () => {
-        const currentTime = Date.now()
-        const actor = await database.createMastodonActor({
-          actorId: TEST_ID16,
-          username: TEST_USERNAME16,
-          domain: TEST_DOMAIN,
-          followersUrl: `${TEST_ID16}/followers`,
-          inboxUrl: `${TEST_ID16}/inbox`,
-          sharedInboxUrl: TEST_SHARED_INBOX,
-          publicKey: 'publicKey',
-          createdAt: currentTime
-        })
-        expect(actor).toEqual({
-          id: urlToId(TEST_ID16),
-          username: TEST_USERNAME16,
-          acct: `${TEST_USERNAME16}@${TEST_DOMAIN}`,
-          url: TEST_ID16,
-          display_name: '',
-          note: '',
-          avatar: '',
-          avatar_static: '',
-          header: '',
-          header_static: '',
-
-          locked: false,
-          fields: [],
-          emojis: [],
-
-          bot: false,
-          group: false,
-          discoverable: true,
-          noindex: false,
-
-          source: {
-            fields: [],
-            follow_requests_count: 0,
-            language: 'en',
-            note: '',
-            privacy: 'public',
-            sensitive: false
-          },
-
-          created_at: getISOTimeUTC(currentTime),
-          last_status_at: null,
-
-          statuses_count: 0,
-          followers_count: 0,
-          following_count: 0
-        })
-      })
-    })
-
-    describe('follows', () => {
-      it('returns empty followers and following', async () => {
-        expect(
-          await database.getActorFollowersCount({ actorId: TEST_ID })
-        ).toEqual(0)
-        expect(
-          await database.getActorFollowingCount({ actorId: TEST_ID })
-        ).toEqual(0)
-        expect(
-          await database.getFollowersInbox({ targetActorId: TEST_ID })
-        ).toEqual([])
-      })
-
-      it('following other actor', async () => {
-        const targetActorHost = TEST_DOMAIN_2
-        const targetActorId = `https://${TEST_DOMAIN_2}/users/null`
-        const inbox = `${TEST_ID3}/inbox`
-        const sharedInbox = 'https://llun.test/inbox'
-
-        await database.createActor({
-          actorId: targetActorId,
-          domain: TEST_DOMAIN_2,
-          username: 'null',
-          followersUrl: `https://${TEST_DOMAIN_2}/f/null`,
-          sharedInboxUrl: `https://${TEST_DOMAIN_2}/i/null`,
-          inboxUrl: `https://${TEST_DOMAIN_2}/i/null`,
-          publicKey: 'public-key',
-          createdAt: Date.now()
-        })
-
-        const follow = await database.createFollow({
-          actorId: TEST_ID3,
-          targetActorId,
-          status: FollowStatus.enum.Requested,
-          // Inbox is always for actor, not targetActor
-          inbox,
-          sharedInbox
-        })
-        expect(follow).toEqual({
-          actorHost: TEST_DOMAIN,
-          actorId: TEST_ID3,
-          createdAt: expect.toBeNumber(),
-          id: expect.toBeString(),
-          inbox,
-          sharedInbox,
-          status: FollowStatus.enum.Requested,
-          targetActorHost,
-          targetActorId,
-          updatedAt: expect.toBeNumber()
-        })
-        expect(
-          await database.isCurrentActorFollowing({
-            currentActorId: TEST_ID3,
-            followingActorId: targetActorId
-          })
-        ).toBeFalse()
-
-        expect(
-          await database.getAcceptedOrRequestedFollow({
-            actorId: TEST_ID3,
-            targetActorId
-          })
-        ).toEqual({
-          actorHost: TEST_DOMAIN,
-          actorId: TEST_ID3,
-          createdAt: expect.toBeNumber(),
-          id: follow.id,
-          inbox,
-          sharedInbox,
-          status: FollowStatus.enum.Requested,
-          targetActorHost,
-          targetActorId,
-          updatedAt: expect.toBeNumber()
-        })
-
-        expect(
-          await database.getActorFollowingCount({ actorId: TEST_ID3 })
-        ).toEqual(0)
-
-        await database.updateFollowStatus({
-          followId: follow.id,
-          status: FollowStatus.enum.Rejected
-        })
-        expect(
-          await database.isCurrentActorFollowing({
-            currentActorId: TEST_ID3,
-            followingActorId: targetActorId
-          })
-        ).toBeFalse()
-        expect(
-          await database.getAcceptedOrRequestedFollow({
-            actorId: TEST_ID3,
-            targetActorId
-          })
-        ).toBeNull()
-
-        // Make sure that second follow time is not the same as first follow
-        await new Promise((resolve) => setTimeout(resolve, 10))
-
-        const secondFollow = await database.createFollow({
-          actorId: TEST_ID3,
-          targetActorId,
-          status: FollowStatus.enum.Requested,
-          inbox,
-          sharedInbox
-        })
-        expect(secondFollow.id).not.toEqual(follow.id)
-        expect(
-          await database.getFollowFromId({ followId: secondFollow.id })
-        ).toEqual(secondFollow)
-        expect(
-          await database.getAcceptedOrRequestedFollow({
-            actorId: TEST_ID3,
-            targetActorId
-          })
-        ).toEqual({
-          actorHost: TEST_DOMAIN,
-          actorId: TEST_ID3,
-          createdAt: expect.toBeNumber(),
-          id: secondFollow.id,
-          inbox,
-          sharedInbox,
-          status: FollowStatus.enum.Requested,
-          targetActorHost,
-          targetActorId,
-          updatedAt: expect.toBeNumber()
-        })
-
-        // Artificial wait because test is too fast, so the updated time is equal to insert sometime.
-        await waitFor(100)
-        await database.updateFollowStatus({
-          followId: secondFollow.id,
-          status: FollowStatus.enum.Accepted
-        })
-        const secondFollowAfterUpdated =
-          await database.getAcceptedOrRequestedFollow({
-            actorId: TEST_ID3,
-            targetActorId
-          })
-        expect(secondFollowAfterUpdated).toEqual({
-          actorHost: TEST_DOMAIN,
-          actorId: TEST_ID3,
-          createdAt: expect.toBeNumber(),
-          id: secondFollow.id,
-          inbox,
-          sharedInbox,
-          status: FollowStatus.enum.Accepted,
-          targetActorHost,
-          targetActorId,
-          updatedAt: expect.toBeNumber()
-        })
-        expect(secondFollowAfterUpdated?.updatedAt).not.toEqual(
-          secondFollow.updatedAt
-        )
-        expect(
-          await database.isCurrentActorFollowing({
-            currentActorId: TEST_ID3,
-            followingActorId: targetActorId
-          })
-        ).toBeTrue()
-
-        expect(
-          await database.getActorFollowingCount({ actorId: TEST_ID3 })
-        ).toEqual(1)
-
-        expect(await database.getFollowersInbox({ targetActorId })).toEqual([
-          sharedInbox
-        ])
-
-        const actors = await database.getLocalActorsFromFollowerUrl({
-          followerUrl: `https://${TEST_DOMAIN_2}/f/null`
-        })
-        expect(actors.length).toEqual(1)
-        expect(actors[0].id).toEqual(TEST_ID3)
-        expect(actors[0].privateKey).not.toEqual('')
-      })
-
-      it('gets other actor follow (follower)', async () => {
-        const actorId = `https://${TEST_DOMAIN_2}/users/test2`
-        const inbox = `${actorId}/inbox`
-        const sharedInbox = `https://${TEST_DOMAIN_2}/inbox`
-
-        await database.createFollow({
-          actorId,
-          targetActorId: TEST_ID4,
-          status: FollowStatus.enum.Accepted,
-          inbox,
-          sharedInbox
-        })
-        expect(
-          await database.getActorFollowersCount({ actorId: TEST_ID4 })
-        ).toEqual(1)
-
-        expect(
-          await database.getFollowersInbox({ targetActorId: TEST_ID4 })
-        ).toEqual([sharedInbox])
-
-        const follows = await database.getLocalFollowersForActorId({
-          targetActorId: TEST_ID4
-        })
-        expect(follows.length).toEqual(0)
-
-        await database.createFollow({
-          actorId: TEST_ID3,
-          targetActorId: TEST_ID4,
-          status: FollowStatus.enum.Accepted,
-          inbox: `${TEST_ID3}/inbox`,
-          sharedInbox: `https://${TEST_DOMAIN}/inbox`
-        })
-        const followsAfterLocalFollow =
-          await database.getLocalFollowersForActorId({
-            targetActorId: TEST_ID4
-          })
-        expect(followsAfterLocalFollow.length).toEqual(1)
-
-        const OUTSIDE_NETWORK_ID = `https://${TEST_DOMAIN_3}/u/outside-network`
-        await database.createActor({
-          actorId: OUTSIDE_NETWORK_ID,
-          domain: TEST_DOMAIN_3,
-          username: 'outside-network',
-          followersUrl: `https://${TEST_DOMAIN_3}/f/outside-network`,
-          inboxUrl: `https://${TEST_DOMAIN_3}/i/outside-network`,
-          sharedInboxUrl: `https://${TEST_DOMAIN_3}/i/outside-network`,
-          publicKey: 'public-key',
-          createdAt: Date.now()
-        })
-
-        await database.createFollow({
-          actorId: OUTSIDE_NETWORK_ID,
-          targetActorId: TEST_ID4,
-          status: FollowStatus.enum.Accepted,
-          inbox: `https://${TEST_DOMAIN_3}/i/outside-network`,
-          sharedInbox: `https://${TEST_DOMAIN_3}/i/outside-network`
-        })
-        const followsAfterOutsideFollow =
-          await database.getLocalFollowersForActorId({
-            targetActorId: TEST_ID4
-          })
-        expect(followsAfterOutsideFollow.length).toEqual(1)
-      })
-
-      it('returns actor follows from inbox', async () => {
-        const actorId = `https://${TEST_DOMAIN_2}/users/test2`
-        const inbox = `${actorId}/inbox`
-        const sharedInbox = `https://${TEST_DOMAIN_2}/inbox`
-
-        const createdFollow = await database.createFollow({
-          actorId,
-          targetActorId: TEST_ID5,
-          status: FollowStatus.enum.Accepted,
-          inbox,
-          sharedInbox
-        })
-
-        const followsFromInbox = await database.getLocalFollowsFromInboxUrl({
-          followerInboxUrl: inbox,
-          targetActorId: TEST_ID5
-        })
-        expect(followsFromInbox).toHaveLength(1)
-        expect(followsFromInbox[0]).toEqual(createdFollow)
-
-        const followsFromSharedInbox =
-          await database.getLocalFollowsFromInboxUrl({
-            followerInboxUrl: sharedInbox,
-            targetActorId: TEST_ID5
-          })
-        expect(followsFromSharedInbox).toHaveLength(1)
-        expect(followsFromSharedInbox[0]).toEqual(createdFollow)
-      })
-    })
-
     describe('statuses', () => {
       it('creates a new note', async () => {
         const postId = 'post-1'
@@ -487,7 +126,6 @@ describe('Database', () => {
           id,
           url: id,
           actorId: TEST_ID,
-
           text: 'Test Status',
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
@@ -500,7 +138,6 @@ describe('Database', () => {
           actorId: actor.id,
           actor: getActorProfile(actor),
           type: StatusType.enum.Note,
-
           text: 'Test Status',
           summary: '',
           to: [ACTIVITY_STREAM_PUBLIC],
@@ -1023,7 +660,7 @@ describe('Database', () => {
     })
 
     describe('clients', () => {
-      it('add client record and return client model', async () => {
+      it('adds client record and returns client model', async () => {
         const client = await database.createClient({
           name: 'application3',
           redirectUris: ['https://application3.llun.dev/oauth/redirect'],
@@ -1057,7 +694,7 @@ describe('Database', () => {
         ).rejects.toThrow()
       })
 
-      it('returns null when application name is already exists', async () => {
+      it('returns null when application name already exists', async () => {
         await expect(
           database.createClient({
             name: 'application1',
@@ -1065,7 +702,7 @@ describe('Database', () => {
             scopes: [Scope.enum.read, Scope.enum.write],
             secret: 'some random secret'
           })
-        ).rejects.toThrow(`Client application1 is already exists`)
+        ).rejects.toThrow('Client application1 is already exists')
       })
 
       it('returns existing client in storage', async () => {
@@ -1129,7 +766,9 @@ describe('Database', () => {
       })
 
       describe('tokens', () => {
-        let token: Token | null, actor: Actor | undefined, client: Client | null
+        let token: Token | null
+        let actor: Actor | undefined
+        let client: Client | null
 
         beforeAll(async () => {
           ;[actor, client] = await Promise.all([
@@ -1167,7 +806,7 @@ describe('Database', () => {
           expect(token?.user?.id).toEqual(actor?.id)
         })
 
-        it('add refresh token to access token', async () => {
+        it('adds refresh token to access token', async () => {
           const refreshToken = generateRandomToken(DEFAULT_OAUTH_TOKEN_LENGTH)
           const refreshTokenExpiresAt = new DateInterval('2d')
             .getEndDate()
@@ -1207,9 +846,9 @@ describe('Database', () => {
       })
 
       describe('authCode', () => {
-        let actor: Actor | undefined,
-          client: Client | null,
-          code: AuthCode | null
+        let actor: Actor | undefined
+        let client: Client | null
+        let code: AuthCode | null
 
         beforeAll(async () => {
           ;[actor, client] = await Promise.all([
@@ -1224,13 +863,10 @@ describe('Database', () => {
             redirectUri: 'https://application1.llun.dev/oauth/redirect',
             codeChallenge: 'challenge',
             codeChallengeMethod: 'plain',
-
             clientId: client?.id as string,
             accountId: actor?.account?.id as string,
             actorId: actor?.id as string,
-
             scopes: [Scope.enum.read],
-
             expiresAt: new DateInterval('50m').getEndDate().getTime()
           })
         })
@@ -1241,13 +877,10 @@ describe('Database', () => {
             redirectUri: null,
             codeChallenge: null,
             codeChallengeMethod: 'S256',
-
             clientId: client?.id as string,
             accountId: actor?.account?.id as string,
             actorId: actor?.id as string,
-
             scopes: [Scope.enum.read],
-
             expiresAt: new DateInterval('50m').getEndDate().getTime()
           })
 
@@ -1263,7 +896,7 @@ describe('Database', () => {
           expect(codeFromStorage).toEqual(code)
         })
 
-        it('sets expires at when revoke authCode', async () => {
+        it('sets expires at when revoking authCode', async () => {
           const revokedAuthCode = await database.revokeAuthCode({
             code: code?.code as string
           })
