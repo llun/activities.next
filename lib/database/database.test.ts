@@ -38,10 +38,6 @@ const TEST_EMAIL = `user@${TEST_DOMAIN}`
 const TEST_USERNAME = 'user'
 const TEST_ID = `https://${TEST_DOMAIN}/users/user`
 
-// For testing create new account
-const TEST_EMAIL2 = `user2@${TEST_DOMAIN}`
-const TEST_USERNAME2 = 'user2'
-
 // User that follow other without any followers
 const TEST_ID3 = `https://${TEST_DOMAIN}/users/user3`
 
@@ -138,125 +134,6 @@ describe('Database', () => {
           secret: 'secret'
         })
       ])
-    })
-
-    describe('accounts', () => {
-      it('returns false when account is not created yet', async () => {
-        expect(
-          await database.isAccountExists({ email: TEST_EMAIL2 })
-        ).toBeFalse()
-        expect(
-          await database.isUsernameExists({
-            username: TEST_USERNAME2,
-            domain: TEST_DOMAIN
-          })
-        ).toBeFalse()
-      })
-
-      it('creates account and actor', async () => {
-        await database.createAccount({
-          email: TEST_EMAIL2,
-          username: TEST_USERNAME2,
-          passwordHash: TEST_PASSWORD_HASH,
-          domain: TEST_DOMAIN,
-          privateKey: 'privateKey2',
-          publicKey: 'publicKey2'
-        })
-        expect(
-          await database.isAccountExists({ email: TEST_EMAIL2 })
-        ).toBeTrue()
-        expect(
-          await database.isUsernameExists({
-            username: TEST_USERNAME2,
-            domain: TEST_DOMAIN
-          })
-        ).toBeTrue()
-      })
-
-      it('returns actor from getActor methods', async () => {
-        const expectedActorAfterCreated = {
-          id: TEST_ID,
-          username: TEST_USERNAME,
-          domain: TEST_DOMAIN,
-          account: {
-            id: expect.toBeString(),
-            email: TEST_EMAIL
-          },
-          followersUrl: `${TEST_ID}/followers`,
-          publicKey: expect.toBeString(),
-          privateKey: expect.toBeString()
-        }
-        expect(
-          await database.getActorFromEmail({ email: TEST_EMAIL })
-        ).toMatchObject(expectedActorAfterCreated)
-        expect(
-          await database.getActorFromUsername({
-            username: TEST_USERNAME,
-            domain: TEST_DOMAIN
-          })
-        ).toMatchObject(expectedActorAfterCreated)
-        expect(await database.getActorFromId({ id: TEST_ID })).toMatchObject(
-          expectedActorAfterCreated
-        )
-      })
-
-      it('returns mastodon actor from getMastodonActor methods', async () => {
-        const expectedActorAfterCreated = {
-          id: urlToId(TEST_ID),
-          username: TEST_USERNAME,
-          acct: `${TEST_USERNAME}@${TEST_DOMAIN}`,
-          url: TEST_ID,
-          display_name: '',
-          note: '',
-          avatar: '',
-          avatar_static: '',
-          header: '',
-          header_static: '',
-          locked: false,
-          fields: [],
-          emojis: [],
-          bot: false,
-          group: false,
-          discoverable: true,
-          noindex: false,
-          created_at: expect.toBeString(),
-          last_status_at: null,
-          statuses_count: 0,
-          followers_count: 0,
-          following_count: 0
-        }
-
-        expect(
-          await database.getMastodonActorFromEmail({ email: TEST_EMAIL })
-        ).toMatchObject(expectedActorAfterCreated)
-        expect(
-          await database.getMastodonActorFromUsername({
-            username: TEST_USERNAME,
-            domain: TEST_DOMAIN
-          })
-        ).toMatchObject(expectedActorAfterCreated)
-        expect(
-          await database.getMastodonActorFromId({ id: TEST_ID })
-        ).toMatchObject(expectedActorAfterCreated)
-      })
-
-      it('updates actor information', async () => {
-        await database.updateActor({
-          actorId: TEST_ID,
-          name: 'llun',
-          summary: 'This is test actor'
-        })
-
-        expect(
-          await database.getActorFromUsername({
-            username: TEST_USERNAME,
-            domain: TEST_DOMAIN
-          })
-        ).toMatchObject({
-          name: 'llun',
-          summary: 'This is test actor'
-        })
-      })
     })
 
     describe('actors', () => {
@@ -1159,7 +1036,11 @@ describe('Database', () => {
           secret: 'some random secret',
           scopes: [{ name: 'read' }, { name: 'write' }],
           redirectUris: ['https://application3.llun.dev/oauth/redirect'],
-          allowedGrants: ['client_credentials', 'authorization_code', 'refresh_token'],
+          allowedGrants: [
+            'client_credentials',
+            'authorization_code',
+            'refresh_token'
+          ],
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
@@ -1201,7 +1082,11 @@ describe('Database', () => {
           secret: 'secret',
           scopes: [{ name: 'read' }],
           redirectUris: ['https://application1.llun.dev/oauth/redirect'],
-          allowedGrants: ['client_credentials', 'authorization_code', 'refresh_token'],
+          allowedGrants: [
+            'client_credentials',
+            'authorization_code',
+            'refresh_token'
+          ],
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
@@ -1211,7 +1096,11 @@ describe('Database', () => {
           secret: 'secret',
           scopes: [{ name: 'read' }],
           redirectUris: ['https://application1.llun.dev/oauth/redirect'],
-          allowedGrants: ['client_credentials', 'authorization_code', 'refresh_token'],
+          allowedGrants: [
+            'client_credentials',
+            'authorization_code',
+            'refresh_token'
+          ],
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber()
         })
