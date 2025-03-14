@@ -42,7 +42,8 @@ describe('Undo Announce action', () => {
     it('deletes announce status and publishes to queue', async () => {
       const announceStatus = {
         id: `${actor1.id}/statuses/announce-1`,
-        type: StatusType.enum.Announce
+        type: StatusType.enum.Announce,
+        actorId: actor1.id
       } as Status
 
       const mockDatabase = {
@@ -92,7 +93,8 @@ describe('Undo Announce action', () => {
     it('returns null when status is not an announce', async () => {
       const noteStatus = {
         id: `${actor1.id}/statuses/note-1`,
-        type: StatusType.enum.Note
+        type: StatusType.enum.Note,
+        actorId: actor1.id
       } as Status
 
       const mockDatabase = {
@@ -103,6 +105,29 @@ describe('Undo Announce action', () => {
       const result = await userUndoAnnounce({
         currentActor: actor1,
         statusId: noteStatus.id,
+        database: mockDatabase
+      })
+
+      expect(result).toBeNull()
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
+    it('returns null when status is not owned by the current actor', async () => {
+      const otherActorId = 'https://other.example.com/users/other'
+      const announceStatus = {
+        id: `${otherActorId}/statuses/announce-1`,
+        type: StatusType.enum.Announce,
+        actorId: otherActorId
+      } as Status
+
+      const mockDatabase = {
+        ...database,
+        getStatus: jest.fn().mockResolvedValue(announceStatus)
+      }
+
+      const result = await userUndoAnnounce({
+        currentActor: actor1,
+        statusId: announceStatus.id,
         database: mockDatabase
       })
 

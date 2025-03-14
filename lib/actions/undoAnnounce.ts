@@ -25,6 +25,12 @@ export const userUndoAnnounce = async ({
       return null
     }
 
+    if (status.actorId !== currentActor.id) {
+      span.setAttribute('unauthorized', true)
+      span.end()
+      return null
+    }
+
     await database.deleteStatus({ statusId })
     await getQueue().publish({
       id: `undo-announce-${urlToId(status.id)}`,
