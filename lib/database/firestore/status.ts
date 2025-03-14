@@ -79,16 +79,19 @@ export const StatusFirestoreDatabaseMixin = (
       updatedAt: currentTime
     }
 
-    const actor = await actorDatabase.getActorFromId({ id: actorId })
-    await Promise.all([
-      firestore.doc(`statuses/${urlToId(id)}`).set(status),
-      actor
-        ? firestore.doc(`actors/${urlToId(actorId)}`).update({
-            statusCount: FieldValue.increment(1),
-            lastStatusAt: currentTime
-          })
-        : null
+    // Get actor and save status in parallel
+    const [actor] = await Promise.all([
+      actorDatabase.getActorFromId({ id: actorId }),
+      firestore.doc(`statuses/${urlToId(id)}`).set(status)
     ])
+
+    // Update actor status count if actor exists
+    if (actor) {
+      await firestore.doc(`actors/${urlToId(actorId)}`).update({
+        statusCount: FieldValue.increment(1),
+        lastStatusAt: currentTime
+      })
+    }
 
     const profile = actor ? getActorProfile(actor) : null
     return Status.parse({
@@ -131,12 +134,17 @@ export const StatusFirestoreDatabaseMixin = (
     }
     const statusPath = `statuses/${urlToId(statusId)}`
     const historyPath = `${statusPath}/history/${currentTime}`
-    await firestore.doc(historyPath).set(previousData)
-    await firestore.doc(statusPath).update({
-      text,
-      ...(summary ? { summary } : null),
-      updatedAt: currentTime
-    })
+
+    // Save history and update status in parallel
+    await Promise.all([
+      firestore.doc(historyPath).set(previousData),
+      firestore.doc(statusPath).update({
+        text,
+        ...(summary ? { summary } : null),
+        updatedAt: currentTime
+      })
+    ])
+
     return getStatus({ statusId })
   }
 
@@ -160,16 +168,19 @@ export const StatusFirestoreDatabaseMixin = (
       updatedAt: currentTime
     }
 
-    const actor = await actorDatabase.getActorFromId({ id: actorId })
-    await Promise.all([
-      await firestore.doc(`statuses/${urlToId(id)}`).set(status),
-      actor
-        ? firestore.doc(`actors/${urlToId(actorId)}`).update({
-            statusCount: FieldValue.increment(1),
-            lastStatusAt: currentTime
-          })
-        : null
+    // Get actor and save status in parallel
+    const [actor] = await Promise.all([
+      actorDatabase.getActorFromId({ id: actorId }),
+      firestore.doc(`statuses/${urlToId(id)}`).set(status)
     ])
+
+    // Update actor status count if actor exists
+    if (actor) {
+      await firestore.doc(`actors/${urlToId(actorId)}`).update({
+        statusCount: FieldValue.increment(1),
+        lastStatusAt: currentTime
+      })
+    }
 
     const originalStatus = await getStatus({
       statusId: originalStatusId,
@@ -227,23 +238,28 @@ export const StatusFirestoreDatabaseMixin = (
       })
     )
 
-    const actor = await actorDatabase.getActorFromId({ id: actorId })
-    await Promise.all([
-      firestore.doc(statusPath).set(status),
-      actor
-        ? firestore.doc(`actors/${urlToId(actorId)}`).update({
-            statusCount: FieldValue.increment(1),
-            lastStatusAt: currentTime
-          })
-        : null
+    // Get actor and save status in parallel
+    const [actor] = await Promise.all([
+      actorDatabase.getActorFromId({ id: actorId }),
+      firestore.doc(statusPath).set(status)
     ])
-    await Promise.all(
-      choices.map((title, index) =>
+
+    // Update actor status count if actor exists and save choices in parallel
+    await Promise.all([
+      ...(actor
+        ? [
+            firestore.doc(`actors/${urlToId(actorId)}`).update({
+              statusCount: FieldValue.increment(1),
+              lastStatusAt: currentTime
+            })
+          ]
+        : []),
+      ...choices.map((title, index) =>
         firestore
           .doc(`${statusPath}/choices/${createMD5(title)}`)
           .set(choicesData[index])
       )
-    )
+    ])
 
     const profile = actor ? getActorProfile(actor) : null
     return StatusPoll.parse({
@@ -288,20 +304,28 @@ export const StatusFirestoreDatabaseMixin = (
         updatedAt: currentTime
       }
       const historyPath = `${statusPath}/history/${currentTime}`
-      await firestore.doc(historyPath).set(previousData)
-      await firestore.doc(statusPath).update({
-        text,
-        ...(summary ? { summary } : null),
-        updatedAt: currentTime
-      })
+
+      // Save history and update status in parallel
+      await Promise.all([
+        firestore.doc(historyPath).set(previousData),
+        firestore.doc(statusPath).update({
+          text,
+          ...(summary ? { summary } : null),
+          updatedAt: currentTime
+        })
+      ])
     }
-    choices.map(async (choice) => {
-      const key = `${statusPath}/choices/${createMD5(choice.title)}`
-      return firestore.doc(key).update({
-        totalVotes: choice.totalVotes,
-        updatedAt: currentTime
+
+    // Update all choices in parallel
+    await Promise.all(
+      choices.map(async (choice) => {
+        const key = `${statusPath}/choices/${createMD5(choice.title)}`
+        return firestore.doc(key).update({
+          totalVotes: choice.totalVotes,
+          updatedAt: currentTime
+        })
       })
-    })
+    )
 
     return getStatus({ statusId })
   }
@@ -425,30 +449,34 @@ export const StatusFirestoreDatabaseMixin = (
     const status = await getStatus({ statusId })
     if (!status) return
 
-    const repliesSnapshot = await firestore
-      .collection('statuses')
-      .where('reply', '==', statusId)
-      .get()
+    // Get replies and timeline references in parallel
+    const [repliesSnapshot, statusInTimelines] = await Promise.all([
+      firestore.collection('statuses').where('reply', '==', statusId).get(),
+      firestore
+        .collectionGroup('timelines')
+        .where('statusId', '==', statusId)
+        .get()
+    ])
 
+    // Delete all replies in parallel
     await Promise.all(
       repliesSnapshot.docs
         .map((doc) => doc.data().id)
         .map((statusId) => deleteStatus({ statusId }))
     )
 
-    const statusInTimelines = await firestore
-      .collectionGroup('timelines')
-      .where('statusId', '==', statusId)
-      .get()
-
     const bulkWriter = firestore.bulkWriter()
-    await Promise.all(
-      statusInTimelines.docs.map((doc) => bulkWriter.delete(doc.ref))
-    )
-    await firestore.recursiveDelete(
-      firestore.doc(`statuses/${urlToId(statusId)}`),
-      bulkWriter
-    )
+
+    // Delete timeline references and status document in parallel
+    await Promise.all([
+      ...statusInTimelines.docs.map((doc) => bulkWriter.delete(doc.ref)),
+      firestore.recursiveDelete(
+        firestore.doc(`statuses/${urlToId(statusId)}`),
+        bulkWriter
+      )
+    ])
+
+    // Update actor status count if local actor
     if (status.isLocalActor) {
       await firestore.doc(`actors/${urlToId(status.actorId)}`).update({
         statusCount: FieldValue.increment(-1)
@@ -515,9 +543,12 @@ export const StatusFirestoreDatabaseMixin = (
         return null
       }
 
-      const snapshot = await firestore
-        .doc(`statuses/${urlToId(data.originalStatusId)}`)
-        .get()
+      // Get snapshot and actor in parallel
+      const [snapshot, actor] = await Promise.all([
+        firestore.doc(`statuses/${urlToId(data.originalStatusId)}`).get(),
+        actorDatabase.getActorFromId({ id: data.actorId })
+      ])
+
       const originalStatusData = snapshot.data()
       if (!originalStatusData) return null
 
@@ -529,12 +560,6 @@ export const StatusFirestoreDatabaseMixin = (
         )
         return null
       }
-
-      // For Announce statuses, limit the depth of the queries to avoid recursion
-      // Get only essential data for the original status
-      const actor = await actorDatabase.getActorFromId({
-        id: data.actorId
-      })
 
       // Load the original status without unnecessary nested operations
       const originalStatus = await getStatusFromData(
