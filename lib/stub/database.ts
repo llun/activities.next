@@ -192,6 +192,14 @@ export const seedDatabase = async (database: Database) => {
     originalStatusId: `${actors[1].id}/statuses/post-2`
   })
 
+  await database.createAnnounce({
+    id: `${actors[1].id}/statuses/announce-1`,
+    actorId: actors[1].id,
+    to: [ACTIVITY_STREAM_PUBLIC],
+    cc: [`${actors[1].id}/followers`],
+    originalStatusId: `${actors[0].id}/statuses/post-3`
+  })
+
   // Actor2 reply to Actor1
   await database.createNote({
     id: `${actors[1].id}/statuses/reply-1`,

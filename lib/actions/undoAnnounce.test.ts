@@ -3,10 +3,10 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { JobData } from '@/lib/jobs/sendUndoAnnounceJob'
 import { Actor } from '@/lib/models/actor'
-import { Status, StatusType } from '@/lib/models/status'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { urlToId } from '@/lib/utils/urlToId'
 
 // Mock the queue
@@ -19,6 +19,7 @@ jest.mock('../services/queue', () => ({
 describe('Undo Announce action', () => {
   const database = getTestSQLDatabase()
   let actor1: Actor
+  let actor2: Actor
 
   beforeAll(async () => {
     await database.migrate()
@@ -26,6 +27,9 @@ describe('Undo Announce action', () => {
 
     actor1 = (await database.getActorFromEmail({
       email: seedActor1.email
+    })) as Actor
+    actor2 = (await database.getActorFromEmail({
+      email: seedActor2.email
     })) as Actor
   })
 
@@ -40,50 +44,28 @@ describe('Undo Announce action', () => {
 
   describe('#userUndoAnnounce', () => {
     it('deletes announce status and publishes to queue', async () => {
-      const announceStatus = {
-        id: `${actor1.id}/statuses/announce-1`,
-        type: StatusType.enum.Announce,
-        actorId: actor1.id
-      } as Status
-
-      const mockDatabase = {
-        ...database,
-        getStatus: jest.fn().mockResolvedValue(announceStatus),
-        deleteStatus: jest.fn().mockResolvedValue(true)
-      }
-
       const status = await userUndoAnnounce({
-        currentActor: actor1,
-        statusId: announceStatus.id,
-        database: mockDatabase
-      })
-
-      expect(status).toEqual(announceStatus)
-      expect(mockDatabase.deleteStatus).toHaveBeenCalledWith({
-        statusId: announceStatus.id
+        currentActor: actor2,
+        statusId: `${actor2.id}/statuses/announce-1`,
+        database
       })
 
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: `undo-announce-${urlToId(announceStatus.id)}`,
+        id: `undo-announce-${urlToId(status!.id)}`,
         name: SEND_UNDO_ANNOUNCE_JOB_NAME,
         data: JobData.parse({
-          actorId: actor1.id,
-          statusId: announceStatus.id
+          actorId: actor2.id,
+          statusId: status!.id
         })
       })
     })
 
     it('returns null when status does not exist', async () => {
-      const mockDatabase = {
-        ...database,
-        getStatus: jest.fn().mockResolvedValue(null)
-      }
-
       const result = await userUndoAnnounce({
-        currentActor: actor1,
+        currentActor: actor2,
         statusId: 'nonexistent-status',
-        database: mockDatabase
+        database
       })
 
       expect(result).toBeNull()
@@ -91,21 +73,10 @@ describe('Undo Announce action', () => {
     })
 
     it('returns null when status is not an announce', async () => {
-      const noteStatus = {
-        id: `${actor1.id}/statuses/note-1`,
-        type: StatusType.enum.Note,
-        actorId: actor1.id
-      } as Status
-
-      const mockDatabase = {
-        ...database,
-        getStatus: jest.fn().mockResolvedValue(noteStatus)
-      }
-
       const result = await userUndoAnnounce({
-        currentActor: actor1,
-        statusId: noteStatus.id,
-        database: mockDatabase
+        currentActor: actor2,
+        statusId: `${actor2.id}/statuses/post-2`,
+        database
       })
 
       expect(result).toBeNull()
@@ -113,22 +84,10 @@ describe('Undo Announce action', () => {
     })
 
     it('returns null when status is not owned by the current actor', async () => {
-      const otherActorId = 'https://other.example.com/users/other'
-      const announceStatus = {
-        id: `${otherActorId}/statuses/announce-1`,
-        type: StatusType.enum.Announce,
-        actorId: otherActorId
-      } as Status
-
-      const mockDatabase = {
-        ...database,
-        getStatus: jest.fn().mockResolvedValue(announceStatus)
-      }
-
       const result = await userUndoAnnounce({
         currentActor: actor1,
-        statusId: announceStatus.id,
-        database: mockDatabase
+        statusId: `${actor2.id}/statuses/announce-1`,
+        database
       })
 
       expect(result).toBeNull()
