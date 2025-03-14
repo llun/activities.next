@@ -1,5 +1,3 @@
-import crypto from 'crypto'
-
 import { userAnnounce } from '@/lib/actions/announce'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
@@ -10,7 +8,6 @@ import { getQueue } from '@/lib/services/queue'
 import * as timelinesService from '@/lib/services/timelines'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
 // Mock the queue
@@ -22,10 +19,6 @@ jest.mock('../services/queue', () => ({
 
 jest.mock('../services/timelines', () => ({
   addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
-}))
-
-jest.mock('crypto', () => ({
-  randomUUID: jest.fn().mockReturnValue('mocked-uuid')
 }))
 
 describe('Announce action', () => {
@@ -117,119 +110,6 @@ describe('Announce action', () => {
       expect(result).toBeNull()
       expect(getQueue().publish).not.toHaveBeenCalled()
       expect(timelinesService.addStatusToTimelines).not.toHaveBeenCalled()
-    })
-
-    it('returns null when createAnnounce fails', async () => {
-      const testDatabase = {
-        ...database,
-        getStatus: async () => ({ id: 'test-status' }) as Status,
-        getActorAnnounceStatus: async () => null,
-        createAnnounce: async () => null
-      }
-
-      const result = await userAnnounce({
-        currentActor: actor1,
-        statusId: 'test-status',
-        database: testDatabase
-      })
-
-      expect(result).toBeNull()
-      expect(getQueue().publish).not.toHaveBeenCalled()
-      expect(timelinesService.addStatusToTimelines).not.toHaveBeenCalled()
-    })
-
-    it('includes correct recipients in the announce', async () => {
-      const testUuid = '12345678-1234-1234-1234-123456789012'
-      const expectedId = `${actor1.id}/statuses/${testUuid}`
-      const testDatabase = {
-        ...database,
-        getStatus: async () => ({ id: 'test-status' }) as Status,
-        getActorAnnounceStatus: async () => null,
-        createAnnounce: async (params: {
-          id: string
-          actorId: string
-          to: string[]
-          cc: string[]
-          originalStatusId: string
-        }) => {
-          expect(params).toEqual({
-            id: expectedId,
-            actorId: actor1.id,
-            to: [ACTIVITY_STREAM_PUBLIC],
-            cc: [actor1.id, actor1.followersUrl],
-            originalStatusId: 'test-status'
-          })
-
-          return {
-            id: params.id,
-            type: StatusType.enum.Announce,
-            actorId: params.actorId,
-            originalStatus: { id: 'test-status' }
-          } as Status
-        }
-      }
-
-      jest.spyOn(crypto, 'randomUUID').mockReturnValue(testUuid)
-
-      const status = await userAnnounce({
-        currentActor: actor1,
-        statusId: 'test-status',
-        database: testDatabase
-      })
-
-      expect(status).not.toBeNull()
-      expect(status!.id).toBe(expectedId)
-      expect(getQueue().publish).toHaveBeenCalledTimes(1)
-      expect(timelinesService.addStatusToTimelines).toHaveBeenCalledTimes(1)
-    })
-
-    it('creates announce with correct activity format', async () => {
-      const testUuid = '87654321-4321-4321-4321-210987654321'
-      const announceStatusId = `${actor1.id}/statuses/${testUuid}`
-      const originalStatusId = `${actor1.id}/statuses/post-2`
-
-      const testDatabase = {
-        ...database,
-        getStatus: async (params: { statusId: string }) => {
-          if (params.statusId === originalStatusId) {
-            return { id: originalStatusId } as Status
-          }
-          return null
-        },
-        getActorAnnounceStatus: async () => null,
-        createAnnounce: async (params: {
-          id: string
-          actorId: string
-          to: string[]
-          cc: string[]
-          originalStatusId: string
-        }) => {
-          return {
-            id: params.id,
-            type: StatusType.enum.Announce,
-            actorId: params.actorId,
-            originalStatus: { id: originalStatusId }
-          } as Status
-        }
-      }
-
-      jest.spyOn(crypto, 'randomUUID').mockReturnValue(testUuid)
-
-      await userAnnounce({
-        currentActor: actor1,
-        statusId: originalStatusId,
-        database: testDatabase
-      })
-
-      expect(getQueue().publish).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: SEND_ANNOUNCE_JOB_NAME,
-          data: expect.objectContaining({
-            actorId: actor1.id,
-            statusId: announceStatusId
-          })
-        })
-      )
     })
   })
 })

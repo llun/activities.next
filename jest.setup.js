@@ -41,6 +41,14 @@ jest.mock('./lib/config', () => {
       secretPhase,
       email: {
         serviceFromAddress: 'test@llun.dev'
+      },
+      database: {
+        type: 'knex',
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
       }
     })
   }

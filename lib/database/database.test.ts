@@ -552,7 +552,7 @@ describe('Database', () => {
 
         const originalStatus = announceStatus.originalStatus
         expect(originalStatus.id).toEqual(note.id)
-      }, 15000)
+      })
     })
 
     describe('likes', () => {
