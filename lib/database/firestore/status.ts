@@ -41,7 +41,8 @@ export interface FirestoreStatusDatabase extends StatusDatabase {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
     withReplies: boolean,
-    currentActorId?: string
+    currentActorId?: string,
+    isNestedLoad?: boolean
   ): Promise<Status | null>
 }
 
@@ -313,7 +314,7 @@ export const StatusFirestoreDatabaseMixin = (
     const snapshot = await firestore.doc(`statuses/${urlToId(statusId)}`).get()
     const data = snapshot.data()
     if (!data) return null
-    return getStatusFromData(data, withReplies, currentActorId)
+    return getStatusFromData(data, withReplies, currentActorId, false)
   }
 
   async function getStatusReplies({ statusId }: GetStatusRepliesParams) {
@@ -325,7 +326,7 @@ export const StatusFirestoreDatabaseMixin = (
     const replies = await Promise.all(
       snapshot.docs.map(async (item) => {
         const data = item.data()
-        const status = await getStatusFromData(data, false)
+        const status = await getStatusFromData(data, false, undefined, false)
         if (status?.type !== StatusType.enum.Note) return null
         return status
       })
@@ -366,7 +367,7 @@ export const StatusFirestoreDatabaseMixin = (
 
     if (snapshot.empty) return null
     const doc = snapshot.docs[0]
-    return getStatusFromData(doc.data(), false, actorId)
+    return getStatusFromData(doc.data(), false, actorId, false)
   }
 
   async function getActorStatusesCount({
@@ -414,7 +415,7 @@ export const StatusFirestoreDatabaseMixin = (
     const items = await Promise.all(
       snapshot.docs.map((item) => {
         const data = item.data()
-        return getStatusFromData(data, false)
+        return getStatusFromData(data, false, undefined, false)
       })
     )
     return items.filter((item): item is Status => Boolean(item))
@@ -503,7 +504,8 @@ export const StatusFirestoreDatabaseMixin = (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
     withReplies: boolean,
-    currentActorId?: string
+    currentActorId?: string,
+    isNestedLoad: boolean = false
   ): Promise<Status | null> {
     if (!data) return null
 
@@ -536,9 +538,10 @@ export const StatusFirestoreDatabaseMixin = (
 
       // Load the original status without unnecessary nested operations
       const originalStatus = await getStatusFromData(
-        { ...originalStatusData, __isNestedLoad: true },
+        originalStatusData,
         false,
-        currentActorId
+        currentActorId,
+        true // Pass true for isNestedLoad
       )
 
       if (!originalStatus) return null
@@ -557,9 +560,6 @@ export const StatusFirestoreDatabaseMixin = (
         updatedAt: data.updatedAt
       })
     }
-
-    // If this is a nested load (part of an Announce status), simplify operations
-    const isNestedLoad = data.__isNestedLoad === true
 
     // Prepare all the async operations based on whether this is a nested load
     const attachmentsPromise = mediaDatabase.getAttachments({

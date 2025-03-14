@@ -52,7 +52,9 @@ export const TimelineFirestoreDatabaseMixin = (
             .flat()
             .map((doc) => doc.data())
             .sort((a, b) => b.createdAt - a.createdAt)
-            .map((data) => statusDatabase.getStatusFromData(data, false))
+            .map((data) =>
+              statusDatabase.getStatusFromData(data, false, undefined, false)
+            )
         )
         return statuses
           .filter((status): status is Status => Boolean(status))
@@ -103,7 +105,8 @@ export const TimelineFirestoreDatabaseMixin = (
               return statusDatabase.getStatusFromData(
                 statusData.data(),
                 false,
-                actorId
+                actorId,
+                false
               )
             })
         )
