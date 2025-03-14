@@ -144,23 +144,25 @@ export const deleteStatus = async ({ statusId }: DefaultStatusParams) => {
 }
 
 export const repostStatus = async ({ statusId }: DefaultStatusParams) => {
-  await fetch('/api/v1/accounts/repost', {
+  const response = await fetch('/api/v1/accounts/repost', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({ statusId })
   })
+  return response.status === 200
 }
 
 export const undoRepostStatus = async ({ statusId }: DefaultStatusParams) => {
-  await fetch('/api/v1/accounts/repost', {
+  const response = await fetch('/api/v1/accounts/repost', {
     method: 'DELETE',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({ statusId })
   })
+  return response.status === 200
 }
 
 export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
