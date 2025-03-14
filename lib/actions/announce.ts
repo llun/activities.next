@@ -2,7 +2,6 @@ import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
-import { JobData } from '@/lib/jobs/sendAnnounceJob'
 import { Actor } from '@/lib/models/actor'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -51,10 +50,10 @@ export const userAnnounce = async ({
     await getQueue().publish({
       id: `announce-${urlToId(status.id)}`,
       name: SEND_ANNOUNCE_JOB_NAME,
-      data: JobData.parse({
+      data: {
         actorId: currentActor.id,
         statusId: status.id
-      })
+      }
     })
 
     span.end()
