@@ -1,35 +1,40 @@
-import { undoAnnounce } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
+import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { JobData } from '@/lib/jobs/sendUndoAnnounceJob'
 import { Actor } from '@/lib/models/actor'
 import { StatusType } from '@/lib/models/status'
+import { getQueue } from '@/lib/services/queue'
+import { getTracer } from '@/lib/utils/trace'
+import { urlToId } from '@/lib/utils/urlToId'
 
 interface UserUndoAnnounceParams {
   currentActor: Actor
   statusId: string
   database: Database
 }
+
 export const userUndoAnnounce = async ({
   currentActor,
   database,
   statusId
-}: UserUndoAnnounceParams) => {
-  // TODO: Find announce status from current actor and statusId
-  const status = await database.getStatus({ statusId, withReplies: false })
-  if (!status) return null
-  if (status.type !== StatusType.enum.Announce) return
+}: UserUndoAnnounceParams) =>
+  getTracer().startActiveSpan('userUndoAnnounce', async (span) => {
+    const status = await database.getStatus({ statusId, withReplies: false })
+    if (!status || status.type !== StatusType.enum.Announce) {
+      span.end()
+      return null
+    }
 
-  await database.deleteStatus({ statusId })
-  // TODO: Get inboxes from status, instead of followers?
-  const inboxes = await database.getFollowersInbox({
-    targetActorId: currentActor.id
-  })
-  await Promise.all(
-    inboxes.map((inbox) => {
-      return undoAnnounce({
-        currentActor,
-        inbox,
-        announce: status
+    await database.deleteStatus({ statusId })
+    await getQueue().publish({
+      id: `undo-announce-${urlToId(status.id)}`,
+      name: SEND_UNDO_ANNOUNCE_JOB_NAME,
+      data: JobData.parse({
+        actorId: currentActor.id,
+        statusId: status.id
       })
     })
-  )
-}
+
+    span.end()
+    return status
+  })
