@@ -8,7 +8,7 @@ import { getQueue } from '@/lib/services/queue'
 import * as timelinesService from '@/lib/services/timelines'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { urlToId } from '@/lib/utils/urlToId'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 jest.mock('../services/queue', () => ({
   getQueue: jest.fn().mockReturnValue({
@@ -60,7 +60,7 @@ describe('Announce action', () => {
 
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: `announce-${urlToId(status!.id)}`,
+        id: getHashFromString(status!.id),
         name: SEND_ANNOUNCE_JOB_NAME,
         data: JobData.parse({
           actorId: actor1.id,

@@ -5,9 +5,9 @@ import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { getTracer } from '@/lib/utils/trace'
-import { urlToId } from '@/lib/utils/urlToId'
 
 interface UserAnnounceParams {
   currentActor: Actor
@@ -48,7 +48,7 @@ export const userAnnounce = async ({
     }
     await addStatusToTimelines(database, status)
     await getQueue().publish({
-      id: `announce-${urlToId(status.id)}`,
+      id: getHashFromString(status.id),
       name: SEND_ANNOUNCE_JOB_NAME,
       data: {
         actorId: currentActor.id,
