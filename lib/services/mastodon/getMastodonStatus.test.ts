@@ -178,7 +178,7 @@ describe('#getMastodonStatus', () => {
           acct: getMentionFromActorID(ACTOR2_ID, true).slice(1),
           created_at: expect.toBeString(),
           last_status_at: expect.toBeString(),
-          statuses_count: 3,
+          statuses_count: 4,
           followers_count: 2,
           following_count: 1
         },
