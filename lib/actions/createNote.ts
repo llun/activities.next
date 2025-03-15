@@ -1,23 +1,21 @@
-import { Mention, Note } from '@llun/activities.schema'
+import { Mention } from '@llun/activities.schema'
 import crypto from 'crypto'
 
-import { sendNote } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { Database } from '@/lib/database/types'
+import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor, getMention } from '@/lib/models/actor'
 import { PostBoxAttachment } from '@/lib/models/attachment'
-import { FollowStatus } from '@/lib/models/follow'
 import { Status, StatusNote } from '@/lib/models/status'
+import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
-import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
 } from '@/lib/utils/jsonld/activitystream'
-import { logger } from '@/lib/utils/logger'
-import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
+import { urlToId } from '@/lib/utils/urlToId'
 
 // TODO: Support status visibility public, unlist, followers only, mentions only
 export const statusRecipientsTo = (
@@ -153,41 +151,17 @@ export const createNoteFromUserInput = async ({
     targetActorId: currentActor.id
   })
 
-  const note = getNoteFromStatus(status)
-  if (!note) {
-    span.end()
-    return status
-  }
-
   const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
-  await Promise.all([
-    ...inboxes.map(async (inbox) => {
-      try {
-        await sendNote({
-          currentActor,
-          inbox,
-          note: note as Note
-        })
-      } catch (e) {
-        logger.error({ inbox }, `Fail to send note`)
-        const nodeError = e as NodeJS.ErrnoException
-        if (UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code ?? '')) {
-          const follows = await database.getLocalFollowsFromInboxUrl({
-            followerInboxUrl: inbox,
-            targetActorId: currentActor.id
-          })
-          await Promise.all(
-            follows.map((follow) =>
-              database.updateFollowStatus({
-                followId: follow.id,
-                status: FollowStatus.enum.Rejected
-              })
-            )
-          )
-        }
-      }
-    })
-  ])
+
+  await getQueue().publish({
+    id: `send-note-${urlToId(status.id)}`,
+    name: SEND_NOTE_JOB_NAME,
+    data: {
+      actorId: currentActor.id,
+      statusId: status.id,
+      inboxes
+    }
+  })
 
   span.end()
   return status
