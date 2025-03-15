@@ -7,6 +7,7 @@ import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { urlToId } from '@/lib/utils/urlToId'
 
 // Mock the queue
@@ -52,7 +53,7 @@ describe('Undo Announce action', () => {
 
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: `undo-announce-${urlToId(status!.id)}`,
+        id: getHashFromString(status!.id),
         name: SEND_UNDO_ANNOUNCE_JOB_NAME,
         data: JobData.parse({
           actorId: actor2.id,

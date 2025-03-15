@@ -13,6 +13,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
@@ -75,7 +76,7 @@ describe('Create note action', () => {
       })
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: `send-note-${urlToId(status.id)}`,
+        id: getHashFromString(status.id),
         name: SEND_NOTE_JOB_NAME,
         data: {
           actorId: actor1.id,
@@ -103,7 +104,7 @@ describe('Create note action', () => {
       })
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: `send-note-${urlToId(status.id)}`,
+        id: getHashFromString(status.id),
         name: SEND_NOTE_JOB_NAME,
         data: {
           actorId: actor1.id,
@@ -142,7 +143,7 @@ How are you?
 
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: `send-note-${urlToId(status.id)}`,
+        id: getHashFromString(status.id),
         name: SEND_NOTE_JOB_NAME,
         data: {
           actorId: actor1.id,
@@ -190,7 +191,7 @@ How are you?
 
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: `send-note-${urlToId(status.id)}`,
+        id: getHashFromString(status.id),
         name: SEND_NOTE_JOB_NAME,
         data: {
           actorId: actor1.id,
@@ -228,7 +229,7 @@ How are you?
 
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: `send-note-${urlToId(status.id)}`,
+        id: getHashFromString(status.id),
         name: SEND_NOTE_JOB_NAME,
         data: {
           actorId: actor1.id,
