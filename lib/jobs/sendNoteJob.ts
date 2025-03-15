@@ -1,6 +1,8 @@
+import { Mention, Note } from '@llun/activities.schema'
 import { z } from 'zod'
 
 import { sendNote } from '@/lib/activities'
+import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { FollowStatus } from '@/lib/models/follow'
@@ -12,15 +14,14 @@ import { getTracer } from '@/lib/utils/trace'
 
 export const JobData = z.object({
   actorId: z.string(),
-  statusId: z.string(),
-  inboxes: z.array(z.string())
+  statusId: z.string()
 })
 
 export const sendNoteJob: JobHandle = createJobHandle(
   SEND_NOTE_JOB_NAME,
   async (database, message) => {
     await getTracer().startActiveSpan('sendNoteJob', async (span) => {
-      const { actorId, statusId, inboxes } = JobData.parse(message.data)
+      const { actorId, statusId } = JobData.parse(message.data)
       span.setAttribute('actorId', actorId)
       span.setAttribute('statusId', statusId)
 
@@ -46,6 +47,42 @@ export const sendNoteJob: JobHandle = createJobHandle(
         span.end()
         return
       }
+
+      // Get mentioned actor inboxes
+      const currentActorUrl = new URL(actor.id)
+      const mentions = (
+        Array.isArray(note.tag)
+          ? note.tag.filter((tag): tag is Mention => tag.type === 'Mention')
+          : []
+      ) as Mention[]
+
+      const remoteActorsInbox = (
+        await Promise.all(
+          mentions
+            .filter(
+              (item) =>
+                item.href && !item.href.startsWith(currentActorUrl.origin)
+            )
+            .map((item) => item.href)
+            .map(async (id: string) => {
+              const actorObj = await database.getActorFromId({ id })
+              if (actorObj) return actorObj.sharedInboxUrl || actorObj.inboxUrl
+
+              const person = await getActorPerson({ actorId: id })
+              if (person) return person.endpoints?.sharedInbox || person.inbox
+              return null
+            })
+        )
+      ).filter((item): item is string => item !== null)
+
+      // Get followers inboxes
+      const followersInbox = await database.getFollowersInbox({
+        targetActorId: actor.id
+      })
+
+      const inboxes = Array.from(
+        new Set([...remoteActorsInbox, ...followersInbox])
+      )
 
       await Promise.all(
         inboxes.map(async (inbox) => {

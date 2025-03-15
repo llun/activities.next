@@ -8,6 +8,10 @@ import { MockActivityPubOutbox } from './outbox'
 import { MockActivityPubPerson } from './person'
 import { MockWebfinger } from './webfinger'
 
+function fail(message: string): never {
+  throw new Error(message)
+}
+
 export const mockRequests = (fetchMock: FetchMock) => {
   fetchMock.mockResponse(async (req) => {
     const url = new URL(req.url)

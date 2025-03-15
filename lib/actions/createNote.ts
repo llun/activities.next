@@ -130,36 +130,12 @@ export const createNoteFromUserInput = async ({
     return null
   }
 
-  const currentActorUrl = new URL(currentActor.id)
-  const remoteActorsInbox = (
-    await Promise.all(
-      mentions
-        .filter((item) => !item.href.startsWith(currentActorUrl.origin))
-        .map((item) => item.href)
-        .map(async (id) => {
-          const actor = await database.getActorFromId({ id })
-          if (actor) return actor.sharedInboxUrl || actor.inboxUrl
-
-          const person = await getActorPerson({ actorId: id })
-          if (person) return person.endpoints?.sharedInbox || person.inbox
-          return null
-        })
-    )
-  ).filter((item): item is string => item !== null)
-
-  const followersInbox = await database.getFollowersInbox({
-    targetActorId: currentActor.id
-  })
-
-  const inboxes = Array.from(new Set([...remoteActorsInbox, ...followersInbox]))
-
   await getQueue().publish({
     id: `send-note-${urlToId(status.id)}`,
     name: SEND_NOTE_JOB_NAME,
     data: {
       actorId: currentActor.id,
-      statusId: status.id,
-      inboxes
+      statusId: status.id
     }
   })
 

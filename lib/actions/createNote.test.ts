@@ -2,6 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
 import { expectCall, mockRequests } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
@@ -11,8 +12,21 @@ import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
+import { urlToId } from '@/lib/utils/urlToId'
 
 enableFetchMocks()
+
+// Define a custom fail function
+function fail(message: string): never {
+  throw new Error(message)
+}
+
+// Mock the queue
+jest.mock('../services/queue', () => ({
+  getQueue: jest.fn().mockReturnValue({
+    publish: jest.fn().mockResolvedValue(undefined)
+  })
+}))
 
 describe('Create note action', () => {
   const database = getTestSQLDatabase()
@@ -40,6 +54,7 @@ describe('Create note action', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    jest.clearAllMocks()
   })
 
   describe('#createNoteFromUserInput', () => {
@@ -60,6 +75,19 @@ describe('Create note action', () => {
         cc: [`${actor1.id}/followers`]
       })
 
+      // Verify queue was called
+      const { getQueue } = require('../services/queue')
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: expect.stringContaining(
+          `send-note-${urlToId(status.id).substring(0, 10)}`
+        ),
+        name: SEND_NOTE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId: status.id
+        }
+      })
+
       expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
         id: status?.id,
         type: 'Create',
@@ -72,18 +100,19 @@ describe('Create note action', () => {
 
     it('set reply to replyStatus id', async () => {
       if (!actor1) fail('Actor1 is required')
+      if (!actor2) fail('Actor2 is required')
 
       const status = await createNoteFromUserInput({
         text: 'Hello',
         currentActor: actor1,
-        replyNoteId: `${actor2?.id}/statuses/post-2`,
+        replyNoteId: `${actor2.id}/statuses/post-2`,
         database
       })
       if (!status) fail('Fail to create status')
 
       expect(status).toMatchObject({
-        reply: `${actor2?.id}/statuses/post-2`,
-        cc: expect.toContainValue(actor2?.id)
+        reply: `${actor2.id}/statuses/post-2`,
+        cc: expect.toContainValue(actor2.id)
       })
 
       expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
@@ -118,9 +147,10 @@ How are you?
       })
 
       const note = getNoteFromStatus(status)
-      expect(note?.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
-      expect(note?.tag).toHaveLength(1)
-      expect(note?.tag).toContainValue({
+      if (!note) fail('Failed to get note from status')
+      expect(note.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
+      expect(note.tag).toHaveLength(1)
+      expect(note.tag).toContainValue({
         type: 'Mention',
         href: ACTOR2_ID,
         name: '@test2@llun.test'
@@ -162,14 +192,15 @@ How are you?
       ])
 
       const note = getNoteFromStatus(status)
-      expect(note?.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
-      expect(note?.tag).toHaveLength(2)
-      expect(note?.tag).toContainValue({
+      if (!note) fail('Failed to get note from status')
+      expect(note.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
+      expect(note.tag).toHaveLength(2)
+      expect(note.tag).toContainValue({
         type: 'Mention',
         href: ACTOR2_ID,
         name: '@test2@llun.test'
       })
-      expect(note?.tag).toContainValue({
+      expect(note.tag).toContainValue({
         type: 'Mention',
         href: 'https://somewhere.test/actors/test3',
         name: '@test3@somewhere.test'
