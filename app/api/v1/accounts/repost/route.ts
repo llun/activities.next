@@ -30,7 +30,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     database
   })
   if (!announceStatus) {
-    return apiErrorResponse(422)
+    return apiErrorResponse(422, 'Failed to announce status. Please check the statusId and try again.')
   }
   return apiResponse({
     req,
