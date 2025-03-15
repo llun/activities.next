@@ -151,7 +151,8 @@ export const repostStatus = async ({ statusId }: DefaultStatusParams) => {
     },
     body: JSON.stringify({ statusId })
   })
-  return response.status === 200
+  if (response.status !== 200) return null
+  return response.json() as Promise<{ statusId: string }>
 }
 
 export const undoRepostStatus = async ({ statusId }: DefaultStatusParams) => {
@@ -162,7 +163,8 @@ export const undoRepostStatus = async ({ statusId }: DefaultStatusParams) => {
     },
     body: JSON.stringify({ statusId })
   })
-  return response.status === 200
+  if (response.status !== 200) return null
+  return response.json() as Promise<{ statusId: string }>
 }
 
 export const likeStatus = async ({ statusId }: DefaultStatusParams) => {

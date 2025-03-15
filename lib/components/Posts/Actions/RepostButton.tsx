@@ -17,13 +17,11 @@ export const RepostButton: FC<RepostButtonProps> = ({
   const mainStatus =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
 
-  const [isReposted, setIsReposted] = useState<boolean>(
-    mainStatus.actorAnnounceStatusId !== null
-  )
+  const [repostedStatusId, setRepostedStatusId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
   useEffect(() => {
-    setIsReposted(mainStatus.actorAnnounceStatusId !== null)
+    setRepostedStatusId(mainStatus.actorAnnounceStatusId)
   }, [mainStatus.actorAnnounceStatusId])
 
   if (!currentActor) return null
@@ -33,22 +31,27 @@ export const RepostButton: FC<RepostButtonProps> = ({
       variant="link"
       title="Repost"
       className={cn({
-        'text-danger': isReposted
+        'text-danger': repostedStatusId !== null
       })}
       onClick={async () => {
         if (isLoading) return
 
         if (mainStatus.actorAnnounceStatusId) {
           setIsLoading(true)
-          if (await undoRepostStatus({ statusId: mainStatus.id })) {
-            setIsReposted(false)
+          if (
+            await undoRepostStatus({
+              statusId: mainStatus.actorAnnounceStatusId
+            })
+          ) {
+            setRepostedStatusId(null)
           }
           setIsLoading(false)
           return
         }
         setIsLoading(true)
-        if (await repostStatus({ statusId: status.id })) {
-          setIsReposted(true)
+        const repostedStatus = await repostStatus({ statusId: status.id })
+        if (repostedStatus) {
+          setRepostedStatusId(repostedStatus.statusId)
         }
         setIsLoading(false)
       }}
