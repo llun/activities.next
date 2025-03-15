@@ -10,7 +10,6 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { urlToId } from '@/lib/utils/urlToId'
 
-// Mock the queue
 jest.mock('../services/queue', () => ({
   getQueue: jest.fn().mockReturnValue({
     publish: jest.fn().mockResolvedValue(undefined)
