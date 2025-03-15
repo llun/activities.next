@@ -8,7 +8,6 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { urlToId } from '@/lib/utils/urlToId'
 
 // Mock the queue
 jest.mock('../services/queue', () => ({

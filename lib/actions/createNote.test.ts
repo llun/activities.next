@@ -17,7 +17,6 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
-import { urlToId } from '@/lib/utils/urlToId'
 
 enableFetchMocks()
 

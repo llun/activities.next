@@ -9,7 +9,6 @@ import * as timelinesService from '@/lib/services/timelines'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { urlToId } from '@/lib/utils/urlToId'
 
 jest.mock('../services/queue', () => ({
   getQueue: jest.fn().mockReturnValue({
