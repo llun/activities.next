@@ -29,7 +29,7 @@ export const TimelineFirestoreDatabaseMixin = (
           .where('privateKey', '!=', '')
           .get()
         const actorIds = actors.docs.map((doc) => doc.data().id)
-        // TODO: Add new index when create status for timeline
+
         const actorsDocuments = await Promise.all(
           actorIds.map((actorId) =>
             firestore
@@ -46,13 +46,16 @@ export const TimelineFirestoreDatabaseMixin = (
               .get()
           )
         )
+
         const statuses = await Promise.all(
           actorsDocuments
             .map((item) => item.docs)
             .flat()
             .map((doc) => doc.data())
             .sort((a, b) => b.createdAt - a.createdAt)
-            .map((data) => statusDatabase.getStatusFromData(data, false))
+            .map((data) =>
+              statusDatabase.getStatusFromData(data, false, undefined, false)
+            )
         )
         return statuses
           .filter((status): status is Status => Boolean(status))
@@ -66,33 +69,42 @@ export const TimelineFirestoreDatabaseMixin = (
 
         const actualTimeline =
           timeline === Timeline.HOME ? Timeline.MAIN : timeline
+
         let query = firestore
           .collection(`actors/${urlToId(actorId)}/timelines`)
           .where('timeline', '==', actualTimeline)
           .orderBy('createdAt', 'desc')
           .limit(limit)
-        if (minStatusId) {
-          const lastStatus = await firestore
-            .collection(`actors/${urlToId(actorId)}/timelines`)
-            .where('timeline', '==', actualTimeline)
-            .where('statusId', '==', minStatusId)
-            .get()
-          if (lastStatus.size === 1) {
-            query = query.startAfter(lastStatus.docs[0])
+
+        if (minStatusId || maxStatusId) {
+          const [minStatusSnapshot, maxStatusSnapshot] = await Promise.all([
+            minStatusId
+              ? firestore
+                  .collection(`actors/${urlToId(actorId)}/timelines`)
+                  .where('timeline', '==', actualTimeline)
+                  .where('statusId', '==', minStatusId)
+                  .get()
+              : Promise.resolve({ size: 0, docs: [] }),
+            maxStatusId
+              ? firestore
+                  .collection(`actors/${urlToId(actorId)}/timelines`)
+                  .where('timeline', '==', actualTimeline)
+                  .where('statusId', '==', maxStatusId)
+                  .get()
+              : Promise.resolve({ size: 0, docs: [] })
+          ])
+
+          if (minStatusSnapshot.size === 1) {
+            query = query.startAfter(minStatusSnapshot.docs[0])
           }
-        }
-        if (maxStatusId) {
-          const firstStatus = await firestore
-            .collection(`actors/${urlToId(actorId)}/timelines`)
-            .where('timeline', '==', actualTimeline)
-            .where('statusId', '==', maxStatusId)
-            .get()
-          if (firstStatus.size === 1) {
-            query = query.endBefore(firstStatus.docs[0])
+
+          if (maxStatusSnapshot.size === 1) {
+            query = query.endBefore(maxStatusSnapshot.docs[0])
           }
         }
 
         const snapshot = await query.get()
+
         const statuses = await Promise.all(
           snapshot.docs
             .map((doc) => doc.data().statusId)
@@ -103,7 +115,8 @@ export const TimelineFirestoreDatabaseMixin = (
               return statusDatabase.getStatusFromData(
                 statusData.data(),
                 false,
-                actorId
+                actorId,
+                false
               )
             })
         )

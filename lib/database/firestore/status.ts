@@ -41,7 +41,8 @@ export interface FirestoreStatusDatabase extends StatusDatabase {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
     withReplies: boolean,
-    currentActorId?: string
+    currentActorId?: string,
+    isNestedLoad?: boolean
   ): Promise<Status | null>
 }
 
@@ -78,16 +79,19 @@ export const StatusFirestoreDatabaseMixin = (
       updatedAt: currentTime
     }
 
-    const actor = await actorDatabase.getActorFromId({ id: actorId })
-    await Promise.all([
-      firestore.doc(`statuses/${urlToId(id)}`).set(status),
-      actor
-        ? firestore.doc(`actors/${urlToId(actorId)}`).update({
-            statusCount: FieldValue.increment(1),
-            lastStatusAt: currentTime
-          })
-        : null
+    // Get actor and save status in parallel
+    const [actor] = await Promise.all([
+      actorDatabase.getActorFromId({ id: actorId }),
+      firestore.doc(`statuses/${urlToId(id)}`).set(status)
     ])
+
+    // Update actor status count if actor exists
+    if (actor) {
+      await firestore.doc(`actors/${urlToId(actorId)}`).update({
+        statusCount: FieldValue.increment(1),
+        lastStatusAt: currentTime
+      })
+    }
 
     const profile = actor ? getActorProfile(actor) : null
     return Status.parse({
@@ -102,7 +106,7 @@ export const StatusFirestoreDatabaseMixin = (
       attachments: [],
       totalLikes: 0,
       isActorLiked: false,
-      isActorAnnounced: false,
+      actorAnnounceStatusId: null,
       isLocalActor: Boolean(actor?.account),
       tags: [],
       replies: [],
@@ -130,12 +134,17 @@ export const StatusFirestoreDatabaseMixin = (
     }
     const statusPath = `statuses/${urlToId(statusId)}`
     const historyPath = `${statusPath}/history/${currentTime}`
-    await firestore.doc(historyPath).set(previousData)
-    await firestore.doc(statusPath).update({
-      text,
-      ...(summary ? { summary } : null),
-      updatedAt: currentTime
-    })
+
+    // Save history and update status in parallel
+    await Promise.all([
+      firestore.doc(historyPath).set(previousData),
+      firestore.doc(statusPath).update({
+        text,
+        ...(summary ? { summary } : null),
+        updatedAt: currentTime
+      })
+    ])
+
     return getStatus({ statusId })
   }
 
@@ -159,16 +168,19 @@ export const StatusFirestoreDatabaseMixin = (
       updatedAt: currentTime
     }
 
-    const actor = await actorDatabase.getActorFromId({ id: actorId })
-    await Promise.all([
-      await firestore.doc(`statuses/${urlToId(id)}`).set(status),
-      actor
-        ? firestore.doc(`actors/${urlToId(actorId)}`).update({
-            statusCount: FieldValue.increment(1),
-            lastStatusAt: currentTime
-          })
-        : null
+    // Get actor and save status in parallel
+    const [actor] = await Promise.all([
+      actorDatabase.getActorFromId({ id: actorId }),
+      firestore.doc(`statuses/${urlToId(id)}`).set(status)
     ])
+
+    // Update actor status count if actor exists
+    if (actor) {
+      await firestore.doc(`actors/${urlToId(actorId)}`).update({
+        statusCount: FieldValue.increment(1),
+        lastStatusAt: currentTime
+      })
+    }
 
     const originalStatus = await getStatus({
       statusId: originalStatusId,
@@ -226,23 +238,28 @@ export const StatusFirestoreDatabaseMixin = (
       })
     )
 
-    const actor = await actorDatabase.getActorFromId({ id: actorId })
-    await Promise.all([
-      firestore.doc(statusPath).set(status),
-      actor
-        ? firestore.doc(`actors/${urlToId(actorId)}`).update({
-            statusCount: FieldValue.increment(1),
-            lastStatusAt: currentTime
-          })
-        : null
+    // Get actor and save status in parallel
+    const [actor] = await Promise.all([
+      actorDatabase.getActorFromId({ id: actorId }),
+      firestore.doc(statusPath).set(status)
     ])
-    await Promise.all(
-      choices.map((title, index) =>
+
+    // Update actor status count if actor exists and save choices in parallel
+    await Promise.all([
+      ...(actor
+        ? [
+            firestore.doc(`actors/${urlToId(actorId)}`).update({
+              statusCount: FieldValue.increment(1),
+              lastStatusAt: currentTime
+            })
+          ]
+        : []),
+      ...choices.map((title, index) =>
         firestore
           .doc(`${statusPath}/choices/${createMD5(title)}`)
           .set(choicesData[index])
       )
-    )
+    ])
 
     const profile = actor ? getActorProfile(actor) : null
     return StatusPoll.parse({
@@ -256,7 +273,7 @@ export const StatusFirestoreDatabaseMixin = (
         : null,
       totalLikes: 0,
       isActorLiked: false,
-      isActorAnnounced: false,
+      actorAnnounceStatusId: null,
       isLocalActor: Boolean(actor?.account),
       edits: [],
       attachments: [],
@@ -287,20 +304,28 @@ export const StatusFirestoreDatabaseMixin = (
         updatedAt: currentTime
       }
       const historyPath = `${statusPath}/history/${currentTime}`
-      await firestore.doc(historyPath).set(previousData)
-      await firestore.doc(statusPath).update({
-        text,
-        ...(summary ? { summary } : null),
-        updatedAt: currentTime
-      })
+
+      // Save history and update status in parallel
+      await Promise.all([
+        firestore.doc(historyPath).set(previousData),
+        firestore.doc(statusPath).update({
+          text,
+          ...(summary ? { summary } : null),
+          updatedAt: currentTime
+        })
+      ])
     }
-    choices.map(async (choice) => {
-      const key = `${statusPath}/choices/${createMD5(choice.title)}`
-      return firestore.doc(key).update({
-        totalVotes: choice.totalVotes,
-        updatedAt: currentTime
+
+    // Update all choices in parallel
+    await Promise.all(
+      choices.map(async (choice) => {
+        const key = `${statusPath}/choices/${createMD5(choice.title)}`
+        return firestore.doc(key).update({
+          totalVotes: choice.totalVotes,
+          updatedAt: currentTime
+        })
       })
-    })
+    )
 
     return getStatus({ statusId })
   }
@@ -313,7 +338,7 @@ export const StatusFirestoreDatabaseMixin = (
     const snapshot = await firestore.doc(`statuses/${urlToId(statusId)}`).get()
     const data = snapshot.data()
     if (!data) return null
-    return getStatusFromData(data, withReplies, currentActorId)
+    return getStatusFromData(data, withReplies, currentActorId, false)
   }
 
   async function getStatusReplies({ statusId }: GetStatusRepliesParams) {
@@ -325,7 +350,7 @@ export const StatusFirestoreDatabaseMixin = (
     const replies = await Promise.all(
       snapshot.docs.map(async (item) => {
         const data = item.data()
-        const status = await getStatusFromData(data, false)
+        const status = await getStatusFromData(data, false, undefined, false)
         if (status?.type !== StatusType.enum.Note) return null
         return status
       })
@@ -348,6 +373,25 @@ export const StatusFirestoreDatabaseMixin = (
       .get()
 
     return snapshot.data().count === 1
+  }
+
+  async function getActorAnnounceStatus({
+    actorId,
+    statusId
+  }: HasActorAnnouncedStatusParams): Promise<Status | null> {
+    if (!actorId) return null
+
+    const statuses = firestore.collection('statuses')
+    const snapshot = await statuses
+      .where('originalStatusId', '==', statusId)
+      .where('type', '==', 'Announce')
+      .where('actorId', '==', actorId)
+      .limit(1)
+      .get()
+
+    if (snapshot.empty) return null
+    const doc = snapshot.docs[0]
+    return getStatusFromData(doc.data(), false, actorId, false)
   }
 
   async function getActorStatusesCount({
@@ -395,7 +439,7 @@ export const StatusFirestoreDatabaseMixin = (
     const items = await Promise.all(
       snapshot.docs.map((item) => {
         const data = item.data()
-        return getStatusFromData(data, false)
+        return getStatusFromData(data, false, undefined, false)
       })
     )
     return items.filter((item): item is Status => Boolean(item))
@@ -405,30 +449,34 @@ export const StatusFirestoreDatabaseMixin = (
     const status = await getStatus({ statusId })
     if (!status) return
 
-    const repliesSnapshot = await firestore
-      .collection('statuses')
-      .where('reply', '==', statusId)
-      .get()
+    // Get replies and timeline references in parallel
+    const [repliesSnapshot, statusInTimelines] = await Promise.all([
+      firestore.collection('statuses').where('reply', '==', statusId).get(),
+      firestore
+        .collectionGroup('timelines')
+        .where('statusId', '==', statusId)
+        .get()
+    ])
 
+    // Delete all replies in parallel
     await Promise.all(
       repliesSnapshot.docs
         .map((doc) => doc.data().id)
         .map((statusId) => deleteStatus({ statusId }))
     )
 
-    const statusInTimelines = await firestore
-      .collectionGroup('timelines')
-      .where('statusId', '==', statusId)
-      .get()
-
     const bulkWriter = firestore.bulkWriter()
-    await Promise.all(
-      statusInTimelines.docs.map((doc) => bulkWriter.delete(doc.ref))
-    )
-    await firestore.recursiveDelete(
-      firestore.doc(`statuses/${urlToId(statusId)}`),
-      bulkWriter
-    )
+
+    // Delete timeline references and status document in parallel
+    await Promise.all([
+      ...statusInTimelines.docs.map((doc) => bulkWriter.delete(doc.ref)),
+      firestore.recursiveDelete(
+        firestore.doc(`statuses/${urlToId(statusId)}`),
+        bulkWriter
+      )
+    ])
+
+    // Update actor status count if local actor
     if (status.isLocalActor) {
       await firestore.doc(`actors/${urlToId(status.actorId)}`).update({
         statusCount: FieldValue.increment(-1)
@@ -484,7 +532,8 @@ export const StatusFirestoreDatabaseMixin = (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
     withReplies: boolean,
-    currentActorId?: string
+    currentActorId?: string,
+    isNestedLoad: boolean = false
   ): Promise<Status | null> {
     if (!data) return null
 
@@ -494,9 +543,12 @@ export const StatusFirestoreDatabaseMixin = (
         return null
       }
 
-      const snapshot = await firestore
-        .doc(`statuses/${urlToId(data.originalStatusId)}`)
-        .get()
+      // Get snapshot and actor in parallel
+      const [snapshot, actor] = await Promise.all([
+        firestore.doc(`statuses/${urlToId(data.originalStatusId)}`).get(),
+        actorDatabase.getActorFromId({ id: data.actorId })
+      ])
+
       const originalStatusData = snapshot.data()
       if (!originalStatusData) return null
 
@@ -509,62 +561,91 @@ export const StatusFirestoreDatabaseMixin = (
         return null
       }
 
-      const [originalStatus, actor] = await Promise.all([
-        getStatusFromData(originalStatusData, withReplies, currentActorId),
-        actorDatabase.getActorFromId({
-          id: data.actorId
-        })
-      ])
+      // Load the original status without unnecessary nested operations
+      const originalStatus = await getStatusFromData(
+        originalStatusData,
+        false,
+        currentActorId,
+        true // Pass true for isNestedLoad
+      )
+
       if (!originalStatus) return null
+
       return StatusAnnounce.parse({
         id: data.id,
         actorId: data.actorId,
         actor: actor ? getActorProfile(actor) : null,
         type: data.type,
-
         to: data.to,
         cc: data.cc,
         edits: [],
-
         originalStatus,
         isLocalActor: Boolean(actor?.account),
-
         createdAt: data.createdAt,
         updatedAt: data.updatedAt
       })
     }
 
+    // Prepare all the async operations based on whether this is a nested load
+    const attachmentsPromise = mediaDatabase.getAttachments({
+      statusId: data.id
+    })
+    const tagsPromise = getTags({ statusId: data.id })
+    const actorPromise = actorDatabase.getActorFromId({ id: data.actorId })
+    const totalLikesPromise = likeDatabase.getLikeCount({ statusId: data.id })
+
+    // Only load these items if not a nested load to avoid deep recursion
+    const isActorLikedStatusPromise =
+      !isNestedLoad && currentActorId
+        ? likeDatabase.isActorLikedStatus({
+            statusId: data.id,
+            actorId: currentActorId
+          })
+        : Promise.resolve(false)
+
+    const actorAnnounceStatusPromise =
+      !isNestedLoad && currentActorId
+        ? getActorAnnounceStatus({
+            statusId: data.id,
+            actorId: currentActorId
+          })
+        : Promise.resolve(null)
+
+    const pollChoicesPromise =
+      data.type === StatusType.enum.Poll
+        ? getPollChoices(data.id)
+        : Promise.resolve([])
+
+    const editsPromise = !isNestedLoad ? getEdits(data.id) : Promise.resolve([])
+
+    const repliesPromise =
+      !isNestedLoad && withReplies
+        ? getStatusReplies({ statusId: data.id })
+        : Promise.resolve([])
+
+    // Execute all promises in parallel
     const [
       attachments,
       tags,
       actor,
       totalLikes,
       isActorLikedStatus,
-      isActorAnnouncedStatus,
+      actorAnnounceStatus,
       pollChoices,
-      edits
+      edits,
+      replies
     ] = await Promise.all([
-      mediaDatabase.getAttachments({ statusId: data.id }),
-      getTags({ statusId: data.id }),
-      actorDatabase.getActorFromId({ id: data.actorId }),
-      likeDatabase.getLikeCount({ statusId: data.id }),
-      currentActorId
-        ? likeDatabase.isActorLikedStatus({
-            statusId: data.id,
-            actorId: currentActorId
-          })
-        : false,
-      hasActorAnnouncedStatus({
-        statusId: data.id,
-        actorId: currentActorId
-      }),
-      getPollChoices(data.id),
-      getEdits(data.id)
+      attachmentsPromise,
+      tagsPromise,
+      actorPromise,
+      totalLikesPromise,
+      isActorLikedStatusPromise,
+      actorAnnounceStatusPromise,
+      pollChoicesPromise,
+      editsPromise,
+      repliesPromise
     ])
 
-    const replies = withReplies
-      ? await getStatusReplies({ statusId: data.id })
-      : []
     return Status.parse({
       id: data.id,
       url: data.url,
@@ -579,7 +660,7 @@ export const StatusFirestoreDatabaseMixin = (
       replies,
       totalLikes,
       isActorLiked: isActorLikedStatus,
-      isActorAnnounced: isActorAnnouncedStatus,
+      actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
       isLocalActor: Boolean(actor?.account),
       attachments,
       tags,
@@ -630,6 +711,7 @@ export const StatusFirestoreDatabaseMixin = (
     getStatusFromData,
 
     hasActorAnnouncedStatus,
+    getActorAnnounceStatus,
 
     getActorStatusesCount,
     getActorStatuses,

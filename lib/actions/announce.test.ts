@@ -1,15 +1,25 @@
-import { enableFetchMocks } from 'jest-fetch-mock'
-
 import { userAnnounce } from '@/lib/actions/announce'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { JobData } from '@/lib/jobs/sendAnnounceJob'
 import { Actor } from '@/lib/models/actor'
-import { StatusType } from '@/lib/models/status'
-import { mockRequests } from '@/lib/stub/activities'
+import { Status, StatusType } from '@/lib/models/status'
+import { getQueue } from '@/lib/services/queue'
+import * as timelinesService from '@/lib/services/timelines'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+import { urlToId } from '@/lib/utils/urlToId'
 
-enableFetchMocks()
+// Mock the queue
+jest.mock('../services/queue', () => ({
+  getQueue: jest.fn().mockReturnValue({
+    publish: jest.fn().mockResolvedValue(undefined)
+  })
+}))
+
+jest.mock('../services/timelines', () => ({
+  addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
+}))
 
 describe('Announce action', () => {
   const database = getTestSQLDatabase()
@@ -30,12 +40,11 @@ describe('Announce action', () => {
   })
 
   beforeEach(() => {
-    fetchMock.resetMocks()
-    mockRequests(fetchMock)
+    jest.clearAllMocks()
   })
 
   describe('#userAnnounce', () => {
-    it('create announce status and send to followers inbox', async () => {
+    it('creates announce status and publishes to queue', async () => {
       const status = await userAnnounce({
         currentActor: actor1,
         statusId: `${actor1.id}/statuses/post-2`,
@@ -50,33 +59,57 @@ describe('Announce action', () => {
         originalStatus
       })
 
-      const lastCall = fetchMock.mock.lastCall
-      const body = JSON.parse(lastCall?.[1]?.body as string)
-      expect(lastCall?.[0]).toEqual('https://somewhere.test/inbox')
-      expect(body).toMatchObject({
-        id: `${status?.id}/activity`,
-        type: 'Announce',
-        actor: actor1.id,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [actor1.id, actor1.followersUrl],
-        object: 'https://llun.test/users/test1/statuses/post-2'
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: `announce-${urlToId(status!.id)}`,
+        name: SEND_ANNOUNCE_JOB_NAME,
+        data: JobData.parse({
+          actorId: actor1.id,
+          statusId: status!.id
+        })
       })
+
+      expect(timelinesService.addStatusToTimelines).toHaveBeenCalledWith(
+        database,
+        status
+      )
     })
 
     it('does not create duplicate announce', async () => {
-      const status = await userAnnounce({
-        currentActor: actor1,
-        statusId: `${actor1.id}/statuses/post-3`,
-        database
-      })
-      expect(status).not.toBeNull()
+      const originalStatusId = `${actor1.id}/statuses/post-3`
+      const testDatabase = {
+        ...database,
+        getStatus: async (params: { statusId: string }) => {
+          if (params.statusId === originalStatusId) {
+            return { id: originalStatusId } as Status
+          }
+          return null
+        },
+        getActorAnnounceStatus: async () =>
+          ({ id: 'existing-announce' }) as Status
+      }
 
       const duplicateStatus = await userAnnounce({
         currentActor: actor1,
-        statusId: `${actor1.id}/statuses/post-3`,
+        statusId: originalStatusId,
+        database: testDatabase
+      })
+
+      expect(duplicateStatus).toBeNull()
+      expect(getQueue().publish).not.toHaveBeenCalled()
+      expect(timelinesService.addStatusToTimelines).not.toHaveBeenCalled()
+    })
+
+    it('returns null when original status does not exist', async () => {
+      const result = await userAnnounce({
+        currentActor: actor1,
+        statusId: 'nonexistent-status',
         database
       })
-      expect(duplicateStatus).toBeNull()
+
+      expect(result).toBeNull()
+      expect(getQueue().publish).not.toHaveBeenCalled()
+      expect(timelinesService.addStatusToTimelines).not.toHaveBeenCalled()
     })
   })
 })

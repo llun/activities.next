@@ -22,7 +22,6 @@ export const Actions: FC<Props> = ({
   showActions = false,
   onReply,
   onEdit,
-  onPostReposted,
   onShowEdits,
   onPostDeleted
 }) => {
@@ -36,7 +35,6 @@ export const Actions: FC<Props> = ({
         <RepostButton
           currentActor={currentActor}
           status={status.originalStatus}
-          onPostReposted={onPostReposted}
         />
         <LikeButton
           currentActor={currentActor}
@@ -54,11 +52,7 @@ export const Actions: FC<Props> = ({
   return (
     <div>
       <ReplyButton status={status} onReply={onReply} />
-      <RepostButton
-        currentActor={currentActor}
-        status={status}
-        onPostReposted={onPostReposted}
-      />
+      <RepostButton currentActor={currentActor} status={status} />
       <LikeButton currentActor={currentActor} status={status} />
       <EditHistoryButton
         status={status}

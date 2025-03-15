@@ -80,9 +80,14 @@ export interface StatusDatabase {
 
   getStatus(params: GetStatusParams): Promise<Status | null>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
+
   hasActorAnnouncedStatus(
     params: HasActorAnnouncedStatusParams
   ): Promise<boolean>
+
+  getActorAnnounceStatus(
+    params: HasActorAnnouncedStatusParams
+  ): Promise<Status | null>
 
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
