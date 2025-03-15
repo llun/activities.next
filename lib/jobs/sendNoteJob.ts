@@ -1,4 +1,4 @@
-import { Mention, Note } from '@llun/activities.schema'
+import { Mention } from '@llun/activities.schema'
 import { z } from 'zod'
 
 import { sendNote } from '@/lib/activities'
@@ -11,6 +11,9 @@ import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
 import { getTracer } from '@/lib/utils/trace'
+
+import { StatusType } from '../models/status'
+import { getMentions } from '../utils/text/getMentions'
 
 export const JobData = z.object({
   actorId: z.string(),
@@ -42,19 +45,31 @@ export const sendNoteJob: JobHandle = createJobHandle(
       }
 
       const note = getNoteFromStatus(status)
-      if (!note) {
+      if (
+        !note ||
+        (status.type !== StatusType.enum.Note &&
+          status.type !== StatusType.enum.Poll)
+      ) {
         span.recordException(new Error('Failed to get note from status'))
         span.end()
         return
       }
 
-      // Get mentioned actor inboxes
       const currentActorUrl = new URL(actor.id)
-      const mentions = (
-        Array.isArray(note.tag)
-          ? note.tag.filter((tag): tag is Mention => tag.type === 'Mention')
-          : []
-      ) as Mention[]
+      const replyStatus =
+        (status.type === StatusType.enum.Note ||
+          status.type === StatusType.enum.Poll) &&
+        status.reply
+          ? await database.getStatus({
+              statusId: status.reply,
+              withReplies: false
+            })
+          : null
+      const mentions = await getMentions({
+        text: status.text,
+        currentActor: actor,
+        replyStatus
+      })
 
       const remoteActorsInbox = (
         await Promise.all(

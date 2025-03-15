@@ -1,7 +1,6 @@
 import { Mention } from '@llun/activities.schema'
 import crypto from 'crypto'
 
-import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor, getMention } from '@/lib/models/actor'
