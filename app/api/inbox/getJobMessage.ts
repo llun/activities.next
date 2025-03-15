@@ -1,6 +1,5 @@
 import { ENTITY_TYPE_NOTE, ENTITY_TYPE_QUESTION } from '@llun/activities.schema'
 import isMatch from 'lodash/isMatch'
-import crypto from 'node:crypto'
 
 import { StatusActivity } from '@/lib/activities/actions/status'
 import {
@@ -18,12 +17,10 @@ import {
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
 } from '@/lib/jobs/names'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 export const getJobMessage = (activity: StatusActivity) => {
-  const deduplicationId = crypto
-    .createHash('sha256')
-    .update(JSON.stringify(activity.id))
-    .digest('hex')
+  const deduplicationId = getHashFromString(activity.id)
   if (
     isMatch(activity, {
       type: CreateAction,

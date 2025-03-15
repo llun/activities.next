@@ -8,13 +8,13 @@ import { PostBoxAttachment } from '@/lib/models/attachment'
 import { Status, StatusNote } from '@/lib/models/status'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMACT
 } from '@/lib/utils/jsonld/activitystream'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
-import { urlToId } from '@/lib/utils/urlToId'
 
 // TODO: Support status visibility public, unlist, followers only, mentions only
 export const statusRecipientsTo = (
@@ -130,7 +130,7 @@ export const createNoteFromUserInput = async ({
   }
 
   await getQueue().publish({
-    id: `send-note-${urlToId(status.id)}`,
+    id: getHashFromString(status.id),
     name: SEND_NOTE_JOB_NAME,
     data: {
       actorId: currentActor.id,
