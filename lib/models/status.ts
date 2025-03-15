@@ -46,7 +46,7 @@ export const StatusNote = StatusBase.extend({
   reply: z.string(),
   replies: StatusBase.passthrough().array(),
 
-  isActorAnnounced: z.boolean(),
+  actorAnnounceStatusId: z.string().nullable(),
   isActorLiked: z.boolean(),
   totalLikes: z.number(),
 
@@ -113,7 +113,7 @@ export const fromNote = (note: Note): StatusNote => {
     })),
     tags: [],
 
-    isActorAnnounced: false,
+    actorAnnounceStatusId: null,
     isActorLiked: false,
     isLocalActor: false,
     totalLikes: 0,

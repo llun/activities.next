@@ -27,7 +27,6 @@ export interface PostProps {
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onPostDeleted?: (status: Status) => void
-  onPostReposted?: (status: Status) => void
   onShowAttachment: OnMediaSelectedHandle
 }
 

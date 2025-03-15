@@ -146,7 +146,7 @@ describe('Database', () => {
           attachments: [],
           totalLikes: 0,
           isActorLiked: false,
-          isActorAnnounced: false,
+          actorAnnounceStatusId: null,
           isLocalActor: true,
           tags: [],
           reply: '',
@@ -539,7 +539,7 @@ describe('Database', () => {
           actorId: TEST_ID14
         })
         const statusData = test14Statuses.shift() as StatusNote
-        expect(statusData.isActorAnnounced).toBeTrue()
+        expect(statusData.actorAnnounceStatusId).not.toBeNull()
 
         const test15Statuses = await database.getTimeline({
           timeline: Timeline.MAIN,

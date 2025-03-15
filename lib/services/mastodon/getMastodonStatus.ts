@@ -92,7 +92,7 @@ export const getMastodonStatus = async (
 
     edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
 
-    reblogged: status.isActorAnnounced ?? false,
+    reblogged: status.actorAnnounceStatusId !== null,
     content: processStatusText(host, status),
 
     reblog: null,
