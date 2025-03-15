@@ -1,4 +1,3 @@
-import { Mention } from '@llun/activities.schema'
 import { z } from 'zod'
 
 import { sendNote } from '@/lib/activities'
