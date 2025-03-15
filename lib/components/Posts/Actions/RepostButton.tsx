@@ -17,7 +17,9 @@ export const RepostButton: FC<RepostButtonProps> = ({
   const mainStatus =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
 
-  const [repostedStatusId, setRepostedStatusId] = useState<string | null>(null)
+  const [repostedStatusId, setRepostedStatusId] = useState<string | null>(
+    mainStatus.actorAnnounceStatusId
+  )
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
   useEffect(() => {
@@ -36,13 +38,9 @@ export const RepostButton: FC<RepostButtonProps> = ({
       onClick={async () => {
         if (isLoading) return
 
-        if (mainStatus.actorAnnounceStatusId) {
+        if (repostedStatusId) {
           setIsLoading(true)
-          if (
-            await undoRepostStatus({
-              statusId: mainStatus.actorAnnounceStatusId
-            })
-          ) {
+          if (await undoRepostStatus({ statusId: repostedStatusId })) {
             setRepostedStatusId(null)
           }
           setIsLoading(false)
