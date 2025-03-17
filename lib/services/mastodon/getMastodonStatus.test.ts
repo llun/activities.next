@@ -1,6 +1,6 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { getMentionFromActorID } from '@/lib/models/actor'
-import { Status } from '@/lib/models/status'
+import { Status, StatusType } from '@/lib/models/status'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -226,5 +226,61 @@ describe('#getMastodonStatus', () => {
     const mastodonStatus = await getMastodonStatus(database, invalidStatus)
 
     expect(mastodonStatus).toBeNull()
+  })
+
+  it('returns mastodon status with poll data for Poll type', async () => {
+    const pollStatus = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/poll-1`,
+      url: `${ACTOR1_ID}/statuses/poll-1`,
+      actorId: ACTOR1_ID,
+      text: 'This is a poll question',
+      to: [],
+      cc: []
+    })
+
+    const modifiedStatus = {
+      ...pollStatus,
+      type: StatusType.enum.Poll,
+      choices: [
+        {
+          statusId: `${ACTOR1_ID}/statuses/poll-1`,
+          title: 'Option 1',
+          totalVotes: 5,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        },
+        {
+          statusId: `${ACTOR1_ID}/statuses/poll-1`,
+          title: 'Option 2',
+          totalVotes: 3,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ],
+      endAt: Date.now() + 24 * 60 * 60 * 1000
+    }
+
+    const mastodonStatus = await getMastodonStatus(
+      database,
+      modifiedStatus as Status
+    )
+
+    expect(mastodonStatus).not.toBeNull()
+    expect(mastodonStatus?.poll).toMatchObject({
+      id: urlToId(`${ACTOR1_ID}/statuses/poll-1`),
+      options: [
+        {
+          title: 'Option 1',
+          votes_count: 5
+        },
+        {
+          title: 'Option 2',
+          votes_count: 3
+        }
+      ],
+      votes_count: 8,
+      expired: false,
+      multiple: false
+    })
   })
 })

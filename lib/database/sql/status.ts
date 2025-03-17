@@ -694,7 +694,6 @@ export const StatusSQLDatabaseMixin = (
     }
     if (data.type === StatusType.enum.Poll) {
       const pollChoices = await getPollChoices(data.id)
-      console.log(data.content)
       return StatusPoll.parse({
         ...base,
         choices: pollChoices,

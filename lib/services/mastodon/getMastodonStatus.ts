@@ -3,7 +3,7 @@ import { Mastodon } from '@llun/activities.schema'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { getMastodonAttachment } from '@/lib/models/attachment'
-import { Status } from '@/lib/models/status'
+import { Status, StatusType } from '@/lib/models/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -60,7 +60,7 @@ export const getMastodonStatus = async (
     poll: null
   }
 
-  if (status.type === 'Announce') {
+  if (status.type === StatusType.enum.Announce) {
     return Mastodon.Status.parse({
       ...baseData,
 
@@ -76,7 +76,7 @@ export const getMastodonStatus = async (
     ? await database.getStatus({ statusId: status.reply })
     : null
 
-  return Mastodon.Status.parse({
+  const mastodonStatus = {
     ...baseData,
     spoiler_text: status.summary ?? '',
     url: status.url,
@@ -100,5 +100,33 @@ export const getMastodonStatus = async (
     media_attachments: status.attachments.map((attachment) =>
       getMastodonAttachment(attachment)
     )
+  }
+
+  // Create poll data if status is a Poll type
+  const pollData =
+    status.type === StatusType.enum.Poll
+      ? Mastodon.Poll.parse({
+          id: urlToId(status.id),
+          expires_at: getISOTimeUTC(status.endAt),
+          expired: Date.now() > status.endAt,
+          multiple: false,
+          votes_count: status.choices.reduce(
+            (sum, choice) => sum + choice.totalVotes,
+            0
+          ),
+          voters_count: 0,
+          options: status.choices.map((choice) => ({
+            title: choice.title,
+            votes_count: choice.totalVotes
+          })),
+          emojis: [],
+          voted: false,
+          own_votes: []
+        })
+      : null
+
+  return Mastodon.Status.parse({
+    ...mastodonStatus,
+    poll: pollData
   })
 }
