@@ -68,7 +68,7 @@ export const StatusAnnounce = StatusBase.extend({
 })
 export type StatusAnnounce = z.infer<typeof StatusAnnounce>
 
-export const Status = z.union([StatusNote, StatusAnnounce, StatusPoll])
+export const Status = z.union([StatusNote, StatusPoll, StatusAnnounce])
 export type Status = z.infer<typeof Status>
 
 export const EditableStatus = z.union([StatusNote, StatusPoll])

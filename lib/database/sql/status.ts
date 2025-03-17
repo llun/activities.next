@@ -618,7 +618,6 @@ export const StatusSQLDatabaseMixin = (
       totalLikes,
       isActorLikedStatusResult,
       actorAnnounceStatus,
-      pollChoices,
       edits
     ] = await Promise.all([
       mediaDatabase.getAttachments({ statusId: data.id }),
@@ -646,7 +645,6 @@ export const StatusSQLDatabaseMixin = (
             actorId: currentActorId
           })
         : null,
-      getPollChoices(data.id),
       database('status_history').where('statusId', data.id)
     ])
 
@@ -664,7 +662,7 @@ export const StatusSQLDatabaseMixin = (
       .filter((item): item is StatusNote => Boolean(item))
 
     const content = getCompatibleJSON(data.content)
-    return Status.parse({
+    const base = {
       id: data.id,
       url: content.url,
       to: to.map((item) => item.actorId),
@@ -692,15 +690,20 @@ export const StatusSQLDatabaseMixin = (
           summary: content.summary ?? null,
           createdAt: getCompatibleTime(item.createdAt)
         }
-      }),
+      })
+    }
+    if (data.type === StatusType.enum.Poll) {
+      const pollChoices = await getPollChoices(data.id)
+      console.log(data.content)
+      return StatusPoll.parse({
+        ...base,
+        choices: pollChoices,
+        // TODO: Fix this endAt in the data or making sure it's not null
+        endAt: content.endAt ?? Date.now()
+      })
+    }
 
-      ...(data.type === StatusType.enum.Poll
-        ? {
-            choices: pollChoices,
-            endAt: content.endAt
-          }
-        : null)
-    })
+    return StatusNote.parse(base)
   }
 
   async function updateCount(
