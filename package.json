@@ -29,7 +29,7 @@
     "@opentelemetry/api": "^1.9.0",
     "@upstash/qstash": "2.7.22",
     "bcrypt": "^5.1.1",
-    "better-sqlite3": "^11.9.0",
+    "better-sqlite3": "^11.9.1",
     "bootstrap": "^5.3.3",
     "bootstrap-icons": "^1.11.3",
     "classnames": "^2.5.1",
@@ -44,11 +44,11 @@
     "lodash": "^4.17.21",
     "marked": "^15.0.7",
     "mime-types": "^2.1.35",
-    "next": "15.2.2",
+    "next": "15.2.3",
     "next-auth": "4.24.11",
     "nodemailer": "^6.10.0",
     "peggy": "^4.2.0",
-    "pg": "^8.14.0",
+    "pg": "^8.14.1",
     "pino": "^9.6.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
@@ -59,9 +59,9 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@next/env": "15.2.2",
+    "@next/env": "15.2.3",
     "@swc-node/register": "^1.10.10",
-    "@swc/core": "1.11.9",
+    "@swc/core": "1.11.11",
     "@swc/jest": "^0.2.37",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
@@ -78,7 +78,7 @@
     "@types/node": "^22.13.10",
     "@types/nodemailer": "^6.4.17",
     "@types/pg": "^8",
-    "@types/react": "19.0.10",
+    "@types/react": "19.0.11",
     "@types/react-dom": "19.0.4",
     "@types/react-modal": "^3.16.3",
     "@types/sanitize-html": "^2.13.0",
@@ -86,7 +86,7 @@
     "@typescript-eslint/parser": "^8.26.1",
     "dotenv-flow": "^4.1.0",
     "eslint": "^9.22.0",
-    "eslint-config-next": "15.2.2",
+    "eslint-config-next": "15.2.3",
     "eslint-config-prettier": "^10.1.1",
     "eslint-config-standard": "^17.1.0",
     "eslint-plugin-import": "^2.31.0",
@@ -101,12 +101,12 @@
     "jest-fetch-mock": "^3.0.3",
     "postcss": "^8.5.3",
     "prettier": "3.5.3",
-    "sass": "^1.85.1",
+    "sass": "^1.86.0",
     "typescript": "^5.8.2"
   },
   "packageManager": "yarn@4.7.0",
   "resolutions": {
-    "@types/react": "19.0.10",
+    "@types/react": "19.0.11",
     "@types/react-dom": "19.0.4"
   }
 }
