@@ -2,15 +2,23 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
-import { expectCall, mockRequests } from '@/lib/stub/activities'
+import { getQueue } from '@/lib/services/queue'
+import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 
 enableFetchMocks()
+
+jest.mock('../services/queue', () => ({
+  getQueue: jest.fn().mockReturnValue({
+    publish: jest.fn().mockResolvedValue(undefined)
+  })
+}))
 
 describe('Update note action', () => {
   const database = getTestSQLDatabase()
@@ -33,14 +41,16 @@ describe('Update note action', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    jest.clearAllMocks()
   })
 
   describe('#updateNoteFromUserInput', () => {
     it('update status to new text', async () => {
       if (!actor1) fail('Actor1 is required')
+      const statusId = `${actor1.id}/statuses/post-1`
 
       const status = (await updateNoteFromUserInput({
-        statusId: `${actor1.id}/statuses/post-1`,
+        statusId,
         currentActor: actor1,
         database,
         text: '<p>This is an updated note</p>'
@@ -54,13 +64,14 @@ describe('Update note action', () => {
         edits: expect.toBeArrayOfSize(1)
       })
 
-      expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
-        id: expect.stringMatching(status.id),
-        type: 'Update',
-        actor: actor1.id,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [],
-        object: getNoteFromStatus(status)
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: getHashFromString(statusId),
+        name: SEND_UPDATE_NOTE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId
+        }
       })
     })
 
