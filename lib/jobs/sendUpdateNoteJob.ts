@@ -86,7 +86,7 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
         .map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
       inboxes.push(...toInboxes)
 
-      const uniqueInboxes = Array.from(new Set(inboxes))
+      const uniqueInboxes = [...new Set(inboxes)]
       await Promise.all(
         uniqueInboxes.map(async (inbox) => {
           try {
@@ -96,8 +96,12 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
               status
             })
           } catch (e) {
-            logger.error({ inbox }, 'Failed to update note')
             const nodeError = e as NodeJS.ErrnoException
+            logger.error({ 
+              inbox, 
+              error: nodeError.message, 
+              code: nodeError.code 
+            }, 'Failed to update note')
             if (UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code ?? '')) {
               const follows = await database.getLocalFollowsFromInboxUrl({
                 followerInboxUrl: inbox,
