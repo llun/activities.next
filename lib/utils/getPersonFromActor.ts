@@ -1,9 +1,9 @@
-import { Person } from '@llun/activities.schema'
+import { Actor as ActivityPubActor } from '@llun/activities.schema'
 
 import { Actor } from '@/lib/models/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-export const getPersonFromActor = (actor: Actor): Person => {
+export const getPersonFromActor = (actor: Actor): ActivityPubActor => {
   const icon = actor.iconUrl
     ? {
         icon: {
@@ -23,7 +23,7 @@ export const getPersonFromActor = (actor: Actor): Person => {
       }
     : null
 
-  return Person.parse({
+  return ActivityPubActor.parse({
     id: actor.id,
     type: 'Person',
     following: `https://${actor.domain}/users/${actor.username}/following`,

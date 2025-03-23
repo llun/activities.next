@@ -1,9 +1,9 @@
-import { Person } from '@llun/activities.schema'
+import { Actor } from '@llun/activities.schema'
 
 import { getActorCollections } from './getActorCollections'
 
 type GetActorFollowersFunction = (params: {
-  person: Person
+  person: Actor
 }) => Promise<{ followerCount: number; followers: string[] }>
 
 export const getActorFollowers: GetActorFollowersFunction = async ({

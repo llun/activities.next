@@ -1,4 +1,4 @@
-import { Person } from '@llun/activities.schema'
+import { Actor } from '@llun/activities.schema'
 
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
@@ -36,7 +36,7 @@ export const MockActivityPubPerson = ({
   url,
   createdAt = Date.now(),
   withContext = true
-}: Params): Person => {
+}: Params): Actor => {
   const userUrl = new URL(id)
   const username = userUrl.pathname.split('/').pop()
 

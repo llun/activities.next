@@ -1,4 +1,4 @@
-import { Person } from '@llun/activities.schema'
+import { Actor } from '@llun/activities.schema'
 
 import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import {
@@ -11,7 +11,7 @@ import { request } from '@/lib/utils/request'
 import { getTracer } from '@/lib/utils/trace'
 
 interface Params {
-  person: Person
+  person: Actor
   field: 'following' | 'followers' | 'outbox'
 }
 
@@ -22,6 +22,12 @@ export const getActorCollections = async ({ person, field }: Params) =>
       attributes: { actorId: person.id, field }
     },
     async (span) => {
+      if (!person[field]) {
+        span.recordException(new Error(`Person ${field} is undefined`))
+        span.end()
+        return null
+      }
+
       const fieldResponse = await request({
         url: person[field],
         headers: { Accept: DEFAULT_ACCEPT }

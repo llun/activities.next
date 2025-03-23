@@ -1,4 +1,4 @@
-import { Person } from '@llun/activities.schema'
+import { Actor } from '@llun/activities.schema'
 
 import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { logger } from '@/lib/utils/logger'
@@ -8,7 +8,7 @@ import { getTracer } from '@/lib/utils/trace'
 export type GetActorPersonFunction = (params: {
   actorId: string
   withNetworkRetry?: boolean
-}) => Promise<Person | null>
+}) => Promise<Actor | null>
 
 export const getActorPerson: GetActorPersonFunction = ({
   actorId,
@@ -25,7 +25,7 @@ export const getActorPerson: GetActorPersonFunction = ({
       if (statusCode !== 200) {
         return null
       }
-      return Person.parse(JSON.parse(body))
+      return Actor.parse(JSON.parse(body))
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException
       span.recordException(nodeError)
