@@ -3,7 +3,7 @@ import { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   allowedDevOrigins: [process.env.ACTIVITIES_HOST ?? ''],
   reactStrictMode: true,
-  output: process.env.BUILD_STANDALONE ? 'standalone' : undefined,
+  output: 'standalone',
   assetPrefix: '/activities',
   serverExternalPackages: [
     '@aws-sdk/client-lambda',
