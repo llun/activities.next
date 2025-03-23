@@ -1,4 +1,4 @@
-import { Person } from '@llun/activities.schema'
+import { Actor } from '@llun/activities.schema'
 
 import { getNote } from '@/lib/activities'
 import { AnnounceAction, CreateAction } from '@/lib/activities/actions/types'
@@ -10,7 +10,7 @@ import { getActorCollections } from './getActorCollections'
 
 type GetActorPostsFunction = (params: {
   database: Database
-  person: Person
+  person: Actor
 }) => Promise<{
   statusesCount: number
   statuses: Status[]

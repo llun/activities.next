@@ -1,4 +1,4 @@
-import { Person } from '@llun/activities.schema'
+import { Actor } from '@llun/activities.schema'
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { mockRequests } from '@/lib/stub/activities'
@@ -21,7 +21,7 @@ describe('#getActorFollowers', () => {
   it('returns followers actors with total followers', async () => {
     const person = (await getActorPerson({
       actorId: ACTOR1_ID
-    })) as Person
+    })) as Actor
     const followers = await getActorFollowers({ person })
     expect(followers).toMatchObject({
       followerCount: 8,

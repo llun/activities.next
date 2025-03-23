@@ -1,4 +1,4 @@
-import { Person } from '@llun/activities.schema'
+import { Actor } from '@llun/activities.schema'
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -32,7 +32,7 @@ describe('#getActorPosts', () => {
   it('returns posts with total posts actor have', async () => {
     const person = (await getActorPerson({
       actorId: ACTOR1_ID
-    })) as Person
+    })) as Actor
     const response = await getActorPosts({ database, person })
     expect(response).toMatchObject({
       statusesCount: 10,
