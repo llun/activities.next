@@ -1,4 +1,4 @@
-import { Person } from '@llun/activities.schema'
+import { Actor } from '@llun/activities.schema'
 
 import { getActorFollowers } from '@/lib/activities/requests/getActorFollowers'
 import { getActorFollowing } from '@/lib/activities/requests/getActorFollowing'
@@ -11,7 +11,7 @@ import { Status } from '@/lib/models/status'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 type ProfileData = {
-  person: Person
+  person: Actor
   statuses: Status[]
   statusesCount: number
   attachments: Attachment[]
