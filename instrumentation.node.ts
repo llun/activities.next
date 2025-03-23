@@ -6,7 +6,7 @@ import { AwsInstrumentation } from '@opentelemetry/instrumentation-aws-sdk'
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http'
 import { KnexInstrumentation } from '@opentelemetry/instrumentation-knex'
 import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici'
-import { Resource } from '@opentelemetry/resources'
+import { resourceFromAttributes } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node'
 import {
@@ -37,7 +37,7 @@ const exporter = getTraceExporter(config)
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO)
 if (exporter) {
   const sdk = new NodeSDK({
-    resource: new Resource({
+    resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: TRACE_APPLICATION_SCOPE,
       [ATTR_SERVICE_VERSION]: TRACE_APPLICATION_VERSION
     }),
