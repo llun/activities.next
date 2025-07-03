@@ -166,7 +166,7 @@ describe('Status', () => {
         })) as Status
         const note = toActivityPubObject(status)
         expect(note.tag).toHaveLength(1)
-        expect(note.tag).toContainValue({
+        expect(note.tag).toContainEqual({
           type: 'Mention',
           name: '@test1',
           href: 'https://llun.test/@test1'

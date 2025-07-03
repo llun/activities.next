@@ -69,7 +69,7 @@ describe('#getMentions', () => {
       currentActor: actor1 as Actor,
       replyStatus: null
     })
-    expect(mentions).toContainValue({
+    expect(mentions).toContainEqual({
       type: 'Mention',
       href: actor2?.id,
       name: `@test2`
@@ -92,7 +92,7 @@ describe('#getMentions', () => {
       replyStatus: null
     })
     expect(mentions).toHaveLength(1)
-    expect(mentions).toContainValue({
+    expect(mentions).toContainEqual({
       type: 'Mention',
       href: `https://somewhere.test/actors/llun`,
       name: '@llun@somewhere.test'
@@ -110,12 +110,12 @@ describe('#getMentions', () => {
       replyStatus: status
     })
     expect(mentions).toHaveLength(2)
-    expect(mentions).toContainValue({
+    expect(mentions).toContainEqual({
       type: 'Mention',
       href: `https://somewhere.test/actors/llun`,
       name: '@llun@somewhere.test'
     })
-    expect(mentions).toContainValue({
+    expect(mentions).toContainEqual({
       type: 'Mention',
       href: actor2?.id,
       name: getMention(actor2 as Actor, true)
