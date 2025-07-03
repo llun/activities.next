@@ -1,0 +1,19 @@
+⚠  Could not find config (firebase.json) so using defaults.
+i  emulators: Starting emulators: firestore
+⚠  firestore: Port 8080 is not open on localhost (127.0.0.1,::1), could not start Firestore Emulator.
+⚠  firestore: To select a different host/port, specify that host/port in a firebase.json config file:
+      {
+        // ...
+        "emulators": {
+          "firestore": {
+            "host": "HOST",
+            "port": "PORT"
+          }
+        }
+      }
+⚠  hub: emulator hub unable to start on port 4400, starting on 4401 instead.
+⚠  ui: Emulator UI unable to start on port 4000, starting on 4001 instead.
+⚠  logging: Logging Emulator unable to start on port 4500, starting on 4501 instead.
+i  emulators: Shutting down emulators.
+
+Error: Could not start Firestore Emulator, port taken.

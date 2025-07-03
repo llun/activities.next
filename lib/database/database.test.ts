@@ -351,10 +351,10 @@ describe('Database', () => {
         const otherServerStatus2 = await database.getStatus({
           statusId: otherServerUser2Status(19)
         })
-        expect(statuses).not.toContainValues([
+        expect(statuses).not.toEqual(expect.arrayContaining([
           cleanJson(mainStatusForReply),
           cleanJson(otherServerStatus2)
-        ])
+        ]))
       })
 
       it('returns actor statuses', async () => {
@@ -479,19 +479,19 @@ describe('Database', () => {
           withReplies: true
         })) as StatusNote
         expect(status.replies).toHaveLength(2)
-        expect(status.replies).toContainAllValues([reply1, reply2])
+        expect(status.replies).toEqual(expect.arrayContaining([reply1, reply2]))
 
         const note = toActivityPubObject(status)
         const replies = note.replies as CollectionWithItems
         expect(replies.totalItems).toEqual(2)
-        expect(replies.items).toContainAllValues([
+        expect(replies.items).toEqual(expect.arrayContaining([
           toActivityPubObject(
             (await database.getStatus({ statusId: reply1Id })) as Status
           ),
           toActivityPubObject(
             (await database.getStatus({ statusId: reply2Id })) as Status
           )
-        ])
+        ]))
       })
 
       it('returns status with boost status id', async () => {
