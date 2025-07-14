@@ -97,11 +97,14 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
             })
           } catch (e) {
             const nodeError = e as NodeJS.ErrnoException
-            logger.error({ 
-              inbox, 
-              error: nodeError.message, 
-              code: nodeError.code 
-            }, 'Failed to update note')
+            logger.error(
+              {
+                inbox,
+                error: nodeError.message,
+                code: nodeError.code
+              },
+              'Failed to update note'
+            )
             if (UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code ?? '')) {
               const follows = await database.getLocalFollowsFromInboxUrl({
                 followerInboxUrl: inbox,
