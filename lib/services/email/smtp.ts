@@ -8,9 +8,10 @@ import { BaseEmailSettings, Email, Message } from './types'
 
 export const TYPE_SMTP = 'smtp'
 
-export const SMTPConfig = BaseEmailSettings.extend({
+export const SMTPConfig = z.looseObject({
+  ...BaseEmailSettings.shape,
   type: z.literal(TYPE_SMTP)
-}).passthrough()
+})
 export type SMTPConfig = z.infer<typeof SMTPConfig> & SMTPTransport.Options
 
 const getTransporter = memoize(() => {
