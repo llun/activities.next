@@ -11,11 +11,9 @@ export const KnexDatabaseType = z.union([
 ])
 export type KnexDatabaseType = z.infer<typeof KnexDatabaseType>
 
-export const KnexBaseDatabase = z
-  .object({
-    type: KnexDatabaseType
-  })
-  .passthrough()
+export const KnexBaseDatabase = z.looseObject({
+  type: KnexDatabaseType
+})
 export type KnexBaseDatabase = Knex.Config & z.infer<typeof KnexBaseDatabase>
 
 export const FirebaseDatabaseType = z.union([
@@ -24,11 +22,9 @@ export const FirebaseDatabaseType = z.union([
 ])
 export type FirebaseDatabaseType = z.infer<typeof FirebaseDatabaseType>
 
-export const FirebaseDatabase = z
-  .object({
-    type: FirebaseDatabaseType
-  })
-  .passthrough()
+export const FirebaseDatabase = z.looseObject({
+  type: FirebaseDatabaseType
+})
 export type FirebaseDatabase = FirestoreSetting &
   z.infer<typeof FirebaseDatabase>
 

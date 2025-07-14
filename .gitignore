@@ -36,7 +36,13 @@ yarn-error.log*
 .pnpm-debug.log*
 firebase-debug.log*
 firestore-debug.log*
+firestore.log
 ui-debug.log*
+pglite-debug.log*
+
+# temporary files
+prompt.txt
+*.tmp
 
 # local env files
 .env*.local

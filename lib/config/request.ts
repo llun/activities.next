@@ -13,10 +13,11 @@ export const RequestConfig = z.object({
     .default(DEFAULT_RESPONSE_TIMEOUT),
   numberOfRetry: z.number().positive().safe().default(DEFAULT_MAX_RETRY_LIMIT),
   retryNoise: z
-    .number({ description: 'retry noise that add to backoff delay' })
+    .number()
     .min(-100)
     .max(100)
     .nullish()
+    .describe('retry noise that add to backoff delay')
 })
 export type RequestConfig = z.infer<typeof RequestConfig>
 

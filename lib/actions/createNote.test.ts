@@ -99,7 +99,7 @@ describe('Create note action', () => {
 
       expect(status).toMatchObject({
         reply: `${actor2?.id}/statuses/post-2`,
-        cc: expect.toContainValue(actor2?.id)
+        cc: expect.arrayContaining([actor2?.id])
       })
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
@@ -134,7 +134,7 @@ How are you?
       const note = getNoteFromStatus(status) as Note
       expect(note.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
       expect(note.tag).toHaveLength(1)
-      expect(note.tag).toContainValue({
+      expect(note.tag).toContainEqual({
         type: 'Mention',
         href: ACTOR2_ID,
         name: '@test2@llun.test'
@@ -168,21 +168,21 @@ How are you?
         text,
         to: [ACTIVITY_STREAM_PUBLIC]
       })
-      expect(status.cc).toContainAllValues([
+      expect(status.cc).toEqual(expect.arrayContaining([
         `${actor1.id}/followers`,
         'https://somewhere.test/actors/test3',
         ACTOR2_ID
-      ])
+      ]))
 
       const note = getNoteFromStatus(status) as Note
       expect(note.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))
       expect(note.tag).toHaveLength(2)
-      expect(note.tag).toContainValue({
+      expect(note.tag).toContainEqual({
         type: 'Mention',
         href: ACTOR2_ID,
         name: '@test2@llun.test'
       })
-      expect(note.tag).toContainValue({
+      expect(note.tag).toContainEqual({
         type: 'Mention',
         href: 'https://somewhere.test/actors/test3',
         name: '@test3@somewhere.test'
@@ -217,7 +217,7 @@ How are you?
         actorId: actor1.id,
         text,
         to: [ACTIVITY_STREAM_PUBLIC],
-        cc: expect.toContainAllValues([
+        cc: expect.arrayContaining([
           `${actor1.id}/followers`,
           ACTOR2_ID,
           'https://somewhere.test/actors/test3',
