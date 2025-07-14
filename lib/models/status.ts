@@ -44,7 +44,7 @@ export const StatusNote = StatusBase.extend({
   text: z.string(),
   summary: z.string().nullable().optional(),
   reply: z.string(),
-  replies: z.any().array(),
+  replies: z.looseObject(StatusBase.shape).array(),
 
   actorAnnounceStatusId: z.string().nullable(),
   isActorLiked: z.boolean(),
