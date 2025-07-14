@@ -2809,12 +2809,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@llun/activities.schema@npm:^0.2.34":
-  version: 0.2.34
-  resolution: "@llun/activities.schema@npm:0.2.34"
+"@llun/activities.schema@npm:^0.3.0":
+  version: 0.3.0
+  resolution: "@llun/activities.schema@npm:0.3.0"
   dependencies:
-    zod: "npm:^3.25.71"
-  checksum: 10c0/ddbcf2beb9e9656e8976e40819b9d1a8e96598df31cf50d8a58b87ebf906a51a0664ca695b3d59f95adc64f9b54adcefc743a267371a5e4efa9412b443168223
+    zod: "npm:^4.0.0"
+  checksum: 10c0/bbf67c8c1d3b109227309359b2e3f917dfed52de901bee3cda8fc456f61f81af7cc547ffea0a9a735b1860972869b4b7398e9cbe3223b303c29e5084bdc39d31
   languageName: node
   linkType: hard
 
@@ -5269,7 +5269,7 @@ __metadata:
     "@date-fns/utc": "npm:^2.1.0"
     "@google-cloud/firestore": "npm:^7.11.2"
     "@jmondi/oauth2-server": "npm:^4.0.7"
-    "@llun/activities.schema": "npm:^0.2.34"
+    "@llun/activities.schema": "npm:^0.3.0"
     "@next/env": "npm:^15.3.5"
     "@opentelemetry/api": "npm:^1.9.0"
     "@popperjs/core": "npm:^2.11.8"
@@ -5345,7 +5345,7 @@ __metadata:
     sass: "npm:^1.89.2"
     sharp: "npm:^0.34.3"
     typescript: "npm:^5.8.3"
-    zod: "npm:^3.25.71"
+    zod: "npm:^4.0.0"
   languageName: unknown
   linkType: soft
 
@@ -16369,9 +16369,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:3.25.71":
-  version: 3.25.71
-  resolution: "zod@npm:3.25.71"
-  checksum: 10c0/ccb251859609e6eed04b83f96ad7b2b7a189ca78b47176cde2c368102a5416b9c472e91b3fd96ceaa5043b2e513b3aec39fd99c36686ad2ad84f6c440afca53a
+"zod@npm:4.0.0":
+  version: 4.0.0
+  resolution: "zod@npm:4.0.0"
+  checksum: 10c0/ffffb604e936f83ea90b4b8aee7b8e7557cb99f8355af6897c3d0ee942e45dd2802253c6d97c0cd7ec142200523e41c2bc7568bda9e10dbbeed2c8574414e476
   languageName: node
   linkType: hard

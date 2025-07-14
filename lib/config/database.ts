@@ -15,7 +15,7 @@ export const KnexBaseDatabase = z
   .object({
     type: KnexDatabaseType
   })
-  .passthrough()
+  .catchall(z.any())
 export type KnexBaseDatabase = Knex.Config & z.infer<typeof KnexBaseDatabase>
 
 export const FirebaseDatabaseType = z.union([
@@ -28,7 +28,7 @@ export const FirebaseDatabase = z
   .object({
     type: FirebaseDatabaseType
   })
-  .passthrough()
+  .catchall(z.any())
 export type FirebaseDatabase = FirestoreSetting &
   z.infer<typeof FirebaseDatabase>
 
