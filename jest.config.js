@@ -22,7 +22,7 @@ const customJestConfig = {
     '\\.(js|jsx|ts|tsx)$': ['@swc/jest']
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(marked)/)'
+    'node_modules/(?!(marked|next-auth|@auth/core)/)'
   ],
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
