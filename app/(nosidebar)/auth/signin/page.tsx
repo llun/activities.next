@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
-import { auth } from '@/auth'
-import { getProviders } from 'next-auth/react'
+import { auth, getServerProviders } from '@/auth'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
@@ -24,7 +23,7 @@ const Page: FC = async () => {
   const { host } = getConfig()
   const database = getDatabase()
   const [providers, session] = await Promise.all([
-    getProviders(),
+    Promise.resolve(getServerProviders()),
     auth()
   ])
 
@@ -41,7 +40,7 @@ const Page: FC = async () => {
     <div className="col-12">
       <div className="mb-4">
         <h1 className="mb-4">Sign-in</h1>
-        {Object.values(providers ?? []).map((provider) => {
+        {providers?.map((provider) => {
           const typedProvider = provider as Provider
           if (typedProvider.id === 'credentials') {
             return <CredentialForm key={typedProvider.id} provider={typedProvider} />
