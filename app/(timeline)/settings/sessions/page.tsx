@@ -1,9 +1,8 @@
 import { formatDistance, formatRelative } from 'date-fns'
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
+import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -23,7 +22,7 @@ const Page = async () => {
     throw new Error('Fail to load database')
   }
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await auth()
   const actor = await getActorFromSession(database, session)
   if (!actor || !actor.account) {
     return redirect(`https://${host}/auth/signin`)

@@ -104,7 +104,11 @@ export function StorageAdapter(secret: string): Adapter {
       }
 
       try {
-        const accountFromJWT = await decode({ token: sessionToken, secret })
+        const accountFromJWT = await decode({
+          token: sessionToken,
+          secret,
+          salt: ''
+        })
         const decodedJWT = accountFromJWT as JWT & {
           jti: string
           exp: number

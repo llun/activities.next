@@ -2,13 +2,12 @@ import 'bootstrap-icons/font/bootstrap-icons.css'
 import 'bootstrap/dist/css/bootstrap.css'
 import cn from 'classnames'
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
+import { auth } from '@/auth'
 import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { FC, ReactNode } from 'react'
 
 import { Modal } from '@/app/Modal'
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Header } from '@/lib/components/Header'
 import { Profile as ProfileComponent } from '@/lib/components/Profile'
 import { getConfig } from '@/lib/config'
@@ -37,7 +36,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
     throw new Error('Fail to load database')
   }
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await auth()
   const actor = await getActorFromSession(database, session)
   if (!actor) {
     return redirect(`https://${getConfig().host}/auth/signin`)

@@ -4,7 +4,8 @@
     "paths": {
       "@/app/*": ["app/*"],
       "@/lib/*": ["lib/*"],
-      "@/pages/*": ["pages/*"]
+      "@/pages/*": ["pages/*"],
+      "@/auth": ["auth.ts"]
     },
     "target": "ESNext",
     "lib": ["dom", "dom.iterable", "esnext"],

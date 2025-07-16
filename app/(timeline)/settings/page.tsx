@@ -1,13 +1,13 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
+import { auth } from '@/auth'
 import { getProviders } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/Button'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getActorProfile } from '@/lib/models/actor'
+import { Provider } from '@/lib/types/nextauth'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AuthenticationProviders } from './AuthenticationProviders'
@@ -25,7 +25,7 @@ const Page = async () => {
   }
 
   const [session, providers] = await Promise.all([
-    getServerSession(getAuthOptions()),
+    auth(),
     getProviders()
   ])
 
@@ -38,8 +38,8 @@ const Page = async () => {
   const nonCredentialsProviders =
     (providers &&
       Object.values(providers).filter(
-        (provider) => provider.id !== 'credentials'
-      )) ||
+        (provider) => (provider as Provider).id !== 'credentials'
+      ).map(p => p as Provider)) ||
     []
   return (
     <div>

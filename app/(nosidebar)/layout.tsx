@@ -1,14 +1,13 @@
 import 'bootstrap-icons/font/bootstrap-icons.css'
 import 'bootstrap/dist/css/bootstrap.css'
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
+import { auth } from '@/auth'
 import { FC, ReactNode } from 'react'
 
 import { Header } from '@/lib/components/Header'
 import { getDatabase } from '@/lib/database'
 
 import { Modal } from '../Modal'
-import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
 
 export const viewport = {
   width: 'device-width',
@@ -29,7 +28,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
     throw new Error('Fail to load database')
   }
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await auth()
   return (
     <html lang="en">
       <body className="">

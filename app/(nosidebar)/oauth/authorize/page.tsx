@@ -1,8 +1,7 @@
-import { getServerSession } from 'next-auth'
+import { auth } from '@/auth'
 import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -22,7 +21,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
     throw new Error('Fail to load database')
   }
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await auth()
   const params = await searchParams
   const parsedResult = SearchParams.safeParse(params)
   if (!parsedResult.success) {

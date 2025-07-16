@@ -1,5 +1,5 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
+import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 
 import { getConfig } from '@/lib/config'
@@ -9,7 +9,6 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
 import { MainPageTimeline } from './MainPageTimeline'
 
 export const dynamic = 'force-dynamic'
@@ -24,7 +23,7 @@ const Page = async () => {
     throw new Error('Fail to load database')
   }
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await auth()
   const actor = await getActorFromSession(database, session)
   if (!actor) {
     return redirect(`https://${host}/auth/signin`)

@@ -1,9 +1,8 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
+import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/Button'
 import { getDatabase } from '@/lib/database'
 
@@ -16,7 +15,7 @@ const Page: FC = async () => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await auth()
   if (session && session.user) {
     return redirect('/')
   }

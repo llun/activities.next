@@ -1,7 +1,7 @@
-import { ClientSafeProvider } from 'next-auth/react'
+import { Provider } from '@/lib/types/nextauth'
 
 export const getSigninCallbackUrl = (
-  provider: ClientSafeProvider,
+  provider: Provider,
   searchParams: URLSearchParams
 ) => {
   const redirectBack = searchParams.get('redirectBack')

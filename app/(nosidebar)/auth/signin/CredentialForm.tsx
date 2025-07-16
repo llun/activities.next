@@ -1,15 +1,16 @@
 'use client'
 
-import { ClientSafeProvider, getCsrfToken } from 'next-auth/react'
+import { getCsrfToken } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
 
 import { Button } from '@/lib/components/Button'
+import { Provider } from '@/lib/types/nextauth'
 
 import { getSigninCallbackUrl } from './getSigninCallbackUrl'
 
 interface Props {
-  provider: ClientSafeProvider
+  provider: Provider
 }
 
 export const CredentialForm: FC<Props> = ({ provider }) => {

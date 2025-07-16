@@ -1,15 +1,15 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
+import { auth } from '@/auth'
 import { getProviders } from 'next-auth/react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Posts } from '@/lib/components/Posts/Posts'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { Timeline } from '@/lib/services/timelines/types'
+import { Provider } from '@/lib/types/nextauth'
 import { cleanJson } from '@/lib/utils/cleanJson'
 
 import { CredentialForm } from './CredentialForm'
@@ -25,7 +25,7 @@ const Page: FC = async () => {
   const database = getDatabase()
   const [providers, session] = await Promise.all([
     getProviders(),
-    getServerSession(getAuthOptions())
+    auth()
   ])
 
   if (!database) throw new Error('Database is not available')
@@ -42,11 +42,12 @@ const Page: FC = async () => {
       <div className="mb-4">
         <h1 className="mb-4">Sign-in</h1>
         {Object.values(providers ?? []).map((provider) => {
-          if (provider.id === 'credentials') {
-            return <CredentialForm key={provider.id} provider={provider} />
+          const typedProvider = provider as Provider
+          if (typedProvider.id === 'credentials') {
+            return <CredentialForm key={typedProvider.id} provider={typedProvider} />
           }
 
-          return <SigninButton key={provider.id} provider={provider} />
+          return <SigninButton key={typedProvider.id} provider={typedProvider} />
         })}
         <Link href="/auth/signup">Signup</Link>
       </div>

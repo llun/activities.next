@@ -1,6 +1,6 @@
-import bcrypt from 'bcrypt'
+import * as bcrypt from 'bcrypt'
 import { memoize } from 'lodash'
-import { NextAuthOptions } from 'next-auth'
+import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GithubProvider from 'next-auth/providers/github'
 
@@ -12,12 +12,12 @@ import {
 } from '@/lib/services/auth/storageAdapter'
 import { headerHost } from '@/lib/services/guards/headerHost'
 
-export const getAuthOptions = memoize(() => {
+export const getAuthConfig = memoize(() => {
   try {
     const { secretPhase, auth, serviceName } = getConfig()
     return {
       session: {
-        strategy: 'database'
+        strategy: 'database' as const
       },
       providers: [
         CredentialsProvider({
@@ -32,7 +32,7 @@ export const getAuthOptions = memoize(() => {
 
             const database = getDatabase()
             const { actorId, password } = credentials
-            const [username, domain] = actorId.split('@')
+            const [username, domain] = (actorId as string).split('@')
             const actor = await database?.getActorFromUsername({
               username,
               domain: domain ?? hostname
@@ -44,7 +44,7 @@ export const getAuthOptions = memoize(() => {
             if (!account.verifiedAt) return null
 
             const isPasswordCorrect = await bcrypt.compare(
-              password,
+              password as string,
               account.passwordHash
             )
 
@@ -61,7 +61,7 @@ export const getAuthOptions = memoize(() => {
         signIn: '/auth/signin'
       },
       callbacks: {
-        async signIn({ user }) {
+        async signIn({ user }: { user: any }) {
           const database = getDatabase()
           if (!database) return false
 
@@ -72,8 +72,15 @@ export const getAuthOptions = memoize(() => {
         }
       },
       adapter: StorageAdapter(secretPhase)
-    } as NextAuthOptions
+    }
   } catch {
-    return {} as NextAuthOptions
+    return {
+      providers: [],
+      session: {
+        strategy: 'database' as const
+      }
+    }
   }
 })
+
+export const { auth, handlers, signIn, signOut } = NextAuth(getAuthConfig())

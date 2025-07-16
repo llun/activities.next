@@ -1,9 +1,8 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
+import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 
@@ -23,7 +22,7 @@ interface Props {
 const Page: FC<Props> = async ({ searchParams }) => {
   const [database, session] = await Promise.all([
     getDatabase(),
-    getServerSession(getAuthOptions())
+    auth()
   ])
 
   if (!database) throw new Error('Database is not available')

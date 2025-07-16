@@ -1,7 +1,6 @@
-import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { auth } from '@/auth'
 import { getDatabase } from '@/lib/database'
 
 import { getRedirectUrl } from './getRedirectUrl'
@@ -11,7 +10,7 @@ export const AuthenticatedGuard =
   <P>(handle: AuthenticatedApiHandle<P>) =>
   async (req: NextRequest, params: AppRouterParams<P>) => {
     const database = getDatabase()
-    const session = await getServerSession(getAuthOptions())
+    const session = await auth()
 
     if (!database || !session?.user?.email) {
       return Response.redirect(getRedirectUrl(req, '/signin'), 307)

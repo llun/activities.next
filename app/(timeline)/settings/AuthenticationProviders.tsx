@@ -1,12 +1,13 @@
 'use client'
 
-import { ClientSafeProvider, signIn } from 'next-auth/react'
+import { signIn } from 'next-auth/react'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/Button'
+import { Provider } from '@/lib/types/nextauth'
 
 interface AuthenticationProvidersProps {
-  nonCredentialsProviders: ClientSafeProvider[]
+  nonCredentialsProviders: Provider[]
 }
 
 export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({

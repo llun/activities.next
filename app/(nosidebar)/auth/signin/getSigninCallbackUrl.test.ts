@@ -1,8 +1,8 @@
-import { ClientSafeProvider } from 'next-auth/react'
+import { Provider } from '@/lib/types/nextauth'
 
 import { getSigninCallbackUrl } from './getSigninCallbackUrl'
 
-const MOCK_PROVIDER: ClientSafeProvider = {
+const MOCK_PROVIDER: Provider = {
   id: 'provider',
   name: 'provider',
   signinUrl: 'https://test.llun.dev/auth/signin',

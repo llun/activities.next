@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>John Doe - Profile | SocialConnect</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-md fixed top-0 w-full z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <a href="index.html" class="text-2xl font-bold text-blue-600">SocialConnect</a>
+                </div>
+
+                <div class="flex-1 max-w-lg mx-8">
+                    <div class="relative">
+                        <input type="text" placeholder="Search for friends, posts, or pages..."
+                               class="w-full px-4 py-2 pl-10 pr-4 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <a href="index.html" class="p-2 rounded-full hover:bg-gray-100">
+                        <i class="fas fa-home text-xl text-gray-600"></i>
+                    </a>
+                    <button class="p-2 rounded-full hover:bg-gray-100 relative">
+                        <i class="fas fa-users text-xl text-gray-600"></i>
+                    </button>
+                    <button class="p-2 rounded-full hover:bg-gray-100 relative">
+                        <i class="fas fa-bell text-xl text-gray-600"></i>
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">3</span>
+                    </button>
+                    <button class="p-2 rounded-full hover:bg-gray-100 relative">
+                        <i class="fas fa-envelope text-xl text-gray-600"></i>
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">2</span>
+                    </button>
+
+                    <div class="relative">
+                        <button class="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100">
+                            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face"
+                                 alt="Profile" class="w-8 h-8 rounded-full">
+                            <i class="fas fa-chevron-down text-sm text-gray-600"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Profile Header -->
+    <div class="pt-16">
+        <div class="bg-white">
+            <!-- Cover Photo -->
+            <div class="h-80 bg-gradient-to-r from-blue-500 to-purple-600 relative">
+                <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=320&fit=crop"
+                     alt="Cover" class="w-full h-full object-cover">
+                <button class="absolute bottom-4 right-4 bg-white px-4 py-2 rounded-lg shadow hover:bg-gray-50">
+                    <i class="fas fa-camera mr-2"></i>Edit Cover
+                </button>
+            </div>
+
+            <!-- Profile Info -->
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="relative -mt-20 pb-6">
+                    <div class="flex flex-col sm:flex-row items-center sm:items-end space-y-4 sm:space-y-0 sm:space-x-6">
+                        <!-- Profile Picture -->
+                        <div class="relative">
+                            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=160&h=160&fit=crop&crop=face"
+                                 alt="Profile" class="w-40 h-40 rounded-full border-4 border-white shadow-lg">
+                            <button class="absolute bottom-2 right-2 bg-gray-100 p-2 rounded-full shadow hover:bg-gray-200">
+                                <i class="fas fa-camera text-gray-600"></i>
+                            </button>
+                        </div>
+
+                        <!-- Profile Details -->
+                        <div class="flex-1 text-center sm:text-left">
+                            <h1 class="text-3xl font-bold text-gray-900">John Doe</h1>
+                            <p class="text-gray-600 mb-2">Full Stack Developer | Tech Enthusiast | Coffee Lover</p>
+                            <p class="text-gray-500 mb-4">📍 San Francisco, CA • 🎂 Joined March 2020</p>
+
+                            <div class="flex flex-wrap justify-center sm:justify-start gap-4 mb-4">
+                                <div class="text-center">
+                                    <div class="font-bold text-xl text-gray-900">127</div>
+                                    <div class="text-sm text-gray-500">Posts</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="font-bold text-xl text-gray-900">1.2K</div>
+                                    <div class="text-sm text-gray-500">Followers</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="font-bold text-xl text-gray-900">892</div>
+                                    <div class="text-sm text-gray-500">Following</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex space-x-3">
+                            <button class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                                <i class="fas fa-user-plus mr-2"></i>Follow
+                            </button>
+                            <button class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                                <i class="fas fa-envelope mr-2"></i>Message
+                            </button>
+                            <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                                <i class="fas fa-ellipsis-h"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="flex gap-6">
+            <!-- Left Column -->
+            <div class="w-80 hidden lg:block">
+                <!-- About -->
+                <div class="bg-white rounded-lg shadow p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">About</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-briefcase text-gray-500"></i>
+                            <span class="text-gray-700">Works at <strong>Tech Solutions Inc.</strong></span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-graduation-cap text-gray-500"></i>
+                            <span class="text-gray-700">Studied at <strong>Stanford University</strong></span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-map-marker-alt text-gray-500"></i>
+                            <span class="text-gray-700">Lives in <strong>San Francisco, CA</strong></span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-heart text-gray-500"></i>
+                            <span class="text-gray-700">In a relationship</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-calendar text-gray-500"></i>
+                            <span class="text-gray-700">Joined March 2020</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Photos -->
+                <div class="bg-white rounded-lg shadow p-6 mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Photos</h3>
+                        <a href="#" class="text-blue-500 hover:text-blue-600">See all</a>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=100&h=100&fit=crop"
+                             alt="Photo" class="rounded-lg hover:opacity-75 cursor-pointer">
+                        <img src="https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=100&h=100&fit=crop"
+                             alt="Photo" class="rounded-lg hover:opacity-75 cursor-pointer">
+                        <img src="https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=100&h=100&fit=crop"
+                             alt="Photo" class="rounded-lg hover:opacity-75 cursor-pointer">
+                        <img src="https://images.unsplash.com/photo-1551632811-561732d1e306?w=100&h=100&fit=crop"
+                             alt="Photo" class="rounded-lg hover:opacity-75 cursor-pointer">
+                        <img src="https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=100&h=100&fit=crop"
+                             alt="Photo" class="rounded-lg hover:opacity-75 cursor-pointer">
+                        <img src="https://images.unsplash.com/photo-1493612276216-ee3925520721?w=100&h=100&fit=crop"
+                             alt="Photo" class="rounded-lg hover:opacity-75 cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- Friends -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Friends</h3>
+                        <a href="#" class="text-blue-500 hover:text-blue-600">See all</a>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="text-center">
+                            <img src="https://images.unsplash.com/photo-1494790108755-2616b612b786?w=80&h=80&fit=crop&crop=face"
+                                 alt="Friend" class="w-20 h-20 rounded-lg mx-auto mb-2">
+                            <p class="text-sm font-medium text-gray-900">Sarah</p>
+                        </div>
+                        <div class="text-center">
+                            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face"
+                                 alt="Friend" class="w-20 h-20 rounded-lg mx-auto mb-2">
+                            <p class="text-sm font-medium text-gray-900">Mike</p>
+                        </div>
+                        <div class="text-center">
+                            <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face"
+                                 alt="Friend" class="w-20 h-20 rounded-lg mx-auto mb-2">
+                            <p class="text-sm font-medium text-gray-900">Emma</p>
+                        </div>
+                        <div class="text-center">
+                            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face"
+                                 alt="Friend" class="w-20 h-20 rounded-lg mx-auto mb-2">
+                            <p class="text-sm font-medium text-gray-900">Alex</p>
+                        </div>
+                        <div class="text-center">
+                            <img src="https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?w=80&h=80&fit=crop&crop=face"
+                                 alt="Friend" class="w-20 h-20 rounded-lg mx-auto mb-2">
+                            <p class="text-sm font-medium text-gray-900">Lisa</p>
+                        </div>
+                        <div class="text-center">
+                            <img src="https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=80&h=80&fit=crop&crop=face"
+                                 alt="Friend" class="w-20 h-20 rounded-lg mx-auto mb-2">
+                            <p class="text-sm font-medium text-gray-900">David</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="flex-1">
+                <!-- Profile Navigation -->
+                <div class="bg-white rounded-lg shadow mb-6">
+                    <div class="flex border-b border-gray-200">
+                        <button class="px-6 py-4 text-blue-600 border-b-2 border-blue-600 font-medium">Posts</button>
+                        <button class="px-6 py-4 text-gray-500 hover:text-gray-700">About</button>
+                        <button class="px-6 py-4 text-gray-500 hover:text-gray-700">Friends</button>
+                        <button class="px-6 py-4 text-gray-500 hover:text-gray-700">Photos</button>
+                        <button class="px-6 py-4 text-gray-500 hover:text-gray-700">Videos</button>
+                    </div>
+                </div>
+
+                <!-- Create Post (if own profile) -->
+                <div class="bg-white rounded-lg shadow p-4 mb-6">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face"
+                             alt="Profile" class="w-10 h-10 rounded-full">
+                        <input type="text" placeholder="What's on your mind, John?"
+                               class="flex-1 px-4 py-2 rounded-full bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div class="flex space-x-4">
+                            <button class="flex items-center space-x-2 text-gray-600 hover:text-blue-500">
+                                <i class="fas fa-image"></i>
+                                <span>Photo</span>
+                            </button>
+                            <button class="flex items-center space-x-2 text-gray-600 hover:text-green-500">
+                                <i class="fas fa-video"></i>
+                                <span>Video</span>
+                            </button>
+                            <button class="flex items-center space-x-2 text-gray-600 hover:text-yellow-500">
+                                <i class="fas fa-smile"></i>
+                                <span>Feeling</span>
+                            </button>
+                        </div>
+                        <button class="px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors">
+                            Post
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Posts -->
+                <div class="space-y-6">
+                    <!-- User's Post 1 -->
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="p-4">
+                            <div class="flex items-center space-x-3 mb-3">
+                                <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face"
+                                     alt="Profile" class="w-10 h-10 rounded-full">
+                                <div class="flex-1">
+                                    <h4 class="font-semibold text-gray-900">John Doe</h4>
+                                    <p class="text-sm text-gray-500">1 day ago</p>
+                                </div>
+                                <button class="text-gray-400 hover:text-gray-600">
+                                    <i class="fas fa-ellipsis-h"></i>
+                                </button>
+                            </div>
+                            <p class="text-gray-800 mb-3">Just deployed a new feature for our app! The team worked incredibly hard on this one. Excited to see how users respond to the improved user experience. 🚀 #webdev #teamwork #proud</p>
+                            <img src="https://images.unsplash.com/photo-1551632811-561732d1e306?w=600&h=400&fit=crop"
+                                 alt="Code on screen" class="w-full rounded-lg mb-3">
+                        </div>
+                        <div class="px-4 py-3 border-t border-gray-100">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center space-x-4 text-sm text-gray-500">
+                                    <span>👍 67 likes</span>
+                                    <span>💬 12 comments</span>
+                                    <span>🔄 8 shares</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <button class="flex items-center space-x-2 px-4 py-2 rounded hover:bg-gray-50 text-gray-600">
+                                    <i class="far fa-thumbs-up"></i>
+                                    <span>Like</span>
+                                </button>
+                                <button class="flex items-center space-x-2 px-4 py-2 rounded hover:bg-gray-50 text-gray-600">
+                                    <i class="far fa-comment"></i>
+                                    <span>Comment</span>
+                                </button>
+                                <button class="flex items-center space-x-2 px-4 py-2 rounded hover:bg-gray-50 text-gray-600">
+                                    <i class="fas fa-share"></i>
+                                    <span>Share</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- User's Post 2 -->
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="p-4">
+                            <div class="flex items-center space-x-3 mb-3">
+                                <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face"
+                                     alt="Profile" class="w-10 h-10 rounded-full">
+                                <div class="flex-1">
+                                    <h4 class="font-semibold text-gray-900">John Doe</h4>
+                                    <p class="text-sm text-gray-500">3 days ago</p>
+                                </div>
+                                <button class="text-gray-400 hover:text-gray-600">
+                                    <i class="fas fa-ellipsis-h"></i>
+                                </button>
+                            </div>
+                            <p class="text-gray-800 mb-3">Weekend coding session with some great coffee ☕️ Working on a personal project that I'm really excited about. Sometimes the best ideas come during these quiet moments.</p>
+                            <div class="grid grid-cols-2 gap-2 mb-3">
+                                <img src="https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=300&h=200&fit=crop"
+                                     alt="Coffee" class="rounded-lg">
+                                <img src="https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=300&h=200&fit=crop"
+                                     alt="Code" class="rounded-lg">
+                            </div>
+                        </div>
+                        <div class="px-4 py-3 border-t border-gray-100">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center space-x-4 text-sm text-gray-500">
+                                    <span>👍 43 likes</span>
+                                    <span>💬 7 comments</span>
+                                    <span>🔄 3 shares</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <button class="flex items-center space-x-2 px-4 py-2 rounded hover:bg-gray-50 text-gray-600">
+                                    <i class="far fa-thumbs-up"></i>
+                                    <span>Like</span>
+                                </button>
+                                <button class="flex items-center space-x-2 px-4 py-2 rounded hover:bg-gray-50 text-gray-600">
+                                    <i class="far fa-comment"></i>
+                                    <span>Comment</span>
+                                </button>
+                                <button class="flex items-center space-x-2 px-4 py-2 rounded hover:bg-gray-50 text-gray-600">
+                                    <i class="fas fa-share"></i>
+                                    <span>Share</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
