@@ -132,7 +132,8 @@ export function StorageAdapter(secret: string): Adapter {
             id: actor.account.id
           }
         }
-      } catch {
+      } catch (error) {
+        console.error('JWT decode error:', error)
         return null
       }
     },
