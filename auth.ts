@@ -16,6 +16,7 @@ export const getAuthConfig = memoize(() => {
   try {
     const { secretPhase, auth, serviceName } = getConfig()
     return {
+      trustHost: true,
       session: {
         strategy: 'database' as const
       },
@@ -78,7 +79,8 @@ export const getAuthConfig = memoize(() => {
       providers: [],
       session: {
         strategy: 'database' as const
-      }
+      },
+      trustHost: true
     }
   }
 })
