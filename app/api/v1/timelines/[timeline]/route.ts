@@ -20,7 +20,7 @@ const UNSUPPORTED_TIMELINE = [Timeline.LOCAL_PUBLIC]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 interface Params {
-  timeline: string
+  timeline: Timeline
 }
 
 export const GET = OAuthGuard<Params>(
@@ -34,14 +34,8 @@ export const GET = OAuthGuard<Params>(
     const format = url.searchParams.get('format')
 
     const { database, currentActor, params } = context
-    const { timeline: timelineParam } = await params
-    if (!timelineParam) return apiErrorResponse(400)
-
-    // Validate and narrow timeline type early
-    if (!Object.values(Timeline).includes(timelineParam as Timeline)) {
-      return apiErrorResponse(404)
-    }
-    const timeline = timelineParam as Timeline
+    const { timeline } = await params
+    if (!timeline) return apiErrorResponse(400)
 
     if (UNSUPPORTED_TIMELINE.includes(timeline)) {
       return apiErrorResponse(404)
