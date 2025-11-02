@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server'
 import path from 'path'
 
 import { getDatabase } from '@/lib/database'
-import { AppRouterParams } from '@/lib/services/guards/types'
 import { getMedia } from '@/lib/services/medias'
 import { apiErrorResponse } from '@/lib/utils/response'
 

@@ -1,6 +1,5 @@
 import { Scope } from '@/lib/database/types/oauth'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
-import { Timeline } from '@/lib/services/timelines/types'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 
