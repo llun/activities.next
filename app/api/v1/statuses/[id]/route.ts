@@ -27,11 +27,10 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
-  async (req, context, params) => {
-    const encodedStatusId = (await params?.params).id
+  async (req, context) => {
+    const { database, params } = context
+    const encodedStatusId = (await params).id
     if (!encodedStatusId) return apiErrorResponse(404)
-
-    const { database } = context
     const statusId = idToUrl(encodedStatusId)
 
     const status = await database.getStatus({ statusId })
@@ -55,8 +54,9 @@ const EditNoteSchema = z.object({
 
 export const PUT = OAuthGuard<Params>(
   [Scope.enum.write],
-  async (req, context, params) => {
-    const encodedStatusId = (await params?.params).id
+  async (req, context) => {
+    const { params } = context
+    const encodedStatusId = (await params).id
     if (!encodedStatusId) return apiErrorResponse(404)
 
     const { database, currentActor } = context
