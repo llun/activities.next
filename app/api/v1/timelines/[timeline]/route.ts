@@ -20,12 +20,15 @@ const UNSUPPORTED_TIMELINE = [Timeline.LOCAL_PUBLIC]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 interface Params {
-  timeline: Timeline
+  timeline: string
 }
+
+const isTimeline = (value: string): value is Timeline =>
+  Object.values(Timeline).includes(value as Timeline)
 
 export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
-  async (req, context, params) => {
+  async (req, context) => {
     const url = new URL(req.url)
     const minStatusIdParam =
       url.searchParams.get('since_id') || url.searchParams.get('min_id')
@@ -33,14 +36,15 @@ export const GET = OAuthGuard<Params>(
     const limit = url.searchParams.get('limit')
     const format = url.searchParams.get('format')
 
-    const { database, currentActor } = context
-    const { timeline } = (await params?.params) ?? {}
+    const { database, currentActor, params } = context
+    const { timeline } = await params
     if (!timeline) return apiErrorResponse(400)
 
-    if (
-      !Object.values(Timeline).includes(timeline) ||
-      UNSUPPORTED_TIMELINE.includes(timeline)
-    ) {
+    if (!isTimeline(timeline)) {
+      return apiErrorResponse(404)
+    }
+
+    if (UNSUPPORTED_TIMELINE.includes(timeline)) {
       return apiErrorResponse(404)
     }
 

@@ -10,7 +10,7 @@ import { ActivityPubVerifiedSenderHandle, AppRouterParams } from './types'
 
 export const ActivityPubVerifySenderGuard =
   <P>(handle: ActivityPubVerifiedSenderHandle<P>) =>
-  async (request: NextRequest, params: AppRouterParams<P>) => {
+  async (request: NextRequest, context: AppRouterParams<P>) => {
     const database = getDatabase()
     if (!database) return apiErrorResponse(500)
 
@@ -33,5 +33,5 @@ export const ActivityPubVerifySenderGuard =
       return apiErrorResponse(400)
     }
 
-    return handle(request, { database }, params)
+    return handle(request, { database, params: context.params })
   }

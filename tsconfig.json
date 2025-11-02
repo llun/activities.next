@@ -2,12 +2,22 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/app/*": ["app/*"],
-      "@/lib/*": ["lib/*"],
-      "@/pages/*": ["pages/*"]
+      "@/app/*": [
+        "app/*"
+      ],
+      "@/lib/*": [
+        "lib/*"
+      ],
+      "@/pages/*": [
+        "pages/*"
+      ]
     },
     "target": "ESNext",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -18,7 +28,7 @@
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "experimentalDecorators": true,
     "plugins": [
@@ -27,7 +37,17 @@
       }
     ]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"],
-  "files": ["global.d.ts"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ],
+  "files": [
+    "global.d.ts"
+  ]
 }

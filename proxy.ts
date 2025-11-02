@@ -7,7 +7,7 @@ export const config = {
   matcher: ['/(@.*)']
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (request.method === 'GET') {
     const pathname = request.nextUrl.pathname
     const acceptValue = request.headers.get('Accept')

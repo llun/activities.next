@@ -2,19 +2,18 @@ import { NextRequest } from 'next/server'
 import path from 'path'
 
 import { getDatabase } from '@/lib/database'
-import { AppRouterParams } from '@/lib/services/guards/types'
 import { getMedia } from '@/lib/services/medias'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 interface Params {
-  pathname: string
+  pathname: string[]
 }
 
 export const GET = async (
   req: NextRequest,
-  params: AppRouterParams<Params>
+  context: { params: Promise<Params> }
 ) => {
-  const { pathname } = await params.params
+  const { pathname } = await context.params
   const userPath = path
     .normalize(Array.isArray(pathname) ? pathname.join('/') : pathname)
     .replace(/^(\.\.(\/|\\|$))+/, '')
@@ -34,7 +33,8 @@ export const GET = async (
         // Make media cache for 1 year
         ['Cache-Control', 'public, max-age=31536000, immutable']
       ])
-      return new Response(buffer, { headers })
+      // Buffer extends Uint8Array which is valid BodyInit, but TypeScript needs assertion
+      return new Response(buffer as BodyInit, { headers })
     }
     case 'redirect': {
       const { redirectUrl } = media
