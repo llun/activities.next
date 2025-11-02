@@ -57,9 +57,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@auth/core@npm:^0.40.0":
-  version: 0.40.0
-  resolution: "@auth/core@npm:0.40.0"
+"@auth/core@npm:^0.41.1":
+  version: 0.41.1
+  resolution: "@auth/core@npm:0.41.1"
   dependencies:
     "@panva/hkdf": "npm:^1.2.1"
     jose: "npm:^6.0.6"
@@ -69,7 +69,7 @@ __metadata:
   peerDependencies:
     "@simplewebauthn/browser": ^9.0.1
     "@simplewebauthn/server": ^9.0.2
-    nodemailer: ^6.8.0
+    nodemailer: ^7.0.7
   peerDependenciesMeta:
     "@simplewebauthn/browser":
       optional: true
@@ -77,7 +77,7 @@ __metadata:
       optional: true
     nodemailer:
       optional: true
-  checksum: 10c0/25cd12f22611eedc21c17dc1908fa9428ae5f0e32eb32c1ab009642276c37099cce58f49ffbb7f8e8d6d6488d5101a24fb9808ec662eee5aca19d520750acaa3
+  checksum: 10c0/0800610fb3842f6cfa4e8bffa79412e4ed34856f91994596b57d312546b0aa8ee906d4df96ce14710becaf9774a3bc83693ebcb9b7b80e20dddf3613d26e3a38
   languageName: node
   linkType: hard
 
@@ -5354,7 +5354,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "activities.next@workspace:."
   dependencies:
-    "@auth/core": "npm:^0.40.0"
+    "@auth/core": "npm:^0.41.1"
     "@aws-sdk/client-lambda": "npm:^3.922.0"
     "@aws-sdk/client-s3": "npm:^3.922.0"
     "@aws-sdk/s3-presigned-post": "npm:^3.922.0"
