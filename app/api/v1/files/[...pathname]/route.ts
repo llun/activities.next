@@ -33,6 +33,7 @@ export const GET = async (
         // Make media cache for 1 year
         ['Cache-Control', 'public, max-age=31536000, immutable']
       ])
+      // Buffer extends Uint8Array which is valid BodyInit, but TypeScript needs assertion
       return new Response(buffer as BodyInit, { headers })
     }
     case 'redirect': {

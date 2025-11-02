@@ -34,13 +34,16 @@ export const GET = OAuthGuard<Params>(
     const format = url.searchParams.get('format')
 
     const { database, currentActor, params } = context
-    const { timeline } = await params
-    if (!timeline) return apiErrorResponse(400)
+    const { timeline: timelineParam } = await params
+    if (!timelineParam) return apiErrorResponse(400)
 
-    if (
-      !Object.values(Timeline).includes(timeline as Timeline) ||
-      UNSUPPORTED_TIMELINE.includes(timeline as Timeline)
-    ) {
+    // Validate and narrow timeline type early
+    if (!Object.values(Timeline).includes(timelineParam as Timeline)) {
+      return apiErrorResponse(404)
+    }
+    const timeline = timelineParam as Timeline
+
+    if (UNSUPPORTED_TIMELINE.includes(timeline)) {
       return apiErrorResponse(404)
     }
 
@@ -48,7 +51,7 @@ export const GET = OAuthGuard<Params>(
     const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
 
     const statuses = await database.getTimeline({
-      timeline: timeline as Timeline,
+      timeline,
       actorId: currentActor.id,
       minStatusId,
       maxStatusId,
