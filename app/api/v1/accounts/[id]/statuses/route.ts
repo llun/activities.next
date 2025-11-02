@@ -43,13 +43,12 @@ const StatusQueryParams = z.object({
 
 export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
-  async (req, context, params) => {
-    const encodedAccountId = (await params?.params).id
+  async (req, context) => {
+    const { database, params } = context
+    const encodedAccountId = (await params).id
     if (!encodedAccountId) {
       return apiErrorResponse(400)
     }
-
-    const { database } = context
     const id = idToUrl(encodedAccountId)
 
     const actor = await database.getMastodonActorFromId({

@@ -45,7 +45,7 @@
     "lodash": "^4.17.21",
     "marked": "^16.4.1",
     "mime-types": "^3.0.1",
-    "next": "^15.3.5",
+    "next": "^16.0.1",
     "next-auth": "^4.24.11",
     "nodemailer": "^7.0.10",
     "peggy": "^5.0.6",
@@ -60,7 +60,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
-    "@next/env": "^15.3.5",
+    "@next/env": "^16.0.1",
     "@swc-node/register": "^1.11.1",
     "@swc/core": "^1.14.0",
     "@swc/jest": "^0.2.39",
@@ -87,7 +87,7 @@
     "@typescript-eslint/parser": "^8.46.2",
     "dotenv-flow": "^4.1.0",
     "eslint": "^9.39.0",
-    "eslint-config-next": "^15.3.5",
+    "eslint-config-next": "^16.0.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-config-standard": "^17.1.0",
     "eslint-plugin-import": "^2.32.0",

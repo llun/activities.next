@@ -33,7 +33,7 @@ export const getTokenFromHeader = (authorizationHeader: string | null) => {
 
 export const OAuthGuard =
   <P>(scopes: Scope[], handle: AuthenticatedApiHandle<P>) =>
-  async (req: NextRequest, params: AppRouterParams<P>) => {
+  async (req: NextRequest, context: AppRouterParams<P>) => {
     const database = getDatabase()
     if (!database) {
       return apiErrorResponse(500)
@@ -45,7 +45,7 @@ export const OAuthGuard =
         email: session.user.email
       })
       if (!currentActor) return apiErrorResponse(401)
-      return handle(req, { currentActor, database }, params)
+      return handle(req, { currentActor, database, params: context.params })
     }
 
     const authorizationToken = req.headers.get('Authorization')
@@ -78,8 +78,7 @@ export const OAuthGuard =
 
       return handle(
         req,
-        { currentActor: Actor.parse(accessToken.user.actor), database },
-        params
+        { currentActor: Actor.parse(accessToken.user.actor), database, params: context.params }
       )
     } catch (e) {
       const nodeErr = e as NodeJS.ErrnoException

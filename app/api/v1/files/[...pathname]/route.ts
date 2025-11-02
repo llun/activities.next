@@ -7,14 +7,14 @@ import { getMedia } from '@/lib/services/medias'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 interface Params {
-  pathname: string
+  pathname: string[]
 }
 
 export const GET = async (
   req: NextRequest,
-  params: AppRouterParams<Params>
+  context: { params: Promise<Params> }
 ) => {
-  const { pathname } = await params.params
+  const { pathname } = await context.params
   const userPath = path
     .normalize(Array.isArray(pathname) ? pathname.join('/') : pathname)
     .replace(/^(\.\.(\/|\\|$))+/, '')

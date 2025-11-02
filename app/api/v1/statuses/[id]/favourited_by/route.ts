@@ -18,11 +18,10 @@ interface Params {
 
 export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
-  async (req, context, params) => {
-    const encodedStatusId = (await params?.params).id
+  async (req, context) => {
+    const { database, params } = context
+    const encodedStatusId = (await params).id
     if (!encodedStatusId) return apiErrorResponse(404)
-
-    const { database } = context
     const statusId = idToUrl(encodedStatusId)
     const actors = await database.getFavouritedBy({ statusId })
     return apiResponse({

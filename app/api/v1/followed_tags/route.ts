@@ -8,10 +8,6 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-interface Params {
-  timeline: Timeline
-}
-
-export const GET = OAuthGuard<Params>([Scope.enum.read], async (req) => {
+export const GET = OAuthGuard<{}>([Scope.enum.read], async (req) => {
   return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
 })

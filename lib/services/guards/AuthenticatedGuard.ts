@@ -9,7 +9,7 @@ import { AppRouterParams, AuthenticatedApiHandle } from './types'
 
 export const AuthenticatedGuard =
   <P>(handle: AuthenticatedApiHandle<P>) =>
-  async (req: NextRequest, params: AppRouterParams<P>) => {
+  async (req: NextRequest, context: AppRouterParams<P>) => {
     const database = getDatabase()
     const session = await getServerSession(getAuthOptions())
 
@@ -24,5 +24,5 @@ export const AuthenticatedGuard =
       return Response.redirect(getRedirectUrl(req, '/signin'), 307)
     }
 
-    return handle(req, { currentActor, database }, params)
+    return handle(req, { currentActor, database, params: context.params })
   }
