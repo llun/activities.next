@@ -109,13 +109,5 @@
     "sass": "^1.93.3",
     "typescript": "^5.9.3"
   },
-  "packageManager": "yarn@4.9.2",
-  "resolutions": {
-    "@types/react": "19.2.2",
-    "@types/react-dom": "19.2.2",
-    "@auth/core": "0.40.0",
-    "nodemailer": "^7.0.10",
-    "eslint": "9.39.0",
-    "zod": "4.1.12"
-  }
+  "packageManager": "yarn@4.9.2"
 }
