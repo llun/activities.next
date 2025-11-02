@@ -20,8 +20,11 @@ const UNSUPPORTED_TIMELINE = [Timeline.LOCAL_PUBLIC]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 interface Params {
-  timeline: Timeline
+  timeline: string
 }
+
+const isTimeline = (value: string): value is Timeline =>
+  Object.values(Timeline).includes(value as Timeline)
 
 export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
@@ -37,10 +40,11 @@ export const GET = OAuthGuard<Params>(
     const { timeline } = await params
     if (!timeline) return apiErrorResponse(400)
 
-    if (
-      !Object.values(Timeline).includes(timeline) ||
-      UNSUPPORTED_TIMELINE.includes(timeline)
-    ) {
+    if (!isTimeline(timeline)) {
+      return apiErrorResponse(404)
+    }
+
+    if (UNSUPPORTED_TIMELINE.includes(timeline)) {
       return apiErrorResponse(404)
     }
 
