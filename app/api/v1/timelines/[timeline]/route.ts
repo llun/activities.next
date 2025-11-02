@@ -37,7 +37,10 @@ export const GET = OAuthGuard<Params>(
     const { timeline } = await params
     if (!timeline) return apiErrorResponse(400)
 
-    if (UNSUPPORTED_TIMELINE.includes(timeline)) {
+    if (
+      !Object.values(Timeline).includes(timeline) ||
+      UNSUPPORTED_TIMELINE.includes(timeline)
+    ) {
       return apiErrorResponse(404)
     }
 
