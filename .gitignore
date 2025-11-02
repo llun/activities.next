@@ -39,6 +39,7 @@ firestore-debug.log*
 firestore.log
 ui-debug.log*
 pglite-debug.log*
+*.log
 
 # temporary files
 prompt.txt
@@ -65,6 +66,7 @@ config.*.json
 # local testing script
 lab.ts
 wallaby.js
+test-config.js
 
 # Sentry
 .sentryclirc
