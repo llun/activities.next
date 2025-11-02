@@ -34,7 +34,7 @@ export const GET = async (
         // Make media cache for 1 year
         ['Cache-Control', 'public, max-age=31536000, immutable']
       ])
-      return new Response(buffer, { headers })
+      return new Response(buffer as BodyInit, { headers })
     }
     case 'redirect': {
       const { redirectUrl } = media
