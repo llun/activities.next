@@ -1,4 +1,4 @@
-FROM node:22-alpine AS base
+FROM node:24-alpine AS base
 ARG UID="1001"
 ARG GID="1001"
 ARG ACTIVITIES_HOST="localhost"
@@ -34,6 +34,6 @@ COPY --from=build --chown=app:app /opt/activities.next/.next/standalone /opt/act
 COPY --from=build --chown=app:app /opt/activities.next/public /opt/activities.next/public/
 COPY --from=build --chown=app:app /opt/activities.next/.next/static /opt/activities.next/.next/static
 COPY --from=build --chown=app:app /opt/activities.next/data.sqlite /opt/activities.next/data.sqlite
-RUN rm -r /opt/activities.next/.yarn
+RUN rm -rf /opt/activities.next/.yarn
 EXPOSE 3000
 CMD ["node", "server.js"]
