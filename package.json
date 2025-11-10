@@ -17,7 +17,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@auth/core": "^0.40.0",
+    "@auth/core": "^0.41.1",
     "@aws-sdk/client-lambda": "^3.922.0",
     "@aws-sdk/client-s3": "^3.922.0",
     "@aws-sdk/s3-presigned-post": "^3.922.0",
