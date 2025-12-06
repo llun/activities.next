@@ -19,7 +19,10 @@ const nextConfig: NextConfig = {
     'jsonld',
     'keyv',
     'nodemailer',
-    'resend'
+    'pino',
+    'pino-pretty',
+    'resend',
+    'thread-stream'
   ],
   generateBuildId() {
     return `activities-${Date.now()}`
