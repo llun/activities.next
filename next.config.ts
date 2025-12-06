@@ -19,7 +19,10 @@ const nextConfig: NextConfig = {
     'jsonld',
     'keyv',
     'nodemailer',
+    'pino',
+    'pino-pretty',
     'resend',
+    'thread-stream',
     'google-proto-files'
   ],
   generateBuildId() {
