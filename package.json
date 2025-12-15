@@ -65,7 +65,7 @@
     "@next/env": "^16.0.10",
     "@next/eslint-plugin-next": "^16.0.10",
     "@swc-node/register": "^1.11.1",
-    "@swc/core": "^1.15.3",
+    "@swc/core": "^1.15.5",
     "@swc/jest": "^0.2.39",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
