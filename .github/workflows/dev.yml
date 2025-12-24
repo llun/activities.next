@@ -29,14 +29,11 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24
-      - name: Use Java 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
       - name: corepack enable
         run: corepack enable
       - name: Install dependencies
         run: yarn install
       - name: Test Database
-        run: yarn firebase emulators:exec --only firestore --project test 'yarn test:database'
+        run: yarn test:database
+        env:
+          TEST_DATABASE_TYPE: sqlite

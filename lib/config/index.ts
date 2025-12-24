@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 import { PHASE_PRODUCTION_BUILD } from 'next/dist/shared/lib/constants'
 import path from 'path'
@@ -9,7 +10,7 @@ import { ResendConfig } from '../services/email/resend'
 import { SMTPConfig } from '../services/email/smtp'
 import { logger } from '../utils/logger'
 import { AuthConfig, getAuthConfig } from './auth'
-import { DatabaseConfig, getDatabaseConfig } from './database'
+import { getDatabaseConfig } from './database'
 import { InternalApiConfig, getInternalApiConfig } from './internalApi'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
@@ -21,7 +22,7 @@ const Config = z.object({
   serviceName: z.string().nullish(),
   serviceDescription: z.string().nullish(),
   languages: z.string().array().default(['en']),
-  database: DatabaseConfig,
+  database: z.custom<Knex.Config>(),
   queue: QueueConfig.optional(),
   allowEmails: z.string().array(),
   secretPhase: z.string(),

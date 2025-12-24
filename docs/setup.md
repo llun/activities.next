@@ -4,11 +4,10 @@ This guide provides an overview of how to set up Activity.next for development o
 
 ## Database Setup
 
-Activity.next supports multiple database backends. Choose the one that best suits your needs:
+Activity.next supports multiple SQL database backends. Choose the one that best suits your needs:
 
 - [SQLite Setup Guide](sqlite-setup.md) - Best for development or small instances
 - [PostgreSQL Setup Guide](postgresql-setup.md) - Recommended for production deployments
-- [Firebase/Firestore Setup Guide](firebase-setup.md) - Alternative cloud-based option
 
 ## General Configuration
 
@@ -119,4 +118,3 @@ docker run -p 3000:3000 \
 For database-specific Docker deployment instructions:
 - [SQLite Docker Deployment](sqlite-setup.md#docker-deployment-with-sqlite)
 - [PostgreSQL Docker Deployment](postgresql-setup.md#docker-deployment-with-postgresql)
-- [Firestore Docker Deployment](firebase-setup.md#docker-deployment-with-firestore)
