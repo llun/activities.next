@@ -38,7 +38,7 @@
 - Review `docs/setup.md` and the database setup guides before changing auth, host, or database settings.
 
 ## Database Backends & Local Setup
-- Supported backends: SQLite (`docs/sqlite-setup.md`), PostgreSQL (`docs/postgresql-setup.md`), and Firestore (`docs/firebase-setup.md`).
+- Supported backends: SQLite (`docs/sqlite-setup.md`) and PostgreSQL (`docs/postgresql-setup.md`).
 - Local SQLite is the simplest for development; run `yarn migrate` after updating schema or migrations.
-- Firestore tests expect the emulator (`yarn start:firestore`) and can be slower; prefer `yarn test:withoutDatabase` for quick checks.
+- For quick development checks, use `yarn test:withoutDatabase` to skip database tests.
 - Docker users should mount a persistent volume to `/opt/activities.next` (see `docs/setup.md`).

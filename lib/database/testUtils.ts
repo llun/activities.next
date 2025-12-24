@@ -1,7 +1,6 @@
 import { noop } from 'lodash'
 import { Client as PostgresClient } from 'pg'
 
-import { getFirestoreDatabase } from '@/lib/database/firestore'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 
@@ -35,16 +34,6 @@ const DATABASES: Record<string, GetTestDatabase> = {
     }),
     prepare: noop
   }),
-  firestore: () => ({
-    name: 'firestore',
-    database: getFirestoreDatabase({
-      type: 'firebase',
-      projectId: 'test',
-      host: 'localhost:8080',
-      ssl: false
-    }),
-    prepare: noop
-  }),
   pg: () => ({
     name: 'pg',
     database: getSQLDatabase({
@@ -72,7 +61,6 @@ const DATABASES: Record<string, GetTestDatabase> = {
 export const getTestDatabaseTable = (): TestDatabaseTable => {
   switch (process.env.TEST_DATABASE_TYPE) {
     case 'sqlite':
-    case 'firestore':
     case 'pg': {
       const { name, database, prepare } =
         DATABASES[process.env.TEST_DATABASE_TYPE]()
@@ -80,12 +68,7 @@ export const getTestDatabaseTable = (): TestDatabaseTable => {
     }
     default: {
       const sqlite = DATABASES.sqlite()
-      const firestore = DATABASES.firestore()
-      return [
-        [sqlite.name, sqlite.database, sqlite.prepare],
-        // Enable this when run start:firestore emulator and clear the database manually
-        [firestore.name, firestore.database, firestore.prepare]
-      ]
+      return [[sqlite.name, sqlite.database, sqlite.prepare]]
     }
   }
 }

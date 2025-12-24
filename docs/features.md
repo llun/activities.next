@@ -12,9 +12,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ Boost/Repost functionality
 - ✅ Undo Boost/Repost
 - ✅ Like/Favorite
-- ✅ Multiple storage adapters:
-  - SQL via Knex.js (SQLite, PostgreSQL)
-  - Firebase/Firestore
+- ✅ SQL database support via Knex.js (SQLite, PostgreSQL, MySQL)
 - ✅ Support for different domains for different actors
 - ✅ Media upload support via Object Storage (S3, GCS, etc.)
 - ✅ OAuth Bearer token authentication
