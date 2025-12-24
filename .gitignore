@@ -28,6 +28,7 @@ scripts/cloudflared.sh
 docker-compose.yml
 .cursorrules
 CLAUDE.md
+plans/
 
 # debug
 npm-debug.log*
