@@ -42,7 +42,10 @@ export const Posts: FC<Props> = ({
   return (
     <section className={cn('w-full grid grid-cols-1', className)}>
       {statuses.map((status, index) => (
-        <div key={`${index}-${status.id}`} className="border-b border-border py-4 last:border-b-0">
+        <article
+          key={`${index}-${status.id}`}
+          className="border-b border-border/60 p-4 transition-colors hover:bg-muted/40 last:border-b-0"
+        >
           <Post
             host={host}
             currentTime={currentTime}
@@ -57,7 +60,7 @@ export const Posts: FC<Props> = ({
               setModalMedias({ medias: allMedias, initialSelection: index })
             }}
           />
-        </div>
+        </article>
       ))}
       <MediasModal
         medias={modalMedias?.medias ?? null}

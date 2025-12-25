@@ -1,25 +1,25 @@
 import { Pencil } from 'lucide-react'
 import { FC } from 'react'
 
-import { Button } from '@/lib/components/ui/button'
 import { EditableStatus, Status, StatusType } from '@/lib/models/status'
 
 interface Props {
-  className?: string
   status: Status
   onEdit?: (status: EditableStatus) => void
 }
 
-export const EditButton: FC<Props> = ({ className, status, onEdit }) => {
+export const EditButton: FC<Props> = ({ status, onEdit }) => {
   if (status.type === StatusType.enum.Announce) return null
   return (
-    <Button
-      className={className}
-      variant="link"
+    <button
+      className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted transition-colors"
       title="Edit"
-      onClick={() => onEdit?.(status)}
+      onClick={(e) => {
+        e.stopPropagation()
+        onEdit?.(status)
+      }}
     >
-      <Pencil className="size-4" />
-    </Button>
+      <Pencil className="h-4 w-4" />
+    </button>
   )
 }

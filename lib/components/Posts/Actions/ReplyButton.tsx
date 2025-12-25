@@ -1,24 +1,23 @@
-import { Reply } from 'lucide-react'
+import { MessageCircle } from 'lucide-react'
 import { FC } from 'react'
 
-import { Button } from '@/lib/components/ui/button'
-import { Status } from '@/lib/models/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/models/status'
 
 interface Props {
   className?: string
-  status: Status
+  status: StatusNote | StatusPoll
   onReply?: (status: Status) => void
 }
 
-export const ReplyButton: FC<Props> = ({ className, status, onReply }) => {
+export const ReplyButton: FC<Props> = ({ status, onReply }) => {
   return (
-    <Button
-      className={className}
-      variant="link"
+    <button
+      className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted hover:text-blue-500"
       title="Reply"
       onClick={() => onReply?.(status)}
     >
-      <Reply className="size-4" />
-    </Button>
+      <MessageCircle className="h-4 w-4" />
+      {status.replies.length > 0 && <span>{status.replies.length}</span>}
+    </button>
   )
 }

@@ -2,26 +2,23 @@ import { Trash2 } from 'lucide-react'
 import { FC } from 'react'
 
 import { deleteStatus } from '@/lib/client'
-import { Button } from '@/lib/components/ui/button'
 import { Status, StatusNote, StatusPoll } from '@/lib/models/status'
 
 interface Props {
-  className?: string
   status: StatusNote | StatusPoll
   onPostDeleted?: (status: Status) => void
 }
 
 export const DeleteButton: FC<Props> = ({
-  className,
   status,
   onPostDeleted
 }) => {
   return (
-    <Button
-      className={className}
-      variant="link"
+    <button
+      className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted hover:text-red-500 transition-colors"
       title="Delete post"
-      onClick={async () => {
+      onClick={async (e) => {
+        e.stopPropagation()
         const deleteConfirmation = window.confirm(
           `Confirm delete status! ${
             status.text.length ? `${status.text.slice(0, 20)}...` : status.id
@@ -32,7 +29,7 @@ export const DeleteButton: FC<Props> = ({
         onPostDeleted?.(status)
       }}
     >
-      <Trash2 className="size-4" />
-    </Button>
+      <Trash2 className="h-4 w-4" />
+    </button>
   )
 }

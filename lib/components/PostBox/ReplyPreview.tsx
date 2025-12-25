@@ -2,7 +2,7 @@ import { X } from 'lucide-react'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
-import { Actor } from '@/lib/components/Posts/Actor'
+import { ActorInfo } from '@/lib/components/Posts/Actor'
 import { Poll } from '@/lib/components/Posts/Poll'
 import { EditableStatus, Status, StatusType } from '@/lib/models/status'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
@@ -45,7 +45,7 @@ export const ReplyPreview: FC<Props> = ({ host, status, onClose }) => {
       className="whitespace-pre-wrap flex flex-row justify-between bg-muted/50 rounded-lg mb-4 py-2 px-4"
     >
       <div>
-        <Actor actorId={status.actorId || ''} />
+        <ActorInfo actor={status.actor} actorId={status.actorId || ''} />
         {cleanClassName(
           (status as EditableStatus).isLocalActor
             ? convertMarkdownText(host)(getText(status))
