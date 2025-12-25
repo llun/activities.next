@@ -67,10 +67,9 @@ export const Post: FC<PostProps> = (props) => {
             </span>
           </div>
 
-          <div 
-            className="mt-1 text-sm leading-relaxed break-words [&_p]:mb-4 last:[&_p]:mb-0"
-            dangerouslySetInnerHTML={{ __html: processedAndCleanedText }}
-          />
+          <div className="mt-1 text-sm leading-relaxed break-words [&_p]:mb-4 last:[&_p]:mb-0">
+            {processedAndCleanedText}
+          </div>
           
           <Poll status={actualStatus} currentTime={new Date()} />
           <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
