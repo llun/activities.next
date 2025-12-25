@@ -5,7 +5,7 @@ import { signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { Button } from './Button'
+import { Button } from './ui/button'
 
 interface Props {
   session?: Session | null
@@ -34,7 +34,7 @@ export const Header: FC<Props> = ({ session }) => {
               </Link>
             </Button>
 
-            <Button outline onClick={() => signOut()}>
+            <Button variant="outline" onClick={() => signOut()}>
               Logout
             </Button>
           </div>

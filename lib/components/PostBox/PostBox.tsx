@@ -7,10 +7,11 @@ import {
   useRef,
   useState
 } from 'react'
+import { BarChart3 } from 'lucide-react'
 import sanitizeHtml from 'sanitize-html'
 
 import { createNote, createPoll, updateNote } from '@/lib/client'
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
 import {
   ActorProfile,
   getMention,
@@ -26,7 +27,6 @@ import {
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { Duration, PollChoices } from './PollChoices'
-import styles from './PostBox.module.scss'
 import { ReplyPreview } from './ReplyPreview'
 import { UploadMediaButton } from './UploadMediaButton'
 import {
@@ -258,7 +258,7 @@ export const PostBox: FC<Props> = ({
         <div className="mb-3">
           <textarea
             ref={postBoxRef}
-            className="form-control"
+            className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             rows={5}
             onKeyDown={onQuickPost}
             onChange={onTextChange}
@@ -275,7 +275,7 @@ export const PostBox: FC<Props> = ({
             dispatch(setPollDurationInSeconds(durationInSeconds))
           }
         />
-        <div className="d-flex justify-content-between mb-3">
+        <div className="flex justify-between mb-3">
           <div>
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
@@ -287,15 +287,15 @@ export const PostBox: FC<Props> = ({
                 dispatch(setPollVisibility(!postExtension.poll.showing))
               }
             >
-              <i className="bi bi-bar-chart-fill" />
+              <BarChart3 className="size-4" />
             </Button>
           </div>
           <div>
             {editStatus ? (
               <Button
-                className="me-2"
+                className="mr-2"
                 type="button"
-                variant="danger"
+                variant="destructive"
                 onClick={onDiscardEdit}
               >
                 Cancel Edit
@@ -306,11 +306,11 @@ export const PostBox: FC<Props> = ({
             </Button>
           </div>
         </div>
-        <div className={styles.attachments}>
+        <div className="grid gap-4 grid-cols-8">
           {postExtension.attachments.map((item, index) => {
             return (
               <div
-                className={styles.attachment}
+                className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer"
                 key={item.id}
                 style={{
                   backgroundImage: `url("${item.posterUrl || item.url}")`

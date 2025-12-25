@@ -1,6 +1,6 @@
-import cn from 'classnames'
 import { formatDistance } from 'date-fns'
 import _ from 'lodash'
+import { Repeat2 } from 'lucide-react'
 import { FC } from 'react'
 
 import { ActorProfile } from '@/lib/models/actor'
@@ -15,7 +15,6 @@ import { Actions } from './Actions'
 import { Actor } from './Actor'
 import { Attachments, OnMediaSelectedHandle } from './Attachments'
 import { Poll } from './Poll'
-import styles from './Post.module.scss'
 
 export interface PostProps {
   host: string
@@ -36,11 +35,11 @@ interface BoostStatusProps {
 export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   if (status.type !== StatusType.enum.Announce) return null
   return (
-    <div className={cn('d-flex', 'mb-1', 'align-items-center')}>
-      <i className="bi bi-repeat me-2"></i>
-      <span className="me-2 text-nowrap">Boost by</span>
+    <div className="flex items-center mb-1">
+      <Repeat2 className="size-4 mr-2" />
+      <span className="mr-2 whitespace-nowrap">Boost by</span>
       <Actor
-        className={cn('flex-grow-1')}
+        className="flex-1"
         actor={status.actor}
         actorId={status.actorId}
       />
@@ -58,21 +57,21 @@ export const Post: FC<PostProps> = (props) => {
     .value()
 
   return (
-    <div key={status.id} className={cn(styles.post)}>
+    <div key={status.id} className="[&_p]:whitespace-pre-wrap [&_video]:max-w-full">
       <BoostStatus status={status} />
-      <div className={cn('d-flex', 'mb-2')}>
+      <div className="flex mb-2">
         <Actor
-          className={cn('flex-grow-1', 'overflow-hidden', 'me-2')}
+          className="flex-1 overflow-hidden mr-2"
           actor={actualStatus.actor}
           actorId={actualStatus.actorId}
         />
-        <div className={cn('flex-shrink-0', styles.misc)}>
+        <div className="shrink-0 flex flex-row items-center">
           <a href={actualStatus.url} target="_blank" rel="noreferrer">
             {formatDistance(actualStatus.createdAt, currentTime)}
           </a>
         </div>
       </div>
-      <div className={cn('me-1', 'text-break')}>{processedAndCleanedText}</div>
+      <div className="mr-1 break-words">{processedAndCleanedText}</div>
       <Poll status={actualStatus} currentTime={currentTime} />
       <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
       <Actions {...props} />

@@ -1,14 +1,13 @@
-import cn from 'classnames'
 import { formatDistance } from 'date-fns'
+import { History } from 'lucide-react'
 import { FC, useState } from 'react'
 
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
 import { Status, StatusNote, StatusPoll } from '@/lib/models/status'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
-import styles from './EditHistoryButton.module.scss'
 
 interface Props {
   host: string
@@ -23,7 +22,7 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
 
   return (
     <Button
-      className={styles.button}
+      className="relative"
       variant="link"
       onClick={() => {
         onShowEdits?.(status)
@@ -31,25 +30,20 @@ export const EditHistoryButton: FC<Props> = ({ host, status, onShowEdits }) => {
       }}
       title={`${status.edits.length} edits`}
     >
-      <i className="bi bi-eraser" />
+      <History className="size-4" />
       {showHistory && (
-        <div className={cn(styles.history)}>
-          <ul className="list-group">
+        <div className="absolute left-0 w-[25rem] max-md:left-[-8rem] max-md:w-[18rem]">
+          <ul className="divide-y divide-border rounded-lg border bg-background">
             {status.edits.reverse().map((edit, index) => {
               return (
                 <li
                   key={edit.createdAt + index}
-                  className={cn(
-                    'list-group-item',
-                    'd-flex',
-                    'flex-column',
-                    'align-items-start'
-                  )}
+                  className="flex flex-col items-start p-3"
                 >
-                  <div className="badge bg-primary rounded-pill align-self-end">
+                  <div className="self-end bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs">
                     {formatDistance(edit.createdAt, Date.now())}
                   </div>
-                  <div className="me-auto text-start">
+                  <div className="mr-auto text-left mt-2">
                     {cleanClassName(
                       status.isLocalActor
                         ? convertMarkdownText(host)(edit.text)

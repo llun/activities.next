@@ -1,9 +1,9 @@
+import { Trash2 } from 'lucide-react'
 import { FC } from 'react'
 
 import { deleteStatus } from '@/lib/client'
+import { Button } from '@/lib/components/ui/button'
 import { Status, StatusNote, StatusPoll } from '@/lib/models/status'
-
-import { Button } from '../../Button'
 
 interface Props {
   className?: string
@@ -32,7 +32,7 @@ export const DeleteButton: FC<Props> = ({
         onPostDeleted?.(status)
       }}
     >
-      <i className="bi bi-trash3" />
+      <Trash2 className="size-4" />
     </Button>
   )
 }

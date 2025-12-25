@@ -1,14 +1,13 @@
 'use client'
 
-import cn from 'classnames'
 import { FC, useState } from 'react'
 
 import { ActorProfile } from '../../models/actor'
 import { Attachment } from '../../models/attachment'
 import { EditableStatus, Status } from '../../models/status'
+import { cn } from '@/lib/utils'
 import { MediasModal } from '../MediasModal'
 import { Post } from './Post'
-import styles from './Posts.module.scss'
 
 interface Props {
   host: string
@@ -41,9 +40,9 @@ export const Posts: FC<Props> = ({
   if (statuses.length === 0) return null
 
   return (
-    <section className={cn('w-full', 'grid', 'grid-cols-1', className)}>
+    <section className={cn('w-full grid grid-cols-1', className)}>
       {statuses.map((status, index) => (
-        <div key={`${index}-${status.id}`} className={cn(styles.block)}>
+        <div key={`${index}-${status.id}`} className="border-b border-border py-4 last:border-b-0">
           <Post
             host={host}
             currentTime={currentTime}

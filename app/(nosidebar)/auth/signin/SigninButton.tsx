@@ -4,7 +4,7 @@ import { ClientSafeProvider, signIn } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { FC } from 'react'
 
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
 
 interface Props {
   provider: ClientSafeProvider
@@ -15,12 +15,12 @@ export const SigninButton: FC<Props> = ({ provider }) => {
   const redirectBack = searchParams.get('redirectBack') ?? undefined
 
   return (
-    <div className="mb-2">
-      <Button
-        onClick={() => signIn(provider.id, { callbackUrl: redirectBack })}
-      >
-        Sign in with {provider.name}
-      </Button>
-    </div>
+    <Button
+      variant="outline"
+      className="w-full"
+      onClick={() => signIn(provider.id, { callbackUrl: redirectBack })}
+    >
+      Sign in with {provider.name}
+    </Button>
   )
 }

@@ -1,8 +1,8 @@
+import { Pencil } from 'lucide-react'
 import { FC } from 'react'
 
+import { Button } from '@/lib/components/ui/button'
 import { EditableStatus, Status, StatusType } from '@/lib/models/status'
-
-import { Button } from '../../Button'
 
 interface Props {
   className?: string
@@ -19,7 +19,7 @@ export const EditButton: FC<Props> = ({ className, status, onEdit }) => {
       title="Edit"
       onClick={() => onEdit?.(status)}
     >
-      <i className="bi bi-pencil" />
+      <Pencil className="size-4" />
     </Button>
   )
 }

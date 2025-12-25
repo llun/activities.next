@@ -1,12 +1,11 @@
-import cn from 'classnames'
+import { Star } from 'lucide-react'
 import { FC, useState } from 'react'
 
 import { getStatusFavouritedBy, likeStatus, undoLikeStatus } from '@/lib/client'
+import { Button } from '@/lib/components/ui/button'
 import { ActorProfile } from '@/lib/models/actor'
 import { StatusNote, StatusPoll, StatusType } from '@/lib/models/status'
-
-import { Button } from '../../Button'
-import styles from './LikeButton.module.scss'
+import { cn } from '@/lib/utils'
 
 interface FavouritedByActor {
   acct: string
@@ -40,18 +39,13 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
           setIsActorLiked(true)
         }}
       >
-        <i
-          className={cn('bi', {
-            'bi-star': !isActorLiked,
-            'bi-star-fill': isActorLiked
-          })}
-        />
+        <Star className={cn('size-4', { 'fill-current': isActorLiked })} />
       </Button>
       {status.type === StatusType.enum.Note &&
         status.actorId === currentActor?.id &&
         status.totalLikes > 0 && (
           <div
-            className={styles['like-info']}
+            className="cursor-pointer inline-block relative min-w-[1.25rem] text-center"
             onClick={async () => {
               const actors = await getStatusFavouritedBy({
                 statusId: status.id
@@ -60,24 +54,22 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
               setShowFavouritedBy((current) => !current)
             }}
           >
-            <span className={cn(styles['like-count'])}>
+            <span className="align-middle text-primary">
               {status.totalLikes}
             </span>
             <div
-              className={cn(styles['favourited-by'], {
-                'd-none': !showFavouritedBy
-              })}
+              className={cn(
+                'absolute left-0 w-[15rem] max-md:left-[-8rem] max-md:w-[18rem]',
+                {
+                  hidden: !showFavouritedBy
+                }
+              )}
             >
-              <ul className="list-group">
+              <ul className="divide-y divide-border rounded-lg border bg-background">
                 {favouritedByActors.map((actor) => (
                   <li
                     key={actor.acct}
-                    className={cn(
-                      'list-group-item',
-                      'd-flex',
-                      'flex-column',
-                      'align-items-start'
-                    )}
+                    className="flex flex-col items-start p-3"
                   >
                     <a
                       href={actor.url}

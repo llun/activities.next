@@ -1,7 +1,7 @@
-import cn from 'classnames'
+import { X } from 'lucide-react'
 import { FC } from 'react'
 
-import { CloseButton } from '@/lib/components/CloseButton'
+import { Button } from '@/lib/components/ui/button'
 import { Actor } from '@/lib/components/Posts/Actor'
 import { Poll } from '@/lib/components/Posts/Poll'
 import { EditableStatus, Status, StatusType } from '@/lib/models/status'
@@ -9,7 +9,6 @@ import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
-import styles from './ReplyPreview.module.scss'
 
 interface Props {
   host: string
@@ -43,14 +42,7 @@ export const ReplyPreview: FC<Props> = ({ host, status, onClose }) => {
   if (!status) return null
   return (
     <section
-      className={cn(
-        styles.card,
-        'card',
-        'mb-4',
-        'py-2',
-        'px-4',
-        'text-bg-light'
-      )}
+      className="whitespace-pre-wrap flex flex-row justify-between bg-muted/50 rounded-lg mb-4 py-2 px-4"
     >
       <div>
         <Actor actorId={status.actorId || ''} />
@@ -61,7 +53,14 @@ export const ReplyPreview: FC<Props> = ({ host, status, onClose }) => {
         )}
         <Poll status={status} currentTime={new Date()} />
       </div>
-      <CloseButton className={cn(styles.close)} onClick={() => onClose?.()} />
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => onClose?.()}
+        aria-label="Close"
+      >
+        <X className="size-4" />
+      </Button>
     </section>
   )
 }

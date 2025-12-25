@@ -1,18 +1,18 @@
-import cn from 'classnames'
 import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { Card, CardContent } from '@/lib/components/ui/card'
 import { FollowAction } from '@/lib/components/FollowAction'
 import { Profile } from '@/lib/components/Profile'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getMentionDomainFromActorID } from '@/lib/models/actor'
+import { cn } from '@/lib/utils'
 
 import { ActorTimelines } from './ActorTimelines'
-import styles from './[actor].module.scss'
 import { getProfileData } from './getProfileData'
 
 interface Props {
@@ -62,17 +62,19 @@ const Page: FC<Props> = async ({ params }) => {
 
   return (
     <>
-      <section className="card">
-        <div className="card-body d-flex flex-column flex-sm-row">
+      <Card>
+        <CardContent className="flex flex-col sm:flex-row p-6">
           {person.icon?.url && (
             <img
               alt="Actor icon"
-              className={cn(styles.icon, 'me-4', 'mb-2', 'flex-shrink-0')}
+              className={cn(
+                'size-16 sm:size-24 rounded-full mr-4 mb-2 shrink-0'
+              )}
               src={person.icon?.url}
             />
           )}
           <Profile
-            className="flex-fill"
+            className="flex-1"
             name={person.name ?? ''}
             url={person.url}
             username={person.preferredUsername}
@@ -83,8 +85,8 @@ const Page: FC<Props> = async ({ params }) => {
             createdAt={new Date(person.published ?? Date.now()).getTime()}
           />
           <FollowAction targetActorId={person.id} isLoggedIn={isLoggedIn} />
-        </div>
-      </section>
+        </CardContent>
+      </Card>
       <ActorTimelines
         host={host}
         currentTime={new Date()}

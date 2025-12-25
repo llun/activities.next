@@ -1,9 +1,10 @@
 'use client'
 
-import cn from 'classnames'
+import { XCircle } from 'lucide-react'
 import { FC, useState } from 'react'
 
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export const DEFAULT_DURATION = 21_600
 
@@ -66,7 +67,7 @@ export const PollChoices: FC<Props> = ({
             variant="link"
             onClick={() => onRemoveChoice(index)}
           >
-            <i className="bi bi-x-circle-fill" />
+            <XCircle className="size-4" />
           </Button>
         </div>
       ))}

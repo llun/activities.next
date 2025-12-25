@@ -1,6 +1,6 @@
-import cn from 'classnames'
 import { FC } from 'react'
 
+import { cn } from '@/lib/utils'
 import { Timeline } from '@/lib/services/timelines/types'
 
 export interface Tab {
@@ -16,14 +16,18 @@ interface Props {
 
 export const TimelineTabs: FC<Props> = ({ currentTab, tabs, onClickTab }) => {
   return (
-    <ul className={cn('nav', 'nav-tabs', 'mt-4')}>
+    <ul className="flex border-b border-border mt-4">
       {tabs.map((tab) => (
-        <li key={tab.name} className="nav-item">
+        <li key={tab.name} className="mr-2">
           <a
             href={`#timeline/${tab.timeline}`}
-            className={cn('nav-link', {
-              active: currentTab.name === tab.name
-            })}
+            className={cn(
+              'inline-block px-4 py-2 rounded-t-lg hover:text-foreground hover:border-border',
+              {
+                'border-b-2 border-primary text-primary': currentTab.name === tab.name,
+                'border-transparent': currentTab.name !== tab.name
+              }
+            )}
             onClick={(event) => {
               event.preventDefault()
               onClickTab(tab)
