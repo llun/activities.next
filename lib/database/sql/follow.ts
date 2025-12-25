@@ -8,6 +8,7 @@ import {
   GetAcceptedOrRequestedFollowParams,
   GetFollowFromIdParams,
   GetFollowersInboxParams,
+  GetFollowersParams,
   GetFollowingParams,
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
@@ -228,6 +229,34 @@ export const FollowerSQLDatabaseMixin = (
   async getFollowing({ actorId, limit, maxId, minId }: GetFollowingParams) {
     const query = database('follows')
       .where('actorId', actorId)
+      .andWhere('status', FollowStatus.enum.Accepted)
+      .orderBy('id', 'desc')
+      .limit(limit)
+
+    if (maxId) {
+      query.where('id', '<', maxId)
+    }
+
+    if (minId) {
+      query.where('id', '>', minId)
+    }
+
+    const follows = await query
+
+    // If using minId, we need to reverse the results to maintain chronological order
+    const orderedFollows = minId ? [...follows].reverse() : follows
+
+    return orderedFollows.map(fixFollowDataDate)
+  },
+
+  async getFollowers({
+    targetActorId,
+    limit,
+    maxId,
+    minId
+  }: GetFollowersParams) {
+    const query = database('follows')
+      .where('targetActorId', targetActorId)
       .andWhere('status', FollowStatus.enum.Accepted)
       .orderBy('id', 'desc')
       .limit(limit)
