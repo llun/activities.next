@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-var-requires,no-undef */
+/* eslint-disable no-undef */
 const { TextDecoder, TextEncoder } = require('util')
 require('jest-fetch-mock').enableMocks()
 
