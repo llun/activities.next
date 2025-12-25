@@ -2,7 +2,6 @@ import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
-import { Posts } from '@/lib/components/Posts/Posts'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { StatusType } from '@/lib/models/status'
@@ -12,6 +11,7 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMACT
 } from '@/lib/utils/jsonld/activitystream'
 
+import { Header } from './Header'
 import { StatusBox } from './StatusBox'
 
 interface Props {
@@ -82,27 +82,53 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   return (
-    <>
-      <Posts
-        className="mt-4"
-        currentTime={currentTime}
-        host={host}
-        statuses={previouses}
-      />
-      <section className="bg-muted/50 py-4 px-2">
+    <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+      <Header />
+
+      {previouses.reverse().map((item) => (
+        <div
+          key={item.id}
+          className="border-b border-l-4 border-l-primary/20 bg-muted/30"
+        >
+          <StatusBox
+            host={host}
+            currentTime={currentTime}
+            status={cleanJson(item)}
+          />
+        </div>
+      ))}
+
+      <div className="border-b bg-background">
         <StatusBox
           host={host}
           currentTime={currentTime}
           status={cleanJson(status)}
         />
-      </section>
-      <Posts
-        className="mt-4"
-        currentTime={currentTime}
-        host={host}
-        statuses={replies.map((reply) => cleanJson(reply))}
-      />
-    </>
+      </div>
+
+      {replies.length > 0 ? (
+        <div>
+          <div className="border-b px-5 py-3">
+            <h2 className="font-semibold">Replies ({replies.length})</h2>
+          </div>
+
+          <div className="divide-y">
+            {replies.map((reply) => (
+              <StatusBox
+                key={reply.id}
+                host={host}
+                currentTime={currentTime}
+                status={cleanJson(reply)}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="p-8 text-center text-muted-foreground">
+          No replies yet
+        </div>
+      )}
+    </div>
   )
 }
 
