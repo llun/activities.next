@@ -1,4 +1,4 @@
-import { formatDistance } from 'date-fns'
+import { formatDistanceToNow } from 'date-fns'
 import _ from 'lodash'
 import { Repeat2 } from 'lucide-react'
 import { FC } from 'react'
@@ -12,7 +12,7 @@ import {
 } from '@/lib/utils/text/processStatusText'
 
 import { Actions } from './Actions'
-import { Actor } from './Actor'
+import { ActorAvatar, ActorInfo } from './Actor'
 import { Attachments, OnMediaSelectedHandle } from './Attachments'
 import { Poll } from './Poll'
 
@@ -35,20 +35,15 @@ interface BoostStatusProps {
 export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   if (status.type !== StatusType.enum.Announce) return null
   return (
-    <div className="flex items-center mb-1">
-      <Repeat2 className="size-4 mr-2" />
-      <span className="mr-2 whitespace-nowrap">Boost by</span>
-      <Actor
-        className="flex-1"
-        actor={status.actor}
-        actorId={status.actorId}
-      />
+    <div className="flex items-center gap-2 mb-1 text-sm text-muted-foreground ml-12">
+      <Repeat2 className="size-4" />
+      <span>Boosted by {status.actor?.name || status.actor?.username}</span>
     </div>
   )
 }
 
 export const Post: FC<PostProps> = (props) => {
-  const { host, status, currentTime, onShowAttachment } = props
+  const { host, status, onShowAttachment } = props
   const actualStatus = getActualStatus(status)
 
   const processedAndCleanedText = _.chain(actualStatus)
@@ -57,24 +52,34 @@ export const Post: FC<PostProps> = (props) => {
     .value()
 
   return (
-    <div key={status.id} className="[&_p]:whitespace-pre-wrap [&_video]:max-w-full">
+    <div className="flex flex-col gap-1">
       <BoostStatus status={status} />
-      <div className="flex mb-2">
-        <Actor
-          className="flex-1 overflow-hidden mr-2"
-          actor={actualStatus.actor}
-          actorId={actualStatus.actorId}
-        />
-        <div className="shrink-0 flex flex-row items-center">
-          <a href={actualStatus.url} target="_blank" rel="noreferrer">
-            {formatDistance(actualStatus.createdAt, currentTime)}
-          </a>
+      <div className="flex gap-3">
+        <div className="shrink-0">
+          <ActorAvatar actor={actualStatus.actor} actorId={actualStatus.actorId} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1 text-sm">
+            <ActorInfo actor={actualStatus.actor} actorId={actualStatus.actorId} />
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground text-xs whitespace-nowrap">
+              {formatDistanceToNow(actualStatus.createdAt)}
+            </span>
+          </div>
+
+          <div 
+            className="mt-1 text-sm leading-relaxed break-words [&_p]:mb-4 last:[&_p]:mb-0"
+            dangerouslySetInnerHTML={{ __html: processedAndCleanedText }}
+          />
+          
+          <Poll status={actualStatus} currentTime={new Date()} />
+          <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
+          
+          <div onClick={(e) => e.stopPropagation()}>
+            <Actions {...props} />
+          </div>
         </div>
       </div>
-      <div className="mr-1 break-words">{processedAndCleanedText}</div>
-      <Poll status={actualStatus} currentTime={currentTime} />
-      <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
-      <Actions {...props} />
     </div>
   )
 }

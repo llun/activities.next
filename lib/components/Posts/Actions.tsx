@@ -1,6 +1,5 @@
 import { FC } from 'react'
 
-import { cn } from '@/lib/utils'
 import { Status, StatusType } from '../../models/status'
 import { DeleteButton } from './Actions/DeleteButton'
 import { EditButton } from './Actions/EditButton'
@@ -28,47 +27,34 @@ export const Actions: FC<Props> = ({
   if (!showActions) return null
   if (!currentActor) return null
 
-  if (status.type === StatusType.enum.Announce) {
-    return (
-      <div>
-        <ReplyButton onReply={onReply} status={status.originalStatus} />
-        <RepostButton
-          currentActor={currentActor}
-          status={status.originalStatus}
-        />
-        <LikeButton
-          currentActor={currentActor}
-          status={status.originalStatus}
-        />
-        <EditHistoryButton
-          host={host}
-          status={status.originalStatus}
-          onShowEdits={onShowEdits}
-        />
-      </div>
-    )
-  }
+  const actualStatus =
+    status.type === StatusType.enum.Announce ? status.originalStatus : status
 
   return (
-    <div>
-      <ReplyButton status={status} onReply={onReply} />
-      <RepostButton currentActor={currentActor} status={status} />
-      <LikeButton currentActor={currentActor} status={status} />
-      <EditHistoryButton
-        status={status}
-        host={host}
-        onShowEdits={onShowEdits}
-      />
-      <EditButton
-        status={status}
-        className={cn({ hidden: !editable })}
-        onEdit={onEdit}
-      />
-      <DeleteButton
-        className={cn({ hidden: !editable })}
-        status={status}
-        onPostDeleted={onPostDeleted}
-      />
+    <div className="mt-3 flex items-center gap-6 text-muted-foreground">
+      <ReplyButton status={actualStatus} onReply={onReply} />
+      <RepostButton currentActor={currentActor} status={actualStatus} />
+      <LikeButton currentActor={currentActor} status={actualStatus} />
+      
+      <div className="flex items-center gap-2">
+        <EditHistoryButton
+          status={actualStatus}
+          host={host}
+          onShowEdits={onShowEdits}
+        />
+        {editable && (
+          <>
+            <EditButton
+              status={actualStatus}
+              onEdit={onEdit}
+            />
+            <DeleteButton
+              status={actualStatus}
+              onPostDeleted={onPostDeleted}
+            />
+          </>
+        )}
+      </div>
     </div>
   )
 }

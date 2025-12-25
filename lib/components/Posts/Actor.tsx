@@ -1,54 +1,48 @@
 import Link from 'next/link'
-import { UserCheck } from 'lucide-react'
 import { FC } from 'react'
 
-import {
-  ActorProfile,
-  getMention,
-  getMentionDomainFromActorID,
-  getMentionFromActorID
-} from '@/lib/models/actor'
+import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
+import { ActorProfile } from '@/lib/models/actor'
 
 interface Props {
-  actorId?: string
   actor?: ActorProfile | null
-  className?: string
+  actorId?: string // We can use this to fetch if needed, but for now we'll assume actor is passed
 }
 
-export const Actor: FC<Props> = ({ actor, actorId, className }) => {
-  if (actor) {
-    return (
-      <div className={className}>
-        <Link
-          prefetch={false}
-          href={`/${getMention(actor, true)}`}
-          target="_blank"
-        >
-          <span className="inline-block truncate align-middle overflow-hidden max-w-[calc(100%-2rem)]">
-            <strong>@{actor.username}</strong>
-            <small>@{actor.domain}</small>
-          </span>
-          <UserCheck className="ml-2 inline align-middle size-4" />
-        </Link>
-      </div>
-    )
-  }
+export const ActorAvatar: FC<Props> = ({ actor }) => {
+  if (!actor) return null
 
-  if (actorId) {
-    return (
-      <div className={className}>
-        <Link
-          prefetch={false}
-          href={`/${getMentionFromActorID(actorId, true)}`}
-        >
-          <strong>{getMentionFromActorID(actorId, false)}</strong>
-          <small>{getMentionDomainFromActorID(actorId)}</small>
+  const initials = (actor.name || actor.username || '')
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
 
-          <UserCheck className="ml-2 inline size-4" />
-        </Link>
-      </div>
-    )
-  }
+  return (
+    <Link href={`/@${actor.username}@${actor.domain}`} onClick={(e) => e.stopPropagation()}>
+      <Avatar className="h-10 w-10">
+        <AvatarImage src={actor.iconUrl} />
+        <AvatarFallback>{initials}</AvatarFallback>
+      </Avatar>
+    </Link>
+  )
+}
 
-  return null
+export const ActorInfo: FC<Props> = ({ actor }) => {
+  if (!actor) return null
+
+  return (
+    <div className="flex items-center gap-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+      <Link
+        href={`/@${actor.username}@${actor.domain}`}
+        className="font-semibold hover:underline truncate"
+      >
+        {actor.name || actor.username}
+      </Link>
+      <span className="text-muted-foreground truncate">
+        @{actor.username}@{actor.domain}
+      </span>
+    </div>
+  )
 }
