@@ -139,7 +139,7 @@ export const MediasModal: FC<Props> = ({
                 setCurrentIndex(index)
               }}
               className={cn(
-                'relative h-16 w-16 shrink-0 overflow-hidden rounded border-2 transition-colors md:h-20 md:w-20',
+                'relative h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded border-2 transition-colors md:h-20 md:w-20',
                 index === currentIndex
                   ? 'border-primary'
                   : 'border-transparent opacity-60 hover:opacity-100'
