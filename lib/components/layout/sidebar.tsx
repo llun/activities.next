@@ -18,7 +18,7 @@ import {
 } from '@/lib/components/ui/tooltip'
 
 const navItems = [
-  { href: '/timeline', label: 'Timeline', icon: Home },
+  { href: '/', label: 'Timeline', icon: Home },
   { href: '/settings', label: 'Settings', icon: Settings }
 ]
 
