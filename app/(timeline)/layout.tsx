@@ -1,5 +1,4 @@
 import { getServerSession } from 'next-auth'
-import { redirect } from 'next/navigation'
 import { FC, ReactNode } from 'react'
 
 import { Modal } from '@/app/Modal'
@@ -22,22 +21,20 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
 
   const session = await getServerSession(getAuthOptions())
   const actor = await getActorFromSession(database, session)
-  if (!actor) {
-    return redirect('/auth/signin')
-  }
 
-  const profile = getActorProfile(actor)
-  const user = {
-    name: profile.name || profile.username,
-    handle: `@${getMention(profile)}`,
-    avatarUrl: profile.iconUrl
-  }
+  const user = actor
+    ? {
+        name: actor.name || actor.username,
+        handle: `@${getMention(getActorProfile(actor))}`,
+        avatarUrl: actor.iconUrl
+      }
+    : undefined
 
   return (
     <div className="min-h-screen">
       <Sidebar user={user} />
       <MobileNav />
-      <main className="md:pl-[72px] xl:pl-[280px] pb-20 md:pb-0">
+      <main className="pb-20 md:pl-[72px] md:pb-0 xl:pl-[280px]">
         <div className="mx-auto max-w-2xl px-4 py-6">{children}</div>
       </main>
       <Modal />
