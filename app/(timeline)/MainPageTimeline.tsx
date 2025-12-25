@@ -5,11 +5,16 @@ import { FC, useReducer, useState } from 'react'
 import { getTimeline } from '@/lib/client'
 import { PostBox } from '@/lib/components/PostBox/PostBox'
 import { Posts } from '@/lib/components/Posts/Posts'
-import { TimelineLoadMoreButton } from '@/lib/components/TimelineLoadMoreButton'
-import { Tab, TimelineTabs } from '@/lib/components/TimelineTabs'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@/lib/components/ui/tabs'
 import { ActorProfile } from '@/lib/models/actor'
 import { EditableStatus, Status } from '@/lib/models/status'
 import { Timeline } from '@/lib/services/timelines/types'
+import { Button } from '@/lib/components/ui/button'
 
 import {
   clearAction,
@@ -17,6 +22,11 @@ import {
   replyAction,
   statusActionReducer
 } from './reducer'
+
+interface Tab {
+  name: string
+  timeline: Timeline
+}
 
 const TIMELINES_TABS: Tab[] = [
   { timeline: Timeline.MAIN, name: 'Home' },
@@ -64,70 +74,119 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     ])
   }
 
-  return (
-    <div>
-      <PostBox
-        host={host}
-        profile={profile}
-        replyStatus={statusActionState.replyStatus}
-        editStatus={statusActionState.editStatus}
-        isMediaUploadEnabled={isMediaUploadEnabled}
-        onDiscardReply={() => dispatchStatusAction(clearAction())}
-        onDiscardEdit={() => dispatchStatusAction(clearAction())}
-        onPostCreated={(status: Status) => {
-          setCurrentStatuses((previousValue) => [status, ...previousValue])
-          dispatchStatusAction(clearAction())
-        }}
-        onPostUpdated={(updatedStatus: Status) => {
-          const index = currentStatuses.findIndex(
-            (status) => status.id === updatedStatus.id
-          )
-          // TODO: Update status in Timeline somehow.
-          if (index >= 0) {
-            currentStatuses[index] = updatedStatus
-            setCurrentStatuses(() => currentStatuses)
-          }
-          dispatchStatusAction(clearAction())
-        }}
-      />
-      <TimelineTabs
-        currentTab={currentTab}
-        tabs={TIMELINES_TABS}
-        onClickTab={async (tab) => {
-          setCurrentTab(tab)
-          setCurrentStatuses([])
-          setLoadingMoreStatuses(true)
+  const onTabChange = async (value: string) => {
+    const tab = TIMELINES_TABS.find((t) => t.timeline === value)
+    if (!tab) return
 
-          const statuses = await getTimeline({
-            timeline: tab.timeline
-          })
-          setCurrentStatuses(statuses)
-          setLoadingMoreStatuses(false)
-        }}
-      />
-      <Posts
-        host={host}
-        className="mt-4"
-        currentTime={new Date()}
-        statuses={currentStatuses}
-        currentActor={profile}
-        showActions
-        onReply={onReply}
-        onEdit={onEdit}
-        onPostDeleted={onPostDeleted}
-      />
-      <TimelineLoadMoreButton
-        disabled={isLoadingMoreStatuses}
-        onClick={async () => {
-          setLoadingMoreStatuses(true)
-          const statuses = await getTimeline({
-            timeline: currentTab.timeline,
-            maxStatusId: currentStatuses[currentStatuses.length - 1].id
-          })
-          setCurrentStatuses([...currentStatuses, ...statuses])
-          setLoadingMoreStatuses(false)
-        }}
-      />
+    setCurrentTab(tab)
+    setCurrentStatuses([])
+    setLoadingMoreStatuses(true)
+
+    const statuses = await getTimeline({
+      timeline: tab.timeline
+    })
+    setCurrentStatuses(statuses)
+    setLoadingMoreStatuses(false)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Timeline</h1>
+        <p className="text-sm text-muted-foreground">
+          Latest posts from your network.
+        </p>
+      </div>
+
+      <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+        <PostBox
+          host={host}
+          profile={profile}
+          replyStatus={statusActionState.replyStatus}
+          editStatus={statusActionState.editStatus}
+          isMediaUploadEnabled={isMediaUploadEnabled}
+          onDiscardReply={() => dispatchStatusAction(clearAction())}
+          onDiscardEdit={() => dispatchStatusAction(clearAction())}
+          onPostCreated={(status: Status) => {
+            setCurrentStatuses((previousValue) => [status, ...previousValue])
+            dispatchStatusAction(clearAction())
+          }}
+          onPostUpdated={(updatedStatus: Status) => {
+            const index = currentStatuses.findIndex(
+              (status) => status.id === updatedStatus.id
+            )
+            // TODO: Update status in Timeline somehow.
+            if (index >= 0) {
+              currentStatuses[index] = updatedStatus
+              setCurrentStatuses(() => currentStatuses)
+            }
+            dispatchStatusAction(clearAction())
+          }}
+        />
+
+        <Tabs
+          value={currentTab.timeline}
+          onValueChange={onTabChange}
+          className="w-full"
+        >
+          <TabsList className="w-full grid grid-cols-3 rounded-none border-b bg-muted/40 p-1">
+            {TIMELINES_TABS.map((tab) => (
+              <TabsTrigger
+                key={tab.timeline}
+                value={tab.timeline}
+                className="rounded-md data-[state=active]:bg-background"
+              >
+                {tab.name}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <TabsContent value={currentTab.timeline} className="mt-0">
+            {currentStatuses.length > 0 ? (
+              <Posts
+                host={host}
+                className="mt-0"
+                currentTime={new Date()}
+                statuses={currentStatuses}
+                currentActor={profile}
+                showActions
+                onReply={onReply}
+                onEdit={onEdit}
+                onPostDeleted={onPostDeleted}
+              />
+            ) : (
+              <div className="p-8 text-center text-muted-foreground">
+                <h2 className="text-xl font-semibold mb-2">
+                  Your timeline is empty
+                </h2>
+                <p className="mb-6">
+                  Follow some people to see their posts here.
+                </p>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        {currentStatuses.length > 0 && (
+          <div className="p-4 text-center border-t">
+            <Button
+              variant="outline"
+              disabled={isLoadingMoreStatuses}
+              onClick={async () => {
+                setLoadingMoreStatuses(true)
+                const statuses = await getTimeline({
+                  timeline: currentTab.timeline,
+                  maxStatusId: currentStatuses[currentStatuses.length - 1].id
+                })
+                setCurrentStatuses([...currentStatuses, ...statuses])
+                setLoadingMoreStatuses(false)
+              }}
+            >
+              {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
+            </Button>
+          </div>
+        )}
+      </section>
     </div>
   )
 }
