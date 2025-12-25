@@ -13,7 +13,6 @@ import {
 } from '@/lib/utils/jsonld/activitystream'
 
 import { StatusBox } from './StatusBox'
-import styles from './[status].module.scss'
 
 interface Props {
   params: Promise<{ actor: string; status: string }>
@@ -90,7 +89,7 @@ const Page: FC<Props> = async ({ params }) => {
         host={host}
         statuses={previouses}
       />
-      <section className={styles.highlight}>
+      <section className="bg-muted/50 py-4 px-2">
         <StatusBox
           host={host}
           currentTime={currentTime}

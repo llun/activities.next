@@ -13,7 +13,9 @@ import {
   MAX_HEIGHT,
   MAX_WIDTH
 } from '../../services/medias/constants'
-import { Button } from '../Button'
+import { Image } from 'lucide-react'
+
+import { Button } from '@/lib/components/ui/button'
 
 const MEDIA_TYPE = 'upload'
 
@@ -92,7 +94,7 @@ export const UploadMediaButton: FC<Props> = ({
         onChange={onSelectFile}
       />
       <Button variant="link" onClick={onOpenFile}>
-        <i className="bi bi-image" />
+        <Image className="size-4" />
       </Button>
     </>
   )

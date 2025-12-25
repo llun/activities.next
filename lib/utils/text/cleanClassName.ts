@@ -1,7 +1,5 @@
 import parse, { DOMNode } from 'html-react-parser'
 
-import styles from './cleanClassName.module.scss'
-
 interface replacingNode {
   name: string
   attribs?: {
@@ -15,10 +13,10 @@ export const cleanClassName = (text: string) =>
       const replacingNode = node as replacingNode
       if (replacingNode.name === 'span') {
         if (replacingNode.attribs?.class === 'invisible') {
-          replacingNode.attribs.class = styles.invisible
+          replacingNode.attribs.class = 'hidden'
         }
         if (replacingNode.attribs?.class === 'ellipsis') {
-          replacingNode.attribs.class = styles.ellipsis
+          replacingNode.attribs.class = 'after:content-["…"]'
         }
       }
       if (replacingNode.attribs && replacingNode.name === 'a') {
@@ -29,7 +27,7 @@ export const cleanClassName = (text: string) =>
         replacingNode.name === 'img' &&
         replacingNode.attribs?.class === 'emoji'
       ) {
-        replacingNode.attribs.class = styles.emoji
+        replacingNode.attribs.class = 'size-5 inline'
       }
 
       return replacingNode

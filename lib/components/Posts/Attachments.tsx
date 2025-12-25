@@ -1,9 +1,8 @@
-import cn from 'classnames'
 import { FC } from 'react'
 
 import { Attachment } from '../../models/attachment'
 import { Status, StatusType } from '../../models/status'
-import styles from './Attachments.module.scss'
+import { cn } from '@/lib/utils'
 import { Media } from './Media'
 
 export type OnMediaSelectedHandle = (
@@ -22,15 +21,17 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
 
   return (
     <div
-      className={cn(styles.medias, {
-        [styles.grids]: status.attachments.length > 1,
-        [styles.three]: status.attachments.length === 3,
-        [styles.more]: status.attachments.length > 3
-      })}
+      className={cn(
+        'grid auto-rows-[10rem] max-md:auto-rows-[8rem] gap-2',
+        {
+          'grid-cols-2': status.attachments.length > 1,
+          '[&>*:first-child]:row-span-2': status.attachments.length === 3
+        }
+      )}
     >
       {status.attachments.map((attachment, index) => (
         <Media
-          className={styles.media}
+          className="cursor-pointer object-cover h-full w-full rounded"
           onClick={() => onMediaSelected(status.attachments, index)}
           key={attachment.id}
           attachment={attachment}

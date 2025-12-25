@@ -3,7 +3,7 @@
 import { FC, useEffect, useState } from 'react'
 
 import { follow, isFollowing, unfollow } from '../client'
-import { Button } from './Button'
+import { Button } from './ui/button'
 
 export interface FollowActionProps {
   targetActorId: string
@@ -45,7 +45,7 @@ export const FollowAction: FC<FollowActionProps> = ({
   return (
     <div className="flex-shrink-0">
       <Button
-        variant="danger"
+        variant="destructive"
         type="button"
         onClick={() => onUnfollow(targetActorId)}
       >

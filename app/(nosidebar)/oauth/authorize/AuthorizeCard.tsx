@@ -4,7 +4,15 @@ import intersection from 'lodash/intersection'
 import { useRouter } from 'next/navigation'
 import { FC } from 'react'
 
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/lib/components/ui/card'
+import { Label } from '@/lib/components/ui/label'
 import { UsableScopes } from '@/lib/database/types/oauth'
 import { Client } from '@/lib/models/oauth2/client'
 
@@ -20,35 +28,45 @@ export const AuthorizeCard: FC<Props> = ({ searchParams, client }) => {
   const router = useRouter()
   const availabledScopes = intersection(UsableScopes, requestedScopes)
   return (
-    <form className="card" action="/api/oauth/authorize" method="post">
-      <div className="card-body">
-        <h5 className="card-title mb-2">Authorization required</h5>
-        <p className="card-text mb-2">
+    <Card>
+      <CardHeader>
+        <CardTitle>Authorization required</CardTitle>
+        <CardDescription>
           <strong>{client.name}</strong> would like permission to access your
           account. It is a third-party application.{' '}
           <strong>
             If you do not trust it, then you should not authorize it.
           </strong>
-        </p>
-        <h6 className="mb-2 text-body-secondary">Review permissions</h6>
-        <div className="mb-2">
-          {availabledScopes.map((scope) => (
-            <div key={scope} className="form-check">
-              <input
-                className="form-check-input"
-                name="scope"
-                type="checkbox"
-                value={scope}
-                id={`scope-${scope}`}
-                defaultChecked
-              />
-              <label className="form-check-label" htmlFor={`scope-${scope}`}>
-                {scope}
-              </label>
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action="/api/oauth/authorize" method="post" className="space-y-6">
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Review permissions
+            </h3>
+            <div className="space-y-3">
+              {availabledScopes.map((scope) => (
+                <div key={scope} className="flex items-center space-x-2">
+                  <input
+                    className="size-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    name="scope"
+                    type="checkbox"
+                    value={scope}
+                    id={`scope-${scope}`}
+                    defaultChecked
+                  />
+                  <Label
+                    htmlFor={`scope-${scope}`}
+                    className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    {scope}
+                  </Label>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div className="row gap-2 px-2">
+          </div>
+
           <input
             type="hidden"
             name="client_id"
@@ -65,20 +83,23 @@ export const AuthorizeCard: FC<Props> = ({ searchParams, client }) => {
             value={searchParams.response_type}
           />
 
-          <Button className="col" type="submit">
-            Approve
-          </Button>
-          <Button
-            className="col"
-            variant="danger"
-            onClick={() => {
-              router.push(client.website ?? '/')
-            }}
-          >
-            Deny
-          </Button>
-        </div>
-      </div>
-    </form>
+          <div className="flex gap-2">
+            <Button className="flex-1" type="submit">
+              Approve
+            </Button>
+            <Button
+              className="flex-1"
+              variant="destructive"
+              type="button"
+              onClick={() => {
+                router.push(client.website ?? '/')
+              }}
+            >
+              Deny
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

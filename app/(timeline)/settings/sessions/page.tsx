@@ -4,7 +4,6 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
-import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -17,7 +16,6 @@ export const metadata: Metadata = {
 }
 
 const Page = async () => {
-  const { host } = getConfig()
   const database = getDatabase()
   if (!database) {
     throw new Error('Fail to load database')
@@ -26,7 +24,7 @@ const Page = async () => {
   const session = await getServerSession(getAuthOptions())
   const actor = await getActorFromSession(database, session)
   if (!actor || !actor.account) {
-    return redirect(`https://${host}/auth/signin`)
+    return redirect('/auth/signin')
   }
 
   const currentTime = Date.now()

@@ -16,6 +16,7 @@ export const getAuthOptions = memoize(() => {
   try {
     const { secretPhase, auth, serviceName } = getConfig()
     return {
+      secret: secretPhase,
       session: {
         strategy: 'database'
       },

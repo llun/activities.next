@@ -1,8 +1,7 @@
-import cn from 'classnames'
 import { FC, PropsWithChildren } from 'react'
 import ReactModal from 'react-modal'
 
-import styles from './Modal.module.scss'
+import { cn } from '@/lib/utils'
 
 interface Props {
   className?: string
@@ -17,9 +16,12 @@ export const Modal: FC<PropsWithChildren<Props>> = ({
 }) => {
   return (
     <ReactModal
-      overlayClassName={styles.modalOverlay}
-      bodyOpenClassName={styles.modalBodyOpen}
-      className={cn(className, { [styles.modal]: !className })}
+      overlayClassName="fixed inset-0 bg-background/75"
+      bodyOpenClassName="overflow-hidden"
+      className={cn(
+        className,
+        !className && 'absolute inset-10 rounded-sm outline-none flex justify-center items-center bg-background border border-border [&_img]:max-h-full [&_img]:max-w-full [&_img]:object-contain'
+      )}
       isOpen={isOpen}
       onRequestClose={onRequestClose}
     >

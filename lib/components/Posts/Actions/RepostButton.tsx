@@ -1,10 +1,11 @@
-import cn from 'classnames'
+import { Repeat2 } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 
 import { repostStatus, undoRepostStatus } from '@/lib/client'
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
 import { ActorProfile } from '@/lib/models/actor'
 import { Status, StatusType } from '@/lib/models/status'
+import { cn } from '@/lib/utils'
 
 interface RepostButtonProps {
   currentActor?: ActorProfile
@@ -33,7 +34,7 @@ export const RepostButton: FC<RepostButtonProps> = ({
       variant="link"
       title="Repost"
       className={cn({
-        'text-danger': repostedStatusId !== null
+        'text-destructive': repostedStatusId !== null
       })}
       onClick={async () => {
         if (isLoading) return
@@ -54,7 +55,7 @@ export const RepostButton: FC<RepostButtonProps> = ({
         setIsLoading(false)
       }}
     >
-      <i className="bi bi bi-repeat"></i>
+      <Repeat2 className="size-4" />
     </Button>
   )
 }

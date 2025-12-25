@@ -1,5 +1,5 @@
-import cn from 'classnames'
 import Link from 'next/link'
+import { UserCheck } from 'lucide-react'
 import { FC } from 'react'
 
 import {
@@ -8,8 +8,6 @@ import {
   getMentionDomainFromActorID,
   getMentionFromActorID
 } from '@/lib/models/actor'
-
-import styles from './Actor.module.scss'
 
 interface Props {
   actorId?: string
@@ -26,19 +24,11 @@ export const Actor: FC<Props> = ({ actor, actorId, className }) => {
           href={`/${getMention(actor, true)}`}
           target="_blank"
         >
-          <span
-            className={cn(
-              'd-inline-block',
-              'text-truncate',
-              'align-middle',
-              'overflow-hidden',
-              styles.handle
-            )}
-          >
+          <span className="inline-block truncate align-middle overflow-hidden max-w-[calc(100%-2rem)]">
             <strong>@{actor.username}</strong>
             <small>@{actor.domain}</small>
           </span>
-          <i className="ms-2 align-middle bi bi-person-badge"></i>
+          <UserCheck className="ml-2 inline align-middle size-4" />
         </Link>
       </div>
     )
@@ -54,7 +44,7 @@ export const Actor: FC<Props> = ({ actor, actorId, className }) => {
           <strong>{getMentionFromActorID(actorId, false)}</strong>
           <small>{getMentionDomainFromActorID(actorId)}</small>
 
-          <i className="ms-2 bi bi-person-badge"></i>
+          <UserCheck className="ml-2 inline size-4" />
         </Link>
       </div>
     )

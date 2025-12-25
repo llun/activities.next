@@ -3,7 +3,7 @@
 import { ClientSafeProvider, signIn } from 'next-auth/react'
 import { FC } from 'react'
 
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
 
 interface AuthenticationProvidersProps {
   nonCredentialsProviders: ClientSafeProvider[]

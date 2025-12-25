@@ -1,9 +1,8 @@
-import cn from 'classnames'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import styles from './Profile.module.scss'
+import { cn } from '@/lib/utils'
 
 interface Props {
   className?: string
@@ -27,20 +26,20 @@ export const Profile: FC<Props> = ({
   followingCount,
   createdAt
 }) => (
-  <div className={cn(className, styles.profile)}>
-    <h1 className="text-truncate">{name}</h1>
-    <h4 className="text-truncate">
+  <div className={cn(className, 'max-w-full')}>
+    <h1 className="truncate">{name}</h1>
+    <h4 className="truncate">
       <Link prefetch={false} href={url} target="_blank">
         @{username}
       </Link>
     </h4>
     {totalPosts || followingCount || followersCount ? (
       <p>
-        <span className="d-inline-block text-nowrap">{totalPosts} Posts</span>
-        <span className="d-inline-block ms-2 text-nowrap">
+        <span className="inline-block whitespace-nowrap">{totalPosts} Posts</span>
+        <span className="inline-block ml-2 whitespace-nowrap">
           {followingCount} Following
         </span>
-        <span className="d-inline-block ms-2 text-nowrap">
+        <span className="inline-block ml-2 whitespace-nowrap">
           {followersCount} Followers
         </span>
       </p>

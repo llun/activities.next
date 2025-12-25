@@ -4,8 +4,7 @@ import { getProviders } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
-import { Button } from '@/lib/components/Button'
-import { getConfig } from '@/lib/config'
+import { Button } from '@/lib/components/ui/button'
 import { getDatabase } from '@/lib/database'
 import { getActorProfile } from '@/lib/models/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -31,7 +30,7 @@ const Page = async () => {
 
   const actor = await getActorFromSession(database, session)
   if (!actor) {
-    return redirect(`https://${getConfig().host}/auth/signin`)
+    return redirect('/auth/signin')
   }
 
   const profile = getActorProfile(actor)
@@ -123,7 +122,7 @@ const Page = async () => {
           </div>
         </div>
 
-        <Button type="submit" variant="primary">
+        <Button type="submit">
           Update
         </Button>
       </form>

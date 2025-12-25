@@ -1,33 +1,36 @@
-import cn from 'classnames'
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { FC, ReactNode } from 'react'
+
+import { Tabs, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
 
 interface Props {
   children: ReactNode
 }
 
 const Layout: FC<Props> = ({ children }) => {
+  const pathname = usePathname()
+
   const tabs = [
-    { name: 'settings', url: '/settings' },
-    { name: 'sessions', url: '/settings/sessions' }
+    { name: 'Settings', url: '/settings' },
+    { name: 'Sessions', url: '/settings/sessions' }
   ]
 
   return (
-    <>
-      <ul className={cn('nav', 'mt-4')}>
-        <li className="nav-item">
-          <a className="nav-link disabled">Links</a>
-        </li>
-        {tabs.map((tab) => (
-          <li key={tab.name} className="nav-item">
-            <a href={tab.url} className={cn('nav-link')}>
-              {tab.name}
-            </a>
-          </li>
-        ))}
-      </ul>
-      <hr />
+    <div className="space-y-6">
+      <Tabs value={pathname} className="w-full">
+        <TabsList>
+          {tabs.map((tab) => (
+            <Link key={tab.url} href={tab.url}>
+              <TabsTrigger value={tab.url}>{tab.name}</TabsTrigger>
+            </Link>
+          ))}
+        </TabsList>
+      </Tabs>
       {children}
-    </>
+    </div>
   )
 }
 

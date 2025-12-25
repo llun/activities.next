@@ -6,11 +6,16 @@ import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
-import { Posts } from '@/lib/components/Posts/Posts'
-import { getConfig } from '@/lib/config'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
+} from '@/lib/components/ui/card'
+import { Separator } from '@/lib/components/ui/separator'
 import { getDatabase } from '@/lib/database'
-import { Timeline } from '@/lib/services/timelines/types'
-import { cleanJson } from '@/lib/utils/cleanJson'
 
 import { CredentialForm } from './CredentialForm'
 import { SigninButton } from './SigninButton'
@@ -21,7 +26,6 @@ export const metadata: Metadata = {
 }
 
 const Page: FC = async () => {
-  const { host } = getConfig()
   const database = getDatabase()
   const [providers, session] = await Promise.all([
     getProviders(),
@@ -33,36 +37,50 @@ const Page: FC = async () => {
     return redirect('/')
   }
 
-  const statuses = await database.getTimeline({
-    timeline: Timeline.LOCAL_PUBLIC
-  })
+  const credentialProvider = Object.values(providers ?? []).find(
+    (p) => p.id === 'credentials'
+  )
+  const oauthProviders = Object.values(providers ?? []).filter(
+    (p) => p.id !== 'credentials'
+  )
 
   return (
-    <div className="col-12">
-      <div className="mb-4">
-        <h1 className="mb-4">Sign-in</h1>
-        {Object.values(providers ?? []).map((provider) => {
-          if (provider.id === 'credentials') {
-            return <CredentialForm key={provider.id} provider={provider} />
-          }
+    <Card>
+      <CardHeader className="text-center">
+        <CardTitle className="text-2xl">Welcome back</CardTitle>
+        <CardDescription>Sign in to your account</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {credentialProvider && (
+          <CredentialForm provider={credentialProvider} />
+        )}
 
-          return <SigninButton key={provider.id} provider={provider} />
-        })}
-        <Link href="/auth/signup">Signup</Link>
-      </div>
+        {oauthProviders.length > 0 && credentialProvider && (
+          <div className="relative">
+            <Separator />
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
+              or continue with
+            </span>
+          </div>
+        )}
 
-      {statuses && statuses.length > 0 && (
-        <div>
-          <h2 className="mb-4">Local public timeline</h2>
-          <Posts
-            host={host}
-            className="mt-4"
-            currentTime={new Date()}
-            statuses={statuses?.map((status) => cleanJson(status))}
-          />
-        </div>
-      )}
-    </div>
+        {oauthProviders.length > 0 && (
+          <div className="space-y-2">
+            {oauthProviders.map((provider) => (
+              <SigninButton key={provider.id} provider={provider} />
+            ))}
+          </div>
+        )}
+      </CardContent>
+      <CardFooter className="justify-center">
+        <p className="text-sm text-muted-foreground">
+          Don&apos;t have an account?{' '}
+          <Link href="/auth/signup" className="text-primary hover:underline">
+            Sign up
+          </Link>
+        </p>
+      </CardFooter>
+    </Card>
   )
 }
 

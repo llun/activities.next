@@ -1,6 +1,6 @@
-import cn from 'classnames'
 import { FC } from 'react'
 
+import { cn } from '@/lib/utils'
 import { Status, StatusType } from '../../models/status'
 import { DeleteButton } from './Actions/DeleteButton'
 import { EditButton } from './Actions/EditButton'
@@ -61,11 +61,11 @@ export const Actions: FC<Props> = ({
       />
       <EditButton
         status={status}
-        className={cn({ 'd-none': !editable })}
+        className={cn({ hidden: !editable })}
         onEdit={onEdit}
       />
       <DeleteButton
-        className={cn({ 'd-none': !editable })}
+        className={cn({ hidden: !editable })}
         status={status}
         onPostDeleted={onPostDeleted}
       />

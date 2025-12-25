@@ -1,6 +1,7 @@
+import { Reply } from 'lucide-react'
 import { FC } from 'react'
 
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
 import { Status } from '@/lib/models/status'
 
 interface Props {
@@ -17,7 +18,7 @@ export const ReplyButton: FC<Props> = ({ className, status, onReply }) => {
       title="Reply"
       onClick={() => onReply?.(status)}
     >
-      <i className="bi bi-reply" />
+      <Reply className="size-4" />
     </Button>
   )
 }

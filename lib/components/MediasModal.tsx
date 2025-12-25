@@ -1,7 +1,5 @@
-import cn from 'classnames'
 import { FC, useEffect, useState } from 'react'
 
-import styles from '@/lib/components/MediasModal.module.scss'
 import { Modal } from '@/lib/components/Modal'
 import { Media } from '@/lib/components/Posts/Media'
 import { Attachment } from '@/lib/models/attachment'
@@ -24,7 +22,7 @@ export const MediasModal: FC<Props> = ({
 
   return (
     <Modal
-      className={styles.modal}
+      className="inset-0 border-0 bg-transparent h-full"
       isOpen={Boolean(medias)}
       onRequestClose={() => {
         onClosed()
@@ -32,14 +30,14 @@ export const MediasModal: FC<Props> = ({
       }}
     >
       <div
-        className={styles.mediasContent}
+        className="flex flex-col h-full"
         onClick={() => {
           onClosed()
           setModalSelection(0)
         }}
       >
         {medias && medias.length > 1 && (
-          <div className={styles.mediasSelection}>
+          <div className="flex px-8 py-4 max-md:px-2 shrink-0 gap-2 overflow-x-auto">
             {medias.map((media, index) => (
               <img
                 alt={media.name}
@@ -47,6 +45,7 @@ export const MediasModal: FC<Props> = ({
                 src={media.url}
                 width={50}
                 height={50}
+                className="w-[3.125rem] h-[3.125rem] object-cover cursor-pointer"
                 onClick={(event) => {
                   event.stopPropagation()
                   setModalSelection(index)
@@ -57,7 +56,7 @@ export const MediasModal: FC<Props> = ({
         )}
         <Media
           showVideoControl
-          className={cn(styles.media)}
+          className="object-contain w-full h-full"
           attachment={medias?.[modalSelection]}
         />
       </div>
