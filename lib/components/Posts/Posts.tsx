@@ -44,7 +44,7 @@ export const Posts: FC<Props> = ({
       {statuses.map((status, index) => (
         <article
           key={`${index}-${status.id}`}
-          className="border-b border-border/60 p-4 transition-colors hover:bg-muted/40 last:border-b-0"
+          className="cursor-pointer border-b border-border/60 p-4 transition-colors hover:bg-muted/40 last:border-b-0"
         >
           <Post
             host={host}

@@ -29,7 +29,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
       <div className="mt-3 overflow-hidden rounded-xl border border-border/60 bg-muted/20">
         <button
           onClick={() => handleClick(0)}
-          className="relative block aspect-video w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="relative block aspect-video w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Media
             className="h-full w-full object-cover"
@@ -48,7 +48,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
           <button
             key={attachment.id}
             onClick={() => handleClick(i)}
-            className="relative aspect-square focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="relative aspect-square cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <Media
               className="h-full w-full object-cover"
@@ -66,7 +66,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
       <div className="mt-3 grid grid-cols-2 gap-1 overflow-hidden rounded-xl border border-border/60 bg-muted/20">
         <button
           onClick={() => handleClick(0)}
-          className="relative aspect-square focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="relative aspect-square cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Media
             className="h-full w-full object-cover"
@@ -75,7 +75,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
         </button>
         <button
           onClick={() => handleClick(2)}
-          className="relative row-span-2 h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="relative row-span-2 h-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Media
             className="h-full w-full object-cover"
@@ -84,7 +84,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
         </button>
         <button
           onClick={() => handleClick(1)}
-          className="relative aspect-square focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="relative aspect-square cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Media
             className="h-full w-full object-cover"
@@ -105,7 +105,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
         <button
           key={attachment.id}
           onClick={() => handleClick(i)}
-          className="relative aspect-square focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="relative aspect-square cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Media
             className="h-full w-full object-cover"
