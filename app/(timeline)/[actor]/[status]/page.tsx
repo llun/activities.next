@@ -39,7 +39,8 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
-  const statusId = `https://${parts[1]}/users/${parts[0]}/statuses/${id}`
+  const protocol = parts[1].startsWith('localhost') ? 'http' : 'https'
+  const statusId = `${protocol}://${parts[1]}/users/${parts[0]}/statuses/${id}`
   const [status, replies] = await Promise.all([
     database.getStatus({ statusId, withReplies: false }),
     database.getStatusReplies({ statusId })
@@ -103,6 +104,7 @@ const Page: FC<Props> = async ({ params }) => {
           host={host}
           currentTime={currentTime}
           status={cleanJson(status)}
+          variant="detail"
         />
       </div>
 

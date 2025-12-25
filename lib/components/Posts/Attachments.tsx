@@ -28,7 +28,10 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
     return (
       <div className="mt-3 overflow-hidden rounded-xl border border-border/60 bg-muted/20">
         <button
-          onClick={() => handleClick(0)}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleClick(0)
+          }}
           className="relative block aspect-video w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Media
@@ -47,7 +50,10 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
         {attachments.map((attachment, i) => (
           <button
             key={attachment.id}
-            onClick={() => handleClick(i)}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleClick(i)
+            }}
             className="relative aspect-square cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <Media
@@ -65,7 +71,10 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
     return (
       <div className="mt-3 grid grid-cols-2 gap-1 overflow-hidden rounded-xl border border-border/60 bg-muted/20">
         <button
-          onClick={() => handleClick(0)}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleClick(0)
+          }}
           className="relative aspect-square cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Media
@@ -74,7 +83,10 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
           />
         </button>
         <button
-          onClick={() => handleClick(2)}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleClick(2)
+          }}
           className="relative row-span-2 h-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Media
@@ -83,7 +95,10 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
           />
         </button>
         <button
-          onClick={() => handleClick(1)}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleClick(1)
+          }}
           className="relative aspect-square cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Media
@@ -104,7 +119,10 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
       {displayMedia.map((attachment, i) => (
         <button
           key={attachment.id}
-          onClick={() => handleClick(i)}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleClick(i)
+          }}
           className="relative aspect-square cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Media
