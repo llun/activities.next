@@ -1,14 +1,16 @@
 'use client'
 
-import cn from 'classnames'
 import { FC, useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+import { cn } from '@/lib/utils'
+import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 
 import { ActorProfile } from '../../models/actor'
 import { Attachment } from '../../models/attachment'
 import { EditableStatus, Status } from '../../models/status'
 import { MediasModal } from '../MediasModal'
 import { Post } from './Post'
-import styles from './Posts.module.scss'
 
 interface Props {
   host: string
@@ -33,6 +35,7 @@ export const Posts: FC<Props> = ({
   onEdit,
   onPostDeleted
 }) => {
+  const router = useRouter()
   const [modalMedias, setModalMedias] = useState<{
     medias: Attachment[]
     initialSelection: number
@@ -41,9 +44,16 @@ export const Posts: FC<Props> = ({
   if (statuses.length === 0) return null
 
   return (
-    <section className={cn('w-full', 'grid', 'grid-cols-1', className)}>
+    <section className={cn('w-full grid grid-cols-1', className)}>
       {statuses.map((status, index) => (
-        <div key={`${index}-${status.id}`} className={cn(styles.block)}>
+        <article
+          key={`${index}-${status.id}`}
+          className="cursor-pointer border-b border-border/60 p-4 transition-colors hover:bg-muted/40 last:border-b-0"
+          onClick={() => {
+            const detailPath = getStatusDetailPath(status)
+            if (detailPath) router.push(detailPath)
+          }}
+        >
           <Post
             host={host}
             currentTime={currentTime}
@@ -58,7 +68,7 @@ export const Posts: FC<Props> = ({
               setModalMedias({ medias: allMedias, initialSelection: index })
             }}
           />
-        </div>
+        </article>
       ))}
       <MediasModal
         medias={modalMedias?.medias ?? null}

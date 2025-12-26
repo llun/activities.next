@@ -48,6 +48,7 @@ prompt.txt
 
 # local env files
 .env*.local
+.env.local.test
 
 # vercel
 .vercel
@@ -58,6 +59,7 @@ next-env.d.ts
 
 # database
 *.sqlite3
+*.sqlite
 data/database
 
 # shared configuration
@@ -75,3 +77,7 @@ sentry.properties
 
 # PR Description
 PR_DESCRIPTION.md
+VERIFICATION_SUMMARY.md
+
+# local backups
+backups/

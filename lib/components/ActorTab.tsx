@@ -1,5 +1,6 @@
-import cn from 'classnames'
 import { FC } from 'react'
+
+import { cn } from '@/lib/utils'
 
 export enum ActorTab {
   Posts,
@@ -13,13 +14,17 @@ interface Props {
 
 export const ActorTabs: FC<Props> = ({ currentTab, onClickTab }) => {
   return (
-    <ul className={cn('nav', 'nav-tabs', 'mt-4')}>
-      <li className="nav-item">
+    <ul className="flex border-b border-border mt-4">
+      <li className="mr-2">
         <a
           href={`#actors/posts`}
-          className={cn('nav-link', {
-            active: currentTab === ActorTab.Posts
-          })}
+          className={cn(
+            'inline-block px-4 py-2 rounded-t-lg hover:text-foreground hover:border-border',
+            {
+              'border-b-2 border-primary text-primary': currentTab === ActorTab.Posts,
+              'border-transparent': currentTab !== ActorTab.Posts
+            }
+          )}
           onClick={async (event) => {
             event.preventDefault()
             await onClickTab(ActorTab.Posts)
@@ -28,12 +33,16 @@ export const ActorTabs: FC<Props> = ({ currentTab, onClickTab }) => {
           Posts
         </a>
       </li>
-      <li className="nav-item">
+      <li className="mr-2">
         <a
           href={`#actors/medias`}
-          className={cn('nav-link', {
-            active: currentTab === ActorTab.Medias
-          })}
+          className={cn(
+            'inline-block px-4 py-2 rounded-t-lg hover:text-foreground hover:border-border',
+            {
+              'border-b-2 border-primary text-primary': currentTab === ActorTab.Medias,
+              'border-transparent': currentTab !== ActorTab.Medias
+            }
+          )}
           onClick={async (event) => {
             event.preventDefault()
             await onClickTab(ActorTab.Medias)

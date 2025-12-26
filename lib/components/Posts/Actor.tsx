@@ -1,7 +1,7 @@
-import cn from 'classnames'
 import Link from 'next/link'
 import { FC } from 'react'
 
+import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   ActorProfile,
   getMention,
@@ -9,56 +9,68 @@ import {
   getMentionFromActorID
 } from '@/lib/models/actor'
 
-import styles from './Actor.module.scss'
-
 interface Props {
-  actorId?: string
   actor?: ActorProfile | null
-  className?: string
+  actorId?: string
 }
 
-export const Actor: FC<Props> = ({ actor, actorId, className }) => {
-  if (actor) {
+const getInitials = (value: string) =>
+  value
+    .replace(/^@/, '')
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+
+export const ActorAvatar: FC<Props> = ({ actor, actorId }) => {
+  if (!actor && !actorId) return null
+
+  const href = actor
+    ? `/${getMention(actor, true)}`
+    : `/${getMentionFromActorID(actorId || '', true)}`
+  const initials = actor
+    ? getInitials(actor.name || actor.username || '')
+    : getInitials(getMentionFromActorID(actorId || '', false))
+
+  return (
+    <Link href={href} onClick={(e) => e.stopPropagation()}>
+      <Avatar className="h-10 w-10">
+        <AvatarImage src={actor?.iconUrl} />
+        <AvatarFallback>{initials}</AvatarFallback>
+      </Avatar>
+    </Link>
+  )
+}
+
+export const ActorInfo: FC<Props> = ({ actor, actorId }) => {
+  if (!actor && !actorId) return null
+
+  if (!actor) {
+    const handle = getMentionFromActorID(actorId || '', false)
+    const domain = getMentionDomainFromActorID(actorId || '')
+    const href = `/${getMentionFromActorID(actorId || '', true)}`
     return (
-      <div className={className}>
-        <Link
-          prefetch={false}
-          href={`/${getMention(actor, true)}`}
-          target="_blank"
-        >
-          <span
-            className={cn(
-              'd-inline-block',
-              'text-truncate',
-              'align-middle',
-              'overflow-hidden',
-              styles.handle
-            )}
-          >
-            <strong>@{actor.username}</strong>
-            <small>@{actor.domain}</small>
-          </span>
-          <i className="ms-2 align-middle bi bi-person-badge"></i>
+      <div className="flex items-center gap-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+        <Link href={href} className="font-semibold hover:underline truncate">
+          {handle}
         </Link>
+        <span className="text-muted-foreground truncate">{domain}</span>
       </div>
     )
   }
 
-  if (actorId) {
-    return (
-      <div className={className}>
-        <Link
-          prefetch={false}
-          href={`/${getMentionFromActorID(actorId, true)}`}
-        >
-          <strong>{getMentionFromActorID(actorId, false)}</strong>
-          <small>{getMentionDomainFromActorID(actorId)}</small>
-
-          <i className="ms-2 bi bi-person-badge"></i>
-        </Link>
-      </div>
-    )
-  }
-
-  return null
+  return (
+    <div className="flex items-center gap-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+      <Link
+        href={`/${getMention(actor, true)}`}
+        className="font-semibold hover:underline truncate"
+      >
+        {actor.name || actor.username}
+      </Link>
+      <span className="text-muted-foreground truncate">
+        {getMention(actor, true)}
+      </span>
+    </div>
+  )
 }

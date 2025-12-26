@@ -25,9 +25,9 @@ export const Poll: FC<Props> = ({ status, currentTime }) => {
   return (
     <div>
       {choices.map((choice, index) => (
-        <div key={`poll-${index}`} className="form-check">
+        <div key={`poll-${index}`} className="mb-2">
           <input
-            className="form-check-input"
+            className="mr-2 align-middle"
             type="radio"
             id={`choice-${index}`}
             disabled
@@ -35,7 +35,7 @@ export const Poll: FC<Props> = ({ status, currentTime }) => {
           />
 
           <div
-            className="d-flex"
+            className="flex"
             style={{
               background: `linear-gradient(90deg, pink ${
                 (choice.totalVotes / totalVotes) * 100
@@ -43,7 +43,7 @@ export const Poll: FC<Props> = ({ status, currentTime }) => {
             }}
           >
             <label
-              className="form-check-label flex-fill"
+              className="flex-1 cursor-pointer"
               htmlFor={`choice-${index}`}
             >
               {choice.title}
@@ -55,9 +55,9 @@ export const Poll: FC<Props> = ({ status, currentTime }) => {
           </div>
         </div>
       ))}
-      {isPollClosed ? <div className="fs-6">Poll closed</div> : null}
+      {isPollClosed ? <div className="text-sm">Poll closed</div> : null}
       {!isPollClosed ? (
-        <div className="fs-6">
+        <div className="text-sm">
           Poll close in {formatDistance(status.endAt, currentTime)}
         </div>
       ) : null}

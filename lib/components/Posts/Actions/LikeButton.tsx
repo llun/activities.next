@@ -1,17 +1,10 @@
-import cn from 'classnames'
+import { Heart } from 'lucide-react'
 import { FC, useState } from 'react'
 
-import { getStatusFavouritedBy, likeStatus, undoLikeStatus } from '@/lib/client'
+import { likeStatus, undoLikeStatus } from '@/lib/client'
 import { ActorProfile } from '@/lib/models/actor'
-import { StatusNote, StatusPoll, StatusType } from '@/lib/models/status'
-
-import { Button } from '../../Button'
-import styles from './LikeButton.module.scss'
-
-interface FavouritedByActor {
-  acct: string
-  url: string
-}
+import { StatusNote, StatusPoll } from '@/lib/models/status'
+import { cn } from '@/lib/utils'
 
 interface LikeButtonProps {
   currentActor?: ActorProfile
@@ -19,79 +12,31 @@ interface LikeButtonProps {
 }
 export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
   const [isActorLiked, setIsActorLiked] = useState<boolean>(status.isActorLiked)
-  const [showFavouritedBy, setShowFavouritedBy] = useState<boolean>(false)
-  const [favouritedByActors, setFavouritedByActors] = useState<
-    FavouritedByActor[]
-  >([])
+  const [totalLikes, setTotalLikes] = useState<number>(status.totalLikes)
 
   return (
-    <span>
-      <Button
-        variant="link"
-        title={isActorLiked ? 'Unlike' : 'Like'}
-        disabled={status.actorId === currentActor?.id}
-        onClick={async () => {
-          if (isActorLiked) {
-            await undoLikeStatus({ statusId: status.id })
-            setIsActorLiked(false)
-            return
-          }
-          await likeStatus({ statusId: status.id })
-          setIsActorLiked(true)
-        }}
-      >
-        <i
-          className={cn('bi', {
-            'bi-star': !isActorLiked,
-            'bi-star-fill': isActorLiked
-          })}
-        />
-      </Button>
-      {status.type === StatusType.enum.Note &&
-        status.actorId === currentActor?.id &&
-        status.totalLikes > 0 && (
-          <div
-            className={styles['like-info']}
-            onClick={async () => {
-              const actors = await getStatusFavouritedBy({
-                statusId: status.id
-              })
-              setFavouritedByActors(actors)
-              setShowFavouritedBy((current) => !current)
-            }}
-          >
-            <span className={cn(styles['like-count'])}>
-              {status.totalLikes}
-            </span>
-            <div
-              className={cn(styles['favourited-by'], {
-                'd-none': !showFavouritedBy
-              })}
-            >
-              <ul className="list-group">
-                {favouritedByActors.map((actor) => (
-                  <li
-                    key={actor.acct}
-                    className={cn(
-                      'list-group-item',
-                      'd-flex',
-                      'flex-column',
-                      'align-items-start'
-                    )}
-                  >
-                    <a
-                      href={actor.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      @{actor.acct}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        )}
-    </span>
+    <button
+      title={isActorLiked ? 'Unlike' : 'Like'}
+      disabled={status.actorId === currentActor?.id}
+      className={cn(
+        'flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted',
+        isActorLiked ? 'text-red-500' : 'hover:text-red-500'
+      )}
+      onClick={async (e) => {
+        e.stopPropagation()
+        if (isActorLiked) {
+          await undoLikeStatus({ statusId: status.id })
+          setIsActorLiked(false)
+          setTotalLikes(prev => prev - 1)
+          return
+        }
+        await likeStatus({ statusId: status.id })
+        setIsActorLiked(true)
+        setTotalLikes(prev => prev + 1)
+      }}
+    >
+      <Heart className={cn('h-4 w-4', { 'fill-current': isActorLiked })} />
+      {totalLikes > 0 && <span>{totalLikes}</span>}
+    </button>
   )
 }

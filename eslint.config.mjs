@@ -17,6 +17,7 @@ const eslintConfig = [
       'coverage/**',
       'node_modules/**',
       'migrations/**',
+      'plans/**',
       '*.config.js',
       '*.config.ts',
       'wallaby.js',

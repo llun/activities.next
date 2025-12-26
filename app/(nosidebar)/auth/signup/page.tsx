@@ -1,10 +1,21 @@
 import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
+} from '@/lib/components/ui/card'
+import { Input } from '@/lib/components/ui/input'
+import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
 
 export const dynamic = 'force-dynamic'
@@ -22,51 +33,40 @@ const Page: FC = async () => {
   }
 
   return (
-    <form method="post" action="/api/v1/accounts">
-      <div className="mb-2">
-        <div className="mb-3 row">
-          <label htmlFor="inputUsername" className="col-sm-2 col-form-label">
-            Username
-          </label>
-          <div className="col-sm-10">
-            <input
-              name="username"
-              type="text"
-              className="form-control"
-              id="inputUsername"
-            />
+    <Card>
+      <CardHeader className="text-center">
+        <CardTitle className="text-2xl">Create an account</CardTitle>
+        <CardDescription>Join Activities and start sharing</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form method="post" action="/api/v1/accounts" className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="inputUsername">Username</Label>
+            <Input name="username" type="text" id="inputUsername" />
           </div>
-        </div>
-        <div className="mb-3 row">
-          <label htmlFor="inputEmail" className="col-sm-2 col-form-label">
-            Email
-          </label>
-          <div className="col-sm-10">
-            <input
-              name="email"
-              type="text"
-              className="form-control"
-              id="inputEmail"
-            />
+          <div className="space-y-2">
+            <Label htmlFor="inputEmail">Email</Label>
+            <Input name="email" type="email" id="inputEmail" />
           </div>
-        </div>
-        <div className="mb-3 row">
-          <label htmlFor="inputPassword" className="col-sm-2 col-form-label">
-            Password
-          </label>
-          <div className="col-sm-10">
-            <input
-              name="password"
-              type="password"
-              className="form-control"
-              id="inputPassword"
-            />
+          <div className="space-y-2">
+            <Label htmlFor="inputPassword">Password</Label>
+            <Input name="password" type="password" id="inputPassword" />
           </div>
-        </div>
 
-        <Button type="submit">Sign up</Button>
-      </div>
-    </form>
+          <Button type="submit" className="w-full">
+            Sign up
+          </Button>
+        </form>
+      </CardContent>
+      <CardFooter className="justify-center">
+        <p className="text-sm text-muted-foreground">
+          Already have an account?{' '}
+          <Link href="/auth/signin" className="text-primary hover:underline">
+            Sign in
+          </Link>
+        </p>
+      </CardFooter>
+    </Card>
   )
 }
 

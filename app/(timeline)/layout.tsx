@@ -1,31 +1,14 @@
-import 'bootstrap-icons/font/bootstrap-icons.css'
-import 'bootstrap/dist/css/bootstrap.css'
-import cn from 'classnames'
-import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
-import Image from 'next/image'
-import { redirect } from 'next/navigation'
 import { FC, ReactNode } from 'react'
 
 import { Modal } from '@/app/Modal'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
-import { Header } from '@/lib/components/Header'
-import { Profile as ProfileComponent } from '@/lib/components/Profile'
-import { getConfig } from '@/lib/config'
+import { MobileNav } from '@/lib/components/layout/mobile-nav'
+import { Sidebar } from '@/lib/components/layout/sidebar'
 import { getDatabase } from '@/lib/database'
 import { getActorProfile, getMention } from '@/lib/models/actor'
+import { cn } from '@/lib/utils'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
-import styles from './(timeline).module.scss'
-
-export const viewport = {
-  width: 'device-width',
-  initialScale: 1
-}
-
-export const metadata: Metadata = {
-  title: 'Activities.next'
-}
 
 interface LayoutProps {
   children: ReactNode
@@ -39,41 +22,47 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
 
   const session = await getServerSession(getAuthOptions())
   const actor = await getActorFromSession(database, session)
-  if (!actor) {
-    return redirect(`https://${getConfig().host}/auth/signin`)
+
+  // Check if iconUrl is a real user-uploaded avatar (not auto-generated)
+  // Auto-generated URLs typically contain service identifiers
+  const isRealAvatar = (url?: string) => {
+    if (!url) return false
+    // Skip if URL is from known auto-generation services
+    if (url.includes('gravatar')) return false
+    if (url.includes('ui-avatars')) return false
+    if (url.includes('robohash')) return false
+    if (url.includes('dicebear')) return false
+    if (url.includes('boringavatars')) return false
+    // Skip if URL appears to be a default/placeholder
+    if (url.includes('default')) return false
+    if (url.includes('placeholder')) return false
+    return true
   }
 
-  const profile = getActorProfile(actor)
+  const user = actor
+    ? {
+        name: actor.name || actor.username,
+        username: actor.username,
+        handle: getMention(getActorProfile(actor)),
+        avatarUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : undefined
+      }
+    : undefined
+  const showNavigation = Boolean(user)
+
   return (
-    <html lang="en">
-      <body className="">
-        <Header session={session} />
-        <section className="container pt-4">
-          <div className="row">
-            <div className="col-12 col-md-3">
-              {profile.iconUrl && (
-                <Image
-                  width={100}
-                  height={100}
-                  alt="Actor icon"
-                  className={cn(styles.icon, 'me-4', 'mb-2', 'flex-shrink-0')}
-                  src={profile.iconUrl}
-                />
-              )}
-              <ProfileComponent
-                name={profile.name || ''}
-                url={`https://${profile.domain}/${getMention(profile)}`}
-                username={profile.username}
-                domain={profile.domain}
-                createdAt={profile.createdAt}
-              />
-            </div>
-            <div className="col-12 col-md-9">{children}</div>
-          </div>
-        </section>
-        <Modal />
-      </body>
-    </html>
+    <div className="min-h-screen">
+      {showNavigation && <Sidebar user={user} />}
+      {showNavigation && <MobileNav />}
+      <main
+        className={cn(
+          'pb-6',
+          showNavigation && 'pb-20 md:pl-[72px] md:pb-0 xl:pl-[280px]'
+        )}
+      >
+        <div className="mx-auto max-w-2xl px-4 py-6">{children}</div>
+      </main>
+      <Modal />
+    </div>
   )
 }
 

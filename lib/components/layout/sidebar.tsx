@@ -1,0 +1,152 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Home, Settings } from 'lucide-react'
+import { Logo } from '@/lib/components/layout/logo'
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage
+} from '@/lib/components/ui/avatar'
+import { cn } from '@/lib/utils'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/lib/components/ui/tooltip'
+
+const navItems = [
+  { href: '/', label: 'Timeline', icon: Home },
+  { href: '/settings', label: 'Settings', icon: Settings }
+]
+
+interface User {
+  name: string
+  username: string
+  handle: string
+  avatarUrl?: string
+}
+
+interface SidebarProps {
+  user?: User
+}
+
+export function Sidebar({ user }: SidebarProps) {
+  const pathname = usePathname()
+
+  const getAvatarInitial = (username: string) => {
+    if (!username) return '?'
+    return username[0].toUpperCase()
+  }
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      {/* Full sidebar - Desktop */}
+      <aside className="fixed left-0 top-0 z-40 h-screen w-[280px] border-r bg-background/90 backdrop-blur hidden xl:flex flex-col">
+        <div className="p-6">
+          <Logo size="md" />
+        </div>
+
+        <nav className="flex-1 px-3">
+          <ul className="space-y-1">
+            {navItems.map((item) => {
+              const isActive =
+                pathname === item.href || pathname.startsWith(item.href + '/')
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    {item.label}
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
+
+        {user && (
+          <div className="border-t p-4">
+            <div className="flex items-center gap-3 rounded-lg p-2">
+              <Avatar className="h-10 w-10">
+                {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
+                <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                  {getAvatarInitial(user.username)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-sm font-medium truncate">{user.name}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user.handle}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </aside>
+
+      {/* Collapsed sidebar - Tablet */}
+      <aside className="fixed left-0 top-0 z-40 h-screen w-[72px] border-r bg-background/90 backdrop-blur hidden md:flex xl:hidden flex-col items-center">
+        <div className="p-4">
+          <Logo showText={false} size="md" />
+        </div>
+
+        <nav className="flex-1 py-4">
+          <ul className="space-y-2">
+            {navItems.map((item) => {
+              const isActive =
+                pathname === item.href || pathname.startsWith(item.href + '/')
+              return (
+                <li key={item.href}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          'flex items-center justify-center rounded-lg p-3 transition-colors',
+                          isActive
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        )}
+                      >
+                        <item.icon className="h-6 w-6" />
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">{item.label}</TooltipContent>
+                  </Tooltip>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
+
+        {user && (
+          <div className="border-t p-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Avatar className="h-10 w-10">
+                    {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
+                    <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                      {getAvatarInitial(user.username)}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">{user.handle}</TooltipContent>
+            </Tooltip>
+          </div>
+        )}
+      </aside>
+    </TooltipProvider>
+  )
+}

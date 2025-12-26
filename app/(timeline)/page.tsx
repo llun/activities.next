@@ -27,7 +27,7 @@ const Page = async () => {
   const session = await getServerSession(getAuthOptions())
   const actor = await getActorFromSession(database, session)
   if (!actor) {
-    return redirect(`https://${host}/auth/signin`)
+    return redirect('/auth/signin')
   }
 
   const statuses = await database.getTimeline({

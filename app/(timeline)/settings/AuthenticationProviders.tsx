@@ -3,7 +3,7 @@
 import { ClientSafeProvider, signIn } from 'next-auth/react'
 import { FC } from 'react'
 
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
 
 interface AuthenticationProvidersProps {
   nonCredentialsProviders: ClientSafeProvider[]
@@ -15,10 +15,9 @@ export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({
   if (!nonCredentialsProviders.length) return
 
   return (
-    <div>
-      <hr />
+    <div className="space-y-2">
       {nonCredentialsProviders.map((provider) => (
-        <div key={provider.name} className="mb-2">
+        <div key={provider.name}>
           <Button onClick={() => signIn(provider.id)}>
             Connect to {provider.name}
           </Button>

@@ -3,7 +3,7 @@
 import { FC } from 'react'
 
 import { deleteSession } from '@/lib/client'
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
 import { Session } from '@/lib/models/session'
 
 interface Props {

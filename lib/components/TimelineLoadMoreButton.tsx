@@ -1,7 +1,6 @@
 import { FC } from 'react'
 
-import { Button } from './Button'
-import styles from './TimelineLoadMoreButton.module.scss'
+import { Button } from './ui/button'
 
 interface Props {
   disabled?: boolean
@@ -10,7 +9,7 @@ interface Props {
 
 export const TimelineLoadMoreButton: FC<Props> = ({ disabled, onClick }) => {
   return (
-    <div className={styles.button}>
+    <div className="p-4 flex cursor-pointer font-bold items-center justify-center">
       <Button
         disabled={disabled}
         variant="link"

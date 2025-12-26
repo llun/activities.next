@@ -4,7 +4,9 @@ import { ClientSafeProvider, getCsrfToken } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
 
-import { Button } from '@/lib/components/Button'
+import { Button } from '@/lib/components/ui/button'
+import { Input } from '@/lib/components/ui/input'
+import { Label } from '@/lib/components/ui/label'
 
 import { getSigninCallbackUrl } from './getSigninCallbackUrl'
 
@@ -21,38 +23,24 @@ export const CredentialForm: FC<Props> = ({ provider }) => {
   }, [provider])
 
   return (
-    <div key={provider.name} className="mb-2">
-      <form method="post" action={getSigninCallbackUrl(provider, searchParams)}>
-        <input name="csrfToken" type="hidden" defaultValue={csrfToken ?? ''} />
-        <div className="mb-3 row">
-          <label htmlFor="inputActorId" className="col-sm-2 col-form-label">
-            Actor Id
-          </label>
-          <div className="col-sm-10">
-            <input
-              name="actorId"
-              type="text"
-              className="form-control"
-              id="inputActorId"
-            />
-          </div>
-        </div>
-        <div className="mb-3 row">
-          <label htmlFor="inputPassword" className="col-sm-2 col-form-label">
-            Password
-          </label>
-          <div className="col-sm-10">
-            <input
-              name="password"
-              type="password"
-              className="form-control"
-              id="inputPassword"
-            />
-          </div>
-        </div>
+    <form
+      method="post"
+      action={getSigninCallbackUrl(provider, searchParams)}
+      className="space-y-4"
+    >
+      <input name="csrfToken" type="hidden" defaultValue={csrfToken ?? ''} />
+      <div className="space-y-2">
+        <Label htmlFor="inputActorId">Actor Id</Label>
+        <Input name="actorId" type="text" id="inputActorId" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="inputPassword">Password</Label>
+        <Input name="password" type="password" id="inputPassword" />
+      </div>
 
-        <Button type="submit">Sign in with {provider.name}</Button>
-      </form>
-    </div>
+      <Button type="submit" className="w-full">
+        Sign in with {provider.name}
+      </Button>
+    </form>
   )
 }

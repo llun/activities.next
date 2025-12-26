@@ -1,8 +1,7 @@
-import cn from 'classnames'
 import { FC, useState } from 'react'
 
 import { Attachment } from '../models/attachment'
-import styles from './ActorAttachments.module.scss'
+import { cn } from '@/lib/utils'
 import { Modal } from './Modal'
 import { Media } from './Posts/Media'
 
@@ -16,10 +15,15 @@ export const ActorAttachments: FC<Props> = ({ className, attachments }) => {
   const onShowAttachment = (attachment: Attachment) => setModalMedia(attachment)
 
   return (
-    <div className={cn(styles.medias, className)}>
+    <div
+      className={cn(
+        'grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3',
+        className
+      )}
+    >
       {attachments.map((attachment) => (
         <Media
-          className={styles.media}
+          className="cursor-pointer object-cover w-full h-auto aspect-square"
           onClick={() => onShowAttachment(attachment)}
           key={attachment.id}
           attachment={attachment}
@@ -31,7 +35,7 @@ export const ActorAttachments: FC<Props> = ({ className, attachments }) => {
       >
         <Media
           showVideoControl
-          className={cn(styles.media)}
+          className="cursor-pointer object-cover w-full h-auto aspect-square"
           attachment={modalMedia}
         />
       </Modal>
