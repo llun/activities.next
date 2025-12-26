@@ -9,9 +9,17 @@ import {
 } from 'react'
 import { BarChart3 } from 'lucide-react'
 import sanitizeHtml from 'sanitize-html'
+import ReactMarkdown from 'react-markdown'
 
 import { createNote, createPoll, updateNote } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@/lib/components/ui/tabs'
+import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   ActorProfile,
   getMention,
@@ -64,6 +72,7 @@ export const PostBox: FC<Props> = ({
   onDiscardEdit
 }) => {
   const [allowPost, setAllowPost] = useState<boolean>(false)
+  const [currentTab, setCurrentTab] = useState<string>('write')
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -255,16 +264,48 @@ export const PostBox: FC<Props> = ({
     <div>
       <ReplyPreview host={host} status={replyStatus} onClose={onCloseReply} />
       <form ref={formRef} onSubmit={onPost}>
-        <div className="mb-3">
-          <textarea
-            ref={postBoxRef}
-            className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            rows={5}
-            onKeyDown={onQuickPost}
-            onChange={onTextChange}
-            name="message"
-          />
+        <div className="flex items-start gap-4 mb-3">
+          <Avatar className="size-12">
+            <AvatarImage src={profile.icon} alt={profile.name} />
+            <AvatarFallback>
+              {profile.name ? profile.name.charAt(0).toUpperCase() : 'U'}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="flex-1">
+            <Tabs value={currentTab} onValueChange={setCurrentTab}>
+              <TabsList className="grid w-full grid-cols-2 mb-3">
+                <TabsTrigger value="write">Write</TabsTrigger>
+                <TabsTrigger value="preview">Preview</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="write" className="mt-0">
+                <textarea
+                  ref={postBoxRef}
+                  className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  rows={5}
+                  onKeyDown={onQuickPost}
+                  onChange={onTextChange}
+                  name="message"
+                  placeholder="What's on your mind?"
+                />
+              </TabsContent>
+
+              <TabsContent value="preview" className="mt-0">
+                <div className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  {postBoxRef.current?.value ? (
+                    <div className="prose prose-sm max-w-none">
+                      <ReactMarkdown>{postBoxRef.current.value}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">Nothing to preview</p>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
+
         <PollChoices
           show={postExtension.poll.showing}
           choices={postExtension.poll.choices}
@@ -302,7 +343,7 @@ export const PostBox: FC<Props> = ({
               </Button>
             ) : null}
             <Button disabled={!allowPost} type="submit">
-              {editStatus ? 'Update' : 'Send'}
+              {editStatus ? 'Update' : 'Post'}
             </Button>
           </div>
         </div>
