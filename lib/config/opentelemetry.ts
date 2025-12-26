@@ -21,10 +21,16 @@ export const getOtelConfig = (): {
 } | null => {
   const hasEnvironmentOtel = matcher('OTEL_EXPORTER_')
   if (!hasEnvironmentOtel) return null
+  const endpoint =
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT ||
+    process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
+    process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
+    process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+  if (!endpoint) return null
   return {
     openTelemetry: {
-      endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT as string,
-      ...(process.env.OTEL_EXPORTER_OLTP_PROTOCOL
+      endpoint,
+      ...(process.env.OTEL_EXPORTER_OTLP_PROTOCOL
         ? {
             protocol: process.env
               .OTEL_EXPORTER_OTLP_PROTOCOL as OpenTelemetryProtocol
