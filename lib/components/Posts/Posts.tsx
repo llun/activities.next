@@ -1,18 +1,16 @@
 'use client'
 
 import { FC, useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+import { cn } from '@/lib/utils'
+import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 
 import { ActorProfile } from '../../models/actor'
 import { Attachment } from '../../models/attachment'
 import { EditableStatus, Status } from '../../models/status'
-import { getMention } from '@/lib/models/actor'
-import { cn } from '@/lib/utils'
-import {
-  getActualStatus
-} from '@/lib/utils/text/processStatusText'
 import { MediasModal } from '../MediasModal'
 import { Post } from './Post'
-import { useRouter } from 'next/navigation'
 
 interface Props {
   host: string
@@ -52,12 +50,8 @@ export const Posts: FC<Props> = ({
           key={`${index}-${status.id}`}
           className="cursor-pointer border-b border-border/60 p-4 transition-colors hover:bg-muted/40 last:border-b-0"
           onClick={() => {
-            const actualStatus = getActualStatus(status)
-            if (actualStatus.actor) {
-              router.push(
-                `/${getMention(actualStatus.actor, true)}/${actualStatus.id}`
-              )
-            }
+            const detailPath = getStatusDetailPath(status)
+            if (detailPath) router.push(detailPath)
           }}
         >
           <Post
