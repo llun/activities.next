@@ -30,7 +30,7 @@ export const GET = async (
     return apiErrorResponse(500)
   }
 
-  const encodedAccountId = (await params?.params).id
+  const { id: encodedAccountId } = await params.params
   if (!encodedAccountId) {
     return apiErrorResponse(400)
   }
