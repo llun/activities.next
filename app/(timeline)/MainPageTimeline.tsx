@@ -154,6 +154,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
                 onEdit={onEdit}
                 onPostDeleted={onPostDeleted}
               />
+            ) : isLoadingMoreStatuses ? (
+              <div className="p-8 text-center text-muted-foreground">
+                <p className="text-sm font-medium">Loading timeline...</p>
+              </div>
             ) : (
               <div className="p-8 text-center text-muted-foreground">
                 <h2 className="text-xl font-semibold mb-2">

@@ -48,7 +48,11 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   if (!isLoggedIn && !actorProfile.isInternalAccount) {
-    return redirect(actorProfile.person.url || '')
+    const redirectUrl = actorProfile.person.url || actorProfile.person.id
+    if (!redirectUrl) {
+      return notFound()
+    }
+    return redirect(redirectUrl)
   }
 
   const {
