@@ -39,14 +39,27 @@ export const getOtelConfig = (): {
     process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
     process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
     process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
-  if (!endpoint && protocol !== 'google') return null
-  return {
-    openTelemetry: {
-      ...(endpoint ? { endpoint } : null),
-      ...(protocol ? { protocol } : null),
-      ...(process.env.OTEL_EXPORTER_OTLP_HEADERS
-        ? { headers: process.env.OTEL_EXPORTER_OTLP_HEADERS }
-        : null)
+  const headers = process.env.OTEL_EXPORTER_OTLP_HEADERS
+
+  if (protocol === 'google') {
+    return {
+      openTelemetry: {
+        protocol: 'google',
+        ...(endpoint ? { endpoint } : {}),
+        ...(headers ? { headers } : {})
+      }
     }
   }
+
+  if (endpoint) {
+    return {
+      openTelemetry: {
+        endpoint,
+        ...(protocol ? { protocol } : {}),
+        ...(headers ? { headers } : {})
+      }
+    }
+  }
+
+  return null
 }
