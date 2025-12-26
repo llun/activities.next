@@ -7,6 +7,7 @@ import { MobileNav } from '@/lib/components/layout/mobile-nav'
 import { Sidebar } from '@/lib/components/layout/sidebar'
 import { getDatabase } from '@/lib/database'
 import { getActorProfile, getMention } from '@/lib/models/actor'
+import { cn } from '@/lib/utils'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 interface LayoutProps {
@@ -46,12 +47,18 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
         avatarUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : undefined
       }
     : undefined
+  const showNavigation = Boolean(user)
 
   return (
     <div className="min-h-screen">
-      <Sidebar user={user} />
-      <MobileNav />
-      <main className="pb-20 md:pl-[72px] md:pb-0 xl:pl-[280px]">
+      {showNavigation && <Sidebar user={user} />}
+      {showNavigation && <MobileNav />}
+      <main
+        className={cn(
+          'pb-6',
+          showNavigation && 'pb-20 md:pl-[72px] md:pb-0 xl:pl-[280px]'
+        )}
+      >
         <div className="mx-auto max-w-2xl px-4 py-6">{children}</div>
       </main>
       <Modal />
