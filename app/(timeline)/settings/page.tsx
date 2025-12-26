@@ -13,6 +13,7 @@ import { getActorProfile } from '@/lib/models/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AuthenticationProviders } from './AuthenticationProviders'
+import { LogoutButton } from './LogoutButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,7 +69,8 @@ const Page = async () => {
               id="nameInput"
               name="name"
               aria-describedby="nameHelp"
-              defaultValue={profile.name}
+              defaultValue={profile.name || ''}
+              placeholder="Your display name"
             />
             <p id="nameHelp" className="text-[0.8rem] text-muted-foreground">
               Name that you want to show in profile
@@ -82,6 +84,7 @@ const Page = async () => {
               name="summary"
               id="summaryInput"
               defaultValue={profile.summary || ''}
+              placeholder="A brief description about yourself"
             />
           </div>
 
@@ -92,7 +95,8 @@ const Page = async () => {
               name="iconUrl"
               id="iconInput"
               aria-describedby="iconHelp"
-              defaultValue={profile.iconUrl}
+              defaultValue={profile.iconUrl || ''}
+              placeholder="https://example.com/avatar.jpg"
             />
             <p id="iconHelp" className="text-[0.8rem] text-muted-foreground">
               Image URL for profile
@@ -106,7 +110,8 @@ const Page = async () => {
               id="headerImageInput"
               name="headerImageUrl"
               aria-describedby="headerImageHelp"
-              defaultValue={profile.headerImageUrl}
+              defaultValue={profile.headerImageUrl || ''}
+              placeholder="https://example.com/header.jpg"
             />
             <p
               id="headerImageHelp"
@@ -134,7 +139,8 @@ const Page = async () => {
               id="appleSharedAlbumTokenInput"
               name="appleSharedAlbumToken"
               aria-describedby="appleSharedAlbumTokenHelp"
-              defaultValue={profile.appleSharedAlbumToken}
+              defaultValue={profile.appleSharedAlbumToken || ''}
+              placeholder="Enter your Apple Shared Album token"
             />
             <p
               id="appleSharedAlbumTokenHelp"
@@ -164,6 +170,21 @@ const Page = async () => {
           />
         </section>
       )}
+
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">Account</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage your current session.
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">
+            Sign out from this account on this device.
+          </p>
+          <LogoutButton />
+        </div>
+      </section>
     </div>
   )
 }

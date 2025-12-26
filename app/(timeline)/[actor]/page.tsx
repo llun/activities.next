@@ -41,6 +41,7 @@ const Page: FC<Props> = async ({ params }) => {
   if (parts.length !== 2) {
     return notFound()
   }
+  const actorDomain = parts[1]
 
   const actorProfile = await getProfileData(database, decodedActorHandle)
   if (!actorProfile) {
@@ -48,7 +49,11 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   if (!isLoggedIn && !actorProfile.isInternalAccount) {
-    return redirect(actorProfile.person.url || '')
+    const redirectUrl = actorProfile.person.url || actorProfile.person.id
+    if (!redirectUrl) {
+      return notFound()
+    }
+    return redirect(redirectUrl)
   }
 
   const {
@@ -136,14 +141,14 @@ const Page: FC<Props> = async ({ params }) => {
               <span className="text-muted-foreground">Posts</span>
             </div>
             <Link
-              href={`/@${person.preferredUsername}@${host}/following`}
+              href={`/@${person.preferredUsername}@${actorDomain}/following`}
               className="hover:underline"
             >
               <span className="font-semibold">{followingCount}</span>{' '}
               <span className="text-muted-foreground">Following</span>
             </Link>
             <Link
-              href={`/@${person.preferredUsername}@${host}/followers`}
+              href={`/@${person.preferredUsername}@${actorDomain}/followers`}
               className="hover:underline"
             >
               <span className="font-semibold">{followersCount}</span>{' '}

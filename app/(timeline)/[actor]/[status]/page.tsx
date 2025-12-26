@@ -32,23 +32,41 @@ const Page: FC<Props> = async ({ params }) => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
-  const { actor, status: id } = await params
+  const { actor, status: statusParam } = await params
   const currentTime = new Date()
-  const parts = decodeURIComponent(actor).split('@').slice(1)
+  const decodedActor = decodeURIComponent(actor)
+  const decodedStatusParam = (() => {
+    try {
+      return decodeURIComponent(statusParam)
+    } catch {
+      return statusParam
+    }
+  })()
+
+  const parts = decodedActor.split('@').slice(1)
   if (parts.length !== 2) {
     return notFound()
   }
 
   const protocol = parts[1].startsWith('localhost') ? 'http' : 'https'
-  const fullStatusId = `${protocol}://${parts[1]}/users/${parts[0]}/statuses/${id}`
+  const isFullStatusUrl = /^https?:\/\//.test(decodedStatusParam)
+  const fullStatusId = isFullStatusUrl
+    ? decodedStatusParam
+    : `${protocol}://${parts[1]}/users/${parts[0]}/statuses/${decodedStatusParam}`
 
   // Try full URL format first (ActivityPub standard), then fallback to raw id (for legacy/mock data)
-  let status = await database.getStatus({ statusId: fullStatusId, withReplies: false })
+  let status = await database.getStatus({
+    statusId: fullStatusId,
+    withReplies: false
+  })
   let statusId = fullStatusId
 
-  if (!status) {
-    status = await database.getStatus({ statusId: id, withReplies: false })
-    statusId = id
+  if (!status && !isFullStatusUrl) {
+    status = await database.getStatus({
+      statusId: decodedStatusParam,
+      withReplies: false
+    })
+    statusId = decodedStatusParam
   }
 
   if (!status) {

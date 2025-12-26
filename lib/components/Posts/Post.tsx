@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from 'date-fns'
 import _ from 'lodash'
-import { Repeat2 } from 'lucide-react'
+import { ExternalLink, Repeat2 } from 'lucide-react'
 import { FC } from 'react'
 
 import { ActorProfile } from '@/lib/models/actor'
@@ -45,6 +45,8 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
 export const Post: FC<PostProps> = (props) => {
   const { host, status, onShowAttachment } = props
   const actualStatus = getActualStatus(status)
+  const externalStatusUrl = actualStatus.url || actualStatus.id
+  const showExternalLink = !actualStatus.isLocalActor && Boolean(externalStatusUrl)
 
   const processedAndCleanedText = _.chain(actualStatus)
     .thru((s) => processStatusText(host, s))
@@ -65,15 +67,28 @@ export const Post: FC<PostProps> = (props) => {
             <span className="text-muted-foreground text-xs whitespace-nowrap">
               {formatDistanceToNow(actualStatus.createdAt)}
             </span>
+            {showExternalLink && (
+              <a
+                href={externalStatusUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => event.stopPropagation()}
+                className="ml-1 inline-flex items-center text-muted-foreground hover:text-foreground"
+                aria-label="Open original post"
+                title="Open original post"
+              >
+                <ExternalLink className="size-3.5" />
+              </a>
+            )}
           </div>
 
           <div className="mt-1 text-sm leading-relaxed break-words [&_p]:mb-4 last:[&_p]:mb-0">
             {processedAndCleanedText}
           </div>
-          
+
           <Poll status={actualStatus} currentTime={new Date()} />
           <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
-          
+
           <div onClick={(e) => e.stopPropagation()}>
             <Actions {...props} />
           </div>

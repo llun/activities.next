@@ -30,6 +30,11 @@ export const MediasModal: FC<Props> = ({
     setCurrentIndex(initialSelection)
   }, [initialSelection])
 
+  const handleClose = useCallback(() => {
+    setCurrentIndex(0)
+    onClosed()
+  }, [onClosed])
+
   const handlePrevious = useCallback(() => {
     if (!medias) return
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : medias.length - 1))
@@ -43,14 +48,14 @@ export const MediasModal: FC<Props> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!medias) return
-      if (e.key === 'Escape') onClosed()
+      if (e.key === 'Escape') handleClose()
       if (e.key === 'ArrowLeft') handlePrevious()
       if (e.key === 'ArrowRight') handleNext()
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [medias, onClosed, handlePrevious, handleNext])
+  }, [medias, handleClose, handlePrevious, handleNext])
 
   useEffect(() => {
     if (medias) {
@@ -75,7 +80,7 @@ export const MediasModal: FC<Props> = ({
         <Button
           variant="ghost"
           size="icon"
-          onClick={onClosed}
+          onClick={handleClose}
           className="text-white hover:bg-white/20"
         >
           <X className="h-6 w-6" />
@@ -113,7 +118,7 @@ export const MediasModal: FC<Props> = ({
 
         <div
           className="relative flex h-full w-full max-w-[90vw] items-center justify-center"
-          onClick={onClosed} // Click outside/on container closes? Robin didn't specify but standard lightbox behavior.
+          onClick={handleClose} // Click outside/on container closes? Robin didn't specify but standard lightbox behavior.
         >
           <div
             className="flex h-full w-full items-center justify-center"

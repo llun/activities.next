@@ -12,7 +12,8 @@ interface Props {
 
 export const DeleteSessionButton: FC<Props> = ({ existingSession }) => (
   <Button
-    variant="link"
+    variant="destructive"
+    size="sm"
     onClick={async () => {
       await deleteSession({ token: existingSession.token })
       window.location.reload()

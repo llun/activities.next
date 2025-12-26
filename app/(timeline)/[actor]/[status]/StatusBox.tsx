@@ -1,15 +1,14 @@
 'use client'
 
 import { FC, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 import { MediasModal } from '@/lib/components/MediasModal'
 import { Post } from '@/lib/components/Posts/Post'
 import { Attachment } from '@/lib/models/attachment'
-import { getMention } from '@/lib/models/actor'
 import { Status } from '@/lib/models/status'
 import { cn } from '@/lib/utils'
-import { getActualStatus } from '@/lib/utils/text/processStatusText'
-import { useRouter } from 'next/navigation'
+import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 
 interface Props {
   host: string
@@ -39,12 +38,8 @@ export const StatusBox: FC<Props> = ({
         )}
         onClick={() => {
           if (variant === 'detail') return
-          const actualStatus = getActualStatus(status)
-          if (actualStatus.actor) {
-            router.push(
-              `/${getMention(actualStatus.actor, true)}/${actualStatus.id}`
-            )
-          }
+          const detailPath = getStatusDetailPath(status)
+          if (detailPath) router.push(detailPath)
         }}
       >
         <Post
