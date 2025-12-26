@@ -15,7 +15,12 @@ export const ActorAttachments: FC<Props> = ({ className, attachments }) => {
   const onShowAttachment = (attachment: Attachment) => setModalMedia(attachment)
 
   return (
-    <div className={cn('grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1 gap-2', className)}>
+    <div
+      className={cn(
+        'grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3',
+        className
+      )}
+    >
       {attachments.map((attachment) => (
         <Media
           className="cursor-pointer object-cover w-full h-auto aspect-square"
