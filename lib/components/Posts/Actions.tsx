@@ -29,6 +29,7 @@ export const Actions: FC<Props> = ({
 
   const actualStatus =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
+  const canEdit = editable && status.type !== StatusType.enum.Announce
 
   return (
     <div className="mt-3 flex items-center gap-6 text-muted-foreground">
@@ -42,7 +43,7 @@ export const Actions: FC<Props> = ({
           host={host}
           onShowEdits={onShowEdits}
         />
-        {editable && (
+        {canEdit && (
           <>
             <EditButton
               status={actualStatus}

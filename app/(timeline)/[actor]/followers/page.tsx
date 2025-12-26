@@ -7,7 +7,6 @@ import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/ui/button'
-import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { Actor, ActorProfile } from '@/lib/models/actor'
 import { Follow } from '@/lib/models/follow'
@@ -31,7 +30,6 @@ export const generateMetadata = async ({
 const Page: FC<Props> = async ({ params }) => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
-  const { host } = getConfig()
 
   const session = await getServerSession(getAuthOptions())
   const isLoggedIn = Boolean(session?.user?.email)
@@ -41,6 +39,7 @@ const Page: FC<Props> = async ({ params }) => {
   if (parts.length !== 2) {
     return notFound()
   }
+  const actorDomain = parts[1]
 
   const actorProfile = await getProfileData(database, decodedActorHandle)
   if (!actorProfile) {
@@ -66,7 +65,7 @@ const Page: FC<Props> = async ({ params }) => {
     <div className="space-y-6">
       <div className="flex items-start gap-3">
         <Button variant="ghost" size="icon" asChild>
-          <Link href={`/@${actorProfile.person.preferredUsername}@${host}`}>
+          <Link href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}>
             <ArrowLeft className="h-5 w-5" />
           </Link>
         </Button>
