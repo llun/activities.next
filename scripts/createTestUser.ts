@@ -6,12 +6,14 @@
  */
 
 import * as bcrypt from 'bcrypt'
+import crypto from 'crypto'
 
 import { getDatabase } from '../lib/database'
 import { generateKeyPair } from '../lib/utils/signature'
 import { getConfig } from '../lib/config'
 
 const BCRYPT_ROUND = 10
+const SESSION_MAX_AGE_DAYS = 30
 
 async function createTestUser() {
   const args = process.argv.slice(2)
@@ -57,7 +59,7 @@ async function createTestUser() {
   ])
 
   // Create the account (no email verification for test user)
-  await database.createAccount({
+  const accountId = await database.createAccount({
     domain,
     email,
     username,
@@ -66,10 +68,23 @@ async function createTestUser() {
     passwordHash
   })
 
+  const sessionToken = crypto.randomBytes(32).toString('hex')
+  const expiresAt = Date.now() + SESSION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000
+  await database.createAccountSession({
+    accountId,
+    token: sessionToken,
+    expireAt: expiresAt
+  })
+
   console.log('\n✅ Test user created successfully!')
   console.log('\nLogin credentials:')
   console.log(`  Email: ${email}`)
   console.log(`  Password: ${password}`)
+  console.log('\nMock session:')
+  console.log(`  Token: ${sessionToken}`)
+  console.log(`  Expires: ${new Date(expiresAt).toISOString()}`)
+  console.log('  Cookie name (dev): next-auth.session-token')
+  console.log('  Cookie name (secure): __Secure-next-auth.session-token')
   console.log(`\nYou can now sign in at: http://localhost:3000/auth/signin`)
 
   process.exit(0)
