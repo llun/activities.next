@@ -6736,7 +6736,7 @@ __metadata:
     sanitize-html: "npm:^2.17.0"
     sharp: "npm:^0.34.5"
     tailwind-merge: "npm:^3.4.0"
-    tailwindcss: "npm:4.0.0"
+    tailwindcss: "npm:4.1.18"
     tw-animate-css: "npm:^1.4.0"
     typescript: "npm:^5.9.3"
     zod: "npm:^4.2.1"
@@ -13767,13 +13767,6 @@ __metadata:
   version: 3.4.0
   resolution: "tailwind-merge@npm:3.4.0"
   checksum: 10c0/eaf17bb695c51c7bb7a90366a9c62be295473ee97fcfd1da54287714d4a5788a88ff4ad1ab9e0128638257fda777d6c9ea88682e36195e31a7fa2cf43f45e310
-  languageName: node
-  linkType: hard
-
-"tailwindcss@npm:4.0.0":
-  version: 4.0.0
-  resolution: "tailwindcss@npm:4.0.0"
-  checksum: 10c0/418b1cb02c46f5064bdd4931d8bb030e5c2a986744226dc282b47ecd4b95d1eb919a6f35a68cac948fbf3224fd976feafd9476e289cb5774062f6a3b2a49606e
   languageName: node
   linkType: hard
 
