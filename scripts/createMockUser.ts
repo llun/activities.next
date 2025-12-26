@@ -1,8 +1,6 @@
-#!/usr/bin/env node
-
 /**
  * Script to create a test user for development/testing
- * Usage: npx tsx scripts/createMockUser.ts [username] [email] [password]
+ * Usage: scripts/createMockUser [username] [email] [password]
  */
 
 import * as bcrypt from 'bcrypt'
