@@ -76,6 +76,7 @@ export const PostBox: FC<Props> = ({
 }) => {
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [currentTab, setCurrentTab] = useState<string>('write')
+  const [text, setText] = useState<string>('')
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -86,10 +87,9 @@ export const PostBox: FC<Props> = ({
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
-    if (!postBoxRef.current) return
-
+    
     setAllowPost(false)
-    const message = postBoxRef.current.value
+    const message = text
     try {
       if (postExtension.poll.showing) {
         const poll = postExtension.poll
@@ -113,7 +113,7 @@ export const PostBox: FC<Props> = ({
         onPostUpdated(editStatus)
         dispatch(resetExtension())
 
-        postBoxRef.current.value = ''
+        setText('')
         return
       }
 
@@ -128,7 +128,7 @@ export const PostBox: FC<Props> = ({
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
 
-      postBoxRef.current.value = ''
+      setText('')
     } catch {
       alert('Fail to create a post')
     }
@@ -136,10 +136,7 @@ export const PostBox: FC<Props> = ({
 
   const onCloseReply = () => {
     onDiscardReply()
-
-    if (!postBoxRef.current) return
-    const postBox = postBoxRef.current
-    postBox.value = ''
+    setText('')
   }
 
   const onSelectUploadedMedias = (medias: UploadedAttachment[]) =>
@@ -162,19 +159,15 @@ export const PostBox: FC<Props> = ({
     await onPost()
   }
 
-  const onTextChange = () => {
-    if (!postBoxRef.current) {
-      return setAllowPost(false)
-    }
-
-    const text = postBoxRef.current.value
-    if (text.trim().length === 0) {
+  const onTextChange = (value: string) => {
+    setText(value)
+    if (value.trim().length === 0) {
       setAllowPost(false)
       return
     }
     if (
       editStatus &&
-      text === sanitizeHtml(editStatus.text, { allowedTags: [] })
+      value === sanitizeHtml(editStatus.text, { allowedTags: [] })
     ) {
       setAllowPost(false)
       return
@@ -232,35 +225,42 @@ export const PostBox: FC<Props> = ({
   }
 
   useEffect(() => {
-    if (!postBoxRef.current) return
-    const postBox = postBoxRef.current
-
     if (editStatus) {
-      postBox.value = editStatus.text
-      postBox.focus()
+      setText(editStatus.text)
+      setAllowPost(false) // Initial state for edit is disabled until changed? Or should we check? 
+      // Original logic in onTextChange checked if text === editStatus.text.
+      // So if we set text to editStatus.text, allowPost should be false.
+      // But we need to update allowPost.
       return
     } else {
-      postBox.value = ''
+      setText('')
+      setAllowPost(false)
     }
 
     if (!replyStatus) return
 
     if (replyStatus.type !== StatusType.enum.Note) {
-      postBox.focus()
       return
     }
 
     const defaultMessage = getDefaultMessage(profile, replyStatus)
     if (!defaultMessage) {
-      postBox.focus()
       return
     }
 
     const [value, start, end] = defaultMessage
-    postBox.value = value
-    postBox.selectionStart = start
-    postBox.selectionEnd = end
-    postBox.focus()
+    setText(value)
+    setAllowPost(true)
+    
+    // We need to wait for render to focus and set selection
+    // Using setTimeout as a simple way to wait for next tick after render
+    setTimeout(() => {
+      if (postBoxRef.current) {
+        postBoxRef.current.selectionStart = start
+        postBoxRef.current.selectionEnd = end
+        postBoxRef.current.focus()
+      }
+    }, 0)
   }, [profile, replyStatus, editStatus])
 
   return (
@@ -288,15 +288,16 @@ export const PostBox: FC<Props> = ({
                   className="flex min-h-[120px] w-full bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none resize-none"
                   rows={5}
                   onKeyDown={onQuickPost}
-                  onChange={onTextChange}
+                  onChange={(e) => onTextChange(e.target.value)}
                   name="message"
                   placeholder="What's on your mind?"
+                  value={text}
                 />
               </TabsContent>
 
               <TabsContent value="preview" className="mt-0">
                 <div className="flex min-h-[120px] w-full bg-transparent px-3 py-2 text-sm">
-                  {postBoxRef.current?.value ? (
+                  {text ? (
                     <div className="prose prose-sm max-w-none">
                       <ReactMarkdown
                         rehypePlugins={[[
@@ -307,7 +308,7 @@ export const PostBox: FC<Props> = ({
                           }
                         ]]}
                       >
-                        {postBoxRef.current.value}
+                        {text}
                       </ReactMarkdown>
                     </div>
                   ) : (

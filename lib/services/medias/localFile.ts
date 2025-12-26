@@ -121,7 +121,13 @@ export class LocalFileStorage implements MediaStorage {
       throw new Error('Fail to store media')
     }
 
-    const protocol = this._host.startsWith('localhost') ? 'http' : 'https'
+    const protocol =
+      this._host.startsWith('localhost') ||
+      this._host.startsWith('127.0.0.1') ||
+      this._host.startsWith('::1') ||
+      this._host.startsWith('[::1]')
+        ? 'http'
+        : 'https'
     const url = `${protocol}://${this._host}/api/v1/files/${storedMedia.original.path
       .split('/')
       .pop()}`
