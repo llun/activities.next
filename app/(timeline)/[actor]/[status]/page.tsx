@@ -40,14 +40,22 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   const protocol = parts[1].startsWith('localhost') ? 'http' : 'https'
-  const statusId = `${protocol}://${parts[1]}/users/${parts[0]}/statuses/${id}`
-  const [status, replies] = await Promise.all([
-    database.getStatus({ statusId, withReplies: false }),
-    database.getStatusReplies({ statusId })
-  ])
+  const fullStatusId = `${protocol}://${parts[1]}/users/${parts[0]}/statuses/${id}`
+
+  // Try full URL format first (ActivityPub standard), then fallback to raw id (for legacy/mock data)
+  let status = await database.getStatus({ statusId: fullStatusId, withReplies: false })
+  let statusId = fullStatusId
+
+  if (!status) {
+    status = await database.getStatus({ statusId: id, withReplies: false })
+    statusId = id
+  }
+
   if (!status) {
     return notFound()
   }
+
+  const replies = await database.getStatusReplies({ statusId })
 
   if (
     !(
