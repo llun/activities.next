@@ -69,7 +69,8 @@ const Page = async () => {
               id="nameInput"
               name="name"
               aria-describedby="nameHelp"
-              defaultValue={profile.name}
+              defaultValue={profile.name || ''}
+              placeholder="Your display name"
             />
             <p id="nameHelp" className="text-[0.8rem] text-muted-foreground">
               Name that you want to show in profile
@@ -83,6 +84,7 @@ const Page = async () => {
               name="summary"
               id="summaryInput"
               defaultValue={profile.summary || ''}
+              placeholder="A brief description about yourself"
             />
           </div>
 
@@ -93,7 +95,8 @@ const Page = async () => {
               name="iconUrl"
               id="iconInput"
               aria-describedby="iconHelp"
-              defaultValue={profile.iconUrl}
+              defaultValue={profile.iconUrl || ''}
+              placeholder="https://example.com/avatar.jpg"
             />
             <p id="iconHelp" className="text-[0.8rem] text-muted-foreground">
               Image URL for profile
@@ -107,7 +110,8 @@ const Page = async () => {
               id="headerImageInput"
               name="headerImageUrl"
               aria-describedby="headerImageHelp"
-              defaultValue={profile.headerImageUrl}
+              defaultValue={profile.headerImageUrl || ''}
+              placeholder="https://example.com/header.jpg"
             />
             <p
               id="headerImageHelp"
@@ -135,7 +139,8 @@ const Page = async () => {
               id="appleSharedAlbumTokenInput"
               name="appleSharedAlbumToken"
               aria-describedby="appleSharedAlbumTokenHelp"
-              defaultValue={profile.appleSharedAlbumToken}
+              defaultValue={profile.appleSharedAlbumToken || ''}
+              placeholder="Enter your Apple Shared Album token"
             />
             <p
               id="appleSharedAlbumTokenHelp"
