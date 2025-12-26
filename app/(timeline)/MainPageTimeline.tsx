@@ -109,30 +109,32 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       </div>
 
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <PostBox
-          host={host}
-          profile={profile}
-          replyStatus={statusActionState.replyStatus}
-          editStatus={statusActionState.editStatus}
-          isMediaUploadEnabled={isMediaUploadEnabled}
-          onDiscardReply={() => dispatchStatusAction(clearAction())}
-          onDiscardEdit={() => dispatchStatusAction(clearAction())}
-          onPostCreated={(status: Status) => {
-            setCurrentStatuses((previousValue) => [status, ...previousValue])
-            dispatchStatusAction(clearAction())
-          }}
-          onPostUpdated={(updatedStatus: Status) => {
-            const index = currentStatuses.findIndex(
-              (status) => status.id === updatedStatus.id
-            )
-            // TODO: Update status in Timeline somehow.
-            if (index >= 0) {
-              currentStatuses[index] = updatedStatus
-              setCurrentStatuses(() => currentStatuses)
-            }
-            dispatchStatusAction(clearAction())
-          }}
-        />
+        <div className="p-4 pb-2">
+          <PostBox
+            host={host}
+            profile={profile}
+            replyStatus={statusActionState.replyStatus}
+            editStatus={statusActionState.editStatus}
+            isMediaUploadEnabled={isMediaUploadEnabled}
+            onDiscardReply={() => dispatchStatusAction(clearAction())}
+            onDiscardEdit={() => dispatchStatusAction(clearAction())}
+            onPostCreated={(status: Status) => {
+              setCurrentStatuses((previousValue) => [status, ...previousValue])
+              dispatchStatusAction(clearAction())
+            }}
+            onPostUpdated={(updatedStatus: Status) => {
+              const index = currentStatuses.findIndex(
+                (status) => status.id === updatedStatus.id
+              )
+              // TODO: Update status in Timeline somehow.
+              if (index >= 0) {
+                currentStatuses[index] = updatedStatus
+                setCurrentStatuses(() => currentStatuses)
+              }
+              dispatchStatusAction(clearAction())
+            }}
+          />
+        </div>
 
         <Tabs
           value={currentTab.timeline}

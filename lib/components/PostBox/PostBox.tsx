@@ -10,6 +10,9 @@ import {
 import { BarChart3 } from 'lucide-react'
 import sanitizeHtml from 'sanitize-html'
 import ReactMarkdown from 'react-markdown'
+import rehypeSanitize from 'rehype-sanitize'
+
+import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 
 import { createNote, createPoll, updateNote } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
@@ -274,7 +277,7 @@ export const PostBox: FC<Props> = ({
 
           <div className="flex-1">
             <Tabs value={currentTab} onValueChange={setCurrentTab}>
-              <TabsList className="grid w-full grid-cols-2 mb-3">
+              <TabsList className="mb-3">
                 <TabsTrigger value="write">Write</TabsTrigger>
                 <TabsTrigger value="preview">Preview</TabsTrigger>
               </TabsList>
@@ -282,7 +285,7 @@ export const PostBox: FC<Props> = ({
               <TabsContent value="write" className="mt-0">
                 <textarea
                   ref={postBoxRef}
-                  className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex min-h-[120px] w-full bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none resize-none"
                   rows={5}
                   onKeyDown={onQuickPost}
                   onChange={onTextChange}
@@ -292,10 +295,20 @@ export const PostBox: FC<Props> = ({
               </TabsContent>
 
               <TabsContent value="preview" className="mt-0">
-                <div className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                <div className="flex min-h-[120px] w-full bg-transparent px-3 py-2 text-sm">
                   {postBoxRef.current?.value ? (
                     <div className="prose prose-sm max-w-none">
-                      <ReactMarkdown>{postBoxRef.current.value}</ReactMarkdown>
+                      <ReactMarkdown
+                        rehypePlugins={[[
+                          rehypeSanitize,
+                          {
+                            tagNames: SANITIZED_OPTION.allowedTags,
+                            attributes: SANITIZED_OPTION.allowedAttributes
+                          }
+                        ]]}
+                      >
+                        {postBoxRef.current.value}
+                      </ReactMarkdown>
                     </div>
                   ) : (
                     <p className="text-muted-foreground">Nothing to preview</p>
