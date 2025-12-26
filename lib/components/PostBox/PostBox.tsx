@@ -266,9 +266,9 @@ export const PostBox: FC<Props> = ({
       <form ref={formRef} onSubmit={onPost}>
         <div className="flex items-start gap-4 mb-3">
           <Avatar className="size-12">
-            <AvatarImage src={profile.icon} alt={profile.name} />
+            <AvatarImage src={profile.iconUrl} alt={profile.name ?? profile.username} />
             <AvatarFallback>
-              {profile.name ? profile.name.charAt(0).toUpperCase() : 'U'}
+              {(profile.name ?? profile.username).charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
 
