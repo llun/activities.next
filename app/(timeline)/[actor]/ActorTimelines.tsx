@@ -44,6 +44,7 @@ const isReply = (status: Status) => {
 export const ActorTimelines: FC<Props> = ({ host, currentTime, statuses }) => {
   const [activeTab, setActiveTab] = useState('posts')
 
+  const postStatuses = statuses.filter((status) => !isReply(status))
   const mediaStatuses = statuses.filter(
     (status) => getAttachments(status).length > 0
   )
@@ -72,12 +73,12 @@ export const ActorTimelines: FC<Props> = ({ host, currentTime, statuses }) => {
       </TabsList>
 
       <TabsContent value="posts" className="mt-0">
-        {statuses.length > 0 ? (
+        {postStatuses.length > 0 ? (
           <Posts
             host={host}
             className="mt-0"
             currentTime={currentTime}
-            statuses={statuses.filter((status) => !isReply(status))}
+            statuses={postStatuses}
           />
         ) : (
           <p className="p-8 text-center text-muted-foreground">No posts yet</p>

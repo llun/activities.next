@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, useReducer, useState } from 'react'
+import { FC, useReducer, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
 import { PostBox } from '@/lib/components/PostBox/PostBox'
@@ -55,6 +55,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
+  const tabRequestId = useRef(0)
 
   const onReply = (status: Status) => {
     dispatchStatusAction(replyAction(status))
@@ -78,15 +79,24 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     const tab = TIMELINES_TABS.find((t) => t.timeline === value)
     if (!tab) return
 
+    const requestId = tabRequestId.current + 1
+    tabRequestId.current = requestId
+
     setCurrentTab(tab)
     setCurrentStatuses([])
     setLoadingMoreStatuses(true)
 
-    const statuses = await getTimeline({
-      timeline: tab.timeline
-    })
-    setCurrentStatuses(statuses)
-    setLoadingMoreStatuses(false)
+    try {
+      const statuses = await getTimeline({
+        timeline: tab.timeline
+      })
+      if (requestId !== tabRequestId.current) return
+      setCurrentStatuses(statuses)
+    } finally {
+      if (requestId === tabRequestId.current) {
+        setLoadingMoreStatuses(false)
+      }
+    }
   }
 
   return (
