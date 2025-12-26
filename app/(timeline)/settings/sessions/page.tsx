@@ -33,18 +33,48 @@ const Page = async () => {
   })
 
   return (
-    <div>
-      <h2>Sessions</h2>
-      <ol>
-        {sessions.map((existingSession) => (
-          <li key={`session-${existingSession.expireAt}`}>
-            Session created at{' '}
-            {formatRelative(existingSession.createdAt, currentTime)} and will
-            expires in {formatDistance(existingSession.expireAt, currentTime)}
-            <DeleteSessionButton existingSession={existingSession} />
-          </li>
-        ))}
-      </ol>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Sessions</h1>
+        <p className="text-sm text-muted-foreground">
+          Review active sessions and revoke access you no longer need.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {sessions.length} session{sessions.length === 1 ? '' : 's'} linked to
+          your account.
+        </p>
+      </div>
+
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        {sessions.length > 0 ? (
+          <ol className="space-y-3">
+            {sessions.map((existingSession) => (
+              <li
+                key={`session-${existingSession.token}`}
+                className="rounded-xl border bg-background p-4 shadow-sm"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      Signed in{' '}
+                      {formatRelative(existingSession.createdAt, currentTime)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Expires in{' '}
+                      {formatDistance(existingSession.expireAt, currentTime)}
+                    </p>
+                  </div>
+                  <DeleteSessionButton existingSession={existingSession} />
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+            No active sessions found.
+          </div>
+        )}
+      </section>
     </div>
   )
 }

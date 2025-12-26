@@ -17,7 +17,7 @@ async function createMockStatuses() {
   console.log(`Looking for user ${username} on ${domain}...`)
   const actor = await database.getActorFromUsername({ username, domain })
   if (!actor) {
-    console.error('Test user not found. Run createTestUser.ts first.')
+    console.error('Test user not found. Run createMockUser.ts first.')
     process.exit(1)
   }
 
