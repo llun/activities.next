@@ -22,11 +22,28 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   const session = await getServerSession(getAuthOptions())
   const actor = await getActorFromSession(database, session)
 
+  // Check if iconUrl is a real user-uploaded avatar (not auto-generated)
+  // Auto-generated URLs typically contain service identifiers
+  const isRealAvatar = (url?: string) => {
+    if (!url) return false
+    // Skip if URL is from known auto-generation services
+    if (url.includes('gravatar')) return false
+    if (url.includes('ui-avatars')) return false
+    if (url.includes('robohash')) return false
+    if (url.includes('dicebear')) return false
+    if (url.includes('boringavatars')) return false
+    // Skip if URL appears to be a default/placeholder
+    if (url.includes('default')) return false
+    if (url.includes('placeholder')) return false
+    return true
+  }
+
   const user = actor
     ? {
         name: actor.name || actor.username,
-        handle: `@${getMention(getActorProfile(actor))}`,
-        avatarUrl: actor.iconUrl
+        username: actor.username,
+        handle: getMention(getActorProfile(actor)),
+        avatarUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : undefined
       }
     : undefined
 

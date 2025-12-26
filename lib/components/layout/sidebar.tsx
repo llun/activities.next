@@ -24,6 +24,7 @@ const navItems = [
 
 interface User {
   name: string
+  username: string
   handle: string
   avatarUrl?: string
 }
@@ -35,13 +36,9 @@ interface SidebarProps {
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
+  const getAvatarInitial = (username: string) => {
+    if (!username) return '?'
+    return username[0].toUpperCase()
   }
 
   return (
@@ -82,7 +79,9 @@ export function Sidebar({ user }: SidebarProps) {
             <div className="flex items-center gap-3 rounded-lg p-2">
               <Avatar className="h-10 w-10">
                 {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                  {getAvatarInitial(user.username)}
+                </AvatarFallback>
               </Avatar>
               <div className="flex-1 overflow-hidden">
                 <p className="text-sm font-medium truncate">{user.name}</p>
@@ -137,7 +136,9 @@ export function Sidebar({ user }: SidebarProps) {
                 <div>
                   <Avatar className="h-10 w-10">
                     {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                    <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                    <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                      {getAvatarInitial(user.username)}
+                    </AvatarFallback>
                   </Avatar>
                 </div>
               </TooltipTrigger>
