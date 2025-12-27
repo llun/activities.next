@@ -344,7 +344,6 @@ export const PostBox: FC<Props> = ({
 
   return (
     <div>
-      <ReplyPreview host={host} status={replyStatus} onClose={onCloseReply} />
       <form ref={formRef} onSubmit={onPost}>
         <div className="flex items-start gap-4 mb-3">
           <Avatar className="size-12">
@@ -354,7 +353,8 @@ export const PostBox: FC<Props> = ({
             </AvatarFallback>
           </Avatar>
 
-          <div className="flex-1">
+          <div className="flex-1 min-w-0 space-y-3">
+            <ReplyPreview host={host} status={replyStatus} onClose={onCloseReply} />
             <Tabs value={currentTab} onValueChange={setCurrentTab}>
               <TabsList className="mb-3">
                 <TabsTrigger value="write">Write</TabsTrigger>
