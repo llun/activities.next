@@ -94,6 +94,17 @@ export const PostBox: FC<Props> = ({
     DEFAULT_STATE
   )
 
+  useEffect(() => {
+    const attachments = postExtension.attachments
+    return () => {
+      attachments.forEach((attachment) => {
+        if (attachment.url.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.url)
+        }
+      })
+    }
+  }, [])
+
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
 
@@ -130,7 +141,7 @@ export const PostBox: FC<Props> = ({
         return
       }
 
-      const attachments = await Promise.all(
+      const uploadResults = await Promise.all(
         postExtension.attachments.map(async (attachment) => {
           if (!attachment.file) return attachment
 
@@ -144,6 +155,11 @@ export const PostBox: FC<Props> = ({
           try {
             const uploaded = await uploadAttachment(attachment.file)
             if (!uploaded) throw new Error()
+
+            // Revoke the blob URL after successful upload
+            if (attachment.url.startsWith('blob:')) {
+              URL.revokeObjectURL(attachment.url)
+            }
 
             const newAttachment = {
               ...attachment,
@@ -163,6 +179,14 @@ export const PostBox: FC<Props> = ({
             throw new Error(`Fail to upload ${attachment.name}`)
           }
         })
+      )
+
+      // Filter out attachments that were removed during upload
+      const currentAttachmentIds = new Set(
+        postExtension.attachments.map((a) => a.id)
+      )
+      const attachments = uploadResults.filter((a) =>
+        currentAttachmentIds.has(a.id)
       )
 
       const response = await createNote({
@@ -190,6 +214,10 @@ export const PostBox: FC<Props> = ({
   }
 
   const onRemoveAttachment = (attachmentIndex: number) => {
+    const attachment = postExtension.attachments[attachmentIndex]
+    if (attachment.url.startsWith('blob:')) {
+      URL.revokeObjectURL(attachment.url)
+    }
     dispatch(
       setAttachments([
         ...postExtension.attachments.slice(0, attachmentIndex),

@@ -34,6 +34,7 @@ describe('UploadMediaButton', () => {
 
     // Mock URL.createObjectURL
     global.URL.createObjectURL = jest.fn(() => 'blob:test-url')
+    global.URL.revokeObjectURL = jest.fn()
   })
 
   describe('MAX_ATTACHMENTS enforcement', () => {

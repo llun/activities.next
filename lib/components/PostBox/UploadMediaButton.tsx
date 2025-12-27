@@ -61,9 +61,9 @@ export const UploadMediaButton: FC<Props> = ({
 
     await Promise.all(
       files.map(async (targetFile) => {
+        const previewUrl = URL.createObjectURL(targetFile)
         try {
           const tempId = crypto.randomUUID()
-          const previewUrl = URL.createObjectURL(targetFile)
           const file = await resizeImage(targetFile, MAX_WIDTH, MAX_HEIGHT)
           onAddAttachment({
             type: MEDIA_TYPE,
@@ -77,6 +77,8 @@ export const UploadMediaButton: FC<Props> = ({
           })
         } catch (error) {
           console.error('Failed to process file:', targetFile.name, error)
+          // Revoke the blob URL if processing fails
+          URL.revokeObjectURL(previewUrl)
         }
       })
     )

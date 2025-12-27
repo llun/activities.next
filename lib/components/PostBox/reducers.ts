@@ -102,6 +102,11 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
 ) => {
   switch (action.type) {
     case 'resetExtension': {
+      state.attachments.forEach((attachment) => {
+        if (attachment.url.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.url)
+        }
+      })
       return DEFAULT_STATE
     }
     case 'setAttachments': {
@@ -111,6 +116,13 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       }
     }
     case 'setPollVisibility': {
+      if (action.visible) {
+        state.attachments.forEach((attachment) => {
+          if (attachment.url.startsWith('blob:')) {
+            URL.revokeObjectURL(attachment.url)
+          }
+        })
+      }
       const duration = state.attachments.length
         ? DEFAULT_DURATION
         : state.poll.durationInSeconds
@@ -180,6 +192,10 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
         (item) => item.id === action.id
       )
       if (index === -1) return state
+      const attachment = state.attachments[index]
+      if (attachment.url.startsWith('blob:')) {
+        URL.revokeObjectURL(attachment.url)
+      }
       return {
         ...state,
         attachments: [
