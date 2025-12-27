@@ -2,8 +2,8 @@
 
 import { FC, useEffect, useState } from 'react'
 
-import { follow, isFollowing, unfollow } from '../client'
-import { Button } from './ui/button'
+import { follow, isFollowing, unfollow } from '@/lib/client'
+import { Button } from '@/lib/components/ui/button'
 
 export interface FollowActionProps {
   targetActorId: string
