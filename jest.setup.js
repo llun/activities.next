@@ -7,9 +7,11 @@ fetchMock.dontMock()
 global.TextEncoder = TextEncoder
 global.TextDecoder = TextDecoder
 
-// Fix EventEmitter memory leak warning in tests
-// This is safe in test environment where multiple listeners are expected
-process.setMaxListeners(0)
+// Additional safeguard for EventEmitter warnings in test environment
+// Set a reasonable higher limit for test execution
+if (process.setMaxListeners) {
+  process.setMaxListeners(50)
+}
 
 jest.mock('@digitalbazaar/http-client', () => {
   return {

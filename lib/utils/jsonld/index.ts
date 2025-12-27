@@ -14,7 +14,7 @@ const customJsonLD = jsonld as any
 const nodeDocumentLoader = customJsonLD.documentLoaders.node()
 
 export const compact = async (document: JsonLdDocument) => {
-  const context = { '@context': document['@context'] }
+  const context = { '@context': document['@context'] ?? {} }
   const compactedActivity = await jsonld.compact(document, context, {
     async documentLoader(url) {
       switch (url) {

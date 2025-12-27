@@ -341,4 +341,21 @@ These are all addressable issues that won't require major refactoring. The proje
 
 **Overall Health Score**: 7.5/10
 
+### Scoring Methodology
+
+The health score is calculated based on the following factors:
+
+| Category | Weight | Score | Notes |
+|----------|--------|-------|-------|
+| **Code Quality** | 20% | 8/10 | Clean code, good structure, minimal 'any' types, some TODOs |
+| **Test Coverage** | 20% | 8/10 | 48 test files, 169 tests passing, but API routes need more coverage |
+| **Documentation** | 15% | 7/10 | Good setup docs, now has .env.example and CONTRIBUTING.md |
+| **Security** | 15% | 8/10 | Proper authentication, input validation, bcrypt for passwords |
+| **Build/Deploy** | 10% | 6/10 | Build issues with Google Fonts, but mitigated with fallbacks |
+| **Dependencies** | 10% | 6/10 | Peer dependency warnings, but project functions correctly |
+| **Performance** | 5% | 8/10 | Good database indexing, needs bundle analysis |
+| **Maintainability** | 5% | 8/10 | Clear structure, 13 documented TODOs, technical debt tracked |
+
+**Calculation**: (8×0.20 + 8×0.20 + 7×0.15 + 8×0.15 + 6×0.10 + 6×0.10 + 8×0.05 + 8×0.05) = 7.5
+
 The project is production-ready with minor improvements needed for optimal operation.
