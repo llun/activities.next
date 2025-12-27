@@ -26,6 +26,7 @@ interface Props {
   onAddAttachment: (attachment: PostBoxAttachment) => void
   onUpdateAttachment: (id: string, attachment: PostBoxAttachment) => void
   onRemoveAttachment: (id: string) => void
+  onDuplicateError: () => void
 }
 
 export const UploadMediaButton: FC<Props> = ({
@@ -33,7 +34,8 @@ export const UploadMediaButton: FC<Props> = ({
   attachments = [],
   onAddAttachment,
   onUpdateAttachment,
-  onRemoveAttachment
+  onRemoveAttachment,
+  onDuplicateError
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onOpenFile = () => {
@@ -52,7 +54,7 @@ export const UploadMediaButton: FC<Props> = ({
     })
 
     if (files.length !== event.currentTarget.files.length) {
-      window.alert('Some files are already selected')
+      onDuplicateError()
     }
 
     files.map(async (targetFile) => {

@@ -80,6 +80,7 @@ export const PostBox: FC<Props> = ({
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [currentTab, setCurrentTab] = useState<string>('write')
   const [text, setText] = useState<string>('')
+  const [warningMsg, setWarningMsg] = useState<string | null>(null)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -92,6 +93,7 @@ export const PostBox: FC<Props> = ({
     event?.preventDefault()
 
     setAllowPost(false)
+    setWarningMsg(null)
     const message = text
     try {
       if (postExtension.poll.showing) {
@@ -335,11 +337,17 @@ export const PostBox: FC<Props> = ({
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
-              onAddAttachment={(attachment) => dispatch(addAttachment(attachment))}
+              onAddAttachment={(attachment) => {
+                setWarningMsg(null)
+                dispatch(addAttachment(attachment))
+              }}
               onUpdateAttachment={(id, attachment) =>
                 dispatch(updateAttachment(id, attachment))
               }
               onRemoveAttachment={(id) => dispatch(removeAttachment(id))}
+              onDuplicateError={() =>
+                setWarningMsg('Some files are already selected')
+              }
             />
             <Button
               type="button"
@@ -373,6 +381,9 @@ export const PostBox: FC<Props> = ({
             </Button>
           </div>
         </div>
+        {warningMsg ? (
+          <div className="text-xs text-destructive mb-3">{warningMsg}</div>
+        ) : null}
         <div className="grid gap-4 grid-cols-8">
           {postExtension.attachments.map((item, index) => {
             return (
