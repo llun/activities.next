@@ -2,7 +2,7 @@ import { Reducer } from 'react'
 
 import { PostBoxAttachment } from '../../models/attachment'
 import { MAX_ATTACHMENTS } from '../../services/medias/constants'
-import { Choice, DEFAULT_DURATION, Duration } from './PollChoices'
+import { Choice, DEFAULT_DURATION, Duration } from './poll-choices'
 
 interface StatusExtension {
   attachments: PostBoxAttachment[]

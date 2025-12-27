@@ -1,13 +1,13 @@
 import { FC } from 'react'
 
-import { Status, StatusType } from '../../models/status'
-import { DeleteButton } from './Actions/DeleteButton'
-import { EditButton } from './Actions/EditButton'
-import { EditHistoryButton } from './Actions/EditHistoryButton'
-import { LikeButton } from './Actions/LikeButton'
-import { ReplyButton } from './Actions/ReplyButton'
-import { RepostButton } from './Actions/RepostButton'
-import { PostProps } from './Post'
+import { Status, StatusType } from '../../../models/status'
+import { DeleteButton } from './delete-button'
+import { EditButton } from './edit-button'
+import { EditHistoryButton } from './edit-history-button'
+import { LikeButton } from './like-button'
+import { ReplyButton } from './reply-button'
+import { RepostButton } from './repost-button'
+import { PostProps } from '../post'
 
 interface Props extends PostProps {
   onShowEdits?: (status: Status) => void

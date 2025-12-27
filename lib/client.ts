@@ -1,4 +1,4 @@
-import { Duration } from '@/lib/components/PostBox/PollChoices'
+import { Duration } from '@/lib/components/post-box/poll-choices'
 import {
   Attachment,
   PostBoxAttachment,

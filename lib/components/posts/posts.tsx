@@ -9,8 +9,8 @@ import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 import { ActorProfile } from '../../models/actor'
 import { Attachment } from '../../models/attachment'
 import { EditableStatus, Status } from '../../models/status'
-import { MediasModal } from '../MediasModal'
-import { Post } from './Post'
+import { MediasModal } from '../medias-modal/medias-modal'
+import { Post } from './post'
 
 interface Props {
   host: string

@@ -3,8 +3,8 @@
 import { FC, useReducer, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
-import { PostBox } from '@/lib/components/PostBox/PostBox'
-import { Posts } from '@/lib/components/Posts/Posts'
+import { PostBox } from '@/lib/components/post-box/post-box'
+import { Posts } from '@/lib/components/posts/posts'
 import {
   Tabs,
   TabsContent,
