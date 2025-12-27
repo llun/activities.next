@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { FollowAction } from '@/lib/components/FollowAction'
+import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { ActorProfile } from '@/lib/models/actor'
 

@@ -1,9 +1,9 @@
 import { FC, useState } from 'react'
 
-import { Attachment } from '../models/attachment'
+import { Modal } from '@/lib/components/modal/modal'
+import { Media } from '@/lib/components/posts/media'
+import { Attachment } from '@/lib/models/attachment'
 import { cn } from '@/lib/utils'
-import { Modal } from './Modal'
-import { Media } from './Posts/Media'
 
 interface Props {
   className?: string

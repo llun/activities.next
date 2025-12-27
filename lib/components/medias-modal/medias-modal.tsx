@@ -2,10 +2,10 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { Media } from '@/lib/components/Posts/Media'
+import { Media } from '@/lib/components/posts/media'
 import { Button } from '@/lib/components/ui/button'
-import { cn } from '@/lib/utils'
 import { Attachment } from '@/lib/models/attachment'
+import { cn } from '@/lib/utils'
 
 interface Props {
   medias: Attachment[] | null

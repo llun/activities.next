@@ -12,14 +12,13 @@ import sanitizeHtml from 'sanitize-html'
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 
-import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
-
 import {
   createNote,
   createPoll,
   updateNote,
   uploadAttachment
 } from '@/lib/client'
+import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
   Tabs,
@@ -27,7 +26,6 @@ import {
   TabsList,
   TabsTrigger
 } from '@/lib/components/ui/tabs'
-import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   ActorProfile,
   getMention,
@@ -40,11 +38,12 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/models/status'
+import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 import { urlToId } from '@/lib/utils/urlToId'
 
-import { Duration, PollChoices } from './PollChoices'
-import { ReplyPreview } from './ReplyPreview'
-import { UploadMediaButton } from './UploadMediaButton'
+import { Duration, PollChoices } from './poll-choices'
+import { ReplyPreview } from './reply-preview'
+import { UploadMediaButton } from './upload-media-button'
 import {
   DEFAULT_STATE,
   addAttachment,

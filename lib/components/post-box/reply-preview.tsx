@@ -1,14 +1,13 @@
 import { X } from 'lucide-react'
 import { FC } from 'react'
 
+import { ActorInfo } from '@/lib/components/posts/actor'
+import { Poll } from '@/lib/components/posts/poll'
 import { Button } from '@/lib/components/ui/button'
-import { ActorInfo } from '@/lib/components/Posts/Actor'
-import { Poll } from '@/lib/components/Posts/Poll'
 import { EditableStatus, Status, StatusType } from '@/lib/models/status'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
-
 
 interface Props {
   host: string

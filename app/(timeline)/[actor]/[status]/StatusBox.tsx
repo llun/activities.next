@@ -3,8 +3,8 @@
 import { FC, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { MediasModal } from '@/lib/components/MediasModal'
-import { Post } from '@/lib/components/Posts/Post'
+import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
+import { Post } from '@/lib/components/posts/post'
 import { Attachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
 import { cn } from '@/lib/utils'
