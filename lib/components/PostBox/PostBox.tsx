@@ -130,40 +130,40 @@ export const PostBox: FC<Props> = ({
         return
       }
 
-      const attachments = []
-      for (const attachment of postExtension.attachments) {
-        if (attachment.file) {
+      const attachments = await Promise.all(
+        postExtension.attachments.map(async (attachment) => {
+          if (!attachment.file) return attachment
+
           dispatch(
             updateAttachment(attachment.id, {
               ...attachment,
               isLoading: true
             })
           )
-          const uploaded = await uploadAttachment(attachment.file)
-          if (!uploaded) {
-            setIsPosting(false)
-            setAllowPost(true)
+
+          try {
+            const uploaded = await uploadAttachment(attachment.file)
+            if (!uploaded) throw new Error()
+
+            const newAttachment = {
+              ...attachment,
+              ...uploaded,
+              isLoading: false,
+              file: undefined
+            }
+            dispatch(updateAttachment(attachment.id, newAttachment))
+            return newAttachment
+          } catch {
             dispatch(
               updateAttachment(attachment.id, {
                 ...attachment,
                 isLoading: false
               })
             )
-            window.alert(`Fail to upload ${attachment.name}`)
-            return
+            throw new Error(`Fail to upload ${attachment.name}`)
           }
-          const newAttachment = {
-            ...attachment,
-            ...uploaded,
-            isLoading: false,
-            file: undefined
-          }
-          dispatch(updateAttachment(attachment.id, newAttachment))
-          attachments.push(newAttachment)
-        } else {
-          attachments.push(attachment)
-        }
-      }
+        })
+      )
 
       const response = await createNote({
         message,
