@@ -14,7 +14,12 @@ import rehypeSanitize from 'rehype-sanitize'
 
 import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 
-import { createNote, createPoll, updateNote } from '@/lib/client'
+import {
+  createNote,
+  createPoll,
+  updateNote,
+  uploadAttachment
+} from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import {
   Tabs,
@@ -44,7 +49,6 @@ import {
   DEFAULT_STATE,
   addAttachment,
   addPollChoice,
-  removeAttachment,
   removePollChoice,
   resetExtension,
   setAttachments,
@@ -78,6 +82,7 @@ export const PostBox: FC<Props> = ({
   onDiscardEdit
 }) => {
   const [allowPost, setAllowPost] = useState<boolean>(false)
+  const [isPosting, setIsPosting] = useState<boolean>(false)
   const [currentTab, setCurrentTab] = useState<string>('write')
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
@@ -93,6 +98,7 @@ export const PostBox: FC<Props> = ({
     event?.preventDefault()
 
     setAllowPost(false)
+    setIsPosting(true)
     setWarningMsg(null)
     const message = text
     try {
@@ -106,6 +112,7 @@ export const PostBox: FC<Props> = ({
         })
 
         dispatch(resetExtension())
+        setIsPosting(false)
         return
       }
 
@@ -119,10 +126,45 @@ export const PostBox: FC<Props> = ({
         dispatch(resetExtension())
 
         setText('')
+        setIsPosting(false)
         return
       }
 
-      const attachments = postExtension.attachments
+      const attachments = []
+      for (const attachment of postExtension.attachments) {
+        if (attachment.file) {
+          dispatch(
+            updateAttachment(attachment.id, {
+              ...attachment,
+              isLoading: true
+            })
+          )
+          const uploaded = await uploadAttachment(attachment.file)
+          if (!uploaded) {
+            setIsPosting(false)
+            setAllowPost(true)
+            dispatch(
+              updateAttachment(attachment.id, {
+                ...attachment,
+                isLoading: false
+              })
+            )
+            window.alert(`Fail to upload ${attachment.name}`)
+            return
+          }
+          const newAttachment = {
+            ...attachment,
+            ...uploaded,
+            isLoading: false,
+            file: undefined
+          }
+          dispatch(updateAttachment(attachment.id, newAttachment))
+          attachments.push(newAttachment)
+        } else {
+          attachments.push(attachment)
+        }
+      }
+
       const response = await createNote({
         message,
         replyStatus,
@@ -134,7 +176,10 @@ export const PostBox: FC<Props> = ({
       dispatch(resetExtension())
 
       setText('')
+      setIsPosting(false)
     } catch {
+      setIsPosting(false)
+      setAllowPost(true)
       alert('Fail to create a post')
     }
   }
@@ -341,10 +386,6 @@ export const PostBox: FC<Props> = ({
                 setWarningMsg(null)
                 dispatch(addAttachment(attachment))
               }}
-              onUpdateAttachment={(id, attachment) =>
-                dispatch(updateAttachment(id, attachment))
-              }
-              onRemoveAttachment={(id) => dispatch(removeAttachment(id))}
               onDuplicateError={() =>
                 setWarningMsg('Some files are already selected')
               }
@@ -371,13 +412,10 @@ export const PostBox: FC<Props> = ({
               </Button>
             ) : null}
             <Button
-              disabled={
-                !allowPost ||
-                postExtension.attachments.some((item) => item.isLoading)
-              }
+              disabled={!allowPost || isPosting}
               type="submit"
             >
-              {editStatus ? 'Update' : 'Post'}
+              {editStatus ? 'Update' : isPosting ? 'Posting...' : 'Post'}
             </Button>
           </div>
         </div>

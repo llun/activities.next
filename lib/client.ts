@@ -377,3 +377,38 @@ export const uploadFileToPresignedUrl = async ({
     mode: 'no-cors'
   })
 }
+
+export const uploadAttachment = async (file: File) => {
+  const result = await createUploadPresignedUrl({ media: file })
+  if (!result) {
+    const media = await uploadMedia({ media: file })
+    if (!media) return null
+    return {
+      type: 'upload',
+      id: media.id,
+      mediaType: media.mime_type,
+      url: media.url,
+      posterUrl: media.preview_url,
+      width: media.meta.original.width,
+      height: media.meta.original.height,
+      name: file.name
+    }
+  }
+
+  const { url: presignedUrl, fields, saveFileOutput } = result.presigned
+  await uploadFileToPresignedUrl({
+    media: file,
+    presignedUrl,
+    fields
+  })
+
+  return {
+    type: 'upload',
+    id: saveFileOutput.id,
+    mediaType: saveFileOutput.mime_type,
+    url: saveFileOutput.url,
+    width: saveFileOutput.meta.original.width,
+    height: saveFileOutput.meta.original.height,
+    name: file.name
+  }
+}
