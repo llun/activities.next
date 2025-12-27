@@ -242,8 +242,7 @@ export const expectCall = (
   fetchMock: FetchMock,
   url: string,
   method: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  body: any
+  body: Record<string, unknown>
 ) => {
   const call = fetchMock.mock.calls.find((call) => call[0] === url)
   if (!call) fail(`${url} request must exist`)

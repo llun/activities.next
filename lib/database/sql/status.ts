@@ -578,8 +578,15 @@ export const StatusSQLDatabaseMixin = (
   }
 
   async function getStatusWithAttachmentsFromData(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: any,
+    data: {
+      id: string
+      actorId: string
+      type: string
+      content: string
+      reply?: string
+      createdAt: Date | string
+      updatedAt: Date | string
+    },
     currentActorId?: string,
     withReplies?: boolean
   ): Promise<Status | null> {
