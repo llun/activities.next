@@ -11,10 +11,10 @@ import {
   processStatusText
 } from '@/lib/utils/text/processStatusText'
 
-import { Actions } from './Actions'
-import { ActorAvatar, ActorInfo } from './Actor'
-import { Attachments, OnMediaSelectedHandle } from './Attachments'
-import { Poll } from './Poll'
+import { Actions } from './actions/actions'
+import { ActorAvatar, ActorInfo } from './actor'
+import { Attachments, OnMediaSelectedHandle } from './attachments'
+import { Poll } from './poll'
 
 export interface PostProps {
   host: string

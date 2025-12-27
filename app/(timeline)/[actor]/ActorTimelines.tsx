@@ -2,7 +2,7 @@
 
 import { FC, useState } from 'react'
 
-import { Posts } from '@/lib/components/Posts/Posts'
+import { Posts } from '@/lib/components/posts/posts'
 import {
   Tabs,
   TabsContent,
