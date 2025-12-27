@@ -7,7 +7,7 @@ import {
   useRef,
   useState
 } from 'react'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, Loader2 } from 'lucide-react'
 import sanitizeHtml from 'sanitize-html'
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
@@ -28,7 +28,7 @@ import {
   getMention,
   getMentionFromActorID
 } from '@/lib/models/actor'
-import { Attachment, UploadedAttachment } from '@/lib/models/attachment'
+import { Attachment } from '@/lib/models/attachment'
 import {
   EditableStatus,
   Status,
@@ -42,13 +42,16 @@ import { ReplyPreview } from './ReplyPreview'
 import { UploadMediaButton } from './UploadMediaButton'
 import {
   DEFAULT_STATE,
+  addAttachment,
   addPollChoice,
+  removeAttachment,
   removePollChoice,
   resetExtension,
   setAttachments,
   setPollDurationInSeconds,
   setPollVisibility,
-  statusExtensionReducer
+  statusExtensionReducer,
+  updateAttachment
 } from './reducers'
 
 interface Props {
@@ -138,9 +141,6 @@ export const PostBox: FC<Props> = ({
     onDiscardReply()
     setText('')
   }
-
-  const onSelectUploadedMedias = (medias: UploadedAttachment[]) =>
-    dispatch(setAttachments([...postExtension.attachments, ...medias]))
 
   const onRemoveAttachment = (attachmentIndex: number) => {
     dispatch(
@@ -334,8 +334,12 @@ export const PostBox: FC<Props> = ({
           <div>
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
-              attachmentCount={postExtension.attachments.length}
-              onSelectMedias={onSelectUploadedMedias}
+              attachments={postExtension.attachments}
+              onAddAttachment={(attachment) => dispatch(addAttachment(attachment))}
+              onUpdateAttachment={(id, attachment) =>
+                dispatch(updateAttachment(id, attachment))
+              }
+              onRemoveAttachment={(id) => dispatch(removeAttachment(id))}
             />
             <Button
               type="button"
@@ -358,7 +362,13 @@ export const PostBox: FC<Props> = ({
                 Cancel Edit
               </Button>
             ) : null}
-            <Button disabled={!allowPost} type="submit">
+            <Button
+              disabled={
+                !allowPost ||
+                postExtension.attachments.some((item) => item.isLoading)
+              }
+              type="submit"
+            >
               {editStatus ? 'Update' : 'Post'}
             </Button>
           </div>
@@ -367,13 +377,19 @@ export const PostBox: FC<Props> = ({
           {postExtension.attachments.map((item, index) => {
             return (
               <div
-                className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer"
+                className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer relative"
                 key={item.id}
                 style={{
                   backgroundImage: `url("${item.posterUrl || item.url}")`
                 }}
                 onClick={() => onRemoveAttachment(index)}
-              />
+              >
+                {item.isLoading ? (
+                  <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
+                    <Loader2 className="animate-spin text-primary" />
+                  </div>
+                ) : null}
+              </div>
             )
           })}
         </div>

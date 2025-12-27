@@ -38,6 +38,28 @@ export const removePollChoice = (index: number) => ({
 })
 type ActionRemovePollChoice = ReturnType<typeof removePollChoice>
 
+export const addAttachment = (attachment: PostBoxAttachment) => ({
+  type: 'addAttachment' as const,
+  attachment
+})
+type ActionAddAttachment = ReturnType<typeof addAttachment>
+
+export const updateAttachment = (
+  id: string,
+  attachment: PostBoxAttachment
+) => ({
+  type: 'updateAttachment' as const,
+  id,
+  attachment
+})
+type ActionUpdateAttachment = ReturnType<typeof updateAttachment>
+
+export const removeAttachment = (id: string) => ({
+  type: 'removeAttachment' as const,
+  id
+})
+type ActionRemoveAttachment = ReturnType<typeof removeAttachment>
+
 export const setPollDurationInSeconds = (seconds: Duration) => ({
   type: 'setPollDurationInSeconds' as const,
   seconds
@@ -53,6 +75,9 @@ type Actions =
   | ActionAddPollChoice
   | ActionRemovePollChoice
   | ActionSetPollDurationInSeconds
+  | ActionAddAttachment
+  | ActionUpdateAttachment
+  | ActionRemoveAttachment
 
 const key = () => Math.round(Math.random() * 1000)
 
@@ -126,6 +151,39 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
           ...state.poll,
           durationInSeconds: action.seconds
         }
+      }
+    }
+    case 'addAttachment': {
+      return {
+        ...state,
+        attachments: [...state.attachments, action.attachment]
+      }
+    }
+    case 'updateAttachment': {
+      const index = state.attachments.findIndex(
+        (item) => item.id === action.id
+      )
+      if (index === -1) return state
+      return {
+        ...state,
+        attachments: [
+          ...state.attachments.slice(0, index),
+          action.attachment,
+          ...state.attachments.slice(index + 1)
+        ]
+      }
+    }
+    case 'removeAttachment': {
+      const index = state.attachments.findIndex(
+        (item) => item.id === action.id
+      )
+      if (index === -1) return state
+      return {
+        ...state,
+        attachments: [
+          ...state.attachments.slice(0, index),
+          ...state.attachments.slice(index + 1)
+        ]
       }
     }
     default:
