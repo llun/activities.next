@@ -5,7 +5,7 @@ import { signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { Button } from './ui/button'
+import { Button } from '../ui/button'
 
 interface Props {
   session?: Session | null
