@@ -1,66 +1,60 @@
 import { X } from 'lucide-react'
 import { FC } from 'react'
 
-import { Button } from '@/lib/components/ui/button'
 import { ActorInfo } from '@/lib/components/posts/actor'
-import { Poll } from '@/lib/components/posts/poll'
-import { EditableStatus, Status, StatusType } from '@/lib/models/status'
+import { Button } from '@/lib/components/ui/button'
+import { Status } from '@/lib/models/status'
+import { cn } from '@/lib/utils'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
-import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
-import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
-
+import { processStatusText } from '@/lib/utils/text/processStatusText'
 
 interface Props {
   host: string
   status?: Status
   onClose?: () => void
+  className?: string
 }
 
-const getText = (status: Status) => {
-  switch (status.type) {
-    case StatusType.enum.Note:
-    case StatusType.enum.Poll:
-      return status.text
-    case StatusType.enum.Announce:
-      return status.originalStatus.text
-    default:
-      return ''
-  }
-}
-
-const getTags = (status: Status) => {
-  switch (status.type) {
-    case StatusType.enum.Note:
-    case StatusType.enum.Poll:
-      return status.tags
-    default:
-      return []
-  }
-}
-
-export const ReplyPreview: FC<Props> = ({ host, status, onClose }) => {
+export const ReplyPreview: FC<Props> = ({
+  host,
+  status,
+  onClose,
+  className
+}) => {
   if (!status) return null
+
+  const previewText = processStatusText(host, status)
+  const parsedPreview = previewText ? cleanClassName(previewText) : null
+
   return (
     <section
-      className="whitespace-pre-wrap flex flex-row justify-between bg-muted/50 rounded-lg mb-4 py-2 px-4"
+      className={cn(
+        'rounded-xl border border-border/60 border-l-4 border-l-primary/20 bg-muted/20 px-3 py-2',
+        className
+      )}
     >
-      <div>
-        <ActorInfo actor={status.actor} actorId={status.actorId || ''} />
-        {cleanClassName(
-          (status as EditableStatus).isLocalActor
-            ? convertMarkdownText(host)(getText(status))
-            : convertEmojisToImages(getText(status), getTags(status))
-        )}
-        <Poll status={status} currentTime={new Date()} />
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-medium">Replying to</span>
+            <div className="text-sm text-foreground">
+              <ActorInfo actor={status.actor} actorId={status.actorId || ''} />
+            </div>
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground leading-relaxed line-clamp-2 break-words [&_p]:inline [&_p]:after:content-[' '] [&_br]:hidden">
+            {parsedPreview ?? <span className="italic">No content preview</span>}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => onClose?.()}
+          aria-label="Dismiss reply"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+        >
+          <X className="size-4" />
+        </Button>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => onClose?.()}
-        aria-label="Close"
-      >
-        <X className="size-4" />
-      </Button>
     </section>
   )
 }
