@@ -93,11 +93,15 @@ export const PostBox: FC<Props> = ({
     statusExtensionReducer,
     DEFAULT_STATE
   )
+  const postExtensionRef = useRef(postExtension)
 
   useEffect(() => {
-    const attachments = postExtension.attachments
+    postExtensionRef.current = postExtension
+  }, [postExtension])
+
+  useEffect(() => {
     return () => {
-      attachments.forEach((attachment) => {
+      postExtensionRef.current.attachments.forEach((attachment) => {
         if (attachment.url.startsWith('blob:')) {
           URL.revokeObjectURL(attachment.url)
         }
@@ -183,7 +187,7 @@ export const PostBox: FC<Props> = ({
 
       // Filter out attachments that were removed during upload
       const currentAttachmentIds = new Set(
-        postExtension.attachments.map((a) => a.id)
+        postExtensionRef.current.attachments.map((a) => a.id)
       )
       const attachments = uploadResults.filter((a) =>
         currentAttachmentIds.has(a.id)
