@@ -1,5 +1,9 @@
 import { Duration } from '@/lib/components/PostBox/PollChoices'
-import { Attachment, PostBoxAttachment } from '@/lib/models/attachment'
+import {
+  Attachment,
+  PostBoxAttachment,
+  UploadedAttachment
+} from '@/lib/models/attachment'
 import { Follow, FollowStatus } from '@/lib/models/follow'
 import { Status } from '@/lib/models/status'
 import { PresignedUrlOutput } from '@/lib/services/medias/types'
@@ -378,7 +382,9 @@ export const uploadFileToPresignedUrl = async ({
   })
 }
 
-export const uploadAttachment = async (file: File) => {
+export const uploadAttachment = async (
+  file: File
+): Promise<UploadedAttachment | null> => {
   const result = await createUploadPresignedUrl({ media: file })
   if (!result) {
     const media = await uploadMedia({ media: file })
