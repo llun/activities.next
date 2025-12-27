@@ -51,6 +51,9 @@ export const UploadMediaButton: FC<Props> = ({
         // No presigned supported
         if (!result) {
           const media = await uploadMedia({ media: file })
+          if (!media) {
+            throw new Error('Failed to upload media')
+          }
           return UploadedAttachment.parse({
             type: MEDIA_TYPE,
             id: media.id,

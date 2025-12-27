@@ -4,7 +4,7 @@ export const MAX_ATTACHMENTS = 10
 export const MAX_WIDTH = 4000
 export const MAX_HEIGHT = 4000
 
-export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png']
+export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
 export const ACCEPTED_FILE_TYPES = [
   ...ACCEPTED_IMAGE_TYPES,
