@@ -334,6 +334,7 @@ export const PostBox: FC<Props> = ({
           <div>
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
+              attachmentCount={postExtension.attachments.length}
               onSelectMedias={onSelectUploadedMedias}
             />
             <Button

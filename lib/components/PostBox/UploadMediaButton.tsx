@@ -1,4 +1,5 @@
 import { FC, SyntheticEvent, useRef } from 'react'
+import { ImagePlus } from 'lucide-react'
 
 import { resizeImage } from '@/lib/utils/resizeImage'
 
@@ -10,10 +11,10 @@ import {
 import { UploadedAttachment } from '../../models/attachment'
 import {
   ACCEPTED_FILE_TYPES,
+  MAX_ATTACHMENTS,
   MAX_HEIGHT,
   MAX_WIDTH
 } from '../../services/medias/constants'
-import { Image } from 'lucide-react'
 
 import { Button } from '@/lib/components/ui/button'
 
@@ -21,11 +22,13 @@ const MEDIA_TYPE = 'upload'
 
 interface Props {
   isMediaUploadEnabled?: boolean
+  attachmentCount?: number
   onSelectMedias: (medias: UploadedAttachment[]) => void
 }
 
 export const UploadMediaButton: FC<Props> = ({
   isMediaUploadEnabled,
+  attachmentCount = 0,
   onSelectMedias
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -90,12 +93,19 @@ export const UploadMediaButton: FC<Props> = ({
         type="file"
         multiple
         accept={ACCEPTED_FILE_TYPES.join(',')}
-        className="d-none"
+        className="hidden"
         onChange={onSelectFile}
       />
-      <Button variant="link" onClick={onOpenFile} className="gap-1">
-        <Image className="size-4" />
+      <Button
+        variant="ghost"
+        onClick={onOpenFile}
+        className="gap-2 text-foreground hover:text-foreground"
+      >
+        <ImagePlus className="size-4" />
         <span className="text-sm">Add media</span>
+        <span className="text-sm text-muted-foreground">
+          {attachmentCount}/{MAX_ATTACHMENTS}
+        </span>
       </Button>
     </>
   )
