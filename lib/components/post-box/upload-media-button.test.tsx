@@ -9,7 +9,7 @@ import { PostBoxAttachment } from '@/lib/models/attachment'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
-import { UploadMediaButton } from './UploadMediaButton'
+import { UploadMediaButton } from './upload-media-button'
 
 jest.mock('../../utils/resizeImage')
 

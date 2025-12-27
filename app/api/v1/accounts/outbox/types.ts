@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { SecondsToDurationText } from '@/lib/components/PostBox/PollChoices'
+import { SecondsToDurationText } from '@/lib/components/post-box/poll-choices'
 import { PostBoxAttachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
 

@@ -42,9 +42,9 @@ import {
 } from '@/lib/models/status'
 import { urlToId } from '@/lib/utils/urlToId'
 
-import { Duration, PollChoices } from './PollChoices'
-import { ReplyPreview } from './ReplyPreview'
-import { UploadMediaButton } from './UploadMediaButton'
+import { Duration, PollChoices } from './poll-choices'
+import { ReplyPreview } from './reply-preview'
+import { UploadMediaButton } from './upload-media-button'
 import {
   DEFAULT_STATE,
   addAttachment,
