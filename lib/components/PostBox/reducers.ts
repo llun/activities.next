@@ -1,6 +1,7 @@
 import { Reducer } from 'react'
 
 import { PostBoxAttachment } from '../../models/attachment'
+import { MAX_ATTACHMENTS } from '../../services/medias/constants'
 import { Choice, DEFAULT_DURATION, Duration } from './PollChoices'
 
 interface StatusExtension {
@@ -38,6 +39,28 @@ export const removePollChoice = (index: number) => ({
 })
 type ActionRemovePollChoice = ReturnType<typeof removePollChoice>
 
+export const addAttachment = (attachment: PostBoxAttachment) => ({
+  type: 'addAttachment' as const,
+  attachment
+})
+type ActionAddAttachment = ReturnType<typeof addAttachment>
+
+export const updateAttachment = (
+  id: string,
+  attachment: PostBoxAttachment
+) => ({
+  type: 'updateAttachment' as const,
+  id,
+  attachment
+})
+type ActionUpdateAttachment = ReturnType<typeof updateAttachment>
+
+export const removeAttachment = (id: string) => ({
+  type: 'removeAttachment' as const,
+  id
+})
+type ActionRemoveAttachment = ReturnType<typeof removeAttachment>
+
 export const setPollDurationInSeconds = (seconds: Duration) => ({
   type: 'setPollDurationInSeconds' as const,
   seconds
@@ -53,6 +76,9 @@ type Actions =
   | ActionAddPollChoice
   | ActionRemovePollChoice
   | ActionSetPollDurationInSeconds
+  | ActionAddAttachment
+  | ActionUpdateAttachment
+  | ActionRemoveAttachment
 
 const key = () => Math.round(Math.random() * 1000)
 
@@ -76,6 +102,11 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
 ) => {
   switch (action.type) {
     case 'resetExtension': {
+      state.attachments.forEach((attachment) => {
+        if (attachment.url.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.url)
+        }
+      })
       return DEFAULT_STATE
     }
     case 'setAttachments': {
@@ -85,6 +116,13 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       }
     }
     case 'setPollVisibility': {
+      if (action.visible) {
+        state.attachments.forEach((attachment) => {
+          if (attachment.url.startsWith('blob:')) {
+            URL.revokeObjectURL(attachment.url)
+          }
+        })
+      }
       const duration = state.attachments.length
         ? DEFAULT_DURATION
         : state.poll.durationInSeconds
@@ -126,6 +164,44 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
           ...state.poll,
           durationInSeconds: action.seconds
         }
+      }
+    }
+    case 'addAttachment': {
+      if (state.attachments.length >= MAX_ATTACHMENTS) return state
+      return {
+        ...state,
+        attachments: [...state.attachments, action.attachment]
+      }
+    }
+    case 'updateAttachment': {
+      const index = state.attachments.findIndex(
+        (item) => item.id === action.id
+      )
+      if (index === -1) return state
+      return {
+        ...state,
+        attachments: [
+          ...state.attachments.slice(0, index),
+          action.attachment,
+          ...state.attachments.slice(index + 1)
+        ]
+      }
+    }
+    case 'removeAttachment': {
+      const index = state.attachments.findIndex(
+        (item) => item.id === action.id
+      )
+      if (index === -1) return state
+      const attachment = state.attachments[index]
+      if (attachment.url.startsWith('blob:')) {
+        URL.revokeObjectURL(attachment.url)
+      }
+      return {
+        ...state,
+        attachments: [
+          ...state.attachments.slice(0, index),
+          ...state.attachments.slice(index + 1)
+        ]
       }
     }
     default:

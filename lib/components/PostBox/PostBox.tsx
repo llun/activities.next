@@ -7,14 +7,19 @@ import {
   useRef,
   useState
 } from 'react'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, Loader2 } from 'lucide-react'
 import sanitizeHtml from 'sanitize-html'
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 
 import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 
-import { createNote, createPoll, updateNote } from '@/lib/client'
+import {
+  createNote,
+  createPoll,
+  updateNote,
+  uploadAttachment
+} from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import {
   Tabs,
@@ -28,7 +33,7 @@ import {
   getMention,
   getMentionFromActorID
 } from '@/lib/models/actor'
-import { Attachment, UploadedAttachment } from '@/lib/models/attachment'
+import { Attachment } from '@/lib/models/attachment'
 import {
   EditableStatus,
   Status,
@@ -42,13 +47,15 @@ import { ReplyPreview } from './ReplyPreview'
 import { UploadMediaButton } from './UploadMediaButton'
 import {
   DEFAULT_STATE,
+  addAttachment,
   addPollChoice,
   removePollChoice,
   resetExtension,
   setAttachments,
   setPollDurationInSeconds,
   setPollVisibility,
-  statusExtensionReducer
+  statusExtensionReducer,
+  updateAttachment
 } from './reducers'
 
 interface Props {
@@ -75,8 +82,10 @@ export const PostBox: FC<Props> = ({
   onDiscardEdit
 }) => {
   const [allowPost, setAllowPost] = useState<boolean>(false)
+  const [isPosting, setIsPosting] = useState<boolean>(false)
   const [currentTab, setCurrentTab] = useState<string>('write')
   const [text, setText] = useState<string>('')
+  const [warningMsg, setWarningMsg] = useState<string | null>(null)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -84,11 +93,28 @@ export const PostBox: FC<Props> = ({
     statusExtensionReducer,
     DEFAULT_STATE
   )
+  const postExtensionRef = useRef(postExtension)
+
+  useEffect(() => {
+    postExtensionRef.current = postExtension
+  }, [postExtension])
+
+  useEffect(() => {
+    return () => {
+      postExtensionRef.current.attachments.forEach((attachment) => {
+        if (attachment.url.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.url)
+        }
+      })
+    }
+  }, [])
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
-    
+
     setAllowPost(false)
+    setIsPosting(true)
+    setWarningMsg(null)
     const message = text
     try {
       if (postExtension.poll.showing) {
@@ -101,6 +127,7 @@ export const PostBox: FC<Props> = ({
         })
 
         dispatch(resetExtension())
+        setIsPosting(false)
         return
       }
 
@@ -114,10 +141,58 @@ export const PostBox: FC<Props> = ({
         dispatch(resetExtension())
 
         setText('')
+        setIsPosting(false)
         return
       }
 
-      const attachments = postExtension.attachments
+      const uploadResults = await Promise.all(
+        postExtension.attachments.map(async (attachment) => {
+          if (!attachment.file) return attachment
+
+          dispatch(
+            updateAttachment(attachment.id, {
+              ...attachment,
+              isLoading: true
+            })
+          )
+
+          try {
+            const uploaded = await uploadAttachment(attachment.file)
+            if (!uploaded) throw new Error()
+
+            // Revoke the blob URL after successful upload
+            if (attachment.url.startsWith('blob:')) {
+              URL.revokeObjectURL(attachment.url)
+            }
+
+            const newAttachment = {
+              ...attachment,
+              ...uploaded,
+              isLoading: false,
+              file: undefined
+            }
+            dispatch(updateAttachment(attachment.id, newAttachment))
+            return newAttachment
+          } catch {
+            dispatch(
+              updateAttachment(attachment.id, {
+                ...attachment,
+                isLoading: false
+              })
+            )
+            throw new Error(`Fail to upload ${attachment.name}`)
+          }
+        })
+      )
+
+      // Filter out attachments that were removed during upload
+      const currentAttachmentIds = new Set(
+        postExtensionRef.current.attachments.map((a) => a.id)
+      )
+      const attachments = uploadResults.filter((a) =>
+        currentAttachmentIds.has(a.id)
+      )
+
       const response = await createNote({
         message,
         replyStatus,
@@ -129,7 +204,10 @@ export const PostBox: FC<Props> = ({
       dispatch(resetExtension())
 
       setText('')
+      setIsPosting(false)
     } catch {
+      setIsPosting(false)
+      setAllowPost(true)
       alert('Fail to create a post')
     }
   }
@@ -139,10 +217,11 @@ export const PostBox: FC<Props> = ({
     setText('')
   }
 
-  const onSelectUploadedMedias = (medias: UploadedAttachment[]) =>
-    dispatch(setAttachments([...postExtension.attachments, ...medias]))
-
   const onRemoveAttachment = (attachmentIndex: number) => {
+    const attachment = postExtension.attachments[attachmentIndex]
+    if (attachment.url.startsWith('blob:')) {
+      URL.revokeObjectURL(attachment.url)
+    }
     dispatch(
       setAttachments([
         ...postExtension.attachments.slice(0, attachmentIndex),
@@ -251,7 +330,7 @@ export const PostBox: FC<Props> = ({
     const [value, start, end] = defaultMessage
     setText(value)
     setAllowPost(true)
-    
+
     // We need to wait for render to focus and set selection
     // Using setTimeout as a simple way to wait for next tick after render
     setTimeout(() => {
@@ -334,9 +413,17 @@ export const PostBox: FC<Props> = ({
           <div>
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
-              onSelectMedias={onSelectUploadedMedias}
+              attachments={postExtension.attachments}
+              onAddAttachment={(attachment) => {
+                dispatch(addAttachment(attachment))
+              }}
+              onDuplicateError={() =>
+                setWarningMsg('Some files are already selected')
+              }
+              onUploadStart={() => setWarningMsg(null)}
             />
             <Button
+              type="button"
               variant="link"
               onClick={() =>
                 dispatch(setPollVisibility(!postExtension.poll.showing))
@@ -356,22 +443,34 @@ export const PostBox: FC<Props> = ({
                 Cancel Edit
               </Button>
             ) : null}
-            <Button disabled={!allowPost} type="submit">
-              {editStatus ? 'Update' : 'Post'}
+            <Button
+              disabled={!allowPost || isPosting}
+              type="submit"
+            >
+              {editStatus ? 'Update' : isPosting ? 'Posting...' : 'Post'}
             </Button>
           </div>
         </div>
+        {warningMsg ? (
+          <div className="text-xs text-destructive mb-3">{warningMsg}</div>
+        ) : null}
         <div className="grid gap-4 grid-cols-8">
           {postExtension.attachments.map((item, index) => {
             return (
               <div
-                className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer"
+                className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer relative"
                 key={item.id}
                 style={{
                   backgroundImage: `url("${item.posterUrl || item.url}")`
                 }}
                 onClick={() => onRemoveAttachment(index)}
-              />
+              >
+                {item.isLoading ? (
+                  <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
+                    <Loader2 className="animate-spin text-primary" />
+                  </div>
+                ) : null}
+              </div>
             )
           })}
         </div>
