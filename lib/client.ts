@@ -1,5 +1,9 @@
 import { Duration } from '@/lib/components/PostBox/PollChoices'
-import { Attachment, PostBoxAttachment } from '@/lib/models/attachment'
+import {
+  Attachment,
+  PostBoxAttachment,
+  UploadedAttachment
+} from '@/lib/models/attachment'
 import { Follow, FollowStatus } from '@/lib/models/follow'
 import { Status } from '@/lib/models/status'
 import { PresignedUrlOutput } from '@/lib/services/medias/types'
@@ -376,4 +380,42 @@ export const uploadFileToPresignedUrl = async ({
     body: data,
     mode: 'no-cors'
   })
+}
+
+export const uploadAttachment = async (
+  file: File
+): Promise<UploadedAttachment | null> => {
+  const result = await createUploadPresignedUrl({ media: file })
+  if (!result) {
+    const media = await uploadMedia({ media: file })
+    if (!media) return null
+    return {
+      type: 'upload',
+      id: media.id,
+      mediaType: media.mime_type,
+      url: media.url,
+      posterUrl: media.preview_url,
+      width: media.meta.original.width,
+      height: media.meta.original.height,
+      name: file.name
+    }
+  }
+
+  const { url: presignedUrl, fields, saveFileOutput } = result.presigned
+  await uploadFileToPresignedUrl({
+    media: file,
+    presignedUrl,
+    fields
+  })
+
+  return {
+    type: 'upload',
+    id: saveFileOutput.id,
+    mediaType: saveFileOutput.mime_type,
+    url: saveFileOutput.url,
+    posterUrl: saveFileOutput.preview_url ?? undefined,
+    width: saveFileOutput.meta.original.width,
+    height: saveFileOutput.meta.original.height,
+    name: file.name
+  }
 }
