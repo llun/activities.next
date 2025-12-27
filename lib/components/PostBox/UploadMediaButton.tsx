@@ -93,8 +93,9 @@ export const UploadMediaButton: FC<Props> = ({
         className="d-none"
         onChange={onSelectFile}
       />
-      <Button variant="link" onClick={onOpenFile}>
+      <Button variant="link" onClick={onOpenFile} className="gap-1">
         <Image className="size-4" />
+        <span className="text-sm">Add media</span>
       </Button>
     </>
   )
