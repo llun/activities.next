@@ -41,7 +41,7 @@ export const ReplyPreview: FC<Props> = ({
               <ActorInfo actor={status.actor} actorId={status.actorId || ''} />
             </div>
           </div>
-          <div className="mt-1 text-sm text-muted-foreground leading-relaxed line-clamp-2 break-words [&_p]:inline [&_p]:after:content-[' '] [&_br]:hidden">
+          <div className="mt-1 text-sm text-muted-foreground leading-relaxed line-clamp-2 break-words [&_p]:inline [&_p]:after:content-['_'] [&_br]:hidden">
             {parsedPreview ?? <span className="italic">No content preview</span>}
           </div>
         </div>
