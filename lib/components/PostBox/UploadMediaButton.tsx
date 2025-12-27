@@ -20,13 +20,15 @@ interface Props {
   attachments?: PostBoxAttachment[]
   onAddAttachment: (attachment: PostBoxAttachment) => void
   onDuplicateError: () => void
+  onUploadStart: () => void
 }
 
 export const UploadMediaButton: FC<Props> = ({
   isMediaUploadEnabled,
   attachments = [],
   onAddAttachment,
-  onDuplicateError
+  onDuplicateError,
+  onUploadStart
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onOpenFile = () => {
@@ -39,6 +41,8 @@ export const UploadMediaButton: FC<Props> = ({
   ) => {
     if (!event.currentTarget.files) return
     if (!event.currentTarget.files.length) return
+
+    onUploadStart()
 
     const availableSlots = MAX_ATTACHMENTS - attachments.length
     if (availableSlots <= 0) return

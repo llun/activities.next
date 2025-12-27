@@ -18,6 +18,7 @@ const mockResizeImage = resizeImage as jest.MockedFunction<typeof resizeImage>
 describe('UploadMediaButton', () => {
   const mockOnAddAttachment = jest.fn()
   const mockOnDuplicateError = jest.fn()
+  const mockOnUploadStart = jest.fn()
 
   const createMockFile = (name: string, type = 'image/jpeg') => {
     return new File(['test'], name, { type })
@@ -55,6 +56,7 @@ describe('UploadMediaButton', () => {
           attachments={existingAttachments}
           onAddAttachment={mockOnAddAttachment}
           onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
         />
       )
 
@@ -87,6 +89,7 @@ describe('UploadMediaButton', () => {
           attachments={existingAttachments}
           onAddAttachment={mockOnAddAttachment}
           onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
         />
       )
 
@@ -126,6 +129,7 @@ describe('UploadMediaButton', () => {
           attachments={existingAttachments}
           onAddAttachment={mockOnAddAttachment}
           onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
         />
       )
 
@@ -156,6 +160,7 @@ describe('UploadMediaButton', () => {
           attachments={[]}
           onAddAttachment={mockOnAddAttachment}
           onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
         />
       )
 
@@ -192,6 +197,7 @@ describe('UploadMediaButton', () => {
           attachments={[]}
           onAddAttachment={mockOnAddAttachment}
           onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
         />
       )
 
@@ -211,6 +217,7 @@ describe('UploadMediaButton', () => {
       expect(processingOrder).toContain('start-file2.jpg')
       expect(processingOrder).toContain('end-file2.jpg')
       expect(processingOrder).toContain('add-file2.jpg')
+      expect(mockOnUploadStart).toHaveBeenCalled()
     })
 
     it('handles errors in file processing gracefully', async () => {
@@ -228,6 +235,7 @@ describe('UploadMediaButton', () => {
           attachments={[]}
           onAddAttachment={mockOnAddAttachment}
           onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
         />
       )
 
@@ -267,6 +275,7 @@ describe('UploadMediaButton', () => {
           attachments={[]}
           onAddAttachment={mockOnAddAttachment}
           onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
         />
       )
 
@@ -298,6 +307,7 @@ describe('UploadMediaButton', () => {
           attachments={[]}
           onAddAttachment={mockOnAddAttachment}
           onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
         />
       )
 
@@ -311,6 +321,7 @@ describe('UploadMediaButton', () => {
           attachments={[]}
           onAddAttachment={mockOnAddAttachment}
           onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
         />
       )
 
@@ -345,6 +356,7 @@ describe('UploadMediaButton', () => {
           attachments={attachments}
           onAddAttachment={mockOnAddAttachment}
           onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
         />
       )
 

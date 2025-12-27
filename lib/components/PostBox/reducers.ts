@@ -1,6 +1,7 @@
 import { Reducer } from 'react'
 
 import { PostBoxAttachment } from '../../models/attachment'
+import { MAX_ATTACHMENTS } from '../../services/medias/constants'
 import { Choice, DEFAULT_DURATION, Duration } from './PollChoices'
 
 interface StatusExtension {
@@ -154,6 +155,7 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       }
     }
     case 'addAttachment': {
+      if (state.attachments.length >= MAX_ATTACHMENTS) return state
       return {
         ...state,
         attachments: [...state.attachments, action.attachment]

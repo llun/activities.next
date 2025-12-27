@@ -383,12 +383,12 @@ export const PostBox: FC<Props> = ({
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
               onAddAttachment={(attachment) => {
-                setWarningMsg(null)
                 dispatch(addAttachment(attachment))
               }}
               onDuplicateError={() =>
                 setWarningMsg('Some files are already selected')
               }
+              onUploadStart={() => setWarningMsg(null)}
             />
             <Button
               type="button"
