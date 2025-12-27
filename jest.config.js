@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 const nextJest = require('next/jest')
 
+// Fix EventEmitter memory leak warning in test setup
+// Set a reasonable higher limit instead of unlimited (0)
+// This is safe for test environments with parallel execution
+process.setMaxListeners(50)
+
 const createJestConfig = nextJest({
   // Provide the path to your Next.js app to load next.config.js and .env files in your test environment
   dir: './'

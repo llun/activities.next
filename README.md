@@ -9,7 +9,7 @@ See our [feature roadmap](docs/features.md) for current and planned features.
 ### Prerequisites
 
 - Node.js 18 or higher
-- Yarn package manager
+- Yarn package manager (v4.12.0 via Corepack)
 - A domain name (for federation)
 
 ### Quick Start
@@ -20,19 +20,28 @@ git clone https://github.com/llun/activities.next.git
 cd activities.next
 ```
 
-2. Install dependencies:
+2. Enable Corepack (for Yarn 4 support):
+```bash
+corepack enable
+```
+
+3. Install dependencies:
 ```bash
 yarn install
 ```
 
-3. Configure your environment (see the [Setup Guide](docs/setup.md))
+4. Configure your environment (see the [Setup Guide](docs/setup.md)):
+```bash
+cp .env.example .env.local
+# Edit .env.local with your configuration
+```
 
-4. Run database migrations (if using SQL):
+5. Run database migrations (if using SQL):
 ```bash
 yarn migrate
 ```
 
-5. Start the development server:
+6. Start the development server:
 ```bash
 yarn dev
 ```

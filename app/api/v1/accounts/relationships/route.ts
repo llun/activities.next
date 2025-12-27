@@ -4,6 +4,7 @@ import { Scope } from '@/lib/database/types/oauth'
 import { FollowStatus } from '@/lib/models/follow'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { logger } from '@/lib/utils/logger'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
@@ -75,9 +76,9 @@ export const GET = OAuthGuard([Scope.enum.read], async (req, context) => {
           note: actor.summary ?? ''
         })
       } catch (error) {
-        console.error(
-          `Error processing relationship for ID ${encodedAccountId}:`,
-          error
+        logger.error(
+          { error, accountId: encodedAccountId },
+          `Error processing relationship for ID ${encodedAccountId}`
         )
         return null
       }
