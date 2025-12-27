@@ -8,12 +8,22 @@ import React from 'react'
 import { PostBoxAttachment } from '@/lib/models/attachment'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { resizeImage } from '@/lib/utils/resizeImage'
+import { logger } from '@/lib/utils/logger'
 
 import { UploadMediaButton } from './upload-media-button'
 
 jest.mock('../../utils/resizeImage')
+jest.mock('../../utils/logger', () => ({
+  logger: {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn()
+  }
+}))
 
 const mockResizeImage = resizeImage as jest.MockedFunction<typeof resizeImage>
+const mockLogger = logger as jest.Mocked<typeof logger>
 
 describe('UploadMediaButton', () => {
   const mockOnAddAttachment = jest.fn()
@@ -222,10 +232,6 @@ describe('UploadMediaButton', () => {
     })
 
     it('handles errors in file processing gracefully', async () => {
-      const consoleErrorSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementation(() => {})
-
       mockResizeImage
         .mockRejectedValueOnce(new Error('Failed to resize'))
         .mockResolvedValueOnce(createMockFile('file2.jpg'))
@@ -257,14 +263,15 @@ describe('UploadMediaButton', () => {
         })
       )
 
-      // Error should be logged
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Failed to process file:',
-        'file1.jpg',
-        expect.any(Error)
+      // Error should be logged with logger.error
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.any(Error),
+          fileName: 'file1.jpg',
+          fileType: 'image/jpeg'
+        }),
+        'Failed to process file'
       )
-
-      consoleErrorSpy.mockRestore()
     })
   })
 

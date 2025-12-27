@@ -1,6 +1,7 @@
 import { FC, SyntheticEvent, useRef } from 'react'
 import { ImagePlus } from 'lucide-react'
 
+import { logger } from '@/lib/utils/logger'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { PostBoxAttachment } from '../../models/attachment'
@@ -76,7 +77,14 @@ export const UploadMediaButton: FC<Props> = ({
             file
           })
         } catch (error) {
-          console.error('Failed to process file:', targetFile.name, error)
+          logger.error(
+            {
+              error,
+              fileName: targetFile.name,
+              fileType: targetFile.type
+            },
+            'Failed to process file'
+          )
           // Revoke the blob URL if processing fails
           URL.revokeObjectURL(previewUrl)
         }
