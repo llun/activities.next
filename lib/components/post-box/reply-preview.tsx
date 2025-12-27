@@ -46,6 +46,7 @@ export const ReplyPreview: FC<Props> = ({
           </div>
         </div>
         <Button
+          type="button"
           variant="ghost"
           size="icon-sm"
           onClick={() => onClose?.()}
