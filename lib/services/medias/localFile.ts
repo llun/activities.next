@@ -121,12 +121,19 @@ export class LocalFileStorage implements MediaStorage {
       throw new Error('Fail to store media')
     }
 
-    const url = `https://${this._host}/api/v1/files/${storedMedia.original.path
+    const protocol =
+      this._host.startsWith('localhost') ||
+      this._host.startsWith('127.0.0.1') ||
+      this._host.startsWith('::1') ||
+      this._host.startsWith('[::1]')
+        ? 'http'
+        : 'https'
+    const url = `${protocol}://${this._host}/api/v1/files/${storedMedia.original.path
       .split('/')
       .pop()}`
 
     const previewUrl = thumbnail
-      ? `https://${this._host}/api/v1/files/${thumbnail?.path.split('/').pop()}`
+      ? `${protocol}://${this._host}/api/v1/files/${thumbnail?.path.split('/').pop()}`
       : url
     return MediaStorageSaveFileOutput.parse({
       id: `${storedMedia.id}`,
@@ -182,7 +189,11 @@ export class LocalFileStorage implements MediaStorage {
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const name = path.basename(fileName, path.extname(fileName))
-    const filePath = `${process.cwd()}/${uploadPath}/${randomPrefix}${isThumbnail ? '-thumbail' : ''}-${name}.webp`
+    const filePath = path.resolve(
+      process.cwd(),
+      uploadPath,
+      `${randomPrefix}${isThumbnail ? '-thumbail' : ''}-${name}.webp`
+    )
     const resizedImage = sharp(imageBuffer)
       .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
       .rotate()
@@ -225,7 +236,11 @@ export class LocalFileStorage implements MediaStorage {
       : videoFile.name
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
-    const filePath = `${process.cwd()}/${uploadPath}/${randomPrefix}-${fileName}`
+    const filePath = path.resolve(
+      process.cwd(),
+      uploadPath,
+      `${randomPrefix}-${fileName}`
+    )
     await fs.writeFile(filePath, buffer)
     const previewImage = await extractVideoImage(filePath)
     return {
