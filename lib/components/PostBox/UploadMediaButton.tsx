@@ -43,15 +43,17 @@ export const UploadMediaButton: FC<Props> = ({
     const availableSlots = MAX_ATTACHMENTS - attachments.length
     if (availableSlots <= 0) return
 
-    const files = Array.from(event.currentTarget.files)
-      .filter((file) => {
+    const filteredFiles = Array.from(event.currentTarget.files).filter(
+      (file) => {
         return !attachments.some((attachment) => attachment.name === file.name)
-      })
-      .slice(0, availableSlots)
+      }
+    )
 
-    if (files.length !== event.currentTarget.files.length) {
+    if (filteredFiles.length !== event.currentTarget.files.length) {
       onDuplicateError()
     }
+
+    const files = filteredFiles.slice(0, availableSlots)
 
     await Promise.all(
       files.map(async (targetFile) => {
