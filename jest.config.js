@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 const nextJest = require('next/jest')
 
+// Fix EventEmitter memory leak warning early in test setup
+// This needs to be done before Jest initializes
+process.setMaxListeners(0)
+
 const createJestConfig = nextJest({
   // Provide the path to your Next.js app to load next.config.js and .env files in your test environment
   dir: './'

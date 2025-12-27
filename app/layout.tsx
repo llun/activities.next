@@ -5,13 +5,15 @@ import './globals.css'
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
   variable: '--font-space-grotesk',
-  display: 'swap'
+  display: 'swap',
+  fallback: ['system-ui', '-apple-system', 'Segoe UI', 'sans-serif']
 })
 
 const jetBrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-jetbrains-mono',
-  display: 'swap'
+  display: 'swap',
+  fallback: ['Courier New', 'monospace']
 })
 
 export const viewport: Viewport = {
