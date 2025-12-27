@@ -51,6 +51,7 @@ export const UploadMediaButton: FC<Props> = ({
         // No presigned supported
         if (!result) {
           const media = await uploadMedia({ media: file })
+          if (!media) return null
           return UploadedAttachment.parse({
             type: MEDIA_TYPE,
             id: media.id,
@@ -78,7 +79,15 @@ export const UploadMediaButton: FC<Props> = ({
         })
       })
     )
-    onSelectMedias(uploadedMedias)
+    const validMedias = uploadedMedias.filter(
+      (media): media is UploadedAttachment => media !== null
+    )
+    if (validMedias.length !== uploadedMedias.length) {
+      window.alert('Fail to upload some medias')
+    }
+    if (validMedias.length > 0) {
+      onSelectMedias(validMedias)
+    }
   }
 
   if (!isMediaUploadEnabled) {
@@ -97,6 +106,7 @@ export const UploadMediaButton: FC<Props> = ({
         onChange={onSelectFile}
       />
       <Button
+        type="button"
         variant="ghost"
         onClick={onOpenFile}
         className="gap-2 text-foreground hover:text-foreground"

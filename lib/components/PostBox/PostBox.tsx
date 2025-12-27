@@ -87,7 +87,7 @@ export const PostBox: FC<Props> = ({
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
-    
+
     setAllowPost(false)
     const message = text
     try {
@@ -251,7 +251,7 @@ export const PostBox: FC<Props> = ({
     const [value, start, end] = defaultMessage
     setText(value)
     setAllowPost(true)
-    
+
     // We need to wait for render to focus and set selection
     // Using setTimeout as a simple way to wait for next tick after render
     setTimeout(() => {
@@ -338,6 +338,7 @@ export const PostBox: FC<Props> = ({
               onSelectMedias={onSelectUploadedMedias}
             />
             <Button
+              type="button"
               variant="link"
               onClick={() =>
                 dispatch(setPollVisibility(!postExtension.poll.showing))
