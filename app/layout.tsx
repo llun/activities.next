@@ -1,20 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { JetBrains_Mono, Space_Grotesk } from 'next/font/google'
 import './globals.css'
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
-  variable: '--font-space-grotesk',
-  display: 'swap',
-  fallback: ['system-ui', '-apple-system', 'Segoe UI', 'sans-serif']
-})
-
-const jetBrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-jetbrains-mono',
-  display: 'swap',
-  fallback: ['Courier New', 'monospace']
-})
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -32,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${spaceGrotesk.variable} ${jetBrainsMono.variable}`}>
+      <body>
         {children}
       </body>
     </html>

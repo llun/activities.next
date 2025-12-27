@@ -77,11 +77,14 @@ export const UploadMediaButton: FC<Props> = ({
             file
           })
         } catch (error) {
-          logger.error('Failed to process file', {
-            error,
-            fileName: targetFile.name,
-            fileType: targetFile.type
-          })
+          logger.error(
+            {
+              error,
+              fileName: targetFile.name,
+              fileType: targetFile.type
+            },
+            'Failed to process file'
+          )
           // Revoke the blob URL if processing fails
           URL.revokeObjectURL(previewUrl)
         }

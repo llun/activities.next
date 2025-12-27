@@ -77,8 +77,8 @@ export const GET = OAuthGuard([Scope.enum.read], async (req, context) => {
         })
       } catch (error) {
         logger.error(
-          `Error processing relationship for ID ${encodedAccountId}`,
-          { error, accountId: encodedAccountId }
+          { error, accountId: encodedAccountId },
+          `Error processing relationship for ID ${encodedAccountId}`
         )
         return null
       }

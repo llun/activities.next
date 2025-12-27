@@ -35,16 +35,6 @@ import { Tag } from '@/lib/models/tag'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
-interface StatusRowData {
-  id: string
-  actorId: string
-  type: string
-  content: string
-  reply?: string
-  createdAt: Date | string
-  updatedAt: Date | string
-}
-
 export const StatusSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
@@ -588,7 +578,8 @@ export const StatusSQLDatabaseMixin = (
   }
 
   async function getStatusWithAttachmentsFromData(
-    data: StatusRowData,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: any,
     currentActorId?: string,
     withReplies?: boolean
   ): Promise<Status | null> {
