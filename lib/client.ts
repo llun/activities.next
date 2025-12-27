@@ -413,6 +413,7 @@ export const uploadAttachment = async (
     id: saveFileOutput.id,
     mediaType: saveFileOutput.mime_type,
     url: saveFileOutput.url,
+    posterUrl: saveFileOutput.preview_url,
     width: saveFileOutput.meta.original.width,
     height: saveFileOutput.meta.original.height,
     name: file.name

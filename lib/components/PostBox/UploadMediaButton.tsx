@@ -40,29 +40,40 @@ export const UploadMediaButton: FC<Props> = ({
     if (!event.currentTarget.files) return
     if (!event.currentTarget.files.length) return
 
-    const files = Array.from(event.currentTarget.files).filter((file) => {
-      return !attachments.some((attachment) => attachment.name === file.name)
-    })
+    const availableSlots = MAX_ATTACHMENTS - attachments.length
+    if (availableSlots <= 0) return
+
+    const files = Array.from(event.currentTarget.files)
+      .filter((file) => {
+        return !attachments.some((attachment) => attachment.name === file.name)
+      })
+      .slice(0, availableSlots)
 
     if (files.length !== event.currentTarget.files.length) {
       onDuplicateError()
     }
 
-    files.map(async (targetFile) => {
-      const tempId = crypto.randomUUID()
-      const previewUrl = URL.createObjectURL(targetFile)
-      const file = await resizeImage(targetFile, MAX_WIDTH, MAX_HEIGHT)
-      onAddAttachment({
-        type: MEDIA_TYPE,
-        id: tempId,
-        mediaType: targetFile.type,
-        url: previewUrl,
-        width: 0,
-        height: 0,
-        name: targetFile.name,
-        file
+    await Promise.all(
+      files.map(async (targetFile) => {
+        try {
+          const tempId = crypto.randomUUID()
+          const previewUrl = URL.createObjectURL(targetFile)
+          const file = await resizeImage(targetFile, MAX_WIDTH, MAX_HEIGHT)
+          onAddAttachment({
+            type: MEDIA_TYPE,
+            id: tempId,
+            mediaType: targetFile.type,
+            url: previewUrl,
+            width: 0,
+            height: 0,
+            name: targetFile.name,
+            file
+          })
+        } catch (error) {
+          console.error('Failed to process file:', targetFile.name, error)
+        }
       })
-    })
+    )
   }
 
   if (!isMediaUploadEnabled) {
