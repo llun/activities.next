@@ -1,6 +1,6 @@
 import {
   ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMACT
+  ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/jsonld/activitystream'
 
 import { getVisibility } from './getVisibility'
@@ -17,10 +17,10 @@ describe('#getVisibility', () => {
   })
 
   it('returns public when to contains as:Public compact form', () => {
-    expect(getVisibility([ACTIVITY_STREAM_PUBLIC_COMACT], [])).toEqual('public')
+    expect(getVisibility([ACTIVITY_STREAM_PUBLIC_COMPACT], [])).toEqual('public')
     expect(
       getVisibility(
-        [ACTIVITY_STREAM_PUBLIC_COMACT, 'https://example.com/users/test/followers'],
+        [ACTIVITY_STREAM_PUBLIC_COMPACT, 'https://example.com/users/test/followers'],
         ['https://example.com/users/someone']
       )
     ).toEqual('public')
@@ -36,7 +36,7 @@ describe('#getVisibility', () => {
     expect(
       getVisibility(
         ['https://example.com/users/test/followers'],
-        [ACTIVITY_STREAM_PUBLIC_COMACT]
+        [ACTIVITY_STREAM_PUBLIC_COMPACT]
       )
     ).toEqual('unlist')
   })

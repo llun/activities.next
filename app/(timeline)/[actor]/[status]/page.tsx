@@ -8,7 +8,7 @@ import { StatusType } from '@/lib/models/status'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import {
   ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMACT
+  ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/jsonld/activitystream'
 
 import { Header } from './Header'
@@ -78,7 +78,7 @@ const Page: FC<Props> = async ({ params }) => {
   if (
     !(
       status.to.includes(ACTIVITY_STREAM_PUBLIC) ||
-      status.to.includes(ACTIVITY_STREAM_PUBLIC_COMACT)
+      status.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
     )
   ) {
     return notFound()

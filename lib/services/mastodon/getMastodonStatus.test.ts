@@ -7,7 +7,7 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import {
   ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMACT
+  ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/jsonld/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -309,7 +309,7 @@ describe('#getMastodonStatus', () => {
         url: `${ACTOR1_ID}/statuses/public-vis-test-2`,
         actorId: ACTOR1_ID,
         text: 'Public visibility test 2',
-        to: [ACTIVITY_STREAM_PUBLIC_COMACT],
+        to: [ACTIVITY_STREAM_PUBLIC_COMPACT],
         cc: [`${ACTOR1_ID}/followers`]
       })
 

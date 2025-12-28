@@ -1,13 +1,13 @@
 import {
   ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMACT
+  ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/jsonld/activitystream'
 
 // Note: Mastodon API uses 'unlist' not 'unlisted'
 export type MastodonVisibility = 'public' | 'unlist' | 'private' | 'direct'
 
 const isPublic = (item: string) =>
-  item === ACTIVITY_STREAM_PUBLIC || item === ACTIVITY_STREAM_PUBLIC_COMACT
+  item === ACTIVITY_STREAM_PUBLIC || item === ACTIVITY_STREAM_PUBLIC_COMPACT
 
 /**
  * Derives the Mastodon visibility from ActivityPub to and cc recipients.

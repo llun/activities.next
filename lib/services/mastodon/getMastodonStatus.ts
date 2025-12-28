@@ -62,7 +62,7 @@ const getEmojisFromTags = (tags: Tag[]): MastodonCustomEmoji[] => {
     .filter((tag) => tag.type === TagType.enum.emoji)
     .map((tag) => {
       // tag.name is typically like ":emoji:" - remove colons for shortcode
-      const shortcode = tag.name.replace(/^:|:$/g, '')
+      const shortcode = tag.name.replace(/^:+|:+$/g, '')
       return {
         shortcode,
         url: tag.value,
@@ -155,8 +155,15 @@ export const getMastodonStatus = async (
       statusId: status.originalStatus.id
     })
 
+    // For reblogs, use the visibility from the original status
+    const originalVisibility = getVisibility(
+      status.originalStatus.to,
+      status.originalStatus.cc
+    )
+
     return Mastodon.Status.parse({
       ...baseData,
+      visibility: originalVisibility,
       reblogs_count: originalReblogsCount,
 
       in_reply_to_id: null,

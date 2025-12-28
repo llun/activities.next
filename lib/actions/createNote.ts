@@ -12,7 +12,7 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import {
   ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMACT
+  ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/jsonld/activitystream'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
@@ -106,7 +106,7 @@ export const getVisibilityFromReplyStatus = (
   // Check if parent is public
   if (
     replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC) ||
-    replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC_COMACT)
+    replyStatus.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
   ) {
     return 'public'
   }
@@ -114,7 +114,7 @@ export const getVisibilityFromReplyStatus = (
   // Check if parent is unlisted (Public in cc)
   if (
     replyStatus.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
-    replyStatus.cc.includes(ACTIVITY_STREAM_PUBLIC_COMACT)
+    replyStatus.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
   ) {
     return 'unlist'
   }

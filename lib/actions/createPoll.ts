@@ -40,7 +40,7 @@ export const createPollFromUserInput = async ({
   const statusId = `${currentActor.id}/statuses/${postId}`
   const mentions = await getMentions({ text, currentActor, replyStatus })
 
-  const to = statusRecipientsTo(currentActor, replyStatus)
+  const to = statusRecipientsTo(currentActor, mentions, replyStatus)
   const cc = statusRecipientsCC(currentActor, mentions, replyStatus)
 
   const createdPoll = await database.createPoll({
