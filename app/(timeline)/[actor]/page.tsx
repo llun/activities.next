@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
@@ -46,14 +46,6 @@ const Page: FC<Props> = async ({ params }) => {
   const actorProfile = await getProfileData(database, decodedActorHandle)
   if (!actorProfile) {
     return notFound()
-  }
-
-  if (!isLoggedIn && !actorProfile.isInternalAccount) {
-    const redirectUrl = actorProfile.person.url || actorProfile.person.id
-    if (!redirectUrl) {
-      return notFound()
-    }
-    return redirect(redirectUrl)
   }
 
   const {
@@ -159,11 +151,7 @@ const Page: FC<Props> = async ({ params }) => {
       </section>
 
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <ActorTimelines
-          host={host}
-          currentTime={new Date()}
-          statuses={statuses}
-        />
+        <ActorTimelines host={host} statuses={statuses} />
       </section>
     </div>
   )

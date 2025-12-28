@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, useState } from 'react'
+import { FC } from 'react'
 
 import { Posts } from '@/lib/components/posts/posts'
 import {
@@ -11,19 +11,18 @@ import {
 } from '@/lib/components/ui/tabs'
 import { Status, StatusType } from '@/lib/models/status'
 
+import { ActorMediaGallery } from './ActorMediaGallery'
+
 interface Props {
   host: string
-  currentTime: Date
   statuses: Status[]
 }
 
-const getAttachments = (status: Status) => {
+const getPostAttachments = (status: Status) => {
   switch (status.type) {
     case StatusType.enum.Note:
     case StatusType.enum.Poll:
       return status.attachments
-    case StatusType.enum.Announce:
-      return status.originalStatus.attachments
     default:
       return []
   }
@@ -41,16 +40,27 @@ const isReply = (status: Status) => {
   }
 }
 
-export const ActorTimelines: FC<Props> = ({ host, currentTime, statuses }) => {
-  const [activeTab, setActiveTab] = useState('posts')
+export const ActorTimelines: FC<Props> = ({ host, statuses }) => {
+  const currentTime = new Date()
 
   const postStatuses = statuses.filter((status) => !isReply(status))
-  const mediaStatuses = statuses.filter(
-    (status) => getAttachments(status).length > 0
-  )
+  const mediaAttachments = statuses
+    .flatMap((status) =>
+      getPostAttachments(status).map((attachment) => ({
+        attachment,
+        createdAt: status.createdAt
+      }))
+    )
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .filter(
+      (entry, index, list) =>
+        list.findIndex((item) => item.attachment.id === entry.attachment.id) ===
+        index
+    )
+    .map((entry) => entry.attachment)
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab}>
+    <Tabs defaultValue="posts" className="w-full">
       <TabsList className="grid w-full grid-cols-3 rounded-none border-b bg-muted/40 p-1">
         <TabsTrigger
           value="posts"
@@ -95,13 +105,10 @@ export const ActorTimelines: FC<Props> = ({ host, currentTime, statuses }) => {
       </TabsContent>
 
       <TabsContent value="media" className="mt-0">
-        {mediaStatuses.length > 0 ? (
-          <Posts
-            host={host}
-            className="mt-0"
-            currentTime={currentTime}
-            statuses={mediaStatuses}
-          />
+        {mediaAttachments.length > 0 ? (
+          <div className="p-2 sm:p-4">
+            <ActorMediaGallery attachments={mediaAttachments} />
+          </div>
         ) : (
           <p className="p-8 text-center text-muted-foreground">
             No media posts yet
