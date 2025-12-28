@@ -15,6 +15,7 @@ import {
   GetActorStatusesParams,
   GetFavouritedByParams,
   GetStatusParams,
+  GetStatusReblogsCountParams,
   GetStatusRepliesParams,
   GetTagsParams,
   HasActorAnnouncedStatusParams,
@@ -733,6 +734,18 @@ export const StatusSQLDatabaseMixin = (
     }
   }
 
+  async function getStatusReblogsCount({
+    statusId
+  }: GetStatusReblogsCountParams): Promise<number> {
+    const result = await database('statuses')
+      .where('type', StatusType.enum.Announce)
+      .where('content', statusId)
+      .count<{ count: string }>('* as count')
+      .first()
+    if (!result) return 0
+    return parseInt(result.count, 10)
+  }
+
   return {
     createNote,
     updateNote,
@@ -748,6 +761,7 @@ export const StatusSQLDatabaseMixin = (
     deleteStatus,
     getFavouritedBy,
     createTag,
-    getTags
+    getTags,
+    getStatusReblogsCount
   }
 }

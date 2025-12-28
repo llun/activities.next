@@ -1,7 +1,7 @@
 import { Mention } from '@llun/activities.schema'
 import { z } from 'zod'
 
-export const TagType = z.enum(['emoji', 'mention'])
+export const TagType = z.enum(['emoji', 'mention', 'hashtag'])
 export type TagType = z.infer<typeof TagType>
 
 export const Tag = z.object({
