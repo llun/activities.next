@@ -236,5 +236,106 @@ How are you?
         }
       })
     })
+
+    describe('visibility support', () => {
+      it('creates public status with correct recipients', async () => {
+        const status = (await createNoteFromUserInput({
+          text: 'Public post',
+          currentActor: actor1,
+          visibility: 'public',
+          database
+        })) as StatusNote
+
+        expect(status).toMatchObject({
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${actor1.id}/followers`]
+        })
+      })
+
+      it('creates unlist status with Public in cc', async () => {
+        const status = (await createNoteFromUserInput({
+          text: 'Unlisted post',
+          currentActor: actor1,
+          visibility: 'unlist',
+          database
+        })) as StatusNote
+
+        expect(status).toMatchObject({
+          to: [`${actor1.id}/followers`],
+          cc: [ACTIVITY_STREAM_PUBLIC]
+        })
+      })
+
+      it('creates private status without Public', async () => {
+        const status = (await createNoteFromUserInput({
+          text: 'Private post',
+          currentActor: actor1,
+          visibility: 'private',
+          database
+        })) as StatusNote
+
+        expect(status).toMatchObject({
+          to: [`${actor1.id}/followers`],
+          cc: []
+        })
+        expect(status.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
+        expect(status.cc).not.toContain(ACTIVITY_STREAM_PUBLIC)
+      })
+
+      it('creates direct message with only mentioned users', async () => {
+        const status = (await createNoteFromUserInput({
+          text: '@test2@llun.test Hello!',
+          currentActor: actor1,
+          visibility: 'direct',
+          database
+        })) as StatusNote
+
+        expect(status.to).toContain(ACTOR2_ID)
+        expect(status.cc).toEqual([])
+        expect(status.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
+        expect(status.to).not.toContain(`${actor1.id}/followers`)
+      })
+
+      it('creates private post with mentions in cc', async () => {
+        const status = (await createNoteFromUserInput({
+          text: '@test2@llun.test Private hello!',
+          currentActor: actor1,
+          visibility: 'private',
+          database
+        })) as StatusNote
+
+        expect(status).toMatchObject({
+          to: [`${actor1.id}/followers`]
+        })
+        expect(status.cc).toContain(ACTOR2_ID)
+        expect(status.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
+        expect(status.cc).not.toContain(ACTIVITY_STREAM_PUBLIC)
+      })
+
+      it('creates unlist post with mentions in cc', async () => {
+        const status = (await createNoteFromUserInput({
+          text: '@test2@llun.test Unlisted hello!',
+          currentActor: actor1,
+          visibility: 'unlist',
+          database
+        })) as StatusNote
+
+        expect(status).toMatchObject({
+          to: [`${actor1.id}/followers`]
+        })
+        expect(status.cc).toContain(ACTIVITY_STREAM_PUBLIC)
+        expect(status.cc).toContain(ACTOR2_ID)
+      })
+
+      it('defaults to public when no visibility specified', async () => {
+        const status = (await createNoteFromUserInput({
+          text: 'Default visibility',
+          currentActor: actor1,
+          database
+        })) as StatusNote
+
+        expect(status.to).toContain(ACTIVITY_STREAM_PUBLIC)
+      })
+    })
   })
 })
