@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 
 import {
+  getVisibilityFromReplyStatus,
   statusRecipientsCC,
   statusRecipientsTo
 } from '@/lib/actions/createNote'
@@ -8,6 +9,7 @@ import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { Actor, getMention } from '@/lib/models/actor'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
@@ -19,6 +21,7 @@ interface CreatePollFromUserInputParams {
   choices: string[]
   database: Database
   endAt: number
+  visibility?: MastodonVisibility
 }
 export const createPollFromUserInput = async ({
   text,
@@ -26,7 +29,8 @@ export const createPollFromUserInput = async ({
   currentActor,
   choices = [],
   database,
-  endAt
+  endAt,
+  visibility
 }: CreatePollFromUserInputParams) => {
   const config = getConfig()
   const span = getSpan('actions', 'createPollFromUser', {
@@ -40,8 +44,25 @@ export const createPollFromUserInput = async ({
   const statusId = `${currentActor.id}/statuses/${postId}`
   const mentions = await getMentions({ text, currentActor, replyStatus })
 
-  const to = statusRecipientsTo(currentActor, mentions, replyStatus)
-  const cc = statusRecipientsCC(currentActor, mentions, replyStatus)
+  // Determine effective visibility:
+  // 1. Use explicit visibility if provided
+  // 2. Inherit from reply status if replying
+  // 3. Default to 'public'
+  const effectiveVisibility =
+    visibility ?? getVisibilityFromReplyStatus(replyStatus) ?? 'public'
+
+  const to = statusRecipientsTo(
+    currentActor,
+    mentions,
+    replyStatus,
+    effectiveVisibility
+  )
+  const cc = statusRecipientsCC(
+    currentActor,
+    mentions,
+    replyStatus,
+    effectiveVisibility
+  )
 
   const createdPoll = await database.createPoll({
     id: statusId,

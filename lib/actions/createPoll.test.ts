@@ -130,5 +130,85 @@ describe('Create poll action', () => {
 
       expect(poll).toBeDefined()
     })
+
+    describe('visibility support', () => {
+      it('creates private poll with correct recipients', async () => {
+        await createPollFromUserInput({
+          text: 'Private poll question',
+          currentActor: actor1,
+          choices: ['Yes', 'No'],
+          database,
+          endAt: Date.now() + 24 * 60 * 60 * 1000,
+          visibility: 'private'
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId: actor1.id
+        })
+        const poll = statuses.find((s) =>
+          s.text.includes('Private poll question')
+        )
+
+        expect(poll).toBeDefined()
+        expect(poll?.to).toContain(`${actor1.id}/followers`)
+        expect(poll?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
+        expect(poll?.cc).not.toContain(ACTIVITY_STREAM_PUBLIC)
+      })
+
+      it('creates unlist poll with Public in cc', async () => {
+        await createPollFromUserInput({
+          text: 'Unlisted poll question',
+          currentActor: actor1,
+          choices: ['A', 'B'],
+          database,
+          endAt: Date.now() + 24 * 60 * 60 * 1000,
+          visibility: 'unlist'
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId: actor1.id
+        })
+        const poll = statuses.find((s) =>
+          s.text.includes('Unlisted poll question')
+        )
+
+        expect(poll).toBeDefined()
+        expect(poll?.to).toContain(`${actor1.id}/followers`)
+        expect(poll?.cc).toContain(ACTIVITY_STREAM_PUBLIC)
+      })
+
+      it('inherits visibility from private reply status', async () => {
+        // Create a private status to reply to
+        const privateStatus = await database.createNote({
+          id: `${actor1.id}/statuses/private-for-poll-reply`,
+          url: `${actor1.id}/statuses/private-for-poll-reply`,
+          actorId: actor1.id,
+          text: 'Private status for poll reply',
+          to: [`${actor1.id}/followers`],
+          cc: []
+        })
+
+        await createPollFromUserInput({
+          text: 'Poll reply to private',
+          replyStatusId: privateStatus.id,
+          currentActor: actor1,
+          choices: ['Option 1', 'Option 2'],
+          database,
+          endAt: Date.now() + 24 * 60 * 60 * 1000
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId: actor1.id
+        })
+        const poll = statuses.find((s) =>
+          s.text.includes('Poll reply to private')
+        )
+
+        expect(poll).toBeDefined()
+        // Should inherit private visibility - no Public in to or cc
+        expect(poll?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
+        expect(poll?.cc).not.toContain(ACTIVITY_STREAM_PUBLIC)
+      })
+    })
   })
 })

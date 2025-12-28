@@ -22,7 +22,7 @@ import { getSpan } from '@/lib/utils/trace'
  *
  * Visibility rules for 'to':
  * - public: [Public]
- * - unlist: [followersUrl]
+ * - unlisted: [followersUrl]
  * - private: [followersUrl]
  * - direct: [specific recipients from mentions]
  *
@@ -52,8 +52,8 @@ export const statusRecipientsTo = (
     return [ACTIVITY_STREAM_PUBLIC]
   }
 
-  // For unlist and private, use followers URL
-  // (unlist = followers in 'to', public in 'cc')
+  // For unlisted and private, use followers URL
+  // (unlisted = followers in 'to', public in 'cc')
   // (private = followers in 'to', nothing public)
   return [actor.followersUrl]
 }
@@ -63,7 +63,7 @@ export const statusRecipientsTo = (
  *
  * Visibility rules for 'cc':
  * - public: [followersUrl, ...mentions]
- * - unlist: [Public, ...mentions]
+ * - unlisted: [Public, ...mentions]
  * - private: [...mentions only]
  * - direct: [] (no cc for direct messages)
  */
@@ -85,7 +85,7 @@ export const statusRecipientsCC = (
     return mentionHrefs
   }
 
-  // For unlist, put Public in cc instead of to
+  // For unlisted, put Public in cc instead of to
   if (visibility === 'unlist') {
     return [ACTIVITY_STREAM_PUBLIC, ...mentionHrefs]
   }
