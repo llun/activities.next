@@ -560,4 +560,125 @@ describe('#getMastodonStatus', () => {
       expect(mastodonStatus?.text).toBe('Plain text with **markdown**')
     })
   })
+
+  describe('announce/reblog visibility', () => {
+    it('uses original status visibility for Announce statuses', async () => {
+      // Create an unlisted original status
+      const unlistedStatus = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/unlisted-for-reblog`,
+        url: `${ACTOR1_ID}/statuses/unlisted-for-reblog`,
+        actorId: ACTOR1_ID,
+        text: 'Unlisted status to be reblogged',
+        to: [`${ACTOR1_ID}/followers`],
+        cc: [ACTIVITY_STREAM_PUBLIC]
+      })
+
+      // Create an announce of the unlisted status with public to/cc
+      const announceStatus = await database.createAnnounce({
+        id: `${ACTOR2_ID}/statuses/announce-unlisted`,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR2_ID}/followers`],
+        originalStatusId: unlistedStatus.id
+      })
+
+      const status = (await database.getStatus({
+        statusId: announceStatus.id
+      })) as Status
+
+      const mastodonStatus = await getMastodonStatus(database, status)
+
+      // The visibility should be 'unlist' from the original status, not 'public' from the announce
+      expect(mastodonStatus?.visibility).toBe('unlist')
+      expect(mastodonStatus?.reblog?.visibility).toBe('unlist')
+    })
+
+    it('uses original status visibility for private status reblogs', async () => {
+      // Create a private original status
+      const privateStatus = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/private-for-reblog`,
+        url: `${ACTOR1_ID}/statuses/private-for-reblog`,
+        actorId: ACTOR1_ID,
+        text: 'Private status to be reblogged',
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+
+      // Create an announce of the private status
+      const announceStatus = await database.createAnnounce({
+        id: `${ACTOR2_ID}/statuses/announce-private`,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: privateStatus.id
+      })
+
+      const status = (await database.getStatus({
+        statusId: announceStatus.id
+      })) as Status
+
+      const mastodonStatus = await getMastodonStatus(database, status)
+
+      // The visibility should be 'private' from the original status
+      expect(mastodonStatus?.visibility).toBe('private')
+    })
+  })
+
+  describe('emoji shortcode edge cases', () => {
+    it('handles emoji with multiple leading colons', async () => {
+      const statusWithEmoji = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/multi-colon-emoji-1`,
+        url: `${ACTOR1_ID}/statuses/multi-colon-emoji-1`,
+        actorId: ACTOR1_ID,
+        text: 'Status with ::emoji::',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await database.createTag({
+        statusId: statusWithEmoji.id,
+        type: 'emoji',
+        name: '::emoji::',
+        value: 'https://test.host/emoji.png'
+      })
+
+      const statusWithTags = (await database.getStatus({
+        statusId: statusWithEmoji.id,
+        withReplies: false
+      })) as Status
+
+      const mastodonStatus = await getMastodonStatus(database, statusWithTags)
+
+      expect(mastodonStatus?.emojis).toHaveLength(1)
+      expect(mastodonStatus?.emojis[0].shortcode).toBe('emoji')
+    })
+
+    it('handles emoji without colons', async () => {
+      const statusWithEmoji = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/no-colon-emoji`,
+        url: `${ACTOR1_ID}/statuses/no-colon-emoji`,
+        actorId: ACTOR1_ID,
+        text: 'Status with emoji',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await database.createTag({
+        statusId: statusWithEmoji.id,
+        type: 'emoji',
+        name: 'emoji_no_colons',
+        value: 'https://test.host/emoji.png'
+      })
+
+      const statusWithTags = (await database.getStatus({
+        statusId: statusWithEmoji.id,
+        withReplies: false
+      })) as Status
+
+      const mastodonStatus = await getMastodonStatus(database, statusWithTags)
+
+      expect(mastodonStatus?.emojis).toHaveLength(1)
+      expect(mastodonStatus?.emojis[0].shortcode).toBe('emoji_no_colons')
+    })
+  })
 })
