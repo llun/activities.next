@@ -68,6 +68,9 @@ export type CreateTagParams = {
 export type GetTagsParams = {
   statusId: string
 }
+export type GetStatusReblogsCountParams = {
+  statusId: string
+}
 
 export interface StatusDatabase {
   createNote(params: CreateNoteParams): Promise<Status>
@@ -97,4 +100,6 @@ export interface StatusDatabase {
 
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>
+
+  getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
 }

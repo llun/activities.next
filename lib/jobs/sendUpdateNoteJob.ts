@@ -8,7 +8,7 @@ import { StatusType } from '@/lib/models/status'
 import { JobHandle } from '@/lib/services/queue/type'
 import {
   ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMACT
+  ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/jsonld/activitystream'
 import { logger } from '@/lib/utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
@@ -61,9 +61,9 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
       const inboxes = []
       if (
         status.to.includes(ACTIVITY_STREAM_PUBLIC) ||
-        status.to.includes(ACTIVITY_STREAM_PUBLIC_COMACT) ||
+        status.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT) ||
         status.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
-        status.cc.includes(ACTIVITY_STREAM_PUBLIC_COMACT)
+        status.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
       ) {
         const followersInbox = await database.getFollowersInbox({
           targetActorId: actor.id
@@ -77,7 +77,7 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
             .filter(
               (item) =>
                 item !== ACTIVITY_STREAM_PUBLIC &&
-                item !== ACTIVITY_STREAM_PUBLIC_COMACT
+                item !== ACTIVITY_STREAM_PUBLIC_COMPACT
             )
             .map(async (item) => database.getActorFromId({ id: item }))
         )
