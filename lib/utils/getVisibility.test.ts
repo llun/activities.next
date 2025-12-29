@@ -26,19 +26,19 @@ describe('#getVisibility', () => {
     ).toEqual('public')
   })
 
-  it('returns unlist when cc contains Public but to does not', () => {
+  it('returns unlisted when cc contains Public but to does not', () => {
     expect(
       getVisibility(
         ['https://example.com/users/test/followers'],
         [ACTIVITY_STREAM_PUBLIC]
       )
-    ).toEqual('unlist')
+    ).toEqual('unlisted')
     expect(
       getVisibility(
         ['https://example.com/users/test/followers'],
         [ACTIVITY_STREAM_PUBLIC_COMPACT]
       )
-    ).toEqual('unlist')
+    ).toEqual('unlisted')
   })
 
   it('returns private when to/cc contains followers URL but no Public', () => {

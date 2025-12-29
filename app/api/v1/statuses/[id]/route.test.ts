@@ -126,7 +126,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       })
 
       const mastodonStatus = await getMastodonStatus(database, unlistStatus)
-      expect(mastodonStatus?.visibility).toBe('unlist')
+      expect(mastodonStatus?.visibility).toBe('unlisted')
     })
 
     it('returns private visibility for followers-only posts', async () => {

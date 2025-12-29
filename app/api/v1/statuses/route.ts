@@ -15,7 +15,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const VisibilitySchema = z.enum(['public', 'unlist', 'private', 'direct'])
+const VisibilitySchema = z.enum(['public', 'unlisted', 'private', 'direct'])
 
 const NoteSchema = z.object({
   status: z.string(),

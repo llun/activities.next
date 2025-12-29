@@ -328,7 +328,7 @@ describe('#getMastodonStatus', () => {
       })
 
       const mastodonStatus = await getMastodonStatus(database, unlistStatus)
-      expect(mastodonStatus?.visibility).toBe('unlist')
+      expect(mastodonStatus?.visibility).toBe('unlisted')
     })
 
     it('returns private visibility when only followers URL is present', async () => {
@@ -588,9 +588,9 @@ describe('#getMastodonStatus', () => {
 
       const mastodonStatus = await getMastodonStatus(database, status)
 
-      // The visibility should be 'unlist' from the original status, not 'public' from the announce
-      expect(mastodonStatus?.visibility).toBe('unlist')
-      expect(mastodonStatus?.reblog?.visibility).toBe('unlist')
+      // The visibility should be 'unlisted' from the original status, not 'public' from the announce
+      expect(mastodonStatus?.visibility).toBe('unlisted')
+      expect(mastodonStatus?.reblog?.visibility).toBe('unlisted')
     })
 
     it('uses original status visibility for private status reblogs', async () => {

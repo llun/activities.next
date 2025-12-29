@@ -3,9 +3,8 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/jsonld/activitystream'
 
-// Note: Using 'unlist' to match @llun/activities.schema Mastodon.Status schema
-// The official Mastodon API uses 'unlisted' but this schema uses 'unlist'
-export type MastodonVisibility = 'public' | 'unlist' | 'private' | 'direct'
+// Mastodon API visibility values
+export type MastodonVisibility = 'public' | 'unlisted' | 'private' | 'direct'
 
 const isPublic = (item: string) =>
   item === ACTIVITY_STREAM_PUBLIC || item === ACTIVITY_STREAM_PUBLIC_COMPACT
@@ -31,7 +30,7 @@ export const getVisibility = (to: string[], cc: string[]): MastodonVisibility =>
 
   // Unlisted: cc contains Public but to doesn't
   if (cc.some(isPublic)) {
-    return 'unlist'
+    return 'unlisted'
   }
 
   // Check if any recipient is a followers URL (typically ends with /followers)

@@ -252,11 +252,11 @@ How are you?
         })
       })
 
-      it('creates unlist status with Public in cc', async () => {
+      it('creates unlisted status with Public in cc', async () => {
         const status = (await createNoteFromUserInput({
           text: 'Unlisted post',
           currentActor: actor1,
-          visibility: 'unlist',
+          visibility: 'unlisted',
           database
         })) as StatusNote
 
@@ -312,11 +312,11 @@ How are you?
         expect(status.cc).not.toContain(ACTIVITY_STREAM_PUBLIC)
       })
 
-      it('creates unlist post with mentions in cc', async () => {
+      it('creates unlisted post with mentions in cc', async () => {
         const status = (await createNoteFromUserInput({
           text: '@test2@llun.test Unlisted hello!',
           currentActor: actor1,
-          visibility: 'unlist',
+          visibility: 'unlisted',
           database
         })) as StatusNote
 

@@ -86,7 +86,7 @@ export const statusRecipientsCC = (
   }
 
   // For unlisted, put Public in cc instead of to
-  if (visibility === 'unlist') {
+  if (visibility === 'unlisted') {
     return [ACTIVITY_STREAM_PUBLIC, ...mentionHrefs]
   }
 
@@ -116,7 +116,7 @@ export const getVisibilityFromReplyStatus = (
     replyStatus.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
     replyStatus.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
   ) {
-    return 'unlist'
+    return 'unlisted'
   }
 
   // Check if parent has followers (private)

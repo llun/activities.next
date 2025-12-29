@@ -155,14 +155,14 @@ describe('Create poll action', () => {
         expect(poll?.cc).not.toContain(ACTIVITY_STREAM_PUBLIC)
       })
 
-      it('creates unlist poll with Public in cc', async () => {
+      it('creates unlisted poll with Public in cc', async () => {
         await createPollFromUserInput({
           text: 'Unlisted poll question',
           currentActor: actor1,
           choices: ['A', 'B'],
           database,
           endAt: Date.now() + 24 * 60 * 60 * 1000,
-          visibility: 'unlist'
+          visibility: 'unlisted'
         })
 
         const statuses = await database.getActorStatuses({
