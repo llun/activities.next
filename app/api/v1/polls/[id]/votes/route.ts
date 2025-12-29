@@ -53,7 +53,8 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   }
 
   const selectedChoice = status.choices[choiceIndex]
-  if (!selectedChoice.choiceId) {
+  const choiceId = selectedChoice.choiceId
+  if (!choiceId) {
     return apiErrorResponse(500, { error: 'Invalid poll choice data' })
   }
 
@@ -73,10 +74,10 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   try {
     await database.createPollAnswer({
       actorId: currentActor.id,
-      choiceId: selectedChoice.choiceId
+      choiceId
     })
 
-    await database.incrementPollChoiceVotes(selectedChoice.choiceId)
+    await database.incrementPollChoiceVotes(choiceId)
   } catch (error) {
     // If vote creation failed (e.g., duplicate), return error
     return apiErrorResponse(422, {
