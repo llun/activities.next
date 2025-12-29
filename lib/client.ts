@@ -125,6 +125,34 @@ export const createPoll = async ({
   })
 }
 
+export interface VotePollParams {
+  pollId: string
+  choices: number[] // Array of choice indices (0-based)
+}
+
+export const votePoll = async ({ pollId, choices }: VotePollParams) => {
+  if (choices.length === 0) {
+    throw new Error('Must select at least one choice')
+  }
+
+  const response = await fetch(`/api/v1/polls/${pollId}/votes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      choices
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(error.error || `Failed to vote on poll (${response.status})`)
+  }
+
+  return response.json()
+}
+
 export interface DefaultStatusParams {
   statusId: string
 }
