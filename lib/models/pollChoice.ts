@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const PollChoice = z.object({
+  choiceId: z.number().optional(),
   statusId: z.string(),
   title: z.string(),
   totalVotes: z.number(),

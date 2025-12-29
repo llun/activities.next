@@ -746,6 +746,55 @@ export const StatusSQLDatabaseMixin = (
     return parseInt(result.count, 10)
   }
 
+  /**
+   * Increment vote count for a poll choice
+   */
+  async function incrementPollChoiceVotes(choiceId: number): Promise<void> {
+    const currentTime = new Date()
+    await database('poll_choices')
+      .where('choiceId', choiceId)
+      .increment('totalVotes', 1)
+      .update({ updatedAt: currentTime })
+  }
+
+  /**
+   * Decrement vote count for a poll choice
+   */
+  async function decrementPollChoiceVotes(choiceId: number): Promise<void> {
+    const currentTime = new Date()
+    await database('poll_choices')
+      .where('choiceId', choiceId)
+      .decrement('totalVotes', 1)
+      .update({ updatedAt: currentTime })
+  }
+
+  /**
+   * Recalculate vote counts for all choices in a poll
+   * Useful for fixing inconsistencies
+   */
+  async function recalculatePollVoteCounts(statusId: string): Promise<void> {
+    const currentTime = new Date()
+    const choices = await database('poll_choices').where('statusId', statusId)
+
+    await Promise.all(
+      choices.map(async (choice) => {
+        const result = await database('poll_answers')
+          .where('choice', choice.choiceId)
+          .count<{ count: string }>('* as count')
+          .first()
+
+        const actualCount = result ? parseInt(result.count, 10) : 0
+
+        await database('poll_choices')
+          .where('choiceId', choice.choiceId)
+          .update({
+            totalVotes: actualCount,
+            updatedAt: currentTime
+          })
+      })
+    )
+  }
+
   return {
     createNote,
     updateNote,
@@ -762,6 +811,9 @@ export const StatusSQLDatabaseMixin = (
     getFavouritedBy,
     createTag,
     getTags,
-    getStatusReblogsCount
+    getStatusReblogsCount,
+    incrementPollChoiceVotes,
+    decrementPollChoiceVotes,
+    recalculatePollVoteCounts
   }
 }

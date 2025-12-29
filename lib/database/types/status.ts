@@ -102,4 +102,8 @@ export interface StatusDatabase {
   getTags(params: GetTagsParams): Promise<Tag[]>
 
   getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
+
+  incrementPollChoiceVotes(choiceId: number): Promise<void>
+  decrementPollChoiceVotes(choiceId: number): Promise<void>
+  recalculatePollVoteCounts(statusId: string): Promise<void>
 }
