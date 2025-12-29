@@ -3264,7 +3264,7 @@ __metadata:
   resolution: "@llun/activities.schema@npm:0.4.0"
   dependencies:
     zod: "npm:^4.2.1"
-  checksum: 10c0/e65a94437bd17f0f4d19b0a7e64a4905d97a230aee5c9df7c3dc8f29ff9239d7d3ba518b13d17c78e2bfcefd4668260fec771daec4b42b154c900853acccf1b8
+  checksum: 10c0/65c7535d3b777e31afad2289639d1bd4a0af4220796fb9a3ec118aa837bb2fdbbd8e9192f2e77232e30448200fed4d49fa28a28890b847cadeeba453c6606dfe
   languageName: node
   linkType: hard
 
