@@ -1,0 +1,3 @@
+{
+  "installCommand": "YARN_CHECKSUM_BEHAVIOR=update yarn install"
+}
