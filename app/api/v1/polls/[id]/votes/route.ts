@@ -1,6 +1,5 @@
 import { Mastodon } from '@llun/activities.schema'
 
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
