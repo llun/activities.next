@@ -151,15 +151,15 @@ describe('POST /api/v1/polls/:id/votes', () => {
 
       // Create actor
       await database.createActor({
-        id: testActorId,
-        account: null,
+        actorId: testActorId,
         username: 'duplicatetest',
         domain: 'test.duplicate.actor',
         privateKey: '',
         publicKey: '',
         followersUrl: `${testActorId}/followers`,
         inboxUrl: `${testActorId}/inbox`,
-        sharedInboxUrl: `${testActorId}/inbox`
+        sharedInboxUrl: `${testActorId}/inbox`,
+        createdAt: Date.now()
       })
 
       // First vote should succeed

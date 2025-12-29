@@ -258,15 +258,15 @@ describe('PollAnswerDatabase', () => {
         // Create a vote to delete
         const testActorId = 'https://test.delete.actor/id'
         await database.createActor({
-          id: testActorId,
-          account: null,
+          actorId: testActorId,
           username: 'deletetest',
           domain: 'test.delete.actor',
           privateKey: '',
           publicKey: '',
           followersUrl: `${testActorId}/followers`,
           inboxUrl: `${testActorId}/inbox`,
-          sharedInboxUrl: `${testActorId}/inbox`
+          sharedInboxUrl: `${testActorId}/inbox`,
+          createdAt: Date.now()
         })
 
         await database.createPollAnswer({
@@ -422,7 +422,6 @@ describe('PollAnswerDatabase', () => {
         const status = await database.getStatus({ statusId: recalcPollId })
         if (status && status.type === 'Poll') {
           const choice1Id = status.choices[0].choiceId!
-          const choice2Id = status.choices[1].choiceId!
 
           // Create multiple votes
           const voters = [ACTOR1_ID, ACTOR2_ID, ACTOR3_ID]

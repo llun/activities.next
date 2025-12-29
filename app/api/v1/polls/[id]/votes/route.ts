@@ -29,7 +29,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   try {
     const rawBody = await req.json()
     body = VotePollRequest.parse(rawBody)
-  } catch (error) {
+  } catch {
     return apiErrorResponse(422, { error: 'Invalid request body' })
   }
 
@@ -78,7 +78,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     })
 
     await database.incrementPollChoiceVotes(choiceId)
-  } catch (error) {
+  } catch {
     // If vote creation failed (e.g., duplicate), return error
     return apiErrorResponse(422, {
       error: 'Failed to record vote'
