@@ -55,6 +55,10 @@ export const statusRecipientsTo = (
   // For unlisted and private, use followers URL
   // (unlisted = followers in 'to', public in 'cc')
   // (private = followers in 'to', nothing public)
+  // When replying, also include the original author so they receive the reply
+  if (replyStatus) {
+    return [...new Set([actor.followersUrl, replyStatus.actorId])]
+  }
   return [actor.followersUrl]
 }
 

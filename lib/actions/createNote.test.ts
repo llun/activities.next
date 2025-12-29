@@ -336,6 +336,52 @@ How are you?
 
         expect(status.to).toContain(ACTIVITY_STREAM_PUBLIC)
       })
+
+      it('includes original author in recipients when replying to private post', async () => {
+        // First create a private status from actor2
+        const privateStatus = (await createNoteFromUserInput({
+          text: 'Private message',
+          currentActor: actor2,
+          visibility: 'private',
+          database
+        })) as StatusNote
+
+        // Reply to the private status with private visibility
+        const replyStatus = (await createNoteFromUserInput({
+          text: 'Reply to private',
+          currentActor: actor1,
+          replyNoteId: privateStatus.id,
+          visibility: 'private',
+          database
+        })) as StatusNote
+
+        // The original author (actor2) should be in the 'to' recipients
+        expect(replyStatus.to).toContain(actor2.id)
+        expect(replyStatus.to).toContain(`${actor1.id}/followers`)
+      })
+
+      it('includes original author in recipients when replying to unlisted post', async () => {
+        // First create an unlisted status from actor2
+        const unlistedStatus = (await createNoteFromUserInput({
+          text: 'Unlisted message',
+          currentActor: actor2,
+          visibility: 'unlisted',
+          database
+        })) as StatusNote
+
+        // Reply to the unlisted status with unlisted visibility
+        const replyStatus = (await createNoteFromUserInput({
+          text: 'Reply to unlisted',
+          currentActor: actor1,
+          replyNoteId: unlistedStatus.id,
+          visibility: 'unlisted',
+          database
+        })) as StatusNote
+
+        // The original author (actor2) should be in the 'to' recipients
+        expect(replyStatus.to).toContain(actor2.id)
+        expect(replyStatus.to).toContain(`${actor1.id}/followers`)
+      })
     })
   })
 })
