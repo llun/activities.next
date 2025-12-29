@@ -17,6 +17,8 @@ jobs:
         run: corepack enable
       - name: Install dependencies
         run: yarn install
+        env:
+          YARN_CHECKSUM_BEHAVIOR: update
       - name: Test Without Database
         run: yarn test:withoutDatabase
   storage-test:
@@ -33,6 +35,8 @@ jobs:
         run: corepack enable
       - name: Install dependencies
         run: yarn install
+        env:
+          YARN_CHECKSUM_BEHAVIOR: update
       - name: Test Database
         run: yarn test:database
         env:
