@@ -101,8 +101,12 @@ export const getMastodonStatus = async (
   // Get the host from the global config
   const host = getConfig().host
 
-  // Derive visibility from to/cc recipients
-  const visibility = getVisibility(status.to, status.cc)
+  // Derive visibility from recipients.
+  // For Announce (reblog) statuses, prefer the original status's visibility.
+  const visibility =
+    status.type === StatusType.enum.Announce && status.originalStatus
+      ? getVisibility(status.originalStatus.to, status.originalStatus.cc)
+      : getVisibility(status.to, status.cc)
 
   // Get reblogs count for non-Announce statuses
   const reblogsCount =
