@@ -191,4 +191,45 @@ describe('createNoteJob', () => {
     }
     expect(status.text).toEqual('<p>Hello</p>')
   })
+
+  it('adds image activity as note into database', async () => {
+    const image = {
+      type: 'Image',
+      id: 'https://pixelfed.social/p/user/123456',
+      attributedTo: 'https://pixelfed.social/users/user',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://pixelfed.social/users/user/followers'],
+      content: '<p>Beautiful sunset</p>',
+      url: 'https://pixelfed.social/p/user/123456',
+      published: new Date().toISOString(),
+      mediaType: 'image/jpeg',
+      name: 'Sunset',
+      width: 1920,
+      height: 1080
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: image
+    })
+
+    const status = (await database.getStatus({ statusId: image.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
+      fail('Status type must be note')
+    }
+    expect(status).toBeDefined()
+    expect(status.id).toEqual(image.id)
+    expect(status.text).toEqual('<p>Beautiful sunset</p>')
+    expect(status.actorId).toEqual(image.attributedTo)
+    expect(status.type).toEqual(StatusType.enum.Note)
+    expect(status.attachments).toHaveLength(1)
+    expect(status.attachments[0]).toMatchObject({
+      statusId: image.id,
+      mediaType: 'image/jpeg',
+      url: 'https://pixelfed.social/p/user/123456',
+      width: 1920,
+      height: 1080
+    })
+  })
 })
