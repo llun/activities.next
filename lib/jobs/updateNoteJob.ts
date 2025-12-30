@@ -10,27 +10,37 @@ import { UPDATE_NOTE_JOB_NAME } from './names'
 export const updateNoteJob = createJobHandle(
   UPDATE_NOTE_JOB_NAME,
   async (database, message) => {
-    const note = Note.parse(message.data)
+    const compactObject = (await compact({
+      '@context': ACTIVITY_STREAM_URL,
+      ...(message.data as Record<string, unknown>)
+    })) as Record<string, unknown>
+    const noteResult = Note.safeParse(compactObject)
+    const objectType = compactObject.type
+    const isMediaObject =
+      objectType === 'Image' || objectType === 'Video' || objectType === 'Note'
+    if (!noteResult.success && !isMediaObject) {
+      return
+    }
+
+    const statusId =
+      typeof compactObject.id === 'string' ? compactObject.id : null
+    if (!statusId) return
+
     const existingStatus = await database.getStatus({
-      statusId: note.id,
+      statusId,
       withReplies: false
     })
     if (!existingStatus || existingStatus.type !== StatusType.enum.Note) {
       return
     }
-
-    const compactNote = (await compact({
-      '@context': ACTIVITY_STREAM_URL,
-      ...note
-    })) as Note
-    if (compactNote.type !== 'Note') {
+    if (objectType !== 'Note' && !isMediaObject) {
       return
     }
 
-    const text = getContent(compactNote)
-    const summary = getSummary(compactNote)
+    const text = getContent(compactObject as Note)
+    const summary = getSummary(compactObject as Note)
     await database.updateNote({
-      statusId: compactNote.id,
+      statusId,
       summary,
       text
     })

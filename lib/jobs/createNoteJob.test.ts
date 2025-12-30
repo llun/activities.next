@@ -122,6 +122,66 @@ describe('createNoteJob', () => {
     })
   })
 
+  it('adds pixelfed image activity with multiple media attachments', async () => {
+    const pixelfedImage = {
+      id: 'https://pixelfed.test/p/1',
+      type: 'Image',
+      attributedTo: actor1?.id ?? FRIEND_ACTOR_ID,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      content: '<p>Pixelfed caption</p>',
+      published: new Date().toISOString(),
+      url: 'https://pixelfed.test/p/1',
+      attachment: [
+        {
+          type: 'Image',
+          url: 'https://pixelfed.test/media/1.jpg',
+          mediaType: 'image/jpeg',
+          width: 1080,
+          height: 1080
+        },
+        {
+          type: 'Video',
+          url: 'https://pixelfed.test/media/2.mp4',
+          mediaType: 'video/mp4',
+          width: 1280,
+          height: 720,
+          name: 'Clip'
+        }
+      ]
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: pixelfedImage
+    })
+
+    const status = (await database.getStatus({
+      statusId: pixelfedImage.id
+    })) as Status
+    if (status.type !== StatusType.enum.Note) {
+      fail('Stauts type must be note')
+    }
+    expect(status.text).toEqual('<p>Pixelfed caption</p>')
+    expect(status.attachments.length).toEqual(2)
+    expect(status.attachments[0]).toMatchObject({
+      statusId: pixelfedImage.id,
+      mediaType: 'image/jpeg',
+      url: 'https://pixelfed.test/media/1.jpg',
+      width: 1080,
+      height: 1080
+    })
+    expect(status.attachments[1]).toMatchObject({
+      statusId: pixelfedImage.id,
+      mediaType: 'video/mp4',
+      url: 'https://pixelfed.test/media/2.mp4',
+      width: 1280,
+      height: 720,
+      name: 'Clip'
+    })
+  })
+
   it('does not add duplicate note into database', async () => {
     const note = MockMastodonActivityPubNote({
       id: `${actor1?.id}/statuses/post-1`,

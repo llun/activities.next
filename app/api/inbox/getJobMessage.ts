@@ -20,11 +20,39 @@ import {
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 export const getJobMessage = (activity: StatusActivity) => {
+  const ENTITY_TYPE_IMAGE = 'Image'
+  const ENTITY_TYPE_VIDEO = 'Video'
   const deduplicationId = getHashFromString(activity.id)
   if (
     isMatch(activity, {
       type: CreateAction,
       object: { type: ENTITY_TYPE_NOTE }
+    })
+  ) {
+    return {
+      id: deduplicationId,
+      name: CREATE_NOTE_JOB_NAME,
+      data: activity.object
+    }
+  }
+
+  if (
+    isMatch(activity, {
+      type: CreateAction,
+      object: { type: ENTITY_TYPE_IMAGE }
+    })
+  ) {
+    return {
+      id: deduplicationId,
+      name: CREATE_NOTE_JOB_NAME,
+      data: activity.object
+    }
+  }
+
+  if (
+    isMatch(activity, {
+      type: CreateAction,
+      object: { type: ENTITY_TYPE_VIDEO }
     })
   ) {
     return {
@@ -64,6 +92,32 @@ export const getJobMessage = (activity: StatusActivity) => {
     isMatch(activity, {
       type: UpdateAction,
       object: { type: ENTITY_TYPE_NOTE }
+    })
+  ) {
+    return {
+      id: deduplicationId,
+      name: UPDATE_NOTE_JOB_NAME,
+      data: activity.object
+    }
+  }
+
+  if (
+    isMatch(activity, {
+      type: UpdateAction,
+      object: { type: ENTITY_TYPE_IMAGE }
+    })
+  ) {
+    return {
+      id: deduplicationId,
+      name: UPDATE_NOTE_JOB_NAME,
+      data: activity.object
+    }
+  }
+
+  if (
+    isMatch(activity, {
+      type: UpdateAction,
+      object: { type: ENTITY_TYPE_VIDEO }
     })
   ) {
     return {
