@@ -232,4 +232,90 @@ describe('createNoteJob', () => {
       height: 1080
     })
   })
+
+  it('adds page activity as note into database', async () => {
+    const page = {
+      type: 'Page',
+      id: 'https://pixelfed.social/p/user/page1',
+      attributedTo: 'https://pixelfed.social/users/user',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://pixelfed.social/users/user/followers'],
+      content: '<p>A nice page</p>',
+      url: 'https://pixelfed.social/p/user/page1',
+      published: new Date().toISOString()
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: page
+    })
+
+    const status = (await database.getStatus({ statusId: page.id })) as Status
+    expect(status).toBeDefined()
+    expect(status.id).toEqual(page.id)
+    expect(status.type).toEqual(StatusType.enum.Note)
+    expect(status.text).toEqual('<p>A nice page</p>')
+  })
+
+  it('adds article activity as note into database', async () => {
+    const article = {
+      type: 'Article',
+      id: 'https://writefreely.org/posts/article1',
+      attributedTo: 'https://writefreely.org/users/writer',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://writefreely.org/users/writer/followers'],
+      content: '<p>An interesting article</p>',
+      url: 'https://writefreely.org/posts/article1',
+      published: new Date().toISOString()
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: article
+    })
+
+    const status = (await database.getStatus({ statusId: article.id })) as Status
+    expect(status).toBeDefined()
+    expect(status.id).toEqual(article.id)
+    expect(status.type).toEqual(StatusType.enum.Note)
+    expect(status.text).toEqual('<p>An interesting article</p>')
+  })
+
+  it('adds video activity as note into database', async () => {
+    const video = {
+      type: 'Video',
+      id: 'https://peertube.social/videos/watch/video1',
+      attributedTo: 'https://peertube.social/accounts/streamer',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://peertube.social/accounts/streamer/followers'],
+      content: '<p>Cool video</p>',
+      url: 'https://peertube.social/videos/watch/video1',
+      published: new Date().toISOString(),
+      mediaType: 'video/mp4',
+      name: 'Stream',
+      width: 1920,
+      height: 1080
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: video
+    })
+
+    const status = (await database.getStatus({ statusId: video.id })) as Status
+    expect(status).toBeDefined()
+    expect(status.id).toEqual(video.id)
+    expect(status.type).toEqual(StatusType.enum.Note)
+    expect(status.attachments).toHaveLength(1)
+    expect(status.attachments[0]).toMatchObject({
+      statusId: video.id,
+      mediaType: 'video/mp4',
+      url: 'https://peertube.social/videos/watch/video1',
+      width: 1920,
+      height: 1080
+    })
+  })
 })
