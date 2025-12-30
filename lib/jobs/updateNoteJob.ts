@@ -1,6 +1,12 @@
 import { Note } from '@llun/activities.schema'
+import { z } from 'zod'
 
-import { getContent, getSummary } from '../activities/entities/note'
+import {
+  BaseNote,
+  getContent,
+  getSummary
+} from '../activities/entities/note'
+import { Article, Image, Page, Video } from '../activities/schemas'
 import { StatusType } from '../models/status'
 import { compact } from '../utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
@@ -10,7 +16,8 @@ import { UPDATE_NOTE_JOB_NAME } from './names'
 export const updateNoteJob = createJobHandle(
   UPDATE_NOTE_JOB_NAME,
   async (database, message) => {
-    const note = Note.parse(message.data)
+    const BaseNoteSchema = z.union([Note, Image, Page, Article, Video])
+    const note = BaseNoteSchema.parse(message.data)
     const existingStatus = await database.getStatus({
       statusId: note.id,
       withReplies: false
@@ -22,8 +29,14 @@ export const updateNoteJob = createJobHandle(
     const compactNote = (await compact({
       '@context': ACTIVITY_STREAM_URL,
       ...note
-    })) as Note
-    if (compactNote.type !== 'Note') {
+    })) as BaseNote
+    if (
+      compactNote.type !== StatusType.enum.Note &&
+      compactNote.type !== 'Image' &&
+      compactNote.type !== 'Page' &&
+      compactNote.type !== 'Article' &&
+      compactNote.type !== 'Video'
+    ) {
       return
     }
 
