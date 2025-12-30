@@ -1,5 +1,7 @@
 import { Note, Question } from '@llun/activities.schema'
 
+import { Article, Image, Page, Video } from '@/lib/activities/schemas'
+
 import { ContextEntity } from '../entities/base'
 import { Signature } from '../types'
 import { BaseActivity } from './base'
@@ -10,6 +12,6 @@ export interface UpdateStatus extends BaseActivity, ContextEntity {
   published: string
   to: string | string[]
   cc: string | string[]
-  object: Note | Question
+  object: Note | Question | Image | Page | Article | Video
   signature?: Signature
 }

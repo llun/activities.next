@@ -1,13 +1,15 @@
 import { Note } from '@llun/activities.schema'
-import identity from 'lodash/identity'
+import { z } from 'zod'
 
 import { recordActorIfNeeded } from '../actions/utils'
 import {
+  BaseNote,
   getAttachments,
   getContent,
   getSummary,
   getTags
 } from '../activities/entities/note'
+import { Article, Image, Page, Video } from '../activities/schemas'
 import { StatusType } from '../models/status'
 import { addStatusToTimelines } from '../services/timelines'
 import { compact } from '../utils/jsonld'
@@ -18,7 +20,8 @@ import { CREATE_NOTE_JOB_NAME } from './names'
 export const createNoteJob = createJobHandle(
   CREATE_NOTE_JOB_NAME,
   async (database, message) => {
-    const note = Note.parse(message.data)
+    const BaseNoteSchema = z.union([Note, Image, Page, Article, Video])
+    const note = BaseNoteSchema.parse(message.data)
     const existingStatus = await database.getStatus({
       statusId: note.id,
       withReplies: false
@@ -30,8 +33,14 @@ export const createNoteJob = createJobHandle(
     const compactNote = (await compact({
       '@context': ACTIVITY_STREAM_URL,
       ...note
-    })) as Note
-    if (compactNote.type !== StatusType.enum.Note) {
+    })) as BaseNote
+    if (
+      compactNote.type !== StatusType.enum.Note &&
+      compactNote.type !== 'Image' &&
+      compactNote.type !== 'Page' &&
+      compactNote.type !== 'Article' &&
+      compactNote.type !== 'Video'
+    ) {
       return
     }
 
@@ -42,15 +51,22 @@ export const createNoteJob = createJobHandle(
       recordActorIfNeeded({ actorId: compactNote.attributedTo, database }),
       database.createNote({
         id: compactNote.id,
-        url: compactNote.url || compactNote.id,
+        url:
+          typeof compactNote.url === 'string'
+            ? compactNote.url
+            : compactNote.id,
 
         actorId: compactNote.attributedTo,
 
         text,
         summary,
 
-        to: Array.isArray(note.to) ? note.to : [note.to].filter(identity),
-        cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter(identity),
+        to: Array.isArray(note.to)
+          ? note.to
+          : [note.to].filter((item): item is string => !!item),
+        cc: Array.isArray(note.cc)
+          ? note.cc
+          : [note.cc].filter((item): item is string => !!item),
 
         reply: compactNote.inReplyTo || '',
         createdAt: new Date(compactNote.published).getTime()
