@@ -75,7 +75,7 @@ export const createNoteJob = createJobHandle(
       })
     ])
 
-    const tags = getTags(compactNote)
+    const tags = getTags(note)
 
     await Promise.all([
       addStatusToTimelines(database, status),

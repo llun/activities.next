@@ -31,7 +31,9 @@ export const getAttachments = (object: BaseNote) => {
     if (url) {
       attachments.push({
         type: 'Document',
-        mediaType: unsafeObject.mediaType,
+        mediaType:
+          unsafeObject.mediaType ||
+          (object.type === 'Image' ? 'image/jpeg' : 'video/mp4'),
         url,
         name: unsafeObject.name,
         width: unsafeObject.width,
