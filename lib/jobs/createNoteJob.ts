@@ -22,6 +22,8 @@ export const createNoteJob = createJobHandle(
   async (database, message) => {
     const BaseNoteSchema = z.union([Note, Image, Page, Article, Video])
     const note = BaseNoteSchema.parse(message.data)
+    const attachments = getAttachments(note)
+
     const existingStatus = await database.getStatus({
       statusId: note.id,
       withReplies: false
@@ -73,8 +75,7 @@ export const createNoteJob = createJobHandle(
       })
     ])
 
-    const attachments = getAttachments(note)
-    const tags = getTags(note)
+    const tags = getTags(compactNote)
 
     await Promise.all([
       addStatusToTimelines(database, status),

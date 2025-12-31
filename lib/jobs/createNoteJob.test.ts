@@ -233,6 +233,36 @@ describe('createNoteJob', () => {
     })
   })
 
+  it('adds image activity with array URLs into database', async () => {
+    const image = {
+      type: 'Image',
+      id: 'https://pixelfed.social/p/user/1234567',
+      attributedTo: 'https://pixelfed.social/users/user',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://pixelfed.social/users/user/followers'],
+      content: '<p>Beautiful sunset</p>',
+      url: [
+        { href: 'https://pixelfed.social/storage/m/1.jpg', mediaType: 'image/jpeg' },
+        { href: 'https://pixelfed.social/storage/m/2.jpg', mediaType: 'image/jpeg' }
+      ],
+      published: new Date().toISOString(),
+      mediaType: 'image/jpeg',
+      name: 'Sunset'
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: image
+    })
+
+    const status = (await database.getStatus({ statusId: image.id })) as Status
+    expect(status.attachments).toHaveLength(1)
+    expect(status.attachments[0]).toMatchObject({
+      url: 'https://pixelfed.social/storage/m/1.jpg'
+    })
+  })
+
   it('adds page activity as note into database', async () => {
     const page = {
       type: 'Page',

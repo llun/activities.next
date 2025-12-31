@@ -4,6 +4,16 @@ import { Article, Image, Page, Video } from '../schemas'
 
 export type BaseNote = Note | Image | Page | Article | Video
 
+const getUrl = (url: string | any | any[]): string | undefined => {
+  if (Array.isArray(url)) {
+    const first = url[0]
+    if (typeof first === 'string') return first
+    return first?.href
+  }
+  if (typeof url === 'string') return url
+  return url?.href
+}
+
 export const getAttachments = (object: BaseNote) => {
   const attachments = []
   if (object.attachment) {
@@ -17,10 +27,7 @@ export const getAttachments = (object: BaseNote) => {
   if (['Image', 'Video'].includes(object.type)) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const unsafeObject = object as any
-    const url =
-      typeof unsafeObject.url === 'string'
-        ? unsafeObject.url
-        : unsafeObject.url?.href
+    const url = getUrl(unsafeObject.url)
     if (url) {
       attachments.push({
         type: 'Document',
