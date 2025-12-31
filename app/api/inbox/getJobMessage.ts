@@ -38,6 +38,7 @@ export const getJobMessage = (activity: StatusActivity) => {
   if (activity.type === CreateAction) {
     if (
       typeof activity.object === 'object' &&
+      activity.object !== null &&
       NOTE_TYPES.includes(activity.object.type)
     ) {
       return {
@@ -49,6 +50,7 @@ export const getJobMessage = (activity: StatusActivity) => {
 
     if (
       typeof activity.object === 'object' &&
+      activity.object !== null &&
       activity.object.type === ENTITY_TYPE_QUESTION
     ) {
       return {
@@ -62,6 +64,7 @@ export const getJobMessage = (activity: StatusActivity) => {
   if (activity.type === UpdateAction) {
     if (
       typeof activity.object === 'object' &&
+      activity.object !== null &&
       activity.object.type === ENTITY_TYPE_QUESTION
     ) {
       return {
@@ -73,6 +76,7 @@ export const getJobMessage = (activity: StatusActivity) => {
 
     if (
       typeof activity.object === 'object' &&
+      activity.object !== null &&
       NOTE_TYPES.includes(activity.object.type)
     ) {
       return {
