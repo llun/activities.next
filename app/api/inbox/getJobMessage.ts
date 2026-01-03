@@ -19,57 +19,71 @@ import {
 } from '@/lib/jobs/names'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
+const ENTITY_TYPE_IMAGE = 'Image'
+const ENTITY_TYPE_PAGE = 'Page'
+const ENTITY_TYPE_ARTICLE = 'Article'
+const ENTITY_TYPE_VIDEO = 'Video'
+
+const NOTE_TYPES = [
+  ENTITY_TYPE_NOTE,
+  ENTITY_TYPE_IMAGE,
+  ENTITY_TYPE_PAGE,
+  ENTITY_TYPE_ARTICLE,
+  ENTITY_TYPE_VIDEO
+]
+
 export const getJobMessage = (activity: StatusActivity) => {
   const deduplicationId = getHashFromString(activity.id)
-  if (
-    isMatch(activity, {
-      type: CreateAction,
-      object: { type: ENTITY_TYPE_NOTE }
-    })
-  ) {
-    return {
-      id: deduplicationId,
-      name: CREATE_NOTE_JOB_NAME,
-      data: activity.object
+
+  if (activity.type === CreateAction) {
+    if (
+      typeof activity.object === 'object' &&
+      activity.object !== null &&
+      NOTE_TYPES.includes(activity.object.type)
+    ) {
+      return {
+        id: deduplicationId,
+        name: CREATE_NOTE_JOB_NAME,
+        data: activity.object
+      }
+    }
+
+    if (
+      typeof activity.object === 'object' &&
+      activity.object !== null &&
+      activity.object.type === ENTITY_TYPE_QUESTION
+    ) {
+      return {
+        id: deduplicationId,
+        name: CREATE_POLL_JOB_NAME,
+        data: activity.object
+      }
     }
   }
 
-  if (
-    isMatch(activity, {
-      type: CreateAction,
-      object: { type: ENTITY_TYPE_QUESTION }
-    })
-  ) {
-    return {
-      id: deduplicationId,
-      name: CREATE_POLL_JOB_NAME,
-      data: activity.object
+  if (activity.type === UpdateAction) {
+    if (
+      typeof activity.object === 'object' &&
+      activity.object !== null &&
+      activity.object.type === ENTITY_TYPE_QUESTION
+    ) {
+      return {
+        id: deduplicationId,
+        name: UPDATE_POLL_JOB_NAME,
+        data: activity.object
+      }
     }
-  }
 
-  if (
-    isMatch(activity, {
-      type: UpdateAction,
-      object: { type: ENTITY_TYPE_QUESTION }
-    })
-  ) {
-    return {
-      id: deduplicationId,
-      name: UPDATE_POLL_JOB_NAME,
-      data: activity.object
-    }
-  }
-
-  if (
-    isMatch(activity, {
-      type: UpdateAction,
-      object: { type: ENTITY_TYPE_NOTE }
-    })
-  ) {
-    return {
-      id: deduplicationId,
-      name: UPDATE_NOTE_JOB_NAME,
-      data: activity.object
+    if (
+      typeof activity.object === 'object' &&
+      activity.object !== null &&
+      NOTE_TYPES.includes(activity.object.type)
+    ) {
+      return {
+        id: deduplicationId,
+        name: UPDATE_NOTE_JOB_NAME,
+        data: activity.object
+      }
     }
   }
 

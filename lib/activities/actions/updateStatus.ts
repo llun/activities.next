@@ -1,4 +1,11 @@
-import { Note, Question } from '@llun/activities.schema'
+import {
+  ArticleContent,
+  ImageContent,
+  Note,
+  PageContent,
+  Question,
+  VideoContent
+} from '@llun/activities.schema'
 
 import { ContextEntity } from '../entities/base'
 import { Signature } from '../types'
@@ -10,6 +17,6 @@ export interface UpdateStatus extends BaseActivity, ContextEntity {
   published: string
   to: string | string[]
   cc: string | string[]
-  object: Note | Question
+  object: Note | Question | ImageContent | PageContent | ArticleContent | VideoContent
   signature?: Signature
 }

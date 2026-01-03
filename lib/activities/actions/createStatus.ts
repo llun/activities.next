@@ -1,4 +1,11 @@
-import { Note, Question } from '@llun/activities.schema'
+import {
+  ArticleContent,
+  ImageContent,
+  Note,
+  PageContent,
+  Question,
+  VideoContent
+} from '@llun/activities.schema'
 import * as jsonld from 'jsonld'
 
 import { BaseActivity } from '@/lib/activities/actions/base'
@@ -13,7 +20,7 @@ export interface CreateStatus extends BaseActivity, ContextEntity {
   published: string
   to: string | string[]
   cc: string | string[]
-  object: Note | Question
+  object: Note | Question | ImageContent | PageContent | ArticleContent | VideoContent
   signature?: Signature
 }
 

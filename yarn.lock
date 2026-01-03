@@ -3259,12 +3259,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@llun/activities.schema@npm:^0.3.1":
-  version: 0.3.1
-  resolution: "@llun/activities.schema@npm:0.3.1"
+"@llun/activities.schema@npm:0.4.2":
+  version: 0.4.2
+  resolution: "@llun/activities.schema@npm:0.4.2"
   dependencies:
-    zod: "npm:^4.2.1"
-  checksum: 10c0/f1b0b4978b123fe4c86b1e8a6ec953c62c895e5c5c66ae7b7df4e6495b0d9c1868c4b12287e48c3fb6c2cc826c72ea94814a655446970dda59d6bdc230bc8319
+    zod: "npm:^4.3.4"
+  checksum: 10c0/d84a2159eb4e661e84afb06a7edd34de81e3fcbc8c921ca13eb2f29b57391dfb90dac2e9d0223823f41eed7f7d3d2b5061d517e86c0b5883a6c91dc77bdf46ea
   languageName: node
   linkType: hard
 
@@ -6801,7 +6801,7 @@ __metadata:
     "@eslint/eslintrc": "npm:^3.3.3"
     "@eslint/js": "npm:^9.39.2"
     "@jmondi/oauth2-server": "npm:^4.2.2"
-    "@llun/activities.schema": "npm:^0.3.1"
+    "@llun/activities.schema": "npm:0.4.2"
     "@next/env": "npm:^16.1.1"
     "@next/eslint-plugin-next": "npm:^16.1.1"
     "@opentelemetry/api": "npm:^1.9.0"
@@ -6895,7 +6895,7 @@ __metadata:
     tailwindcss: "npm:4.1.18"
     tw-animate-css: "npm:^1.4.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:4.3.4"
   languageName: unknown
   linkType: soft
 
@@ -15674,17 +15674,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"zod@npm:4.3.4, zod@npm:^4.3.4":
+  version: 4.3.4
+  resolution: "zod@npm:4.3.4"
+  checksum: 10c0/a096102c8b31ecdb913bacb08d5a0fe8447bbe4f54cff421a0c5830a5552da76aae9fd8a01f2e9fdeaae35da1a73762551bc9d14cfedb13a44056de1ed2eb76f
+  languageName: node
+  linkType: hard
+
 "zod@npm:^3.25.0 || ^4.0.0":
   version: 4.1.12
   resolution: "zod@npm:4.1.12"
   checksum: 10c0/b64c1feb19e99d77075261eaf613e0b2be4dfcd3551eff65ad8b4f2a079b61e379854d066f7d447491fcf193f45babd8095551a9d47973d30b46b6d8e2c46774
-  languageName: node
-  linkType: hard
-
-"zod@npm:^4.2.1":
-  version: 4.2.1
-  resolution: "zod@npm:4.2.1"
-  checksum: 10c0/ecb5219bddf76a42d092a843fb98ad4cb78f1e1077082772b03ef032ee5cbc80790a4051836b962d26fb4af854323bc784d628bd1b8d9898149eba7af21c5560
   languageName: node
   linkType: hard
 

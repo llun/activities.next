@@ -34,10 +34,11 @@ export const updatePollJob = createJobHandle(
       statusId: compactQuestion.id,
       summary,
       text,
-      choices: compactQuestion.oneOf.map((answer) => ({
-        title: answer.name,
-        totalVotes: answer.replies.totalItems
-      }))
+      choices:
+        compactQuestion.oneOf?.map((answer) => ({
+          title: answer.name,
+          totalVotes: answer.replies.totalItems
+        })) ?? []
     })
   }
 )

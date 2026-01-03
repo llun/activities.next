@@ -89,6 +89,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         if (!item.actorId) return null
         return Attachment.parse({
           ...item,
+          width: item.width ?? undefined,
+          height: item.height ?? undefined,
           createdAt: getCompatibleTime(item.createdAt),
           updatedAt: getCompatibleTime(item.updatedAt)
         })
@@ -106,6 +108,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     return data.map((item) =>
       Attachment.parse({
         ...item,
+        width: item.width ?? undefined,
+        height: item.height ?? undefined,
         createdAt: getCompatibleTime(item.createdAt),
         updatedAt: getCompatibleTime(item.updatedAt)
       })
