@@ -22,7 +22,6 @@
 .idea
 uploads
 scripts/*.js
-scripts/cloudflared.sh
 .vscode
 *.sql
 docker-compose.yml
