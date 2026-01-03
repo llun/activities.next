@@ -191,4 +191,196 @@ describe('createNoteJob', () => {
     }
     expect(status.text).toEqual('<p>Hello</p>')
   })
+
+  it('adds image activity as note into database', async () => {
+    const image = {
+      type: 'Image',
+      id: 'https://pixelfed.social/p/user/123456',
+      attributedTo: 'https://pixelfed.social/users/user',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://pixelfed.social/users/user/followers'],
+      content: '<p>Beautiful sunset</p>',
+      url: 'https://pixelfed.social/p/user/123456',
+      published: new Date().toISOString(),
+      mediaType: 'image/jpeg',
+      name: 'Sunset',
+      width: 1920,
+      height: 1080,
+      tag: []
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: image
+    })
+
+    const status = (await database.getStatus({ statusId: image.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
+      fail('Status type must be note')
+    }
+    expect(status).toBeDefined()
+    expect(status.id).toEqual(image.id)
+    expect(status.text).toEqual('<p>Beautiful sunset</p>')
+    expect(status.actorId).toEqual(image.attributedTo)
+    expect(status.type).toEqual(StatusType.enum.Note)
+    expect(status.attachments).toHaveLength(1)
+    expect(status.attachments[0]).toMatchObject({
+      statusId: image.id,
+      mediaType: 'image/jpeg',
+      url: 'https://pixelfed.social/p/user/123456',
+      width: 1920,
+      height: 1080
+    })
+  })
+
+  // TODO: The @llun/activities.schema package doesn't support array URLs yet.
+  // This test is skipped until the package is updated to support array URLs.
+  it.skip('adds image activity with array URLs into database', async () => {
+    const image = {
+      type: 'Image',
+      id: 'https://pixelfed.social/p/user/1234567',
+      attributedTo: 'https://pixelfed.social/users/user',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://pixelfed.social/users/user/followers'],
+      content: '<p>Beautiful sunset</p>',
+      url: [
+        { href: 'https://pixelfed.social/storage/m/1.jpg', mediaType: 'image/jpeg' },
+        { href: 'https://pixelfed.social/storage/m/2.jpg', mediaType: 'image/jpeg' }
+      ],
+      published: new Date().toISOString(),
+      mediaType: 'image/jpeg',
+      name: 'Sunset',
+      tag: []
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: image
+    })
+
+    const status = (await database.getStatus({ statusId: image.id })) as Status
+    expect(status.attachments).toHaveLength(1)
+    expect(status.attachments[0]).toMatchObject({
+      url: 'https://pixelfed.social/storage/m/1.jpg'
+    })
+  })
+
+  it('adds image activity without mediaType into database with default', async () => {
+    const image = {
+      type: 'Image',
+      id: 'https://pixelfed.social/p/user/no-media-type',
+      attributedTo: 'https://pixelfed.social/users/user',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://pixelfed.social/users/user/followers'],
+      content: '<p>Sunset</p>',
+      url: 'https://pixelfed.social/p/user/no-media-type.jpg',
+      published: new Date().toISOString(),
+      name: 'Sunset',
+      tag: []
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: image
+    })
+
+    const status = (await database.getStatus({ statusId: image.id })) as Status
+    expect(status.attachments).toHaveLength(1)
+    expect(status.attachments[0]).toMatchObject({
+      url: 'https://pixelfed.social/p/user/no-media-type.jpg',
+      mediaType: 'image/jpeg'
+    })
+  })
+
+  it('adds page activity as note into database', async () => {
+    const page = {
+      type: 'Page',
+      id: 'https://pixelfed.social/p/user/page1',
+      attributedTo: 'https://pixelfed.social/users/user',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://pixelfed.social/users/user/followers'],
+      content: '<p>A nice page</p>',
+      url: 'https://pixelfed.social/p/user/page1',
+      published: new Date().toISOString(),
+      tag: []
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: page
+    })
+
+    const status = (await database.getStatus({ statusId: page.id })) as Status
+    expect(status).toBeDefined()
+    expect(status.id).toEqual(page.id)
+    expect(status.type).toEqual(StatusType.enum.Note)
+    expect(status.text).toEqual('<p>A nice page</p>')
+  })
+
+  it('adds article activity as note into database', async () => {
+    const article = {
+      type: 'Article',
+      id: 'https://writefreely.org/posts/article1',
+      attributedTo: 'https://writefreely.org/users/writer',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://writefreely.org/users/writer/followers'],
+      content: '<p>An interesting article</p>',
+      url: 'https://writefreely.org/posts/article1',
+      published: new Date().toISOString(),
+      tag: []
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: article
+    })
+
+    const status = (await database.getStatus({ statusId: article.id })) as Status
+    expect(status).toBeDefined()
+    expect(status.id).toEqual(article.id)
+    expect(status.type).toEqual(StatusType.enum.Note)
+    expect(status.text).toEqual('<p>An interesting article</p>')
+  })
+
+  it('adds video activity as note into database', async () => {
+    const video = {
+      type: 'Video',
+      id: 'https://peertube.social/videos/watch/video1',
+      attributedTo: 'https://peertube.social/accounts/streamer',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://peertube.social/accounts/streamer/followers'],
+      content: '<p>Cool video</p>',
+      url: 'https://peertube.social/videos/watch/video1',
+      published: new Date().toISOString(),
+      mediaType: 'video/mp4',
+      name: 'Stream',
+      width: 1920,
+      height: 1080,
+      tag: []
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: video
+    })
+
+    const status = (await database.getStatus({ statusId: video.id })) as Status
+    expect(status).toBeDefined()
+    expect(status.id).toEqual(video.id)
+    expect(status.type).toEqual(StatusType.enum.Note)
+    expect(status.attachments).toHaveLength(1)
+    expect(status.attachments[0]).toMatchObject({
+      statusId: video.id,
+      mediaType: 'video/mp4',
+      url: 'https://peertube.social/videos/watch/video1',
+      width: 1920,
+      height: 1080
+    })
+  })
 })
