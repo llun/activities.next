@@ -58,7 +58,8 @@ export const createPollJob = createJobHandle(
         choices,
         endAt: compactQuestion.endTime
           ? new Date(compactQuestion.endTime).getTime()
-          : Date.now(),
+          : new Date(compactQuestion.published).getTime() +
+            100 * 365 * 24 * 60 * 60 * 1000,
         createdAt: new Date(compactQuestion.published).getTime()
       })
     ])
