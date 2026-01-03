@@ -1,4 +1,10 @@
-import { Note } from '@llun/activities.schema'
+import {
+  ArticleContent,
+  ImageContent,
+  Note,
+  PageContent,
+  VideoContent
+} from '@llun/activities.schema'
 import { z } from 'zod'
 
 import { recordActorIfNeeded } from '../actions/utils'
@@ -9,7 +15,6 @@ import {
   getSummary,
   getTags
 } from '../activities/entities/note'
-import { Article, Image, Page, Video } from '../activities/schemas'
 import { StatusType } from '../models/status'
 import { addStatusToTimelines } from '../services/timelines'
 import { compact } from '../utils/jsonld'
@@ -20,7 +25,13 @@ import { CREATE_NOTE_JOB_NAME } from './names'
 export const createNoteJob = createJobHandle(
   CREATE_NOTE_JOB_NAME,
   async (database, message) => {
-    const BaseNoteSchema = z.union([Note, Image, Page, Article, Video])
+    const BaseNoteSchema = z.union([
+      Note,
+      ImageContent,
+      PageContent,
+      ArticleContent,
+      VideoContent
+    ])
     const note = BaseNoteSchema.parse(message.data)
     const attachments = getAttachments(note)
 

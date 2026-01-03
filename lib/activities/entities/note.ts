@@ -1,8 +1,17 @@
-import { Note } from '@llun/activities.schema'
+import {
+  ArticleContent,
+  ImageContent,
+  Note,
+  PageContent,
+  VideoContent
+} from '@llun/activities.schema'
 
-import { Article, Image, Page, Video } from '../schemas'
-
-export type BaseNote = Note | Image | Page | Article | Video
+export type BaseNote =
+  | Note
+  | ImageContent
+  | PageContent
+  | ArticleContent
+  | VideoContent
 
 const getUrl = (url: string | any | any[]): string | undefined => {
   if (Array.isArray(url)) {

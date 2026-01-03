@@ -1,4 +1,10 @@
-import { Note } from '@llun/activities.schema'
+import {
+  ArticleContent,
+  ImageContent,
+  Note,
+  PageContent,
+  VideoContent
+} from '@llun/activities.schema'
 import { z } from 'zod'
 
 import {
@@ -6,7 +12,6 @@ import {
   getContent,
   getSummary
 } from '../activities/entities/note'
-import { Article, Image, Page, Video } from '../activities/schemas'
 import { StatusType } from '../models/status'
 import { compact } from '../utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
@@ -16,7 +21,13 @@ import { UPDATE_NOTE_JOB_NAME } from './names'
 export const updateNoteJob = createJobHandle(
   UPDATE_NOTE_JOB_NAME,
   async (database, message) => {
-    const BaseNoteSchema = z.union([Note, Image, Page, Article, Video])
+    const BaseNoteSchema = z.union([
+      Note,
+      ImageContent,
+      PageContent,
+      ArticleContent,
+      VideoContent
+    ])
     const note = BaseNoteSchema.parse(message.data)
     const existingStatus = await database.getStatus({
       statusId: note.id,

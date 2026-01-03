@@ -64,7 +64,8 @@ describe('updateNoteJob', () => {
       mediaType: 'image/jpeg',
       name: 'Sunset',
       width: 1920,
-      height: 1080
+      height: 1080,
+      tag: []
     }
 
     await createNoteJob(database, {

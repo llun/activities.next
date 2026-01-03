@@ -31,7 +31,7 @@ export const createPollJob = createJobHandle(
     // TODO: Move Poll to schema
     const text = getContent(compactQuestion as unknown as Note)
     const summary = getSummary(compactQuestion as unknown as Note)
-    const choices = compactQuestion.oneOf.map((item) => item.name)
+    const choices = compactQuestion.oneOf?.map((item) => item.name) ?? []
 
     const [, status] = await Promise.all([
       recordActorIfNeeded({
@@ -56,7 +56,9 @@ export const createPollJob = createJobHandle(
 
         reply: compactQuestion.inReplyTo || '',
         choices,
-        endAt: new Date(compactQuestion.endTime).getTime(),
+        endAt: compactQuestion.endTime
+          ? new Date(compactQuestion.endTime).getTime()
+          : Date.now(),
         createdAt: new Date(compactQuestion.published).getTime()
       })
     ])
