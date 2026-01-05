@@ -10,6 +10,8 @@ import {
   GetFollowersInboxParams,
   GetFollowersParams,
   GetFollowingParams,
+  GetFollowRequestsCountParams,
+  GetFollowRequestsParams,
   GetLocalActorsFromFollowerUrlParams,
   GetLocalFollowersForActorIdParams,
   GetLocalFollowsFromInboxUrlParams,
@@ -275,5 +277,31 @@ export const FollowerSQLDatabaseMixin = (
     const orderedFollows = minId ? [...follows].reverse() : follows
 
     return orderedFollows.map(fixFollowDataDate)
+  },
+
+  async getFollowRequests({
+    targetActorId,
+    limit,
+    offset = 0
+  }: GetFollowRequestsParams) {
+    const follows = await database('follows')
+      .where('targetActorId', targetActorId)
+      .andWhere('status', FollowStatus.enum.Requested)
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .offset(offset)
+
+    return follows.map(fixFollowDataDate)
+  },
+
+  async getFollowRequestsCount({
+    targetActorId
+  }: GetFollowRequestsCountParams) {
+    const result = await database('follows')
+      .where('targetActorId', targetActorId)
+      .andWhere('status', FollowStatus.enum.Requested)
+      .count<{ count: string }>('* as count')
+      .first()
+    return parseInt(result?.count ?? '0', 10)
   }
 })

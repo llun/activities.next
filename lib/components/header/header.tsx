@@ -1,17 +1,20 @@
 'use client'
 
+import { Bell } from 'lucide-react'
 import { Session } from 'next-auth'
 import { signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { FC } from 'react'
 
+import { NotificationBadge } from '../notification-badge/NotificationBadge'
 import { Button } from '../ui/button'
 
 interface Props {
   session?: Session | null
+  followRequestCount?: number
 }
 
-export const Header: FC<Props> = ({ session }) => {
+export const Header: FC<Props> = ({ session, followRequestCount = 0 }) => {
   const isLoggedIn = Boolean(session?.user)
 
   return (
@@ -25,6 +28,13 @@ export const Header: FC<Props> = ({ session }) => {
             <Button variant="link">
               <Link prefetch={false} href={'/'}>
                 Timeline
+              </Link>
+            </Button>
+
+            <Button variant="link" asChild>
+              <Link prefetch={false} href={'/notifications'} className="relative">
+                <Bell className="size-5" />
+                <NotificationBadge count={followRequestCount} />
               </Link>
             </Button>
 

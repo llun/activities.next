@@ -124,6 +124,33 @@ const Page = async () => {
 
         <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
           <div>
+            <h2 className="text-lg font-semibold">Privacy</h2>
+            <p className="text-sm text-muted-foreground">
+              Control who can follow you.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="manuallyApprovesFollowersInput">
+                Manually approve followers
+              </Label>
+              <p className="text-[0.8rem] text-muted-foreground">
+                When enabled, you must manually approve each follow request
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              id="manuallyApprovesFollowersInput"
+              name="manuallyApprovesFollowers"
+              defaultChecked={true}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+          </div>
+        </section>
+
+        <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+          <div>
             <h2 className="text-lg font-semibold">Integrations</h2>
             <p className="text-sm text-muted-foreground">
               Connect with other services.
