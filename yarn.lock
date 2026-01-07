@@ -4779,7 +4779,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/parser@npm:8.51.0, @typescript-eslint/parser@npm:^8.50.1":
+"@typescript-eslint/parser@npm:8.51.0":
   version: 8.51.0
   resolution: "@typescript-eslint/parser@npm:8.51.0"
   dependencies:
