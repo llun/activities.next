@@ -11,7 +11,7 @@ interface Props {
 
 export const FollowRequestsList: FC<Props> = ({ accounts }) => {
     const handleAccept = async (accountId: string) => {
-        const response = await fetch(`/api/v1/follow_requests/${accountId}/authorize`, {
+        const response = await fetch(`/api/v1/follow_requests/${encodeURIComponent(accountId)}/authorize`, {
             method: 'POST'
         })
         if (!response.ok) {
@@ -20,7 +20,7 @@ export const FollowRequestsList: FC<Props> = ({ accounts }) => {
     }
 
     const handleReject = async (accountId: string) => {
-        const response = await fetch(`/api/v1/follow_requests/${accountId}/reject`, {
+        const response = await fetch(`/api/v1/follow_requests/${encodeURIComponent(accountId)}/reject`, {
             method: 'POST'
         })
         if (!response.ok) {

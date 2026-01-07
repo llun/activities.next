@@ -19,7 +19,7 @@ export const FollowRequestCard: FC<Props> = ({ account, onAccept, onReject }) =>
     const handleAccept = async () => {
         setIsLoading(true)
         try {
-            await onAccept(account.id)
+            await onAccept(account.url)
             setStatus('accepted')
         } catch (error) {
             console.error('Failed to accept follow request:', error)
@@ -31,7 +31,7 @@ export const FollowRequestCard: FC<Props> = ({ account, onAccept, onReject }) =>
     const handleReject = async () => {
         setIsLoading(true)
         try {
-            await onReject(account.id)
+            await onReject(account.url)
             setStatus('rejected')
         } catch (error) {
             console.error('Failed to reject follow request:', error)

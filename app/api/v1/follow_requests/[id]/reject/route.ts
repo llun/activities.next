@@ -1,9 +1,7 @@
 import { rejectFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/actions/follow'
-import { getDatabase } from '@/lib/database'
-import { Scope } from '@/lib/database/types/oauth'
 import { FollowStatus } from '@/lib/models/follow'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
     apiErrorResponse,
@@ -15,15 +13,14 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = OAuthGuard<{ id: string }>(
-    [Scope.enum.write, Scope.enum.follow],
-    async (req, { currentActor, params }) => {
-        const database = getDatabase()
+export const POST = AuthenticatedGuard<{ id: string }>(
+    async (req, { currentActor, database, params }) => {
         if (!database) {
             return apiErrorResponse(500)
         }
 
-        const { id: accountId } = await params
+        const { id } = await params
+        const accountId = decodeURIComponent(id)
 
         // Find the follow request from this account to current actor
         const follow = await database.getAcceptedOrRequestedFollow({
