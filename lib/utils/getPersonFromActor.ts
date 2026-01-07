@@ -3,7 +3,7 @@ import { Actor as ActivityPubActor } from '@llun/activities.schema'
 import { Actor } from '@/lib/models/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-export const getPersonFromActor = (actor: Actor): ActivityPubActor => {
+export const getPersonFromActor = (actor: Actor): ActivityPubActor & { '@context': string[] } => {
   const icon = actor.iconUrl
     ? {
         icon: {
@@ -23,7 +23,7 @@ export const getPersonFromActor = (actor: Actor): ActivityPubActor => {
       }
     : null
 
-  return ActivityPubActor.parse({
+  const person = ActivityPubActor.parse({
     id: actor.id,
     type: 'Person',
     following: `https://${actor.domain}/users/${actor.username}/following`,
@@ -46,4 +46,12 @@ export const getPersonFromActor = (actor: Actor): ActivityPubActor => {
     ...icon,
     ...headerImage
   })
+
+  return {
+    '@context': [
+      'https://www.w3.org/ns/activitystreams',
+      'https://w3id.org/security/v1'
+    ],
+    ...person
+  }
 }
