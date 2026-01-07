@@ -19,7 +19,7 @@ import {
 
 const navItems = [
   { href: '/', label: 'Timeline', icon: Home },
-  { href: '/notifications', label: 'Follow Requests', icon: Bell },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings', label: 'Settings', icon: Settings }
 ]
 
