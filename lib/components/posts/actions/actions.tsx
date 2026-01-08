@@ -1,13 +1,13 @@
 import { FC } from 'react'
 
 import { Status, StatusType } from '../../../models/status'
+import { PostProps } from '../post'
 import { DeleteButton } from './delete-button'
 import { EditButton } from './edit-button'
 import { EditHistoryButton } from './edit-history-button'
 import { LikeButton } from './like-button'
 import { ReplyButton } from './reply-button'
 import { RepostButton } from './repost-button'
-import { PostProps } from '../post'
 
 interface Props extends PostProps {
   onShowEdits?: (status: Status) => void
@@ -45,14 +45,8 @@ export const Actions: FC<Props> = ({
         />
         {canEdit && (
           <>
-            <EditButton
-              status={actualStatus}
-              onEdit={onEdit}
-            />
-            <DeleteButton
-              status={actualStatus}
-              onPostDeleted={onPostDeleted}
-            />
+            <EditButton status={actualStatus} onEdit={onEdit} />
+            <DeleteButton status={actualStatus} onPostDeleted={onPostDeleted} />
           </>
         )}
       </div>

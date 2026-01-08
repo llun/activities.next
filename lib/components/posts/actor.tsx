@@ -51,7 +51,10 @@ export const ActorInfo: FC<Props> = ({ actor, actorId }) => {
     const domain = getMentionDomainFromActorID(actorId || '')
     const href = `/${getMentionFromActorID(actorId || '', true)}`
     return (
-      <div className="flex items-center gap-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="flex items-center gap-1 min-w-0"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Link href={href} className="font-semibold hover:underline truncate">
           {handle}
         </Link>
@@ -61,7 +64,10 @@ export const ActorInfo: FC<Props> = ({ actor, actorId }) => {
   }
 
   return (
-    <div className="flex items-center gap-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="flex items-center gap-1 min-w-0"
+      onClick={(e) => e.stopPropagation()}
+    >
       <Link
         href={`/${getMention(actor, true)}`}
         className="font-semibold hover:underline truncate"

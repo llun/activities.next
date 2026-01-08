@@ -1,6 +1,7 @@
-import { FC, SyntheticEvent, useRef } from 'react'
 import { ImagePlus } from 'lucide-react'
+import { FC, SyntheticEvent, useRef } from 'react'
 
+import { Button } from '@/lib/components/ui/button'
 import { logger } from '@/lib/utils/logger'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
@@ -11,8 +12,6 @@ import {
   MAX_HEIGHT,
   MAX_WIDTH
 } from '../../services/medias/constants'
-
-import { Button } from '@/lib/components/ui/button'
 
 const MEDIA_TYPE = 'upload'
 

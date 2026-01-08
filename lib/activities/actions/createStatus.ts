@@ -20,7 +20,13 @@ export interface CreateStatus extends BaseActivity, ContextEntity {
   published: string
   to: string | string[]
   cc: string | string[]
-  object: Note | Question | ImageContent | PageContent | ArticleContent | VideoContent
+  object:
+    | Note
+    | Question
+    | ImageContent
+    | PageContent
+    | ArticleContent
+    | VideoContent
   signature?: Signature
 }
 

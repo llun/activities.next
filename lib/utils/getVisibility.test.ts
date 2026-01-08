@@ -17,10 +17,15 @@ describe('#getVisibility', () => {
   })
 
   it('returns public when to contains as:Public compact form', () => {
-    expect(getVisibility([ACTIVITY_STREAM_PUBLIC_COMPACT], [])).toEqual('public')
+    expect(getVisibility([ACTIVITY_STREAM_PUBLIC_COMPACT], [])).toEqual(
+      'public'
+    )
     expect(
       getVisibility(
-        [ACTIVITY_STREAM_PUBLIC_COMPACT, 'https://example.com/users/test/followers'],
+        [
+          ACTIVITY_STREAM_PUBLIC_COMPACT,
+          'https://example.com/users/test/followers'
+        ],
         ['https://example.com/users/someone']
       )
     ).toEqual('public')
@@ -57,15 +62,15 @@ describe('#getVisibility', () => {
   })
 
   it('returns direct when to contains specific users only', () => {
+    expect(getVisibility(['https://example.com/users/someone'], [])).toEqual(
+      'direct'
+    )
     expect(
       getVisibility(
-        ['https://example.com/users/someone'],
-        []
-      )
-    ).toEqual('direct')
-    expect(
-      getVisibility(
-        ['https://example.com/users/someone', 'https://example.com/users/another'],
+        [
+          'https://example.com/users/someone',
+          'https://example.com/users/another'
+        ],
         ['https://example.com/users/third']
       )
     ).toEqual('direct')

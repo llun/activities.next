@@ -20,7 +20,8 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
           client: process.env.ACTIVITIES_DATABASE_CLIENT,
           useNullAsDefault: true,
           connection: {
-            filename: process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME || ':memory:'
+            filename:
+              process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME || ':memory:'
           }
         }
       }
