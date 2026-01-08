@@ -245,8 +245,14 @@ describe('createNoteJob', () => {
       cc: ['https://pixelfed.social/users/user/followers'],
       content: '<p>Beautiful sunset</p>',
       url: [
-        { href: 'https://pixelfed.social/storage/m/1.jpg', mediaType: 'image/jpeg' },
-        { href: 'https://pixelfed.social/storage/m/2.jpg', mediaType: 'image/jpeg' }
+        {
+          href: 'https://pixelfed.social/storage/m/1.jpg',
+          mediaType: 'image/jpeg'
+        },
+        {
+          href: 'https://pixelfed.social/storage/m/2.jpg',
+          mediaType: 'image/jpeg'
+        }
       ],
       published: new Date().toISOString(),
       mediaType: 'image/jpeg',
@@ -340,7 +346,9 @@ describe('createNoteJob', () => {
       data: article
     })
 
-    const status = (await database.getStatus({ statusId: article.id })) as Status
+    const status = (await database.getStatus({
+      statusId: article.id
+    })) as Status
     expect(status).toBeDefined()
     expect(status.id).toEqual(article.id)
     expect(status.type).toEqual(StatusType.enum.Note)

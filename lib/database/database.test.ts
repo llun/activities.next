@@ -351,10 +351,12 @@ describe('Database', () => {
         const otherServerStatus2 = await database.getStatus({
           statusId: otherServerUser2Status(19)
         })
-        expect(statuses).not.toEqual(expect.arrayContaining([
-          cleanJson(mainStatusForReply),
-          cleanJson(otherServerStatus2)
-        ]))
+        expect(statuses).not.toEqual(
+          expect.arrayContaining([
+            cleanJson(mainStatusForReply),
+            cleanJson(otherServerStatus2)
+          ])
+        )
       })
 
       it('returns actor statuses', async () => {
@@ -484,14 +486,16 @@ describe('Database', () => {
         const note = toActivityPubObject(status)
         const replies = note.replies as CollectionWithItems
         expect(replies.totalItems).toEqual(2)
-        expect(replies.items).toEqual(expect.arrayContaining([
-          toActivityPubObject(
-            (await database.getStatus({ statusId: reply1Id })) as Status
-          ),
-          toActivityPubObject(
-            (await database.getStatus({ statusId: reply2Id })) as Status
-          )
-        ]))
+        expect(replies.items).toEqual(
+          expect.arrayContaining([
+            toActivityPubObject(
+              (await database.getStatus({ statusId: reply1Id })) as Status
+            ),
+            toActivityPubObject(
+              (await database.getStatus({ statusId: reply2Id })) as Status
+            )
+          ])
+        )
       })
 
       it('returns status with boost status id', async () => {

@@ -5,7 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 
-import { StatusNote, StatusAnnounce, StatusType } from '@/lib/models/status'
+import { StatusAnnounce, StatusNote, StatusType } from '@/lib/models/status'
 
 import { ReplyPreview } from './reply-preview'
 
@@ -196,7 +196,9 @@ describe('ReplyPreview', () => {
       const { processStatusText } = jest.requireMock(
         '../../utils/text/processStatusText'
       )
-      processStatusText.mockReturnValueOnce('This is the original boosted status')
+      processStatusText.mockReturnValueOnce(
+        'This is the original boosted status'
+      )
 
       const status = createMockAnnounceStatus()
       render(<ReplyPreview host="example.com" status={status} />)

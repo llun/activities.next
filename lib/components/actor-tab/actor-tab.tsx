@@ -21,7 +21,8 @@ export const ActorTabs: FC<Props> = ({ currentTab, onClickTab }) => {
           className={cn(
             'inline-block px-4 py-2 rounded-t-lg hover:text-foreground hover:border-border',
             {
-              'border-b-2 border-primary text-primary': currentTab === ActorTab.Posts,
+              'border-b-2 border-primary text-primary':
+                currentTab === ActorTab.Posts,
               'border-transparent': currentTab !== ActorTab.Posts
             }
           )}
@@ -39,7 +40,8 @@ export const ActorTabs: FC<Props> = ({ currentTab, onClickTab }) => {
           className={cn(
             'inline-block px-4 py-2 rounded-t-lg hover:text-foreground hover:border-border',
             {
-              'border-b-2 border-primary text-primary': currentTab === ActorTab.Medias,
+              'border-b-2 border-primary text-primary':
+                currentTab === ActorTab.Medias,
               'border-transparent': currentTab !== ActorTab.Medias
             }
           )}

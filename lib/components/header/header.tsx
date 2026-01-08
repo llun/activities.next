@@ -32,7 +32,11 @@ export const Header: FC<Props> = ({ session, followRequestCount = 0 }) => {
             </Button>
 
             <Button variant="link" asChild>
-              <Link prefetch={false} href={'/notifications'} className="relative">
+              <Link
+                prefetch={false}
+                href={'/notifications'}
+                className="relative"
+              >
                 <Bell className="size-5" />
                 <NotificationBadge count={followRequestCount} />
               </Link>

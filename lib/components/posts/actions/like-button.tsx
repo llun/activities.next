@@ -27,12 +27,12 @@ export const LikeButton: FC<LikeButtonProps> = ({ currentActor, status }) => {
         if (isActorLiked) {
           await undoLikeStatus({ statusId: status.id })
           setIsActorLiked(false)
-          setTotalLikes(prev => prev - 1)
+          setTotalLikes((prev) => prev - 1)
           return
         }
         await likeStatus({ statusId: status.id })
         setIsActorLiked(true)
-        setTotalLikes(prev => prev + 1)
+        setTotalLikes((prev) => prev + 1)
       }}
     >
       <Heart className={cn('h-4 w-4', { 'fill-current': isActorLiked })} />

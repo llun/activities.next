@@ -1,7 +1,7 @@
 'use client'
 
-import { FC, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { FC, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
@@ -45,7 +45,9 @@ export const Posts: FC<Props> = ({
     medias: Attachment[]
     initialSelection: number
   } | null>(null)
-  const [replyingToStatusId, setReplyingToStatusId] = useState<string | null>(null)
+  const [replyingToStatusId, setReplyingToStatusId] = useState<string | null>(
+    null
+  )
 
   if (statuses.length === 0) return null
 

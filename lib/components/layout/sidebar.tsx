@@ -1,21 +1,18 @@
 'use client'
 
+import { Bell, Home, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Bell, Home, Settings } from 'lucide-react'
+
 import { Logo } from '@/lib/components/layout/logo'
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage
-} from '@/lib/components/ui/avatar'
-import { cn } from '@/lib/utils'
+import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '@/lib/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/', label: 'Timeline', icon: Home },

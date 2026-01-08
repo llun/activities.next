@@ -46,7 +46,8 @@ export const Post: FC<PostProps> = (props) => {
   const { host, status, onShowAttachment } = props
   const actualStatus = getActualStatus(status)
   const externalStatusUrl = actualStatus.url || actualStatus.id
-  const showExternalLink = !actualStatus.isLocalActor && Boolean(externalStatusUrl)
+  const showExternalLink =
+    !actualStatus.isLocalActor && Boolean(externalStatusUrl)
 
   const processedAndCleanedText = _.chain(actualStatus)
     .thru((s) => processStatusText(host, s))
@@ -58,11 +59,17 @@ export const Post: FC<PostProps> = (props) => {
       <BoostStatus status={status} />
       <div className="flex gap-3">
         <div className="shrink-0">
-          <ActorAvatar actor={actualStatus.actor} actorId={actualStatus.actorId} />
+          <ActorAvatar
+            actor={actualStatus.actor}
+            actorId={actualStatus.actorId}
+          />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1 text-sm">
-            <ActorInfo actor={actualStatus.actor} actorId={actualStatus.actorId} />
+            <ActorInfo
+              actor={actualStatus.actor}
+              actorId={actualStatus.actorId}
+            />
             <span className="text-muted-foreground">·</span>
             <span className="text-muted-foreground text-xs whitespace-nowrap">
               {formatDistanceToNow(actualStatus.createdAt)}
@@ -85,10 +92,13 @@ export const Post: FC<PostProps> = (props) => {
           <div className="mt-1 text-sm leading-relaxed break-words [&_a]:text-sky-600 dark:[&_a]:text-sky-400 [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-sky-700 dark:[&_a:hover]:text-sky-300 [&_p]:mb-4 last:[&_p]:mb-0">
             {processedAndCleanedText}
           </div>
-          
+
           <Poll status={actualStatus} currentTime={new Date()} />
-          <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
-          
+          <Attachments
+            status={actualStatus}
+            onMediaSelected={onShowAttachment}
+          />
+
           <div onClick={(e) => e.stopPropagation()}>
             <Actions {...props} />
           </div>

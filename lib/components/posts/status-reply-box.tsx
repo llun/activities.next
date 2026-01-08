@@ -1,5 +1,6 @@
 'use client'
 
+import { Loader2 } from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -9,27 +10,8 @@ import {
   useRef,
   useState
 } from 'react'
-import { Loader2 } from 'lucide-react'
 
-import {
-  createNote,
-  uploadAttachment
-} from '@/lib/client'
-import { Button } from '@/lib/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
-import {
-  ActorProfile,
-  getMention,
-  getMentionFromActorID
-} from '@/lib/models/actor'
-import { Attachment } from '@/lib/models/attachment'
-import {
-  Status,
-  StatusNote,
-  StatusType
-} from '@/lib/models/status'
-
-import { UploadMediaButton } from '@/lib/components/post-box/upload-media-button'
+import { createNote, uploadAttachment } from '@/lib/client'
 import {
   DEFAULT_STATE,
   addAttachment,
@@ -38,6 +20,16 @@ import {
   statusExtensionReducer,
   updateAttachment
 } from '@/lib/components/post-box/reducers'
+import { UploadMediaButton } from '@/lib/components/post-box/upload-media-button'
+import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
+import { Button } from '@/lib/components/ui/button'
+import {
+  ActorProfile,
+  getMention,
+  getMentionFromActorID
+} from '@/lib/models/actor'
+import { Attachment } from '@/lib/models/attachment'
+import { Status, StatusNote, StatusType } from '@/lib/models/status'
 
 interface Props {
   profile: ActorProfile
@@ -256,7 +248,10 @@ export const StatusReplyBox: FC<Props> = ({
       <form ref={formRef} onSubmit={onPost}>
         <div className="flex items-start gap-3">
           <Avatar className="size-8 shrink-0">
-            <AvatarImage src={profile.iconUrl} alt={profile.name ?? profile.username} />
+            <AvatarImage
+              src={profile.iconUrl}
+              alt={profile.name ?? profile.username}
+            />
             <AvatarFallback className="text-xs">
               {(profile.name ?? profile.username).charAt(0).toUpperCase()}
             </AvatarFallback>

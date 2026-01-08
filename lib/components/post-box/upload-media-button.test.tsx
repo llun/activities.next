@@ -7,8 +7,8 @@ import React from 'react'
 
 import { PostBoxAttachment } from '@/lib/models/attachment'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
-import { resizeImage } from '@/lib/utils/resizeImage'
 import { logger } from '@/lib/utils/logger'
+import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { UploadMediaButton } from './upload-media-button'
 
@@ -71,7 +71,8 @@ describe('UploadMediaButton', () => {
         />
       )
 
-      const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
       const file = createMockFile('new-file.jpg')
 
       fireEvent.change(input, { target: { files: [file] } })
@@ -104,7 +105,8 @@ describe('UploadMediaButton', () => {
         />
       )
 
-      const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
       const files = [
         createMockFile('file1.jpg'),
         createMockFile('file2.jpg'),
@@ -144,7 +146,8 @@ describe('UploadMediaButton', () => {
         />
       )
 
-      const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
       const files = [
         createMockFile('duplicate.jpg'),
         createMockFile('new-file.jpg')
@@ -175,7 +178,8 @@ describe('UploadMediaButton', () => {
         />
       )
 
-      const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
       const file = createMockFile('new-file.jpg')
 
       fireEvent.change(input, { target: { files: [file] } })
@@ -212,7 +216,8 @@ describe('UploadMediaButton', () => {
         />
       )
 
-      const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
       const files = [createMockFile('file1.jpg'), createMockFile('file2.jpg')]
 
       fireEvent.change(input, { target: { files } })
@@ -246,7 +251,8 @@ describe('UploadMediaButton', () => {
         />
       )
 
-      const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
       const files = [createMockFile('file1.jpg'), createMockFile('file2.jpg')]
 
       fireEvent.change(input, { target: { files } })
@@ -287,7 +293,8 @@ describe('UploadMediaButton', () => {
         />
       )
 
-      const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
       const file = createMockFile('test.jpg', 'image/jpeg')
 
       fireEvent.change(input, { target: { files: [file] } })

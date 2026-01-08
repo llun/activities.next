@@ -9,10 +9,7 @@ interface Props {
   onPostDeleted?: (status: Status) => void
 }
 
-export const DeleteButton: FC<Props> = ({
-  status,
-  onPostDeleted
-}) => {
+export const DeleteButton: FC<Props> = ({ status, onPostDeleted }) => {
   return (
     <button
       className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm hover:bg-muted hover:text-red-500 transition-colors"
