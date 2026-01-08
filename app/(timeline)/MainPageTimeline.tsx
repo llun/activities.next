@@ -19,7 +19,6 @@ import { Button } from '@/lib/components/ui/button'
 import {
   clearAction,
   editAction,
-  replyAction,
   statusActionReducer
 } from './reducer'
 
@@ -57,14 +56,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     useState<boolean>(false)
   const tabRequestId = useRef(0)
 
-  const onReply = (status: Status) => {
-    dispatchStatusAction(replyAction(status))
-    window.scrollTo({ top: 0 })
-  }
-
   const onEdit = (status: EditableStatus) => {
     dispatchStatusAction(editAction(status))
     window.scrollTo({ top: 0 })
+  }
+
+  const onReplyCreated = (status: Status) => {
+    setCurrentStatuses((previousValue) => [status, ...previousValue])
   }
 
   const onPostDeleted = (status: Status) => {
@@ -162,7 +160,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
                 statuses={currentStatuses}
                 currentActor={profile}
                 showActions
-                onReply={onReply}
+                isMediaUploadEnabled={isMediaUploadEnabled}
+                onReplyCreated={onReplyCreated}
                 onEdit={onEdit}
                 onPostDeleted={onPostDeleted}
               />
