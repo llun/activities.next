@@ -252,7 +252,7 @@ export const StatusReplyBox: FC<Props> = ({
   }
 
   return (
-    <div className="pt-3 border-t border-border/40">
+    <div className="mt-4 pt-4 border-t border-border/40">
       <form ref={formRef} onSubmit={onPost}>
         <div className="flex items-start gap-3">
           <Avatar className="size-8 shrink-0">
