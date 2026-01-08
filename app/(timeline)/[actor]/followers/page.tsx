@@ -65,7 +65,9 @@ const Page: FC<Props> = async ({ params }) => {
     <div className="space-y-6">
       <div className="flex items-start gap-3">
         <Button variant="ghost" size="icon" asChild>
-          <Link href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}>
+          <Link
+            href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
+          >
             <ArrowLeft className="h-5 w-5" />
           </Link>
         </Button>

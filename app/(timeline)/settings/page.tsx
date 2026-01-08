@@ -173,8 +173,8 @@ const Page = async () => {
               id="appleSharedAlbumTokenHelp"
               className="text-[0.8rem] text-muted-foreground"
             >
-              Apple Shared Album tokens contains images (and videos) that you want
-              to post with
+              Apple Shared Album tokens contains images (and videos) that you
+              want to post with
             </p>
           </div>
         </section>

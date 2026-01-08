@@ -51,9 +51,7 @@ const Page: FC = async () => {
         <CardDescription>Sign in to your account</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {credentialProvider && (
-          <CredentialForm provider={credentialProvider} />
-        )}
+        {credentialProvider && <CredentialForm provider={credentialProvider} />}
 
         {oauthProviders.length > 0 && credentialProvider && (
           <div className="relative">

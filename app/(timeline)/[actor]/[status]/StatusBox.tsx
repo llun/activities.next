@@ -1,7 +1,7 @@
 'use client'
 
-import { FC, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { FC, useState } from 'react'
 
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Post } from '@/lib/components/posts/post'

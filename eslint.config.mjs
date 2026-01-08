@@ -1,9 +1,9 @@
 import js from '@eslint/js'
 import nextPlugin from '@next/eslint-plugin-next'
-import typescriptParser from '@typescript-eslint/parser'
 import typescriptPlugin from '@typescript-eslint/eslint-plugin'
-import unusedImportsPlugin from 'eslint-plugin-unused-imports'
+import typescriptParser from '@typescript-eslint/parser'
 import jestPlugin from 'eslint-plugin-jest'
+import unusedImportsPlugin from 'eslint-plugin-unused-imports'
 import globals from 'globals'
 
 const eslintConfig = [
@@ -74,7 +74,14 @@ const eslintConfig = [
     }
   },
   {
-    files: ['**/*.test.js', '**/*.test.jsx', '**/*.test.ts', '**/*.test.tsx', '**/__mocks__/**', '**/stub/**'],
+    files: [
+      '**/*.test.js',
+      '**/*.test.jsx',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/__mocks__/**',
+      '**/stub/**'
+    ],
     languageOptions: {
       globals: {
         jest: true,

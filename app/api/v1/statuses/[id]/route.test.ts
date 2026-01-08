@@ -1,7 +1,3 @@
-jest.mock('../../../../../lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({ host: 'llun.test' })
-}))
-
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Status, StatusType } from '@/lib/models/status'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
@@ -9,10 +5,12 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
-import {
-  ACTIVITY_STREAM_PUBLIC
-} from '@/lib/utils/jsonld/activitystream'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+
+jest.mock('../../../../../lib/config', () => ({
+  getConfig: jest.fn().mockReturnValue({ host: 'llun.test' })
+}))
 
 /**
  * Tests for GET /api/v1/statuses/[id]

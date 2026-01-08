@@ -26,9 +26,7 @@ const customJestConfig = {
   transform: {
     '\\.(js|jsx|ts|tsx)$': ['@swc/jest']
   },
-  transformIgnorePatterns: [
-    'node_modules/(?!(marked)/)'
-  ],
+  transformIgnorePatterns: ['node_modules/(?!(marked)/)'],
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^marked$': '<rootDir>/node_modules/marked/lib/marked.umd.js'

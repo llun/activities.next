@@ -116,5 +116,6 @@ docker run -p 3000:3000 \
 ```
 
 For database-specific Docker deployment instructions:
+
 - [SQLite Docker Deployment](sqlite-setup.md#docker-deployment-with-sqlite)
 - [PostgreSQL Docker Deployment](postgresql-setup.md#docker-deployment-with-postgresql)
