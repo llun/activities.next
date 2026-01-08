@@ -5,6 +5,10 @@ describe('#getPersonFromActor', () => {
   it('returns person', () => {
     const actor = MockActor({})
     expect(getPersonFromActor(actor)).toEqual({
+      '@context': [
+        'https://www.w3.org/ns/activitystreams',
+        'https://w3id.org/security/v1'
+      ],
       id: 'https://chat.llun.dev/users/me',
       type: 'Person',
       following: `https://chat.llun.dev/users/me/following`,

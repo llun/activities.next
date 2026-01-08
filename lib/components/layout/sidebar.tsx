@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Settings } from 'lucide-react'
+import { Bell, Home, Settings } from 'lucide-react'
 import { Logo } from '@/lib/components/layout/logo'
 import {
   Avatar,
@@ -19,6 +19,7 @@ import {
 
 const navItems = [
   { href: '/', label: 'Timeline', icon: Home },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings', label: 'Settings', icon: Settings }
 ]
 
