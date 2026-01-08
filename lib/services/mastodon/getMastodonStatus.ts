@@ -40,7 +40,9 @@ const getMentionsFromTags = (tags: Tag[]): MastodonMention[] => {
     .map((tag) => {
       // Extract username and acct from mention name
       // tag.name is typically like "@user@domain.com" or "@user"
-      const mentionName = tag.name.startsWith('@') ? tag.name.slice(1) : tag.name
+      const mentionName = tag.name.startsWith('@')
+        ? tag.name.slice(1)
+        : tag.name
       const parts = mentionName.split('@')
       const username = parts[0]
       const acct = parts.length > 1 ? mentionName : username

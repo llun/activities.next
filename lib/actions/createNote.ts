@@ -167,8 +167,18 @@ export const createNoteFromUserInput = async ({
   const replyVisibility = getVisibilityFromReplyStatus(replyStatus)
   const effectiveVisibility = visibility ?? replyVisibility ?? 'public'
 
-  const to = statusRecipientsTo(currentActor, mentions, replyStatus, effectiveVisibility)
-  const cc = statusRecipientsCC(currentActor, mentions, replyStatus, effectiveVisibility)
+  const to = statusRecipientsTo(
+    currentActor,
+    mentions,
+    replyStatus,
+    effectiveVisibility
+  )
+  const cc = statusRecipientsCC(
+    currentActor,
+    mentions,
+    replyStatus,
+    effectiveVisibility
+  )
 
   const createdStatus = await database.createNote({
     id: statusId,

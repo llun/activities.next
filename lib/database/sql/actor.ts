@@ -340,17 +340,17 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const settings = getCompatibleJSON(sqlActor.settings)
     const account = sqlAccount
       ? {
-        account: Account.parse({
-          ...sqlAccount,
-          createdAt: getCompatibleTime(sqlAccount.createdAt),
-          updatedAt: getCompatibleTime(sqlAccount.updatedAt),
-          ...{
-            verifiedAt: sqlAccount.verifiedAt
-              ? getCompatibleTime(sqlAccount.verifiedAt)
-              : null
-          }
-        })
-      }
+          account: Account.parse({
+            ...sqlAccount,
+            createdAt: getCompatibleTime(sqlAccount.createdAt),
+            updatedAt: getCompatibleTime(sqlAccount.updatedAt),
+            ...{
+              verifiedAt: sqlAccount.verifiedAt
+                ? getCompatibleTime(sqlAccount.verifiedAt)
+                : null
+            }
+          })
+        }
       : null
     return Actor.parse({
       id: sqlActor.id,

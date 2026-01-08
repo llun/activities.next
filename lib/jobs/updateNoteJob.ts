@@ -7,11 +7,7 @@ import {
 } from '@llun/activities.schema'
 import { z } from 'zod'
 
-import {
-  BaseNote,
-  getContent,
-  getSummary
-} from '../activities/entities/note'
+import { BaseNote, getContent, getSummary } from '../activities/entities/note'
 import { StatusType } from '../models/status'
 import { compact } from '../utils/jsonld'
 import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'

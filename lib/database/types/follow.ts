@@ -70,4 +70,3 @@ export interface FollowDatabase {
   getFollowRequests(params: GetFollowRequestsParams): Promise<Follow[]>
   getFollowRequestsCount(params: GetFollowRequestsCountParams): Promise<number>
 }
-

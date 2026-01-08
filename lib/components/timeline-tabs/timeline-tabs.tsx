@@ -1,7 +1,7 @@
 import { FC } from 'react'
 
-import { cn } from '@/lib/utils'
 import { Timeline } from '@/lib/services/timelines/types'
+import { cn } from '@/lib/utils'
 
 export interface Tab {
   name: string
@@ -24,7 +24,8 @@ export const TimelineTabs: FC<Props> = ({ currentTab, tabs, onClickTab }) => {
             className={cn(
               'inline-block px-4 py-2 rounded-t-lg hover:text-foreground hover:border-border',
               {
-                'border-b-2 border-primary text-primary': currentTab.name === tab.name,
+                'border-b-2 border-primary text-primary':
+                  currentTab.name === tab.name,
                 'border-transparent': currentTab.name !== tab.name
               }
             )}

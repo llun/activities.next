@@ -168,11 +168,13 @@ How are you?
         text,
         to: [ACTIVITY_STREAM_PUBLIC]
       })
-      expect(status.cc).toEqual(expect.arrayContaining([
-        `${actor1.id}/followers`,
-        'https://somewhere.test/actors/test3',
-        ACTOR2_ID
-      ]))
+      expect(status.cc).toEqual(
+        expect.arrayContaining([
+          `${actor1.id}/followers`,
+          'https://somewhere.test/actors/test3',
+          ACTOR2_ID
+        ])
+      )
 
       const note = getNoteFromStatus(status) as Note
       expect(note.content).toEqual(convertMarkdownText(TEST_DOMAIN)(text))

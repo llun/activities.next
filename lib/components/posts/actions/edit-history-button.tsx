@@ -7,7 +7,6 @@ import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
-
 interface Props {
   host: string
   status: StatusNote | StatusPoll

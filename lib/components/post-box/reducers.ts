@@ -174,9 +174,7 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       }
     }
     case 'updateAttachment': {
-      const index = state.attachments.findIndex(
-        (item) => item.id === action.id
-      )
+      const index = state.attachments.findIndex((item) => item.id === action.id)
       if (index === -1) return state
       return {
         ...state,
@@ -188,9 +186,7 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       }
     }
     case 'removeAttachment': {
-      const index = state.attachments.findIndex(
-        (item) => item.id === action.id
-      )
+      const index = state.attachments.findIndex((item) => item.id === action.id)
       if (index === -1) return state
       const attachment = state.attachments[index]
       if (attachment.url.startsWith('blob:')) {

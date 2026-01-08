@@ -35,7 +35,9 @@ export const Profile: FC<Props> = ({
     </h4>
     {totalPosts || followingCount || followersCount ? (
       <p>
-        <span className="inline-block whitespace-nowrap">{totalPosts} Posts</span>
+        <span className="inline-block whitespace-nowrap">
+          {totalPosts} Posts
+        </span>
         <span className="inline-block ml-2 whitespace-nowrap">
           {followingCount} Following
         </span>

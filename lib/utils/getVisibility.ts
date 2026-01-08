@@ -22,7 +22,10 @@ const isPublic = (item: string) =>
  * @param cc - The 'cc' recipients array from ActivityPub
  * @returns The Mastodon visibility string
  */
-export const getVisibility = (to: string[], cc: string[]): MastodonVisibility => {
+export const getVisibility = (
+  to: string[],
+  cc: string[]
+): MastodonVisibility => {
   // Public: to contains Public
   if (to.some(isPublic)) {
     return 'public'
@@ -34,7 +37,9 @@ export const getVisibility = (to: string[], cc: string[]): MastodonVisibility =>
   }
 
   // Check if any recipient is a followers URL (typically ends with /followers)
-  const hasFollowers = [...to, ...cc].some((item) => item.endsWith('/followers'))
+  const hasFollowers = [...to, ...cc].some((item) =>
+    item.endsWith('/followers')
+  )
 
   // Private (followers only): has followers URL but no Public
   if (hasFollowers) {

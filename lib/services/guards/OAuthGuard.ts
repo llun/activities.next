@@ -76,10 +76,11 @@ export const OAuthGuard =
         return apiErrorResponse(401)
       }
 
-      return handle(
-        req,
-        { currentActor: Actor.parse(accessToken.user.actor), database, params: context.params }
-      )
+      return handle(req, {
+        currentActor: Actor.parse(accessToken.user.actor),
+        database,
+        params: context.params
+      })
     } catch (e) {
       const nodeErr = e as NodeJS.ErrnoException
       if (nodeErr.message === 'jwt expired') {

@@ -3,7 +3,9 @@ import { Actor as ActivityPubActor } from '@llun/activities.schema'
 import { Actor } from '@/lib/models/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-export const getPersonFromActor = (actor: Actor): ActivityPubActor & { '@context': string[] } => {
+export const getPersonFromActor = (
+  actor: Actor
+): ActivityPubActor & { '@context': string[] } => {
   const icon = actor.iconUrl
     ? {
         icon: {

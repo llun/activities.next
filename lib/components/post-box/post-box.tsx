@@ -1,3 +1,4 @@
+import { BarChart3, Loader2 } from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -7,12 +8,9 @@ import {
   useRef,
   useState
 } from 'react'
-import { BarChart3, Loader2 } from 'lucide-react'
-import sanitizeHtml from 'sanitize-html'
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
-
-import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
+import sanitizeHtml from 'sanitize-html'
 
 import {
   createNote,
@@ -20,6 +18,7 @@ import {
   updateNote,
   uploadAttachment
 } from '@/lib/client'
+import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
   Tabs,
@@ -27,7 +26,6 @@ import {
   TabsList,
   TabsTrigger
 } from '@/lib/components/ui/tabs'
-import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   ActorProfile,
   getMention,
@@ -40,11 +38,10 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/models/status'
+import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { Duration, PollChoices } from './poll-choices'
-import { ReplyPreview } from './reply-preview'
-import { UploadMediaButton } from './upload-media-button'
 import {
   DEFAULT_STATE,
   addAttachment,
@@ -57,6 +54,8 @@ import {
   statusExtensionReducer,
   updateAttachment
 } from './reducers'
+import { ReplyPreview } from './reply-preview'
+import { UploadMediaButton } from './upload-media-button'
 
 interface Props {
   host: string
@@ -306,7 +305,7 @@ export const PostBox: FC<Props> = ({
   useEffect(() => {
     if (editStatus) {
       setText(editStatus.text)
-      setAllowPost(false) // Initial state for edit is disabled until changed? Or should we check? 
+      setAllowPost(false) // Initial state for edit is disabled until changed? Or should we check?
       // Original logic in onTextChange checked if text === editStatus.text.
       // So if we set text to editStatus.text, allowPost should be false.
       // But we need to update allowPost.
@@ -347,14 +346,21 @@ export const PostBox: FC<Props> = ({
       <form ref={formRef} onSubmit={onPost}>
         <div className="flex items-start gap-4 mb-3">
           <Avatar className="size-12">
-            <AvatarImage src={profile.iconUrl} alt={profile.name ?? profile.username} />
+            <AvatarImage
+              src={profile.iconUrl}
+              alt={profile.name ?? profile.username}
+            />
             <AvatarFallback>
               {(profile.name ?? profile.username).charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
 
           <div className="flex-1 min-w-0 space-y-3">
-            <ReplyPreview host={host} status={replyStatus} onClose={onCloseReply} />
+            <ReplyPreview
+              host={host}
+              status={replyStatus}
+              onClose={onCloseReply}
+            />
             <Tabs value={currentTab} onValueChange={setCurrentTab}>
               <TabsList className="mb-3">
                 <TabsTrigger value="write">Write</TabsTrigger>
@@ -379,13 +385,15 @@ export const PostBox: FC<Props> = ({
                   {text ? (
                     <div className="prose prose-sm max-w-none">
                       <ReactMarkdown
-                        rehypePlugins={[[
-                          rehypeSanitize,
-                          {
-                            tagNames: SANITIZED_OPTION.allowedTags,
-                            attributes: SANITIZED_OPTION.allowedAttributes
-                          }
-                        ]]}
+                        rehypePlugins={[
+                          [
+                            rehypeSanitize,
+                            {
+                              tagNames: SANITIZED_OPTION.allowedTags,
+                              attributes: SANITIZED_OPTION.allowedAttributes
+                            }
+                          ]
+                        ]}
                       >
                         {text}
                       </ReactMarkdown>
@@ -443,10 +451,7 @@ export const PostBox: FC<Props> = ({
                 Cancel Edit
               </Button>
             ) : null}
-            <Button
-              disabled={!allowPost || isPosting}
-              type="submit"
-            >
+            <Button disabled={!allowPost || isPosting} type="submit">
               {editStatus ? 'Update' : isPosting ? 'Posting...' : 'Post'}
             </Button>
           </div>
