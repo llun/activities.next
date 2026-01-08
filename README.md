@@ -15,33 +15,39 @@ See our [feature roadmap](docs/features.md) for current and planned features.
 ### Quick Start
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/llun/activities.next.git
 cd activities.next
 ```
 
 2. Enable Corepack (for Yarn 4 support):
+
 ```bash
 corepack enable
 ```
 
 3. Install dependencies:
+
 ```bash
 yarn install
 ```
 
 4. Configure your environment (see the [Setup Guide](docs/setup.md)):
+
 ```bash
 cp .env.example .env.local
 # Edit .env.local with your configuration
 ```
 
 5. Run database migrations (if using SQL):
+
 ```bash
 yarn migrate
 ```
 
 6. Start the development server:
+
 ```bash
 yarn dev
 ```

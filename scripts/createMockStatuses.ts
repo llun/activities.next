@@ -1,7 +1,7 @@
-import { getDatabase } from '../lib/database'
 import { getConfig } from '../lib/config'
-import { ACTIVITY_STREAM_PUBLIC } from '../lib/utils/jsonld/activitystream'
+import { getDatabase } from '../lib/database'
 import { Timeline } from '../lib/services/timelines/types'
+import { ACTIVITY_STREAM_PUBLIC } from '../lib/utils/jsonld/activitystream'
 
 async function createMockStatuses() {
   const database = getDatabase()
@@ -40,7 +40,8 @@ async function createMockStatuses() {
       domain: 'photos.example',
       name: 'Mira Park',
       summary: 'Chasing light and color. Remote photo diary.',
-      iconUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=256&auto=format&fit=crop&q=60',
+      iconUrl:
+        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=256&auto=format&fit=crop&q=60',
       headerImageUrl: attachmentImages[0]
     },
     {
@@ -48,7 +49,8 @@ async function createMockStatuses() {
       domain: 'social.example',
       name: 'Rico Santos',
       summary: 'Street captures and coffee breaks.',
-      iconUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=256&auto=format&fit=crop&q=60',
+      iconUrl:
+        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=256&auto=format&fit=crop&q=60',
       headerImageUrl: attachmentImages[3]
     }
   ]
@@ -117,7 +119,7 @@ async function createMockStatuses() {
       status,
       timeline: Timeline.MAIN
     })
-    
+
     await database.createTimelineStatus({
       actorId: actor.id,
       status,
@@ -148,8 +150,7 @@ async function createMockStatuses() {
     })
 
     for (let i = 0; i < imageCount; i++) {
-      const imageUrl =
-        attachmentImages[(i + 2) % attachmentImages.length]
+      const imageUrl = attachmentImages[(i + 2) % attachmentImages.length]
       await database.createAttachment({
         actorId: externalActor.id,
         statusId,

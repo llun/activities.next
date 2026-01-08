@@ -397,9 +397,14 @@ export const StatusSQLDatabaseMixin = (
     return getStatusWithAttachmentsFromData(status, currentActorId, withReplies)
   }
 
-  async function getStatusReplies({ statusId }: GetStatusRepliesParams) {
+  async function getStatusReplies({ statusId, url }: GetStatusRepliesParams) {
     const statuses = await database('statuses')
-      .where('reply', statusId)
+      .where((builder) => {
+        builder.where('reply', statusId)
+        if (url) {
+          builder.orWhere('reply', url)
+        }
+      })
       .orderBy('createdAt', 'desc')
     const statusesWithAttachments = (
       await Promise.all(

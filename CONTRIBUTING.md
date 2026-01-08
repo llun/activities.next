@@ -28,33 +28,39 @@ This project follows the standard open source code of conduct. Be respectful, in
 ### Setting Up Development Environment
 
 1. **Fork and clone the repository**:
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/activities.next.git
    cd activities.next
    ```
 
 2. **Enable Corepack** (for Yarn 4 support):
+
    ```bash
    corepack enable
    ```
 
 3. **Install dependencies**:
+
    ```bash
    yarn install
    ```
 
 4. **Set up your environment**:
+
    ```bash
    cp .env.example .env.local
    # Edit .env.local with your local configuration
    ```
 
 5. **Run database migrations** (if using SQL):
+
    ```bash
    yarn migrate
    ```
 
 6. **Start the development server**:
+
    ```bash
    yarn dev
    ```
@@ -66,6 +72,7 @@ This project follows the standard open source code of conduct. Be respectful, in
 ### Branch Naming
 
 Use descriptive branch names:
+
 - `feature/description` - For new features
 - `fix/description` - For bug fixes
 - `docs/description` - For documentation changes
@@ -74,6 +81,7 @@ Use descriptive branch names:
 ### Commit Messages
 
 Follow conventional commit format:
+
 - `feat: add new feature`
 - `fix: resolve bug in component`
 - `docs: update setup guide`
@@ -83,6 +91,7 @@ Follow conventional commit format:
 - `chore: update dependencies`
 
 Keep commits:
+
 - Small and focused
 - With clear, descriptive messages
 - Building on each other logically
@@ -98,6 +107,7 @@ Keep commits:
 ### Code Style
 
 The project uses:
+
 - **Prettier** for formatting (runs automatically on commit)
 - **ESLint** for linting
 - **2-space indentation**
@@ -105,6 +115,7 @@ The project uses:
 - **No semicolons**
 
 Run formatting and linting:
+
 ```bash
 yarn lint
 yarn prettier
@@ -132,6 +143,7 @@ yarn prettier
 - Keep components focused and single-purpose
 
 Example:
+
 ```typescript
 interface ProfileCardProps {
   actor: Actor
@@ -139,10 +151,10 @@ interface ProfileCardProps {
   onFollow: () => void
 }
 
-export const ProfileCard: FC<ProfileCardProps> = ({ 
-  actor, 
-  isFollowing, 
-  onFollow 
+export const ProfileCard: FC<ProfileCardProps> = ({
+  actor,
+  isFollowing,
+  onFollow
 }) => {
   // Component implementation
 }
@@ -187,16 +199,17 @@ yarn test
 - **Test behavior**, not implementation details
 
 Example:
+
 ```typescript
 describe('createNote', () => {
   it('creates a new status and adds it to timeline', async () => {
     // Arrange
     const actor = await createTestActor()
     const noteData = { text: 'Test note', ... }
-    
+
     // Act
     const status = await createNote(noteData)
-    
+
     // Assert
     expect(status).toBeDefined()
     expect(status.text).toBe('Test note')
@@ -216,11 +229,13 @@ describe('createNote', () => {
 ### Before Submitting
 
 1. **Ensure tests pass**:
+
    ```bash
    yarn test:withoutDatabase
    ```
 
 2. **Run linting**:
+
    ```bash
    yarn lint
    ```
@@ -325,6 +340,7 @@ yarn migrate:make descriptive_migration_name
 ```
 
 Edit the generated file in `migrations/`, then run:
+
 ```bash
 yarn migrate
 ```
