@@ -3,6 +3,7 @@
 import { Mastodon } from '@llun/activities.schema'
 import Image from 'next/image'
 import { FC, useState } from 'react'
+import sanitizeHtml from 'sanitize-html'
 
 import { Button } from '@/lib/components/ui/button'
 
@@ -81,7 +82,7 @@ export const FollowRequestCard: FC<Props> = ({ account, onAccept, onReject }) =>
                 <p className="text-sm text-muted-foreground truncate">@{account.acct}</p>
                 {account.note && (
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                        {account.note.replace(/<[^>]*>/g, '')}
+                        {sanitizeHtml(account.note, { allowedTags: [], allowedAttributes: {} })}
                     </p>
                 )}
             </div>
