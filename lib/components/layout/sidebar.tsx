@@ -74,7 +74,10 @@ export function Sidebar({ user }: SidebarProps) {
 
         {user && (
           <div className="border-t p-4">
-            <div className="flex items-center gap-3 rounded-lg p-2">
+            <Link
+              href={`/@${user.username}`}
+              className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors"
+            >
               <Avatar className="h-10 w-10">
                 {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
                 <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
@@ -87,7 +90,7 @@ export function Sidebar({ user }: SidebarProps) {
                   {user.handle}
                 </p>
               </div>
-            </div>
+            </Link>
           </div>
         )}
       </aside>
@@ -131,14 +134,17 @@ export function Sidebar({ user }: SidebarProps) {
           <div className="border-t p-3">
             <Tooltip>
               <TooltipTrigger asChild>
-                <div>
+                <Link
+                  href={`/@${user.username}`}
+                  className="cursor-pointer block"
+                >
                   <Avatar className="h-10 w-10">
                     {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
                     <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
                       {getAvatarInitial(user.username)}
                     </AvatarFallback>
                   </Avatar>
-                </div>
+                </Link>
               </TooltipTrigger>
               <TooltipContent side="right">{user.handle}</TooltipContent>
             </Tooltip>
