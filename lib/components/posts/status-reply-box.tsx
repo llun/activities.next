@@ -299,7 +299,7 @@ export const StatusReplyBox: FC<Props> = ({
               <div className="text-xs text-destructive mt-2">{warningMsg}</div>
             ) : null}
 
-            <div className="flex justify-between items-center mt-2">
+            <div className="flex items-center mt-2">
               <UploadMediaButton
                 isMediaUploadEnabled={isMediaUploadEnabled}
                 attachments={postExtension.attachments}
@@ -311,7 +311,7 @@ export const StatusReplyBox: FC<Props> = ({
                 }
                 onUploadStart={() => setWarningMsg(null)}
               />
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ml-auto">
                 <Button
                   type="button"
                   variant="ghost"
