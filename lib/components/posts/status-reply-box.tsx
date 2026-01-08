@@ -9,7 +9,7 @@ import {
   useRef,
   useState
 } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 import {
   createNote,
@@ -318,7 +318,6 @@ export const StatusReplyBox: FC<Props> = ({
                   size="sm"
                   onClick={onCancel}
                 >
-                  <X className="size-4 mr-1" />
                   Cancel
                 </Button>
                 <Button
