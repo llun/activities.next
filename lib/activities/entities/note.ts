@@ -13,7 +13,7 @@ export type BaseNote =
   | ArticleContent
   | VideoContent
 
-const getUrl = (url: string | any | any[]): string | undefined => {
+export const getUrl = (url: string | any | any[]): string | undefined => {
   if (Array.isArray(url)) {
     const first = url[0]
     if (typeof first === 'string') return first
@@ -21,6 +21,11 @@ const getUrl = (url: string | any | any[]): string | undefined => {
   }
   if (typeof url === 'string') return url
   return url?.href
+}
+
+export const getReply = (reply: string | any): string | undefined => {
+  if (typeof reply === 'string') return reply
+  return reply?.id
 }
 
 export const getAttachments = (object: BaseNote) => {

@@ -12,6 +12,7 @@ import {
   BaseNote,
   getAttachments,
   getContent,
+  getReply,
   getSummary,
   getTags
 } from '../activities/entities/note'
@@ -81,7 +82,7 @@ export const createNoteJob = createJobHandle(
           ? note.cc
           : [note.cc].filter((item): item is string => !!item),
 
-        reply: compactNote.inReplyTo || '',
+        reply: getReply(compactNote.inReplyTo) || '',
         createdAt: new Date(compactNote.published).getTime()
       })
     ])
