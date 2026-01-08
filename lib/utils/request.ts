@@ -2,8 +2,8 @@ import got, { Headers, Method } from 'got'
 
 import { getConfig } from '@/lib/config'
 
-const USER_AGENT = 'activities.next/0.1'
-const DEFAULT_RESPONSE_TIMEOUT = 4000
+const USER_AGENT = 'activities.next/0.2'
+const DEFAULT_RESPONSE_TIMEOUT = 10000
 const MAX_RETRY_LIMIT = 1
 
 const SHARED_HEADERS = {
@@ -47,7 +47,7 @@ export const request = ({
       ...(typeof retryNoise === 'number' ? { noise: retryNoise } : null)
     },
     throwHttpErrors: false,
-    method,
+    method: method as Method,
     body
   })
 }

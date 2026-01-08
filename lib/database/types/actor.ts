@@ -1,5 +1,6 @@
 import { Mastodon } from '@llun/activities.schema'
 
+import { ActorSettings } from '@/lib/database/types/sql'
 import { Actor } from '@/lib/models/actor'
 
 export type CreateActorParams = {
@@ -49,6 +50,7 @@ export type DeleteActorParams = {
 
 export type GetActorFollowingCountParams = { actorId: string }
 export type GetActorFollowersCountParams = { actorId: string }
+export type GetActorSettingsParams = { actorId: string }
 
 export type IsInternalActorParams = { actorId: string }
 
@@ -82,4 +84,7 @@ export interface ActorDatabase {
   getActorFollowersCount(params: GetActorFollowersCountParams): Promise<number>
 
   isInternalActor(params: IsInternalActorParams): Promise<boolean>
+  getActorSettings(
+    params: GetActorSettingsParams
+  ): Promise<ActorSettings | undefined>
 }

@@ -7,6 +7,7 @@ import { CreateStatus } from '@/lib/activities/actions/createStatus'
 import { DeleteStatus } from '@/lib/activities/actions/deleteStatus'
 import { FollowRequest } from '@/lib/activities/actions/follow'
 import { LikeStatus } from '@/lib/activities/actions/like'
+import { RejectFollow } from '@/lib/activities/actions/rejectFollow'
 import {
   AnnounceAction,
   CreateAction,
@@ -539,6 +540,60 @@ export const acceptFollow = async (
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)
         logger.error(`[acceptFollow] ${nodeError.message}`)
+        return false
+      } finally {
+        span.end()
+      }
+    }
+  )
+
+export const rejectFollow = async (
+  currentActor: Actor,
+  followingInbox: string,
+  followRequest: FollowRequest
+) =>
+  getTracer().startActiveSpan(
+    'activities.rejectFollow',
+    {
+      attributes: {
+        actorId: currentActor.id,
+        followingInbox
+      }
+    },
+    async (span) => {
+      const activity: RejectFollow = {
+        '@context': ACTIVITY_STREAM_URL,
+        id: `${currentActor.id}#rejects/followers`,
+        type: 'Reject',
+        actor: currentActor.id,
+        object: {
+          id: followRequest.id,
+          type: 'Follow',
+          actor: followRequest.actor,
+          object: followRequest.object
+        }
+      }
+      const method = 'POST'
+      try {
+        const { statusCode } = await request({
+          url: followingInbox,
+          method,
+          headers: {
+            ...signedHeaders(
+              currentActor,
+              method.toLowerCase(),
+              followingInbox,
+              activity
+            ),
+            Accept: DEFAULT_ACCEPT
+          },
+          body: JSON.stringify(activity)
+        })
+        return statusCode === 202
+      } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException
+        span.recordException(nodeError)
+        logger.error(`[rejectFollow] ${nodeError.message}`)
         return false
       } finally {
         span.end()

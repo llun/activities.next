@@ -5,6 +5,7 @@ export interface ActorSettings {
   followersUrl: string
   inboxUrl: string
   sharedInboxUrl: string
+  manuallyApprovesFollowers?: boolean
 }
 
 export interface SQLActor {

@@ -72,7 +72,7 @@ describe('AccountDatabase', () => {
         avatar_static: '',
         header: '',
         header_static: '',
-        locked: false,
+        locked: true,
         fields: [],
         emojis: [],
         bot: false,
@@ -116,7 +116,7 @@ describe('AccountDatabase', () => {
         avatar_static: '',
         header: '',
         header_static: '',
-        locked: false,
+        locked: true,
         fields: [],
         emojis: [],
         bot: false

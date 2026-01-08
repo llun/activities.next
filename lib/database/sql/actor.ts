@@ -12,6 +12,7 @@ import {
   GetActorFromEmailParams,
   GetActorFromIdParams,
   GetActorFromUsernameParams,
+  GetActorSettingsParams,
   IsCurrentActorFollowingParams,
   IsInternalActorParams,
   UpdateActorParams
@@ -339,17 +340,17 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const settings = getCompatibleJSON(sqlActor.settings)
     const account = sqlAccount
       ? {
-          account: Account.parse({
-            ...sqlAccount,
-            createdAt: getCompatibleTime(sqlAccount.createdAt),
-            updatedAt: getCompatibleTime(sqlAccount.updatedAt),
-            ...{
-              verifiedAt: sqlAccount.verifiedAt
-                ? getCompatibleTime(sqlAccount.verifiedAt)
-                : null
-            }
-          })
-        }
+        account: Account.parse({
+          ...sqlAccount,
+          createdAt: getCompatibleTime(sqlAccount.createdAt),
+          updatedAt: getCompatibleTime(sqlAccount.updatedAt),
+          ...{
+            verifiedAt: sqlAccount.verifiedAt
+              ? getCompatibleTime(sqlAccount.verifiedAt)
+              : null
+          }
+        })
+      }
       : null
     return Actor.parse({
       id: sqlActor.id,
@@ -428,7 +429,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       fields: [],
       emojis: [],
 
-      locked: false,
+      locked: settings.manuallyApprovesFollowers ?? true,
       bot: false,
       group: false,
       discoverable: true,
@@ -527,5 +528,14 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return false
     return Boolean(persistedActor.accountId)
+  },
+
+  async getActorSettings({ actorId }: GetActorSettingsParams) {
+    const persistedActor = await database<SQLActor>('actors')
+      .where('id', actorId)
+      .select('settings')
+      .first()
+    if (!persistedActor) return undefined
+    return getCompatibleJSON(persistedActor.settings) as ActorSettings
   }
 })

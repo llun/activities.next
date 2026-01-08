@@ -5,6 +5,7 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
+  HTTP_STATUS,
   apiErrorResponse,
   apiResponse,
   defaultOptions
@@ -48,7 +49,12 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     sharedInbox: `https://${currentActor.domain}/inbox`
   })
   await follow(followItem.id, currentActor, target)
-  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
+  return apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: DEFAULT_202,
+    responseStatusCode: HTTP_STATUS.ACCEPTED
+  })
 })
 
 export const DELETE = AuthenticatedGuard(async (req, context) => {
@@ -67,5 +73,10 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
       status: FollowStatus.enum.Undo
     })
   ])
-  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
+  return apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: DEFAULT_202,
+    responseStatusCode: HTTP_STATUS.ACCEPTED
+  })
 })
