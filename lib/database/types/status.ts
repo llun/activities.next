@@ -45,7 +45,9 @@ export type GetStatusParams = BaseStatusParams & {
   currentActorId?: string
   withReplies?: boolean
 }
-export type GetStatusRepliesParams = BaseStatusParams
+export type GetStatusRepliesParams = BaseStatusParams & {
+  url?: string
+}
 export type GetActorStatusesCountParams = { actorId: string }
 export type GetActorStatusesParams = {
   actorId: string

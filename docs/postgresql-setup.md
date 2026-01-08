@@ -186,7 +186,7 @@ services:
       ACTIVITIES_DATABASE_CLIENT: pg
       ACTIVITIES_DATABASE: '{"type":"sql","client":"pg","connection":{"host":"postgres","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext"},"pool":{"min":2,"max":10}}'
     ports:
-      - "3000:3000"
+      - '3000:3000'
     restart: unless-stopped
 
 volumes:

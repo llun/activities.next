@@ -5,6 +5,7 @@ import { FC, useReducer, useRef, useState } from 'react'
 import { getTimeline } from '@/lib/client'
 import { PostBox } from '@/lib/components/post-box/post-box'
 import { Posts } from '@/lib/components/posts/posts'
+import { Button } from '@/lib/components/ui/button'
 import {
   Tabs,
   TabsContent,
@@ -14,13 +15,8 @@ import {
 import { ActorProfile } from '@/lib/models/actor'
 import { EditableStatus, Status } from '@/lib/models/status'
 import { Timeline } from '@/lib/services/timelines/types'
-import { Button } from '@/lib/components/ui/button'
 
-import {
-  clearAction,
-  editAction,
-  statusActionReducer
-} from './reducer'
+import { clearAction, editAction, statusActionReducer } from './reducer'
 
 interface Tab {
   name: string

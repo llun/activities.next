@@ -73,7 +73,15 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
-  const replies = await database.getStatusReplies({ statusId })
+  const statusUrl =
+    status.type === StatusType.enum.Announce
+      ? status.originalStatus.url
+      : status.url
+
+  const replies = await database.getStatusReplies({
+    statusId,
+    url: statusUrl
+  })
 
   if (
     !(

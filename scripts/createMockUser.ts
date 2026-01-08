@@ -2,13 +2,12 @@
  * Script to create a test user for development/testing
  * Usage: scripts/createMockUser [username] [email] [password]
  */
-
 import * as bcrypt from 'bcrypt'
 import crypto from 'crypto'
 
+import { getConfig } from '../lib/config'
 import { getDatabase } from '../lib/database'
 import { generateKeyPair } from '../lib/utils/signature'
-import { getConfig } from '../lib/config'
 
 const BCRYPT_ROUND = 10
 const SESSION_MAX_AGE_DAYS = 30
