@@ -26,6 +26,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
       attributes: { actorId: person.id }
     },
     async (span) => {
+      const actor = await database.getActorFromId({ id: person.id })
       const value = await getActorCollections({
         person,
         field: 'outbox'
@@ -49,6 +50,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
             const note = await getNote({ statusId: item.object })
             if (!note) return null
             const originalStatus = fromNote(note)
+            if (actor) originalStatus.actor = actor
             return fromAnnoucne(item, originalStatus)
           }
 
@@ -57,7 +59,9 @@ export const getActorPosts: GetActorPostsFunction = async ({
           // Unsupported Object
           if (item.object.type !== 'Note') return null
 
-          return fromNote(item.object)
+          const status = fromNote(item.object)
+          if (actor) status.actor = actor
+          return status
         })
       )
 
