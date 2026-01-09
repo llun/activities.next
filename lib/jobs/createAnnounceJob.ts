@@ -10,16 +10,15 @@ import {
 } from '@/lib/jobs/names'
 import { JobHandle } from '@/lib/services/queue/type'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { normalizeActivityPubAnnounce } from '@/lib/utils/activitypub'
 
 export const createAnnounceJob: JobHandle = createJobHandle(
   CREATE_ANNOUNCE_JOB_NAME,
   async (database, message) => {
-    const status = Announce.parse(message.data)
-    // Handle object being either a string URL or an object with id property
-    const object =
-      typeof status.object === 'string'
-        ? status.object
-        : (status.object as { id: string }).id
+    const status = Announce.parse(
+      normalizeActivityPubAnnounce(message.data)
+    )
+    const object = status.object
     const existingStatus = await database.getStatus({
       statusId: object,
       withReplies: false

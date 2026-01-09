@@ -18,6 +18,7 @@ import {
 } from '../activities/entities/note'
 import { StatusType } from '../models/status'
 import { addStatusToTimelines } from '../services/timelines'
+import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { CREATE_NOTE_JOB_NAME } from './names'
 
@@ -31,7 +32,9 @@ export const createNoteJob = createJobHandle(
       ArticleContent,
       VideoContent
     ])
-    const note = BaseNoteSchema.parse(message.data) as BaseNote
+    const note = BaseNoteSchema.parse(
+      normalizeActivityPubContent(message.data)
+    ) as BaseNote
     const attachments = getAttachments(note)
 
     const existingStatus = await database.getStatus({

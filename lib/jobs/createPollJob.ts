@@ -3,13 +3,16 @@ import { ENTITY_TYPE_QUESTION, Note, Question } from '@llun/activities.schema'
 import { recordActorIfNeeded } from '../actions/utils'
 import { getContent, getSummary, getTags } from '../activities/entities/note'
 import { addStatusToTimelines } from '../services/timelines'
+import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_JOB_NAME } from './names'
 
 export const createPollJob = createJobHandle(
   CREATE_POLL_JOB_NAME,
   async (database, message) => {
-    const question = Question.parse(message.data)
+    const question = Question.parse(
+      normalizeActivityPubContent(message.data)
+    )
     const existingStatus = await database.getStatus({
       statusId: question.id,
       withReplies: false

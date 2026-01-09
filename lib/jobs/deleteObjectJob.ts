@@ -1,5 +1,6 @@
 import { Announce, Tombstone } from '@llun/activities.schema'
 
+import { normalizeActivityPubAnnounce } from '../utils/activitypub'
 import { getTracer } from '../utils/trace'
 import { createJobHandle } from './createJobHandle'
 import { DELETE_OBJECT_JOB_NAME } from './names'
@@ -29,7 +30,9 @@ export const deleteObjectJob = createJobHandle(
         return
       }
 
-      const announceResult = Announce.safeParse(data)
+      const announceResult = Announce.safeParse(
+        normalizeActivityPubAnnounce(data)
+      )
       if (announceResult.success) {
         const announce = announceResult.data
         span.setAttribute('statusId', announce.id)

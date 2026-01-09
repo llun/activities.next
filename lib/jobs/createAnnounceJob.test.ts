@@ -1,6 +1,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
 import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
@@ -50,6 +51,29 @@ describe('Announce action', () => {
       statusId: announceStatusId
     })) as Status
     expect(status.originalStatus).toEqual(boostedStatus)
+  })
+
+  it('accepts announce object with id field', async () => {
+    const statusId = stubNoteId()
+    const announceStatusId =
+      'https://somewhere.test/statuses/announce-status-object'
+    const announce = MockAnnounceStatus({
+      actorId: ACTOR1_ID,
+      statusId,
+      announceStatusId
+    })
+    await createAnnounceJob(database, {
+      id: 'id',
+      name: CREATE_ANNOUNCE_JOB_NAME,
+      data: {
+        ...announce,
+        object: { id: announceStatusId }
+      } as unknown as AnnounceStatus
+    })
+    const status = await database.getStatus({
+      statusId: `${statusId}/activity`
+    })
+    expect(status).toBeDefined()
   })
 
   it('loads announce with attachments and save both locally', async () => {
