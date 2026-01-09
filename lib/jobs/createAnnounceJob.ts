@@ -10,18 +10,16 @@ import {
 } from '@/lib/jobs/names'
 import { JobHandle } from '@/lib/services/queue/type'
 import { addStatusToTimelines } from '@/lib/services/timelines'
-import { compact } from '@/lib/utils/jsonld'
-import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
 
 export const createAnnounceJob: JobHandle = createJobHandle(
   CREATE_ANNOUNCE_JOB_NAME,
   async (database, message) => {
     const status = Announce.parse(message.data)
-    const compactedStatus = (await compact({
-      '@context': ACTIVITY_STREAM_URL,
-      ...status
-    })) as Announce
-    const { object } = compactedStatus
+    // Handle object being either a string URL or an object with id property
+    const object =
+      typeof status.object === 'string'
+        ? status.object
+        : (status.object as { id: string }).id
     const existingStatus = await database.getStatus({
       statusId: object,
       withReplies: false
@@ -38,17 +36,17 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       })
     }
     const existingAnnounce = await database.getStatus({
-      statusId: compactedStatus.id,
+      statusId: status.id,
       withReplies: false
     })
     if (existingAnnounce) {
       return
     }
     const [, announce] = await Promise.all([
-      recordActorIfNeeded({ actorId: compactedStatus.actor, database }),
+      recordActorIfNeeded({ actorId: status.actor, database }),
       database.createAnnounce({
-        id: compactedStatus.id,
-        actorId: compactedStatus.actor,
+        id: status.id,
+        actorId: status.actor,
         to: Array.isArray(status.to)
           ? status.to
           : [status.to].filter((item) => item),

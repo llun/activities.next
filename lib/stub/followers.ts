@@ -1,4 +1,4 @@
-import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
+import { ACTIVITY_STREAM_URL } from '../utils/activitystream'
 import { ACTOR2_ID } from './seed/actor2'
 import { ACTOR3_ID } from './seed/actor3'
 import { ACTOR4_ID } from './seed/actor4'

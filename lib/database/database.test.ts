@@ -24,7 +24,7 @@ import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { cleanJson } from '@/lib/utils/cleanJson'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { waitFor } from '@/lib/utils/waitFor'
 
 const TEST_PASSWORD_HASH = 'password_hash'

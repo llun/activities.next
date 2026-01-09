@@ -2,7 +2,6 @@ import { StatusActivity } from '@/lib/activities/actions/status'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { compact } from '@/lib/utils/jsonld'
 import {
   DEFAULT_202,
   apiErrorResponse,
@@ -18,7 +17,7 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = ActivityPubVerifySenderGuard(async (request) => {
   const body = await request.json()
-  const activity = (await compact(body)) as StatusActivity
+  const activity = body as StatusActivity
   const jobMessage = getJobMessage(activity)
   if (!jobMessage) {
     return apiErrorResponse(404)

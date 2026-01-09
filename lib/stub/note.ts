@@ -5,7 +5,7 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
-} from '@/lib/utils/jsonld/activitystream'
+} from '@/lib/utils/activitystream'
 
 import { Document } from '../activities/entities/document'
 import { TEST_DOMAIN } from './const'

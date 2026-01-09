@@ -1,4 +1,3 @@
-import { Note } from '@llun/activities.schema'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -15,8 +14,8 @@ import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { compact } from '@/lib/utils/jsonld'
 
 enableFetchMocks()
 
@@ -38,14 +37,13 @@ describe('Status', () => {
   })
 
   describe('#fromNote', () => {
-    it('returns status from json', async () => {
+    it('returns status from json', () => {
       const note = MockMastodonActivityPubNote({
         content: 'Hello',
         inReplyTo: 'https://other.network/users/test/status/1',
         withContext: true
       })
-      const compactedNote = (await compact(note)) as Note
-      const status = fromNote(compactedNote)
+      const status = fromNote(note)
       expect(status).toEqual({
         id: note.id,
         url: note.url,
@@ -54,7 +52,7 @@ describe('Status', () => {
         type: StatusType.enum.Note,
         text: 'Hello',
         summary: '',
-        to: ['as:Public'],
+        to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         edits: [],
         attachments: [],
@@ -70,13 +68,12 @@ describe('Status', () => {
       })
     })
 
-    it('returns empty string for undefined reply', async () => {
+    it('returns empty string for undefined reply', () => {
       const note = MockMastodonActivityPubNote({
         content: 'Hello',
         withContext: true
       })
-      const compactedNote = (await compact(note)) as Note
-      const status = fromNote(compactedNote)
+      const status = fromNote(note)
       expect(status).toEqual({
         id: note.id,
         url: note.url,
@@ -85,7 +82,7 @@ describe('Status', () => {
         type: StatusType.enum.Note,
         text: 'Hello',
         summary: '',
-        to: ['as:Public'],
+        to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         edits: [],
         attachments: [],

@@ -6,7 +6,7 @@ import { Actor } from '@/lib/models/actor'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getTracer } from '@/lib/utils/trace'
 
 interface UserAnnounceParams {

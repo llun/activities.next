@@ -9,8 +9,6 @@ import { z } from 'zod'
 
 import { BaseNote, getContent, getSummary } from '../activities/entities/note'
 import { StatusType } from '../models/status'
-import { compact } from '../utils/jsonld'
-import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
 import { createJobHandle } from './createJobHandle'
 import { UPDATE_NOTE_JOB_NAME } from './names'
 
@@ -24,7 +22,7 @@ export const updateNoteJob = createJobHandle(
       ArticleContent,
       VideoContent
     ])
-    const note = BaseNoteSchema.parse(message.data)
+    const note = BaseNoteSchema.parse(message.data) as BaseNote
     const existingStatus = await database.getStatus({
       statusId: note.id,
       withReplies: false
@@ -33,24 +31,20 @@ export const updateNoteJob = createJobHandle(
       return
     }
 
-    const compactNote = (await compact({
-      '@context': ACTIVITY_STREAM_URL,
-      ...note
-    })) as BaseNote
     if (
-      compactNote.type !== StatusType.enum.Note &&
-      compactNote.type !== 'Image' &&
-      compactNote.type !== 'Page' &&
-      compactNote.type !== 'Article' &&
-      compactNote.type !== 'Video'
+      note.type !== StatusType.enum.Note &&
+      note.type !== 'Image' &&
+      note.type !== 'Page' &&
+      note.type !== 'Article' &&
+      note.type !== 'Video'
     ) {
       return
     }
 
-    const text = getContent(compactNote)
-    const summary = getSummary(compactNote)
+    const text = getContent(note)
+    const summary = getSummary(note)
     await database.updateNote({
-      statusId: compactNote.id,
+      statusId: note.id,
       summary,
       text
     })

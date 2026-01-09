@@ -13,7 +13,7 @@ import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
-} from '@/lib/utils/jsonld/activitystream'
+} from '@/lib/utils/activitystream'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
 

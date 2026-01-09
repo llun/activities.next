@@ -29,7 +29,7 @@ import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
-} from '@/lib/utils/jsonld/activitystream'
+} from '@/lib/utils/activitystream'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { signedHeaders } from '@/lib/utils/signature'

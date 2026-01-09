@@ -4,7 +4,7 @@ import {
   OnlyLocalUserGuardHandle
 } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { AppRouterParams } from '@/lib/services/guards/types'
-import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
+import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 type StatusParams = OnlyLocalUserGuardHandle & {

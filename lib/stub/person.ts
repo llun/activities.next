@@ -1,8 +1,9 @@
 import { Actor } from '@llun/activities.schema'
 
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
-import { W3ID_URL } from '@/lib/utils/jsonld/w3id'
+import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
+
+const W3ID_SECURITY_URL = 'https://w3id.org/security/v1'
 
 interface Params {
   id: string
@@ -42,7 +43,7 @@ export const MockActivityPubPerson = ({
 
   if (id.startsWith('https://no.shared.inbox')) {
     return {
-      ...(withContext ? { '@context': [ACTIVITY_STREAM_URL, W3ID_URL] } : null),
+      ...(withContext ? { '@context': [ACTIVITY_STREAM_URL, W3ID_SECURITY_URL] } : null),
       id,
       type: 'Person',
       following: `${id}/following`,
@@ -63,7 +64,7 @@ export const MockActivityPubPerson = ({
   }
 
   return {
-    ...(withContext ? { '@context': [ACTIVITY_STREAM_URL, W3ID_URL] } : null),
+    ...(withContext ? { '@context': [ACTIVITY_STREAM_URL, W3ID_SECURITY_URL] } : null),
     id,
     type: 'Person',
     following: `${id}/following`,
