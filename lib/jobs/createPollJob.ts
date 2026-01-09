@@ -1,7 +1,7 @@
 import { ENTITY_TYPE_QUESTION, Note, Question } from '@llun/activities.schema'
 
 import { recordActorIfNeeded } from '../actions/utils'
-import { getContent, getSummary, getTags } from '../activities/entities/note'
+import { getContent, getReply, getSummary, getTags } from '../activities/entities/note'
 import { addStatusToTimelines } from '../services/timelines'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
@@ -37,7 +37,7 @@ export const createPollJob = createJobHandle(
       }),
       database.createPoll({
         id: question.id,
-        url: question.url || question.id,
+        url: typeof question.url === 'string' ? question.url : question.id,
 
         actorId: question.attributedTo,
 
@@ -51,7 +51,7 @@ export const createPollJob = createJobHandle(
           ? question.cc
           : [question.cc].filter((item): item is string => typeof item === 'string'),
 
-        reply: question.inReplyTo || '',
+        reply: getReply(question.inReplyTo) || '',
         choices,
         endAt: question.endTime
           ? new Date(question.endTime).getTime()
