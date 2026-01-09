@@ -75,7 +75,7 @@ export function Sidebar({ user }: SidebarProps) {
         {user && (
           <div className="border-t p-4">
             <Link
-              href={`/@${user.username}`}
+              href={`/${user.handle}`}
               className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors"
             >
               <Avatar className="h-10 w-10">
@@ -135,7 +135,7 @@ export function Sidebar({ user }: SidebarProps) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Link
-                  href={`/@${user.username}`}
+                  href={`/${user.handle}`}
                   className="cursor-pointer block"
                 >
                   <Avatar className="h-10 w-10">
