@@ -15,8 +15,18 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
 export const POST = ActivityPubVerifySenderGuard(async (request) => {
   const body = await request.json()
+  if (
+    !isRecord(body) ||
+    typeof body.id !== 'string' ||
+    typeof body.type !== 'string'
+  ) {
+    return apiErrorResponse(400)
+  }
   const activity = body as StatusActivity
   const jobMessage = getJobMessage(activity)
   if (!jobMessage) {
