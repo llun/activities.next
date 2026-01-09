@@ -18,7 +18,19 @@ export const createAnnounceJob: JobHandle = createJobHandle(
     const status = Announce.parse(
       normalizeActivityPubAnnounce(message.data)
     )
-    const object = status.object
+
+    let object: string
+    if (typeof status.object === 'string') {
+      object = status.object
+    } else if (
+      status.object &&
+      typeof (status.object as { id?: unknown }).id === 'string'
+    ) {
+      object = (status.object as { id: string }).id
+    } else {
+      return
+    }
+
     const existingStatus = await database.getStatus({
       statusId: object,
       withReplies: false
@@ -48,10 +60,10 @@ export const createAnnounceJob: JobHandle = createJobHandle(
         actorId: status.actor,
         to: Array.isArray(status.to)
           ? status.to
-          : [status.to].filter((item) => item),
+          : [status.to].filter((item): item is string => typeof item === 'string'),
         cc: Array.isArray(status.cc)
           ? status.cc
-          : [status.cc].filter((item) => item),
+          : [status.cc].filter((item): item is string => typeof item === 'string'),
         originalStatusId: object
       })
     ])

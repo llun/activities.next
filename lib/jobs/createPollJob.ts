@@ -46,10 +46,10 @@ export const createPollJob = createJobHandle(
 
         to: Array.isArray(question.to)
           ? question.to
-          : [question.to].filter((item) => item),
+          : [question.to].filter((item): item is string => typeof item === 'string'),
         cc: Array.isArray(question.cc)
           ? question.cc
-          : [question.cc].filter((item) => item),
+          : [question.cc].filter((item): item is string => typeof item === 'string'),
 
         reply: question.inReplyTo || '',
         choices,
