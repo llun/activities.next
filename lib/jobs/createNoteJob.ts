@@ -71,10 +71,14 @@ export const createNoteJob = createJobHandle(
 
         to: Array.isArray(note.to)
           ? note.to
-          : [note.to].filter((item): item is string => typeof item === 'string'),
+          : [note.to].filter(
+              (item): item is string => typeof item === 'string' && item !== ''
+            ),
         cc: Array.isArray(note.cc)
           ? note.cc
-          : [note.cc].filter((item): item is string => typeof item === 'string'),
+          : [note.cc].filter(
+              (item): item is string => typeof item === 'string' && item !== ''
+            ),
 
         reply: getReply(note.inReplyTo) || '',
         createdAt: new Date(note.published).getTime()

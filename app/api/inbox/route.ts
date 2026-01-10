@@ -27,7 +27,7 @@ export const POST = ActivityPubVerifySenderGuard(async (request) => {
   ) {
     return apiErrorResponse(400)
   }
-  const activity = body as StatusActivity
+  const activity = body as unknown as StatusActivity
   const jobMessage = getJobMessage(activity)
   if (!jobMessage) {
     return apiErrorResponse(404)

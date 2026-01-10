@@ -60,10 +60,14 @@ export const createAnnounceJob: JobHandle = createJobHandle(
         actorId: status.actor,
         to: Array.isArray(status.to)
           ? status.to
-          : [status.to].filter((item): item is string => typeof item === 'string'),
+          : [status.to].filter(
+              (item): item is string => typeof item === 'string' && item !== ''
+            ),
         cc: Array.isArray(status.cc)
           ? status.cc
-          : [status.cc].filter((item): item is string => typeof item === 'string'),
+          : [status.cc].filter(
+              (item): item is string => typeof item === 'string' && item !== ''
+            ),
         originalStatusId: object
       })
     ])
