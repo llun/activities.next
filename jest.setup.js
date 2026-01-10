@@ -13,12 +13,6 @@ if (process.setMaxListeners) {
   process.setMaxListeners(50)
 }
 
-jest.mock('@digitalbazaar/http-client', () => {
-  return {
-    httpClient: jest.fn()
-  }
-})
-
 jest.mock('got', () => {
   return async (url, options) => {
     const response = await fetch(url, {

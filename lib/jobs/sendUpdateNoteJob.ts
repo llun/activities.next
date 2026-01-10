@@ -9,7 +9,7 @@ import { JobHandle } from '@/lib/services/queue/type'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
-} from '@/lib/utils/jsonld/activitystream'
+} from '@/lib/utils/activitystream'
 import { logger } from '@/lib/utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
 import { getTracer } from '@/lib/utils/trace'

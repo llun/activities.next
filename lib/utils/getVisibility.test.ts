@@ -1,7 +1,7 @@
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
-} from '@/lib/utils/jsonld/activitystream'
+} from '@/lib/utils/activitystream'
 
 import { getVisibility } from './getVisibility'
 

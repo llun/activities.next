@@ -4,7 +4,7 @@ import { AnnounceStatus } from '../activities/actions/announceStatus'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
-} from '../utils/jsonld/activitystream'
+} from '../utils/activitystream'
 
 interface Params {
   actorId: string

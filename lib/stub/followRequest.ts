@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 
-import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
+import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 
 import { AcceptFollow } from '../activities/actions/acceptFollow'
 import { FollowRequest } from '../activities/actions/follow'

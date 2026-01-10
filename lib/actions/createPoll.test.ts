@@ -7,7 +7,7 @@ import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
 

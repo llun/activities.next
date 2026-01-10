@@ -8,7 +8,7 @@ import { seedActor3 } from '@/lib/stub/seed/actor3'
 import { seedActor4 } from '@/lib/stub/seed/actor4'
 import { seedActor5 } from '@/lib/stub/seed/actor5'
 import { seedActor6 } from '@/lib/stub/seed/actor6'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 import {
