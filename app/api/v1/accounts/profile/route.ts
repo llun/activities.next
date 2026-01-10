@@ -24,14 +24,27 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   const json = Object.fromEntries(body.entries())
 
   const parsed = ProfileRequest.parse(json)
-  // Handle checkbox behavior: if present in form data, it's checked (value is "on")
-  // If not present, it means unchecked
-  const manuallyApprovesFollowers = parsed.manuallyApprovesFollowers === 'on'
+  // Handle checkbox behavior:
+  // 1. If 'on', it's checked -> true
+  // 2. If missing but marker is present, it's unchecked -> false
+  // 3. If missing and marker is missing, it's a partial update -> undefined (don't update)
+
+  // Extract raw value to avoid passing string "on" to updateActor which expects boolean
+  const { manuallyApprovesFollowers: rawValue, ...safeParsed } = parsed
+
+  let manuallyApprovesFollowers: boolean | undefined
+  if (rawValue === 'on') {
+    manuallyApprovesFollowers = true
+  } else if (json.manuallyApprovesFollowers_marker === 'true') {
+    manuallyApprovesFollowers = false
+  }
 
   await database.updateActor({
     actorId: currentActor.id,
-    ...parsed,
-    manuallyApprovesFollowers
+    ...safeParsed,
+    ...(manuallyApprovesFollowers !== undefined
+      ? { manuallyApprovesFollowers }
+      : null)
   })
 
   const host = headerHost(req.headers)

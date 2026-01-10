@@ -140,6 +140,11 @@ const Page = async () => {
               </p>
             </div>
             <input
+              type="hidden"
+              name="manuallyApprovesFollowers_marker"
+              value="true"
+            />
+            <input
               type="checkbox"
               id="manuallyApprovesFollowersInput"
               name="manuallyApprovesFollowers"
