@@ -4,6 +4,7 @@ import { getProviders } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -94,38 +95,21 @@ const Page = async () => {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="iconInput">Icon Image URL</Label>
-            <Input
-              type="text"
-              name="iconUrl"
-              id="iconInput"
-              aria-describedby="iconHelp"
-              defaultValue={profile.iconUrl || ''}
-              placeholder="https://example.com/avatar.jpg"
-            />
-            <p id="iconHelp" className="text-[0.8rem] text-muted-foreground">
-              Image URL for profile
-            </p>
-          </div>
+          <ImageUploadField
+            fieldName="iconUrl"
+            currentUrl={profile.iconUrl}
+            label="Icon image"
+            placeholder="https://example.com/avatar.jpg"
+            previewType="thumbnail"
+          />
 
-          <div className="space-y-2">
-            <Label htmlFor="headerImageInput">Header Image URL</Label>
-            <Input
-              type="text"
-              id="headerImageInput"
-              name="headerImageUrl"
-              aria-describedby="headerImageHelp"
-              defaultValue={profile.headerImageUrl || ''}
-              placeholder="https://example.com/header.jpg"
-            />
-            <p
-              id="headerImageHelp"
-              className="text-[0.8rem] text-muted-foreground"
-            >
-              Image URL for profile header
-            </p>
-          </div>
+          <ImageUploadField
+            fieldName="headerImageUrl"
+            currentUrl={profile.headerImageUrl}
+            label="Header image"
+            placeholder="https://example.com/header.jpg"
+            previewType="landscape"
+          />
         </section>
 
         <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
