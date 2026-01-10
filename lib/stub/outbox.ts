@@ -1,5 +1,5 @@
 import { OutboxContext } from '@/lib/activities/context'
-import { ACTIVITY_STREAM_URL } from '@/lib/utils/jsonld/activitystream'
+import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 
 import { getISOTimeUTC } from '../utils/getISOTimeUTC'
 import { MockMastodonActivityPubNote } from './note'

@@ -11,7 +11,7 @@ import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { mainTimelineRule } from './main'
 import { Timeline } from './types'

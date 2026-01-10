@@ -8,7 +8,7 @@ import {
   EXTERNAL_ACTOR1,
   EXTERNAL_ACTOR1_FOLLOWERS
 } from '@/lib/stub/seed/external1'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/jsonld/activitystream'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { addStatusToTimelines } from '.'
 import { Timeline } from './types'

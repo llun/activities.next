@@ -9,7 +9,7 @@ import { cleanJson } from '@/lib/utils/cleanJson'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
-} from '@/lib/utils/jsonld/activitystream'
+} from '@/lib/utils/activitystream'
 
 import { Header } from './Header'
 import { StatusBox } from './StatusBox'

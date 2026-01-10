@@ -1,7 +1,7 @@
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
-} from '@/lib/utils/jsonld/activitystream'
+} from '@/lib/utils/activitystream'
 
 // Mastodon API visibility values
 export type MastodonVisibility = 'public' | 'unlisted' | 'private' | 'direct'

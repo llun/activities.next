@@ -18,8 +18,7 @@ import {
 } from '../activities/entities/note'
 import { StatusType } from '../models/status'
 import { addStatusToTimelines } from '../services/timelines'
-import { compact } from '../utils/jsonld'
-import { ACTIVITY_STREAM_URL } from '../utils/jsonld/activitystream'
+import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { CREATE_NOTE_JOB_NAME } from './names'
 
@@ -33,7 +32,9 @@ export const createNoteJob = createJobHandle(
       ArticleContent,
       VideoContent
     ])
-    const note = BaseNoteSchema.parse(message.data)
+    const note = BaseNoteSchema.parse(
+      normalizeActivityPubContent(message.data)
+    ) as BaseNote
     const attachments = getAttachments(note)
 
     const existingStatus = await database.getStatus({
@@ -44,46 +45,43 @@ export const createNoteJob = createJobHandle(
       return
     }
 
-    const compactNote = (await compact({
-      '@context': ACTIVITY_STREAM_URL,
-      ...note
-    })) as BaseNote
     if (
-      compactNote.type !== StatusType.enum.Note &&
-      compactNote.type !== 'Image' &&
-      compactNote.type !== 'Page' &&
-      compactNote.type !== 'Article' &&
-      compactNote.type !== 'Video'
+      note.type !== StatusType.enum.Note &&
+      note.type !== 'Image' &&
+      note.type !== 'Page' &&
+      note.type !== 'Article' &&
+      note.type !== 'Video'
     ) {
       return
     }
 
-    const text = getContent(compactNote)
-    const summary = getSummary(compactNote)
+    const text = getContent(note)
+    const summary = getSummary(note)
 
     const [, status] = await Promise.all([
-      recordActorIfNeeded({ actorId: compactNote.attributedTo, database }),
+      recordActorIfNeeded({ actorId: note.attributedTo, database }),
       database.createNote({
-        id: compactNote.id,
-        url:
-          typeof compactNote.url === 'string'
-            ? compactNote.url
-            : compactNote.id,
+        id: note.id,
+        url: typeof note.url === 'string' ? note.url : note.id,
 
-        actorId: compactNote.attributedTo,
+        actorId: note.attributedTo,
 
         text,
         summary,
 
         to: Array.isArray(note.to)
           ? note.to
-          : [note.to].filter((item): item is string => !!item),
+          : [note.to].filter(
+              (item): item is string => typeof item === 'string' && item !== ''
+            ),
         cc: Array.isArray(note.cc)
           ? note.cc
-          : [note.cc].filter((item): item is string => !!item),
+          : [note.cc].filter(
+              (item): item is string => typeof item === 'string' && item !== ''
+            ),
 
-        reply: getReply(compactNote.inReplyTo) || '',
-        createdAt: new Date(compactNote.published).getTime()
+        reply: getReply(note.inReplyTo) || '',
+        createdAt: new Date(note.published).getTime()
       })
     ])
 
@@ -94,8 +92,8 @@ export const createNoteJob = createJobHandle(
       ...attachments.map(async (attachment) => {
         if (attachment.type !== 'Document') return
         return database.createAttachment({
-          actorId: compactNote.attributedTo,
-          statusId: compactNote.id,
+          actorId: note.attributedTo,
+          statusId: note.id,
           mediaType: attachment.mediaType,
           height: attachment.height,
           width: attachment.width,
@@ -106,14 +104,14 @@ export const createNoteJob = createJobHandle(
       ...tags.map((item) => {
         if (item.type === 'Emoji') {
           return database.createTag({
-            statusId: compactNote.id,
+            statusId: note.id,
             name: item.name,
             value: item.icon.url,
             type: 'emoji'
           })
         }
         return database.createTag({
-          statusId: compactNote.id,
+          statusId: note.id,
           name: item.name || '',
           value: item.href,
           type: 'mention'

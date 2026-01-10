@@ -134,10 +134,7 @@ export function Sidebar({ user }: SidebarProps) {
           <div className="border-t p-3">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link
-                  href={`/${user.handle}`}
-                  className="cursor-pointer block"
-                >
+                <Link href={`/${user.handle}`} className="cursor-pointer block">
                   <Avatar className="h-10 w-10">
                     {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
                     <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">

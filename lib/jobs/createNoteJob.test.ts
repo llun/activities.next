@@ -234,9 +234,8 @@ describe('createNoteJob', () => {
     })
   })
 
-  // TODO: The @llun/activities.schema package doesn't support array URLs yet.
-  // This test is skipped until the package is updated to support array URLs.
-  it.skip('adds image activity with array URLs into database', async () => {
+  // @llun/activities.schema doesn't accept url arrays, so we normalize to a string.
+  it('adds image activity with array URLs into database', async () => {
     const image = {
       type: 'Image',
       id: 'https://pixelfed.social/p/user/1234567',
