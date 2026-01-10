@@ -146,7 +146,11 @@ export const PostBox: FC<Props> = ({
 
       const uploadResults = await Promise.all(
         postExtension.attachments.map(async (attachment) => {
-          if (!attachment.file) return attachment
+          if (!attachment.file)
+            return {
+              originalId: attachment.id,
+              uploadedAttachment: attachment
+            }
 
           dispatch(
             updateAttachment(attachment.id, {
@@ -171,7 +175,10 @@ export const PostBox: FC<Props> = ({
               file: undefined
             }
             dispatch(updateAttachment(attachment.id, newAttachment))
-            return newAttachment
+            return {
+              originalId: attachment.id,
+              uploadedAttachment: newAttachment
+            }
           } catch {
             dispatch(
               updateAttachment(attachment.id, {
@@ -188,9 +195,32 @@ export const PostBox: FC<Props> = ({
       const currentAttachmentIds = new Set(
         postExtensionRef.current.attachments.map((a) => a.id)
       )
-      const attachments = uploadResults.filter((a) =>
-        currentAttachmentIds.has(a.id)
-      )
+      const attachments = uploadResults
+        .filter((a) =>
+        // It is possible that the attachment is not in the current list
+        // because it was removed during the upload process.
+        // However, the current list might have the new ID or the old ID.
+        // If the attachment is in the current list, it means it was not removed.
+        // If checking with only original ID, it might be removed by the user
+        // but the current list has the old ID.
+        // If checking with only new ID, it might be removed by the user
+        // but the current list has the new ID.
+        // Wait, the postExtensionRef.current update is async in react
+        // so it might still have the old ID or the new ID?
+        // The dispatch is async, but the ref update is in useEffect which is also async
+        // relative to this function execution?
+        // Actually, dispatch triggers re-render, leading to useEffect update ref.
+        // So inside this async function, the ref update might happen after await.
+        // So we should check if the original ID is in the list (meaning not removed yet / old state)
+        // OR if the new ID is in the list (meaning not removed / new state).
+        {
+          return (
+            currentAttachmentIds.has(a.originalId) ||
+            currentAttachmentIds.has(a.uploadedAttachment.id)
+          )
+        }
+        )
+        .map((a) => a.uploadedAttachment)
 
       const response = await createNote({
         message,
