@@ -9,6 +9,7 @@ const ProfileRequest = z.object({
   iconUrl: z.string().optional(),
   headerImageUrl: z.string().optional(),
   appleSharedAlbumToken: z.string().optional(),
+  manuallyApprovesFollowers: z.string().optional(),
 
   publicKey: z.string().optional(),
 
@@ -22,9 +23,15 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   const body = await req.formData()
   const json = Object.fromEntries(body.entries())
 
+  const parsed = ProfileRequest.parse(json)
+  // Handle checkbox behavior: if present in form data, it's checked (value is "on")
+  // If not present, it means unchecked
+  const manuallyApprovesFollowers = parsed.manuallyApprovesFollowers === 'on'
+
   await database.updateActor({
     actorId: currentActor.id,
-    ...ProfileRequest.parse(json)
+    ...parsed,
+    manuallyApprovesFollowers
   })
 
   const host = headerHost(req.headers)
