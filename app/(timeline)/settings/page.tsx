@@ -97,7 +97,7 @@ const Page = async () => {
 
           <ImageUploadField
             fieldName="iconUrl"
-            currentUrl={profile.iconUrl}
+            currentUrl={profile.iconUrl || null}
             label="Icon image"
             placeholder="https://example.com/avatar.jpg"
             previewType="thumbnail"
@@ -105,7 +105,7 @@ const Page = async () => {
 
           <ImageUploadField
             fieldName="headerImageUrl"
-            currentUrl={profile.headerImageUrl}
+            currentUrl={profile.headerImageUrl || null}
             label="Header image"
             placeholder="https://example.com/header.jpg"
             previewType="landscape"
