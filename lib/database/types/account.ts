@@ -44,6 +44,15 @@ export type UpdateAccountSessionParams = {
   expireAt?: number
 }
 
+export type GetAccountProvidersParams = {
+  accountId: string
+}
+
+export type UnlinkAccountFromProviderParams = {
+  accountId: string
+  provider: string
+}
+
 export interface AccountDatabase {
   isAccountExists(params: IsAccountExistsParams): Promise<boolean>
   isUsernameExists(params: IsUsernameExistsParams): Promise<boolean>
@@ -65,4 +74,16 @@ export interface AccountDatabase {
   getAccountAllSessions(params: GetAccountAllSessionsParams): Promise<Session[]>
   updateAccountSession(params: UpdateAccountSessionParams): Promise<void>
   deleteAccountSession(params: DeleteAccountSessionParams): Promise<void>
+
+  getAccountProviders(params: GetAccountProvidersParams): Promise<
+    {
+      provider: string
+      providerId: string
+      createdAt: number
+      updatedAt: number
+    }[]
+  >
+  unlinkAccountFromProvider(
+    params: UnlinkAccountFromProviderParams
+  ): Promise<void>
 }

@@ -9,10 +9,12 @@ import {
   GetAccountAllSessionsParams,
   GetAccountFromIdParams,
   GetAccountFromProviderIdParams,
+  GetAccountProvidersParams,
   GetAccountSessionParams,
   IsAccountExistsParams,
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
+  UnlinkAccountFromProviderParams,
   UpdateAccountSessionParams,
   VerifyAccountParams
 } from '@/lib/database/types/account'
@@ -250,5 +252,40 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     token
   }: DeleteAccountSessionParams): Promise<void> {
     await database('sessions').where('token', token).delete()
+  },
+
+  async getAccountProviders({ accountId }: GetAccountProvidersParams): Promise<
+    {
+      provider: string
+      providerId: string
+      createdAt: number
+      updatedAt: number
+    }[]
+  > {
+    const providers = await database('account_providers')
+      .where('accountId', accountId)
+      .select<
+        {
+          provider: string
+          providerId: string
+          createdAt: number
+          updatedAt: number
+        }[]
+      >('provider', 'providerId', 'createdAt', 'updatedAt')
+    return providers.map((provider) => ({
+      ...provider,
+      createdAt: getCompatibleTime(provider.createdAt),
+      updatedAt: getCompatibleTime(provider.updatedAt)
+    }))
+  },
+
+  async unlinkAccountFromProvider({
+    accountId,
+    provider
+  }: UnlinkAccountFromProviderParams): Promise<void> {
+    await database('account_providers')
+      .where('accountId', accountId)
+      .where('provider', provider)
+      .delete()
   }
 })
