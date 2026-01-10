@@ -1,13 +1,11 @@
-import { formatDistance, formatRelative } from 'date-fns'
 import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { SessionsList } from '@/lib/components/settings/SessionsList'
 import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
-import { DeleteSessionButton } from './DeleteSessionButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,36 +43,7 @@ const Page = async () => {
         </p>
       </div>
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        {sessions.length > 0 ? (
-          <ol className="space-y-3">
-            {sessions.map((existingSession) => (
-              <li
-                key={`session-${existingSession.token}`}
-                className="rounded-xl border bg-background p-4 shadow-sm"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-foreground">
-                      Signed in{' '}
-                      {formatRelative(existingSession.createdAt, currentTime)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Expires in{' '}
-                      {formatDistance(existingSession.expireAt, currentTime)}
-                    </p>
-                  </div>
-                  <DeleteSessionButton existingSession={existingSession} />
-                </div>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-            No active sessions found.
-          </div>
-        )}
-      </section>
+      <SessionsList sessions={sessions} currentTime={currentTime} />
     </div>
   )
 }
