@@ -52,12 +52,20 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
     // Validate file type
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
       setUploadError('Please select a JPEG or PNG image')
+      // Reset file input to allow re-selection
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
       return
     }
 
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       setUploadError('Image is too large. Maximum size is 200MB')
+      // Reset file input to allow re-selection
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
       return
     }
 

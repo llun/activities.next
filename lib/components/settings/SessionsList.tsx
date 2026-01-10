@@ -1,7 +1,7 @@
 'use client'
 
 import { formatDistance, formatRelative } from 'date-fns'
-import { FC, useEffect, useState } from 'react'
+import { FC } from 'react'
 
 import { Session } from '@/lib/models/session'
 
@@ -10,36 +10,14 @@ import { DeleteSessionButton } from '../../../app/(timeline)/settings/sessions/D
 interface SessionsListProps {
   sessions: Session[]
   currentTime: number
+  currentSessionToken: string | null
 }
 
 export const SessionsList: FC<SessionsListProps> = ({
   sessions,
-  currentTime
+  currentTime,
+  currentSessionToken
 }) => {
-  const [currentSessionToken, setCurrentSessionToken] = useState<string | null>(
-    null
-  )
-
-  useEffect(() => {
-    // Read session token from cookie
-    // NextAuth uses 'next-auth.session-token' or '__Secure-next-auth.session-token' for HTTPS
-    const getCookie = (name: string): string | null => {
-      const value = `; ${document.cookie}`
-      const parts = value.split(`; ${name}=`)
-      if (parts.length === 2) {
-        return parts.pop()?.split(';').shift() || null
-      }
-      return null
-    }
-
-    // Try both cookie names (HTTPS and HTTP)
-    const token =
-      getCookie('__Secure-next-auth.session-token') ||
-      getCookie('next-auth.session-token')
-
-    setCurrentSessionToken(token)
-  }, [])
-
   // Sort sessions by creation time (newest first)
   const sortedSessions = [...sessions].sort((a, b) => b.createdAt - a.createdAt)
 

@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
@@ -25,6 +26,13 @@ const Page = async () => {
     return redirect('/auth/signin')
   }
 
+  // Get current session token from cookies (server-side)
+  const cookieStore = await cookies()
+  const currentSessionToken =
+    cookieStore.get('__Secure-next-auth.session-token')?.value ||
+    cookieStore.get('next-auth.session-token')?.value ||
+    null
+
   const currentTime = Date.now()
   const sessions = await database.getAccountAllSessions({
     accountId: actor.account.id
@@ -43,7 +51,11 @@ const Page = async () => {
         </p>
       </div>
 
-      <SessionsList sessions={sessions} currentTime={currentTime} />
+      <SessionsList
+        sessions={sessions}
+        currentTime={currentTime}
+        currentSessionToken={currentSessionToken}
+      />
     </div>
   )
 }
