@@ -29,6 +29,7 @@ export const getProfileData = async (
     username,
     domain
   })
+
   if (persistedActor?.account) {
     const [
       statuses,
@@ -59,6 +60,21 @@ export const getProfileData = async (
 
   const person = await getActorPerson({ actorId })
   if (!person) return null
+
+  if (persistedActor) {
+    await database.updateActor({
+      actorId: person.id,
+      name: person.name,
+      summary: person.summary,
+      iconUrl: person.iconUrl,
+      headerImageUrl: person.headerImageUrl,
+      appleSharedAlbumToken: person.appleSharedAlbumToken,
+      publicKey: person.publicKey,
+      followersUrl: person.followersUrl,
+      inboxUrl: person.inboxUrl,
+      sharedInboxUrl: person.sharedInboxUrl
+    })
+  }
 
   const [
     actorPostsResponse,
