@@ -34,20 +34,22 @@ const Page = async () => {
   ])
 
   const actor = await getActorFromSession(database, session)
-  if (!actor) {
+  if (!actor || !actor.account) {
     return redirect('/auth/signin')
   }
 
   const profile = getActorProfile(actor)
   const { auth } = getConfig()
-  const nonCredentialsProviders =
+  const [nonCredentialsProviders, connectedProviders] = await Promise.all([
     (providers &&
       Object.values(providers).filter((provider) => {
         if (provider.id === 'credentials') return false
         if (provider.id === 'github' && !auth?.github) return false
         return true
       })) ||
-    []
+      [],
+    database.getAccountProviders({ accountId: actor.account.id })
+  ])
   return (
     <div className="space-y-6">
       <div>
@@ -203,6 +205,7 @@ const Page = async () => {
           </div>
           <AuthenticationProviders
             nonCredentialsProviders={nonCredentialsProviders}
+            connectedProviders={connectedProviders}
           />
         </section>
       )}
