@@ -15,9 +15,7 @@ import { normalizeActivityPubAnnounce } from '@/lib/utils/activitypub'
 export const createAnnounceJob: JobHandle = createJobHandle(
   CREATE_ANNOUNCE_JOB_NAME,
   async (database, message) => {
-    const status = Announce.parse(
-      normalizeActivityPubAnnounce(message.data)
-    )
+    const status = Announce.parse(normalizeActivityPubAnnounce(message.data))
 
     let object: string
     if (typeof status.object === 'string') {

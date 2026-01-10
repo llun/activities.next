@@ -13,9 +13,9 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 enableFetchMocks()

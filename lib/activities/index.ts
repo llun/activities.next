@@ -24,12 +24,12 @@ import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { Actor } from '@/lib/models/actor'
 import { Follow } from '@/lib/models/follow'
 import { Status, StatusAnnounce, StatusType } from '@/lib/models/status'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
 } from '@/lib/utils/activitystream'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { signedHeaders } from '@/lib/utils/signature'

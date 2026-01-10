@@ -7,8 +7,8 @@ import { Status } from '@/lib/models/status'
 import { expectCall, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 
 enableFetchMocks()
 

@@ -44,8 +44,7 @@ export const normalizeActivityPubContent = (data: unknown) => {
   if (!isRecord(data)) return data
   return {
     ...data,
-    attributedTo:
-      extractActivityPubId(data.attributedTo) ?? data.attributedTo,
+    attributedTo: extractActivityPubId(data.attributedTo) ?? data.attributedTo,
     inReplyTo: extractActivityPubId(data.inReplyTo) ?? data.inReplyTo,
     url: extractActivityPubId(data.url) ?? data.url,
     to: normalizeActivityPubRecipients(data.to) ?? data.to,

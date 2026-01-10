@@ -9,8 +9,8 @@ import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 enableFetchMocks()
 
