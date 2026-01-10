@@ -5,11 +5,11 @@ import { FC } from 'react'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { StatusType } from '@/lib/models/status'
-import { cleanJson } from '@/lib/utils/cleanJson'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
+import { cleanJson } from '@/lib/utils/cleanJson'
 
 import { Header } from './Header'
 import { StatusBox } from './StatusBox'
