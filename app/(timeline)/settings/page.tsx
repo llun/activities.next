@@ -8,6 +8,7 @@ import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { Textarea } from '@/lib/components/ui/textarea'
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getActorProfile } from '@/lib/models/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -38,11 +39,14 @@ const Page = async () => {
   }
 
   const profile = getActorProfile(actor)
+  const { auth } = getConfig()
   const nonCredentialsProviders =
     (providers &&
-      Object.values(providers).filter(
-        (provider) => provider.id !== 'credentials'
-      )) ||
+      Object.values(providers).filter((provider) => {
+        if (provider.id === 'credentials') return false
+        if (provider.id === 'github' && !auth?.github) return false
+        return true
+      })) ||
     []
   return (
     <div className="space-y-6">
