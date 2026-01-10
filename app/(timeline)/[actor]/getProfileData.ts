@@ -65,14 +65,14 @@ export const getProfileData = async (
     await database.updateActor({
       actorId: person.id,
       name: person.name,
-      summary: person.summary,
-      iconUrl: person.iconUrl,
-      headerImageUrl: person.headerImageUrl,
-      appleSharedAlbumToken: person.appleSharedAlbumToken,
-      publicKey: person.publicKey,
-      followersUrl: person.followersUrl,
-      inboxUrl: person.inboxUrl,
-      sharedInboxUrl: person.sharedInboxUrl
+      summary: person.summary || '',
+      iconUrl: person.icon?.url || '',
+      headerImageUrl: person.image?.url || '',
+      appleSharedAlbumToken: '',
+      publicKey: person.publicKey.publicKeyPem,
+      followersUrl: person.followers,
+      inboxUrl: person.inbox,
+      sharedInboxUrl: person.endpoints?.sharedInbox || ''
     })
   }
 

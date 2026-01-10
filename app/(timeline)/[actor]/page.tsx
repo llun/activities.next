@@ -11,6 +11,8 @@ import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { cleanClassName } from '@/lib/utils/text/cleanClassName'
+import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 import { ActorTimelines } from './ActorTimelines'
 import { getProfileData } from './getProfileData'
@@ -85,6 +87,8 @@ const Page: FC<Props> = async ({ params }) => {
   const headerImageUrl = getHeaderImage()
   const iconImageUrl = getIconImage()
 
+  const bio = cleanClassName(sanitizeText(person.summary || ''))
+
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
@@ -120,7 +124,7 @@ const Page: FC<Props> = async ({ params }) => {
             )}
           </div>
 
-          <p className="mt-4 text-sm leading-relaxed">{person.summary}</p>
+          <div className="mt-4 text-sm leading-relaxed">{bio}</div>
 
           <div className="mt-5 flex flex-wrap gap-6 text-sm">
             <div>
