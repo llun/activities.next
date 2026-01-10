@@ -1,7 +1,7 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { ClientSafeProvider, signIn } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
@@ -42,8 +42,10 @@ export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({
                 </span>
                 <span className="text-xs text-muted-foreground">
                   (
-                  {connectedProviders.find((p) => p.provider === provider.id)
-                    ?.providerId}
+                  {
+                    connectedProviders.find((p) => p.provider === provider.id)
+                      ?.providerId
+                  }
                   )
                 </span>
               </div>
@@ -63,7 +65,7 @@ export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({
         }
 
         return (
-          <div key={provider.name}>
+          <div key={provider.name} className="flex justify-end">
             <Button onClick={() => signIn(provider.id)}>
               Connect to {provider.name}
             </Button>
