@@ -41,11 +41,11 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
 
   const user = actor
     ? {
-      name: actor.name || actor.username,
-      username: actor.username,
-      handle: getMention(getActorProfile(actor), true),
-      avatarUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : undefined
-    }
+        name: actor.name || actor.username,
+        username: actor.username,
+        handle: getMention(getActorProfile(actor), true),
+        avatarUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : undefined
+      }
     : undefined
   const showNavigation = Boolean(user)
 
