@@ -62,14 +62,52 @@ export const getAuthOptions = memoize(() => {
         signIn: '/auth/signin'
       },
       callbacks: {
-        async signIn({ user }) {
+        async signIn({ user, account: providerAccount }) {
           const database = getDatabase()
           if (!database) return false
 
-          const account = await database.getAccountFromId({ id: user.id })
-          if (!account?.verifiedAt) return false
+          // For credentials sign-in, verify the local account
+          if (providerAccount?.type === 'credentials') {
+            const account = await database.getAccountFromId({ id: user.id })
+            if (!account?.verifiedAt) return false
+            return true
+          }
 
-          return true
+          // For OAuth sign-in (e.g., GitHub linking from settings page)
+          if (
+            providerAccount?.type === 'oauth' &&
+            providerAccount.providerAccountId
+          ) {
+            // Check if this GitHub account is already linked
+            const linkedAccount = await database.getAccountFromProviderId({
+              provider: providerAccount.provider,
+              accountId: providerAccount.providerAccountId
+            })
+
+            // If already linked, verify the linked account is verified
+            if (linkedAccount) {
+              if (!linkedAccount.verifiedAt) return false
+              return true
+            }
+
+            // Try to find user by OAuth email (for users who have matching emails)
+            if (user.email) {
+              const actor = await database.getActorFromEmail({
+                email: user.email
+              })
+              if (actor?.account?.verifiedAt) {
+                return true
+              }
+            }
+
+            // For account linking from settings page where emails don't match,
+            // we allow the sign-in to proceed. The linkAccount adapter method
+            // will be called with the current session's userId to link the accounts.
+            // We return true here to allow the OAuth flow to complete.
+            return true
+          }
+
+          return false
         }
       },
       adapter: StorageAdapter(secretPhase)
