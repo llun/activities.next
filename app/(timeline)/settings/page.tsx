@@ -140,10 +140,15 @@ const Page = async () => {
               </p>
             </div>
             <input
+              type="hidden"
+              name="manuallyApprovesFollowers_marker"
+              value="true"
+            />
+            <input
               type="checkbox"
               id="manuallyApprovesFollowersInput"
               name="manuallyApprovesFollowers"
-              defaultChecked={true}
+              defaultChecked={profile.manuallyApprovesFollowers ?? true}
               className="h-4 w-4 rounded border-gray-300"
             />
           </div>

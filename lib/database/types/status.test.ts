@@ -44,7 +44,8 @@ describe('StatusDatabase', () => {
             followersCount: 1,
             statusCount: 3,
             lastStatusAt: expect.toBeNumber(),
-            createdAt: expect.toBeNumber()
+            createdAt: expect.toBeNumber(),
+            manuallyApprovesFollowers: true
           },
           to: ['https://www.w3.org/ns/activitystreams#Public'],
           cc: [],
