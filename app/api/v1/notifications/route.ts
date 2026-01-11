@@ -52,7 +52,20 @@ export const GET = OAuthGuard(
     }
 
     const url = new URL(req.url)
-    const queryParams = Object.fromEntries(url.searchParams.entries())
+    // Handle repeated query params (types[], exclude_types[])
+    const queryParams: Record<string, string | string[]> = {}
+    url.searchParams.forEach((value, key) => {
+      const existing = queryParams[key]
+      if (existing) {
+        queryParams[key] = Array.isArray(existing)
+          ? [...existing, value]
+          : [existing, value]
+      } else {
+        // Check if this key appears multiple times
+        const allValues = url.searchParams.getAll(key)
+        queryParams[key] = allValues.length > 1 ? allValues : value
+      }
+    })
     const parsedParams = NotificationQueryParams.parse(queryParams)
 
     const {
@@ -114,14 +127,40 @@ export const GET = OAuthGuard(
     const host = headerHost(req.headers)
     const pathBase = '/api/v1/notifications'
 
+    // Build query params preserving filters
+    const buildPaginationUrl = (cursorParam: string, cursorValue: string) => {
+      const params = new URLSearchParams()
+      params.set('limit', limit.toString())
+      params.set(cursorParam, cursorValue)
+
+      // Preserve filters
+      if (types) {
+        types.forEach((type) => params.append('types[]', type))
+      }
+      if (excludeTypes) {
+        excludeTypes.forEach((type) => params.append('exclude_types[]', type))
+      }
+      if (accountId) {
+        params.set('account_id', accountId)
+      }
+      if (grouped) {
+        params.set('grouped', 'true')
+      }
+
+      return `<https://${host}${pathBase}?${params.toString()}>; rel="${cursorParam === 'max_id' ? 'next' : 'prev'}"`
+    }
+
     const nextLink =
       mastodonNotifications.length > 0
-        ? `<https://${host}${pathBase}?limit=${limit}&max_id=${mastodonNotifications[mastodonNotifications.length - 1].id}>; rel="next"`
+        ? buildPaginationUrl(
+            'max_id',
+            mastodonNotifications[mastodonNotifications.length - 1].id
+          )
         : null
 
     const prevLink =
       mastodonNotifications.length > 0
-        ? `<https://${host}${pathBase}?limit=${limit}&min_id=${mastodonNotifications[0].id}>; rel="prev"`
+        ? buildPaginationUrl('min_id', mastodonNotifications[0].id)
         : null
 
     const links = [nextLink, prevLink].filter(Boolean).join(', ')
@@ -145,18 +184,33 @@ export const POST = OAuthGuard(
       return apiErrorResponse(500)
     }
 
-    // Fetch all notifications for the current actor
-    const notifications = await database.getNotifications({
-      actorId: currentActor.id,
-      limit: 1000 // Reasonable limit for clear all operation
-    })
+    // Delete all notifications in batches
+    const batchSize = 1000
+    let hasMore = true
 
-    // Delete all notifications
-    await Promise.all(
-      notifications.map((notification) =>
-        database.deleteNotification(notification.id)
+    while (hasMore) {
+      const notifications = await database.getNotifications({
+        actorId: currentActor.id,
+        limit: batchSize
+      })
+
+      if (notifications.length === 0) {
+        hasMore = false
+        break
+      }
+
+      // Delete batch
+      await Promise.all(
+        notifications.map((notification) =>
+          database.deleteNotification(notification.id)
+        )
       )
-    )
+
+      // If we got fewer than batchSize, we're done
+      if (notifications.length < batchSize) {
+        hasMore = false
+      }
+    }
 
     return apiResponse({
       req,

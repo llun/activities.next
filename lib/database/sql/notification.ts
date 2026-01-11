@@ -70,9 +70,11 @@ export const NotificationSQLDatabaseMixin = (
       .limit(limit)
 
     // Support cursor-based pagination
+    // Scope cursor lookups to actorId to prevent information leaks
     if (maxNotificationId) {
       const maxNotification = await database('notifications')
         .where('id', maxNotificationId)
+        .andWhere('actorId', actorId)
         .first()
       if (maxNotification) {
         query = query.where('createdAt', '<', maxNotification.createdAt)
@@ -83,6 +85,7 @@ export const NotificationSQLDatabaseMixin = (
       const minId = minNotificationId || sinceNotificationId
       const minNotification = await database('notifications')
         .where('id', minId)
+        .andWhere('actorId', actorId)
         .first()
       if (minNotification) {
         query = query.where('createdAt', '>', minNotification.createdAt)
