@@ -69,10 +69,7 @@ export function Sidebar({ user, unreadCount = 0 }: SidebarProps) {
                     <item.icon className="h-5 w-5" />
                     {item.label}
                     {isNotifications && unreadCount > 0 && (
-                      <NotificationBadge
-                        count={unreadCount}
-                        className="ml-auto"
-                      />
+                      <NotificationBadge count={unreadCount} className="ml-1" />
                     )}
                   </Link>
                 </li>
