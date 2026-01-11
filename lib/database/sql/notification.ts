@@ -67,17 +67,30 @@ export const NotificationSQLDatabaseMixin = (
     let query = database('notifications')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
+      .orderBy('id', 'desc') // Secondary sort for deterministic ordering
       .limit(limit)
 
     // Support cursor-based pagination
     // Scope cursor lookups to actorId to prevent information leaks
+    // Use composite cursor (createdAt, id) to handle same-timestamp notifications
     if (maxNotificationId) {
       const maxNotification = await database('notifications')
         .where('id', maxNotificationId)
         .andWhere('actorId', actorId)
         .first()
       if (maxNotification) {
-        query = query.where('createdAt', '<', maxNotification.createdAt)
+        // Get notifications older than cursor: (createdAt < cursor) OR (createdAt = cursor AND id < cursor)
+        query = query.where(function () {
+          this.where('createdAt', '<', maxNotification.createdAt).orWhere(
+            function () {
+              this.where('createdAt', '=', maxNotification.createdAt).andWhere(
+                'id',
+                '<',
+                maxNotification.id
+              )
+            }
+          )
+        })
       }
     }
 
@@ -88,7 +101,18 @@ export const NotificationSQLDatabaseMixin = (
         .andWhere('actorId', actorId)
         .first()
       if (minNotification) {
-        query = query.where('createdAt', '>', minNotification.createdAt)
+        // Get notifications newer than cursor: (createdAt > cursor) OR (createdAt = cursor AND id > cursor)
+        query = query.where(function () {
+          this.where('createdAt', '>', minNotification.createdAt).orWhere(
+            function () {
+              this.where('createdAt', '=', minNotification.createdAt).andWhere(
+                'id',
+                '>',
+                minNotification.id
+              )
+            }
+          )
+        })
       }
     }
 

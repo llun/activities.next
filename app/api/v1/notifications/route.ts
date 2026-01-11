@@ -53,17 +53,20 @@ export const GET = OAuthGuard(
 
     const url = new URL(req.url)
     // Handle repeated query params (types[], exclude_types[])
+    // Normalize keys by removing [] suffix to match Zod schema
     const queryParams: Record<string, string | string[]> = {}
     url.searchParams.forEach((value, key) => {
-      const existing = queryParams[key]
+      // Normalize key: types[] -> types, exclude_types[] -> exclude_types
+      const normalizedKey = key.replace(/\[\]$/, '')
+      const existing = queryParams[normalizedKey]
       if (existing) {
-        queryParams[key] = Array.isArray(existing)
+        queryParams[normalizedKey] = Array.isArray(existing)
           ? [...existing, value]
           : [existing, value]
       } else {
         // Check if this key appears multiple times
         const allValues = url.searchParams.getAll(key)
-        queryParams[key] = allValues.length > 1 ? allValues : value
+        queryParams[normalizedKey] = allValues.length > 1 ? allValues : value
       }
     })
     const parsedParams = NotificationQueryParams.parse(queryParams)
