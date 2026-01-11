@@ -36,16 +36,18 @@ export function MobileNav({ unreadCount = 0 }: MobileNavProps) {
                   isActive ? 'text-primary' : 'text-muted-foreground'
                 )}
               >
-                <item.icon
-                  className={cn('h-6 w-6', isActive && 'fill-primary')}
-                />
-                <span>{item.label}</span>
-                {isNotifications && unreadCount > 0 && (
-                  <NotificationBadge
-                    count={unreadCount}
-                    className="absolute top-1 right-2"
+                <div className="relative">
+                  <item.icon
+                    className={cn('h-6 w-6', isActive && 'fill-primary')}
                   />
-                )}
+                  {isNotifications && unreadCount > 0 && (
+                    <NotificationBadge
+                      count={unreadCount}
+                      className="absolute -top-1 -right-1"
+                    />
+                  )}
+                </div>
+                <span>{item.label}</span>
               </Link>
             </li>
           )
