@@ -84,6 +84,13 @@ export type UpdateRefreshTokenParams = z.infer<typeof UpdateRefreshTokenParams>
 export const RevokeAccessTokenParams = z.object({ accessToken: z.string() })
 export type RevokeAccessTokenParams = z.infer<typeof RevokeAccessTokenParams>
 
+export const TouchAccessTokenParams = z.object({
+  accessToken: z.string(),
+  accessTokenExpiresAt: z.number(),
+  refreshTokenExpiresAt: z.number().nullish()
+})
+export type TouchAccessTokenParams = z.infer<typeof TouchAccessTokenParams>
+
 export const CreateAuthCodeParams = z.object({
   code: z.string(),
   redirectUri: z.string().nullish(),
@@ -118,6 +125,7 @@ export interface OAuthDatabase {
   createAccessToken(params: CreateAccessTokenParams): Promise<Token | null>
   updateRefreshToken(params: UpdateRefreshTokenParams): Promise<Token | null>
   revokeAccessToken(params: RevokeAccessTokenParams): Promise<Token | null>
+  touchAccessToken(params: TouchAccessTokenParams): Promise<void>
 
   createAuthCode(params: CreateAuthCodeParams): Promise<AuthCode | null>
   getAuthCode(params: GetAuthCodeParams): Promise<AuthCode | null>

@@ -76,6 +76,22 @@ export const OAuthGuard =
         return apiErrorResponse(401)
       }
 
+      // Sliding session: extend tokens when within 1 day of expiry
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000
+      const timeUntilExpiry =
+        accessToken.accessTokenExpiresAt.getTime() - currentTime
+      if (timeUntilExpiry <= ONE_DAY_MS) {
+        const sevenDaysFromNow = currentTime + 7 * ONE_DAY_MS
+        const thirtyDaysFromNow = currentTime + 30 * ONE_DAY_MS
+        database
+          .touchAccessToken({
+            accessToken: decoded.jti ?? '',
+            accessTokenExpiresAt: sevenDaysFromNow,
+            refreshTokenExpiresAt: thirtyDaysFromNow
+          })
+          .catch(() => {}) // Fire-and-forget, don't block the request
+      }
+
       return handle(req, {
         currentActor: Actor.parse(accessToken.user.actor),
         database,
