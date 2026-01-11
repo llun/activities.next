@@ -1,6 +1,7 @@
 'use client'
 
 import { Mastodon } from '@llun/activities.schema'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Status } from '@/lib/models/status'
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export const NotificationsList = ({ notifications, currentActorId }: Props) => {
+  const router = useRouter()
   const [readNotifications, setReadNotifications] = useState<Set<string>>(
     new Set()
   )
@@ -28,23 +30,28 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingReadsRef = useRef<Set<string>>(new Set())
 
-  const markAsRead = useCallback(async (notificationIds: string[]) => {
-    if (notificationIds.length === 0) return
+  const markAsRead = useCallback(
+    async (notificationIds: string[]) => {
+      if (notificationIds.length === 0) return
 
-    try {
-      await fetch('/api/v1/notifications/read', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          notification_ids: notificationIds
+      try {
+        await fetch('/api/v1/notifications/read', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            notification_ids: notificationIds
+          })
         })
-      })
-    } catch (error) {
-      console.error('Failed to mark notifications as read:', error)
-    }
-  }, [])
+        // Refresh the layout to update the notification badge count
+        router.refresh()
+      } catch (error) {
+        console.error('Failed to mark notifications as read:', error)
+      }
+    },
+    [router]
+  )
 
   const debouncedMarkAsRead = useCallback(() => {
     if (timeoutRef.current) {
