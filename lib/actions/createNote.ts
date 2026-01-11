@@ -2,6 +2,7 @@ import { Mention } from '@llun/activities.schema'
 import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'
+import { NotificationType } from '@/lib/database/types/notification'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor, getMention } from '@/lib/models/actor'
 import { PostBoxAttachment } from '@/lib/models/attachment'
@@ -217,6 +218,43 @@ export const createNoteFromUserInput = async ({
       })
     )
   ])
+
+  // Create notifications for replies and mentions
+  const notificationPromises = []
+
+  // Create reply notification if this is a reply
+  if (replyStatus && replyStatus.actorId !== currentActor.id) {
+    notificationPromises.push(
+      database.createNotification({
+        actorId: replyStatus.actorId,
+        type: NotificationType.enum.reply,
+        sourceActorId: currentActor.id,
+        statusId,
+        groupKey: `reply:${replyStatus.id}`
+      })
+    )
+  }
+
+  // Create mention notifications
+  for (const mention of mentions) {
+    const mentionedActorId = mention.href
+    // Don't create notification for self-mentions
+    if (mentionedActorId !== currentActor.id) {
+      notificationPromises.push(
+        database.createNotification({
+          actorId: mentionedActorId,
+          type: NotificationType.enum.mention,
+          sourceActorId: currentActor.id,
+          statusId,
+          groupKey: `mention:${statusId}`
+        })
+      )
+    }
+  }
+
+  if (notificationPromises.length > 0) {
+    await Promise.all(notificationPromises)
+  }
 
   const status = (await database.getStatus({
     statusId,

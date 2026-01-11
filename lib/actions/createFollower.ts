@@ -2,6 +2,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { acceptFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/actions/follow'
 import { Database } from '@/lib/database/types'
+import { NotificationType } from '@/lib/database/types/notification'
 import { FollowStatus } from '@/lib/models/follow'
 
 interface CreateFollowerParams {
@@ -33,24 +34,40 @@ export const createFollower = async ({
 
   if (manuallyApprovesFollowers) {
     // Create follow with Requested status, don't auto-accept
-    await database.createFollow({
+    const follow = await database.createFollow({
       actorId: followerActor.id,
       targetActorId: targetActor.id,
       status: FollowStatus.enum.Requested,
       inbox: followerActor.inboxUrl,
       sharedInbox: followerActor.sharedInboxUrl
     })
+
+    // Create follow_request notification
+    await database.createNotification({
+      actorId: targetActor.id,
+      type: NotificationType.enum.follow_request,
+      sourceActorId: followerActor.id,
+      followId: follow.id
+    })
   } else {
     // Auto-accept: create follow with Accepted status and send Accept activity
+    const follow = await database.createFollow({
+      actorId: followerActor.id,
+      targetActorId: targetActor.id,
+      status: FollowStatus.enum.Accepted,
+      inbox: followerActor.inboxUrl,
+      sharedInbox: followerActor.sharedInboxUrl
+    })
+
     await Promise.all([
-      database.createFollow({
-        actorId: followerActor.id,
-        targetActorId: targetActor.id,
-        status: FollowStatus.enum.Accepted,
-        inbox: followerActor.inboxUrl,
-        sharedInbox: followerActor.sharedInboxUrl
-      }),
-      acceptFollow(targetActor, followerActor.inboxUrl, followRequest)
+      acceptFollow(targetActor, followerActor.inboxUrl, followRequest),
+      // Create follow notification (auto-accepted)
+      database.createNotification({
+        actorId: targetActor.id,
+        type: NotificationType.enum.follow,
+        sourceActorId: followerActor.id,
+        followId: follow.id
+      })
     ])
   }
 
