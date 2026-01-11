@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'
+import { NotificationType } from '@/lib/database/types/notification'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
 import { getQueue } from '@/lib/services/queue'
@@ -47,6 +48,18 @@ export const userAnnounce = async ({
       return null
     }
     await addStatusToTimelines(database, status)
+
+    // Create reblog notification if reblogging someone else's status
+    if (originalStatus.actorId !== currentActor.id) {
+      await database.createNotification({
+        actorId: originalStatus.actorId,
+        type: NotificationType.enum.reblog,
+        sourceActorId: currentActor.id,
+        statusId: originalStatus.id,
+        groupKey: `reblog:${originalStatus.id}`
+      })
+    }
+
     await getQueue().publish({
       id: getHashFromString(status.id),
       name: SEND_ANNOUNCE_JOB_NAME,

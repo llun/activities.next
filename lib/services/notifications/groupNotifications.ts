@@ -7,8 +7,19 @@ export interface GroupedNotification extends Notification {
 }
 
 export const groupNotifications = (
-  notifications: Notification[]
+  notifications: Notification[],
+  enableGrouping: boolean = true
 ): GroupedNotification[] => {
+  // If grouping is disabled, return notifications as-is with minimal GroupedNotification fields
+  if (!enableGrouping) {
+    return notifications.map((notification) => ({
+      ...notification,
+      groupedActors: undefined,
+      groupedCount: 1,
+      groupedIds: undefined
+    }))
+  }
+
   const groups: Map<string, GroupedNotification> = new Map()
 
   for (const notification of notifications) {
