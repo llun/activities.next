@@ -5,7 +5,8 @@ export const NotificationType = z.enum([
   'follow',
   'like',
   'mention',
-  'reply'
+  'reply',
+  'reblog'
 ])
 
 export type NotificationType = z.infer<typeof NotificationType>
@@ -38,8 +39,12 @@ export type GetNotificationsParams = {
   limit: number
   offset?: number
   types?: NotificationType[]
+  excludeTypes?: NotificationType[]
   onlyUnread?: boolean
   ids?: string[]
+  maxNotificationId?: string
+  minNotificationId?: string
+  sinceNotificationId?: string
 }
 
 export type GetNotificationsCountParams = {

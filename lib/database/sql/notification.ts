@@ -57,17 +57,76 @@ export const NotificationSQLDatabaseMixin = (
     limit,
     offset = 0,
     types,
+    excludeTypes,
     onlyUnread,
-    ids
+    ids,
+    maxNotificationId,
+    minNotificationId,
+    sinceNotificationId
   }: GetNotificationsParams) {
     let query = database('notifications')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
+      .orderBy('id', 'desc') // Secondary sort for deterministic ordering
       .limit(limit)
-      .offset(offset)
+
+    // Support cursor-based pagination
+    // Scope cursor lookups to actorId to prevent information leaks
+    // Use composite cursor (createdAt, id) to handle same-timestamp notifications
+    if (maxNotificationId) {
+      const maxNotification = await database('notifications')
+        .where('id', maxNotificationId)
+        .andWhere('actorId', actorId)
+        .first()
+      if (maxNotification) {
+        // Get notifications older than cursor: (createdAt < cursor) OR (createdAt = cursor AND id < cursor)
+        query = query.where(function () {
+          this.where('createdAt', '<', maxNotification.createdAt).orWhere(
+            function () {
+              this.where('createdAt', '=', maxNotification.createdAt).andWhere(
+                'id',
+                '<',
+                maxNotification.id
+              )
+            }
+          )
+        })
+      }
+    }
+
+    if (minNotificationId || sinceNotificationId) {
+      const minId = minNotificationId || sinceNotificationId
+      const minNotification = await database('notifications')
+        .where('id', minId)
+        .andWhere('actorId', actorId)
+        .first()
+      if (minNotification) {
+        // Get notifications newer than cursor: (createdAt > cursor) OR (createdAt = cursor AND id > cursor)
+        query = query.where(function () {
+          this.where('createdAt', '>', minNotification.createdAt).orWhere(
+            function () {
+              this.where('createdAt', '=', minNotification.createdAt).andWhere(
+                'id',
+                '>',
+                minNotification.id
+              )
+            }
+          )
+        })
+      }
+    }
+
+    // Support offset-based pagination for backward compatibility
+    if (!maxNotificationId && !minNotificationId && !sinceNotificationId) {
+      query = query.offset(offset)
+    }
 
     if (types && types.length > 0) {
       query = query.whereIn('type', types)
+    }
+
+    if (excludeTypes && excludeTypes.length > 0) {
+      query = query.whereNotIn('type', excludeTypes)
     }
 
     if (onlyUnread) {
