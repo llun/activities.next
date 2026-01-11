@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { FC } from 'react'
 
+import { getMention } from '@/lib/models/actor'
 import { Status, StatusNote, StatusType } from '@/lib/models/status'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
@@ -24,7 +25,7 @@ export const MentionNotification: FC<Props> = ({ notification }) => {
     status.type === StatusType.enum.Announce ? status.originalStatus : status
   const hasMultiple = groupedCount && groupedCount > 1
 
-  const statusUrl = `/@${status.actor.username}/${status.id.split('/').pop()}`
+  const statusUrl = `/${getMention(status.actor, true)}/${status.id.split('/').pop()}`
 
   return (
     <div className="flex items-start gap-4">
