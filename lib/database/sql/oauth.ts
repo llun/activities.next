@@ -145,8 +145,8 @@ export const OAuthSQLDatabaseMixin = (
       ...(data.refreshToken ? { refreshToken: data.refreshToken } : null),
       ...(data.refreshTokenExpiresAt
         ? {
-            refreshTokenExpiresAt: getCompatibleTime(data.refreshTokenExpiresAt)
-          }
+          refreshTokenExpiresAt: getCompatibleTime(data.refreshTokenExpiresAt)
+        }
         : null),
 
       scopes: getCompatibleJSON(data.scopes),
@@ -157,10 +157,10 @@ export const OAuthSQLDatabaseMixin = (
       },
       user: actor
         ? User.parse({
-            id: actor?.id,
-            actor,
-            account
-          })
+          id: actor?.id,
+          actor,
+          account
+        })
         : null,
 
       createdAt: getCompatibleTime(data.createdAt),
@@ -262,7 +262,7 @@ export const OAuthSQLDatabaseMixin = (
         accessTokenExpiresAt: new Date(accessTokenExpiresAt),
         ...(refreshTokenExpiresAt
           ? { refreshTokenExpiresAt: new Date(refreshTokenExpiresAt) }
-          : null),
+          : {}),
         updatedAt: new Date()
       })
   },
