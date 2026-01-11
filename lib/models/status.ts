@@ -58,7 +58,8 @@ export type StatusNote = z.infer<typeof StatusNote>
 export const StatusPoll = StatusNote.extend({
   type: z.literal(StatusType.enum.Poll),
   choices: PollChoice.array(),
-  endAt: z.number()
+  endAt: z.number(),
+  pollType: z.enum(['oneOf', 'anyOf']).default('oneOf')
 })
 export type StatusPoll = z.infer<typeof StatusPoll>
 

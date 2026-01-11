@@ -23,7 +23,12 @@ import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { Actor } from '@/lib/models/actor'
 import { Follow } from '@/lib/models/follow'
-import { Status, StatusAnnounce, StatusType } from '@/lib/models/status'
+import {
+  Status,
+  StatusAnnounce,
+  StatusPoll,
+  StatusType
+} from '@/lib/models/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
@@ -694,5 +699,81 @@ export const sendUndoLike = async ({ currentActor, status }: UndoLikeParams) =>
       } finally {
         span.end()
       }
+    }
+  )
+
+interface SendPollVotesParams {
+  currentActor: Actor
+  status: StatusPoll
+  choices: number[]
+}
+
+export const sendPollVotes = async ({
+  currentActor,
+  status,
+  choices
+}: SendPollVotesParams) =>
+  getTracer().startActiveSpan(
+    'activities.sendPollVotes',
+    {
+      attributes: {
+        actorId: currentActor.id,
+        statusId: status.id,
+        choices: choices.join(',')
+      }
+    },
+    async (span) => {
+      if (!status.actor) return
+
+      for (const choiceIndex of choices) {
+        const choice = status.choices[choiceIndex]
+        if (!choice) continue
+
+        const voteId = `${currentActor.id}#votes/${crypto.randomUUID()}`
+
+        const voteNote: Note = {
+          id: voteId,
+          type: 'Note',
+          attributedTo: currentActor.id,
+          inReplyTo: status.id,
+          name: choice.title,
+          to: [status.actorId],
+          published: getISOTimeUTC(Date.now())
+        }
+
+        const activity: CreateStatus = {
+          '@context': ACTIVITY_STREAM_URL,
+          id: `${voteId}/activity`,
+          type: CreateAction,
+          actor: currentActor.id,
+          published: voteNote.published,
+          to: voteNote.to,
+          object: voteNote
+        }
+
+        const method = 'POST'
+        try {
+          await request({
+            url: status.actor.inboxUrl,
+            method,
+            headers: {
+              ...signedHeaders(
+                currentActor,
+                method.toLowerCase(),
+                status.actor.inboxUrl,
+                activity
+              ),
+              Accept: DEFAULT_ACCEPT
+            },
+            body: JSON.stringify(activity)
+          })
+        } catch (error) {
+          const nodeError = error as NodeJS.ErrnoException
+          span.recordException(nodeError)
+          logger.error(`[sendPollVotes] ${nodeError.message}`)
+        }
+      }
+
+      span.end()
     }
   )
