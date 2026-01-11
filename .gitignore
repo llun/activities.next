@@ -27,7 +27,6 @@ scripts/pixelfed/
 *.sql
 docker-compose.yml
 .cursorrules
-CLAUDE.md
 plans/
 
 # debug
@@ -83,5 +82,7 @@ VERIFICATION_SUMMARY.md
 backups/
 
 # AI tools
+.agent
 .claude
 .gemini
+CLAUDE.md
