@@ -57,17 +57,49 @@ export const NotificationSQLDatabaseMixin = (
     limit,
     offset = 0,
     types,
+    excludeTypes,
     onlyUnread,
-    ids
+    ids,
+    maxNotificationId,
+    minNotificationId,
+    sinceNotificationId
   }: GetNotificationsParams) {
     let query = database('notifications')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .limit(limit)
-      .offset(offset)
+
+    // Support cursor-based pagination
+    if (maxNotificationId) {
+      const maxNotification = await database('notifications')
+        .where('id', maxNotificationId)
+        .first()
+      if (maxNotification) {
+        query = query.where('createdAt', '<', maxNotification.createdAt)
+      }
+    }
+
+    if (minNotificationId || sinceNotificationId) {
+      const minId = minNotificationId || sinceNotificationId
+      const minNotification = await database('notifications')
+        .where('id', minId)
+        .first()
+      if (minNotification) {
+        query = query.where('createdAt', '>', minNotification.createdAt)
+      }
+    }
+
+    // Support offset-based pagination for backward compatibility
+    if (!maxNotificationId && !minNotificationId && !sinceNotificationId) {
+      query = query.offset(offset)
+    }
 
     if (types && types.length > 0) {
       query = query.whereIn('type', types)
+    }
+
+    if (excludeTypes && excludeTypes.length > 0) {
+      query = query.whereNotIn('type', excludeTypes)
     }
 
     if (onlyUnread) {
