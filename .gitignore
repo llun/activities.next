@@ -81,3 +81,7 @@ VERIFICATION_SUMMARY.md
 
 # local backups
 backups/
+
+# AI tools
+.claude
+.gemini

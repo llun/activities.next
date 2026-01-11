@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { Logo } from '@/lib/components/layout/logo'
+import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   Tooltip,
@@ -29,9 +30,10 @@ interface User {
 
 interface SidebarProps {
   user?: User
+  unreadCount?: number
 }
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, unreadCount = 0 }: SidebarProps) {
   const pathname = usePathname()
 
   const getAvatarInitial = (username: string) => {
@@ -52,12 +54,13 @@ export function Sidebar({ user }: SidebarProps) {
             {navItems.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(item.href + '/')
+              const isNotifications = item.href === '/notifications'
               return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
                     className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative',
                       isActive
                         ? 'bg-primary/10 text-primary'
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -65,6 +68,12 @@ export function Sidebar({ user }: SidebarProps) {
                   >
                     <item.icon className="h-5 w-5" />
                     {item.label}
+                    {isNotifications && unreadCount > 0 && (
+                      <NotificationBadge
+                        count={unreadCount}
+                        className="static ml-1"
+                      />
+                    )}
                   </Link>
                 </li>
               )
@@ -106,6 +115,7 @@ export function Sidebar({ user }: SidebarProps) {
             {navItems.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(item.href + '/')
+              const isNotifications = item.href === '/notifications'
               return (
                 <li key={item.href}>
                   <Tooltip>
@@ -113,13 +123,19 @@ export function Sidebar({ user }: SidebarProps) {
                       <Link
                         href={item.href}
                         className={cn(
-                          'flex items-center justify-center rounded-lg p-3 transition-colors',
+                          'flex items-center justify-center rounded-lg p-3 transition-colors relative',
                           isActive
                             ? 'bg-primary/10 text-primary'
                             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                         )}
                       >
                         <item.icon className="h-6 w-6" />
+                        {isNotifications && unreadCount > 0 && (
+                          <NotificationBadge
+                            count={unreadCount}
+                            className="absolute -top-1 -right-1"
+                          />
+                        )}
                       </Link>
                     </TooltipTrigger>
                     <TooltipContent side="right">{item.label}</TooltipContent>

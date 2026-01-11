@@ -53,6 +53,10 @@ export const POST = AuthenticatedGuard<{ id: string }>(
     }
     await acceptFollow(currentActor, followerActor.inboxUrl, followRequest)
 
+    // Note: No separate notification is created here because the original
+    // follow action already creates a notification for the target actor.
+    // Creating another one here would target the wrong actor (the remote follower).
+
     // Return relationship
     const relationship = {
       id: accountId,

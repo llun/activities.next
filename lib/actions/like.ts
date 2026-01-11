@@ -1,5 +1,6 @@
 import { LikeStatus } from '@/lib/activities/actions/like'
 import { Database } from '@/lib/database/types'
+import { NotificationType } from '@/lib/database/types/notification'
 
 interface LikeRequestParams {
   activity: LikeStatus
@@ -18,4 +19,16 @@ export const likeRequest = async ({
     statusId,
     actorId: request.actor
   })
+
+  // Create like notification
+  const status = await database.getStatus({ statusId })
+  if (status && status.actorId !== request.actor) {
+    await database.createNotification({
+      actorId: status.actorId,
+      type: NotificationType.enum.like,
+      sourceActorId: request.actor,
+      statusId: status.id,
+      groupKey: `like:${status.id}`
+    })
+  }
 }
