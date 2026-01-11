@@ -82,6 +82,7 @@ VERIFICATION_SUMMARY.md
 backups/
 
 # AI tools
+.agent
 .claude
 .gemini
 CLAUDE.md
