@@ -17,6 +17,7 @@ import {
   OAuthDatabase,
   RevokeAccessTokenParams,
   RevokeAuthCodeParams,
+  TouchAccessTokenParams,
   UpdateClientParams,
   UpdateRefreshTokenParams
 } from '@/lib/database/types/oauth'
@@ -250,6 +251,20 @@ export const OAuthSQLDatabaseMixin = (
       refreshTokenExpiresAt: currentTime
     })
     return this.getAccessToken({ accessToken })
+  },
+
+  async touchAccessToken(params: TouchAccessTokenParams) {
+    const { accessToken, accessTokenExpiresAt, refreshTokenExpiresAt } =
+      TouchAccessTokenParams.parse(params)
+    await database('tokens')
+      .where('accessToken', accessToken)
+      .update({
+        accessTokenExpiresAt: new Date(accessTokenExpiresAt),
+        ...(refreshTokenExpiresAt
+          ? { refreshTokenExpiresAt: new Date(refreshTokenExpiresAt) }
+          : null),
+        updatedAt: new Date()
+      })
   },
 
   async createAuthCode(params: CreateAuthCodeParams) {
