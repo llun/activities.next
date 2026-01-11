@@ -57,7 +57,8 @@ export const NotificationSQLDatabaseMixin = (
     limit,
     offset = 0,
     types,
-    onlyUnread
+    onlyUnread,
+    ids
   }: GetNotificationsParams) {
     let query = database('notifications')
       .where('actorId', actorId)
@@ -71,6 +72,10 @@ export const NotificationSQLDatabaseMixin = (
 
     if (onlyUnread) {
       query = query.where('isRead', false)
+    }
+
+    if (ids && ids.length > 0) {
+      query = query.whereIn('id', ids)
     }
 
     const results = await query

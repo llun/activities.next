@@ -87,20 +87,33 @@ const Page = async ({ searchParams }: Props) => {
     })
   )
 
+  const filteredNotifications = notificationsWithData.filter(
+    (notification) => {
+      if (!notification.account) return false
+      if (
+        ['like', 'reply', 'mention'].includes(notification.type) &&
+        !notification.status
+      ) {
+        return false
+      }
+      return true
+    }
+  )
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Notifications</h1>
       </div>
 
-      {notificationsWithData.length === 0 ? (
+      {filteredNotifications.length === 0 ? (
         <div className="rounded-xl border bg-background/80 p-8 text-center text-muted-foreground">
           No notifications yet
         </div>
       ) : (
         <>
           <NotificationsList
-            notifications={notificationsWithData}
+            notifications={filteredNotifications}
             currentActorId={actor.id}
           />
 

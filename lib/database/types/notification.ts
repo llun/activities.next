@@ -39,6 +39,7 @@ export type GetNotificationsParams = {
   offset?: number
   types?: NotificationType[]
   onlyUnread?: boolean
+  ids?: string[]
 }
 
 export type GetNotificationsCountParams = {

@@ -4,7 +4,7 @@ import { Mastodon } from '@llun/activities.schema'
 import { useRef, useEffect } from 'react'
 
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Status } from '@/lib/services/timelines/showStatus'
+import { Status } from '@/lib/models/status'
 
 import { FollowNotification } from './components/FollowNotification'
 import { FollowRequestNotification } from './components/FollowRequestNotification'
@@ -48,18 +48,18 @@ export const NotificationItem = ({
       case 'follow_request':
         return (
           <FollowRequestNotification
-            notification={notification}
+            notification={notification as any}
             currentActorId={currentActorId}
           />
         )
       case 'follow':
-        return <FollowNotification notification={notification} />
+        return <FollowNotification notification={notification as any} />
       case 'like':
-        return <LikeNotification notification={notification} />
+        return <LikeNotification notification={notification as any} />
       case 'reply':
-        return <ReplyNotification notification={notification} />
+        return <ReplyNotification notification={notification as any} />
       case 'mention':
-        return <MentionNotification notification={notification} />
+        return <MentionNotification notification={notification as any} />
       default:
         return null
     }

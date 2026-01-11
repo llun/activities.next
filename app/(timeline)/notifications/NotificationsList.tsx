@@ -4,7 +4,7 @@ import { Mastodon } from '@llun/activities.schema'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Status } from '@/lib/services/timelines/showStatus'
+import { Status } from '@/lib/models/status'
 
 import { NotificationItem } from './NotificationItem'
 
@@ -23,6 +23,7 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
   const [readNotifications, setReadNotifications] = useState<Set<string>>(
     new Set()
   )
+  const readNotificationsRef = useRef<Set<string>>(new Set())
   const observerRef = useRef<IntersectionObserver | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingReadsRef = useRef<Set<string>>(new Set())
@@ -67,7 +68,11 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
             const notificationId = entry.target.getAttribute(
               'data-notification-id'
             )
-            if (notificationId && !readNotifications.has(notificationId)) {
+            if (
+              notificationId &&
+              !readNotificationsRef.current.has(notificationId)
+            ) {
+              readNotificationsRef.current.add(notificationId)
               setReadNotifications((prev) => new Set(prev).add(notificationId))
               pendingReadsRef.current.add(notificationId)
               debouncedMarkAsRead()
@@ -86,7 +91,7 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [readNotifications, debouncedMarkAsRead])
+  }, [debouncedMarkAsRead])
 
   const observeElement = useCallback(
     (element: HTMLElement | null) => {

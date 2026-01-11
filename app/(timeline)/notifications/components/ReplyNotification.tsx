@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { FC } from 'react'
 
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Status } from '@/lib/services/timelines/showStatus'
+import { Status } from '@/lib/models/status'
 
 interface NotificationWithData extends GroupedNotification {
   account: Mastodon.Account
@@ -20,7 +20,7 @@ export const ReplyNotification: FC<Props> = ({ notification }) => {
   const { account, status, groupedAccounts, groupedCount } = notification
   const hasMultiple = groupedCount && groupedCount > 1
 
-  const statusUrl = `/@${status.actor.username}/${status.id.split(':').pop()}`
+  const statusUrl = `/@${status.actor.username}/${status.id.split('/').pop()}`
 
   return (
     <div className="flex items-start gap-4">

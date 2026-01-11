@@ -24,14 +24,15 @@ export const POST = OAuthGuard(
     const notificationIds = body.notification_ids || []
 
     if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
-      return apiErrorResponse(400, 'Invalid notification_ids')
+      return apiErrorResponse(400)
     }
 
     // Verify all notifications belong to the current actor
     const notifications = await database.getNotifications({
       actorId: currentActor.id,
       limit: notificationIds.length,
-      offset: 0
+      offset: 0,
+      ids: notificationIds
     })
 
     const validIds = notifications
