@@ -10,8 +10,15 @@ interface Params {
   url?: string
   createdAt?: number
   withContext?: boolean
+  sharedInboxUrl?: string | null
+  includeSharedInbox?: boolean
 }
-export const MockPerson = ({ id, url, createdAt = Date.now() }: Params) => {
+export const MockPerson = ({
+  id,
+  url,
+  createdAt = Date.now(),
+  sharedInboxUrl
+}: Params) => {
   const userUrl = new URL(id)
   const username = userUrl.pathname.split('/').pop()
   return {
@@ -25,7 +32,7 @@ export const MockPerson = ({ id, url, createdAt = Date.now() }: Params) => {
       followers: `${id}/followers`,
       inbox: `${id}/inbox`,
       outbox: `${id}/outbox`,
-      sharedInbox: `https://${new URL(id).hostname}/inbox`
+      sharedInbox: sharedInboxUrl ?? `https://${new URL(id).hostname}/inbox`
     },
 
     createdAt
@@ -36,12 +43,21 @@ export const MockActivityPubPerson = ({
   id,
   url,
   createdAt = Date.now(),
-  withContext = true
+  withContext = true,
+  sharedInboxUrl,
+  includeSharedInbox
 }: Params): Actor => {
   const userUrl = new URL(id)
   const username = userUrl.pathname.split('/').pop()
+  const shouldIncludeSharedInbox =
+    includeSharedInbox ??
+    (sharedInboxUrl !== null && !id.startsWith('https://no.shared.inbox'))
+  const resolvedSharedInbox =
+    sharedInboxUrl === undefined
+      ? `https://${userUrl.host}/inbox`
+      : sharedInboxUrl
 
-  if (id.startsWith('https://no.shared.inbox')) {
+  if (!shouldIncludeSharedInbox) {
     return {
       ...(withContext
         ? { '@context': [ACTIVITY_STREAM_URL, W3ID_SECURITY_URL] }
@@ -85,6 +101,8 @@ export const MockActivityPubPerson = ({
       owner: id,
       publicKeyPem: 'public key'
     },
-    endpoints: { sharedInbox: `https://${userUrl.host}/inbox` }
+    ...(resolvedSharedInbox
+      ? { endpoints: { sharedInbox: resolvedSharedInbox } }
+      : null)
   }
 }

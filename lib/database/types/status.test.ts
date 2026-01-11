@@ -1,15 +1,18 @@
-import { StatusNote } from '@/lib/models/status'
+import { StatusNote, StatusPoll } from '@/lib/models/status'
 import { TagType } from '@/lib/models/tag'
 import { seedDatabase } from '@/lib/stub/database'
-import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
-import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
-import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
-import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
+import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
 import { databaseBeforeAll, getTestDatabaseTable } from '../testUtils'
 import { Database } from '../types'
 
 describe('StatusDatabase', () => {
+  const { actors, statuses } = DatabaseSeed
+  const primaryActorId = actors.primary.id
+  const replyAuthorId = actors.replyAuthor.id
+  const pollAuthorId = actors.pollAuthor.id
+  const extraActorId = actors.extra.id
+  const emptyActorId = actors.empty.id
   const table = getTestDatabaseTable()
 
   beforeAll(async () => {
@@ -28,18 +31,18 @@ describe('StatusDatabase', () => {
     describe('getStatus', () => {
       it('returns status without replies by default', async () => {
         const status = await database.getStatus({
-          statusId: `${ACTOR1_ID}/statuses/post-1`
+          statusId: statuses.primary.post
         })
         expect(status).toEqual({
-          id: 'https://llun.test/users/test1/statuses/post-1',
-          actorId: 'https://llun.test/users/test1',
+          id: statuses.primary.post,
+          actorId: primaryActorId,
           actor: {
-            id: 'https://llun.test/users/test1',
-            username: 'test1',
-            domain: 'llun.test',
-            followersUrl: 'https://llun.test/users/test1/followers',
-            inboxUrl: 'https://llun.test/users/test1/inbox',
-            sharedInboxUrl: 'https://llun.test/inbox',
+            id: primaryActorId,
+            username: actors.primary.username,
+            domain: actors.primary.domain,
+            followersUrl: `${primaryActorId}/followers`,
+            inboxUrl: `${primaryActorId}/inbox`,
+            sharedInboxUrl: `https://${actors.primary.domain}/inbox`,
             followingCount: 2,
             followersCount: 1,
             statusCount: 3,
@@ -53,7 +56,7 @@ describe('StatusDatabase', () => {
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber(),
           type: 'Note',
-          url: 'https://llun.test/users/test1/statuses/post-1',
+          url: statuses.primary.post,
           text: 'This is Actor1 post',
           summary: '',
           reply: '',
@@ -69,20 +72,20 @@ describe('StatusDatabase', () => {
 
       it('returns status with replies', async () => {
         const status = (await database.getStatus({
-          statusId: `${ACTOR1_ID}/statuses/post-1`,
+          statusId: statuses.primary.post,
           withReplies: true
         })) as StatusNote
         expect(status.replies).toHaveLength(2)
         expect(status).toMatchObject({
-          id: 'https://llun.test/users/test1/statuses/post-1',
-          actorId: 'https://llun.test/users/test1',
+          id: statuses.primary.post,
+          actorId: primaryActorId,
           actor: {
-            id: 'https://llun.test/users/test1',
-            username: 'test1',
-            domain: 'llun.test',
-            followersUrl: 'https://llun.test/users/test1/followers',
-            inboxUrl: 'https://llun.test/users/test1/inbox',
-            sharedInboxUrl: 'https://llun.test/inbox',
+            id: primaryActorId,
+            username: actors.primary.username,
+            domain: actors.primary.domain,
+            followersUrl: `${primaryActorId}/followers`,
+            inboxUrl: `${primaryActorId}/inbox`,
+            sharedInboxUrl: `https://${actors.primary.domain}/inbox`,
             followingCount: 2,
             followersCount: 1,
             createdAt: expect.toBeNumber()
@@ -93,7 +96,7 @@ describe('StatusDatabase', () => {
           createdAt: expect.toBeNumber(),
           updatedAt: expect.toBeNumber(),
           type: 'Note',
-          url: 'https://llun.test/users/test1/statuses/post-1',
+          url: statuses.primary.post,
           text: 'This is Actor1 post',
           summary: '',
           reply: '',
@@ -108,14 +111,14 @@ describe('StatusDatabase', () => {
 
       it('returns status with attachments', async () => {
         const status = (await database.getStatus({
-          statusId: `${ACTOR1_ID}/statuses/post-3`
+          statusId: statuses.primary.postWithAttachments
         })) as StatusNote
         expect(status.attachments).toHaveLength(2)
         expect(status.attachments).toMatchObject([
           {
             id: expect.toBeString(),
-            actorId: 'https://llun.test/users/test1',
-            statusId: 'https://llun.test/users/test1/statuses/post-3',
+            actorId: primaryActorId,
+            statusId: statuses.primary.postWithAttachments,
             type: 'Document',
             mediaType: 'image/png',
             url: 'https://via.placeholder.com/150',
@@ -127,8 +130,8 @@ describe('StatusDatabase', () => {
           },
           {
             id: expect.toBeString(),
-            actorId: 'https://llun.test/users/test1',
-            statusId: 'https://llun.test/users/test1/statuses/post-3',
+            actorId: primaryActorId,
+            statusId: statuses.primary.postWithAttachments,
             type: 'Document',
             mediaType: 'image/png',
             url: 'https://via.placeholder.com/150',
@@ -143,13 +146,13 @@ describe('StatusDatabase', () => {
 
       it('returns status with tags', async () => {
         const status = (await database.getStatus({
-          statusId: `${ACTOR2_ID}/statuses/post-2`
+          statusId: statuses.replyAuthor.mentionReplyToPrimary
         })) as StatusNote
         expect(status.tags).toHaveLength(1)
         expect(status.tags).toMatchObject([
           {
             id: expect.toBeString(),
-            statusId: 'https://llun.test/users/test2/statuses/post-2',
+            statusId: statuses.replyAuthor.mentionReplyToPrimary,
             type: 'mention',
             name: '@test1',
             value: 'https://llun.test/@test1',
@@ -161,19 +164,19 @@ describe('StatusDatabase', () => {
 
       it('returns announce status', async () => {
         const status = await database.getStatus({
-          statusId: `${ACTOR2_ID}/statuses/post-3`
+          statusId: statuses.replyAuthor.announceOwn
         })
         expect(status).toMatchObject({
-          id: `${ACTOR2_ID}/statuses/post-3`,
-          actorId: ACTOR2_ID,
+          id: statuses.replyAuthor.announceOwn,
+          actorId: replyAuthorId,
           actor: {
-            username: 'test2',
-            domain: 'llun.test'
+            username: actors.replyAuthor.username,
+            domain: actors.replyAuthor.domain
           },
           type: 'Announce',
           originalStatus: {
-            id: `${ACTOR2_ID}/statuses/post-2`,
-            actorId: ACTOR2_ID,
+            id: statuses.replyAuthor.mentionReplyToPrimary,
+            actorId: replyAuthorId,
             type: 'Note',
             text: expect.toBeString()
           }
@@ -182,23 +185,23 @@ describe('StatusDatabase', () => {
 
       it('returns poll status', async () => {
         const status = await database.getStatus({
-          statusId: `${ACTOR3_ID}/statuses/poll-1`
+          statusId: statuses.poll.status
         })
         expect(status).toMatchObject({
-          id: `${ACTOR3_ID}/statuses/poll-1`,
-          actorId: ACTOR3_ID,
+          id: statuses.poll.status,
+          actorId: pollAuthorId,
           type: 'Poll',
-          url: 'https://llun.test/users/test3/statuses/poll-1',
+          url: statuses.poll.status,
           text: 'This is a poll',
           tags: [],
           choices: [
             {
-              statusId: 'https://llun.test/users/test3/statuses/poll-1',
+              statusId: statuses.poll.status,
               title: 'Yes',
               totalVotes: 0
             },
             {
-              statusId: 'https://llun.test/users/test3/statuses/poll-1',
+              statusId: statuses.poll.status,
               title: 'No',
               totalVotes: 0
             }
@@ -210,7 +213,7 @@ describe('StatusDatabase', () => {
     describe('getActorStatuses', () => {
       it('returns statuses for specific actor', async () => {
         const statuses = await database.getActorStatuses({
-          actorId: ACTOR1_ID
+          actorId: primaryActorId
         })
         expect(statuses).toHaveLength(3)
         expect(statuses.map((item) => (item as StatusNote).text)).toEqual([
@@ -224,7 +227,7 @@ describe('StatusDatabase', () => {
     describe('getActorStatusesCount', () => {
       it('returns total number of statuses for the specific actor', async () => {
         const count = await database.getActorStatusesCount({
-          actorId: ACTOR1_ID
+          actorId: primaryActorId
         })
         expect(count).toBe(3)
       })
@@ -233,7 +236,7 @@ describe('StatusDatabase', () => {
     describe('getStatusReplies', () => {
       it('returns replies for specific status', async () => {
         const replies = await database.getStatusReplies({
-          statusId: `${ACTOR1_ID}/statuses/post-1`
+          statusId: statuses.primary.post
         })
         expect(replies).toHaveLength(2)
 
@@ -249,81 +252,119 @@ describe('StatusDatabase', () => {
     describe('hasActorAnnouncedStatus', () => {
       it('returns true if actor has announced status', async () => {
         const result = await database.hasActorAnnouncedStatus({
-          statusId: `${ACTOR2_ID}/statuses/post-2`,
-          actorId: ACTOR2_ID
+          statusId: statuses.replyAuthor.mentionReplyToPrimary,
+          actorId: replyAuthorId
         })
         expect(result).toBeTrue()
       })
 
       it('returns false if actor has not announced status', async () => {
         const result = await database.hasActorAnnouncedStatus({
-          statusId: `${ACTOR1_ID}/statuses/post-1`,
-          actorId: ACTOR1_ID
+          statusId: statuses.primary.post,
+          actorId: primaryActorId
         })
         expect(result).toBeFalse()
+      })
+    })
+
+    describe('getActorAnnounceStatus', () => {
+      it('returns announce status for actor', async () => {
+        const announce = await database.getActorAnnounceStatus({
+          statusId: statuses.primary.postWithAttachments,
+          actorId: replyAuthorId
+        })
+        expect(announce).toMatchObject({
+          id: statuses.replyAuthor.announcePrimary,
+          actorId: replyAuthorId,
+          type: 'Announce'
+        })
+      })
+
+      it('returns null when actor has not announced status', async () => {
+        const announce = await database.getActorAnnounceStatus({
+          statusId: statuses.primary.postWithAttachments,
+          actorId: primaryActorId
+        })
+        expect(announce).toBeNull()
+      })
+    })
+
+    describe('getStatusReblogsCount', () => {
+      it('returns reblog count for announced status', async () => {
+        const count = await database.getStatusReblogsCount({
+          statusId: statuses.primary.postWithAttachments
+        })
+        expect(count).toBe(1)
+      })
+
+      it('returns zero when no reblogs exist', async () => {
+        const count = await database.getStatusReblogsCount({
+          statusId: statuses.primary.post
+        })
+        expect(count).toBe(0)
       })
     })
 
     describe('getFavouritedBy', () => {
       it('returns actors who favourited the status', async () => {
         const actors = await database.getFavouritedBy({
-          statusId: `${ACTOR1_ID}/statuses/post-1`
+          statusId: statuses.primary.post
         })
         expect(actors).toHaveLength(0)
       })
 
       it('returns actors who favourited the status', async () => {
         const actors = await database.getFavouritedBy({
-          statusId: `${ACTOR3_ID}/statuses/poll-1`
+          statusId: statuses.poll.status
         })
         expect(actors).toHaveLength(1)
-        expect(actors[0].id).toBe(ACTOR2_ID)
+        expect(actors[0].id).toBe(replyAuthorId)
       })
     })
 
     describe('createNote', () => {
       it('creates a new note', async () => {
         const status = (await database.createNote({
-          id: `${ACTOR4_ID}/statuses/new-post`,
-          url: `${ACTOR4_ID}/statuses/new-post`,
-          actorId: ACTOR4_ID,
+          id: `${extraActorId}/statuses/new-post`,
+          url: `${extraActorId}/statuses/new-post`,
+          actorId: extraActorId,
           to: ['https://www.w3.org/ns/activitystreams#Public'],
           cc: [],
           text: 'This is a new post'
         })) as StatusNote
         expect(status.text).toBe('This is a new post')
         expect(
-          await database.getActorStatusesCount({ actorId: ACTOR4_ID })
+          await database.getActorStatusesCount({ actorId: extraActorId })
         ).toBe(1)
       })
 
       it('creates a new note with attachments', async () => {
         await database.createNote({
-          id: `${ACTOR4_ID}/statuses/new-post-2`,
-          url: `${ACTOR4_ID}/statuses/new-post-2`,
-          actorId: ACTOR4_ID,
+          id: `${extraActorId}/statuses/new-post-2`,
+          url: `${extraActorId}/statuses/new-post-2`,
+          actorId: extraActorId,
           to: ['https://www.w3.org/ns/activitystreams#Public'],
           cc: [],
           text: 'This is a new post with attachments'
         })
         await database.createAttachment({
-          actorId: ACTOR4_ID,
-          statusId: `${ACTOR4_ID}/statuses/new-post-2`,
+          actorId: extraActorId,
+          statusId: `${extraActorId}/statuses/new-post-2`,
           mediaType: 'image/png',
           url: 'https://via.placeholder.com/150',
           width: 150,
           height: 150
         })
         await database.createAttachment({
-          actorId: ACTOR4_ID,
-          statusId: `${ACTOR4_ID}/statuses/new-post-2`,
+          actorId: extraActorId,
+          statusId: `${extraActorId}/statuses/new-post-2`,
           mediaType: 'image/png',
           url: 'https://via.placeholder.com/150',
           width: 150,
           height: 150
         })
         const status = (await database.getStatus({
-          statusId: `${ACTOR4_ID}/statuses/new-post-2`
+          statusId: `${extraActorId}/statuses/new-post-2`
         })) as StatusNote
         expect(status.text).toBe('This is a new post with attachments')
         expect(status.attachments).toHaveLength(2)
@@ -331,28 +372,28 @@ describe('StatusDatabase', () => {
 
       it('creates a new note with tags', async () => {
         await database.createNote({
-          id: `${ACTOR4_ID}/statuses/new-post-3`,
-          url: `${ACTOR4_ID}/statuses/new-post-3`,
-          actorId: ACTOR4_ID,
+          id: `${extraActorId}/statuses/new-post-3`,
+          url: `${extraActorId}/statuses/new-post-3`,
+          actorId: extraActorId,
           to: ['https://www.w3.org/ns/activitystreams#Public'],
           cc: [],
           text: 'This is a new post with tags'
         })
         const tag = await database.createTag({
-          statusId: `${ACTOR4_ID}/statuses/new-post-3`,
+          statusId: `${extraActorId}/statuses/new-post-3`,
           type: TagType.enum.mention,
           name: '@test1',
           value: 'https://llun.test/@test1'
         })
         const status = (await database.getStatus({
-          statusId: `${ACTOR4_ID}/statuses/new-post-3`
+          statusId: `${extraActorId}/statuses/new-post-3`
         })) as StatusNote
         expect(status.text).toBe('This is a new post with tags')
         expect(status.tags).toHaveLength(1)
         expect(status.tags).toMatchObject([
           {
             id: tag.id,
-            statusId: `${ACTOR4_ID}/statuses/new-post-3`,
+            statusId: `${extraActorId}/statuses/new-post-3`,
             type: TagType.enum.mention,
             name: '@test1',
             value: 'https://llun.test/@test1',
@@ -363,20 +404,148 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('updateNote', () => {
+      it('updates note content and records edit history', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Original note'
+        })
+
+        const updated = await database.updateNote({
+          statusId,
+          text: 'Updated note',
+          summary: 'Updated summary'
+        })
+        expect(updated).toMatchObject({
+          id: statusId,
+          text: 'Updated note',
+          summary: 'Updated summary'
+        })
+
+        const fetched = (await database.getStatus({
+          statusId
+        })) as StatusNote
+        expect(fetched.edits).toHaveLength(1)
+        expect(fetched.edits[0]).toMatchObject({
+          text: 'Original note',
+          summary: '',
+          createdAt: expect.toBeNumber()
+        })
+      })
+    })
+
+    describe('updatePoll', () => {
+      it('updates poll content and choice totals', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-update`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Original poll',
+          summary: 'Original summary',
+          choices: ['Alpha', 'Beta'],
+          endAt: Date.now() + 1000
+        })
+
+        const updated = await database.updatePoll({
+          statusId: pollId,
+          text: 'Updated poll',
+          summary: 'Updated summary',
+          choices: [
+            { title: 'Alpha', totalVotes: 2 },
+            { title: 'Beta', totalVotes: 1 }
+          ]
+        })
+
+        expect(updated).toMatchObject({
+          id: pollId,
+          text: 'Updated poll',
+          summary: 'Updated summary'
+        })
+
+        const fetched = (await database.getStatus({
+          statusId: pollId
+        })) as StatusPoll
+        expect(fetched.edits).toHaveLength(1)
+        expect(fetched.choices).toMatchObject([
+          { title: 'Alpha', totalVotes: 2 },
+          { title: 'Beta', totalVotes: 1 }
+        ])
+      })
+    })
+
+    describe('poll votes', () => {
+      it('records votes and increments choice totals', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-votes`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Vote poll',
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 1000
+        })
+
+        const voterId = replyAuthorId
+        expect(
+          await database.hasActorVoted({ statusId: pollId, actorId: voterId })
+        ).toBeFalse()
+
+        await database.createPollAnswer({
+          statusId: pollId,
+          actorId: voterId,
+          choice: 0
+        })
+        await database.incrementPollChoiceVotes({
+          statusId: pollId,
+          choiceIndex: 0
+        })
+
+        expect(
+          await database.hasActorVoted({ statusId: pollId, actorId: voterId })
+        ).toBeTrue()
+        expect(
+          await database.getActorPollVotes({
+            statusId: pollId,
+            actorId: voterId
+          })
+        ).toEqual([0])
+
+        const poll = (await database.getStatus({
+          statusId: pollId,
+          currentActorId: voterId
+        })) as StatusPoll
+        expect(poll.choices[0]).toMatchObject({ totalVotes: 1 })
+        expect(poll).toMatchObject({
+          voted: true,
+          ownVotes: [0]
+        })
+      })
+    })
+
     describe('deleteStatus', () => {
       it('deletes a status', async () => {
         const beforeDeleteCount = await database.getActorStatusesCount({
-          actorId: ACTOR1_ID
+          actorId: primaryActorId
         })
         await database.deleteStatus({
-          statusId: `${ACTOR1_ID}/statuses/post-2`
+          statusId: statuses.primary.secondPost
         })
         const afterDeleteCount = await database.getActorStatusesCount({
-          actorId: ACTOR1_ID
+          actorId: primaryActorId
         })
         expect(
           await database.getStatus({
-            statusId: `${ACTOR1_ID}/statuses/post-2`
+            statusId: statuses.primary.secondPost
           })
         ).toBeNull()
         expect(afterDeleteCount).toBe(beforeDeleteCount - 1)
@@ -384,22 +553,22 @@ describe('StatusDatabase', () => {
 
       it('deletes a status and attachments', async () => {
         const beforeDeleteCount = await database.getActorStatusesCount({
-          actorId: ACTOR1_ID
+          actorId: primaryActorId
         })
         await database.deleteStatus({
-          statusId: `${ACTOR1_ID}/statuses/post-3`
+          statusId: statuses.primary.postWithAttachments
         })
         const afterDeleteCount = await database.getActorStatusesCount({
-          actorId: ACTOR1_ID
+          actorId: primaryActorId
         })
         expect(
           await database.getStatus({
-            statusId: `${ACTOR1_ID}/statuses/post-3`
+            statusId: statuses.primary.postWithAttachments
           })
         ).toBeNull()
         expect(
           await database.getAttachments({
-            statusId: `${ACTOR1_ID}/statuses/post-3`
+            statusId: statuses.primary.postWithAttachments
           })
         ).toBeArrayOfSize(0)
         expect(afterDeleteCount).toBe(beforeDeleteCount - 1)

@@ -39,29 +39,37 @@ export const seedDatabase = async (database: Database) => {
   ])) as Actor[]
 
   if (actors.some((actor) => !actor)) return
+  const [
+    primaryActor,
+    replyAuthor,
+    pollAuthor,
+    extraActor,
+    followRequester,
+    _emptyActor
+  ] = actors
 
   // External Actors
   await database.createActor(seedExternal1)
 
   // Actor1 following
   await database.createFollow({
-    actorId: actors[0].id,
+    actorId: primaryActor.id,
     targetActorId: EXTERNAL_ACTOR1,
-    inbox: `${actors[0].id}/indbox`,
+    inbox: `${primaryActor.id}/indbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })
   await database.createFollow({
-    actorId: actors[0].id,
+    actorId: primaryActor.id,
     targetActorId: 'https://llun.dev/users/test2',
-    inbox: `${actors[0].id}/indbox`,
+    inbox: `${primaryActor.id}/indbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })
   await database.createFollow({
-    actorId: actors[0].id,
+    actorId: primaryActor.id,
     targetActorId: 'https://somewhere.test/actors/request-following',
-    inbox: `${actors[0].id}/indbox`,
+    inbox: `${primaryActor.id}/indbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Requested
   })
@@ -69,7 +77,7 @@ export const seedDatabase = async (database: Database) => {
   // Actor1 followers
   await database.createFollow({
     actorId: 'https://somewhere.test/actors/friend',
-    targetActorId: actors[0].id,
+    targetActorId: primaryActor.id,
     inbox: 'https://somewhere.test/inbox/friend',
     sharedInbox: 'https://somewhere.test/inbox',
     status: FollowStatus.enum.Accepted
@@ -77,25 +85,25 @@ export const seedDatabase = async (database: Database) => {
 
   // Actor5 requests to follow Actor1
   await database.createFollow({
-    actorId: actors[4].id,
-    targetActorId: actors[0].id,
-    inbox: `${actors[4].id}/inbox`,
+    actorId: followRequester.id,
+    targetActorId: primaryActor.id,
+    inbox: `${followRequester.id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Requested
   })
 
   // Actor2 following
   await database.createFollow({
-    actorId: actors[1].id,
+    actorId: replyAuthor.id,
     targetActorId: 'https://llun.dev/users/test2',
-    inbox: `${actors[1].id}/indbox`,
+    inbox: `${replyAuthor.id}/indbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })
   // Actor2 followers
   await database.createFollow({
     actorId: EXTERNAL_ACTOR1,
-    targetActorId: actors[1].id,
+    targetActorId: replyAuthor.id,
     inbox: EXTERNAL_ACTOR1_INBOX,
     sharedInbox: EXTERNAL_ACTOR1_INBOX,
     status: FollowStatus.enum.Accepted
@@ -103,36 +111,36 @@ export const seedDatabase = async (database: Database) => {
 
   // Actor3 follows Actor2
   await database.createFollow({
-    actorId: actors[2].id,
-    targetActorId: actors[1].id,
-    inbox: `${actors[2].id}/inbox`,
+    actorId: pollAuthor.id,
+    targetActorId: replyAuthor.id,
+    inbox: `${pollAuthor.id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })
 
   // Actor3 follows Actor4
   await database.createFollow({
-    actorId: actors[2].id,
-    targetActorId: actors[3].id,
-    inbox: `${actors[2].id}/inbox`,
+    actorId: pollAuthor.id,
+    targetActorId: extraActor.id,
+    inbox: `${pollAuthor.id}/inbox`,
     sharedInbox: TEST_SHARED_INBOX,
     status: FollowStatus.enum.Accepted
   })
 
   // Actor1 status
   await database.createNote({
-    id: `${actors[0].id}/statuses/post-1`,
-    url: `${actors[0].id}/statuses/post-1`,
-    actorId: actors[0].id,
+    id: `${primaryActor.id}/statuses/post-1`,
+    url: `${primaryActor.id}/statuses/post-1`,
+    actorId: primaryActor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
     cc: [],
     text: 'This is Actor1 post'
   })
 
   await database.createNote({
-    id: `${actors[0].id}/statuses/post-2`,
-    url: `${actors[0].id}/statuses/post-2`,
-    actorId: actors[0].id,
+    id: `${primaryActor.id}/statuses/post-2`,
+    url: `${primaryActor.id}/statuses/post-2`,
+    actorId: primaryActor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
     cc: [],
     text: 'This is Actor1 post 2'
@@ -140,24 +148,24 @@ export const seedDatabase = async (database: Database) => {
 
   // Actor1 post with attachments
   await database.createNote({
-    id: `${actors[0].id}/statuses/post-3`,
-    url: `${actors[0].id}/statuses/post-3`,
-    actorId: actors[0].id,
+    id: `${primaryActor.id}/statuses/post-3`,
+    url: `${primaryActor.id}/statuses/post-3`,
+    actorId: primaryActor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
     cc: [],
     text: 'This is Actor1 post 3'
   })
   await database.createAttachment({
-    actorId: actors[0].id,
-    statusId: `${actors[0].id}/statuses/post-3`,
+    actorId: primaryActor.id,
+    statusId: `${primaryActor.id}/statuses/post-3`,
     mediaType: 'image/png',
     url: 'https://via.placeholder.com/150',
     width: 150,
     height: 150
   })
   await database.createAttachment({
-    actorId: actors[0].id,
-    statusId: `${actors[0].id}/statuses/post-3`,
+    actorId: primaryActor.id,
+    statusId: `${primaryActor.id}/statuses/post-3`,
     mediaType: 'image/png',
     url: 'https://via.placeholder.com/150',
     width: 150,
@@ -166,15 +174,15 @@ export const seedDatabase = async (database: Database) => {
 
   // Actor2 status
   const post2 = await database.createNote({
-    id: `${actors[1].id}/statuses/post-2`,
-    url: `${actors[1].id}/statuses/post-2`,
-    actorId: actors[1].id,
-    to: [ACTIVITY_STREAM_PUBLIC, actors[0].id],
-    cc: [`${actors[1].id}/followers`],
+    id: `${replyAuthor.id}/statuses/post-2`,
+    url: `${replyAuthor.id}/statuses/post-2`,
+    actorId: replyAuthor.id,
+    to: [ACTIVITY_STREAM_PUBLIC, primaryActor.id],
+    cc: [`${replyAuthor.id}/followers`],
     text: convertMarkdownText(TEST_DOMAIN)(
       '@test1@llun.test This is Actor1 post'
     ),
-    reply: `${actors[0].id}/statuses/post-1`
+    reply: `${primaryActor.id}/statuses/post-1`
   })
   await database.createTag({
     statusId: post2.id,
@@ -185,46 +193,46 @@ export const seedDatabase = async (database: Database) => {
 
   // Actor2 announce
   await database.createAnnounce({
-    id: `${actors[1].id}/statuses/post-3`,
-    actorId: actors[1].id,
+    id: `${replyAuthor.id}/statuses/post-3`,
+    actorId: replyAuthor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
-    cc: [`${actors[1].id}/followers`],
-    originalStatusId: `${actors[1].id}/statuses/post-2`
+    cc: [`${replyAuthor.id}/followers`],
+    originalStatusId: `${replyAuthor.id}/statuses/post-2`
   })
 
   await database.createAnnounce({
-    id: `${actors[1].id}/statuses/announce-1`,
-    actorId: actors[1].id,
+    id: `${replyAuthor.id}/statuses/announce-1`,
+    actorId: replyAuthor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
-    cc: [`${actors[1].id}/followers`],
-    originalStatusId: `${actors[0].id}/statuses/post-3`
+    cc: [`${replyAuthor.id}/followers`],
+    originalStatusId: `${primaryActor.id}/statuses/post-3`
   })
 
   // Actor2 reply to Actor1
   await database.createNote({
-    id: `${actors[1].id}/statuses/reply-1`,
-    url: `${actors[1].id}/statuses/reply-1`,
-    actorId: actors[1].id,
+    id: `${replyAuthor.id}/statuses/reply-1`,
+    url: `${replyAuthor.id}/statuses/reply-1`,
+    actorId: replyAuthor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
-    cc: [`${actors[1].id}/followers`],
+    cc: [`${replyAuthor.id}/followers`],
     text: 'This is Actor2 reply to Actor1',
-    reply: `${actors[0].id}/statuses/post-1`
+    reply: `${primaryActor.id}/statuses/post-1`
   })
 
   // Actor 3 poll
   await database.createPoll({
-    id: `${actors[2].id}/statuses/poll-1`,
-    actorId: actors[2].id,
+    id: `${pollAuthor.id}/statuses/poll-1`,
+    actorId: pollAuthor.id,
     to: [ACTIVITY_STREAM_PUBLIC],
     cc: [],
-    url: `${actors[2].id}/statuses/poll-1`,
+    url: `${pollAuthor.id}/statuses/poll-1`,
     text: 'This is a poll',
     choices: ['Yes', 'No'],
     endAt: Date.now() + 1000
   })
 
   await database.createLike({
-    actorId: actors[1].id,
-    statusId: `${actors[2].id}/statuses/poll-1`
+    actorId: replyAuthor.id,
+    statusId: `${pollAuthor.id}/statuses/poll-1`
   })
 }

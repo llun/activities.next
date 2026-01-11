@@ -8,21 +8,28 @@ interface Params {
   followersActorIds?: string[]
   withPage?: boolean
   withContext?: boolean
+  totalItems?: number
+  includeFirst?: boolean
 }
 
 export const MockActivityPubFollowers = ({
   actorId,
   followersActorIds = [ACTOR2_ID, ACTOR3_ID, ACTOR4_ID],
   withPage = false,
-  withContext = false
+  withContext = false,
+  totalItems,
+  includeFirst
 }: Params) => {
+  const resolvedTotalItems = totalItems ?? 8
+  const shouldIncludeFirst = includeFirst ?? resolvedTotalItems > 0
+
   if (!withPage) {
     return {
       ...(withContext ? { '@context': ACTIVITY_STREAM_URL } : null),
       id: `${actorId}/followers`,
       type: 'OrderedCollection',
-      totalItems: 8,
-      first: `${actorId}/followers?page=true`
+      totalItems: resolvedTotalItems,
+      ...(shouldIncludeFirst ? { first: `${actorId}/followers?page=true` } : null)
     }
   }
 
@@ -30,7 +37,7 @@ export const MockActivityPubFollowers = ({
     ...(withContext ? { '@context': ACTIVITY_STREAM_URL } : null),
     id: `${actorId}/followers?page=true`,
     type: 'OrderedCollectionPage',
-    totalItems: 8,
+    totalItems: resolvedTotalItems,
     partOf: `${actorId}/followers`,
     orderedItems: followersActorIds
   }
