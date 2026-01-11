@@ -256,8 +256,14 @@ describe('Notification Database', () => {
         })
 
         expect(filtered.every((n) => n.type !== 'like')).toBe(true)
+        // With composite cursor (createdAt, id), notifications can have same createdAt but lower id
         expect(
-          filtered.every((n) => n.createdAt < allNotifications[0].createdAt)
+          filtered.every(
+            (n) =>
+              n.createdAt < allNotifications[0].createdAt ||
+              (n.createdAt === allNotifications[0].createdAt &&
+                n.id < allNotifications[0].id)
+          )
         ).toBe(true)
       })
     })
