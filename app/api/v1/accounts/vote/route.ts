@@ -21,11 +21,11 @@ export const POST = AuthenticatedGuard(async (req, context) => {
 
   const status = await database.getStatus({ statusId, withReplies: false })
   if (!status || status.type !== StatusType.enum.Poll) {
-    return apiErrorResponse(404, { error: 'Poll not found' })
+    return apiErrorResponse(404)
   }
 
   if (Date.now() > status.endAt) {
-    return apiErrorResponse(422, { error: 'Poll has closed' })
+    return apiErrorResponse(422)
   }
 
   const hasVoted = await database.hasActorVoted({
@@ -34,13 +34,11 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   })
 
   if (status.pollType === 'oneOf' && hasVoted) {
-    return apiErrorResponse(422, { error: 'Already voted' })
+    return apiErrorResponse(422)
   }
 
   if (status.pollType === 'oneOf' && choices.length > 1) {
-    return apiErrorResponse(422, {
-      error: 'Single-choice poll allows only one selection'
-    })
+    return apiErrorResponse(422)
   }
 
   await Promise.all(

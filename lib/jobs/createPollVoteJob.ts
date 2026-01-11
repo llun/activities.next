@@ -15,7 +15,7 @@ export const createPollVoteJob = createJobHandle(
       return
     }
 
-    if (!note.inReplyTo || !note.name || note.content) {
+    if (!note.inReplyTo || !('name' in note) || !note.name || note.content) {
       return
     }
 
@@ -33,7 +33,7 @@ export const createPollVoteJob = createJobHandle(
     }
 
     const choiceIndex = pollStatus.choices.findIndex(
-      (choice) => choice.title === note.name
+      (choice) => 'name' in note && choice.title === note.name
     )
 
     if (choiceIndex === -1) {

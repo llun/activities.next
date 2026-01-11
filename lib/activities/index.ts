@@ -731,13 +731,15 @@ export const sendPollVotes = async ({
 
         const voteId = `${currentActor.id}#votes/${crypto.randomUUID()}`
 
-        const voteNote: Note = {
+        const voteNote = {
           id: voteId,
-          type: 'Note',
+          type: 'Note' as const,
           attributedTo: currentActor.id,
           inReplyTo: status.id,
           name: choice.title,
           to: [status.actorId],
+          cc: [],
+          tag: [],
           published: getISOTimeUTC(Date.now())
         }
 
@@ -748,6 +750,7 @@ export const sendPollVotes = async ({
           actor: currentActor.id,
           published: voteNote.published,
           to: voteNote.to,
+          cc: [],
           object: voteNote
         }
 

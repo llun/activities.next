@@ -45,6 +45,7 @@ export const getJobMessage = (activity: StatusActivity) => {
       if (
         activity.object.type === ENTITY_TYPE_NOTE &&
         activity.object.inReplyTo &&
+        'name' in activity.object &&
         activity.object.name &&
         !activity.object.content
       ) {
