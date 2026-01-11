@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { FC } from 'react'
 
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
-import { Status } from '@/lib/models/status'
+import { Status, StatusNote, StatusType } from '@/lib/models/status'
 
 interface NotificationWithData extends GroupedNotification {
   account: Mastodon.Account
@@ -18,6 +18,10 @@ interface Props {
 
 export const ReplyNotification: FC<Props> = ({ notification }) => {
   const { account, status, groupedAccounts, groupedCount } = notification
+  if (!status.actor) return null
+
+  const displayStatus =
+    status.type === StatusType.enum.Announce ? status.originalStatus : status
   const hasMultiple = groupedCount && groupedCount > 1
 
   const statusUrl = `/@${status.actor.username}/${status.id.split('/').pop()}`
@@ -67,7 +71,7 @@ export const ReplyNotification: FC<Props> = ({ notification }) => {
           href={statusUrl}
           className="mt-2 block rounded-md bg-muted/50 p-2 text-xs text-muted-foreground hover:bg-muted"
         >
-          <p className="line-clamp-2">{status.text}</p>
+          <p className="line-clamp-2">{(displayStatus as StatusNote).text}</p>
         </Link>
       </div>
     </div>

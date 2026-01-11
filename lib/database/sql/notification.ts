@@ -101,17 +101,17 @@ export const NotificationSQLDatabaseMixin = (
     return parseInt(result?.count ?? '0', 10)
   },
 
-  async markNotificationsRead({ notificationIds }: MarkNotificationsReadParams) {
+  async markNotificationsRead({
+    notificationIds
+  }: MarkNotificationsReadParams) {
     if (notificationIds.length === 0) return
 
     const currentTime = new Date()
-    await database('notifications')
-      .whereIn('id', notificationIds)
-      .update({
-        isRead: true,
-        readAt: currentTime,
-        updatedAt: currentTime
-      })
+    await database('notifications').whereIn('id', notificationIds).update({
+      isRead: true,
+      readAt: currentTime,
+      updatedAt: currentTime
+    })
   },
 
   async updateNotification({

@@ -92,7 +92,7 @@ const Page = async ({ searchParams }: Props) => {
       if (!notification.account) return false
       if (
         ['like', 'reply', 'mention'].includes(notification.type) &&
-        !notification.status
+        (!notification.status || !notification.status.actor)
       ) {
         return false
       }

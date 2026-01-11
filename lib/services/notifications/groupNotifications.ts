@@ -45,7 +45,5 @@ export const groupNotifications = (
   }
 
   // Convert to array and sort by most recent
-  return Array.from(groups.values()).sort(
-    (a, b) => b.createdAt - a.createdAt
-  )
+  return Array.from(groups.values()).sort((a, b) => b.createdAt - a.createdAt)
 }

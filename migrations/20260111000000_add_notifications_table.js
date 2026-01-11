@@ -16,10 +16,7 @@ exports.up = (knex) => {
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
-    table.index(
-      ['actorId', 'createdAt'],
-      'notifications_actor_created'
-    )
+    table.index(['actorId', 'createdAt'], 'notifications_actor_created')
     table.index(
       ['actorId', 'isRead', 'createdAt'],
       'notifications_actor_unread'
