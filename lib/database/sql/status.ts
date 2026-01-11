@@ -8,9 +8,11 @@ import { MediaDatabase } from '@/lib/database/types/media'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
+  CreatePollAnswerParams,
   CreatePollParams,
   CreateTagParams,
   DeleteStatusParams,
+  GetActorPollVotesParams,
   GetActorStatusesCountParams,
   GetActorStatusesParams,
   GetFavouritedByParams,
@@ -19,6 +21,8 @@ import {
   GetStatusRepliesParams,
   GetTagsParams,
   HasActorAnnouncedStatusParams,
+  HasActorVotedParams,
+  IncrementPollChoiceVotesParams,
   StatusDatabase,
   UpdateNoteParams,
   UpdatePollParams
@@ -246,6 +250,7 @@ export const StatusSQLDatabaseMixin = (
     reply = '',
     endAt,
     choices,
+    pollType = 'oneOf',
     createdAt
   }: CreatePollParams) {
     const currentTime = new Date()
@@ -261,7 +266,8 @@ export const StatusSQLDatabaseMixin = (
           url,
           text,
           summary,
-          endAt
+          endAt,
+          pollType
         }),
         reply,
         createdAt: statusCreatedAt,
@@ -329,6 +335,7 @@ export const StatusSQLDatabaseMixin = (
       isActorLiked: false,
       actorAnnounceStatusId: null,
       endAt,
+      pollType,
       isLocalActor: Boolean(actor?.account),
       createdAt: getCompatibleTime(statusCreatedAt),
       updatedAt: getCompatibleTime(statusUpdatedAt)
@@ -699,12 +706,23 @@ export const StatusSQLDatabaseMixin = (
       })
     }
     if (data.type === StatusType.enum.Poll) {
-      const pollChoices = await getPollChoices(data.id)
+      const [pollChoices, voted, ownVotes] = await Promise.all([
+        getPollChoices(data.id),
+        currentActorId
+          ? hasActorVoted({ statusId: data.id, actorId: currentActorId })
+          : false,
+        currentActorId
+          ? getActorPollVotes({ statusId: data.id, actorId: currentActorId })
+          : []
+      ])
       return StatusPoll.parse({
         ...base,
         choices: pollChoices,
         // TODO: Fix this endAt in the data or making sure it's not null
-        endAt: content.endAt ?? Date.now()
+        endAt: content.endAt ?? Date.now(),
+        pollType: content.pollType ?? 'oneOf',
+        voted,
+        ownVotes
       })
     }
 
@@ -751,6 +769,51 @@ export const StatusSQLDatabaseMixin = (
     return parseInt(result.count, 10)
   }
 
+  async function createPollAnswer({
+    statusId,
+    actorId,
+    choice
+  }: CreatePollAnswerParams): Promise<void> {
+    const currentTime = new Date()
+    await database('poll_answers').insert({
+      statusId,
+      actorId,
+      choice,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+  }
+
+  async function hasActorVoted({
+    statusId,
+    actorId
+  }: HasActorVotedParams): Promise<boolean> {
+    const result = await database('poll_answers')
+      .where({ statusId, actorId })
+      .first()
+    return Boolean(result)
+  }
+
+  async function getActorPollVotes({
+    statusId,
+    actorId
+  }: GetActorPollVotesParams): Promise<number[]> {
+    const results = await database('poll_answers')
+      .where({ statusId, actorId })
+      .select('choice')
+    return results.map((r) => r.choice)
+  }
+
+  async function incrementPollChoiceVotes({
+    statusId,
+    choiceIndex
+  }: IncrementPollChoiceVotesParams): Promise<void> {
+    await database('poll_choices')
+      .where({ statusId })
+      .andWhere('choiceId', choiceIndex + 1)
+      .increment('totalVotes', 1)
+  }
+
   return {
     createNote,
     updateNote,
@@ -767,6 +830,10 @@ export const StatusSQLDatabaseMixin = (
     getFavouritedBy,
     createTag,
     getTags,
-    getStatusReblogsCount
+    getStatusReblogsCount,
+    createPollAnswer,
+    hasActorVoted,
+    getActorPollVotes,
+    incrementPollChoiceVotes
   }
 }

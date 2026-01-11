@@ -120,7 +120,8 @@ export const GET = OAuthGuard(
       await Promise.all(
         filteredNotifications.map((notification) =>
           getMastodonNotification(database, notification, {
-            includeGrouping: grouped
+            includeGrouping: grouped,
+            currentActorId: currentActor.id
           })
         )
       )

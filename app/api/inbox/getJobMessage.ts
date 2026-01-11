@@ -13,6 +13,7 @@ import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
   CREATE_POLL_JOB_NAME,
+  CREATE_POLL_VOTE_JOB_NAME,
   DELETE_OBJECT_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
@@ -41,6 +42,20 @@ export const getJobMessage = (activity: StatusActivity) => {
       activity.object !== null &&
       NOTE_TYPES.includes(activity.object.type)
     ) {
+      if (
+        activity.object.type === ENTITY_TYPE_NOTE &&
+        activity.object.inReplyTo &&
+        'name' in activity.object &&
+        activity.object.name &&
+        !activity.object.content
+      ) {
+        return {
+          id: deduplicationId,
+          name: CREATE_POLL_VOTE_JOB_NAME,
+          data: activity.object
+        }
+      }
+
       return {
         id: deduplicationId,
         name: CREATE_NOTE_JOB_NAME,

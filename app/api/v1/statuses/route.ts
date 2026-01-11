@@ -40,7 +40,11 @@ export const POST = OAuthGuard([Scope.enum.write], async (req, context) => {
     })
     if (!status) return apiErrorResponse(422)
 
-    const mastodonStatus = await getMastodonStatus(database, status)
+    const mastodonStatus = await getMastodonStatus(
+      database,
+      status,
+      currentActor.id
+    )
     if (!mastodonStatus) return apiErrorResponse(500)
 
     return apiResponse({

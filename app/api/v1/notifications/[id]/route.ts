@@ -41,7 +41,8 @@ export const GET = OAuthGuard<Params>(
 
     const mastodonNotification = await getMastodonNotification(
       database,
-      notifications[0]
+      notifications[0],
+      { currentActorId: currentActor.id }
     )
 
     if (!mastodonNotification) {
