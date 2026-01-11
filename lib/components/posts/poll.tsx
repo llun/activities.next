@@ -16,7 +16,11 @@ interface Props {
 export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
   const [selectedChoices, setSelectedChoices] = useState<number[]>([])
   const [isVoting, setIsVoting] = useState(false)
-  const [votedChoices, setVotedChoices] = useState<number[]>([])
+  const [votedChoices, setVotedChoices] = useState<number[]>(
+    status.type === StatusType.enum.Poll && status.ownVotes
+      ? status.ownVotes
+      : []
+  )
 
   if (status.type !== StatusType.enum.Poll) return null
   if (!status.choices) return null

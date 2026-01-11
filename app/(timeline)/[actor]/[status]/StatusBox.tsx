@@ -5,6 +5,7 @@ import { FC, useState } from 'react'
 
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Post } from '@/lib/components/posts/post'
+import { ActorProfile } from '@/lib/models/actor'
 import { Attachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
 import { cn } from '@/lib/utils'
@@ -13,6 +14,7 @@ import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 interface Props {
   host: string
   currentTime: Date
+  currentActor?: ActorProfile | null
   status: Status
   variant?: 'detail' | 'comment'
 }
@@ -20,6 +22,7 @@ interface Props {
 export const StatusBox: FC<Props> = ({
   host,
   currentTime,
+  currentActor,
   status,
   variant = 'comment'
 }) => {
@@ -44,6 +47,7 @@ export const StatusBox: FC<Props> = ({
       >
         <Post
           host={host}
+          currentActor={currentActor ?? undefined}
           currentTime={currentTime}
           status={status}
           onShowAttachment={(allMedias, index) => {

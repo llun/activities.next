@@ -45,6 +45,15 @@ export const createPollVoteJob = createJobHandle(
       database
     })
 
+    const hasVoted = await database.hasActorVoted({
+      statusId: pollStatus.id,
+      actorId: note.attributedTo
+    })
+
+    if (pollStatus.pollType === 'oneOf' && hasVoted) {
+      return
+    }
+
     try {
       await database.createPollAnswer({
         statusId: pollStatus.id,

@@ -1,15 +1,19 @@
 import { Metadata } from 'next'
+import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getActorProfile } from '@/lib/models/actor'
 import { StatusType } from '@/lib/models/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 import { cleanJson } from '@/lib/utils/cleanJson'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { Header } from './Header'
 import { StatusBox } from './StatusBox'
@@ -31,6 +35,10 @@ const Page: FC<Props> = async ({ params }) => {
   const { host } = getConfig()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
+
+  const session = await getServerSession(getAuthOptions())
+  const currentActor = await getActorFromSession(database, session)
+  const currentActorProfile = currentActor ? getActorProfile(currentActor) : null
 
   const { actor, status: statusParam } = await params
   const currentTime = new Date()
@@ -128,6 +136,7 @@ const Page: FC<Props> = async ({ params }) => {
           <StatusBox
             host={host}
             currentTime={currentTime}
+            currentActor={currentActorProfile}
             status={cleanJson(item)}
           />
         </div>
@@ -137,6 +146,7 @@ const Page: FC<Props> = async ({ params }) => {
         <StatusBox
           host={host}
           currentTime={currentTime}
+          currentActor={currentActorProfile}
           status={cleanJson(status)}
           variant="detail"
         />
@@ -154,6 +164,7 @@ const Page: FC<Props> = async ({ params }) => {
                 key={reply.id}
                 host={host}
                 currentTime={currentTime}
+                currentActor={currentActorProfile}
                 status={cleanJson(reply)}
               />
             ))}

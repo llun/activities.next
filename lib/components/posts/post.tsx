@@ -93,7 +93,11 @@ export const Post: FC<PostProps> = (props) => {
             {processedAndCleanedText}
           </div>
 
-          <Poll status={actualStatus} currentTime={new Date()} />
+          <Poll
+            status={actualStatus}
+            currentTime={new Date()}
+            currentActorId={props.currentActor?.id}
+          />
           <Attachments
             status={actualStatus}
             onMediaSelected={onShowAttachment}

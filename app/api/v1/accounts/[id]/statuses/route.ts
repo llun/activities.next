@@ -48,7 +48,7 @@ const StatusQueryParams = z.object({
 export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
   async (req, context) => {
-    const { database, params } = context
+    const { database, currentActor, params } = context
     const encodedAccountId = (await params).id
     if (!encodedAccountId) {
       return apiErrorResponse(400)
@@ -82,7 +82,9 @@ export const GET = OAuthGuard<Params>(
 
     const mastodonStatuses = (
       await Promise.all(
-        statuses.map((status) => getMastodonStatus(database, status))
+        statuses.map((status) =>
+          getMastodonStatus(database, status, currentActor.id)
+        )
       )
     ).filter((status): status is Mastodon.Status => status !== null)
 

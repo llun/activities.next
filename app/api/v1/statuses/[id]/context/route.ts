@@ -25,7 +25,7 @@ export const GET = OAuthGuard<Params>(
     const encodedStatusId = (await params).id
     if (!encodedStatusId) return apiErrorResponse(404)
 
-    const { database } = context
+    const { database, currentActor } = context
     const statusId = idToUrl(encodedStatusId)
 
     const status = await database.getStatus({ statusId })
@@ -38,14 +38,18 @@ export const GET = OAuthGuard<Params>(
         ? database
             .getStatus({ statusId: status.reply })
             .then((status) =>
-              status ? getMastodonStatus(database, status) : null
+              status
+                ? getMastodonStatus(database, status, currentActor.id)
+                : null
             )
         : Promise.resolve(null),
       database
         .getStatusReplies({ statusId })
         .then((statuses) =>
           Promise.all(
-            statuses.map((status) => getMastodonStatus(database, status))
+            statuses.map((status) =>
+              getMastodonStatus(database, status, currentActor.id)
+            )
           )
         )
     ])

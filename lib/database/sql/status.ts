@@ -706,13 +706,23 @@ export const StatusSQLDatabaseMixin = (
       })
     }
     if (data.type === StatusType.enum.Poll) {
-      const pollChoices = await getPollChoices(data.id)
+      const [pollChoices, voted, ownVotes] = await Promise.all([
+        getPollChoices(data.id),
+        currentActorId
+          ? hasActorVoted({ statusId: data.id, actorId: currentActorId })
+          : false,
+        currentActorId
+          ? getActorPollVotes({ statusId: data.id, actorId: currentActorId })
+          : []
+      ])
       return StatusPoll.parse({
         ...base,
         choices: pollChoices,
         // TODO: Fix this endAt in the data or making sure it's not null
         endAt: content.endAt ?? Date.now(),
-        pollType: content.pollType ?? 'oneOf'
+        pollType: content.pollType ?? 'oneOf',
+        voted,
+        ownVotes
       })
     }
 
@@ -800,7 +810,7 @@ export const StatusSQLDatabaseMixin = (
   }: IncrementPollChoiceVotesParams): Promise<void> {
     await database('poll_choices')
       .where({ statusId })
-      .andWhere('choiceId', choiceIndex)
+      .andWhere('choiceId', choiceIndex + 1)
       .increment('totalVotes', 1)
   }
 
