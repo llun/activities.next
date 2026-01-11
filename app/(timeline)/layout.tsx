@@ -49,10 +49,18 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
     : undefined
   const showNavigation = Boolean(user)
 
+  // Get unread notifications count
+  const unreadCount = actor
+    ? await database.getNotificationsCount({
+        actorId: actor.id,
+        onlyUnread: true
+      })
+    : 0
+
   return (
     <div className="min-h-screen">
-      {showNavigation && <Sidebar user={user} />}
-      {showNavigation && <MobileNav />}
+      {showNavigation && <Sidebar user={user} unreadCount={unreadCount} />}
+      {showNavigation && <MobileNav unreadCount={unreadCount} />}
       <main
         className={cn(
           'pb-6',

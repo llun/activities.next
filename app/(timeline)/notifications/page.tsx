@@ -1,4 +1,3 @@
-import { Mastodon } from '@llun/activities.schema'
 import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
@@ -6,9 +5,10 @@ import { redirect } from 'next/navigation'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Pagination } from '@/lib/components/pagination/Pagination'
 import { getDatabase } from '@/lib/database'
+import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { FollowRequestsList } from './FollowRequestsList'
+import { NotificationsList } from './NotificationsList'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: 'Activities.next: Notifications'
 }
 
-const ITEMS_PER_PAGE = 20
+const ITEMS_PER_PAGE = 25
 
 interface Props {
   searchParams: Promise<{ page?: string }>
@@ -38,42 +38,71 @@ const Page = async ({ searchParams }: Props) => {
   const currentPage = parseInt(params.page || '1', 10)
   const offset = (currentPage - 1) * ITEMS_PER_PAGE
 
-  const [followRequests, totalCount] = await Promise.all([
-    database.getFollowRequests({
-      targetActorId: actor.id,
+  const [notifications, totalCount] = await Promise.all([
+    database.getNotifications({
+      actorId: actor.id,
       limit: ITEMS_PER_PAGE,
       offset
     }),
-    database.getFollowRequestsCount({ targetActorId: actor.id })
+    database.getNotificationsCount({ actorId: actor.id })
   ])
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
 
-  // Get Mastodon accounts for each follow request
-  const accounts = (
-    await Promise.all(
-      followRequests.map(async (follow) => {
-        return database.getMastodonActorFromId({ id: follow.actorId })
+  // Group notifications by groupKey
+  const groupedNotifications = groupNotifications(notifications)
+
+  // Transform to include account and status data
+  const notificationsWithData = await Promise.all(
+    groupedNotifications.map(async (notification) => {
+      const account = await database.getMastodonActorFromId({
+        id: notification.sourceActorId
       })
-    )
-  ).filter(Boolean) as Mastodon.Account[]
+
+      let status = null
+      if (notification.statusId) {
+        status = await database.getStatus({
+          statusId: notification.statusId,
+          withReplies: false
+        })
+      }
+
+      let groupedAccounts = null
+      if (notification.groupedActors && notification.groupedActors.length > 1) {
+        groupedAccounts = (
+          await Promise.all(
+            notification.groupedActors.slice(0, 3).map((actorId) =>
+              database.getMastodonActorFromId({ id: actorId })
+            )
+          )
+        ).filter(Boolean)
+      }
+
+      return {
+        ...notification,
+        account,
+        status,
+        groupedAccounts
+      }
+    })
+  )
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Notifications</h1>
-        <p className="text-sm text-muted-foreground">
-          People who want to follow you
-        </p>
       </div>
 
-      {accounts.length === 0 ? (
+      {notificationsWithData.length === 0 ? (
         <div className="rounded-xl border bg-background/80 p-8 text-center text-muted-foreground">
-          No pending follow requests
+          No notifications yet
         </div>
       ) : (
         <>
-          <FollowRequestsList accounts={accounts} />
+          <NotificationsList
+            notifications={notificationsWithData}
+            currentActorId={actor.id}
+          />
 
           {totalPages > 1 && (
             <Pagination

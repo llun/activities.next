@@ -1,17 +1,23 @@
 'use client'
 
-import { Home, Settings } from 'lucide-react'
+import { Bell, Home, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/', label: 'Timeline', icon: Home },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings', label: 'Settings', icon: Settings }
 ]
 
-export function MobileNav() {
+interface MobileNavProps {
+  unreadCount?: number
+}
+
+export function MobileNav({ unreadCount = 0 }: MobileNavProps) {
   const pathname = usePathname()
 
   return (
@@ -20,12 +26,13 @@ export function MobileNav() {
         {navItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + '/')
+          const isNotifications = item.href === '/notifications'
           return (
             <li key={item.href}>
               <Link
                 href={item.href}
                 className={cn(
-                  'flex flex-col items-center gap-1 px-4 py-2 text-xs font-medium transition-colors',
+                  'flex flex-col items-center gap-1 px-4 py-2 text-xs font-medium transition-colors relative',
                   isActive ? 'text-primary' : 'text-muted-foreground'
                 )}
               >
@@ -33,6 +40,12 @@ export function MobileNav() {
                   className={cn('h-6 w-6', isActive && 'fill-primary')}
                 />
                 <span>{item.label}</span>
+                {isNotifications && unreadCount > 0 && (
+                  <NotificationBadge
+                    count={unreadCount}
+                    className="absolute top-1 right-2"
+                  />
+                )}
               </Link>
             </li>
           )
