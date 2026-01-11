@@ -1,6 +1,5 @@
 import { acceptFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/actions/follow'
-import { NotificationType } from '@/lib/database/types/notification'
 import { FollowStatus } from '@/lib/models/follow'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -54,13 +53,9 @@ export const POST = AuthenticatedGuard<{ id: string }>(
     }
     await acceptFollow(currentActor, followerActor.inboxUrl, followRequest)
 
-    // Create follow notification for the follower
-    await database.createNotification({
-      actorId: followerActor.id,
-      type: NotificationType.enum.follow,
-      sourceActorId: currentActor.id,
-      followId: follow.id
-    })
+    // Note: No separate notification is created here because the original
+    // follow action already creates a notification for the target actor.
+    // Creating another one here would target the wrong actor (the remote follower).
 
     // Return relationship
     const relationship = {

@@ -3,6 +3,7 @@ import { Notification } from '@/lib/database/types/notification'
 export interface GroupedNotification extends Notification {
   groupedActors?: string[]
   groupedCount?: number
+  groupedIds?: string[]
 }
 
 export const groupNotifications = (
@@ -22,6 +23,12 @@ export const groupNotifications = (
         existing.groupedActors.push(notification.sourceActorId)
         existing.groupedCount = (existing.groupedCount || 1) + 1
 
+        // Track all notification IDs in the group
+        if (!existing.groupedIds) {
+          existing.groupedIds = [existing.id]
+        }
+        existing.groupedIds.push(notification.id)
+
         // Keep the most recent createdAt
         if (notification.createdAt > existing.createdAt) {
           existing.createdAt = notification.createdAt
@@ -40,7 +47,8 @@ export const groupNotifications = (
     groups.set(notification.groupKey || notification.id, {
       ...notification,
       groupedActors: undefined,
-      groupedCount: 1
+      groupedCount: 1,
+      groupedIds: undefined
     })
   }
 

@@ -69,6 +69,7 @@ export const NotificationItem = ({
     <div
       ref={elementRef}
       data-notification-id={notification.id}
+      data-grouped-ids={notification.groupedIds?.join(',') || notification.id}
       className="relative rounded-xl border bg-background/80 p-4"
     >
       {!isRead && (

@@ -68,13 +68,21 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
             const notificationId = entry.target.getAttribute(
               'data-notification-id'
             )
+            const groupedIdsAttr = entry.target.getAttribute('data-grouped-ids')
             if (
               notificationId &&
               !readNotificationsRef.current.has(notificationId)
             ) {
               readNotificationsRef.current.add(notificationId)
               setReadNotifications((prev) => new Set(prev).add(notificationId))
-              pendingReadsRef.current.add(notificationId)
+
+              // Add all grouped IDs to pending reads
+              if (groupedIdsAttr) {
+                const groupedIds = groupedIdsAttr.split(',')
+                groupedIds.forEach((id) => pendingReadsRef.current.add(id))
+              } else {
+                pendingReadsRef.current.add(notificationId)
+              }
               debouncedMarkAsRead()
             }
           }
