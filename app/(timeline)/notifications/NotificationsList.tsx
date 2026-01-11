@@ -3,8 +3,8 @@
 import { Mastodon } from '@llun/activities.schema'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import { Status } from '@/lib/models/status'
+import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
 import { NotificationItem } from './NotificationItem'
 
@@ -93,14 +93,11 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
     }
   }, [debouncedMarkAsRead])
 
-  const observeElement = useCallback(
-    (element: HTMLElement | null) => {
-      if (element && observerRef.current) {
-        observerRef.current.observe(element)
-      }
-    },
-    []
-  )
+  const observeElement = useCallback((element: HTMLElement | null) => {
+    if (element && observerRef.current) {
+      observerRef.current.observe(element)
+    }
+  }, [])
 
   return (
     <div className="space-y-4">
@@ -109,9 +106,7 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
           key={notification.id}
           notification={notification}
           currentActorId={currentActorId}
-          isRead={
-            notification.isRead || readNotifications.has(notification.id)
-          }
+          isRead={notification.isRead || readNotifications.has(notification.id)}
           observeElement={observeElement}
         />
       ))}

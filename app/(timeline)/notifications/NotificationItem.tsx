@@ -1,10 +1,10 @@
 'use client'
 
 import { Mastodon } from '@llun/activities.schema'
-import { useRef, useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
-import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import { Status } from '@/lib/models/status'
+import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
 import { FollowNotification } from './components/FollowNotification'
 import { FollowRequestNotification } from './components/FollowRequestNotification'

@@ -17,7 +17,7 @@ export const NotificationBadge: FC<Props> = ({ count, className }) => {
       className={cn(
         'absolute -top-1 -right-1 flex items-center justify-center',
         'min-w-[18px] h-[18px] px-1 rounded-full',
-        'bg-destructive text-destructive-foreground',
+        'bg-destructive text-white',
         'text-xs font-medium',
         className
       )}

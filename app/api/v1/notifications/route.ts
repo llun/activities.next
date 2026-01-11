@@ -53,11 +53,16 @@ export const GET = OAuthGuard(
 
         // Get additional actors for grouped notifications
         let groupedAccounts = null
-        if (notification.groupedActors && notification.groupedActors.length > 1) {
+        if (
+          notification.groupedActors &&
+          notification.groupedActors.length > 1
+        ) {
           groupedAccounts = await Promise.all(
-            notification.groupedActors.slice(0, 3).map((actorId) =>
-              database.getMastodonActorFromId({ id: actorId })
-            )
+            notification.groupedActors
+              .slice(0, 3)
+              .map((actorId) =>
+                database.getMastodonActorFromId({ id: actorId })
+              )
           )
         }
 

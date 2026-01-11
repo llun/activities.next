@@ -71,9 +71,11 @@ const Page = async ({ searchParams }: Props) => {
       if (notification.groupedActors && notification.groupedActors.length > 1) {
         groupedAccounts = (
           await Promise.all(
-            notification.groupedActors.slice(0, 3).map((actorId) =>
-              database.getMastodonActorFromId({ id: actorId })
-            )
+            notification.groupedActors
+              .slice(0, 3)
+              .map((actorId) =>
+                database.getMastodonActorFromId({ id: actorId })
+              )
           )
         ).filter(Boolean)
       }
@@ -87,18 +89,16 @@ const Page = async ({ searchParams }: Props) => {
     })
   )
 
-  const filteredNotifications = notificationsWithData.filter(
-    (notification) => {
-      if (!notification.account) return false
-      if (
-        ['like', 'reply', 'mention'].includes(notification.type) &&
-        (!notification.status || !notification.status.actor)
-      ) {
-        return false
-      }
-      return true
+  const filteredNotifications = notificationsWithData.filter((notification) => {
+    if (!notification.account) return false
+    if (
+      ['like', 'reply', 'mention'].includes(notification.type) &&
+      (!notification.status || !notification.status.actor)
+    ) {
+      return false
     }
-  )
+    return true
+  })
 
   return (
     <div className="space-y-6">

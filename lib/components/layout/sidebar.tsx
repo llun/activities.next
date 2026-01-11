@@ -71,7 +71,7 @@ export function Sidebar({ user, unreadCount = 0 }: SidebarProps) {
                     {isNotifications && unreadCount > 0 && (
                       <NotificationBadge
                         count={unreadCount}
-                        className="absolute top-1 left-7"
+                        className="absolute top-1 left-7 right-auto"
                       />
                     )}
                   </Link>
