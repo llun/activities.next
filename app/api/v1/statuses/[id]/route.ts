@@ -28,7 +28,7 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 export const GET = OAuthGuard<Params>(
   [Scope.enum.read],
   async (req, context) => {
-    const { database, params } = context
+    const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId) return apiErrorResponse(404)
     const statusId = idToUrl(encodedStatusId)
@@ -36,7 +36,11 @@ export const GET = OAuthGuard<Params>(
     const status = await database.getStatus({ statusId })
     if (!status) return apiErrorResponse(404)
 
-    const mastodonStatus = await getMastodonStatus(database, status)
+    const mastodonStatus = await getMastodonStatus(
+      database,
+      status,
+      currentActor.id
+    )
     if (!mastodonStatus) return apiErrorResponse(404)
 
     return apiResponse({
@@ -75,7 +79,11 @@ export const PUT = OAuthGuard<Params>(
       return apiErrorResponse(500)
     }
 
-    const mastodonStatus = await getMastodonStatus(database, updatedNote)
+    const mastodonStatus = await getMastodonStatus(
+      database,
+      updatedNote,
+      currentActor.id
+    )
     if (!mastodonStatus) return apiErrorResponse(500)
 
     return apiResponse({

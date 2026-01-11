@@ -63,9 +63,9 @@ const mapNotificationType = (
 export const getMastodonNotification = async (
   database: Database,
   notification: Notification | GroupedNotification,
-  options?: { includeGrouping?: boolean }
+  options?: { includeGrouping?: boolean; currentActorId?: string }
 ): Promise<MastodonNotification | null> => {
-  const { includeGrouping = false } = options || {}
+  const { includeGrouping = false, currentActorId } = options || {}
 
   // Fetch account
   const account = await database.getMastodonActorFromId({
@@ -84,7 +84,11 @@ export const getMastodonNotification = async (
       withReplies: false
     })
     if (statusData) {
-      const mastodonStatus = await getMastodonStatus(database, statusData)
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        statusData,
+        currentActorId
+      )
       status = mastodonStatus || undefined
     }
   }

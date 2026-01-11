@@ -35,6 +35,7 @@ export type CreateAnnounceParams = Pick<
 export type CreatePollParams = BaseCreateStatusParams & {
   choices: string[]
   endAt: number
+  pollType?: 'oneOf' | 'anyOf'
 }
 export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> &
   BaseStatusParams & {
@@ -74,6 +75,27 @@ export type GetStatusReblogsCountParams = {
   statusId: string
 }
 
+export type CreatePollAnswerParams = {
+  statusId: string
+  actorId: string
+  choice: number
+}
+
+export type HasActorVotedParams = {
+  statusId: string
+  actorId: string
+}
+
+export type GetActorPollVotesParams = {
+  statusId: string
+  actorId: string
+}
+
+export type IncrementPollChoiceVotesParams = {
+  statusId: string
+  choiceIndex: number
+}
+
 export interface StatusDatabase {
   createNote(params: CreateNoteParams): Promise<Status>
   updateNote(params: UpdateNoteParams): Promise<Status | null>
@@ -104,4 +126,11 @@ export interface StatusDatabase {
   getTags(params: GetTagsParams): Promise<Tag[]>
 
   getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
+
+  createPollAnswer(params: CreatePollAnswerParams): Promise<void>
+  hasActorVoted(params: HasActorVotedParams): Promise<boolean>
+  getActorPollVotes(params: GetActorPollVotesParams): Promise<number[]>
+  incrementPollChoiceVotes(
+    params: IncrementPollChoiceVotesParams
+  ): Promise<void>
 }

@@ -204,6 +204,25 @@ export const undoLikeStatus = async ({ statusId }: DefaultStatusParams) => {
   })
 }
 
+interface VotePollParams {
+  statusId: string
+  choices: number[]
+}
+
+export const votePoll = async ({ statusId, choices }: VotePollParams) => {
+  const response = await fetch('/api/v1/accounts/vote', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ statusId, choices })
+  })
+  if (response.status !== 200) {
+    throw new Error('Failed to vote')
+  }
+  return response.json()
+}
+
 interface FollowParams {
   targetActorId: string
 }

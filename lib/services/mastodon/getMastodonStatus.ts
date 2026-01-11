@@ -93,7 +93,8 @@ const getHashtagsFromTags = (tags: Tag[], host: string): MastodonTag[] => {
 
 export const getMastodonStatus = async (
   database: Database,
-  status: Status
+  status: Status,
+  currentActorId?: string
 ): Promise<Mastodon.Status | null> => {
   const account = await database.getMastodonActorFromId({ id: status.actorId })
   if (!account) {
@@ -175,7 +176,11 @@ export const getMastodonStatus = async (
       in_reply_to_id: null,
       in_reply_to_account_id: null,
 
-      reblog: await getMastodonStatus(database, status.originalStatus),
+      reblog: await getMastodonStatus(
+        database,
+        status.originalStatus,
+        currentActorId
+      ),
       media_attachments: []
     })
   }
@@ -228,27 +233,41 @@ export const getMastodonStatus = async (
   }
 
   // Create poll data if status is a Poll type
-  const pollData =
-    status.type === StatusType.enum.Poll
-      ? Mastodon.Poll.parse({
-          id: urlToId(status.id),
-          expires_at: getISOTimeUTC(status.endAt),
-          expired: Date.now() > status.endAt,
-          multiple: false,
-          votes_count: status.choices.reduce(
-            (sum, choice) => sum + choice.totalVotes,
-            0
-          ),
-          voters_count: 0,
-          options: status.choices.map((choice) => ({
-            title: choice.title,
-            votes_count: choice.totalVotes
-          })),
-          emojis: [],
-          voted: false,
-          own_votes: []
+  let pollData = null
+  if (status.type === StatusType.enum.Poll) {
+    const voted = currentActorId
+      ? await database.hasActorVoted({
+          statusId: status.id,
+          actorId: currentActorId
         })
-      : null
+      : false
+
+    const ownVotes = currentActorId
+      ? await database.getActorPollVotes({
+          statusId: status.id,
+          actorId: currentActorId
+        })
+      : []
+
+    pollData = Mastodon.Poll.parse({
+      id: urlToId(status.id),
+      expires_at: getISOTimeUTC(status.endAt),
+      expired: Date.now() > status.endAt,
+      multiple: status.pollType === 'anyOf',
+      votes_count: status.choices.reduce(
+        (sum, choice) => sum + choice.totalVotes,
+        0
+      ),
+      voters_count: 0,
+      options: status.choices.map((choice) => ({
+        title: choice.title,
+        votes_count: choice.totalVotes
+      })),
+      emojis: [],
+      voted,
+      own_votes: ownVotes
+    })
+  }
 
   return Mastodon.Status.parse({
     ...mastodonStatus,
