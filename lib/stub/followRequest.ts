@@ -32,15 +32,17 @@ interface FollowRequestResponseParams {
   targetActorId: string
   followId?: string
   followResponseStatus: 'Accept' | 'Reject'
+  withContext?: boolean
 }
 export const MockFollowRequestResponse = ({
   actorId,
   targetActorId,
   followResponseStatus,
-  followId = `https://llun.test/${crypto.randomUUID()}`
+  followId = `https://llun.test/${crypto.randomUUID()}`,
+  withContext = true
 }: FollowRequestResponseParams): AcceptFollow | RejectFollow => {
   return {
-    '@context': ACTIVITY_STREAM_URL,
+    ...(withContext ? { '@context': ACTIVITY_STREAM_URL } : null),
     id: `${targetActorId}/request`,
     actor: targetActorId,
     type: followResponseStatus,

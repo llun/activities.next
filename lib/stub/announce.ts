@@ -11,12 +11,14 @@ interface Params {
   statusId: string
   announceStatusId: string
   published?: number
+  withContext?: boolean
 }
 export const MockAnnounceStatus = ({
   actorId,
   statusId,
   announceStatusId,
-  published = Date.now()
+  published = Date.now(),
+  withContext = true
 }: Params): AnnounceStatus => {
   const url = new URL(announceStatusId)
   const announceOwnerIdPathname = url.pathname.slice(
@@ -26,7 +28,7 @@ export const MockAnnounceStatus = ({
   const announceOwnerId = `${url.origin}${announceOwnerIdPathname}`
 
   return {
-    '@context': ACTIVITY_STREAM_URL,
+    ...(withContext ? { '@context': ACTIVITY_STREAM_URL } : null),
     id: `${statusId}/activity`,
     type: 'Announce',
     actor: actorId,

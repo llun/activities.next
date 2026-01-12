@@ -1,3 +1,5 @@
+import crypto from 'crypto'
+
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -341,6 +343,54 @@ describe('ActorDatabase', () => {
           publicKey: 'publicKey2',
           privateKey: expect.toBeString()
         })
+      })
+    })
+
+    describe('#getActorSettings', () => {
+      it('returns actor settings', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings).toMatchObject({
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`
+        })
+      })
+
+      it('returns updated actor settings', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        await database.updateActor({
+          actorId,
+          manuallyApprovesFollowers: false,
+          followersUrl: `${actorId}/followers-updated`
+        })
+
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings).toMatchObject({
+          followersUrl: `${actorId}/followers-updated`,
+          manuallyApprovesFollowers: false
+        })
+      })
+    })
+
+    describe('#deleteActor', () => {
+      it('deletes actor by id', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        await database.deleteActor({ actorId })
+        const deleted = await database.getActorFromId({ id: actorId })
+        expect(deleted).toBeUndefined()
       })
     })
 

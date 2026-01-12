@@ -26,6 +26,12 @@ interface MockNoteParams {
   inReplyTo?: string | null
   documents?: Document[]
   conversation?: string
+  summary?: string | null
+  sensitive?: boolean | null
+  tags?: Note['tag']
+  likesTotalItems?: number
+  sharesTotalItems?: number
+  repliesItems?: Note[]
 
   withContext?: boolean
 }
@@ -40,6 +46,12 @@ export const MockMastodonActivityPubNote = ({
   inReplyTo = null,
   documents = [],
   conversation,
+  summary = '',
+  sensitive = false,
+  tags = [],
+  likesTotalItems = 0,
+  sharesTotalItems = 1,
+  repliesItems = [],
 
   withContext
 }: MockNoteParams) =>
@@ -47,13 +59,13 @@ export const MockMastodonActivityPubNote = ({
     ...(withContext ? { '@context': ACTIVITY_STREAM_URL } : null),
     id,
     type: 'Note',
-    summary: '',
+    summary,
     published: getISOTimeUTC(published),
     url: id,
     attributedTo: from,
     to,
     cc,
-    sensitive: false,
+    sensitive,
     atomUri: id,
     inReplyTo,
     inReplyToAtomUri: inReplyTo,
@@ -63,7 +75,7 @@ export const MockMastodonActivityPubNote = ({
     content,
     contentMap: contentMap ?? { en: content },
     attachment: documents,
-    tag: [],
+    tag: tags,
     replies: {
       id: `${id}/replies`,
       type: 'Collection',
@@ -71,18 +83,18 @@ export const MockMastodonActivityPubNote = ({
         type: 'CollectionPage',
         next: `${id}/replies?only_other_accounts=true\u0026page=true`,
         partOf: `${id}/replies`,
-        items: []
+        items: repliesItems
       }
     },
     likes: {
       id: `${id}/likes`,
       type: 'Collection',
-      totalItems: 0
+      totalItems: likesTotalItems
     },
     shares: {
       id: `${id}/shares`,
       type: 'Collection',
-      totalItems: 1
+      totalItems: sharesTotalItems
     }
   }) as Note
 
@@ -96,6 +108,9 @@ export const MockLitepubNote = ({
   inReplyTo = null,
   documents,
   conversation,
+  summary = '',
+  sensitive = null,
+  tags = [],
 
   withContext
 }: MockNoteParams) =>
@@ -124,13 +139,13 @@ export const MockLitepubNote = ({
     id,
     inReplyTo,
     published: getISOTimeUTC(published),
-    sensitive: null,
+    sensitive,
     source: {
       content,
       mediaType: 'text/plain'
     },
-    summary: '',
-    tag: [],
+    summary,
+    tag: tags,
     to,
     type: 'Note'
   }) as Note
