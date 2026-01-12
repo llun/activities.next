@@ -15,7 +15,14 @@ import { CREATE_POLL_JOB_NAME } from './names'
 export const createPollJob = createJobHandle(
   CREATE_POLL_JOB_NAME,
   async (database, message) => {
-    const question = Question.parse(normalizeActivityPubContent(message.data))
+    const parseResult = Question.safeParse(
+      normalizeActivityPubContent(message.data)
+    )
+    if (!parseResult.success) {
+      return
+    }
+    const question = parseResult.data
+
     const existingStatus = await database.getStatus({
       statusId: question.id,
       withReplies: false

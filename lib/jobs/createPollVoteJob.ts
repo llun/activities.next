@@ -6,16 +6,29 @@ import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_VOTE_JOB_NAME } from './names'
 
+// Poll vote notes have a 'name' field that's not in the standard Note schema
+interface PollVoteData {
+  name?: string
+}
+
 export const createPollVoteJob = createJobHandle(
   CREATE_POLL_VOTE_JOB_NAME,
   async (database, message) => {
-    const note = Note.parse(normalizeActivityPubContent(message.data))
+    const normalizedData = normalizeActivityPubContent(message.data)
+    const rawData = normalizedData as PollVoteData
+    const voteName = rawData?.name
+
+    const parseResult = Note.safeParse(normalizedData)
+    if (!parseResult.success) {
+      return
+    }
+    const note = parseResult.data
 
     if (note.type !== ENTITY_TYPE_NOTE) {
       return
     }
 
-    if (!note.inReplyTo || !('name' in note) || !note.name || note.content) {
+    if (!note.inReplyTo || !voteName || note.content) {
       return
     }
 
@@ -33,7 +46,7 @@ export const createPollVoteJob = createJobHandle(
     }
 
     const choiceIndex = pollStatus.choices.findIndex(
-      (choice) => 'name' in note && choice.title === note.name
+      (choice) => choice.title === voteName
     )
 
     if (choiceIndex === -1) {
