@@ -7,18 +7,20 @@ import {
 import { getISOTimeUTC } from '../utils/getISOTimeUTC'
 import { MockMastodonActivityPubNote } from './note'
 
+type OutboxItem = {
+  id?: string
+  published?: number
+  content: string
+  to?: string[]
+  cc?: string[]
+}
+
 interface Params {
   actorId: string
   withPage?: boolean
   withContext?: boolean
   totalItems?: number
-  items?: {
-    id?: string
-    published?: number
-    content: string
-    to?: string[]
-    cc?: string[]
-  }[]
+  items?: OutboxItem[]
   next?: string | null
   prev?: string | null
 }
@@ -50,7 +52,7 @@ export const MockActivityPubOutbox = ({
   }
 
   const currentTime = Date.now()
-  const defaultItems = [
+  const defaultItems: OutboxItem[] = [
     {
       published: currentTime - 1000,
       content: 'Content 1'

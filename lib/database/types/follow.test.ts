@@ -199,26 +199,20 @@ describe('FollowDatabase', () => {
 
     describe('getLocalFollowersForActorId', () => {
       it('returns local followers for internal actor', async () => {
+        const targetActorId = await createLocalActor()
         await database.createFollow({
           actorId: extraActorId,
-          targetActorId: primaryActorId,
+          targetActorId,
           inbox: `${extraActorId}/inbox`,
           sharedInbox: TEST_SHARED_INBOX,
           status: FollowStatus.enum.Accepted
         })
 
         const follows = await database.getLocalFollowersForActorId({
-          targetActorId: primaryActorId
+          targetActorId
         })
-        expect(follows.some((follow) => follow.actorId === extraActorId)).toBe(
-          true
-        )
-        expect(
-          follows.every(
-            (follow) =>
-              new URL(follow.actorId).host === new URL(primaryActorId).host
-          )
-        ).toBe(true)
+        expect(follows).toHaveLength(1)
+        expect(follows[0].actorId).toBe(extraActorId)
       })
 
       it('returns all followers for external actor', async () => {

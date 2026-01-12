@@ -812,9 +812,15 @@ export const StatusSQLDatabaseMixin = (
     statusId,
     choiceIndex
   }: IncrementPollChoiceVotesParams): Promise<void> {
-    await database('poll_choices')
+    const choice = await database('poll_choices')
       .where({ statusId })
-      .andWhere('choiceId', choiceIndex + 1)
+      .orderBy('choiceId', 'asc')
+      .offset(choiceIndex)
+      .first<{ choiceId: number }>('choiceId')
+    if (!choice) return
+
+    await database('poll_choices')
+      .where({ statusId, choiceId: choice.choiceId })
       .increment('totalVotes', 1)
   }
 
