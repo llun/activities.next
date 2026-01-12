@@ -7,7 +7,7 @@
     "build": "NEXT_IGNORE_INCORRECT_LOCKFILE=1 next build",
     "start": "NEXT_IGNORE_INCORRECT_LOCKFILE=1 next start",
     "lint": "eslint .",
-    "test": "jest",
+    "test": "NEXT_IGNORE_INCORRECT_LOCKFILE=1 jest",
     "prettier": "prettier --write pages migrations lib",
     "migrate": "knex migrate:latest",
     "migrate:make": "knex migrate:make",
