@@ -353,10 +353,12 @@ export const StatusSQLDatabaseMixin = (
       .first()
     if (!existingStatus) return null
     const currentTime = new Date()
+    const data = getCompatibleJSON(existingStatus.content)
+    const nextText = text ?? data.text
+    const nextSummary = summary ?? data.summary
 
     await database.transaction(async (trx) => {
-      if (text !== existingStatus.text || summary !== existingStatus.summary) {
-        const data = getCompatibleJSON(existingStatus.content)
+      if (nextText !== data.text || nextSummary !== data.summary) {
         const previousData = {
           text: data.text,
           summary: data.summary
@@ -370,11 +372,13 @@ export const StatusSQLDatabaseMixin = (
         await trx('statuses')
           .where('id', statusId)
           .update({
-            content: {
+            content: JSON.stringify({
               url: data.url,
-              text: data.text,
-              summary: data.summary
-            },
+              text: nextText,
+              summary: nextSummary,
+              endAt: data.endAt,
+              pollType: data.pollType
+            }),
             updatedAt: currentTime
           })
       }
@@ -808,9 +812,15 @@ export const StatusSQLDatabaseMixin = (
     statusId,
     choiceIndex
   }: IncrementPollChoiceVotesParams): Promise<void> {
-    await database('poll_choices')
+    const choice = await database('poll_choices')
       .where({ statusId })
-      .andWhere('choiceId', choiceIndex + 1)
+      .orderBy('choiceId', 'asc')
+      .offset(choiceIndex)
+      .first<{ choiceId: number }>('choiceId')
+    if (!choice) return
+
+    await database('poll_choices')
+      .where({ statusId, choiceId: choice.choiceId })
       .increment('totalVotes', 1)
   }
 
