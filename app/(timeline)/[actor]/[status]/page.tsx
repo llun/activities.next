@@ -38,7 +38,9 @@ const Page: FC<Props> = async ({ params }) => {
 
   const session = await getServerSession(getAuthOptions())
   const currentActor = await getActorFromSession(database, session)
-  const currentActorProfile = currentActor ? getActorProfile(currentActor) : null
+  const currentActorProfile = currentActor
+    ? getActorProfile(currentActor)
+    : null
 
   const { actor, status: statusParam } = await params
   const currentTime = new Date()
