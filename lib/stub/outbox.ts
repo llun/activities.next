@@ -87,10 +87,8 @@ export const MockActivityPubOutbox = ({
         }),
     partOf: `${actorId}/outbox`,
     orderedItems: resolvedItems.map((item, index) => {
-      const published =
-        item.published ?? currentTime - 1000 + index * 100
-      const statusId =
-        item.id ?? `${actorId}/statuses/${published.toString()}`
+      const published = item.published ?? currentTime - 1000 + index * 100
+      const statusId = item.id ?? `${actorId}/statuses/${published.toString()}`
       const to = item.to ?? [ACTIVITY_STREAM_PUBLIC]
       const cc = item.cc ?? [`${actorId}/followers`, actorId]
       return {

@@ -198,7 +198,10 @@ describe('AccountDatabase', () => {
 
         const providers = await database.getAccountProviders({ accountId })
         expect(providers).toHaveLength(1)
-        expect(providers[0]).toMatchObject({ provider, providerId: providerAccountId })
+        expect(providers[0]).toMatchObject({
+          provider,
+          providerId: providerAccountId
+        })
 
         await database.unlinkAccountFromProvider({ accountId, provider })
         const afterUnlink = await database.getAccountProviders({ accountId })
@@ -225,7 +228,10 @@ describe('AccountDatabase', () => {
         expect(sessions[0]).toMatchObject({ token, expireAt })
 
         const updatedExpireAt = Date.now() + 120_000
-        await database.updateAccountSession({ token, expireAt: updatedExpireAt })
+        await database.updateAccountSession({
+          token,
+          expireAt: updatedExpireAt
+        })
         const updated = await database.getAccountSession({ token })
         expect(updated?.session.expireAt).toBe(updatedExpireAt)
 

@@ -181,15 +181,11 @@ try {
 ### Running Tests
 
 ```bash
-# Run all tests (fast, without database)
-yarn test:withoutDatabase
-
-# Run database tests (slower, runs serially)
-yarn test:database
-
-# Run all tests
+# Run all tests (includes database tests with SQLite in-memory)
 yarn test
 ```
+
+All tests run in parallel using isolated SQLite in-memory databases for fast execution.
 
 ### Writing Tests
 
@@ -231,7 +227,7 @@ describe('createNote', () => {
 1. **Ensure tests pass**:
 
    ```bash
-   yarn test:withoutDatabase
+   yarn test
    ```
 
 2. **Run linting**:
