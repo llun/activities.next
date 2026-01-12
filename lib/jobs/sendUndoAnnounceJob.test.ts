@@ -1,8 +1,8 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { sendUndoAnnounceJob } from '@/lib/jobs/sendUndoAnnounceJob'
 import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { sendUndoAnnounceJob } from '@/lib/jobs/sendUndoAnnounceJob'
 import { Actor } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'

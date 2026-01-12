@@ -2,14 +2,14 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import {
-  follow,
-  sendNote,
-  getNote,
-  sendAnnounce,
-  deleteStatus,
   acceptFollow,
+  deleteStatus,
+  follow,
+  getNote,
   rejectFollow,
+  sendAnnounce,
   sendLike,
+  sendNote,
   sendUndoLike,
   unfollow
 } from '@/lib/activities'

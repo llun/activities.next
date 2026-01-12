@@ -1,8 +1,8 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { sendNoteJob } from '@/lib/jobs/sendNoteJob'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { sendNoteJob } from '@/lib/jobs/sendNoteJob'
 import { Actor } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'

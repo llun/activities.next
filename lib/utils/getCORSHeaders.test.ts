@@ -1,4 +1,4 @@
-import { getCORSHeaders, HttpMethod } from './getCORSHeaders'
+import { HttpMethod, getCORSHeaders } from './getCORSHeaders'
 
 describe('#getCORSHeaders', () => {
   it('returns CORS headers with origin from request', () => {

@@ -1,16 +1,16 @@
 import {
+  DEFAULT_200,
+  DEFAULT_202,
   ERROR_400,
   ERROR_401,
   ERROR_403,
   ERROR_404,
   ERROR_422,
   ERROR_500,
-  DEFAULT_200,
-  DEFAULT_202,
   HTTP_STATUS,
   codeMap,
-  statusText,
-  defaultStatusOption
+  defaultStatusOption,
+  statusText
 } from './response'
 
 describe('response utilities', () => {

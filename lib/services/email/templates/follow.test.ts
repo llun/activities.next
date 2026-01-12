@@ -1,6 +1,6 @@
 import { Actor } from '@/lib/models/actor'
 
-import { getSubject, getTextContent, getHTMLContent } from './follow'
+import { getHTMLContent, getSubject, getTextContent } from './follow'
 
 describe('follow email template', () => {
   const mockActor: Actor = {

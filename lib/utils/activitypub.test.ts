@@ -1,8 +1,8 @@
 import {
   extractActivityPubId,
-  normalizeActivityPubRecipients,
   normalizeActivityPubAnnounce,
-  normalizeActivityPubContent
+  normalizeActivityPubContent,
+  normalizeActivityPubRecipients
 } from './activitypub'
 
 describe('#extractActivityPubId', () => {
@@ -72,9 +72,9 @@ describe('#extractActivityPubId', () => {
 
 describe('#normalizeActivityPubRecipients', () => {
   it('returns string for single string value', () => {
-    expect(normalizeActivityPubRecipients('https://example.com/user/1')).toEqual(
-      'https://example.com/user/1'
-    )
+    expect(
+      normalizeActivityPubRecipients('https://example.com/user/1')
+    ).toEqual('https://example.com/user/1')
   })
 
   it('returns array of ids for array input', () => {
@@ -107,7 +107,9 @@ describe('#normalizeActivityPubRecipients', () => {
   })
 
   it('returns undefined for empty array after filtering', () => {
-    expect(normalizeActivityPubRecipients([null, {}, undefined])).toBeUndefined()
+    expect(
+      normalizeActivityPubRecipients([null, {}, undefined])
+    ).toBeUndefined()
   })
 
   it('returns undefined for null', () => {

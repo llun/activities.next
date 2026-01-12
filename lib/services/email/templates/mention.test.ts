@@ -1,7 +1,7 @@
 import { ActorProfile } from '@/lib/models/actor'
 import { EditableStatus, StatusType } from '@/lib/models/status'
 
-import { getSubject, getTextContent, getHTMLContent } from './mention'
+import { getHTMLContent, getSubject, getTextContent } from './mention'
 
 describe('mention email template', () => {
   const mockActor: ActorProfile = {

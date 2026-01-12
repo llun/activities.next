@@ -1,9 +1,6 @@
 import { NotificationType } from '@/lib/database/types/notification'
 
-import {
-  groupNotifications,
-  GroupedNotification
-} from './groupNotifications'
+import { GroupedNotification, groupNotifications } from './groupNotifications'
 
 describe('#groupNotifications', () => {
   const baseNotification = {

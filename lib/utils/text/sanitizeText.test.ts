@@ -1,4 +1,4 @@
-import { sanitizeText, SANITIZED_OPTION } from './sanitizeText'
+import { SANITIZED_OPTION, sanitizeText } from './sanitizeText'
 
 describe('sanitizeText', () => {
   describe('SANITIZED_OPTION', () => {
@@ -61,12 +61,16 @@ describe('sanitizeText', () => {
 
     it('allows code blocks', () => {
       const input = '<pre><code>const x = 1;</code></pre>'
-      expect(sanitizeText(input)).toEqual('<pre><code>const x = 1;</code></pre>')
+      expect(sanitizeText(input)).toEqual(
+        '<pre><code>const x = 1;</code></pre>'
+      )
     })
 
     it('allows blockquotes', () => {
       const input = '<blockquote>Quoted text</blockquote>'
-      expect(sanitizeText(input)).toEqual('<blockquote>Quoted text</blockquote>')
+      expect(sanitizeText(input)).toEqual(
+        '<blockquote>Quoted text</blockquote>'
+      )
     })
 
     it('allows lists', () => {

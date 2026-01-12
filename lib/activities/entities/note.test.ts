@@ -1,11 +1,11 @@
 import { BaseNote } from './note'
 import {
-  getUrl,
-  getReply,
   getAttachments,
-  getTags,
   getContent,
-  getSummary
+  getReply,
+  getSummary,
+  getTags,
+  getUrl
 } from './note'
 
 describe('note entity utilities', () => {
@@ -70,9 +70,7 @@ describe('note entity utilities', () => {
         type: 'Note',
         id: 'https://example.com/note/1',
         content: 'Test',
-        attachment: [
-          { type: 'Document', url: 'https://example.com/image.jpg' }
-        ]
+        attachment: [{ type: 'Document', url: 'https://example.com/image.jpg' }]
       } as BaseNote
 
       const result = getAttachments(note)
