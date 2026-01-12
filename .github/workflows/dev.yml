@@ -4,7 +4,7 @@ on: push
 
 jobs:
   test:
-    name: 'Unit Tests'
+    name: 'All Tests'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -17,23 +17,7 @@ jobs:
         run: corepack enable
       - name: Install dependencies
         run: yarn install
-      - name: Test Without Database
-        run: yarn test:withoutDatabase
-  storage-test:
-    name: 'Database Tests'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Use Node.js 24
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-      - name: corepack enable
-        run: corepack enable
-      - name: Install dependencies
-        run: yarn install
-      - name: Test Database
-        run: yarn test:database
+      - name: Run all tests
+        run: yarn test
         env:
           TEST_DATABASE_TYPE: sqlite
