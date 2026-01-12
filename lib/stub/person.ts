@@ -49,9 +49,9 @@ export const MockActivityPubPerson = ({
 }: Params): Actor => {
   const userUrl = new URL(id)
   const username = userUrl.pathname.split('/').pop()
+  const isNoSharedInboxHost = userUrl.hostname === 'no.shared.inbox'
   const shouldIncludeSharedInbox =
-    includeSharedInbox ??
-    (sharedInboxUrl !== null && !id.startsWith('https://no.shared.inbox'))
+    includeSharedInbox ?? (sharedInboxUrl !== null && !isNoSharedInboxHost)
   const resolvedSharedInbox =
     sharedInboxUrl === undefined
       ? `https://${userUrl.host}/inbox`
