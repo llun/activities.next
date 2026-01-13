@@ -29,7 +29,9 @@ export const MockActivityPubFollowing = ({
       id: `${actorId}/following`,
       type: 'OrderedCollection',
       totalItems: resolvedTotalItems,
-      ...(shouldIncludeFirst ? { first: `${actorId}/following?page=true` } : null)
+      ...(shouldIncludeFirst
+        ? { first: `${actorId}/following?page=true` }
+        : null)
     }
   }
 

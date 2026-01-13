@@ -14,9 +14,7 @@
 - `yarn dev` runs the local Next.js development server.
 - `yarn build` builds the production app; `yarn start` serves it.
 - `yarn lint` runs ESLint across the workspace.
-- `yarn test` runs the full Jest suite.
-- `yarn test:withoutDatabase` runs tests excluding database-heavy suites.
-- `yarn test:database` runs database tests serially.
+- `yarn test` runs the full Jest suite (all tests run in parallel with SQLite in-memory databases).
 - `yarn migrate` applies Knex migrations; `yarn migrate:make <name>` creates a new migration.
 
 ## Coding Style & Naming Conventions
@@ -30,7 +28,7 @@
 
 - Jest is configured via `jest.config.js` with SWC transforms.
 - Prefer unit tests near `lib/` and route tests near `app/`.
-- Use `yarn test:database` when touching database adapters or migrations.
+- All tests run in parallel using isolated SQLite in-memory databases.
 
 ## Commit & Pull Request Guidelines
 
@@ -47,5 +45,5 @@
 
 - Supported backends: SQLite (`docs/sqlite-setup.md`) and PostgreSQL (`docs/postgresql-setup.md`).
 - Local SQLite is the simplest for development; run `yarn migrate` after updating schema or migrations.
-- For quick development checks, use `yarn test:withoutDatabase` to skip database tests.
+- Tests use isolated SQLite in-memory databases for fast, parallel execution.
 - Docker users should mount a persistent volume to `/opt/activities.next` (see `docs/setup.md`).

@@ -29,6 +29,10 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
   const observerRef = useRef<IntersectionObserver | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingReadsRef = useRef<Set<string>>(new Set())
+  // Store the callback in a ref so we can update it without recreating the observer
+  const callbackRef = useRef<(entries: IntersectionObserverEntry[]) => void>(
+    () => {}
+  )
 
   const markAsRead = useCallback(
     async (notificationIds: string[]) => {
@@ -67,52 +71,67 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
     }, 1000)
   }, [markAsRead])
 
+  // Update the callback ref whenever dependencies change
   useEffect(() => {
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const notificationId = entry.target.getAttribute(
-              'data-notification-id'
-            )
-            const groupedIdsAttr = entry.target.getAttribute('data-grouped-ids')
-            if (
-              notificationId &&
-              !readNotificationsRef.current.has(notificationId)
-            ) {
-              readNotificationsRef.current.add(notificationId)
-              setReadNotifications((prev) => new Set(prev).add(notificationId))
+    callbackRef.current = (entries: IntersectionObserverEntry[]) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const notificationId = entry.target.getAttribute(
+            'data-notification-id'
+          )
+          const groupedIdsAttr = entry.target.getAttribute('data-grouped-ids')
+          if (
+            notificationId &&
+            !readNotificationsRef.current.has(notificationId)
+          ) {
+            readNotificationsRef.current.add(notificationId)
+            setReadNotifications((prev) => new Set(prev).add(notificationId))
 
-              // Add all grouped IDs to pending reads
-              if (groupedIdsAttr) {
-                const groupedIds = groupedIdsAttr.split(',')
-                groupedIds.forEach((id) => pendingReadsRef.current.add(id))
-              } else {
-                pendingReadsRef.current.add(notificationId)
-              }
-              debouncedMarkAsRead()
+            // Add all grouped IDs to pending reads
+            if (groupedIdsAttr) {
+              const groupedIds = groupedIdsAttr.split(',')
+              groupedIds.forEach((id) => pendingReadsRef.current.add(id))
+            } else {
+              pendingReadsRef.current.add(notificationId)
             }
+            debouncedMarkAsRead()
           }
-        })
-      },
-      { threshold: 0.5 }
-    )
+        }
+      })
+    }
+  }, [debouncedMarkAsRead])
 
+  // Create observer once and keep it stable
+  const getOrCreateObserver = useCallback(() => {
+    if (!observerRef.current) {
+      observerRef.current = new IntersectionObserver(
+        (entries) => callbackRef.current(entries),
+        { threshold: 0.5 }
+      )
+    }
+    return observerRef.current
+  }, [])
+
+  useEffect(() => {
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect()
+        observerRef.current = null
       }
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [debouncedMarkAsRead])
-
-  const observeElement = useCallback((element: HTMLElement | null) => {
-    if (element && observerRef.current) {
-      observerRef.current.observe(element)
-    }
   }, [])
+
+  const observeElement = useCallback(
+    (element: HTMLElement | null) => {
+      if (!element) return
+      const observer = getOrCreateObserver()
+      observer.observe(element)
+    },
+    [getOrCreateObserver]
+  )
 
   return (
     <div className="space-y-4">

@@ -1,7 +1,12 @@
-import { StatusNote, StatusPoll } from '@/lib/models/status'
+import { FollowStatus } from '@/lib/models/follow'
+import { StatusNote, StatusPoll, StatusType } from '@/lib/models/status'
 import { TagType } from '@/lib/models/tag'
+import { addStatusToTimelines } from '@/lib/services/timelines'
+import { Timeline } from '@/lib/services/timelines/types'
+import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { databaseBeforeAll, getTestDatabaseTable } from '../testUtils'
 import { Database } from '../types'
@@ -529,6 +534,99 @@ describe('StatusDatabase', () => {
           voted: true,
           ownVotes: [0]
         })
+      })
+    })
+
+    describe('createAnnounce', () => {
+      const TEST_ID_ORIGINAL = `https://${TEST_DOMAIN}/users/announce-original`
+      const TEST_ID_BOOSTER = `https://${TEST_DOMAIN}/users/announce-booster`
+      const TEST_ID_FOLLOWER = `https://${TEST_DOMAIN}/users/announce-follower`
+
+      beforeAll(async () => {
+        await database.createAccount({
+          email: `announce-original@${TEST_DOMAIN}`,
+          username: 'announce-original',
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: 'privateKey-announce-original',
+          publicKey: 'publicKey-announce-original'
+        })
+        await database.createAccount({
+          email: `announce-booster@${TEST_DOMAIN}`,
+          username: 'announce-booster',
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: 'privateKey-announce-booster',
+          publicKey: 'publicKey-announce-booster'
+        })
+        await database.createAccount({
+          email: `announce-follower@${TEST_DOMAIN}`,
+          username: 'announce-follower',
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: 'privateKey-announce-follower',
+          publicKey: 'publicKey-announce-follower'
+        })
+      })
+
+      it('returns status with actorAnnounceStatusId in timeline', async () => {
+        await database.createFollow({
+          actorId: TEST_ID_BOOSTER,
+          targetActorId: TEST_ID_ORIGINAL,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${TEST_ID_BOOSTER}/inbox`,
+          sharedInbox: `${TEST_ID_BOOSTER}/inbox`
+        })
+        await database.createFollow({
+          actorId: TEST_ID_FOLLOWER,
+          targetActorId: TEST_ID_BOOSTER,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${TEST_ID_FOLLOWER}/inbox`,
+          sharedInbox: `${TEST_ID_FOLLOWER}/inbox`
+        })
+
+        const originalPostId = `${TEST_ID_ORIGINAL}/posts/boost-original`
+        const note = await database.createNote({
+          id: originalPostId,
+          url: originalPostId,
+          actorId: TEST_ID_ORIGINAL,
+          text: 'This is status for boost',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${TEST_ID_ORIGINAL}/followers`]
+        })
+        await addStatusToTimelines(database, note)
+
+        const announcePostId = `${TEST_ID_BOOSTER}/posts/boost-announce`
+        const announce = await database.createAnnounce({
+          id: announcePostId,
+          actorId: TEST_ID_BOOSTER,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${TEST_ID_BOOSTER}/followers`],
+          originalStatusId: originalPostId
+        })
+        if (!announce) {
+          fail('Announce must not be undefined')
+        }
+        await addStatusToTimelines(database, announce)
+
+        const boosterTimeline = await database.getTimeline({
+          timeline: Timeline.MAIN,
+          actorId: TEST_ID_BOOSTER
+        })
+        const statusData = boosterTimeline.shift() as StatusNote
+        expect(statusData.actorAnnounceStatusId).not.toBeNull()
+
+        const followerTimeline = await database.getTimeline({
+          timeline: Timeline.MAIN,
+          actorId: TEST_ID_FOLLOWER
+        })
+        const announceStatus = followerTimeline.shift()
+        if (announceStatus?.type !== StatusType.enum.Announce) {
+          fail('Status must be announce')
+        }
+
+        const originalStatus = announceStatus.originalStatus
+        expect(originalStatus.id).toEqual(note.id)
       })
     })
 
