@@ -31,6 +31,14 @@ const customJestConfig = {
   moduleNameMapper: {
     '^marked$': '<rootDir>/node_modules/marked/lib/marked.umd.js'
   },
+  collectCoverageFrom: [
+    'lib/**/*.{ts,tsx}',
+    'app/**/*.{ts,tsx}',
+    '!**/*.d.ts',
+    '!**/node_modules/**',
+    '!**/*.test.{ts,tsx}',
+    '!**/coverage/**'
+  ],
   verbose: true
 }
 
