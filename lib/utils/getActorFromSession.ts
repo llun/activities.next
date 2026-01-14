@@ -4,13 +4,10 @@ import { cookies } from 'next/headers'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 
-const getSessionToken = async (): Promise<string | undefined> => {
+const getActorIdFromCookie = async (): Promise<string | undefined> => {
   try {
     const cookieStore = await cookies()
-    return (
-      cookieStore.get('__Secure-next-auth.session-token')?.value ||
-      cookieStore.get('next-auth.session-token')?.value
-    )
+    return cookieStore.get('activities.actor-id')?.value
   } catch {
     // cookies() may throw if called outside of a request context
     return undefined
@@ -30,14 +27,21 @@ export const getActorFromSession = async (
     return null
   }
 
-  // 1. Check session-specific actor
-  const sessionToken = await getSessionToken()
-  if (sessionToken) {
-    const sessionData = await database.getAccountSession({
-      token: sessionToken
+  // 1. Check actor selection cookie
+  const actorIdFromCookie = await getActorIdFromCookie()
+  if (actorIdFromCookie) {
+    // Verify the actor belongs to the account
+    const account = await database.getAccountFromEmail({
+      email: session.user.email
     })
-    if (sessionData?.session?.actorId) {
-      return database.getActorFromId({ id: sessionData.session.actorId })
+    if (account) {
+      const actors = await database.getActorsForAccount({
+        accountId: account.id
+      })
+      const validActor = actors.find((a) => a.id === actorIdFromCookie)
+      if (validActor) {
+        return database.getActorFromId({ id: actorIdFromCookie })
+      }
     }
   }
 

@@ -52,7 +52,8 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
       })
 
       if (response.ok) {
-        router.refresh()
+        // Use hard navigation to ensure full page reload with new actor
+        window.location.reload()
       }
     } finally {
       setIsSwitching(false)
