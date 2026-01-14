@@ -1,9 +1,11 @@
 'use client'
 
 import intersection from 'lodash/intersection'
+import { Check, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
+import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
   Card,
@@ -12,6 +14,12 @@ import {
   CardHeader,
   CardTitle
 } from '@/lib/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/lib/components/ui/dropdown-menu'
 import { Label } from '@/lib/components/ui/label'
 import { UsableScopes } from '@/lib/database/types/oauth'
 import { Actor } from '@/lib/models/actor'
@@ -36,15 +44,31 @@ export const AuthorizeCard: FC<Props> = ({
   const router = useRouter()
   const availabledScopes = intersection(UsableScopes, requestedScopes)
   const [selectedActorId, setSelectedActorId] = useState(currentActorId)
+  const [isSwitching, setIsSwitching] = useState(false)
+
+  const selectedActor = actors.find((a) => a.id === selectedActorId) || actors[0]
+
+  const getAvatarInitial = (username: string) => {
+    if (!username) return '?'
+    return username[0].toUpperCase()
+  }
+
+  const getHandle = (actor: Actor) => `@${actor.username}@${actor.domain}`
 
   const handleActorChange = async (actorId: string) => {
+    if (actorId === selectedActorId || isSwitching) return
+
+    setIsSwitching(true)
     setSelectedActorId(actorId)
-    // Switch to the selected actor
-    await fetch('/api/v1/actors/switch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actorId })
-    })
+    try {
+      await fetch('/api/v1/actors/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actorId })
+      })
+    } finally {
+      setIsSwitching(false)
+    }
   }
 
   return (
@@ -62,43 +86,65 @@ export const AuthorizeCard: FC<Props> = ({
       <CardContent>
         <form action="/api/oauth/authorize" method="post" className="space-y-6">
           {actors.length > 1 && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-muted-foreground">
-                Select actor
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Choose which identity to authorize for this application
-              </p>
-              <div className="space-y-2">
-                {actors.map((actor) => (
-                  <div
-                    key={actor.id}
-                    className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
-                      selectedActorId === actor.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:bg-muted/50'
-                    }`}
-                    onClick={() => handleActorChange(actor.id)}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-muted-foreground">
+                Authorize as
+              </Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted"
+                    disabled={isSwitching}
                   >
-                    <input
-                      type="radio"
-                      name="selected_actor"
-                      value={actor.id}
-                      checked={selectedActorId === actor.id}
-                      onChange={() => handleActorChange(actor.id)}
-                      className="size-4"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium">
-                        {actor.name || actor.username}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        @{actor.username}@{actor.domain}
-                      </div>
+                    <Avatar className="h-10 w-10">
+                      {selectedActor?.iconUrl && (
+                        <AvatarImage src={selectedActor.iconUrl} />
+                      )}
+                      <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                        {getAvatarInitial(selectedActor?.username || '')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 overflow-hidden">
+                      <p className="text-sm font-medium truncate">
+                        {selectedActor?.name || selectedActor?.username}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {selectedActor && getHandle(selectedActor)}
+                      </p>
                     </div>
-                  </div>
-                ))}
-              </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[300px]">
+                  {actors.map((actor) => (
+                    <DropdownMenuItem
+                      key={actor.id}
+                      onClick={() => handleActorChange(actor.id)}
+                      disabled={isSwitching}
+                      className="flex items-center gap-3"
+                    >
+                      <Avatar className="h-8 w-8">
+                        {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
+                        <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 text-xs">
+                          {getAvatarInitial(actor.username)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 overflow-hidden">
+                        <p className="text-sm font-medium truncate">
+                          {actor.name || actor.username}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {getHandle(actor)}
+                        </p>
+                      </div>
+                      {actor.id === selectedActorId && (
+                        <Check className="h-4 w-4 text-primary" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
 
