@@ -22,12 +22,14 @@ export const defaultJobHandle =
         return
       }
 
-      const job = JOBS[message.name]
-      if (!job) {
+      const jobName = String(message.name)
+      const hasJob = Object.prototype.hasOwnProperty.call(JOBS, jobName)
+      const job = hasJob ? (JOBS as any)[jobName] : undefined
+      if (!hasJob || typeof job !== 'function') {
         logger.error({ message }, 'Unknown job name')
         span.setStatus({
           code: SpanStatusCode.ERROR,
-          message: 'Unkown job name'
+          message: 'Unknown job name'
         })
         span.end()
         return

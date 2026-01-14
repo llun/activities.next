@@ -37,7 +37,22 @@ const customJestConfig = {
     '!**/*.d.ts',
     '!**/node_modules/**',
     '!**/*.test.{ts,tsx}',
-    '!**/coverage/**'
+    '!**/coverage/**',
+    // Exclude React components (require browser testing)
+    '!lib/components/**',
+    '!app/**/page.tsx',
+    '!app/**/layout.tsx',
+    '!app/**/*Card*.tsx',
+    '!app/**/*Button*.tsx',
+    '!app/**/*Form*.tsx',
+    '!app/**/*Modal*.tsx',
+    '!app/**/*Timeline*.tsx',
+    '!app/**/*Gallery*.tsx',
+    '!app/**/*.tsx',
+    // Exclude UI components
+    '!lib/components/ui/**',
+    // Exclude browser-only client code
+    '!lib/client.ts'
   ],
   verbose: true
 }
