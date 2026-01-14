@@ -20,21 +20,21 @@ export function createMockRequest(
 ): NextRequest {
   const { method = 'GET', headers = {}, body } = options
 
-  const init: globalThis.RequestInit = {
+  const headersObj = new Headers(headers)
+
+  if (body && typeof body !== 'string') {
+    headersObj.set('Content-Type', 'application/json')
+  }
+
+  return new NextRequest(url, {
     method,
-    headers: new Headers(headers)
-  }
-
-  if (body) {
-    if (typeof body === 'string') {
-      init.body = body
-    } else {
-      init.body = JSON.stringify(body)
-      ;(init.headers as Headers).set('Content-Type', 'application/json')
-    }
-  }
-
-  return new NextRequest(url, init)
+    headers: headersObj,
+    body: body
+      ? typeof body === 'string'
+        ? body
+        : JSON.stringify(body)
+      : undefined
+  })
 }
 
 /**
