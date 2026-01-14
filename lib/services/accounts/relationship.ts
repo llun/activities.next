@@ -33,7 +33,9 @@ export const getRelationship = async ({
     })
   ])
 
-  const isRequested = follow && follow.status === FollowStatus.enum.Requested
+  const isRequested = Boolean(
+    follow && follow.status === FollowStatus.enum.Requested
+  )
 
   return Mastodon.Relationship.parse({
     id: urlToId(targetActorId),
