@@ -2,7 +2,7 @@
 
 import intersection from 'lodash/intersection'
 import { useRouter } from 'next/navigation'
-import { FC } from 'react'
+import { FC, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -14,6 +14,7 @@ import {
 } from '@/lib/components/ui/card'
 import { Label } from '@/lib/components/ui/label'
 import { UsableScopes } from '@/lib/database/types/oauth'
+import { Actor } from '@/lib/models/actor'
 import { Client } from '@/lib/models/oauth2/client'
 
 import { SearchParams } from './types'
@@ -21,12 +22,31 @@ import { SearchParams } from './types'
 interface Props {
   client: Client
   searchParams: SearchParams
+  actors: Actor[]
+  currentActorId: string
 }
 
-export const AuthorizeCard: FC<Props> = ({ searchParams, client }) => {
+export const AuthorizeCard: FC<Props> = ({
+  searchParams,
+  client,
+  actors,
+  currentActorId
+}) => {
   const requestedScopes = searchParams.scope.split(' ')
   const router = useRouter()
   const availabledScopes = intersection(UsableScopes, requestedScopes)
+  const [selectedActorId, setSelectedActorId] = useState(currentActorId)
+
+  const handleActorChange = async (actorId: string) => {
+    setSelectedActorId(actorId)
+    // Switch to the selected actor
+    await fetch('/api/v1/actors/switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actorId })
+    })
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -41,6 +61,47 @@ export const AuthorizeCard: FC<Props> = ({ searchParams, client }) => {
       </CardHeader>
       <CardContent>
         <form action="/api/oauth/authorize" method="post" className="space-y-6">
+          {actors.length > 1 && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">
+                Select actor
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Choose which identity to authorize for this application
+              </p>
+              <div className="space-y-2">
+                {actors.map((actor) => (
+                  <div
+                    key={actor.id}
+                    className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
+                      selectedActorId === actor.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:bg-muted/50'
+                    }`}
+                    onClick={() => handleActorChange(actor.id)}
+                  >
+                    <input
+                      type="radio"
+                      name="selected_actor"
+                      value={actor.id}
+                      checked={selectedActorId === actor.id}
+                      onChange={() => handleActorChange(actor.id)}
+                      className="size-4"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium">
+                        {actor.name || actor.username}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        @{actor.username}@{actor.domain}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-muted-foreground">
               Review permissions
