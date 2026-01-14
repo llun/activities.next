@@ -75,10 +75,12 @@ export function StorageAdapter(secret: string): Adapter {
     async createSession(session) {
       const { sessionToken, userId, expires } = session
       const database = getDatabase()
+      const account = await database?.getAccountFromId({ id: userId })
       await database?.createAccountSession({
         accountId: userId,
         token: sessionToken,
-        expireAt: expires.getTime()
+        expireAt: expires.getTime(),
+        actorId: account?.defaultActorId || null
       })
       return session
     },
