@@ -1,12 +1,25 @@
 import { Session } from 'next-auth'
+import { cookies } from 'next/headers'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 
+const getSessionToken = async (): Promise<string | undefined> => {
+  try {
+    const cookieStore = await cookies()
+    return (
+      cookieStore.get('__Secure-next-auth.session-token')?.value ||
+      cookieStore.get('next-auth.session-token')?.value
+    )
+  } catch {
+    // cookies() may throw if called outside of a request context
+    return undefined
+  }
+}
+
 export const getActorFromSession = async (
   database: Database,
-  session: Session | null,
-  sessionToken?: string
+  session: Session | null
 ) => {
   const config = getConfig()
   if (!session?.user?.email) return null
@@ -18,6 +31,7 @@ export const getActorFromSession = async (
   }
 
   // 1. Check session-specific actor
+  const sessionToken = await getSessionToken()
   if (sessionToken) {
     const sessionData = await database.getAccountSession({
       token: sessionToken
