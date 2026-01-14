@@ -33,9 +33,17 @@ export const POST = OAuthGuard<Params>(
     })
     if (!status) return apiErrorResponse(404)
 
+    // Check if already liked to avoid duplicate activities
+    const alreadyLiked =
+      (status.type === 'Note' || status.type === 'Poll') && status.isActorLiked
+
     // Create like (database handles idempotency)
     await database.createLike({ actorId: currentActor.id, statusId })
-    await sendLike({ currentActor, status })
+
+    // Only send Like activity if not already liked
+    if (!alreadyLiked) {
+      await sendLike({ currentActor, status })
+    }
 
     // Refetch status to get updated counts
     const updatedStatus = await database.getStatus({

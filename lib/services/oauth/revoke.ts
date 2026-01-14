@@ -35,8 +35,21 @@ export const revokeToken = async ({
   // If tokenTypeHint is 'refresh_token' or JWT decode failed, try refresh token
   if (tokenTypeHint === 'refresh_token' || tokenTypeHint !== 'access_token') {
     try {
+      // Refresh tokens may also be JWTs, decode to get the refresh token ID
+      let refreshTokenId = token
+      try {
+        const decoded = jwt.verify(
+          token,
+          getConfig().secretPhase
+        ) as jwt.JwtPayload
+        // Use jti or refresh_token_id from JWT payload
+        refreshTokenId = decoded.jti || decoded.refresh_token_id || token
+      } catch {
+        // If not a JWT or invalid, use token as-is (opaque token)
+      }
+
       const accessToken = await database.getAccessTokenByRefreshToken({
-        refreshToken: token
+        refreshToken: refreshTokenId
       })
       if (accessToken) {
         await database.revokeAccessToken({
