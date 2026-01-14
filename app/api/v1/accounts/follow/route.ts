@@ -1,3 +1,7 @@
+/**
+ * @deprecated Use POST /api/v1/accounts/:id/follow and /unfollow instead
+ * This custom endpoint is maintained for backward compatibility.
+ */
 import { follow, unfollow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { FollowStatus } from '@/lib/models/follow'
