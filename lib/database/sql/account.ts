@@ -350,25 +350,79 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async getActorsForAccount({
     accountId
   }: GetActorsForAccountParams): Promise<Actor[]> {
-    const actors = await database('actors').where('accountId', accountId)
-    if (!actors) return []
+    const sqlActors = await database('actors').where('accountId', accountId)
+    if (!sqlActors || sqlActors.length === 0) return []
 
-    return actors.map((actor) => {
-      const account = {
-        id: accountId,
-        email: '',
-        createdAt: getCompatibleTime(actor.createdAt),
-        updatedAt: getCompatibleTime(actor.updatedAt)
-      }
+    const account = await database('accounts').where('id', accountId).first()
+    if (!account) return []
 
-      return Actor.parse({
-        ...actor,
-        account,
-        settings: getCompatibleJSON(actor.settings),
-        createdAt: getCompatibleTime(actor.createdAt),
-        updatedAt: getCompatibleTime(actor.updatedAt)
+    const results: Actor[] = []
+
+    for (const sqlActor of sqlActors) {
+      const settings = getCompatibleJSON<ActorSettings>(sqlActor.settings)
+
+      const [totalFollowers, totalFollowing, totalStatus, lastStatus] =
+        await database.transaction(async (trx) => {
+          return Promise.all([
+            trx('follows')
+              .where('targetActorId', sqlActor.id)
+              .andWhere('status', 'Accepted')
+              .count<{ count: string }>('* as count')
+              .first(),
+            trx('follows')
+              .where('actorId', sqlActor.id)
+              .andWhere('status', 'Accepted')
+              .count<{ count: string }>('* as count')
+              .first(),
+            trx('counters').where('id', `total-status:${sqlActor.id}`).first(),
+            trx('statuses')
+              .where('actorId', sqlActor.id)
+              .orderBy('createdAt', 'desc')
+              .first<{ createdAt: number | Date }>('createdAt')
+          ])
+        })
+
+      const actor = Actor.parse({
+        id: sqlActor.id,
+        username: sqlActor.username,
+        domain: sqlActor.domain,
+        ...(sqlActor.name ? { name: sqlActor.name } : null),
+        ...(sqlActor.summary ? { summary: sqlActor.summary } : null),
+        ...(settings.iconUrl ? { iconUrl: settings.iconUrl } : null),
+        ...(settings.headerImageUrl
+          ? { headerImageUrl: settings.headerImageUrl }
+          : null),
+        ...(settings.appleSharedAlbumToken
+          ? { appleSharedAlbumToken: settings.appleSharedAlbumToken }
+          : null),
+        manuallyApprovesFollowers: settings.manuallyApprovesFollowers ?? true,
+        followersUrl: settings.followersUrl,
+        inboxUrl: settings.inboxUrl,
+        sharedInboxUrl: settings.sharedInboxUrl,
+        publicKey: sqlActor.publicKey,
+        ...(sqlActor.privateKey ? { privateKey: sqlActor.privateKey } : null),
+        account: Account.parse({
+          ...account,
+          createdAt: getCompatibleTime(account.createdAt),
+          updatedAt: getCompatibleTime(account.updatedAt),
+          ...(account.verifiedAt
+            ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
+            : null)
+        }),
+        followingCount: parseInt(totalFollowing?.count ?? '0', 10),
+        followersCount: parseInt(totalFollowers?.count ?? '0', 10),
+        statusCount: totalStatus?.value ?? 0,
+        lastStatusAt: lastStatus?.createdAt
+          ? getCompatibleTime(lastStatus.createdAt)
+          : null,
+        createdAt: getCompatibleTime(sqlActor.createdAt),
+        updatedAt: getCompatibleTime(sqlActor.updatedAt)
       })
-    })
+
+      results.push(actor)
+    }
+
+    return results
   },
 
   async setDefaultActor({
