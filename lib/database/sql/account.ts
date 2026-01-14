@@ -1,5 +1,6 @@
 import { Knex } from 'knex'
 
+import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   AccountDatabase,
@@ -363,7 +364,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       return Actor.parse({
         ...actor,
         account,
-        settings: JSON.parse(actor.settings || '{}'),
+        settings: getCompatibleJSON(actor.settings),
         createdAt: getCompatibleTime(actor.createdAt),
         updatedAt: getCompatibleTime(actor.updatedAt)
       })
