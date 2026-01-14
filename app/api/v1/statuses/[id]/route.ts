@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { Scope } from '@/lib/database/types/oauth'
 import { StatusType } from '@/lib/models/status'
@@ -20,7 +21,8 @@ interface Params {
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
   HttpMethod.enum.GET,
-  HttpMethod.enum.PUT
+  HttpMethod.enum.PUT,
+  HttpMethod.enum.DELETE
 ]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -90,6 +92,44 @@ export const PUT = OAuthGuard<Params>(
       req,
       allowedMethods: CORS_HEADERS,
       data: mastodonStatus
+    })
+  }
+)
+
+export const DELETE = OAuthGuard<Params>(
+  [Scope.enum.write],
+  async (req, context) => {
+    const { database, currentActor, params } = context
+    const encodedStatusId = (await params).id
+    if (!encodedStatusId) return apiErrorResponse(404)
+
+    const statusId = idToUrl(encodedStatusId)
+    const status = await database.getStatus({ statusId, withReplies: false })
+    if (!status) return apiErrorResponse(404)
+
+    // Only owner can delete
+    if (status.actorId !== currentActor.id) {
+      return apiErrorResponse(403)
+    }
+
+    // Get the status for return before deletion
+    const mastodonStatus = await getMastodonStatus(
+      database,
+      status,
+      currentActor.id
+    )
+
+    // Delete the status and send Delete activity
+    await deleteStatusFromUserInput({
+      currentActor,
+      statusId,
+      database
+    })
+
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: mastodonStatus ?? {}
     })
   }
 )
