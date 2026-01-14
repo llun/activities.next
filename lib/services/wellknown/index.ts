@@ -1,7 +1,7 @@
 export {
   getOAuthAuthorizationServerMetadata,
-  OAuthAuthorizationServerMetadata
+  type OAuthAuthorizationServerMetadata
 } from './oauthAuthorizationServer'
-export { getWebFingerResponse, WebFingerResponse } from './webfinger'
+export { getWebFingerResponse, type WebFingerResponse } from './webfinger'
 export { getHostMetaXML } from './hostMeta'
-export { getNodeInfoLinks, NodeInfoLinks } from './nodeinfo'
+export { getNodeInfoLinks, type NodeInfoLinks } from './nodeinfo'

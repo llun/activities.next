@@ -26,7 +26,11 @@ export const POST = OAuthGuard<Params>(
     if (!encodedStatusId) return apiErrorResponse(404)
 
     const statusId = idToUrl(encodedStatusId)
-    const status = await database.getStatus({ statusId, withReplies: false })
+    const status = await database.getStatus({
+      statusId,
+      withReplies: false,
+      currentActorId: currentActor.id
+    })
     if (!status) return apiErrorResponse(404)
 
     await database.deleteLike({ actorId: currentActor.id, statusId })
@@ -35,7 +39,8 @@ export const POST = OAuthGuard<Params>(
     // Refetch status to get updated counts
     const updatedStatus = await database.getStatus({
       statusId,
-      withReplies: false
+      withReplies: false,
+      currentActorId: currentActor.id
     })
     if (!updatedStatus) return apiErrorResponse(500)
 

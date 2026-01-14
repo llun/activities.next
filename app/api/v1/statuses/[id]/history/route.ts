@@ -28,6 +28,11 @@ export const GET = OAuthGuard<Params>(
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status) return apiErrorResponse(404)
 
+    // Only note and poll statuses have text content
+    if (status.type === 'Announce') {
+      return apiErrorResponse(404)
+    }
+
     // Return current version as history (edit history not tracked)
     const history = [
       {
