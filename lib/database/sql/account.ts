@@ -5,21 +5,27 @@ import {
   AccountDatabase,
   CreateAccountParams,
   CreateAccountSessionParams,
+  CreateActorForAccountParams,
   DeleteAccountSessionParams,
   GetAccountAllSessionsParams,
+  GetAccountFromEmailParams,
   GetAccountFromIdParams,
   GetAccountFromProviderIdParams,
   GetAccountProvidersParams,
   GetAccountSessionParams,
+  GetActorsForAccountParams,
   IsAccountExistsParams,
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
+  SetDefaultActorParams,
+  SetSessionActorParams,
   UnlinkAccountFromProviderParams,
   UpdateAccountSessionParams,
   VerifyAccountParams
 } from '@/lib/database/types/account'
 import { ActorSettings } from '@/lib/database/types/sql'
 import { Account } from '@/lib/models/account'
+import { Actor } from '@/lib/models/actor'
 import { Session } from '@/lib/models/session'
 
 export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
@@ -88,6 +94,21 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
     const account = await database('accounts').where('id', id).first()
+    if (!account) return null
+    return {
+      ...account,
+      ...(account.verifiedAt
+        ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
+        : null),
+      createdAt: getCompatibleTime(account.createdAt),
+      updatedAt: getCompatibleTime(account.updatedAt)
+    }
+  },
+
+  async getAccountFromEmail({
+    email
+  }: GetAccountFromEmailParams): Promise<Account | null> {
+    const account = await database('accounts').where('email', email).first()
     if (!account) return null
     return {
       ...account,
@@ -174,7 +195,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async createAccountSession({
     accountId,
     expireAt,
-    token
+    token,
+    actorId
   }: CreateAccountSessionParams): Promise<void> {
     const currentTime = new Date()
 
@@ -182,6 +204,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       id: crypto.randomUUID(),
       accountId,
       token,
+      actorId: actorId ?? null,
 
       expireAt: new Date(expireAt),
 
@@ -200,6 +223,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     const {
       accountId,
       token: sessionToken,
+      actorId,
       expireAt,
       createdAt,
       updatedAt
@@ -211,6 +235,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       account,
       session: Session.parse({
         accountId,
+        actorId: actorId ?? null,
         expireAt: getCompatibleTime(expireAt),
         token: sessionToken,
         createdAt: getCompatibleTime(createdAt),
@@ -230,6 +255,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     return session.map((session) =>
       Session.parse({
         ...session,
+        actorId: session.actorId ?? null,
         expireAt: getCompatibleTime(session.expireAt),
         createdAt: getCompatibleTime(session.createdAt),
         updatedAt: getCompatibleTime(session.updatedAt)
@@ -287,5 +313,82 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       .where('accountId', accountId)
       .where('provider', provider)
       .delete()
+  },
+
+  async createActorForAccount({
+    accountId,
+    username,
+    domain,
+    privateKey,
+    publicKey
+  }: CreateActorForAccountParams): Promise<string> {
+    const actorId = `https://${domain}/users/${username}`
+    const currentTime = new Date()
+
+    const actorSettings: ActorSettings = {
+      followersUrl: `${actorId}/followers`,
+      inboxUrl: `${actorId}/inbox`,
+      sharedInboxUrl: `https://${domain}/inbox`
+    }
+
+    await database('actors').insert({
+      id: actorId,
+      accountId,
+      username,
+      domain,
+      settings: JSON.stringify(actorSettings),
+      publicKey,
+      privateKey,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+
+    return actorId
+  },
+
+  async getActorsForAccount({
+    accountId
+  }: GetActorsForAccountParams): Promise<Actor[]> {
+    const actors = await database('actors').where('accountId', accountId)
+    if (!actors) return []
+
+    return actors.map((actor) => {
+      const account = {
+        id: accountId,
+        email: '',
+        createdAt: getCompatibleTime(actor.createdAt),
+        updatedAt: getCompatibleTime(actor.updatedAt)
+      }
+
+      return Actor.parse({
+        ...actor,
+        account,
+        settings: JSON.parse(actor.settings || '{}'),
+        createdAt: getCompatibleTime(actor.createdAt),
+        updatedAt: getCompatibleTime(actor.updatedAt)
+      })
+    })
+  },
+
+  async setDefaultActor({
+    accountId,
+    actorId
+  }: SetDefaultActorParams): Promise<void> {
+    const currentTime = new Date()
+    await database('accounts').where('id', accountId).update({
+      defaultActorId: actorId,
+      updatedAt: currentTime
+    })
+  },
+
+  async setSessionActor({
+    token,
+    actorId
+  }: SetSessionActorParams): Promise<void> {
+    const currentTime = new Date()
+    await database('sessions').where('token', token).update({
+      actorId,
+      updatedAt: currentTime
+    })
   }
 })
