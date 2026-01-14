@@ -4,7 +4,6 @@ import {
   PostBoxAttachment,
   UploadedAttachment
 } from '@/lib/models/attachment'
-import { Follow, FollowStatus } from '@/lib/models/follow'
 import { Status } from '@/lib/models/status'
 import { PresignedUrlOutput } from '@/lib/services/medias/types'
 import { TimelineFormat } from '@/lib/services/timelines/const'
@@ -129,55 +128,69 @@ export interface DefaultStatusParams {
   statusId: string
 }
 
+/**
+ * Deletes a status using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/statuses/#delete
+ */
 export const deleteStatus = async ({ statusId }: DefaultStatusParams) => {
-  const response = await fetch(`/api/v1/accounts/outbox`, {
+  const response = await fetch(`/api/v1/statuses/${urlToId(statusId)}`, {
     method: 'DELETE',
     headers: {
       'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      statusId
-    })
+    }
   })
   if (response.status !== 200) {
-    // Create or throw an error here
     return false
   }
 
   return true
 }
 
+/**
+ * Reblogs/reposts a status using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/statuses/#boost
+ */
 export const repostStatus = async ({ statusId }: DefaultStatusParams) => {
-  const response = await fetch('/api/v1/accounts/repost', {
+  const response = await fetch(`/api/v1/statuses/${urlToId(statusId)}/reblog`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ statusId })
+    }
   })
   if (response.status !== 200) return null
-  return response.json() as Promise<{ statusId: string }>
+  const mastodonStatus = await response.json()
+  return { statusId: mastodonStatus.id }
 }
 
+/**
+ * Undoes a reblog/repost using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/statuses/#unreblog
+ */
 export const undoRepostStatus = async ({ statusId }: DefaultStatusParams) => {
-  const response = await fetch('/api/v1/accounts/repost', {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ statusId })
-  })
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(statusId)}/unreblog`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  )
   if (response.status !== 200) return null
-  return response.json() as Promise<{ statusId: string }>
+  const mastodonStatus = await response.json()
+  return { statusId: mastodonStatus.id }
 }
 
+/**
+ * Favourites/likes a status using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/statuses/#favourite
+ */
 export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
-  await fetch('/api/v1/accounts/like', {
+  await fetch(`/api/v1/statuses/${urlToId(statusId)}/favourite`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ statusId })
+    }
   })
 }
 
@@ -194,13 +207,16 @@ export const getStatusFavouritedBy = async ({
   return response.json()
 }
 
+/**
+ * Unfavourites/unlikes a status using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/statuses/#unfavourite
+ */
 export const undoLikeStatus = async ({ statusId }: DefaultStatusParams) => {
-  await fetch('/api/v1/accounts/like', {
-    method: 'DELETE',
+  await fetch(`/api/v1/statuses/${urlToId(statusId)}/unfavourite`, {
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ statusId })
+    }
   })
 }
 
@@ -226,45 +242,60 @@ export const votePoll = async ({ statusId, choices }: VotePollParams) => {
 interface FollowParams {
   targetActorId: string
 }
+
+/**
+ * Checks if current user is following the target actor using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/accounts/#relationships
+ */
 export const isFollowing = async ({ targetActorId }: FollowParams) => {
-  const searchParams = new URLSearchParams({ targetActorId })
-  const response = await fetch(`/api/v1/accounts/follow?${searchParams}`, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json'
+  const encodedId = urlToId(targetActorId)
+  const response = await fetch(
+    `/api/v1/accounts/relationships?id[]=${encodedId}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
     }
-  })
+  )
   if (response.status !== 200) {
     return false
   }
 
-  const data = await response.json()
-  if (!data.follow) return false
-  const follow = Follow.parse(data.follow)
-  return follow.status === FollowStatus.enum.Accepted
+  const relationships = await response.json()
+  if (!relationships.length) return false
+  return relationships[0].following === true
 }
 
+/**
+ * Follows an account using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/accounts/#follow
+ */
 export const follow = async ({ targetActorId }: FollowParams) => {
-  const response = await fetch(`/api/v1/accounts/follow`, {
+  const encodedId = urlToId(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/follow`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ target: targetActorId })
+    }
   })
-  if (response.status !== 202) return false
+  if (response.status !== 200) return false
   return true
 }
 
+/**
+ * Unfollows an account using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/accounts/#unfollow
+ */
 export const unfollow = async ({ targetActorId }: FollowParams) => {
-  const response = await fetch(`/api/v1/accounts/follow`, {
-    method: 'DELETE',
+  const encodedId = urlToId(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/unfollow`, {
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ target: targetActorId })
+    }
   })
-  if (response.status !== 202) return false
+  if (response.status !== 200) return false
   return true
 }
 

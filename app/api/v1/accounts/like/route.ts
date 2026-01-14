@@ -1,3 +1,7 @@
+/**
+ * @deprecated Use POST /api/v1/statuses/:id/favourite instead
+ * This custom endpoint is maintained for backward compatibility.
+ */
 import { sendLike, sendUndoLike } from '@/lib/activities'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
