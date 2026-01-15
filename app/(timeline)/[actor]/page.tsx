@@ -50,7 +50,7 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
-  const { person, statuses, statusesCount, followingCount, followersCount } =
+  const { person, statuses, attachments, statusesCount, followingCount, followersCount } =
     actorProfile
 
   const currentActor = await getActorFromSession(database, session)
@@ -152,7 +152,12 @@ const Page: FC<Props> = async ({ params }) => {
       </section>
 
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <ActorTimelines host={host} statuses={statuses} />
+        <ActorTimelines
+          host={host}
+          actorId={person.id}
+          statuses={statuses}
+          attachments={attachments}
+        />
       </section>
     </div>
   )
