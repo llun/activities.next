@@ -107,13 +107,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .orderBy('id', 'desc')
-    
+
     if (maxCreatedAt) {
       query = query.where('createdAt', '<', new Date(maxCreatedAt))
     }
-    
+
     query = query.limit(limit)
-    
+
     const data = await query
     return data.map((item) =>
       Attachment.parse({
