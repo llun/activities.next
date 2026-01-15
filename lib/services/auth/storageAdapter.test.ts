@@ -1,7 +1,6 @@
 import { getTestSQLDatabase } from '../../database/testUtils'
 import { seedDatabase } from '../../stub/database'
 import { seedActor1 } from '../../stub/seed/actor1'
-
 import { StorageAdapter, userFromAccount } from './storageAdapter'
 
 // Mock database getter
@@ -166,7 +165,9 @@ describe('StorageAdapter', () => {
       })
 
       expect(updated).not.toBeNull()
-      expect(updated?.expires.getTime()).toBeGreaterThan(originalExpires.getTime())
+      expect(updated?.expires.getTime()).toBeGreaterThan(
+        originalExpires.getTime()
+      )
     })
 
     it('returns null when database unavailable', async () => {

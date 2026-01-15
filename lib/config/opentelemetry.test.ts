@@ -1,4 +1,4 @@
-import { getOtelConfig, OpenTelemetryConfig } from './opentelemetry'
+import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
 
 describe('OpenTelemetry config', () => {
   const originalEnv = process.env

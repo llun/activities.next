@@ -1,4 +1,9 @@
-import { getMediaStorageConfig, MediaStorageType, MediaStorageFileConfig, MediaStorageS3Config } from './mediaStorage'
+import {
+  MediaStorageFileConfig,
+  MediaStorageS3Config,
+  MediaStorageType,
+  getMediaStorageConfig
+} from './mediaStorage'
 
 describe('MediaStorage config', () => {
   const originalEnv = process.env
@@ -63,7 +68,9 @@ describe('MediaStorage config', () => {
 
       expect(config).not.toBeNull()
       expect(config?.mediaStorage.type).toBe(MediaStorageType.LocalFile)
-      expect((config?.mediaStorage as { path: string }).path).toBe('/data/uploads')
+      expect((config?.mediaStorage as { path: string }).path).toBe(
+        '/data/uploads'
+      )
     })
 
     it('builds fs config with custom max file size', () => {
@@ -85,7 +92,9 @@ describe('MediaStorage config', () => {
 
       expect(config).not.toBeNull()
       expect(config?.mediaStorage.type).toBe(MediaStorageType.S3Storage)
-      expect((config?.mediaStorage as { bucket: string }).bucket).toBe('test-bucket')
+      expect((config?.mediaStorage as { bucket: string }).bucket).toBe(
+        'test-bucket'
+      )
     })
 
     it('builds object storage config with hostname', () => {
@@ -97,7 +106,9 @@ describe('MediaStorage config', () => {
       const config = getMediaStorageConfig()
 
       expect(config?.mediaStorage.type).toBe(MediaStorageType.ObjectStorage)
-      expect((config?.mediaStorage as { hostname: string }).hostname).toBe('storage.example.com')
+      expect((config?.mediaStorage as { hostname: string }).hostname).toBe(
+        'storage.example.com'
+      )
     })
 
     it('returns null for unknown storage type', () => {

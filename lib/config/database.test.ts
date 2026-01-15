@@ -37,7 +37,9 @@ describe('Database config', () => {
 
       expect(config).not.toBeNull()
       expect(config?.database.client).toBe('sqlite3')
-      expect((config?.database.connection as { filename: string }).filename).toBe('/path/to/db.sqlite')
+      expect(
+        (config?.database.connection as { filename: string }).filename
+      ).toBe('/path/to/db.sqlite')
     })
 
     it('builds better-sqlite3 config with default filename', () => {
@@ -47,7 +49,9 @@ describe('Database config', () => {
 
       expect(config).not.toBeNull()
       expect(config?.database.client).toBe('better-sqlite3')
-      expect((config?.database.connection as { filename: string }).filename).toBe(':memory:')
+      expect(
+        (config?.database.connection as { filename: string }).filename
+      ).toBe(':memory:')
     })
 
     it('builds pg config from env vars', () => {
@@ -82,7 +86,9 @@ describe('Database config', () => {
 
       expect(config).not.toBeNull()
       expect(config?.database.client).toBe('pg-native')
-      const conn = config?.database.connection as { ssl: { rejectUnauthorized: boolean } }
+      const conn = config?.database.connection as {
+        ssl: { rejectUnauthorized: boolean }
+      }
       expect(conn.ssl.rejectUnauthorized).toBe(false)
     })
 

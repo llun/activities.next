@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getTestSQLDatabase } from '../../database/testUtils'
 import { seedDatabase } from '../../stub/database'
 import { seedActor1 } from '../../stub/seed/actor1'
-
 import { OnlyLocalUserGuard } from './OnlyLocalUserGuard'
 
 // Mock database getter

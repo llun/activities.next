@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { ACTIVITIES_SHARED_KEY } from '../../constants'
-
 import { AppRouterSharedKeyGuard } from './AppRouterSharedKeyGuard'
 
 const mockGetConfig = jest.fn()

@@ -1,7 +1,6 @@
 import { getTestSQLDatabase } from '../../database/testUtils'
 import { seedDatabase } from '../../stub/database'
 import { ACTOR1_ID } from '../../stub/seed/actor1'
-
 import { UserRepository } from './userRepository'
 
 describe('UserRepository', () => {
