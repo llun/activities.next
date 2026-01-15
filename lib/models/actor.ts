@@ -33,7 +33,9 @@ export const Actor = ActorProfile.extend({
   privateKey: z.string().optional(),
   publicKey: z.string(),
   account: Account.optional(),
-  updatedAt: z.number()
+  updatedAt: z.number(),
+  deletionStatus: z.enum(['scheduled', 'deleting']).nullable().optional(),
+  deletionScheduledAt: z.number().nullable().optional()
 })
 export type Actor = z.infer<typeof Actor>
 
