@@ -1,4 +1,4 @@
-import { getAuthConfig, AuthConfig } from './auth'
+import { AuthConfig, getAuthConfig } from './auth'
 
 describe('Auth config', () => {
   const originalEnv = process.env

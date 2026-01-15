@@ -1,9 +1,9 @@
 import {
-  getSpan,
-  getTracer,
-  Trace,
   TRACE_APPLICATION_SCOPE,
-  TRACE_APPLICATION_VERSION
+  TRACE_APPLICATION_VERSION,
+  Trace,
+  getSpan,
+  getTracer
 } from './trace'
 
 describe('trace utilities', () => {

@@ -4,6 +4,7 @@ import { getProviders } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { DefaultActorSelector } from '@/lib/components/settings/DefaultActorSelector'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
@@ -21,6 +22,18 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Activities.next: Settings'
+}
+
+const isRealAvatar = (url?: string) => {
+  if (!url) return false
+  if (url.includes('gravatar')) return false
+  if (url.includes('ui-avatars')) return false
+  if (url.includes('robohash')) return false
+  if (url.includes('dicebear')) return false
+  if (url.includes('boringavatars')) return false
+  if (url.includes('default')) return false
+  if (url.includes('placeholder')) return false
+  return true
 }
 
 const Page = async () => {
@@ -41,16 +54,18 @@ const Page = async () => {
 
   const profile = getActorProfile(actor)
   const { auth } = getConfig()
-  const [nonCredentialsProviders, connectedProviders] = await Promise.all([
-    (providers &&
-      Object.values(providers).filter((provider) => {
-        if (provider.id === 'credentials') return false
-        if (provider.id === 'github' && !auth?.github) return false
-        return true
-      })) ||
-      [],
-    database.getAccountProviders({ accountId: actor.account.id })
-  ])
+  const [nonCredentialsProviders, connectedProviders, actors] =
+    await Promise.all([
+      (providers &&
+        Object.values(providers).filter((provider) => {
+          if (provider.id === 'credentials') return false
+          if (provider.id === 'github' && !auth?.github) return false
+          return true
+        })) ||
+        [],
+      database.getAccountProviders({ accountId: actor.account.id }),
+      database.getActorsForAccount({ accountId: actor.account.id })
+    ])
   return (
     <div className="space-y-6">
       <div>
@@ -66,6 +81,18 @@ const Page = async () => {
             <h2 className="text-lg font-semibold">Profile</h2>
             <p className="text-sm text-muted-foreground">
               Public information visible on your profile.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Handle</Label>
+            <Input
+              value={`@${profile.username}@${profile.domain}`}
+              disabled
+              className="bg-muted"
+            />
+            <p className="text-[0.8rem] text-muted-foreground">
+              Your unique identifier on the fediverse
             </p>
           </div>
 
@@ -178,6 +205,27 @@ const Page = async () => {
           <Button type="submit">Update</Button>
         </div>
       </form>
+
+      {actors.length > 1 && (
+        <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+          <div>
+            <h2 className="text-lg font-semibold">Default Actor</h2>
+            <p className="text-sm text-muted-foreground">
+              Choose which actor to use when signing in.
+            </p>
+          </div>
+          <DefaultActorSelector
+            actors={actors.map((a) => ({
+              id: a.id,
+              username: a.username,
+              domain: a.domain,
+              name: a.name,
+              iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null
+            }))}
+            currentDefault={actor.account.defaultActorId || null}
+          />
+        </section>
+      )}
 
       {nonCredentialsProviders.length > 0 && (
         <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">

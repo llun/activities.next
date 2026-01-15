@@ -1,4 +1,4 @@
-import { getInternalApiConfig, InternalApiConfig } from './internalApi'
+import { InternalApiConfig, getInternalApiConfig } from './internalApi'
 
 describe('InternalApi config', () => {
   const originalEnv = process.env

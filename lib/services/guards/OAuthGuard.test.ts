@@ -6,8 +6,7 @@ import { Scope } from '../../database/types/oauth'
 import { MOCK_SECRET_PHASES } from '../../stub/actor'
 import { seedDatabase } from '../../stub/database'
 import { seedActor1 } from '../../stub/seed/actor1'
-
-import { getTokenFromHeader, OAuthGuard } from './OAuthGuard'
+import { OAuthGuard, getTokenFromHeader } from './OAuthGuard'
 
 // Mock next-auth session
 const mockGetServerSession = jest.fn()
@@ -156,11 +155,9 @@ describe('#OAuthGuard', () => {
       mockGetServerSession.mockResolvedValue(null)
 
       // Create an expired token
-      const token = jwt.sign(
-        { jti: 'expired-token' },
-        MOCK_SECRET_PHASES,
-        { expiresIn: '-1h' }
-      )
+      const token = jwt.sign({ jti: 'expired-token' }, MOCK_SECRET_PHASES, {
+        expiresIn: '-1h'
+      })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
       const req = createRequest({ Authorization: `Bearer ${token}` })

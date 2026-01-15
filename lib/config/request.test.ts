@@ -1,4 +1,4 @@
-import { getRequestConfig, RequestConfig } from './request'
+import { RequestConfig, getRequestConfig } from './request'
 
 describe('Request config', () => {
   const originalEnv = process.env

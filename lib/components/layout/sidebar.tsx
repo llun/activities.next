@@ -4,6 +4,10 @@ import { Bell, Home, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+import {
+  ActorInfo,
+  ActorSwitcher
+} from '@/lib/components/actor-switcher/ActorSwitcher'
 import { Logo } from '@/lib/components/layout/logo'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
@@ -30,10 +34,17 @@ interface User {
 
 interface SidebarProps {
   user?: User
+  currentActor?: ActorInfo
+  actors?: ActorInfo[]
   unreadCount?: number
 }
 
-export function Sidebar({ user, unreadCount = 0 }: SidebarProps) {
+export function Sidebar({
+  user,
+  currentActor,
+  actors = [],
+  unreadCount = 0
+}: SidebarProps) {
   const pathname = usePathname()
 
   const getAvatarInitial = (username: string) => {
@@ -81,26 +92,32 @@ export function Sidebar({ user, unreadCount = 0 }: SidebarProps) {
           </ul>
         </nav>
 
-        {user && (
+        {currentActor && actors.length > 0 ? (
           <div className="border-t p-4">
-            <Link
-              href={`/${user.handle}`}
-              className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors"
-            >
-              <Avatar className="h-10 w-10">
-                {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                  {getAvatarInitial(user.username)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-medium truncate">{user.name}</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {user.handle}
-                </p>
-              </div>
-            </Link>
+            <ActorSwitcher currentActor={currentActor} actors={actors} />
           </div>
+        ) : (
+          user && (
+            <div className="border-t p-4">
+              <Link
+                href={`/${user.handle}`}
+                className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors"
+              >
+                <Avatar className="h-10 w-10">
+                  {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
+                  <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                    {getAvatarInitial(user.username)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-sm font-medium truncate">{user.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user.handle}
+                  </p>
+                </div>
+              </Link>
+            </div>
+          )
         )}
       </aside>
 
