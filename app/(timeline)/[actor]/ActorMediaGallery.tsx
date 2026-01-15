@@ -22,9 +22,12 @@ export const ActorMediaGallery: FC<Props> = ({
     initialAttachments
   )
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(initialAttachments.length >= 25)
+  const [error, setError] = useState<string | null>(null)
 
   const handleLoadMore = async () => {
     setIsLoadingMore(true)
+    setError(null)
     try {
       const maxId = attachments[attachments.length - 1]?.id
       const newAttachments = await getActorMedia({
@@ -33,6 +36,10 @@ export const ActorMediaGallery: FC<Props> = ({
         limit: 25
       })
       setAttachments([...attachments, ...newAttachments])
+      setHasMore(newAttachments.length >= 25)
+    } catch (err) {
+      setError('Failed to load more media. Please try again.')
+      console.error('Failed to load more media:', err)
     } finally {
       setIsLoadingMore(false)
     }
@@ -61,7 +68,13 @@ export const ActorMediaGallery: FC<Props> = ({
         ))}
       </div>
 
-      {attachments.length > 0 && attachments.length % 25 === 0 && (
+      {error && (
+        <div className="mt-4 p-4 text-center text-sm text-red-600 dark:text-red-400">
+          {error}
+        </div>
+      )}
+
+      {hasMore && (
         <div className="mt-4 text-center">
           <Button
             variant="outline"
