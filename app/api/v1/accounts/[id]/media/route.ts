@@ -67,19 +67,12 @@ export const GET = async (
       ? `<https://${host}${pathBase}?limit=${limit}&max_created_at=${attachments[attachments.length - 1].createdAt}>; rel="next"`
       : null
 
-  const prevLink =
-    attachments.length > 0
-      ? `<https://${host}${pathBase}?limit=${limit}&max_created_at=${attachments[0].createdAt}>; rel="prev"`
-      : null
-
-  const links = [nextLink, prevLink].filter(Boolean).join(', ')
-
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
     data: attachments,
     additionalHeaders: [
-      ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
+      ...(nextLink ? [['Link', nextLink] as [string, string]] : [])
     ]
   })
 }
