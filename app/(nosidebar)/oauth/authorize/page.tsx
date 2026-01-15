@@ -5,6 +5,7 @@ import { FC } from 'react'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { Actor } from '@/lib/models/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AuthorizeCard } from './AuthorizeCard'
@@ -47,9 +48,22 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return redirect(url.toString())
   }
 
+  // Fetch all actors for this account
+  let actors: Actor[] = []
+  if (actor.account) {
+    actors = await database.getActorsForAccount({
+      accountId: actor.account.id
+    })
+  }
+
   return (
     <div>
-      <AuthorizeCard searchParams={params} client={client} />
+      <AuthorizeCard
+        searchParams={params}
+        client={client}
+        actors={actors}
+        currentActorId={actor.id}
+      />
     </div>
   )
 }

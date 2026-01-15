@@ -49,6 +49,21 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
     : undefined
   const showNavigation = Boolean(user)
 
+  // Get all actors for the account
+  const actors = actor?.account?.id
+    ? await database.getActorsForAccount({ accountId: actor.account.id })
+    : []
+
+  const currentActor = actor
+    ? {
+        id: actor.id,
+        username: actor.username,
+        domain: actor.domain,
+        name: actor.name,
+        iconUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : null
+      }
+    : undefined
+
   // Get unread notifications count
   const unreadCount = actor
     ? await database.getNotificationsCount({
@@ -59,7 +74,20 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
 
   return (
     <div className="min-h-screen">
-      {showNavigation && <Sidebar user={user} unreadCount={unreadCount} />}
+      {showNavigation && (
+        <Sidebar
+          user={user}
+          currentActor={currentActor}
+          actors={actors.map((a) => ({
+            id: a.id,
+            username: a.username,
+            domain: a.domain,
+            name: a.name,
+            iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null
+          }))}
+          unreadCount={unreadCount}
+        />
+      )}
       {showNavigation && <MobileNav unreadCount={unreadCount} />}
       <main
         className={cn(
