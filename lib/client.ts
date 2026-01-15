@@ -469,3 +469,31 @@ export const uploadAttachment = async (
     name: file.name
   }
 }
+
+interface GetActorMediaParams {
+  actorId: string
+  maxId?: string
+  limit?: number
+}
+export const getActorMedia = async ({
+  actorId,
+  maxId,
+  limit = 25
+}: GetActorMediaParams): Promise<Attachment[]> => {
+  const encodedId = urlToId(actorId)
+  const url = new URL(`${window.origin}/api/v1/accounts/${encodedId}/media`)
+  if (maxId) {
+    url.searchParams.append('max_id', maxId)
+  }
+  if (limit) {
+    url.searchParams.append('limit', `${limit}`)
+  }
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) return []
+  return response.json()
+}

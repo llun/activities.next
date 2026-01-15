@@ -2,6 +2,7 @@
 
 import { FC } from 'react'
 
+import { Attachment } from '@/lib/models/attachment'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   Tabs,
@@ -15,17 +16,9 @@ import { ActorMediaGallery } from './ActorMediaGallery'
 
 interface Props {
   host: string
+  actorId: string
   statuses: Status[]
-}
-
-const getPostAttachments = (status: Status) => {
-  switch (status.type) {
-    case StatusType.enum.Note:
-    case StatusType.enum.Poll:
-      return status.attachments
-    default:
-      return []
-  }
+  attachments: Attachment[]
 }
 
 const isReply = (status: Status) => {
@@ -40,24 +33,15 @@ const isReply = (status: Status) => {
   }
 }
 
-export const ActorTimelines: FC<Props> = ({ host, statuses }) => {
+export const ActorTimelines: FC<Props> = ({
+  host,
+  actorId,
+  statuses,
+  attachments
+}) => {
   const currentTime = new Date()
 
   const postStatuses = statuses.filter((status) => !isReply(status))
-  const mediaAttachments = statuses
-    .flatMap((status) =>
-      getPostAttachments(status).map((attachment) => ({
-        attachment,
-        createdAt: status.createdAt
-      }))
-    )
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .filter(
-      (entry, index, list) =>
-        list.findIndex((item) => item.attachment.id === entry.attachment.id) ===
-        index
-    )
-    .map((entry) => entry.attachment)
 
   return (
     <Tabs defaultValue="posts" className="w-full">
@@ -105,9 +89,12 @@ export const ActorTimelines: FC<Props> = ({ host, statuses }) => {
       </TabsContent>
 
       <TabsContent value="media" className="mt-0">
-        {mediaAttachments.length > 0 ? (
+        {attachments.length > 0 ? (
           <div className="p-2 sm:p-4">
-            <ActorMediaGallery attachments={mediaAttachments} />
+            <ActorMediaGallery
+              actorId={actorId}
+              initialAttachments={attachments}
+            />
           </div>
         ) : (
           <p className="p-8 text-center text-muted-foreground">
