@@ -83,7 +83,9 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
             username: a.username,
             domain: a.domain,
             name: a.name,
-            iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null
+            iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null,
+            deletionStatus: a.deletionStatus ?? null,
+            deletionScheduledAt: a.deletionScheduledAt ?? null
           }))}
           unreadCount={unreadCount}
         />
