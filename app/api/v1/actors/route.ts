@@ -32,7 +32,9 @@ export const GET = AuthenticatedGuard(async (req, context) => {
     username: actor.username,
     domain: actor.domain,
     name: actor.name,
-    iconUrl: actor.iconUrl
+    iconUrl: actor.iconUrl,
+    deletionStatus: actor.deletionStatus ?? null,
+    deletionScheduledAt: actor.deletionScheduledAt ?? null
   }))
 
   return apiResponse({
