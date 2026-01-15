@@ -46,7 +46,8 @@ export const AuthorizeCard: FC<Props> = ({
   const [selectedActorId, setSelectedActorId] = useState(currentActorId)
   const [isSwitching, setIsSwitching] = useState(false)
 
-  const selectedActor = actors.find((a) => a.id === selectedActorId) || actors[0]
+  const selectedActor =
+    actors.find((a) => a.id === selectedActorId) || actors[0]
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'
@@ -59,13 +60,15 @@ export const AuthorizeCard: FC<Props> = ({
     if (actorId === selectedActorId || isSwitching) return
 
     setIsSwitching(true)
-    setSelectedActorId(actorId)
     try {
-      await fetch('/api/v1/actors/switch', {
+      const response = await fetch('/api/v1/actors/switch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actorId })
       })
+      if (response.ok) {
+        setSelectedActorId(actorId)
+      }
     } finally {
       setIsSwitching(false)
     }
