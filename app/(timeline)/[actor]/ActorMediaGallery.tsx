@@ -29,10 +29,10 @@ export const ActorMediaGallery: FC<Props> = ({
     setIsLoadingMore(true)
     setError(null)
     try {
-      const maxId = attachments[attachments.length - 1]?.id
+      const maxCreatedAt = attachments[attachments.length - 1]?.createdAt
       const newAttachments = await getActorMedia({
         actorId,
-        maxId,
+        maxCreatedAt,
         limit: 25
       })
       setAttachments([...attachments, ...newAttachments])

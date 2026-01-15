@@ -101,14 +101,15 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async getAttachmentsForActor({
     actorId,
     limit = 25,
-    maxId
+    maxCreatedAt
   }: GetAttachmentsForActorParams): Promise<Attachment[]> {
     let query = database<Attachment>('attachments')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
+      .orderBy('id', 'desc')
     
-    if (maxId) {
-      query = query.where('id', '<', maxId)
+    if (maxCreatedAt) {
+      query = query.where('createdAt', '<', maxCreatedAt)
     }
     
     query = query.limit(limit)

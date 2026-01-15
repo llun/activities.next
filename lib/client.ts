@@ -472,18 +472,18 @@ export const uploadAttachment = async (
 
 interface GetActorMediaParams {
   actorId: string
-  maxId?: string
+  maxCreatedAt?: number
   limit?: number
 }
 export const getActorMedia = async ({
   actorId,
-  maxId,
+  maxCreatedAt,
   limit = 25
 }: GetActorMediaParams): Promise<Attachment[]> => {
   const encodedId = urlToId(actorId)
   const url = new URL(`${window.origin}/api/v1/accounts/${encodedId}/media`)
-  if (maxId) {
-    url.searchParams.append('max_id', maxId)
+  if (maxCreatedAt) {
+    url.searchParams.append('max_created_at', `${maxCreatedAt}`)
   }
   if (limit) {
     url.searchParams.append('limit', `${limit}`)

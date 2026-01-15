@@ -43,7 +43,7 @@ export type GetAttachmentsParams = {
 export type GetAttachmentsForActorParams = {
   actorId: string
   limit?: number
-  maxId?: string
+  maxCreatedAt?: number
 }
 
 export interface MediaDatabase {
