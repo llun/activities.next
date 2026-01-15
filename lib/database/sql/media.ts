@@ -109,7 +109,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .orderBy('id', 'desc')
     
     if (maxCreatedAt) {
-      query = query.where('createdAt', '<', maxCreatedAt)
+      query = query.where('createdAt', '<', new Date(maxCreatedAt))
     }
     
     query = query.limit(limit)
