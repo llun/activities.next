@@ -8,6 +8,8 @@ export interface ActorSettings {
   manuallyApprovesFollowers?: boolean
 }
 
+export type ActorDeletionStatus = 'scheduled' | 'deleting' | null
+
 export interface SQLActor {
   id: string
   username: string
@@ -20,6 +22,9 @@ export interface SQLActor {
   privateKey: string
 
   settings: string | ActorSettings
+
+  deletionStatus?: ActorDeletionStatus
+  deletionScheduledAt?: number | Date | null
 
   createdAt: number | Date
   updatedAt: number | Date

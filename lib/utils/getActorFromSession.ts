@@ -38,7 +38,9 @@ export const getActorFromSession = async (
       const actors = await database.getActorsForAccount({
         accountId: account.id
       })
-      const validActor = actors.find((a) => a.id === actorIdFromCookie)
+      const validActor = actors.find(
+        (a) => a.id === actorIdFromCookie && !a.deletionStatus
+      )
       if (validActor) {
         return database.getActorFromId({ id: actorIdFromCookie })
       }
@@ -50,9 +52,24 @@ export const getActorFromSession = async (
     email: session.user.email
   })
   if (account?.defaultActorId) {
-    return database.getActorFromId({ id: account.defaultActorId })
+    const defaultActor = await database.getActorFromId({
+      id: account.defaultActorId
+    })
+    if (defaultActor && !defaultActor.deletionStatus) {
+      return defaultActor
+    }
   }
 
-  // 3. Fall back to first actor
-  return database.getActorFromEmail({ email: session.user.email })
+  // 3. Fall back to first actor without pending deletion
+  if (account) {
+    const actors = await database.getActorsForAccount({
+      accountId: account.id
+    })
+    const activeActor = actors.find((a) => !a.deletionStatus)
+    if (activeActor) {
+      return database.getActorFromId({ id: activeActor.id })
+    }
+  }
+
+  return null
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getTestSQLDatabase } from '../../database/testUtils'
+import { Actor } from '../../models/actor'
 import { seedDatabase } from '../../stub/database'
 import { seedActor1 } from '../../stub/seed/actor1'
 import { AuthenticatedGuard } from './AuthenticatedGuard'
@@ -15,6 +16,30 @@ jest.mock('next-auth', () => ({
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 jest.mock('../../database', () => ({
   getDatabase: () => mockDatabase
+}))
+
+// Mock cookies from next/headers
+const mockCookieValue: { value?: string } = {}
+jest.mock('next/headers', () => ({
+  cookies: jest.fn().mockImplementation(() =>
+    Promise.resolve({
+      get: (name: string) => {
+        if (name === 'activities.actor-id') {
+          return mockCookieValue.value
+            ? { value: mockCookieValue.value }
+            : undefined
+        }
+        return undefined
+      }
+    })
+  )
+}))
+
+// Mock config
+jest.mock('../../config', () => ({
+  getConfig: () => ({
+    allowEmails: []
+  })
 }))
 
 describe('AuthenticatedGuard', () => {
@@ -32,6 +57,8 @@ describe('AuthenticatedGuard', () => {
 
   beforeEach(() => {
     mockGetServerSession.mockReset()
+    mockHandler.mockClear()
+    mockCookieValue.value = undefined
   })
 
   const createRequest = () => {
@@ -114,6 +141,90 @@ describe('AuthenticatedGuard', () => {
       expect(response.headers.get('location')).toContain('/signin')
 
       mockDatabase = originalDb
+    })
+  })
+
+  describe('with sub-actor selection', () => {
+    let primaryActor: Actor
+    let subActorId: string
+
+    beforeAll(async () => {
+      // Get the primary actor
+      const actor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      if (!actor) throw new Error('Actor not found')
+      primaryActor = actor
+
+      // Create a sub-actor for the same account
+      subActorId = await database.createActorForAccount({
+        accountId: actor.account!.id,
+        username: 'subactor',
+        domain: 'llun.test',
+        publicKey: 'subactor-public-key',
+        privateKey: 'subactor-private-key'
+      })
+    })
+
+    it('uses the primary actor when no cookie is set', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      mockCookieValue.value = undefined
+
+      let capturedActor: Actor | undefined
+      const handler = jest.fn().mockImplementation((_req, context) => {
+        capturedActor = context.currentActor
+        return NextResponse.json({ success: true }, { status: 200 })
+      })
+
+      const guard = AuthenticatedGuard(handler)
+      const req = createRequest()
+      await guard(req, { params: Promise.resolve({}) })
+
+      expect(handler).toHaveBeenCalled()
+      expect(capturedActor?.id).toBe(primaryActor.id)
+    })
+
+    it('uses the sub-actor when cookie is set to sub-actor id', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      mockCookieValue.value = subActorId
+
+      let capturedActor: Actor | undefined
+      const handler = jest.fn().mockImplementation((_req, context) => {
+        capturedActor = context.currentActor
+        return NextResponse.json({ success: true }, { status: 200 })
+      })
+
+      const guard = AuthenticatedGuard(handler)
+      const req = createRequest()
+      await guard(req, { params: Promise.resolve({}) })
+
+      expect(handler).toHaveBeenCalled()
+      expect(capturedActor?.id).toBe(subActorId)
+      expect(capturedActor?.username).toBe('subactor')
+    })
+
+    it('falls back to primary actor when cookie contains invalid actor id', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      mockCookieValue.value = 'invalid-actor-id'
+
+      let capturedActor: Actor | undefined
+      const handler = jest.fn().mockImplementation((_req, context) => {
+        capturedActor = context.currentActor
+        return NextResponse.json({ success: true }, { status: 200 })
+      })
+
+      const guard = AuthenticatedGuard(handler)
+      const req = createRequest()
+      await guard(req, { params: Promise.resolve({}) })
+
+      expect(handler).toHaveBeenCalled()
+      expect(capturedActor?.id).toBe(primaryActor.id)
     })
   })
 })

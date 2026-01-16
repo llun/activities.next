@@ -5,7 +5,9 @@ import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   ActorDatabase,
+  CancelActorDeletionParams,
   CreateActorParams,
+  DeleteActorDataParams,
   DeleteActorParams,
   GetActorFollowersCountParams,
   GetActorFollowingCountParams,
@@ -13,8 +15,11 @@ import {
   GetActorFromIdParams,
   GetActorFromUsernameParams,
   GetActorSettingsParams,
+  GetActorsScheduledForDeletionParams,
   IsCurrentActorFollowingParams,
   IsInternalActorParams,
+  ScheduleActorDeletionParams,
+  StartActorDeletionParams,
   UpdateActorParams
 } from '@/lib/database/types/actor'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/database/types/sql'
@@ -380,7 +385,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       lastStatusAt,
 
       createdAt: getCompatibleTime(sqlActor.createdAt),
-      updatedAt: getCompatibleTime(sqlActor.updatedAt)
+      updatedAt: getCompatibleTime(sqlActor.updatedAt),
+      deletionStatus: sqlActor.deletionStatus ?? null,
+      deletionScheduledAt: sqlActor.deletionScheduledAt
+        ? getCompatibleTime(sqlActor.deletionScheduledAt)
+        : null
     })
   },
 
@@ -542,5 +551,131 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return undefined
     return getCompatibleJSON(persistedActor.settings) as ActorSettings
+  },
+
+  async scheduleActorDeletion({
+    actorId,
+    scheduledAt
+  }: ScheduleActorDeletionParams) {
+    const currentTime = new Date()
+    await database<SQLActor>('actors').where('id', actorId).update({
+      deletionStatus: 'scheduled',
+      deletionScheduledAt: scheduledAt,
+      updatedAt: currentTime
+    })
+  },
+
+  async cancelActorDeletion({ actorId }: CancelActorDeletionParams) {
+    const currentTime = new Date()
+    await database<SQLActor>('actors').where('id', actorId).update({
+      deletionStatus: null,
+      deletionScheduledAt: null,
+      updatedAt: currentTime
+    })
+  },
+
+  async startActorDeletion({ actorId }: StartActorDeletionParams) {
+    const currentTime = new Date()
+    await database<SQLActor>('actors').where('id', actorId).update({
+      deletionStatus: 'deleting',
+      updatedAt: currentTime
+    })
+  },
+
+  async getActorsScheduledForDeletion({
+    beforeDate
+  }: GetActorsScheduledForDeletionParams) {
+    const sqlActors = await database<SQLActor>('actors')
+      .where('deletionStatus', 'scheduled')
+      .andWhere('deletionScheduledAt', '<=', beforeDate)
+
+    const results: Actor[] = []
+    for (const sqlActor of sqlActors) {
+      const actor = await this.getActorFromId({ id: sqlActor.id })
+      if (actor) {
+        results.push(actor)
+      }
+    }
+    return results
+  },
+
+  async getActorDeletionStatus({ id }: GetActorFromIdParams) {
+    const persistedActor = await database<SQLActor>('actors')
+      .where('id', id)
+      .select('deletionStatus', 'deletionScheduledAt')
+      .first()
+    if (!persistedActor) return undefined
+    return {
+      status: persistedActor.deletionStatus ?? null,
+      scheduledAt: persistedActor.deletionScheduledAt
+        ? getCompatibleTime(persistedActor.deletionScheduledAt)
+        : null
+    }
+  },
+
+  async deleteActorData({ actorId }: DeleteActorDataParams) {
+    await database.transaction(async (trx) => {
+      // Get all status IDs for this actor to delete related data
+      const statuses = await trx('statuses')
+        .where('actorId', actorId)
+        .select('id')
+
+      const statusIds = statuses.map((s) => s.id)
+
+      if (statusIds.length > 0) {
+        // Get poll choice IDs before deleting them
+        const pollChoices = await trx('poll_choices')
+          .whereIn('statusId', statusIds)
+          .select('choiceId')
+        const choiceIds = pollChoices.map((c) => c.choiceId)
+
+        // Delete status-related data
+        await trx('tags').whereIn('statusId', statusIds).delete()
+        await trx('recipients').whereIn('statusId', statusIds).delete()
+        await trx('likes').whereIn('statusId', statusIds).delete()
+        await trx('attachments').whereIn('statusId', statusIds).delete()
+        await trx('status_history').whereIn('statusId', statusIds).delete()
+
+        // Delete poll answers before deleting poll choices
+        if (choiceIds.length > 0) {
+          await trx('poll_answers').whereIn('answerId', choiceIds).delete()
+        }
+        await trx('poll_choices').whereIn('statusId', statusIds).delete()
+      }
+
+      // Delete timeline entries for this actor
+      await trx('timelines').where('actorId', actorId).delete()
+      await trx('timelines').where('statusActorId', actorId).delete()
+
+      // Delete statuses
+      await trx('statuses').where('actorId', actorId).delete()
+
+      // Delete follows (both directions)
+      await trx('follows').where('actorId', actorId).delete()
+      await trx('follows').where('targetActorId', actorId).delete()
+
+      // Delete likes made by this actor
+      await trx('likes').where('actorId', actorId).delete()
+
+      // Delete attachments created by this actor
+      await trx('attachments').where('actorId', actorId).delete()
+
+      // Delete medias created by this actor
+      await trx('medias').where('actorId', actorId).delete()
+
+      // Delete counters for this actor
+      await trx('counters').where('id', `total-status:${actorId}`).delete()
+
+      // Delete notifications table entries if exists
+      try {
+        await trx('notifications').where('actorId', actorId).delete()
+        await trx('notifications').where('sourceActorId', actorId).delete()
+      } catch {
+        // Table might not exist in older migrations
+      }
+
+      // Finally delete the actor
+      await trx('actors').where('id', actorId).delete()
+    })
   }
 })

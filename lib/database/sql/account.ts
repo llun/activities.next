@@ -416,7 +416,11 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
           ? getCompatibleTime(lastStatus.createdAt)
           : null,
         createdAt: getCompatibleTime(sqlActor.createdAt),
-        updatedAt: getCompatibleTime(sqlActor.updatedAt)
+        updatedAt: getCompatibleTime(sqlActor.updatedAt),
+        deletionStatus: sqlActor.deletionStatus ?? null,
+        deletionScheduledAt: sqlActor.deletionScheduledAt
+          ? getCompatibleTime(sqlActor.deletionScheduledAt)
+          : null
       })
 
       results.push(actor)

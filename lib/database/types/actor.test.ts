@@ -416,5 +416,177 @@ describe('ActorDatabase', () => {
         expect(result).toBeFalse()
       })
     })
+
+    describe('#scheduleActorDeletion', () => {
+      it('schedules immediate deletion', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `schedule-del-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+        const status = await database.getActorDeletionStatus({ id: actorId })
+        expect(status?.status).toEqual('scheduled')
+        expect(status?.scheduledAt).toBeNull()
+      })
+
+      it('schedules delayed deletion', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `schedule-del2-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        const scheduledAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+        await database.scheduleActorDeletion({ actorId, scheduledAt })
+        const status = await database.getActorDeletionStatus({ id: actorId })
+        expect(status?.status).toEqual('scheduled')
+        expect(status?.scheduledAt).toBeNumber()
+      })
+    })
+
+    describe('#cancelActorDeletion', () => {
+      it('cancels scheduled deletion', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `cancel-del-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+        await database.cancelActorDeletion({ actorId })
+        const status = await database.getActorDeletionStatus({ id: actorId })
+        expect(status?.status).toBeNull()
+        expect(status?.scheduledAt).toBeNull()
+      })
+    })
+
+    describe('#startActorDeletion', () => {
+      it('starts deletion process', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `start-del-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+        await database.startActorDeletion({ actorId })
+        const status = await database.getActorDeletionStatus({ id: actorId })
+        expect(status?.status).toEqual('deleting')
+      })
+    })
+
+    describe('#getActorsScheduledForDeletion', () => {
+      it('returns actors scheduled for deletion before given date', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `get-del-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        const pastDate = new Date(Date.now() - 1000)
+        await database.scheduleActorDeletion({ actorId, scheduledAt: pastDate })
+        const actors = await database.getActorsScheduledForDeletion({
+          beforeDate: new Date()
+        })
+        expect(actors.some((a) => a.id === actorId)).toBeTrue()
+      })
+
+      it('does not return actors scheduled for future deletion', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `get-del2-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
+        await database.scheduleActorDeletion({
+          actorId,
+          scheduledAt: futureDate
+        })
+        const actors = await database.getActorsScheduledForDeletion({
+          beforeDate: new Date()
+        })
+        expect(actors.some((a) => a.id === actorId)).toBeFalse()
+      })
+    })
+
+    describe('#deleteActorData', () => {
+      it('deletes all actor data', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-data-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        // Create some data for the actor
+        await database.createNote({
+          id: `${actorId}/statuses/test-${suffix}`,
+          url: `${actorId}/statuses/test-${suffix}`,
+          actorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Test status',
+          createdAt: Date.now()
+        })
+
+        // Delete actor data
+        await database.deleteActorData({ actorId })
+
+        // Verify actor is deleted
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor).toBeUndefined()
+      })
+    })
   })
 })
