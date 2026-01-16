@@ -123,7 +123,8 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
           {actors.map((actor) => {
             const isPendingDeletion = actor.deletionStatus === 'scheduled'
             const isDeleting = actor.deletionStatus === 'deleting'
-            const isDisabled = isSwitching || isPendingDeletion || isDeleting
+            // Keep the row clickable for cancellation when deletion is scheduled.
+            const isDisabled = isSwitching || isDeleting
 
             return (
               <DropdownMenuItem
