@@ -27,6 +27,12 @@ export const deleteActorJob = createJobHandle(
       return
     }
 
+    // Check if deletion was cancelled before proceeding
+    if (actor.deletionStatus !== 'scheduled') {
+      // Deletion was cancelled or already processed, exit early
+      return
+    }
+
     // Store email for notification before deletion
     const accountEmail = actor.account?.email
 

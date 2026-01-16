@@ -59,6 +59,9 @@ describe('deleteActorJob', () => {
     let actor = await database.getActorFromId({ id: actorId })
     expect(actor).toBeDefined()
 
+    // Schedule deletion first
+    await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+
     // Run the delete job
     await deleteActorJob(database, {
       id: `delete-job-${suffix}`,
@@ -115,5 +118,38 @@ describe('deleteActorJob', () => {
     // Actor should be deleted now
     const actor = await database.getActorFromId({ id: actorId })
     expect(actor).toBeUndefined()
+  })
+
+  it('does not delete actor if deletion was cancelled', async () => {
+    const suffix = Date.now().toString()
+    const username = `delete-job-cancel-${suffix}`
+    const actorId = `https://test.social/users/${username}`
+
+    await database.createAccount({
+      email: `${username}@test.social`,
+      username,
+      domain: 'test.social',
+      passwordHash: 'hash',
+      privateKey: `privateKey-${suffix}`,
+      publicKey: `publicKey-${suffix}`
+    })
+
+    // Schedule deletion
+    await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+
+    // Cancel deletion before job runs
+    await database.cancelActorDeletion({ actorId })
+
+    // Run the delete job
+    await deleteActorJob(database, {
+      id: `delete-job-cancel-${suffix}`,
+      name: DELETE_ACTOR_JOB_NAME,
+      data: { actorId }
+    })
+
+    // Actor should still exist (not deleted)
+    const actor = await database.getActorFromId({ id: actorId })
+    expect(actor).toBeDefined()
+    expect(actor?.deletionStatus).toBeNull()
   })
 })

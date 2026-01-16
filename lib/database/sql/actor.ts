@@ -623,22 +623,24 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       const statusIds = statuses.map((s) => s.id)
 
       if (statusIds.length > 0) {
+        // Get poll choice IDs before deleting them
+        const pollChoices = await trx('poll_choices')
+          .whereIn('statusId', statusIds)
+          .select('choiceId')
+        const choiceIds = pollChoices.map((c) => c.choiceId)
+
         // Delete status-related data
         await trx('tags').whereIn('statusId', statusIds).delete()
         await trx('recipients').whereIn('statusId', statusIds).delete()
         await trx('likes').whereIn('statusId', statusIds).delete()
         await trx('attachments').whereIn('statusId', statusIds).delete()
         await trx('status_history').whereIn('statusId', statusIds).delete()
-        await trx('poll_choices').whereIn('statusId', statusIds).delete()
 
-        // Delete poll answers for poll choices (need to get choiceIds first)
-        const pollChoices = await trx('poll_choices')
-          .whereIn('statusId', statusIds)
-          .select('choiceId')
-        const choiceIds = pollChoices.map((c) => c.choiceId)
+        // Delete poll answers before deleting poll choices
         if (choiceIds.length > 0) {
           await trx('poll_answers').whereIn('answerId', choiceIds).delete()
         }
+        await trx('poll_choices').whereIn('statusId', statusIds).delete()
       }
 
       // Delete timeline entries for this actor
