@@ -3,12 +3,14 @@ import { createAnnounceJob } from './createAnnounceJob'
 import { createNoteJob } from './createNoteJob'
 import { createPollJob } from './createPollJob'
 import { createPollVoteJob } from './createPollVoteJob'
+import { deleteActorJob } from './deleteActorJob'
 import { deleteObjectJob } from './deleteObjectJob'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
   CREATE_POLL_JOB_NAME,
   CREATE_POLL_VOTE_JOB_NAME,
+  DELETE_ACTOR_JOB_NAME,
   DELETE_OBJECT_JOB_NAME,
   SEND_ANNOUNCE_JOB_NAME,
   SEND_NOTE_JOB_NAME,
@@ -32,6 +34,7 @@ export const JOBS: Record<string, JobHandle> = {
   [CREATE_POLL_VOTE_JOB_NAME]: createPollVoteJob,
   [UPDATE_POLL_JOB_NAME]: updatePollJob,
   [DELETE_OBJECT_JOB_NAME]: deleteObjectJob,
+  [DELETE_ACTOR_JOB_NAME]: deleteActorJob,
   [SEND_ANNOUNCE_JOB_NAME]: sendAnnounceJob,
   [SEND_NOTE_JOB_NAME]: sendNoteJob,
   [SEND_UPDATE_NOTE_JOB_NAME]: sendUpdateNoteJob,

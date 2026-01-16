@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { DefaultActorSelector } from '@/lib/components/settings/DefaultActorSelector'
+import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
@@ -255,6 +256,25 @@ const Page = async () => {
           </p>
           <LogoutButton />
         </div>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-destructive/20 bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold text-destructive">
+            Danger Zone
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Irreversible actions for this actor.
+          </p>
+        </div>
+        <DeleteActorSection
+          actorId={actor.id}
+          actorUsername={actor.username}
+          actorDomain={actor.domain}
+          isDefaultActor={actor.account.defaultActorId === actor.id}
+          isOnlyActor={actors.filter((a) => !a.deletionStatus).length <= 1}
+          deletionStatus={actor.deletionStatus ?? null}
+        />
       </section>
     </div>
   )

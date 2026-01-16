@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, ChevronDown, Plus } from 'lucide-react'
+import { Check, ChevronDown, Clock, Plus, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
@@ -21,6 +21,8 @@ export interface ActorInfo {
   domain: string
   name?: string | null
   iconUrl?: string | null
+  deletionStatus?: string | null
+  deletionScheduledAt?: number | null
 }
 
 interface ActorSwitcherProps {
@@ -32,6 +34,7 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
   const router = useRouter()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'
@@ -42,6 +45,10 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
 
   const handleSwitchActor = async (actorId: string) => {
     if (actorId === currentActor.id || isSwitching) return
+
+    // Check if actor is pending deletion
+    const actor = actors.find((a) => a.id === actorId)
+    if (actor?.deletionStatus) return
 
     setIsSwitching(true)
     try {
@@ -60,9 +67,30 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
     }
   }
 
+  const handleCancelDeletion = async (actorId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isCancelling) return
+
+    setIsCancelling(true)
+    try {
+      const response = await fetch('/api/v1/actors/cancel-deletion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actorId })
+      })
+
+      if (response.ok) {
+        router.refresh()
+      }
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
   const handleActorCreated = () => {
     setIsDialogOpen(false)
-    router.refresh()
+    // Use hard navigation to ensure full page reload with new actor
+    window.location.reload()
   }
 
   return (
@@ -91,33 +119,59 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
             )}
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[250px]">
-          {actors.map((actor) => (
-            <DropdownMenuItem
-              key={actor.id}
-              onClick={() => handleSwitchActor(actor.id)}
-              disabled={isSwitching}
-              className="flex items-center gap-3"
-            >
-              <Avatar className="h-8 w-8">
-                {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
-                <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 text-xs">
-                  {getAvatarInitial(actor.username)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-medium truncate">
-                  {actor.name || actor.username}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {getHandle(actor)}
-                </p>
-              </div>
-              {actor.id === currentActor.id && (
-                <Check className="h-4 w-4 text-primary" />
-              )}
-            </DropdownMenuItem>
-          ))}
+        <DropdownMenuContent align="start" className="w-[280px]">
+          {actors.map((actor) => {
+            const isPendingDeletion = actor.deletionStatus === 'scheduled'
+            const isDeleting = actor.deletionStatus === 'deleting'
+            const isDisabled = isSwitching || isPendingDeletion || isDeleting
+
+            return (
+              <DropdownMenuItem
+                key={actor.id}
+                onClick={() => handleSwitchActor(actor.id)}
+                disabled={isDisabled}
+                className={`flex items-center gap-3 ${isPendingDeletion || isDeleting ? 'opacity-60' : ''}`}
+              >
+                <Avatar className="h-8 w-8">
+                  {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
+                  <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 text-xs">
+                    {getAvatarInitial(actor.username)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-sm font-medium truncate">
+                    {actor.name || actor.username}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {isPendingDeletion ? (
+                      <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        Pending deletion
+                      </span>
+                    ) : isDeleting ? (
+                      <span className="text-destructive">Deleting...</span>
+                    ) : (
+                      getHandle(actor)
+                    )}
+                  </p>
+                </div>
+                {actor.id === currentActor.id &&
+                  !isPendingDeletion &&
+                  !isDeleting && <Check className="h-4 w-4 text-primary" />}
+                {isPendingDeletion && (
+                  <button
+                    onClick={(e) => handleCancelDeletion(actor.id, e)}
+                    disabled={isCancelling}
+                    className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 px-2 py-1 rounded hover:bg-muted"
+                    title="Cancel deletion"
+                  >
+                    <X className="h-3 w-3" />
+                    Cancel
+                  </button>
+                )}
+              </DropdownMenuItem>
+            )
+          })}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setIsDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />

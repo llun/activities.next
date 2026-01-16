@@ -49,6 +49,27 @@ export type DeleteActorParams = {
   actorId: string
 }
 
+export type ScheduleActorDeletionParams = {
+  actorId: string
+  scheduledAt: Date | null // null means immediate deletion
+}
+
+export type CancelActorDeletionParams = {
+  actorId: string
+}
+
+export type GetActorsScheduledForDeletionParams = {
+  beforeDate: Date
+}
+
+export type StartActorDeletionParams = {
+  actorId: string
+}
+
+export type DeleteActorDataParams = {
+  actorId: string
+}
+
 export type GetActorFollowingCountParams = { actorId: string }
 export type GetActorFollowersCountParams = { actorId: string }
 export type GetActorSettingsParams = { actorId: string }
@@ -77,6 +98,18 @@ export interface ActorDatabase {
   ): Promise<Mastodon.Account | null>
   updateActor(params: UpdateActorParams): Promise<Actor | undefined>
   deleteActor(params: DeleteActorParams): Promise<void>
+
+  // Deletion scheduling methods
+  scheduleActorDeletion(params: ScheduleActorDeletionParams): Promise<void>
+  cancelActorDeletion(params: CancelActorDeletionParams): Promise<void>
+  startActorDeletion(params: StartActorDeletionParams): Promise<void>
+  getActorsScheduledForDeletion(
+    params: GetActorsScheduledForDeletionParams
+  ): Promise<Actor[]>
+  getActorDeletionStatus(
+    params: GetActorFromIdParams
+  ): Promise<{ status: string | null; scheduledAt: number | null } | undefined>
+  deleteActorData(params: DeleteActorDataParams): Promise<void>
 
   isCurrentActorFollowing(
     params: IsCurrentActorFollowingParams

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getDatabase } from '@/lib/database'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { getRedirectUrl } from './getRedirectUrl'
 import { AppRouterParams, AuthenticatedApiHandle } from './types'
@@ -17,9 +18,7 @@ export const AuthenticatedGuard =
       return Response.redirect(getRedirectUrl(req, '/signin'), 307)
     }
 
-    const currentActor = await database.getActorFromEmail({
-      email: session.user.email
-    })
+    const currentActor = await getActorFromSession(database, session)
     if (!currentActor) {
       return Response.redirect(getRedirectUrl(req, '/signin'), 307)
     }
