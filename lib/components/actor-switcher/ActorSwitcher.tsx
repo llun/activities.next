@@ -89,7 +89,8 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
 
   const handleActorCreated = () => {
     setIsDialogOpen(false)
-    router.refresh()
+    // Use hard navigation to ensure full page reload with new actor
+    window.location.reload()
   }
 
   return (
