@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { Actor } from '../../models/actor'
 import { getTestSQLDatabase } from '../../database/testUtils'
+import { Actor } from '../../models/actor'
 import { seedDatabase } from '../../stub/database'
 import { seedActor1 } from '../../stub/seed/actor1'
 import { AuthenticatedGuard } from './AuthenticatedGuard'
@@ -25,7 +25,9 @@ jest.mock('next/headers', () => ({
     Promise.resolve({
       get: (name: string) => {
         if (name === 'activities.actor-id') {
-          return mockCookieValue.value ? { value: mockCookieValue.value } : undefined
+          return mockCookieValue.value
+            ? { value: mockCookieValue.value }
+            : undefined
         }
         return undefined
       }
@@ -148,7 +150,9 @@ describe('AuthenticatedGuard', () => {
 
     beforeAll(async () => {
       // Get the primary actor
-      const actor = await database.getActorFromEmail({ email: seedActor1.email })
+      const actor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
       if (!actor) throw new Error('Actor not found')
       primaryActor = actor
 
