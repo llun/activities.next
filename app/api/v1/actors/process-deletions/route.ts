@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         data: { actorId: actor.id }
       })
       results.push({ actorId: actor.id, status: 'queued' })
-    } catch (error) {
+    } catch (_error) {
       results.push({ actorId: actor.id, status: 'failed' })
     }
   }

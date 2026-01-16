@@ -558,34 +558,28 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     scheduledAt
   }: ScheduleActorDeletionParams) {
     const currentTime = new Date()
-    await database<SQLActor>('actors')
-      .where('id', actorId)
-      .update({
-        deletionStatus: 'scheduled',
-        deletionScheduledAt: scheduledAt,
-        updatedAt: currentTime
-      })
+    await database<SQLActor>('actors').where('id', actorId).update({
+      deletionStatus: 'scheduled',
+      deletionScheduledAt: scheduledAt,
+      updatedAt: currentTime
+    })
   },
 
   async cancelActorDeletion({ actorId }: CancelActorDeletionParams) {
     const currentTime = new Date()
-    await database<SQLActor>('actors')
-      .where('id', actorId)
-      .update({
-        deletionStatus: null,
-        deletionScheduledAt: null,
-        updatedAt: currentTime
-      })
+    await database<SQLActor>('actors').where('id', actorId).update({
+      deletionStatus: null,
+      deletionScheduledAt: null,
+      updatedAt: currentTime
+    })
   },
 
   async startActorDeletion({ actorId }: StartActorDeletionParams) {
     const currentTime = new Date()
-    await database<SQLActor>('actors')
-      .where('id', actorId)
-      .update({
-        deletionStatus: 'deleting',
-        updatedAt: currentTime
-      })
+    await database<SQLActor>('actors').where('id', actorId).update({
+      deletionStatus: 'deleting',
+      updatedAt: currentTime
+    })
   },
 
   async getActorsScheduledForDeletion({

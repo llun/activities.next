@@ -5,7 +5,6 @@ import { deleteActorJob } from '@/lib/jobs/deleteActorJob'
 import { DELETE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
 
 enableFetchMocks()
 

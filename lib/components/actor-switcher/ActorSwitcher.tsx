@@ -122,8 +122,7 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
           {actors.map((actor) => {
             const isPendingDeletion = actor.deletionStatus === 'scheduled'
             const isDeleting = actor.deletionStatus === 'deleting'
-            const isDisabled =
-              isSwitching || isPendingDeletion || isDeleting
+            const isDisabled = isSwitching || isPendingDeletion || isDeleting
 
             return (
               <DropdownMenuItem
@@ -155,9 +154,9 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
                     )}
                   </p>
                 </div>
-                {actor.id === currentActor.id && !isPendingDeletion && !isDeleting && (
-                  <Check className="h-4 w-4 text-primary" />
-                )}
+                {actor.id === currentActor.id &&
+                  !isPendingDeletion &&
+                  !isDeleting && <Check className="h-4 w-4 text-primary" />}
                 {isPendingDeletion && (
                   <button
                     onClick={(e) => handleCancelDeletion(actor.id, e)}
