@@ -163,7 +163,7 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
                   <button
                     onClick={(e) => handleCancelDeletion(actor.id, e)}
                     disabled={isCancelling}
-                    className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 px-2 py-1 rounded hover:bg-muted"
+                    className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 px-2 py-1 rounded hover:bg-muted cursor-pointer opacity-100"
                     title="Cancel deletion"
                   >
                     <X className="h-3 w-3" />
