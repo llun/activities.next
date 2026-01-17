@@ -48,10 +48,16 @@ export const errorResponse = (
 ) => {
   const span = trace.getActiveSpan()
   if (span) {
-    span.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: codeMap[code]?.status || ERROR_500.status
-    })
+    if (code >= 400) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: codeMap[code]?.status || ERROR_500.status
+      })
+    } else {
+      span.setStatus({
+        code: SpanStatusCode.OK
+      })
+    }
   }
 
   if (codeMap[code]) {
@@ -69,10 +75,16 @@ export const UNFOLLOW_NETWORK_ERROR_CODES = [
 export const apiErrorResponse = (code: StatusCode) => {
   const span = trace.getActiveSpan()
   if (span) {
-    span.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: codeMap[code]?.status || ERROR_500.status
-    })
+    if (code >= 400) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: codeMap[code]?.status || ERROR_500.status
+      })
+    } else {
+      span.setStatus({
+        code: SpanStatusCode.OK
+      })
+    }
   }
 
   if (!codeMap[code]) {
@@ -117,12 +129,16 @@ export const apiResponse = ({
   responseStatusCode = 200,
   additionalHeaders = []
 }: APIResponseParams) => {
-  if (responseStatusCode >= 400) {
-    const span = trace.getActiveSpan()
-    if (span) {
+  const span = trace.getActiveSpan()
+  if (span) {
+    if (responseStatusCode >= 400) {
       span.setStatus({
         code: SpanStatusCode.ERROR,
         message: statusText(responseStatusCode)
+      })
+    } else {
+      span.setStatus({
+        code: SpanStatusCode.OK
       })
     }
   }
