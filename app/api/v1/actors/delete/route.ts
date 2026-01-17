@@ -53,7 +53,7 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   if (!parsed.success) {
     logger.warn({
       message: 'Invalid delete actor request body',
-      errors: parsed.error.errors
+      errors: parsed.error.issues
     })
     span.setStatus({
       code: SpanStatusCode.ERROR,

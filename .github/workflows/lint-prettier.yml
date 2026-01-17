@@ -22,6 +22,8 @@ jobs:
           cache: yarn
       - name: Install dependencies
         run: yarn install
+      - name: Build
+        run: yarn build
       - name: Run lint
         run: yarn lint
       - name: Check prettier formatting
