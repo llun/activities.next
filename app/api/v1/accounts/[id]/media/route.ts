@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { AppRouterParams } from '@/lib/services/guards/types'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { AppRouterParams } from '@/lib/services/guards/types'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,

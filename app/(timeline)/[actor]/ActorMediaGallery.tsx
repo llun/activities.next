@@ -18,9 +18,8 @@ export const ActorMediaGallery: FC<Props> = ({
   initialAttachments
 }) => {
   const [modalIndex, setModalIndex] = useState<number | null>(null)
-  const [attachments, setAttachments] = useState<Attachment[]>(
-    initialAttachments
-  )
+  const [attachments, setAttachments] =
+    useState<Attachment[]>(initialAttachments)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(initialAttachments.length >= 25)
   const [error, setError] = useState<string | null>(null)

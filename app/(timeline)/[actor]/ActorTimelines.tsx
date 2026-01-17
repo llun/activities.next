@@ -2,7 +2,6 @@
 
 import { FC } from 'react'
 
-import { Attachment } from '@/lib/models/attachment'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   Tabs,
@@ -10,6 +9,7 @@ import {
   TabsList,
   TabsTrigger
 } from '@/lib/components/ui/tabs'
+import { Attachment } from '@/lib/models/attachment'
 import { Status, StatusType } from '@/lib/models/status'
 
 import { ActorMediaGallery } from './ActorMediaGallery'
