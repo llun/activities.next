@@ -50,8 +50,14 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
-  const { person, statuses, attachments, statusesCount, followingCount, followersCount } =
-    actorProfile
+  const {
+    person,
+    statuses,
+    attachments,
+    statusesCount,
+    followingCount,
+    followersCount
+  } = actorProfile
 
   const currentActor = await getActorFromSession(database, session)
   const isCurrentUser = currentActor?.id === person.id

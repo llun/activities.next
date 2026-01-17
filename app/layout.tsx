@@ -1,5 +1,5 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import type { Metadata, Viewport } from 'next'
-import { trace, SpanStatusCode } from '@opentelemetry/api'
 
 import './globals.css'
 

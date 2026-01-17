@@ -47,7 +47,10 @@ export async function POST(req: NextRequest) {
   // Check if actor is pending deletion or being deleted
   if (validActor.deletionStatus) {
     return NextResponse.json(
-      { error: 'Cannot switch to an actor that is pending deletion or being deleted' },
+      {
+        error:
+          'Cannot switch to an actor that is pending deletion or being deleted'
+      },
       { status: HTTP_STATUS.BAD_REQUEST }
     )
   }

@@ -1,6 +1,6 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { NextApiResponse } from 'next'
 import { NextRequest } from 'next/server'
-import { trace, SpanStatusCode } from '@opentelemetry/api'
 
 import { SERVICE_NAME } from '../constants'
 import { HttpMethod, getCORSHeaders } from './getCORSHeaders'
