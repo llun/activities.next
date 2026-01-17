@@ -1,10 +1,6 @@
 import { type Instrumentation } from 'next'
 import { trace, SpanStatusCode } from '@opentelemetry/api'
 
-export async function register() {
-  // register logic if any
-}
-
 export const onRequestError: Instrumentation.onRequestError = async (
   err,
   _request,
