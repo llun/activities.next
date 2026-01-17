@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { trace, SpanStatusCode } from '@opentelemetry/api'
 
 import './globals.css'
 
@@ -16,6 +17,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const span = trace.getActiveSpan()
+  if (span) {
+    span.setStatus({ code: SpanStatusCode.OK })
+  }
+
   return (
     <html lang="en">
       <body>{children}</body>

@@ -1,5 +1,6 @@
 import { NextApiResponse } from 'next'
 import { NextRequest } from 'next/server'
+import { trace, SpanStatusCode } from '@opentelemetry/api'
 
 import { SERVICE_NAME } from '../constants'
 import { HttpMethod, getCORSHeaders } from './getCORSHeaders'
@@ -45,6 +46,20 @@ export const errorResponse = (
   res: NextApiResponse,
   code: keyof typeof codeMap
 ) => {
+  const span = trace.getActiveSpan()
+  if (span) {
+    if (code >= 400) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: codeMap[code]?.status || ERROR_500.status
+      })
+    } else {
+      span.setStatus({
+        code: SpanStatusCode.OK
+      })
+    }
+  }
+
   if (codeMap[code]) {
     res.status(code).json(codeMap[code])
     return
@@ -58,6 +73,20 @@ export const UNFOLLOW_NETWORK_ERROR_CODES = [
 ]
 
 export const apiErrorResponse = (code: StatusCode) => {
+  const span = trace.getActiveSpan()
+  if (span) {
+    if (code >= 400) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: codeMap[code]?.status || ERROR_500.status
+      })
+    } else {
+      span.setStatus({
+        code: SpanStatusCode.OK
+      })
+    }
+  }
+
   if (!codeMap[code]) {
     return Response.json(ERROR_500, {
       status: code,
@@ -100,6 +129,20 @@ export const apiResponse = ({
   responseStatusCode = 200,
   additionalHeaders = []
 }: APIResponseParams) => {
+  const span = trace.getActiveSpan()
+  if (span) {
+    if (responseStatusCode >= 400) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: statusText(responseStatusCode)
+      })
+    } else {
+      span.setStatus({
+        code: SpanStatusCode.OK
+      })
+    }
+  }
+
   return Response.json(data, {
     ...defaultStatusOption(responseStatusCode),
     headers: new Headers([
