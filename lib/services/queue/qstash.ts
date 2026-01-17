@@ -37,7 +37,7 @@ export class QStashQueue implements Queue {
           body: message,
           timeout: MAX_JOB_TIMEOUT_SECONDS,
           retries: MAX_JOB_RETRIES,
-          deduplicationId: message.id
+          deduplicationId: Buffer.from(message.id).toString('base64url')
         })
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
