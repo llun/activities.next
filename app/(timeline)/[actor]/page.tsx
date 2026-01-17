@@ -50,6 +50,12 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
+  // Remote actors should return 404 to anonymous users
+  // Only logged in users can access remote actors
+  if (!actorProfile.isInternalAccount && !isLoggedIn) {
+    return notFound()
+  }
+
   const {
     person,
     statuses,
