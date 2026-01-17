@@ -2,6 +2,7 @@ import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
 import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
+import { TraceExporter as GoogleCloudTraceExporter } from '@google-cloud/opentelemetry-cloud-trace-exporter'
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http'
 import { KnexInstrumentation } from '@opentelemetry/instrumentation-knex'
 import { registerOTel } from '@vercel/otel'
@@ -17,6 +18,8 @@ const getTraceExporter = (config: Config) => {
       return new GrpcOLTPTraceExporter()
     case 'http/json':
       return new HttpOLTPTraceExporter()
+    case 'google':
+      return new GoogleCloudTraceExporter()
     default:
       return new ProtoOLTPTraceExporter()
   }
