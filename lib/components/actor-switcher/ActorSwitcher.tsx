@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, ChevronDown, Clock, Plus, X } from 'lucide-react'
+import { Check, ChevronDown, Clock, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
@@ -163,10 +163,9 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
                   <button
                     onClick={(e) => handleCancelDeletion(actor.id, e)}
                     disabled={isCancelling}
-                    className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 px-2 py-1 rounded hover:bg-muted cursor-pointer opacity-100"
+                    className="text-xs text-primary hover:text-primary/80 px-2 py-1 rounded hover:bg-muted cursor-pointer opacity-100"
                     title="Cancel deletion"
                   >
-                    <X className="h-3 w-3" />
                     Cancel
                   </button>
                 )}
