@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, ChevronDown, Clock, Plus, X } from 'lucide-react'
+import { Check, ChevronDown, Clock, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
@@ -126,20 +126,26 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
             // Keep the row clickable for cancellation when deletion is scheduled.
             const isDisabled = isSwitching || isDeleting
 
+            const reducedOpacity = isPendingDeletion || isDeleting
+
             return (
               <DropdownMenuItem
                 key={actor.id}
                 onClick={() => handleSwitchActor(actor.id)}
                 disabled={isDisabled}
-                className={`flex items-center gap-3 ${isPendingDeletion || isDeleting ? 'opacity-60' : ''}`}
+                className="flex items-center gap-3"
               >
-                <Avatar className="h-8 w-8">
+                <Avatar
+                  className={`h-8 w-8 ${reducedOpacity ? 'opacity-60' : ''}`}
+                >
                   {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
                   <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 text-xs">
                     {getAvatarInitial(actor.username)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 overflow-hidden">
+                <div
+                  className={`flex-1 overflow-hidden ${reducedOpacity ? 'opacity-60' : ''}`}
+                >
                   <p className="text-sm font-medium truncate">
                     {actor.name || actor.username}
                   </p>
@@ -163,10 +169,9 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
                   <button
                     onClick={(e) => handleCancelDeletion(actor.id, e)}
                     disabled={isCancelling}
-                    className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 px-2 py-1 rounded hover:bg-muted"
+                    className="text-xs text-primary hover:text-primary/80 px-2 py-1 rounded hover:bg-muted cursor-pointer"
                     title="Cancel deletion"
                   >
-                    <X className="h-3 w-3" />
                     Cancel
                   </button>
                 )}

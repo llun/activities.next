@@ -1,0 +1,30 @@
+name: Lint and Prettier
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint-prettier:
+    name: Lint and Prettier
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install
+      - name: Build
+        run: yarn build
+      - name: Run lint
+        run: yarn lint
+      - name: Check prettier formatting
+        run: yarn run prettier --check
