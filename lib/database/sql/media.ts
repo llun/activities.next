@@ -115,14 +115,17 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     query = query.limit(limit)
 
     const data = await query
-    return data.map((item) =>
-      Attachment.parse({
-        ...item,
-        width: item.width ?? undefined,
-        height: item.height ?? undefined,
-        createdAt: getCompatibleTime(item.createdAt),
-        updatedAt: getCompatibleTime(item.updatedAt)
+    return data
+      .map((item) => {
+        if (!item.actorId) return null
+        return Attachment.parse({
+          ...item,
+          width: item.width ?? undefined,
+          height: item.height ?? undefined,
+          createdAt: getCompatibleTime(item.createdAt),
+          updatedAt: getCompatibleTime(item.updatedAt)
+        })
       })
-    )
+      .filter((item): item is Attachment => Boolean(item))
   }
 })
