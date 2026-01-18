@@ -77,17 +77,38 @@ export type Status = z.infer<typeof Status>
 export const EditableStatus = z.union([StatusNote, StatusPoll])
 export type EditableStatus = z.infer<typeof EditableStatus>
 
+// Helper to extract actor ID from attributedTo which can be a string or object
+// Some ActivityPub implementations (like Friendica) return an object instead of a string
+const getActorIdFromAttributedTo = (
+  attributedTo: string | { id: string } | unknown
+): string => {
+  if (typeof attributedTo === 'string') {
+    return attributedTo
+  }
+  if (
+    typeof attributedTo === 'object' &&
+    attributedTo !== null &&
+    'id' in attributedTo &&
+    typeof (attributedTo as { id: unknown }).id === 'string'
+  ) {
+    return (attributedTo as { id: string }).id
+  }
+  throw new Error(`Invalid attributedTo format: ${JSON.stringify(attributedTo)}`)
+}
+
 export const fromNote = (note: Note): StatusNote => {
   const currentTime = Date.now()
   const attachments = (
     Array.isArray(note.attachment) ? note.attachment : [note.attachment]
   ).filter((item): item is Document => item?.type === 'Document')
 
+  const actorId = getActorIdFromAttributedTo(note.attributedTo)
+
   return StatusNote.parse({
     id: note.id,
     url: note.url || note.id,
 
-    actorId: note.attributedTo,
+    actorId,
     actor: null,
 
     type: StatusType.enum.Note,
@@ -104,7 +125,7 @@ export const fromNote = (note: Note): StatusNote => {
 
     attachments: attachments.map((attachment) => ({
       id: attachment.url,
-      actorId: note.attributedTo,
+      actorId,
       statusId: note.id,
       type: 'Document',
       mediaType: attachment.mediaType,
