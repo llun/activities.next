@@ -6,13 +6,13 @@ import { Status } from '@/lib/models/status'
 
 import { getProfileData } from './getProfileData'
 
-// Mock dependencies
-jest.mock('@/lib/activities/requests/getActorFollowers')
-jest.mock('@/lib/activities/requests/getActorFollowing')
-jest.mock('@/lib/activities/requests/getActorPerson')
-jest.mock('@/lib/activities/requests/getActorPosts')
-jest.mock('@/lib/activities/requests/getWebfingerSelf')
-jest.mock('@/lib/utils/getPersonFromActor')
+// Mock dependencies - use relative paths for jest.mock()
+jest.mock('../../../lib/activities/requests/getActorFollowers')
+jest.mock('../../../lib/activities/requests/getActorFollowing')
+jest.mock('../../../lib/activities/requests/getActorPerson')
+jest.mock('../../../lib/activities/requests/getActorPosts')
+jest.mock('../../../lib/activities/requests/getWebfingerSelf')
+jest.mock('../../../lib/utils/getPersonFromActor')
 
 import { getActorFollowers } from '@/lib/activities/requests/getActorFollowers'
 import { getActorFollowing } from '@/lib/activities/requests/getActorFollowing'
