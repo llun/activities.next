@@ -45,17 +45,7 @@ const Page: FC<Props> = async ({ params }) => {
   }
   const actorDomain = parts[1]
 
-  // Extract domain from host (handle formats like "https://example.com" or "example.com:3000")
-  const serverDomain = host.replace(/^https?:\/\//, '').split(':')[0]
-  const isLocalActor = actorDomain === serverDomain
-
-  // Remote actors should return 404 to anonymous users without loading any data
-  // Only logged in users can access remote actors
-  if (!isLocalActor && !isLoggedIn) {
-    return notFound()
-  }
-
-  const actorProfile = await getProfileData(database, decodedActorHandle)
+  const actorProfile = await getProfileData(database, decodedActorHandle, isLoggedIn)
   if (!actorProfile) {
     return notFound()
   }

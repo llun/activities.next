@@ -22,7 +22,8 @@ type ProfileData = {
 
 export const getProfileData = async (
   database: Database,
-  actorHandle: string
+  actorHandle: string,
+  isLoggedIn: boolean = true
 ): Promise<ProfileData | null> => {
   const [username, domain] = actorHandle.split('@').slice(1)
   const persistedActor = await database.getActorFromUsername({
@@ -53,6 +54,11 @@ export const getProfileData = async (
       followersCount,
       isInternalAccount: true
     }
+  }
+
+  // Remote actors: only fetch if user is logged in
+  if (!isLoggedIn) {
+    return null
   }
 
   const actorId = await getWebfingerSelf({ account: actorHandle.slice(1) })
