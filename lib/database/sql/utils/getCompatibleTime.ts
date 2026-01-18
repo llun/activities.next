@@ -1,2 +1,5 @@
-export const getCompatibleTime = (time: number | Date): number =>
-  typeof time === 'number' ? time : time.getTime()
+export const getCompatibleTime = (time: number | Date | string): number => {
+  if (typeof time === 'number') return time
+  if (typeof time === 'string') return new Date(time).getTime()
+  return time.getTime()
+}
