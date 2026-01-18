@@ -96,6 +96,37 @@ const getActorIdFromAttributedTo = (
   throw new Error(`Invalid attributedTo format: ${JSON.stringify(attributedTo)}`)
 }
 
+// Helper to extract URL from note.url which can be a string, array of strings,
+// or array of Link objects (some ActivityPub implementations like Mastodon return arrays)
+// Note: The TypeScript schema types url as string | null | undefined, but some
+// implementations like Mastodon/ruby.social actually send arrays
+const getUrlFromNote = (note: Note): string => {
+  const noteUrl = note.url as unknown
+  if (typeof noteUrl === 'string') {
+    return noteUrl
+  }
+  if (Array.isArray(noteUrl)) {
+    const firstUrl = noteUrl.find(
+      (item): item is string => typeof item === 'string'
+    )
+    if (firstUrl) {
+      return firstUrl
+    }
+    // Some implementations return Link objects in the array
+    const linkWithHref = noteUrl.find(
+      (item): item is { href: string } =>
+        typeof item === 'object' &&
+        item !== null &&
+        'href' in item &&
+        typeof (item as { href: unknown }).href === 'string'
+    )
+    if (linkWithHref) {
+      return linkWithHref.href
+    }
+  }
+  return note.id
+}
+
 export const fromNote = (note: Note): StatusNote => {
   const currentTime = Date.now()
   const attachments = (
@@ -106,7 +137,7 @@ export const fromNote = (note: Note): StatusNote => {
 
   return StatusNote.parse({
     id: note.id,
-    url: note.url || note.id,
+    url: getUrlFromNote(note),
 
     actorId,
     actor: null,
