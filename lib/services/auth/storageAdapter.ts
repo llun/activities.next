@@ -79,7 +79,7 @@ export function StorageAdapter(secret: string): Adapter {
       await database?.createAccountSession({
         accountId: userId,
         token: sessionToken,
-        expireAt: expires.getTime(),
+        expireAt: expires instanceof Date ? expires.getTime() : expires,
         actorId: account?.defaultActorId || null
       })
       return session
@@ -141,7 +141,7 @@ export function StorageAdapter(secret: string): Adapter {
 
       await database.updateAccountSession({
         token: sessionToken,
-        expireAt: expires?.getTime()
+        expireAt: expires instanceof Date ? expires.getTime() : expires
       })
       const accountAndSession = await database.getAccountSession({
         token: sessionToken
