@@ -28,7 +28,7 @@ export const CredentialForm: FC<Props> = ({ provider }) => {
       action={getSigninCallbackUrl(provider, searchParams)}
       className="space-y-4"
     >
-      <input name="csrfToken" type="hidden" defaultValue={csrfToken ?? ''} />
+      <input name="csrfToken" type="hidden" value={csrfToken ?? ''} readOnly />
       <div className="space-y-2">
         <Label htmlFor="inputActorId">Actor Id</Label>
         <Input name="actorId" type="text" id="inputActorId" />
