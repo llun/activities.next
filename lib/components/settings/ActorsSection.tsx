@@ -142,6 +142,7 @@ export function ActorsSection({
   const canSwitch =
     selectedActorId !== currentActor.id &&
     !actors.find((a) => a.id === selectedActorId)?.deletionStatus
+  const hasMultipleActors = actors.length > 1
 
   return (
     <>
@@ -268,14 +269,14 @@ export function ActorsSection({
           </Button>
           <Button
             onClick={handleSaveDefault}
-            disabled={isSavingDefault || !hasChanges || isSwitching}
+            disabled={isSavingDefault || !hasChanges || isSwitching || !hasMultipleActors}
             variant="outline"
           >
             {isSavingDefault ? 'Saving...' : 'Set as default'}
           </Button>
           <Button
             onClick={handleSwitchActor}
-            disabled={isSwitching || !canSwitch || isSavingDefault}
+            disabled={isSwitching || !canSwitch || isSavingDefault || !hasMultipleActors}
           >
             {isSwitching ? 'Switching...' : 'Switch to actor'}
           </Button>

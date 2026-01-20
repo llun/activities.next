@@ -207,37 +207,35 @@ const Page = async () => {
         </div>
       </form>
 
-      {actors.length > 1 && (
-        <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold">Actors</h2>
-            <p className="text-sm text-muted-foreground">
-              Manage your actors, switch between them, or set a default.
-            </p>
-          </div>
-          <ActorsSection
-            currentActor={{
-              id: actor.id,
-              username: actor.username,
-              domain: actor.domain,
-              name: actor.name,
-              iconUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : null,
-              deletionStatus: actor.deletionStatus ?? null,
-              deletionScheduledAt: actor.deletionScheduledAt ?? null
-            }}
-            actors={actors.map((actorItem) => ({
-              id: actorItem.id,
-              username: actorItem.username,
-              domain: actorItem.domain,
-              name: actorItem.name,
-              iconUrl: isRealAvatar(actorItem.iconUrl) ? actorItem.iconUrl : null,
-              deletionStatus: actorItem.deletionStatus ?? null,
-              deletionScheduledAt: actorItem.deletionScheduledAt ?? null
-            }))}
-            currentDefault={actor.account.defaultActorId || null}
-          />
-        </section>
-      )}
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">Actors</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage your actors, switch between them, or set a default.
+          </p>
+        </div>
+        <ActorsSection
+          currentActor={{
+            id: actor.id,
+            username: actor.username,
+            domain: actor.domain,
+            name: actor.name,
+            iconUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : null,
+            deletionStatus: actor.deletionStatus ?? null,
+            deletionScheduledAt: actor.deletionScheduledAt ?? null
+          }}
+          actors={actors.map((actorItem) => ({
+            id: actorItem.id,
+            username: actorItem.username,
+            domain: actorItem.domain,
+            name: actorItem.name,
+            iconUrl: isRealAvatar(actorItem.iconUrl) ? actorItem.iconUrl : null,
+            deletionStatus: actorItem.deletionStatus ?? null,
+            deletionScheduledAt: actorItem.deletionScheduledAt ?? null
+          }))}
+          currentDefault={actor.account.defaultActorId || null}
+        />
+      </section>
 
       {nonCredentialsProviders.length > 0 && (
         <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
