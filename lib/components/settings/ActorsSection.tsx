@@ -30,8 +30,17 @@ export function ActorsSection({
 }: ActorsSectionProps) {
   const router = useRouter()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  
+  // Initialize with currentDefault if it's in the actors list, otherwise use first actor
+  const getInitialActorId = () => {
+    if (currentDefault && actors.find(a => a.id === currentDefault)) {
+      return currentDefault
+    }
+    return actors[0]?.id || ''
+  }
+  
   const [selectedActorId, setSelectedActorId] = useState<string>(
-    currentDefault || actors[0]?.id || ''
+    getInitialActorId()
   )
   const [isSwitching, setIsSwitching] = useState(false)
   const [isSavingDefault, setIsSavingDefault] = useState(false)
@@ -275,8 +284,9 @@ export function ActorsSection({
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Select an actor from the dropdown above. The default actor will be
-          used when you sign in.
+          Select an actor from the dropdown. Use "Save default" to set which
+          actor is used on sign-in. Use "Switch to actor" to immediately change
+          to the selected actor.
         </p>
       </div>
 
