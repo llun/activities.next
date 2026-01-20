@@ -226,14 +226,14 @@ const Page = async () => {
               deletionStatus: actor.deletionStatus ?? null,
               deletionScheduledAt: actor.deletionScheduledAt ?? null
             }}
-            actors={actors.map((a) => ({
-              id: a.id,
-              username: a.username,
-              domain: a.domain,
-              name: a.name,
-              iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null,
-              deletionStatus: a.deletionStatus ?? null,
-              deletionScheduledAt: a.deletionScheduledAt ?? null
+            actors={actors.map((actorItem) => ({
+              id: actorItem.id,
+              username: actorItem.username,
+              domain: actorItem.domain,
+              name: actorItem.name,
+              iconUrl: isRealAvatar(actorItem.iconUrl) ? actorItem.iconUrl : null,
+              deletionStatus: actorItem.deletionStatus ?? null,
+              deletionScheduledAt: actorItem.deletionScheduledAt ?? null
             }))}
           />
         </section>
