@@ -102,10 +102,10 @@ describe('activities', () => {
         createdAt: Date.now()
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await sendAnnounce({
         currentActor: actor,
         inbox: TEST_SHARED_INBOX,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         status: status as any
       })
 
@@ -131,10 +131,10 @@ describe('activities', () => {
         originalStatus
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await sendAnnounce({
         currentActor: actor,
         inbox: TEST_SHARED_INBOX,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         status: status as any
       })
 

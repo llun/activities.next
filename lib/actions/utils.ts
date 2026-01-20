@@ -24,7 +24,7 @@ export const recordActorIfNeeded = async ({
       actorId,
       username: person.preferredUsername,
       domain: new URL(person.id).hostname,
-      followersUrl: person.followers,
+      followersUrl: person.followers ?? '',
       inboxUrl: person.inbox,
       sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
       ...(person.icon ? { iconUrl: person.icon.url } : {}),
@@ -40,7 +40,7 @@ export const recordActorIfNeeded = async ({
     if (!person) return undefined
     return database.updateActor({
       actorId,
-      followersUrl: person.followers,
+      followersUrl: person.followers ?? '',
       inboxUrl: person.inbox,
       sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
       ...(person.icon ? { iconUrl: person.icon.url } : {}),
