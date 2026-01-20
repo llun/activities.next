@@ -37,18 +37,24 @@ export function AddActorDialog({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!open || domainsLoaded) {
+      return
+    }
+
     const fetchDomains = async () => {
       try {
         const response = await fetch('/api/v1/actors/domains')
         if (response.ok) {
           const data = await response.json()
-          setAvailableDomains(data.domains)
-          setHostDomain(data.host)
-          // Set the default domain to host if available
-          if (data.domains.includes(data.host)) {
-            setSelectedDomain(data.host)
-          } else if (data.domains.length > 0) {
-            setSelectedDomain(data.domains[0])
+          if (data.domains && Array.isArray(data.domains) && data.host) {
+            setAvailableDomains(data.domains)
+            setHostDomain(data.host)
+            // Set the default domain to host if available
+            if (data.domains.includes(data.host)) {
+              setSelectedDomain(data.host)
+            } else if (data.domains.length > 0) {
+              setSelectedDomain(data.domains[0])
+            }
           }
           setDomainsLoaded(true)
         }
@@ -59,9 +65,7 @@ export function AddActorDialog({
       }
     }
 
-    if (open && !domainsLoaded) {
-      fetchDomains()
-    }
+    fetchDomains()
   }, [open, domainsLoaded])
 
   const handleSubmit = async (e: React.FormEvent) => {
