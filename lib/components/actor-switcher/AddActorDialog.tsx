@@ -32,6 +32,7 @@ export function AddActorDialog({
   const [selectedDomain, setSelectedDomain] = useState(domain)
   const [availableDomains, setAvailableDomains] = useState<string[]>([domain])
   const [hostDomain, setHostDomain] = useState(domain)
+  const [domainsLoaded, setDomainsLoaded] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -49,16 +50,19 @@ export function AddActorDialog({
           } else if (data.domains.length > 0) {
             setSelectedDomain(data.domains[0])
           }
+          setDomainsLoaded(true)
         }
-      } catch {
+      } catch (error) {
         // If fetch fails, keep the default domain
+        console.error('Failed to fetch available domains:', error)
+        setDomainsLoaded(true)
       }
     }
 
-    if (open) {
+    if (open && !domainsLoaded) {
       fetchDomains()
     }
-  }, [open])
+  }, [open, domainsLoaded])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
