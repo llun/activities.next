@@ -273,7 +273,7 @@ export function ActorsSection({
             disabled={isSavingDefault || !hasChanges || isSwitching}
             variant="outline"
           >
-            {isSavingDefault ? 'Saving...' : 'Save default'}
+            {isSavingDefault ? 'Saving...' : 'Set as default'}
           </Button>
           <Button
             onClick={handleSwitchActor}
@@ -284,7 +284,7 @@ export function ActorsSection({
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Select an actor from the dropdown. Use "Save default" to set which
+          Select an actor from the dropdown. Use "Set as default" to set which
           actor is used on sign-in. Use "Switch to actor" to immediately change
           to the selected actor.
         </p>
