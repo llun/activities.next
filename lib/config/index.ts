@@ -27,6 +27,7 @@ const Config = z.object({
   allowEmails: z.string().array(),
   secretPhase: z.string(),
   allowMediaDomains: z.string().array().optional(),
+  allowActorDomains: z.string().array().optional(),
   auth: AuthConfig.optional(),
   email: z.union([SMTPConfig, LambdaConfig, ResendConfig]).optional(),
   mediaStorage: MediaStorageConfig.optional(),
@@ -67,6 +68,9 @@ const getConfigFromEnvironment = () => {
       allowEmails: JSON.parse(process.env.ACTIVITIES_ALLOW_EMAILS || '[]'),
       allowMediaDomains: JSON.parse(
         process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS || '[]'
+      ),
+      allowActorDomains: JSON.parse(
+        process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS || '[]'
       ),
       ...(process.env.ACTIVITIES_EMAIL
         ? { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
