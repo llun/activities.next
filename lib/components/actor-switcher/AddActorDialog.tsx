@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
 
 interface AddActorDialogProps {
   open: boolean
@@ -28,8 +29,36 @@ export function AddActorDialog({
   onSuccess
 }: AddActorDialogProps) {
   const [username, setUsername] = useState('')
+  const [selectedDomain, setSelectedDomain] = useState(domain)
+  const [availableDomains, setAvailableDomains] = useState<string[]>([domain])
+  const [hostDomain, setHostDomain] = useState(domain)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchDomains = async () => {
+      try {
+        const response = await fetch('/api/v1/actors/domains')
+        if (response.ok) {
+          const data = await response.json()
+          setAvailableDomains(data.domains)
+          setHostDomain(data.host)
+          // Set the default domain to host if available
+          if (data.domains.includes(data.host)) {
+            setSelectedDomain(data.host)
+          } else if (data.domains.length > 0) {
+            setSelectedDomain(data.domains[0])
+          }
+        }
+      } catch {
+        // If fetch fails, keep the default domain
+      }
+    }
+
+    if (open) {
+      fetchDomains()
+    }
+  }, [open])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,7 +79,7 @@ export function AddActorDialog({
       const response = await fetch('/api/v1/actors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), domain })
+        body: JSON.stringify({ username: username.trim(), domain: selectedDomain })
       })
 
       const data = await response.json()
@@ -90,12 +119,35 @@ export function AddActorDialog({
         <DialogHeader>
           <DialogTitle>Add another actor</DialogTitle>
           <DialogDescription>
-            Create a new identity on {domain}. You can switch between actors at
-            any time.
+            Create a new identity. You can switch between actors at any time.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
+            {availableDomains.length > 1 && (
+              <div className="space-y-2">
+                <Label>Domain</Label>
+                <RadioGroup
+                  value={selectedDomain}
+                  onValueChange={setSelectedDomain}
+                  disabled={isLoading}
+                >
+                  {availableDomains.map((domain) => (
+                    <div key={domain} className="flex items-center space-x-2">
+                      <RadioGroupItem value={domain} id={domain} />
+                      <Label htmlFor={domain} className="font-normal">
+                        {domain}
+                        {domain === hostDomain && (
+                          <span className="text-xs text-muted-foreground ml-1">
+                            (main)
+                          </span>
+                        )}
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
               <Input
@@ -106,7 +158,8 @@ export function AddActorDialog({
                 disabled={isLoading}
               />
               <p className="text-sm text-muted-foreground">
-                Your new handle will be @{username || 'username'}@{domain}
+                Your new handle will be @{username || 'username'}@
+                {selectedDomain}
               </p>
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
