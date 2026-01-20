@@ -1,6 +1,7 @@
 'use client'
 
 import { Check, ChevronDown, Clock, Plus } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
@@ -97,27 +98,33 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors w-full text-left">
-            <Avatar className="h-10 w-10">
-              {currentActor.iconUrl && (
-                <AvatarImage src={currentActor.iconUrl} />
-              )}
-              <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                {getAvatarInitial(currentActor.username)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-medium truncate">
-                {currentActor.name || currentActor.username}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {getHandle(currentActor)}
-              </p>
-            </div>
+          <div className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors w-full">
+            <Link
+              href={`/@${currentActor.username}@${currentActor.domain}`}
+              className="flex items-center gap-3 flex-1 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Avatar className="h-10 w-10">
+                {currentActor.iconUrl && (
+                  <AvatarImage src={currentActor.iconUrl} />
+                )}
+                <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                  {getAvatarInitial(currentActor.username)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-sm font-medium truncate">
+                  {currentActor.name || currentActor.username}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {getHandle(currentActor)}
+                </p>
+              </div>
+            </Link>
             {actors.length > 1 && (
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             )}
-          </button>
+          </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[280px]">
           {actors.map((actor) => {
