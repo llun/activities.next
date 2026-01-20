@@ -50,7 +50,7 @@ export function AddActorDialog({
       const response = await fetch('/api/v1/actors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim() })
+        body: JSON.stringify({ username: username.trim(), domain })
       })
 
       const data = await response.json()
