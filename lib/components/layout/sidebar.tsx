@@ -37,13 +37,17 @@ interface SidebarProps {
   currentActor?: ActorInfo
   actors?: ActorInfo[]
   unreadCount?: number
+  availableDomains?: string[]
+  defaultActorDomain?: string | null
 }
 
 export function Sidebar({
   user,
   currentActor,
   actors = [],
-  unreadCount = 0
+  unreadCount = 0,
+  availableDomains = [],
+  defaultActorDomain = null
 }: SidebarProps) {
   const pathname = usePathname()
 
@@ -94,7 +98,12 @@ export function Sidebar({
 
         {currentActor && actors.length > 0 ? (
           <div className="border-t p-4">
-            <ActorSwitcher currentActor={currentActor} actors={actors} />
+            <ActorSwitcher
+              currentActor={currentActor}
+              actors={actors}
+              availableDomains={availableDomains}
+              defaultActorDomain={defaultActorDomain}
+            />
           </div>
         ) : (
           user && (

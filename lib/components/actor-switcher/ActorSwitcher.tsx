@@ -28,9 +28,16 @@ export interface ActorInfo {
 interface ActorSwitcherProps {
   currentActor: ActorInfo
   actors: ActorInfo[]
+  availableDomains: string[]
+  defaultActorDomain?: string | null
 }
 
-export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
+export function ActorSwitcher({
+  currentActor,
+  actors,
+  availableDomains,
+  defaultActorDomain
+}: ActorSwitcherProps) {
   const router = useRouter()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
@@ -189,7 +196,9 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
       <AddActorDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
-        domain={currentActor.domain}
+        domains={availableDomains}
+        defaultDomain={defaultActorDomain}
+        currentDomain={currentActor.domain}
         onSuccess={handleActorCreated}
       />
     </>

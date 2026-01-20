@@ -35,6 +35,8 @@ export interface SQLAccount {
   email: string
   passwordHash?: string | null
   verificationCode?: string | null
+  defaultActorId?: string | null
+  defaultActorDomain?: string | null
 
   createdAt: number | Date
   updatedAt: number | Date

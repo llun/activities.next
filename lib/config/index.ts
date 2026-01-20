@@ -19,6 +19,7 @@ import { RequestConfig, getRequestConfig } from './request'
 
 const Config = z.object({
   host: z.string(),
+  domains: z.string().array().optional(),
   serviceName: z.string().nullish(),
   serviceDescription: z.string().nullish(),
   languages: z.string().array().default(['en']),
@@ -37,11 +38,18 @@ const Config = z.object({
 })
 export type Config = z.infer<typeof Config>
 
+const applyDefaults = (config: Config): Config => ({
+  ...config,
+  domains: config.domains ?? [config.host]
+})
+
 const getConfigFromFile = () => {
   try {
-    return Config.parse(
-      JSON.parse(
-        fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
+    return applyDefaults(
+      Config.parse(
+        JSON.parse(
+          fs.readFileSync(path.resolve(process.cwd(), 'config.json'), 'utf-8')
+        )
       )
     )
   } catch (error) {
@@ -62,27 +70,32 @@ const getConfigFromFile = () => {
 
 const getConfigFromEnvironment = () => {
   try {
-    return Config.parse({
-      host: process.env.ACTIVITIES_HOST || '',
-      secretPhase: process.env.ACTIVITIES_SECRET_PHASE || '',
-      allowEmails: JSON.parse(process.env.ACTIVITIES_ALLOW_EMAILS || '[]'),
-      allowMediaDomains: JSON.parse(
-        process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS || '[]'
-      ),
-      allowActorDomains: JSON.parse(
-        process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS || '[]'
-      ),
-      ...(process.env.ACTIVITIES_EMAIL
-        ? { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
-        : null),
-      ...getAuthConfig(),
-      ...getDatabaseConfig(),
-      ...getMediaStorageConfig(),
-      ...getOtelConfig(),
-      ...getInternalApiConfig(),
-      ...getRequestConfig(),
-      ...getQueueConfig()
-    })
+    return applyDefaults(
+      Config.parse({
+        host: process.env.ACTIVITIES_HOST || '',
+        ...(process.env.ACTIVITIES_DOMAINS
+          ? { domains: JSON.parse(process.env.ACTIVITIES_DOMAINS) }
+          : null),
+        secretPhase: process.env.ACTIVITIES_SECRET_PHASE || '',
+        allowEmails: JSON.parse(process.env.ACTIVITIES_ALLOW_EMAILS || '[]'),
+        allowMediaDomains: JSON.parse(
+          process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS || '[]'
+        ),
+        allowActorDomains: JSON.parse(
+          process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS || '[]'
+        ),
+        ...(process.env.ACTIVITIES_EMAIL
+          ? { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
+          : null),
+        ...getAuthConfig(),
+        ...getDatabaseConfig(),
+        ...getMediaStorageConfig(),
+        ...getOtelConfig(),
+        ...getInternalApiConfig(),
+        ...getRequestConfig(),
+        ...getQueueConfig()
+      })
+    )
   } catch (error) {
     if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {
       return null

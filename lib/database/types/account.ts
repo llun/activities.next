@@ -65,6 +65,10 @@ export type CreateActorForAccountParams = {
 }
 export type GetActorsForAccountParams = { accountId: string }
 export type SetDefaultActorParams = { accountId: string; actorId: string }
+export type SetDefaultActorDomainParams = {
+  accountId: string
+  domain: string
+}
 export type SetSessionActorParams = { token: string; actorId: string }
 
 export interface AccountDatabase {
@@ -107,5 +111,6 @@ export interface AccountDatabase {
   createActorForAccount(params: CreateActorForAccountParams): Promise<string>
   getActorsForAccount(params: GetActorsForAccountParams): Promise<Actor[]>
   setDefaultActor(params: SetDefaultActorParams): Promise<void>
+  setDefaultActorDomain(params: SetDefaultActorDomainParams): Promise<void>
   setSessionActor(params: SetSessionActorParams): Promise<void>
 }
