@@ -53,7 +53,6 @@ describe('getProfileData', () => {
   }
 
   const mockPerson: Actor = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
     type: 'Person',
     id: 'https://remote.com/users/remoteuser',
     preferredUsername: 'remoteuser',

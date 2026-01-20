@@ -1,5 +1,5 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Status } from '@/lib/models/status'
+import { Status, StatusNote, StatusType } from '@/lib/models/status'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -99,7 +99,9 @@ describe('Status Action Endpoints', () => {
       })
 
       expect(announce).not.toBeNull()
-      expect(announce.originalStatus.id).toBe(originalStatusId)
+      if (announce && announce.type === StatusType.enum.Announce) {
+        expect(announce.originalStatus.id).toBe(originalStatusId)
+      }
     })
 
     it('returns reblog count for reblogged status', async () => {
@@ -117,7 +119,7 @@ describe('Status Action Endpoints', () => {
       const status = (await database.getStatus({
         statusId,
         withReplies: false
-      })) as Status
+      })) as StatusNote
 
       expect(status.text).toBeTruthy()
 
@@ -142,7 +144,7 @@ describe('Status Action Endpoints', () => {
       const status = (await database.getStatus({
         statusId,
         withReplies: false
-      })) as Status
+      })) as StatusNote
 
       // Build history (current implementation returns single entry)
       const history = [

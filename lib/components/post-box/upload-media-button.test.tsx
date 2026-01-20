@@ -40,7 +40,7 @@ describe('UploadMediaButton', () => {
 
     // Mock crypto.randomUUID
     let counter = 0
-    global.crypto.randomUUID = jest.fn(() => `uuid-${counter++}`)
+    global.crypto.randomUUID = jest.fn(() => `uuid-${counter++}`) as jest.Mock & (() => `${string}-${string}-${string}-${string}-${string}`)
 
     // Mock URL.createObjectURL
     global.URL.createObjectURL = jest.fn(() => 'blob:test-url')

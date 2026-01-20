@@ -582,11 +582,15 @@ describe('#getMastodonStatus', () => {
         originalStatusId: unlistedStatus.id
       })
 
-      const status = (await database.getStatus({
-        statusId: announceStatus.id
-      })) as Status
+      const status = announceStatus
+        ? ((await database.getStatus({
+            statusId: announceStatus.id
+          })) as Status)
+        : null
 
-      const mastodonStatus = await getMastodonStatus(database, status)
+      const mastodonStatus = status
+        ? await getMastodonStatus(database, status)
+        : null
 
       // The visibility should be 'unlisted' from the original status, not 'public' from the announce
       expect(mastodonStatus?.visibility).toBe('unlisted')
@@ -605,7 +609,7 @@ describe('#getMastodonStatus', () => {
       })
 
       // Create an announce of the private status
-      const announceStatus = await database.createAnnounce({
+      const announcePrivate = await database.createAnnounce({
         id: `${ACTOR2_ID}/statuses/announce-private`,
         actorId: ACTOR2_ID,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -613,11 +617,15 @@ describe('#getMastodonStatus', () => {
         originalStatusId: privateStatus.id
       })
 
-      const status = (await database.getStatus({
-        statusId: announceStatus.id
-      })) as Status
+      const status = announcePrivate
+        ? ((await database.getStatus({
+            statusId: announcePrivate.id
+          })) as Status)
+        : null
 
-      const mastodonStatus = await getMastodonStatus(database, status)
+      const mastodonStatus = status
+        ? await getMastodonStatus(database, status)
+        : null
 
       // The visibility should be 'private' from the original status
       expect(mastodonStatus?.visibility).toBe('private')

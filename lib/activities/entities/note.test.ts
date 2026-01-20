@@ -76,7 +76,7 @@ describe('note entity utilities', () => {
       const result = getAttachments(note)
 
       expect(result).toHaveLength(1)
-      expect(result[0].url).toEqual('https://example.com/image.jpg')
+      expect((result[0] as { url: string }).url).toEqual('https://example.com/image.jpg')
     })
 
     it('wraps single attachment in array', () => {
@@ -142,8 +142,8 @@ describe('note entity utilities', () => {
       const result = getAttachments(videoNote)
 
       expect(result).toHaveLength(1)
-      expect(result[0].type).toEqual('Document')
-      expect(result[0].mediaType).toEqual('video/mp4')
+      expect((result[0] as { type: string }).type).toEqual('Document')
+      expect((result[0] as { mediaType: string }).mediaType).toEqual('video/mp4')
     })
 
     it('uses default media type for Image without mediaType', () => {
@@ -155,7 +155,7 @@ describe('note entity utilities', () => {
 
       const result = getAttachments(imageNote)
 
-      expect(result[0].mediaType).toEqual('image/jpeg')
+      expect((result[0] as { mediaType: string }).mediaType).toEqual('image/jpeg')
     })
 
     it('uses default media type for Video without mediaType', () => {
@@ -167,7 +167,7 @@ describe('note entity utilities', () => {
 
       const result = getAttachments(videoNote)
 
-      expect(result[0].mediaType).toEqual('video/mp4')
+      expect((result[0] as { mediaType: string }).mediaType).toEqual('video/mp4')
     })
   })
 

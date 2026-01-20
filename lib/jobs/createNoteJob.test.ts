@@ -4,7 +4,7 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
-import { Status, StatusType } from '@/lib/models/status'
+import { Status, StatusNote, StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockImageDocument } from '@/lib/stub/imageDocument'
@@ -47,7 +47,7 @@ describe('createNoteJob', () => {
       data: note
     })
 
-    const status = (await database.getStatus({ statusId: note.id })) as Status
+    const status = (await database.getStatus({ statusId: note.id })) as StatusNote
     if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
@@ -69,7 +69,7 @@ describe('createNoteJob', () => {
       data: note
     })
 
-    const status = (await database.getStatus({ statusId: note.id })) as Status
+    const status = (await database.getStatus({ statusId: note.id })) as StatusNote
     if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
@@ -99,7 +99,7 @@ describe('createNoteJob', () => {
       name: CREATE_NOTE_JOB_NAME,
       data: note
     })
-    const status = (await database.getStatus({ statusId: note.id })) as Status
+    const status = (await database.getStatus({ statusId: note.id })) as StatusNote
     if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
@@ -168,7 +168,7 @@ describe('createNoteJob', () => {
       name: CREATE_NOTE_JOB_NAME,
       data: note
     })
-    const status = (await database.getStatus({ statusId: note.id })) as Status
+    const status = (await database.getStatus({ statusId: note.id })) as StatusNote
     if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
@@ -185,7 +185,7 @@ describe('createNoteJob', () => {
       name: CREATE_NOTE_JOB_NAME,
       data: note
     })
-    const status = (await database.getStatus({ statusId: note.id })) as Status
+    const status = (await database.getStatus({ statusId: note.id })) as StatusNote
     if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
@@ -215,7 +215,7 @@ describe('createNoteJob', () => {
       data: image
     })
 
-    const status = (await database.getStatus({ statusId: image.id })) as Status
+    const status = (await database.getStatus({ statusId: image.id })) as StatusNote
     if (status.type !== StatusType.enum.Note) {
       fail('Status type must be note')
     }
@@ -265,7 +265,7 @@ describe('createNoteJob', () => {
       data: image
     })
 
-    const status = (await database.getStatus({ statusId: image.id })) as Status
+    const status = (await database.getStatus({ statusId: image.id })) as StatusNote
     expect(status.attachments).toHaveLength(1)
     expect(status.attachments[0]).toMatchObject({
       url: 'https://pixelfed.social/storage/m/1.jpg'
@@ -292,7 +292,7 @@ describe('createNoteJob', () => {
       data: image
     })
 
-    const status = (await database.getStatus({ statusId: image.id })) as Status
+    const status = (await database.getStatus({ statusId: image.id })) as StatusNote
     expect(status.attachments).toHaveLength(1)
     expect(status.attachments[0]).toMatchObject({
       url: 'https://pixelfed.social/p/user/no-media-type.jpg',
@@ -319,7 +319,7 @@ describe('createNoteJob', () => {
       data: page
     })
 
-    const status = (await database.getStatus({ statusId: page.id })) as Status
+    const status = (await database.getStatus({ statusId: page.id })) as StatusNote
     expect(status).toBeDefined()
     expect(status.id).toEqual(page.id)
     expect(status.type).toEqual(StatusType.enum.Note)
@@ -347,7 +347,7 @@ describe('createNoteJob', () => {
 
     const status = (await database.getStatus({
       statusId: article.id
-    })) as Status
+    })) as StatusNote
     expect(status).toBeDefined()
     expect(status.id).toEqual(article.id)
     expect(status.type).toEqual(StatusType.enum.Note)
@@ -377,7 +377,7 @@ describe('createNoteJob', () => {
       data: video
     })
 
-    const status = (await database.getStatus({ statusId: video.id })) as Status
+    const status = (await database.getStatus({ statusId: video.id })) as StatusNote
     expect(status).toBeDefined()
     expect(status.id).toEqual(video.id)
     expect(status.type).toEqual(StatusType.enum.Note)

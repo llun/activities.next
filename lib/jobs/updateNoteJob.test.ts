@@ -4,7 +4,7 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME, UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { updateNoteJob } from '@/lib/jobs/updateNoteJob'
-import { Status, StatusType } from '@/lib/models/status'
+import { StatusNote, StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
@@ -44,7 +44,7 @@ describe('updateNoteJob', () => {
       data: updatedNote
     })
 
-    const status = (await database.getStatus({ statusId: note.id })) as Status
+    const status = (await database.getStatus({ statusId: note.id })) as StatusNote
     expect(status).toBeDefined()
     expect(status.id).toEqual(note.id)
     expect(status.text).toEqual('<p>Hello Updated</p>')
@@ -85,7 +85,7 @@ describe('updateNoteJob', () => {
       data: updatedImage
     })
 
-    const status = (await database.getStatus({ statusId: image.id })) as Status
+    const status = (await database.getStatus({ statusId: image.id })) as StatusNote
     expect(status).toBeDefined()
     expect(status.id).toEqual(image.id)
     expect(status.text).toEqual('<p>Beautiful sunset with filters</p>')

@@ -9,9 +9,15 @@ describe('follow email template', () => {
     domain: 'remote.example.com',
     name: 'Follower User',
     createdAt: Date.now(),
-    statusesCount: 0,
+    updatedAt: Date.now(),
+    statusCount: 0,
     followersCount: 0,
-    followingCount: 0
+    followingCount: 0,
+    followersUrl: 'https://remote.example.com/users/follower/followers',
+    inboxUrl: 'https://remote.example.com/users/follower/inbox',
+    sharedInboxUrl: 'https://remote.example.com/inbox',
+    lastStatusAt: null,
+    publicKey: 'PUBLIC_KEY'
   }
 
   describe('#getSubject', () => {

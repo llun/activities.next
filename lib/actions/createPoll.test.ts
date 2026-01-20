@@ -58,8 +58,8 @@ describe('Create poll action', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = statuses.find((s) =>
-        s.text.includes('What is your favorite color?')
+      const poll = statuses.find(
+        (s) => s.type !== 'Announce' && s.text.includes('What is your favorite color?')
       )
 
       expect(poll).toBeDefined()
@@ -80,7 +80,9 @@ describe('Create poll action', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = statuses.find((s) => s.text.includes('What do you think?'))
+      const poll = statuses.find(
+        (s) => s.type !== 'Announce' && s.text.includes('What do you think?')
+      )
 
       expect(poll).toBeDefined()
       expect(poll?.to).toContain(ACTIVITY_STREAM_PUBLIC)
@@ -104,10 +106,12 @@ describe('Create poll action', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = statuses.find((s) => s.text.includes('Poll reply'))
+      const poll = statuses.find(
+        (s) => s.type !== 'Announce' && s.text.includes('Poll reply')
+      )
 
       expect(poll).toBeDefined()
-      expect(poll?.reply).toBe(replyStatusId)
+      expect(poll?.type !== 'Announce' && poll?.reply).toBe(replyStatusId)
       expect(poll?.to).toContain(ACTIVITY_STREAM_PUBLIC)
     })
 
@@ -126,7 +130,9 @@ describe('Create poll action', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = statuses.find((s) => s.text.includes('Timed poll'))
+      const poll = statuses.find(
+        (s) => s.type !== 'Announce' && s.text.includes('Timed poll')
+      )
 
       expect(poll).toBeDefined()
     })
@@ -145,8 +151,8 @@ describe('Create poll action', () => {
         const statuses = await database.getActorStatuses({
           actorId: actor1.id
         })
-        const poll = statuses.find((s) =>
-          s.text.includes('Private poll question')
+        const poll = statuses.find(
+          (s) => s.type !== 'Announce' && s.text.includes('Private poll question')
         )
 
         expect(poll).toBeDefined()
@@ -168,8 +174,8 @@ describe('Create poll action', () => {
         const statuses = await database.getActorStatuses({
           actorId: actor1.id
         })
-        const poll = statuses.find((s) =>
-          s.text.includes('Unlisted poll question')
+        const poll = statuses.find(
+          (s) => s.type !== 'Announce' && s.text.includes('Unlisted poll question')
         )
 
         expect(poll).toBeDefined()
@@ -200,8 +206,8 @@ describe('Create poll action', () => {
         const statuses = await database.getActorStatuses({
           actorId: actor1.id
         })
-        const poll = statuses.find((s) =>
-          s.text.includes('Poll reply to private')
+        const poll = statuses.find(
+          (s) => s.type !== 'Announce' && s.text.includes('Poll reply to private')
         )
 
         expect(poll).toBeDefined()

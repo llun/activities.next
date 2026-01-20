@@ -34,8 +34,8 @@ jest.mock('next/headers', () => ({
 jest.mock('crypto', () => {
   const actual = jest.requireActual('crypto')
   const { promisify } = jest.requireActual('util')
-  const mockGenerateKeyPair = jest.fn()
-  mockGenerateKeyPair[promisify.custom] = () =>
+  const mockGenerateKeyPair = jest.fn() as jest.Mock & { [key: symbol]: () => Promise<{ publicKey: string; privateKey: string }> }
+  mockGenerateKeyPair[promisify.custom as symbol] = () =>
     Promise.resolve({ publicKey: 'public-key', privateKey: 'private-key' })
   return {
     ...actual,

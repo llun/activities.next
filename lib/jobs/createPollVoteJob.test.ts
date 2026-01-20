@@ -39,7 +39,7 @@ describe('createPollVoteJob', () => {
     mockRequests(fetchMock)
 
     // Create a fresh poll for each test
-    pollStatus = await database.createPoll({
+    pollStatus = (await database.createPoll({
       id: `${actor1?.id}/polls/${Date.now()}-${Math.random()}`,
       url: `${actor1?.id}/polls/${Date.now()}`,
       actorId: actor1?.id || '',
@@ -52,7 +52,7 @@ describe('createPollVoteJob', () => {
       pollType: 'oneOf',
       endAt: Date.now() + 24 * 60 * 60 * 1000,
       createdAt: Date.now()
-    })
+    })) as StatusPoll
   })
 
   const createVoteNote = (params: {

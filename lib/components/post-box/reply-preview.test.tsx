@@ -11,10 +11,7 @@ import { ReplyPreview } from './reply-preview'
 
 // Mock the processStatusText utility
 jest.mock('../../utils/text/processStatusText', () => ({
-  processStatusText: jest.fn((host: string, status: StatusNote) => {
-    if (status.type === 'Announce') {
-      return (status as unknown as StatusAnnounce).originalStatus.text
-    }
+  processStatusText: jest.fn((_host: string, status: StatusNote) => {
     return status.text
   }),
   getActualStatus: jest.fn((status: StatusNote) => status)
@@ -48,14 +45,18 @@ describe('ReplyPreview', () => {
     actorId: 'https://example.com/users/testuser',
     actor: {
       id: 'https://example.com/users/testuser',
+      username: 'testuser',
+      domain: 'example.com',
       name: 'Test User',
-      preferredUsername: 'testuser',
-      url: 'https://example.com/@testuser',
-      icon: null,
-      summary: null,
+      followersUrl: 'https://example.com/users/testuser/followers',
+      inboxUrl: 'https://example.com/users/testuser/inbox',
+      sharedInboxUrl: 'https://example.com/inbox',
+      iconUrl: undefined,
+      summary: undefined,
       followersCount: 0,
       followingCount: 0,
-      statusesCount: 0,
+      statusCount: 0,
+      lastStatusAt: null,
       createdAt: Date.now()
     },
     to: [],
@@ -78,14 +79,18 @@ describe('ReplyPreview', () => {
     actorId: 'https://example.com/users/booster',
     actor: {
       id: 'https://example.com/users/booster',
+      username: 'booster',
+      domain: 'example.com',
       name: 'Booster User',
-      preferredUsername: 'booster',
-      url: 'https://example.com/@booster',
-      icon: null,
-      summary: null,
+      followersUrl: 'https://example.com/users/booster/followers',
+      inboxUrl: 'https://example.com/users/booster/inbox',
+      sharedInboxUrl: 'https://example.com/inbox',
+      iconUrl: undefined,
+      summary: undefined,
       followersCount: 0,
       followingCount: 0,
-      statusesCount: 0,
+      statusCount: 0,
+      lastStatusAt: null,
       createdAt: Date.now()
     },
     to: [],
@@ -240,14 +245,18 @@ describe('ReplyPreview', () => {
       const status = createMockStatus({
         actor: {
           id: 'https://example.com/users/jane',
+          username: 'jane',
+          domain: 'example.com',
           name: 'Jane Doe',
-          preferredUsername: 'jane',
-          url: 'https://example.com/@jane',
-          icon: null,
-          summary: null,
+          followersUrl: 'https://example.com/users/jane/followers',
+          inboxUrl: 'https://example.com/users/jane/inbox',
+          sharedInboxUrl: 'https://example.com/inbox',
+          iconUrl: undefined,
+          summary: undefined,
           followersCount: 100,
           followingCount: 50,
-          statusesCount: 25,
+          statusCount: 25,
+          lastStatusAt: null,
           createdAt: Date.now()
         }
       })

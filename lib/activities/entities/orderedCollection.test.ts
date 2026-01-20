@@ -44,6 +44,7 @@ describe('orderedCollection', () => {
           '@context': 'https://www.w3.org/ns/activitystreams',
           id: 'https://example.com/collection?page=1',
           type: 'OrderedCollectionPage',
+          next: 'https://example.com/collection?page=2',
           orderedItems: []
         }
       }
@@ -60,9 +61,11 @@ describe('orderedCollection', () => {
         type: 'OrderedCollection',
         first: {
           '@context': 'https://www.w3.org/ns/activitystreams',
+          id: undefined,
           type: 'OrderedCollectionPage',
+          next: 'https://example.com/collection?page=2',
           orderedItems: []
-        } as OrderedCollection['first']
+        } as unknown as OrderedCollection['first']
       }
 
       expect(getOrderCollectionFirstPage(collection)).toBeNull()

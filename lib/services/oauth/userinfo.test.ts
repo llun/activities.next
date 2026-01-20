@@ -10,7 +10,7 @@ describe('#getUserInfo', () => {
       domain: 'example.com',
       name: 'Test User',
       iconUrl: 'https://example.com/avatar.png',
-      headerImageUrl: null,
+      headerImageUrl: undefined,
       summary: 'A test user',
       followersUrl: 'https://example.com/users/testuser/followers',
       inboxUrl: 'https://example.com/users/testuser/inbox',
@@ -19,7 +19,11 @@ describe('#getUserInfo', () => {
       privateKey: 'private-key',
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      account: null
+      account: undefined,
+      statusCount: 0,
+      followersCount: 0,
+      followingCount: 0,
+      lastStatusAt: null
     }
 
     const userInfo = getUserInfo(actor)
@@ -38,10 +42,10 @@ describe('#getUserInfo', () => {
       id: 'https://example.com/users/noname',
       username: 'noname',
       domain: 'example.com',
-      name: null,
-      iconUrl: null,
-      headerImageUrl: null,
-      summary: null,
+      name: undefined,
+      iconUrl: undefined,
+      headerImageUrl: undefined,
+      summary: undefined,
       followersUrl: 'https://example.com/users/noname/followers',
       inboxUrl: 'https://example.com/users/noname/inbox',
       sharedInboxUrl: 'https://example.com/inbox',
@@ -49,7 +53,11 @@ describe('#getUserInfo', () => {
       privateKey: 'private-key',
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      account: null
+      account: undefined,
+      statusCount: 0,
+      followersCount: 0,
+      followingCount: 0,
+      lastStatusAt: null
     }
 
     const userInfo = getUserInfo(actor)
@@ -65,9 +73,9 @@ describe('#getUserInfo', () => {
       username: 'encoded',
       domain: 'example.com',
       name: 'Encoded User',
-      iconUrl: null,
-      headerImageUrl: null,
-      summary: null,
+      iconUrl: undefined,
+      headerImageUrl: undefined,
+      summary: undefined,
       followersUrl: 'https://example.com/users/encoded/followers',
       inboxUrl: 'https://example.com/users/encoded/inbox',
       sharedInboxUrl: 'https://example.com/inbox',
@@ -75,7 +83,11 @@ describe('#getUserInfo', () => {
       privateKey: 'private-key',
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      account: null
+      account: undefined,
+      statusCount: 0,
+      followersCount: 0,
+      followingCount: 0,
+      lastStatusAt: null
     }
 
     const userInfo = getUserInfo(actor)

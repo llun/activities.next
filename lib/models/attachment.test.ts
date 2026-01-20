@@ -149,9 +149,10 @@ describe('attachment', () => {
 
     it('calculates aspect ratio correctly', () => {
       const result = getMastodonAttachment(baseAttachment)
+      const meta = result?.meta?.original as { aspect: number; size: string }
 
-      expect(result?.meta?.original?.aspect).toBeCloseTo(1920 / 1080)
-      expect(result?.meta?.original?.size).toEqual('1920x1080')
+      expect(meta?.aspect).toBeCloseTo(1920 / 1080)
+      expect(meta?.size).toEqual('1920x1080')
     })
   })
 })

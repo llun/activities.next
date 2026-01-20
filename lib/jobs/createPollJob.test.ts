@@ -4,7 +4,7 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createPollJob } from '@/lib/jobs/createPollJob'
 import { CREATE_POLL_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
-import { StatusType } from '@/lib/models/status'
+import { StatusPoll, StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -194,7 +194,9 @@ describe('createPollJob', () => {
       statusId: `${actor1?.id}/statuses/post-1`
     })
     // Should not update existing status
-    expect(status?.text).not.toEqual('Duplicate poll content')
+    expect(
+      status?.type !== 'Announce' ? status?.text : undefined
+    ).not.toEqual('Duplicate poll content')
   })
 
   it('fetches and stores remote actor when creating poll', async () => {
@@ -270,7 +272,7 @@ describe('createPollJob', () => {
       data: question
     })
 
-    const status = await database.getStatus({ statusId: question.id })
+    const status = await database.getStatus({ statusId: question.id }) as StatusPoll
     expect(status).toBeDefined()
     expect(status?.tags).toContainEqual(
       expect.objectContaining({
@@ -296,7 +298,7 @@ describe('createPollJob', () => {
       data: question
     })
 
-    const status = await database.getStatus({ statusId: question.id })
+    const status = await database.getStatus({ statusId: question.id }) as StatusPoll
     expect(status).toBeDefined()
     expect(status?.tags).toContainEqual(
       expect.objectContaining({

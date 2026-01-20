@@ -39,9 +39,7 @@ describe('Notification Endpoints', () => {
       await database.createNotification({
         actorId: ACTOR1_ID,
         type: 'follow',
-        sourceActorId: ACTOR2_ID,
-        statusId: null,
-        createdAt: Date.now()
+        sourceActorId: ACTOR2_ID
       })
 
       const notifications = await database.getNotifications({
@@ -59,8 +57,7 @@ describe('Notification Endpoints', () => {
         actorId: ACTOR1_ID,
         type: 'mention',
         sourceActorId: ACTOR2_ID,
-        statusId: `${ACTOR2_ID}/statuses/post-2`,
-        createdAt: Date.now()
+        statusId: `${ACTOR2_ID}/statuses/post-2`
       })
 
       const mastodonNotification = await getMastodonNotification(
@@ -86,10 +83,9 @@ describe('Notification Endpoints', () => {
       // Create a notification
       const notification = await database.createNotification({
         actorId: ACTOR1_ID,
-        type: 'favourite',
+        type: 'like',
         sourceActorId: ACTOR2_ID,
-        statusId: `${ACTOR1_ID}/statuses/post-1`,
-        createdAt: Date.now()
+        statusId: `${ACTOR1_ID}/statuses/post-1`
       })
 
       // Verify it exists
@@ -120,9 +116,7 @@ describe('Notification Endpoints', () => {
         await database.createNotification({
           actorId: ACTOR1_ID,
           type: 'follow',
-          sourceActorId: ACTOR2_ID,
-          statusId: null,
-          createdAt: Date.now() + i
+          sourceActorId: ACTOR2_ID
         })
       }
 
@@ -152,9 +146,7 @@ describe('Notification Endpoints', () => {
       const notification = await database.createNotification({
         actorId: ACTOR1_ID,
         type: 'follow',
-        sourceActorId: ACTOR2_ID,
-        statusId: null,
-        createdAt: Date.now()
+        sourceActorId: ACTOR2_ID
       })
 
       const mastodonNotification = await getMastodonNotification(
@@ -172,8 +164,7 @@ describe('Notification Endpoints', () => {
         actorId: ACTOR1_ID,
         type: 'reblog',
         sourceActorId: ACTOR2_ID,
-        statusId: `${ACTOR1_ID}/statuses/post-1`,
-        createdAt: Date.now()
+        statusId: `${ACTOR1_ID}/statuses/post-1`
       })
 
       const mastodonNotification = await getMastodonNotification(
@@ -190,8 +181,7 @@ describe('Notification Endpoints', () => {
         actorId: ACTOR1_ID,
         type: 'like',
         sourceActorId: ACTOR2_ID,
-        statusId: `${ACTOR1_ID}/statuses/post-1`,
-        createdAt: Date.now()
+        statusId: `${ACTOR1_ID}/statuses/post-1`
       })
 
       const mastodonNotification = await getMastodonNotification(
