@@ -170,7 +170,7 @@ export function ActorsSection({
                     {selectedActor ? getHandle(selectedActor) : ''}
                   </p>
                 </div>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-[400px]">
