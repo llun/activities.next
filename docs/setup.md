@@ -23,6 +23,22 @@ Set your instance's domain name:
 }
 ```
 
+To allow actor creation on multiple domains, provide a list of domains. When
+omitted, it defaults to the host:
+
+```json
+{
+  "host": "your-domain.tld",
+  "domains": ["your-domain.tld", "alt-domain.tld"]
+}
+```
+
+You can also supply the list via environment variable as a JSON array string:
+
+```bash
+ACTIVITIES_DOMAINS='["your-domain.tld","alt-domain.tld"]'
+```
+
 ### Access Control
 
 Restrict who can sign up to your instance by specifying allowed emails:

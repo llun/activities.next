@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { DefaultActorSelector } from '@/lib/components/settings/DefaultActorSelector'
+import { DefaultActorDomainSelector } from '@/lib/components/settings/DefaultActorDomainSelector'
 import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { Button } from '@/lib/components/ui/button'
@@ -54,7 +55,8 @@ const Page = async () => {
   }
 
   const profile = getActorProfile(actor)
-  const { auth } = getConfig()
+  const config = getConfig()
+  const { auth, domains } = config
   const [nonCredentialsProviders, connectedProviders, actors] =
     await Promise.all([
       (providers &&
@@ -227,6 +229,19 @@ const Page = async () => {
           />
         </section>
       )}
+
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">Actor domain</h2>
+          <p className="text-sm text-muted-foreground">
+            Choose the default domain for new actors.
+          </p>
+        </div>
+        <DefaultActorDomainSelector
+          domains={domains}
+          currentDefault={actor.account.defaultActorDomain || null}
+        />
+      </section>
 
       {nonCredentialsProviders.length > 0 && (
         <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">

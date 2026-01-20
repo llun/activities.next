@@ -5,6 +5,7 @@ import { Modal } from '@/app/Modal'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
 import { Sidebar } from '@/lib/components/layout/sidebar'
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getActorProfile, getMention } from '@/lib/models/actor'
 import { cn } from '@/lib/utils'
@@ -22,6 +23,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
 
   const session = await getServerSession(getAuthOptions())
   const actor = await getActorFromSession(database, session)
+  const config = getConfig()
 
   // Check if iconUrl is a real user-uploaded avatar (not auto-generated)
   // Auto-generated URLs typically contain service identifiers
@@ -88,6 +90,8 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
             deletionScheduledAt: a.deletionScheduledAt ?? null
           }))}
           unreadCount={unreadCount}
+          availableDomains={config.domains}
+          defaultActorDomain={actor?.account?.defaultActorDomain ?? null}
         />
       )}
       {showNavigation && <MobileNav unreadCount={unreadCount} />}

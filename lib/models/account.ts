@@ -6,6 +6,7 @@ export const Account = z.object({
   passwordHash: z.string().nullish(),
   verificationCode: z.string().nullish(),
   defaultActorId: z.string().nullish(),
+  defaultActorDomain: z.string().nullish(),
 
   createdAt: z.number(),
   updatedAt: z.number(),

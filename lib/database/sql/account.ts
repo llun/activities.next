@@ -19,6 +19,7 @@ import {
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
   SetDefaultActorParams,
+  SetDefaultActorDomainParams,
   SetSessionActorParams,
   UnlinkAccountFromProviderParams,
   UpdateAccountSessionParams,
@@ -71,6 +72,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         id: accountId,
         email,
         passwordHash,
+        defaultActorDomain: domain,
         ...(verificationCode
           ? { verificationCode }
           : { verifiedAt: currentTime }),
@@ -436,6 +438,17 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     const currentTime = new Date()
     await database('accounts').where('id', accountId).update({
       defaultActorId: actorId,
+      updatedAt: currentTime
+    })
+  },
+
+  async setDefaultActorDomain({
+    accountId,
+    domain
+  }: SetDefaultActorDomainParams): Promise<void> {
+    const currentTime = new Date()
+    await database('accounts').where('id', accountId).update({
+      defaultActorDomain: domain,
       updatedAt: currentTime
     })
   },

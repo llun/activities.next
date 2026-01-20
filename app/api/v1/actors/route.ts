@@ -63,10 +63,13 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   const { username } = parsed.data
   const config = getConfig()
   const domain =
-    parsed.data.domain ?? currentActor.domain ?? headerHost(req.headers)
+    parsed.data.domain ??
+    currentActor.account.defaultActorDomain ??
+    currentActor.domain ??
+    headerHost(req.headers)
   const allowedDomains = config.allowActorDomains?.length
     ? config.allowActorDomains
-    : [config.host]
+    : config.domains
 
   if (!allowedDomains.includes(domain)) {
     return apiResponse({
