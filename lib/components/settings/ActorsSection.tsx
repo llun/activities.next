@@ -146,35 +146,34 @@ export function ActorsSection({
   return (
     <>
       <div className="space-y-4">
-        <div className="space-y-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted cursor-pointer"
-                disabled={isSwitching || isSavingDefault}
-              >
-                <Avatar className="h-10 w-10">
-                  {selectedActor?.iconUrl && (
-                    <AvatarImage src={selectedActor.iconUrl} />
-                  )}
-                  <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                    {getAvatarInitial(selectedActor?.username || '')}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 overflow-hidden">
-                  <p className="text-sm font-medium truncate">
-                    {selectedActor?.name || selectedActor?.username}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {selectedActor ? getHandle(selectedActor) : ''}
-                  </p>
-                </div>
-                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[400px]">
-              {actors.map((actor) => {
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted cursor-pointer"
+              disabled={isSwitching || isSavingDefault}
+            >
+              <Avatar className="h-10 w-10">
+                {selectedActor?.iconUrl && (
+                  <AvatarImage src={selectedActor.iconUrl} />
+                )}
+                <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                  {getAvatarInitial(selectedActor?.username || '')}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-sm font-medium truncate">
+                  {selectedActor?.name || selectedActor?.username}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {selectedActor ? getHandle(selectedActor) : ''}
+                </p>
+              </div>
+              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+            {actors.map((actor) => {
                 const isPendingDeletion = actor.deletionStatus === 'scheduled'
                 const isDeleting = actor.deletionStatus === 'deleting'
                 const reducedOpacity = isPendingDeletion || isDeleting
@@ -243,15 +242,14 @@ export function ActorsSection({
                       >
                         Cancel
                       </Button>
-                    )}
-                  </DropdownMenuItem>
-                )
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+              )}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
 
-        {message && (
+    {message && (
           <p
             className={`text-sm ${message.type === 'success' ? 'text-green-600' : 'text-destructive'}`}
           >
