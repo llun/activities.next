@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import {
   HTTP_STATUS,
   apiErrorResponse,
@@ -13,7 +14,8 @@ import {
 const generateKeyPair = promisify(crypto.generateKeyPair)
 
 const CreateActorRequest = z.object({
-  username: z.string().min(1).max(50)
+  username: z.string().min(1).max(50),
+  domain: z.string().min(1).optional()
 })
 
 export const GET = AuthenticatedGuard(async (req, context) => {
@@ -60,7 +62,20 @@ export const POST = AuthenticatedGuard(async (req, context) => {
 
   const { username } = parsed.data
   const config = getConfig()
-  const domain = config.host
+  const domain =
+    parsed.data.domain ?? currentActor.domain ?? headerHost(req.headers)
+  const allowedDomains = config.allowActorDomains?.length
+    ? config.allowActorDomains
+    : [config.host]
+
+  if (!allowedDomains.includes(domain)) {
+    return apiResponse({
+      req,
+      allowedMethods: ['GET', 'POST'],
+      data: { error: 'Domain is not allowed' },
+      responseStatusCode: HTTP_STATUS.BAD_REQUEST
+    })
+  }
 
   const usernameExists = await database.isUsernameExists({ username, domain })
   if (usernameExists) {
