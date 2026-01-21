@@ -74,13 +74,19 @@ export const userAnnounce = async ({
         })
 
         if (targetActor?.account) {
+          // Extract editable status (handle Announce type)
+          const editableStatus =
+            originalStatus.type === 'Announce'
+              ? originalStatus.originalStatus
+              : originalStatus
+
           await sendMail({
             from: config.email.serviceFromAddress,
             to: [targetActor.account.email],
             subject: getSubject(currentActor),
             content: {
-              text: getTextContent(currentActor, originalStatus),
-              html: getHTMLContent(currentActor, originalStatus)
+              text: getTextContent(currentActor, editableStatus),
+              html: getHTMLContent(currentActor, editableStatus)
             }
           })
         }

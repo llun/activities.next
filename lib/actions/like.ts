@@ -47,13 +47,17 @@ export const likeRequest = async ({
       ])
 
       if (targetActor?.account && sourceActor) {
+        // Extract editable status (handle Announce type)
+        const editableStatus =
+          status.type === 'Announce' ? status.originalStatus : status
+
         await sendMail({
           from: config.email.serviceFromAddress,
           to: [targetActor.account.email],
           subject: getSubject(sourceActor),
           content: {
-            text: getTextContent(sourceActor, status),
-            html: getHTMLContent(sourceActor, status)
+            text: getTextContent(sourceActor, editableStatus),
+            html: getHTMLContent(sourceActor, editableStatus)
           }
         })
       }
