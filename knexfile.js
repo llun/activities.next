@@ -12,42 +12,50 @@ const DEFAULT_DEV_DATABASE = {
   }
 }
 
-const config = {
-  development: Object.keys(process.env).some((key) =>
-    key.startsWith('ACTIVITIES_DATABASE_')
-  )
-    ? {
-        client: process.env.ACTIVITIES_DATABASE_CLIENT,
-        connection: {
-          host:
-            process.env.ACTIVITIES_DATABASE_PG_HOST ||
-            process.env.ACTIVITIES_DATABASE_MYSQL_HOST ||
-            process.env.ACTIVITIES_DATABASE_HOST,
-          port:
-            process.env.ACTIVITIES_DATABASE_PG_PORT ||
-            process.env.ACTIVITIES_DATABASE_MYSQL_PORT ||
-            process.env.ACTIVITIES_DATABASE_PORT,
-          user:
-            process.env.ACTIVITIES_DATABASE_PG_USER ||
-            process.env.ACTIVITIES_DATABASE_MYSQL_USER ||
-            process.env.ACTIVITIES_DATABASE_USER,
-          password:
-            process.env.ACTIVITIES_DATABASE_PG_PASSWORD ||
-            process.env.ACTIVITIES_DATABASE_MYSQL_PASSWORD ||
-            process.env.ACTIVITIES_DATABASE_PASSWORD,
-          database:
-            process.env.ACTIVITIES_DATABASE_PG_DATABASE ||
-            process.env.ACTIVITIES_DATABASE_MYSQL_DATABASE ||
-            process.env.ACTIVITIES_DATABASE,
-          filename: process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME,
-          ssl: process.env.ACTIVITIES_DATABASE_PG_SSL_MODE
-            ? {
-                rejectUnauthorized: false
-              }
-            : null
-        }
+const getDatabaseConfig = () => {
+  if (
+    Object.keys(process.env).some((key) =>
+      key.startsWith('ACTIVITIES_DATABASE_')
+    )
+  ) {
+    return {
+      client: process.env.ACTIVITIES_DATABASE_CLIENT,
+      connection: {
+        host:
+          process.env.ACTIVITIES_DATABASE_PG_HOST ||
+          process.env.ACTIVITIES_DATABASE_MYSQL_HOST ||
+          process.env.ACTIVITIES_DATABASE_HOST,
+        port:
+          process.env.ACTIVITIES_DATABASE_PG_PORT ||
+          process.env.ACTIVITIES_DATABASE_MYSQL_PORT ||
+          process.env.ACTIVITIES_DATABASE_PORT,
+        user:
+          process.env.ACTIVITIES_DATABASE_PG_USER ||
+          process.env.ACTIVITIES_DATABASE_MYSQL_USER ||
+          process.env.ACTIVITIES_DATABASE_USER,
+        password:
+          process.env.ACTIVITIES_DATABASE_PG_PASSWORD ||
+          process.env.ACTIVITIES_DATABASE_MYSQL_PASSWORD ||
+          process.env.ACTIVITIES_DATABASE_PASSWORD,
+        database:
+          process.env.ACTIVITIES_DATABASE_PG_DATABASE ||
+          process.env.ACTIVITIES_DATABASE_MYSQL_DATABASE ||
+          process.env.ACTIVITIES_DATABASE,
+        filename: process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME,
+        ssl: process.env.ACTIVITIES_DATABASE_PG_SSL_MODE
+          ? {
+              rejectUnauthorized: false
+            }
+          : null
       }
-    : DEFAULT_DEV_DATABASE
+    }
+  }
+  return DEFAULT_DEV_DATABASE
+}
+
+const config = {
+  development: getDatabaseConfig(),
+  production: getDatabaseConfig()
 }
 
 export default config

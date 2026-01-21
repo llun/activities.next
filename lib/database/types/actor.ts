@@ -38,6 +38,14 @@ export type UpdateActorParams = {
   headerImageUrl?: string
   appleSharedAlbumToken?: string
   manuallyApprovesFollowers?: boolean
+  emailNotifications?: {
+    follow_request?: boolean
+    follow?: boolean
+    like?: boolean
+    mention?: boolean
+    reply?: boolean
+    reblog?: boolean
+  }
 
   publicKey?: string
 

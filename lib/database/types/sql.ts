@@ -6,6 +6,14 @@ export interface ActorSettings {
   inboxUrl: string
   sharedInboxUrl: string
   manuallyApprovesFollowers?: boolean
+  emailNotifications?: {
+    follow_request?: boolean
+    follow?: boolean
+    like?: boolean
+    mention?: boolean
+    reply?: boolean
+    reblog?: boolean
+  }
 }
 
 export type ActorDeletionStatus = 'scheduled' | 'deleting' | null
