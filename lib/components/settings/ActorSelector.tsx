@@ -2,7 +2,6 @@
 
 import { FC } from 'react'
 
-import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 
 interface ActorSelectorProps {
