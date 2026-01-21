@@ -23,7 +23,27 @@ export const GET = async (
   }
 
   const media = await getMedia(database, userPath)
-  if (!media) return apiErrorResponse(404)
+  if (!media) {
+    // Return a placeholder image for deleted media
+    const placeholderSvg = `
+      <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+        <rect width="400" height="400" fill="#f0f0f0"/>
+        <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" 
+              font-family="Arial, sans-serif" font-size="16" fill="#666">
+          Media Removed
+        </text>
+        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" 
+              font-family="Arial, sans-serif" font-size="12" fill="#999">
+          This media has been deleted
+        </text>
+      </svg>
+    `
+    const headers = new Headers([
+      ['Content-Type', 'image/svg+xml'],
+      ['Cache-Control', 'public, max-age=3600']
+    ])
+    return new Response(placeholderSvg, { headers })
+  }
 
   switch (media.type) {
     case 'buffer': {
