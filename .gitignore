@@ -48,6 +48,7 @@ prompt.txt
 # local env files
 .env*.local
 .env.local.test
+.env.*
 
 # vercel
 .vercel
