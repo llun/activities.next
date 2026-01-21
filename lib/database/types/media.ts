@@ -45,6 +45,17 @@ export type GetAttachmentsForActorParams = {
   limit?: number
   maxCreatedAt?: number
 }
+export type GetMediasForAccountParams = {
+  accountId: string
+  limit?: number
+  maxCreatedAt?: number
+}
+export type GetStorageUsageForAccountParams = {
+  accountId: string
+}
+export type DeleteMediaParams = {
+  mediaId: string
+}
 
 export interface MediaDatabase {
   createMedia(params: CreateMediaParams): Promise<Media | null>
@@ -54,4 +65,9 @@ export interface MediaDatabase {
   getAttachmentsForActor(
     params: GetAttachmentsForActorParams
   ): Promise<Attachment[]>
+  getMediasForAccount(params: GetMediasForAccountParams): Promise<Media[]>
+  getStorageUsageForAccount(
+    params: GetStorageUsageForAccountParams
+  ): Promise<number>
+  deleteMedia(params: DeleteMediaParams): Promise<boolean>
 }

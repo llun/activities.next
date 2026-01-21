@@ -19,6 +19,7 @@ import { Actor } from '@/lib/models/actor'
 import { MAX_HEIGHT, MAX_WIDTH } from '@/lib/services/medias/constants'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
+import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import {
   MediaSchema,
   MediaStorage,
@@ -90,6 +91,18 @@ export class S3FileStorage implements MediaStorage {
     actor: Actor,
     presignedMedia: PresigedMediaInput
   ) {
+    // Check quota before generating presigned URL
+    const quotaCheck = await checkQuotaAvailable(
+      this._database,
+      actor,
+      presignedMedia.size
+    )
+    if (!quotaCheck.available) {
+      throw new Error(
+        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      )
+    }
+
     const { bucket } = this._config
     const { fileName } = presignedMedia
 
@@ -163,6 +176,18 @@ export class S3FileStorage implements MediaStorage {
     const currentTime = Date.now()
     if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
       return null
+    }
+
+    // Check quota before saving
+    const quotaCheck = await checkQuotaAvailable(
+      this._database,
+      actor,
+      file.size
+    )
+    if (!quotaCheck.available) {
+      throw new Error(
+        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      )
     }
 
     if (file.type.startsWith('video')) {

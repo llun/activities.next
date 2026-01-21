@@ -10,7 +10,8 @@ export enum MediaStorageType {
 }
 
 export const BaseStorageConfig = z.object({
-  maxFileSize: z.number().nullish()
+  maxFileSize: z.number().nullish(),
+  quotaPerAccount: z.number().nullish()
 })
 export type BaseStorageConfig = z.infer<typeof BaseStorageConfig>
 
@@ -55,7 +56,13 @@ export const getMediaStorageConfig = (): {
                 process.env.ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE,
                 10
               )) ||
-            MAX_FILE_SIZE
+            MAX_FILE_SIZE,
+          quotaPerAccount:
+            process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT &&
+            parseInt(
+              process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT,
+              10
+            )
         }
       }
     case MediaStorageType.S3Storage:
@@ -73,7 +80,13 @@ export const getMediaStorageConfig = (): {
                 process.env.ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE,
                 10
               )) ||
-            MAX_FILE_SIZE
+            MAX_FILE_SIZE,
+          quotaPerAccount:
+            process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT &&
+            parseInt(
+              process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT,
+              10
+            )
         }
       }
     }

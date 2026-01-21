@@ -3,8 +3,11 @@ import { Knex } from 'knex'
 import {
   CreateAttachmentParams,
   CreateMediaParams,
+  DeleteMediaParams,
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
+  GetMediasForAccountParams,
+  GetStorageUsageForAccountParams,
   Media,
   MediaDatabase
 } from '@/lib/database/types/media'
@@ -127,5 +130,83 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         })
       })
       .filter((item): item is Attachment => Boolean(item))
+  },
+
+  async getMediasForAccount({
+    accountId,
+    limit = 100,
+    maxCreatedAt
+  }: GetMediasForAccountParams): Promise<Media[]> {
+    let query = database('medias')
+      .join('actors', 'medias.actorId', 'actors.id')
+      .where('actors.accountId', accountId)
+      .select(
+        'medias.id',
+        'medias.actorId',
+        'medias.original',
+        'medias.originalBytes',
+        'medias.originalMimeType',
+        'medias.originalMetaData',
+        'medias.thumbnail',
+        'medias.thumbnailBytes',
+        'medias.thumbnailMimeType',
+        'medias.thumbnailMetaData',
+        'medias.description',
+        'medias.createdAt'
+      )
+      .orderBy('medias.createdAt', 'desc')
+
+    if (maxCreatedAt) {
+      query = query.where('medias.createdAt', '<', new Date(maxCreatedAt))
+    }
+
+    query = query.limit(limit)
+
+    const data = await query
+    return data.map((item) => ({
+      id: String(item.id),
+      actorId: item.actorId,
+      original: {
+        path: item.original,
+        bytes: Number(item.originalBytes),
+        mimeType: item.originalMimeType,
+        metaData: JSON.parse(item.originalMetaData)
+      },
+      ...(item.thumbnail
+        ? {
+            thumbnail: {
+              path: item.thumbnail,
+              bytes: Number(item.thumbnailBytes),
+              mimeType: item.thumbnailMimeType,
+              metaData: JSON.parse(item.thumbnailMetaData)
+            }
+          }
+        : {}),
+      ...(item.description ? { description: item.description } : {})
+    }))
+  },
+
+  async getStorageUsageForAccount({
+    accountId
+  }: GetStorageUsageForAccountParams): Promise<number> {
+    const result = await database('medias')
+      .join('actors', 'medias.actorId', 'actors.id')
+      .where('actors.accountId', accountId)
+      .sum({
+        totalOriginal: 'medias.originalBytes',
+        totalThumbnail: 'medias.thumbnailBytes'
+      })
+      .first()
+
+    if (!result) return 0
+
+    const totalOriginal = Number(result.totalOriginal) || 0
+    const totalThumbnail = Number(result.totalThumbnail) || 0
+    return totalOriginal + totalThumbnail
+  },
+
+  async deleteMedia({ mediaId }: DeleteMediaParams): Promise<boolean> {
+    const deleted = await database('medias').where('id', mediaId).del()
+    return deleted > 0
   }
 })
