@@ -1,6 +1,7 @@
 import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { NotificationType } from '@/lib/database/types/notification'
 import { FollowStatus } from '@/lib/models/follow'
 import { sendMail } from '@/lib/services/email'
 import {
@@ -8,6 +9,7 @@ import {
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/follow'
+import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
 
 interface AcceptFollowRequestParams {
   activity: AcceptFollow
@@ -35,15 +37,24 @@ export const acceptFollowRequest = async ({
     ])
 
     if (targetActor?.account && actor) {
-      await sendMail({
-        from: config.email.serviceFromAddress,
-        to: [targetActor.account.email],
-        subject: getSubject(actor),
-        content: {
-          text: getTextContent(actor),
-          html: getHTMLContent(actor)
-        }
-      })
+      // Check if email notifications are enabled for this notification type
+      const shouldSendEmail = await shouldSendEmailForNotification(
+        database,
+        targetActor.id,
+        NotificationType.enum.follow
+      )
+
+      if (shouldSendEmail) {
+        await sendMail({
+          from: config.email.serviceFromAddress,
+          to: [targetActor.account.email],
+          subject: getSubject(actor),
+          content: {
+            text: getTextContent(actor),
+            html: getHTMLContent(actor)
+          }
+        })
+      }
     }
   }
 

@@ -8,6 +8,7 @@ import {
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/like'
+import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
 
 interface LikeRequestParams {
   activity: LikeStatus
@@ -42,25 +43,34 @@ export const likeRequest = async ({
     const config = getConfig()
     if (config.email) {
       try {
-        const [targetActor, sourceActor] = await Promise.all([
-          database.getActorFromId({ id: status.actorId }),
-          database.getActorFromId({ id: request.actor })
-        ])
+        // Check if email notifications are enabled for this notification type
+        const shouldSendEmail = await shouldSendEmailForNotification(
+          database,
+          status.actorId,
+          NotificationType.enum.like
+        )
 
-        if (targetActor?.account && sourceActor) {
-          // Extract editable status (handle Announce type)
-          const editableStatus =
-            status.type === 'Announce' ? status.originalStatus : status
+        if (shouldSendEmail) {
+          const [targetActor, sourceActor] = await Promise.all([
+            database.getActorFromId({ id: status.actorId }),
+            database.getActorFromId({ id: request.actor })
+          ])
 
-          await sendMail({
-            from: config.email.serviceFromAddress,
-            to: [targetActor.account.email],
-            subject: getSubject(sourceActor),
-            content: {
-              text: getTextContent(sourceActor, editableStatus),
-              html: getHTMLContent(sourceActor, editableStatus)
-            }
-          })
+          if (targetActor?.account && sourceActor) {
+            // Extract editable status (handle Announce type)
+            const editableStatus =
+              status.type === 'Announce' ? status.originalStatus : status
+
+            await sendMail({
+              from: config.email.serviceFromAddress,
+              to: [targetActor.account.email],
+              subject: getSubject(sourceActor),
+              content: {
+                text: getTextContent(sourceActor, editableStatus),
+                html: getHTMLContent(sourceActor, editableStatus)
+              }
+            })
+          }
         }
       } catch (error) {
         // Log error but don't fail the like operation

@@ -11,6 +11,7 @@ import {
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/reblog'
+import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -70,26 +71,35 @@ export const userAnnounce = async ({
       const config = getConfig()
       if (config.email) {
         try {
-          const targetActor = await database.getActorFromId({
-            id: originalStatus.actorId
-          })
+          // Check if email notifications are enabled for this notification type
+          const shouldSendEmail = await shouldSendEmailForNotification(
+            database,
+            originalStatus.actorId,
+            NotificationType.enum.reblog
+          )
 
-          if (targetActor?.account) {
-            // Extract editable status (handle Announce type)
-            const editableStatus =
-              originalStatus.type === 'Announce'
-                ? originalStatus.originalStatus
-                : originalStatus
-
-            await sendMail({
-              from: config.email.serviceFromAddress,
-              to: [targetActor.account.email],
-              subject: getSubject(currentActor),
-              content: {
-                text: getTextContent(currentActor, editableStatus),
-                html: getHTMLContent(currentActor, editableStatus)
-              }
+          if (shouldSendEmail) {
+            const targetActor = await database.getActorFromId({
+              id: originalStatus.actorId
             })
+
+            if (targetActor?.account) {
+              // Extract editable status (handle Announce type)
+              const editableStatus =
+                originalStatus.type === 'Announce'
+                  ? originalStatus.originalStatus
+                  : originalStatus
+
+              await sendMail({
+                from: config.email.serviceFromAddress,
+                to: [targetActor.account.email],
+                subject: getSubject(currentActor),
+                content: {
+                  text: getTextContent(currentActor, editableStatus),
+                  html: getHTMLContent(currentActor, editableStatus)
+                }
+              })
+            }
           }
         } catch (error) {
           // Log error but don't fail the reblog operation

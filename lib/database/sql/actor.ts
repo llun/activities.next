@@ -473,6 +473,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     headerImageUrl,
     appleSharedAlbumToken,
     manuallyApprovesFollowers,
+    emailNotifications,
 
     publicKey,
 
@@ -493,6 +494,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(appleSharedAlbumToken ? { appleSharedAlbumToken } : null),
       ...(manuallyApprovesFollowers !== undefined
         ? { manuallyApprovesFollowers }
+        : null),
+      ...(emailNotifications !== undefined
+        ? { emailNotifications }
         : null),
 
       ...(followersUrl ? { followersUrl } : null),
