@@ -2,7 +2,6 @@ import memoize from 'lodash/memoize'
 import { Resend } from 'resend'
 import { z } from 'zod'
 
-import { getConfig } from '../../config'
 import { getAddressFromEmail } from './smtp'
 import { BaseEmailSettings, Message } from './types'
 
@@ -18,12 +17,8 @@ const getResend = memoize((config: ResendConfig) => {
   return new Resend(config.token)
 })
 
-export async function sendResendMail(message: Message) {
-  const config = getConfig()
-  if (!config.email) return
-  if (config.email.type !== TYPE_RESEND) return
-
-  const resend = getResend(config.email)
+export async function sendResendMail(message: Message, emailConfig: ResendConfig) {
+  const resend = getResend(emailConfig)
   await resend.emails.send({
     from: getAddressFromEmail(message.from),
     to: message.to.map((email) => getAddressFromEmail(email)),

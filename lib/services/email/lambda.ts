@@ -6,7 +6,6 @@ import {
 import { fromUtf8 } from '@aws-sdk/util-utf8-node'
 import { z } from 'zod'
 
-import { getConfig } from '../../config'
 import { BaseEmailSettings, Message } from './types'
 
 export const TYPE_LAMBDA = 'lambda'
@@ -19,17 +18,13 @@ export const LambdaConfig = BaseEmailSettings.extend({
 })
 export type LambdaConfig = z.infer<typeof LambdaConfig>
 
-export async function sendLambdaMail(message: Message) {
-  const config = getConfig()
-  if (!config.email) return
-  if (config.email.type !== TYPE_LAMBDA) return
-
+export async function sendLambdaMail(message: Message, emailConfig: LambdaConfig) {
   const client = new LambdaClient({
-    region: config.email.region
+    region: emailConfig.region
   })
   const command = new InvokeCommand({
-    FunctionName: config.email.functionName,
-    Qualifier: config.email.functionQualifier,
+    FunctionName: emailConfig.functionName,
+    Qualifier: emailConfig.functionQualifier,
     InvocationType: InvocationType.Event,
     Payload: fromUtf8(JSON.stringify(message))
   })

@@ -10,11 +10,11 @@ export const sendMail = async (message: Message) => {
 
   switch (email.type) {
     case TYPE_LAMBDA:
-      return sendLambdaMail(message)
+      return sendLambdaMail(message, email)
     case TYPE_SMTP:
-      return sendSMTPMail(message)
+      return sendSMTPMail(message, email)
     case TYPE_RESEND:
-      return sendResendMail(message)
+      return sendResendMail(message, email)
     default:
       throw new Error('Unsupported email type')
   }
