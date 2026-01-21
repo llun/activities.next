@@ -1,6 +1,13 @@
 import { LikeStatus } from '@/lib/activities/actions/like'
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { NotificationType } from '@/lib/database/types/notification'
+import { sendMail } from '@/lib/services/email'
+import {
+  getHTMLContent,
+  getSubject,
+  getTextContent
+} from '@/lib/services/email/templates/like'
 
 interface LikeRequestParams {
   activity: LikeStatus
@@ -30,5 +37,35 @@ export const likeRequest = async ({
       statusId: status.id,
       groupKey: `like:${status.id}`
     })
+
+    // Send email notification (best-effort, don't fail like if email fails)
+    const config = getConfig()
+    if (config.email) {
+      try {
+        const [targetActor, sourceActor] = await Promise.all([
+          database.getActorFromId({ id: status.actorId }),
+          database.getActorFromId({ id: request.actor })
+        ])
+
+        if (targetActor?.account && sourceActor) {
+          // Extract editable status (handle Announce type)
+          const editableStatus =
+            status.type === 'Announce' ? status.originalStatus : status
+
+          await sendMail({
+            from: config.email.serviceFromAddress,
+            to: [targetActor.account.email],
+            subject: getSubject(sourceActor),
+            content: {
+              text: getTextContent(sourceActor, editableStatus),
+              html: getHTMLContent(sourceActor, editableStatus)
+            }
+          })
+        }
+      } catch (error) {
+        // Log error but don't fail the like operation
+        console.error('Failed to send like notification email:', error)
+      }
+    }
   }
 }

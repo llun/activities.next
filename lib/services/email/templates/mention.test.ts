@@ -19,6 +19,7 @@ describe('mention email template', () => {
     id: 'https://remote.example.com/statuses/123',
     url: 'https://remote.example.com/@mentioner/123',
     actorId: mockActor.id,
+    actor: mockActor,
     type: StatusType.enum.Note,
     text: 'Hey @user@test.example.com check this out!',
     summary: '',
@@ -39,24 +40,29 @@ describe('mention email template', () => {
   })
 
   describe('#getTextContent', () => {
-    it('returns text content with URL and message', () => {
+    it('returns text content with local URL and message', () => {
       const result = getTextContent(mockStatus)
-      expect(result).toContain('URL: https://remote.example.com/@mentioner/123')
+      // Should link to local server, not remote
+      expect(result).toContain('@mentioner@remote.example.com mentioned you')
       expect(result).toContain(
         'Message: Hey @user@test.example.com check this out!'
       )
+      // Should use local server URL (test.llun.dev from mock config)
+      expect(result).toContain('View this post on your server:')
+      expect(result).toContain('test.llun.dev/@mentioner@remote.example.com')
     })
   })
 
   describe('#getHTMLContent', () => {
-    it('returns HTML content with message and URL', () => {
+    it('returns HTML content with message and local URL', () => {
       const result = getHTMLContent(mockStatus)
+      expect(result).toContain('@mentioner@remote.example.com mentioned you')
       expect(result).toContain(
         '<p>Hey @user@test.example.com check this out!</p>'
       )
-      expect(result).toContain(
-        '<p>At: https://remote.example.com/@mentioner/123</p>'
-      )
+      // Should link to local server, not remote
+      expect(result).toContain('View this post on your server')
+      expect(result).toContain('test.llun.dev/@mentioner@remote.example.com')
     })
   })
 })
