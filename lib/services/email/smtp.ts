@@ -14,9 +14,13 @@ export const SMTPConfig = z.looseObject({
 export type SMTPConfig = z.infer<typeof SMTPConfig> & SMTPTransport.Options
 
 // Memoize transporter creation to reuse connections
-const getTransporter = memoize((emailConfig: SMTPConfig) => {
-  return nodemailer.createTransport(emailConfig as SMTPTransport.Options)
-})
+// Use JSON stringification as the resolver to ensure same configs reuse transporters
+const getTransporter = memoize(
+  (emailConfig: SMTPConfig) => {
+    return nodemailer.createTransport(emailConfig as SMTPTransport.Options)
+  },
+  (emailConfig: SMTPConfig) => JSON.stringify(emailConfig)
+)
 
 export const getAddressFromEmail = (email: Email) =>
   typeof email === 'string' ? email : `"${email.name}" <${email.email}>`
