@@ -10,6 +10,10 @@ import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 
 enableFetchMocks()
 
+jest.mock('../services/email', () => ({
+  sendMail: jest.fn()
+}))
+
 describe('Accept follow action', () => {
   const database = getTestSQLDatabase()
 

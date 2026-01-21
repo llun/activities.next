@@ -1,9 +1,16 @@
 import crypto from 'crypto'
 
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { NotificationType } from '@/lib/database/types/notification'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
+import { sendMail } from '@/lib/services/email'
+import {
+  getHTMLContent,
+  getSubject,
+  getTextContent
+} from '@/lib/services/email/templates/reblog'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -58,6 +65,26 @@ export const userAnnounce = async ({
         statusId: originalStatus.id,
         groupKey: `reblog:${originalStatus.id}`
       })
+
+      // Send email notification
+      const config = getConfig()
+      if (config.email) {
+        const targetActor = await database.getActorFromId({
+          id: originalStatus.actorId
+        })
+
+        if (targetActor?.account) {
+          await sendMail({
+            from: config.email.serviceFromAddress,
+            to: [targetActor.account.email],
+            subject: getSubject(currentActor),
+            content: {
+              text: getTextContent(currentActor, originalStatus),
+              html: getHTMLContent(currentActor, originalStatus)
+            }
+          })
+        }
+      }
     }
 
     await getQueue().publish({

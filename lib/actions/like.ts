@@ -1,6 +1,13 @@
 import { LikeStatus } from '@/lib/activities/actions/like'
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { NotificationType } from '@/lib/database/types/notification'
+import { sendMail } from '@/lib/services/email'
+import {
+  getHTMLContent,
+  getSubject,
+  getTextContent
+} from '@/lib/services/email/templates/like'
 
 interface LikeRequestParams {
   activity: LikeStatus
@@ -30,5 +37,26 @@ export const likeRequest = async ({
       statusId: status.id,
       groupKey: `like:${status.id}`
     })
+
+    // Send email notification
+    const config = getConfig()
+    if (config.email) {
+      const [targetActor, sourceActor] = await Promise.all([
+        database.getActorFromId({ id: status.actorId }),
+        database.getActorFromId({ id: request.actor })
+      ])
+
+      if (targetActor?.account && sourceActor) {
+        await sendMail({
+          from: config.email.serviceFromAddress,
+          to: [targetActor.account.email],
+          subject: getSubject(sourceActor),
+          content: {
+            text: getTextContent(sourceActor, status),
+            html: getHTMLContent(sourceActor, status)
+          }
+        })
+      }
+    }
   }
 }
