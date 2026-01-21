@@ -258,27 +258,30 @@ export function ActorsSection({
           </p>
         )}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
           <Button
-            variant="outline"
-            onClick={() => setIsDialogOpen(true)}
-            disabled={isSwitching || isSavingDefault}
+            onClick={handleSwitchActor}
+            disabled={isSwitching || !canSwitch || isSavingDefault || !hasMultipleActors}
+            className="w-full sm:w-auto"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Add actor
+            {isSwitching ? 'Switching...' : 'Switch to actor'}
           </Button>
           <Button
             onClick={handleSaveDefault}
             disabled={isSavingDefault || !hasChanges || isSwitching || !hasMultipleActors}
             variant="outline"
+            className="w-full sm:w-auto"
           >
             {isSavingDefault ? 'Saving...' : 'Set as default'}
           </Button>
           <Button
-            onClick={handleSwitchActor}
-            disabled={isSwitching || !canSwitch || isSavingDefault || !hasMultipleActors}
+            variant="outline"
+            onClick={() => setIsDialogOpen(true)}
+            disabled={isSwitching || isSavingDefault}
+            className="w-full sm:w-auto"
           >
-            {isSwitching ? 'Switching...' : 'Switch to actor'}
+            <Plus className="h-4 w-4 mr-2" />
+            Add actor
           </Button>
         </div>
 
