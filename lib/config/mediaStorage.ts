@@ -58,11 +58,12 @@ export const getMediaStorageConfig = (): {
               )) ||
             MAX_FILE_SIZE,
           quotaPerAccount:
-            process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT &&
-            parseInt(
-              process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT,
-              10
-            )
+            (process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT &&
+              parseInt(
+                process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT,
+                10
+              )) ||
+            undefined
         }
       }
     case MediaStorageType.S3Storage:
@@ -82,11 +83,12 @@ export const getMediaStorageConfig = (): {
               )) ||
             MAX_FILE_SIZE,
           quotaPerAccount:
-            process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT &&
-            parseInt(
-              process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT,
-              10
-            )
+            (process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT &&
+              parseInt(
+                process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT,
+                10
+              )) ||
+            undefined
         }
       }
     }

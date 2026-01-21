@@ -180,12 +180,9 @@ describe('MediaDatabase', () => {
         const deleted = await database.deleteMedia({ mediaId: media!.id })
         expect(deleted).toBe(true)
 
-        // Verify media is deleted by checking storage usage
+        // Verify media is deleted
         const actor = await database.getActorFromId({
           id: actors.announceAuthor.id
-        })
-        const usageAfter = await database.getStorageUsageForAccount({
-          accountId: actor!.accountId!
         })
 
         // Check that the specific media doesn't exist anymore

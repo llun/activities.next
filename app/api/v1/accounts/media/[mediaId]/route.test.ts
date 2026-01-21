@@ -27,8 +27,9 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     const response = await DELETE(request, {
       database,
       currentActor: null as any,
-      account: null
-    }, { params: Promise.resolve({ mediaId: '123' }) })
+      account: null,
+      params: Promise.resolve({ mediaId: '123' })
+    })
 
     expect(response.status).toBe(401)
   })
@@ -47,8 +48,9 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     const response = await DELETE(request, {
       database,
       currentActor: actor,
-      account: actorData?.account ?? null
-    }, { params: Promise.resolve({ mediaId: '999999' }) })
+      account: actorData?.account ?? null,
+      params: Promise.resolve({ mediaId: '999999' })
+    })
 
     expect(response.status).toBe(404)
   })
@@ -80,8 +82,9 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     const response = await DELETE(request, {
       database,
       currentActor: actor,
-      account: actorData?.account ?? null
-    }, { params: Promise.resolve({ mediaId: media!.id }) })
+      account: actorData?.account ?? null,
+      params: Promise.resolve({ mediaId: media!.id })
+    })
 
     expect(response.status).toBe(200)
 
@@ -124,8 +127,9 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     const response = await DELETE(request, {
       database,
       currentActor: actor1,
-      account: actor1Data?.account ?? null
-    }, { params: Promise.resolve({ mediaId: media!.id }) })
+      account: actor1Data?.account ?? null,
+      params: Promise.resolve({ mediaId: media!.id })
+    })
 
     expect(response.status).toBe(200)
   })

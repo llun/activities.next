@@ -4,8 +4,9 @@ import { apiErrorResponse } from '@/lib/utils/response'
 
 export const GET = AuthenticatedGuard(async (_req, context) => {
   try {
-    const { database, currentActor, account } = context
+    const { database, currentActor } = context
 
+    const account = currentActor.account
     if (!account) {
       return apiErrorResponse(401)
     }

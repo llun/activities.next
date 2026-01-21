@@ -1,257 +1,58 @@
-'use client'
+import { Metadata } from 'next'
+import { getServerSession } from 'next-auth'
+import { redirect } from 'next/navigation'
 
-import { useEffect, useState } from 'react'
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { MediaManagement } from '@/lib/components/settings/MediaManagement'
+import { getDatabase } from '@/lib/database'
+import { getQuotaLimit } from '@/lib/services/medias/quota'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { Button } from '@/lib/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/lib/components/ui/dialog'
-import { Progress } from '@/lib/components/ui/progress'
-import { formatFileSize } from '@/lib/utils/formatFileSize'
+export const dynamic = 'force-dynamic'
 
-interface MediaItem {
-  id: string
-  actorId: string
-  bytes: number
-  mimeType: string
-  width: number
-  height: number
-  description?: string
+export const metadata: Metadata = {
+  title: 'Activities.next: Media Storage'
 }
 
-interface MediaData {
-  used: number
-  limit: number
-  medias: MediaItem[]
-}
-
-export default function MediaPage() {
-  const [data, setData] = useState<MediaData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [mediaToDelete, setMediaToDelete] = useState<MediaItem | null>(null)
-  const [deleting, setDeleting] = useState(false)
-
-  const loadData = async () => {
-    setLoading(true)
-    try {
-      const response = await fetch('/api/v1/accounts/media')
-      if (response.ok) {
-        const json = await response.json()
-        setData(json)
-      }
-    } catch (error) {
-      console.error('Failed to load media data:', error)
-    } finally {
-      setLoading(false)
-    }
+const Page = async () => {
+  const database = getDatabase()
+  if (!database) {
+    throw new Error('Fail to load database')
   }
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const handleDeleteClick = (media: MediaItem) => {
-    setMediaToDelete(media)
-    setDeleteDialogOpen(true)
+  const session = await getServerSession(getAuthOptions())
+  const actor = await getActorFromSession(database, session)
+  if (!actor || !actor.account) {
+    return redirect('/auth/signin')
   }
 
-  const handleDeleteConfirm = async () => {
-    if (!mediaToDelete) return
+  // Get storage usage and quota limit
+  const used = await database.getStorageUsageForAccount({
+    accountId: actor.account.id
+  })
+  const limit = getQuotaLimit()
 
-    setDeleting(true)
-    try {
-      const response = await fetch(
-        `/api/v1/accounts/media/${mediaToDelete.id}`,
-        {
-          method: 'DELETE'
-        }
-      )
-
-      if (response.ok) {
-        // Reload data after successful deletion
-        await loadData()
-        setDeleteDialogOpen(false)
-        setMediaToDelete(null)
-      } else {
-        console.error('Failed to delete media')
-      }
-    } catch (error) {
-      console.error('Error deleting media:', error)
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold">Media Storage</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage your media uploads and storage quota.
-          </p>
-        </div>
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-muted-foreground">Loading...</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (!data) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold">Media Storage</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage your media uploads and storage quota.
-          </p>
-        </div>
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-muted-foreground">Failed to load media data.</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  const percentUsed = (data.used / data.limit) * 100
+  // Get medias for account
+  const medias = await database.getMediasForAccount({
+    accountId: actor.account.id,
+    limit: 100
+  })
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Media Storage</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your media uploads and storage quota.
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Storage Usage</CardTitle>
-          <CardDescription>
-            Your current storage usage across all media
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Used</span>
-              <span className="font-medium">
-                {formatFileSize(data.used)} / {formatFileSize(data.limit)}
-              </span>
-            </div>
-            <Progress value={percentUsed} />
-            <p className="text-xs text-muted-foreground">
-              {percentUsed.toFixed(1)}% of your storage quota used
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Your Media ({data.medias.length})</CardTitle>
-          <CardDescription>
-            All media files you have uploaded
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {data.medias.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No media uploaded yet.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {data.medias.map((media) => (
-                <div
-                  key={media.id}
-                  className="flex items-center justify-between rounded-lg border p-4"
-                >
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-muted-foreground">
-                        ID: {media.id}
-                      </span>
-                      <span className="rounded-md bg-muted px-2 py-0.5 text-xs">
-                        {media.mimeType}
-                      </span>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {media.width} × {media.height} •{' '}
-                      {formatFileSize(media.bytes)}
-                    </div>
-                    {media.description && (
-                      <div className="text-sm">{media.description}</div>
-                    )}
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeleteClick(media)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Media</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this media? This action cannot be
-              undone. Posts containing this media will show a placeholder image.
-            </DialogDescription>
-          </DialogHeader>
-          {mediaToDelete && (
-            <div className="rounded-lg border p-4">
-              <div className="text-sm">
-                <div className="font-medium">Media ID: {mediaToDelete.id}</div>
-                <div className="text-muted-foreground">
-                  {mediaToDelete.mimeType} • {formatFileSize(mediaToDelete.bytes)}
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteDialogOpen(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteConfirm}
-              disabled={deleting}
-            >
-              {deleting ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+    <MediaManagement
+      used={used}
+      limit={limit}
+      medias={medias.map((media) => ({
+        id: media.id,
+        actorId: media.actorId,
+        bytes: media.original.bytes + (media.thumbnail?.bytes ?? 0),
+        mimeType: media.original.mimeType,
+        width: media.original.metaData.width,
+        height: media.original.metaData.height,
+        description: media.description
+      }))}
+    />
   )
 }
+
+export default Page

@@ -18,13 +18,13 @@ export const checkQuotaAvailable = async (
 ): Promise<{ available: boolean; used: number; limit: number }> => {
   // Get the accountId from the actor
   const actorData = await database.getActorFromId({ id: actor.id })
-  if (!actorData?.accountId) {
+  if (!actorData?.account?.id) {
     return { available: false, used: 0, limit: 0 }
   }
 
   const limit = getQuotaLimit()
   const used = await database.getStorageUsageForAccount({
-    accountId: actorData.accountId
+    accountId: actorData.account.id
   })
 
   const available = used + requiredBytes <= limit
