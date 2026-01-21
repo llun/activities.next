@@ -15,6 +15,7 @@ const Layout: FC<Props> = ({ children }) => {
 
   const tabs = [
     { name: 'Settings', url: '/settings' },
+    { name: 'Notifications', url: '/settings/notifications' },
     { name: 'Sessions', url: '/settings/sessions' }
   ]
 

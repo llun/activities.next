@@ -1,6 +1,5 @@
 import { databaseBeforeAll, getTestDatabaseTable } from '@/lib/database/testUtils'
 import {
-  EXTERNAL_ACTORS,
   TEST_DOMAIN,
   TEST_EMAIL,
   TEST_PASSWORD_HASH,
