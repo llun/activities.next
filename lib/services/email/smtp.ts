@@ -1,3 +1,4 @@
+import memoize from 'lodash/memoize'
 import nodemailer from 'nodemailer'
 import SMTPTransport from 'nodemailer/lib/smtp-transport'
 import { z } from 'zod'
@@ -12,11 +13,16 @@ export const SMTPConfig = z.looseObject({
 })
 export type SMTPConfig = z.infer<typeof SMTPConfig> & SMTPTransport.Options
 
+// Memoize transporter creation to reuse connections
+const getTransporter = memoize((emailConfig: SMTPConfig) => {
+  return nodemailer.createTransport(emailConfig as SMTPTransport.Options)
+})
+
 export const getAddressFromEmail = (email: Email) =>
   typeof email === 'string' ? email : `"${email.name}" <${email.email}>`
 
 export async function sendSMTPMail(message: Message, emailConfig: SMTPConfig) {
-  const transporter = nodemailer.createTransport(emailConfig as SMTPTransport.Options)
+  const transporter = getTransporter(emailConfig)
   await transporter.sendMail({
     from: getAddressFromEmail(message.from),
     to: message.to.map((email) => getAddressFromEmail(email)).join(', '),
