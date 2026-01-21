@@ -1,7 +1,6 @@
 import { getConfig } from '@/lib/config'
-import { getTestSQLDatabase } from '@/lib/stub/database'
-import { DatabaseSeed } from '@/lib/stub/seed/testUser1'
-import { seedDatabase } from '@/lib/stub/seedDatabase'
+import { getTestSQLDatabase, seedDatabase } from '@/lib/stub/database'
+import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
 import { GET } from './route'
 
@@ -36,7 +35,7 @@ describe('GET /api/v1/accounts/media', () => {
   })
 
   it('returns media list with quota information', async () => {
-    const actor = actors[0]
+    const actor = actors.primary
     const actorData = await database.getActorFromId({ id: actor.id })
     expect(actorData).toBeDefined()
 
@@ -72,7 +71,7 @@ describe('GET /api/v1/accounts/media', () => {
   })
 
   it('includes media details in response', async () => {
-    const actor = actors[1]
+    const actor = actors.replyAuthor
     const actorData = await database.getActorFromId({ id: actor.id })
 
     // Create media with description
@@ -107,7 +106,7 @@ describe('GET /api/v1/accounts/media', () => {
   })
 
   it('aggregates storage across all actors in account', async () => {
-    const actor = actors[2]
+    const actor = actors.followAuthor
     const actorData = await database.getActorFromId({ id: actor.id })
 
     // Create media for this actor

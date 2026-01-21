@@ -1,6 +1,9 @@
-import { getTestDatabaseTable } from '@/lib/stub/database'
-import { DatabaseSeed } from '@/lib/stub/seed/testUser1'
-import { databaseBeforeAll, seedDatabase } from '@/lib/stub/seedDatabase'
+import {
+  getTestDatabaseTable,
+  databaseBeforeAll
+} from '@/lib/database/testUtils'
+import { seedDatabase } from '@/lib/stub/database'
+import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
 describe('MediaDatabase', () => {
   const { actors } = DatabaseSeed
@@ -21,8 +24,8 @@ describe('MediaDatabase', () => {
 
     describe('getMediasForAccount', () => {
       it('returns empty array when no media exists', async () => {
-        // Get account for actor 0
-        const actor = await database.getActorFromId({ id: actors[0].id })
+        // Get account for primary actor
+        const actor = await database.getActorFromId({ id: actors.primary.id })
         expect(actor).toBeDefined()
         expect(actor?.accountId).toBeDefined()
 
@@ -35,9 +38,9 @@ describe('MediaDatabase', () => {
       })
 
       it('returns media for all actors in account', async () => {
-        // Create media for actor 0
+        // Create media for primary actor
         const media1 = await database.createMedia({
-          actorId: actors[0].id,
+          actorId: actors.primary.id,
           original: {
             path: '/test/media1.jpg',
             bytes: 5000,
@@ -48,8 +51,8 @@ describe('MediaDatabase', () => {
 
         expect(media1).toBeDefined()
 
-        // Get account for actor 0
-        const actor = await database.getActorFromId({ id: actors[0].id })
+        // Get account for primary actor
+        const actor = await database.getActorFromId({ id: actors.primary.id })
         expect(actor).toBeDefined()
 
         const medias = await database.getMediasForAccount({
@@ -64,13 +67,15 @@ describe('MediaDatabase', () => {
       })
 
       it('respects limit parameter', async () => {
-        const actor = await database.getActorFromId({ id: actors[1].id })
+        const actor = await database.getActorFromId({
+          id: actors.replyAuthor.id
+        })
         expect(actor).toBeDefined()
 
         // Create multiple media
         for (let i = 0; i < 5; i++) {
           await database.createMedia({
-            actorId: actors[1].id,
+            actorId: actors.replyAuthor.id,
             original: {
               path: `/test/media-${i}.jpg`,
               bytes: 1000 * (i + 1),
@@ -91,7 +96,9 @@ describe('MediaDatabase', () => {
 
     describe('getStorageUsageForAccount', () => {
       it('returns 0 when no media exists', async () => {
-        const actor = await database.getActorFromId({ id: actors[2].id })
+        const actor = await database.getActorFromId({
+          id: actors.followAuthor.id
+        })
         expect(actor).toBeDefined()
 
         const usage = await database.getStorageUsageForAccount({
@@ -105,7 +112,7 @@ describe('MediaDatabase', () => {
       it('sums original and thumbnail bytes correctly', async () => {
         // Create media with thumbnail
         await database.createMedia({
-          actorId: actors[3].id,
+          actorId: actors.likeAuthor.id,
           original: {
             path: '/test/with-thumb.jpg',
             bytes: 3000,
@@ -120,7 +127,9 @@ describe('MediaDatabase', () => {
           }
         })
 
-        const actor = await database.getActorFromId({ id: actors[3].id })
+        const actor = await database.getActorFromId({
+          id: actors.likeAuthor.id
+        })
         expect(actor).toBeDefined()
 
         const usage = await database.getStorageUsageForAccount({
@@ -131,7 +140,7 @@ describe('MediaDatabase', () => {
       })
 
       it('aggregates across all actors in account', async () => {
-        const actor1 = actors[4]
+        const actor1 = actors.mentionAuthor
         const actor1Data = await database.getActorFromId({ id: actor1.id })
 
         // Create media for first actor
@@ -157,7 +166,7 @@ describe('MediaDatabase', () => {
     describe('deleteMedia', () => {
       it('deletes media successfully', async () => {
         const media = await database.createMedia({
-          actorId: actors[5].id,
+          actorId: actors.announceAuthor.id,
           original: {
             path: '/test/to-delete.jpg',
             bytes: 1000,
@@ -172,7 +181,9 @@ describe('MediaDatabase', () => {
         expect(deleted).toBe(true)
 
         // Verify media is deleted by checking storage usage
-        const actor = await database.getActorFromId({ id: actors[5].id })
+        const actor = await database.getActorFromId({
+          id: actors.announceAuthor.id
+        })
         const usageAfter = await database.getStorageUsageForAccount({
           accountId: actor!.accountId!
         })

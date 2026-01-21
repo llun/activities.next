@@ -1,12 +1,17 @@
 import { getConfig } from '@/lib/config'
-import { getTestDatabaseTable } from '@/lib/stub/database'
-import { DatabaseSeed } from '@/lib/stub/seed/testUser1'
-import { databaseBeforeAll, seedDatabase } from '@/lib/stub/seedDatabase'
+import {
+  getTestDatabaseTable,
+  databaseBeforeAll
+} from '@/lib/database/testUtils'
+import { seedDatabase } from '@/lib/stub/database'
+import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
 import { DEFAULT_QUOTA_PER_ACCOUNT } from './constants'
 import { checkQuotaAvailable, getQuotaLimit } from './quota'
 
-jest.mock('@/lib/config')
+jest.mock('../../config')
+
+const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
 
 describe('Quota Service', () => {
   const { actors } = DatabaseSeed
@@ -18,17 +23,17 @@ describe('Quota Service', () => {
 
   describe('getQuotaLimit', () => {
     it('returns default quota when not configured', () => {
-      ;(getConfig as jest.Mock).mockReturnValue({
+      mockGetConfig.mockReturnValue({
         mediaStorage: {}
-      })
+      } as any)
       expect(getQuotaLimit()).toBe(DEFAULT_QUOTA_PER_ACCOUNT)
     })
 
     it('returns configured quota when set', () => {
       const customQuota = 500_000_000 // 500MB
-      ;(getConfig as jest.Mock).mockReturnValue({
+      mockGetConfig.mockReturnValue({
         mediaStorage: { quotaPerAccount: customQuota }
-      })
+      } as any)
       expect(getQuotaLimit()).toBe(customQuota)
     })
   })
@@ -44,11 +49,11 @@ describe('Quota Service', () => {
 
     describe('checkQuotaAvailable', () => {
       it('returns available true when no media exists', async () => {
-        ;(getConfig as jest.Mock).mockReturnValue({
+        mockGetConfig.mockReturnValue({
           mediaStorage: { quotaPerAccount: DEFAULT_QUOTA_PER_ACCOUNT }
-        })
+        } as any)
 
-        const actor = actors[0]
+        const actor = actors.primary
         const result = await checkQuotaAvailable(database, actor, 1000)
 
         expect(result.available).toBe(true)
@@ -58,13 +63,13 @@ describe('Quota Service', () => {
 
       it('returns available false when quota would be exceeded', async () => {
         const smallQuota = 1000 // 1KB quota
-        ;(getConfig as jest.Mock).mockReturnValue({
+        mockGetConfig.mockReturnValue({
           mediaStorage: { quotaPerAccount: smallQuota }
-        })
+        } as any)
 
         // Create some media first
         await database.createMedia({
-          actorId: actors[0].id,
+          actorId: actors.primary.id,
           original: {
             path: '/test/image.jpg',
             bytes: 500,
@@ -73,7 +78,7 @@ describe('Quota Service', () => {
           }
         })
 
-        const actor = actors[0]
+        const actor = actors.primary
         // Try to add 600 more bytes (would exceed 1000)
         const result = await checkQuotaAvailable(database, actor, 600)
 
@@ -84,11 +89,11 @@ describe('Quota Service', () => {
 
       it('returns available true when within quota', async () => {
         const mediumQuota = 10_000 // 10KB quota
-        ;(getConfig as jest.Mock).mockReturnValue({
+        mockGetConfig.mockReturnValue({
           mediaStorage: { quotaPerAccount: mediumQuota }
-        })
+        } as any)
 
-        const actor = actors[1]
+        const actor = actors.replyAuthor
         // Try to add 1000 bytes (well within quota)
         const result = await checkQuotaAvailable(database, actor, 1000)
 
@@ -99,13 +104,13 @@ describe('Quota Service', () => {
 
       it('counts both original and thumbnail bytes', async () => {
         const mediumQuota = 10_000
-        ;(getConfig as jest.Mock).mockReturnValue({
+        mockGetConfig.mockReturnValue({
           mediaStorage: { quotaPerAccount: mediumQuota }
-        })
+        } as any)
 
         // Create media with thumbnail
         await database.createMedia({
-          actorId: actors[2].id,
+          actorId: actors.followAuthor.id,
           original: {
             path: '/test/image2.jpg',
             bytes: 1000,
@@ -120,7 +125,7 @@ describe('Quota Service', () => {
           }
         })
 
-        const actor = actors[2]
+        const actor = actors.followAuthor
         const result = await checkQuotaAvailable(database, actor, 0)
 
         expect(result.used).toBe(1200) // 1000 + 200

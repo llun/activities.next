@@ -1,6 +1,5 @@
-import { getTestSQLDatabase } from '@/lib/stub/database'
-import { DatabaseSeed } from '@/lib/stub/seed/testUser1'
-import { seedDatabase } from '@/lib/stub/seedDatabase'
+import { getTestSQLDatabase, seedDatabase } from '@/lib/stub/database'
+import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
 import { DELETE } from './route'
 
@@ -35,7 +34,7 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
   })
 
   it('returns 404 when media does not belong to account', async () => {
-    const actor = actors[0]
+    const actor = actors.primary
     const actorData = await database.getActorFromId({ id: actor.id })
 
     const request = new Request(
@@ -55,7 +54,7 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
   })
 
   it('deletes media successfully', async () => {
-    const actor = actors[1]
+    const actor = actors.replyAuthor
     const actorData = await database.getActorFromId({ id: actor.id })
 
     // Create media
@@ -98,7 +97,7 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
   })
 
   it('allows deleting media from any actor in the account', async () => {
-    const actor1 = actors[2]
+    const actor1 = actors.followAuthor
     const actor1Data = await database.getActorFromId({ id: actor1.id })
 
     // Create media for actor1
