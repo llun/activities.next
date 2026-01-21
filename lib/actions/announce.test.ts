@@ -22,6 +22,10 @@ jest.mock('../services/timelines', () => ({
   addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
 }))
 
+jest.mock('../services/email', () => ({
+  sendMail: jest.fn()
+}))
+
 describe('Announce action', () => {
   const database = getTestSQLDatabase()
   let actor1: Actor
