@@ -66,29 +66,34 @@ export const userAnnounce = async ({
         groupKey: `reblog:${originalStatus.id}`
       })
 
-      // Send email notification
+      // Send email notification (best-effort, don't fail reblog if email fails)
       const config = getConfig()
       if (config.email) {
-        const targetActor = await database.getActorFromId({
-          id: originalStatus.actorId
-        })
-
-        if (targetActor?.account) {
-          // Extract editable status (handle Announce type)
-          const editableStatus =
-            originalStatus.type === 'Announce'
-              ? originalStatus.originalStatus
-              : originalStatus
-
-          await sendMail({
-            from: config.email.serviceFromAddress,
-            to: [targetActor.account.email],
-            subject: getSubject(currentActor),
-            content: {
-              text: getTextContent(currentActor, editableStatus),
-              html: getHTMLContent(currentActor, editableStatus)
-            }
+        try {
+          const targetActor = await database.getActorFromId({
+            id: originalStatus.actorId
           })
+
+          if (targetActor?.account) {
+            // Extract editable status (handle Announce type)
+            const editableStatus =
+              originalStatus.type === 'Announce'
+                ? originalStatus.originalStatus
+                : originalStatus
+
+            await sendMail({
+              from: config.email.serviceFromAddress,
+              to: [targetActor.account.email],
+              subject: getSubject(currentActor),
+              content: {
+                text: getTextContent(currentActor, editableStatus),
+                html: getHTMLContent(currentActor, editableStatus)
+              }
+            })
+          }
+        } catch (error) {
+          // Log error but don't fail the reblog operation
+          console.error('Failed to send reblog notification email:', error)
         }
       }
     }

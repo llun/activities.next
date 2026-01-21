@@ -38,28 +38,33 @@ export const likeRequest = async ({
       groupKey: `like:${status.id}`
     })
 
-    // Send email notification
+    // Send email notification (best-effort, don't fail like if email fails)
     const config = getConfig()
     if (config.email) {
-      const [targetActor, sourceActor] = await Promise.all([
-        database.getActorFromId({ id: status.actorId }),
-        database.getActorFromId({ id: request.actor })
-      ])
+      try {
+        const [targetActor, sourceActor] = await Promise.all([
+          database.getActorFromId({ id: status.actorId }),
+          database.getActorFromId({ id: request.actor })
+        ])
 
-      if (targetActor?.account && sourceActor) {
-        // Extract editable status (handle Announce type)
-        const editableStatus =
-          status.type === 'Announce' ? status.originalStatus : status
+        if (targetActor?.account && sourceActor) {
+          // Extract editable status (handle Announce type)
+          const editableStatus =
+            status.type === 'Announce' ? status.originalStatus : status
 
-        await sendMail({
-          from: config.email.serviceFromAddress,
-          to: [targetActor.account.email],
-          subject: getSubject(sourceActor),
-          content: {
-            text: getTextContent(sourceActor, editableStatus),
-            html: getHTMLContent(sourceActor, editableStatus)
-          }
-        })
+          await sendMail({
+            from: config.email.serviceFromAddress,
+            to: [targetActor.account.email],
+            subject: getSubject(sourceActor),
+            content: {
+              text: getTextContent(sourceActor, editableStatus),
+              html: getHTMLContent(sourceActor, editableStatus)
+            }
+          })
+        }
+      } catch (error) {
+        // Log error but don't fail the like operation
+        console.error('Failed to send like notification email:', error)
       }
     }
   }
