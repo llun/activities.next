@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import path from 'path'
+import { readFile } from 'fs/promises'
 
 import { getDatabase } from '@/lib/database'
 import { getMedia } from '@/lib/services/medias'
@@ -25,24 +26,18 @@ export const GET = async (
   const media = await getMedia(database, userPath)
   if (!media) {
     // Return a placeholder image for deleted media
-    const placeholderSvg = `
-      <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
-        <rect width="400" height="400" fill="#f0f0f0"/>
-        <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" 
-              font-family="Arial, sans-serif" font-size="16" fill="#666">
-          Media Removed
-        </text>
-        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" 
-              font-family="Arial, sans-serif" font-size="12" fill="#999">
-          This media has been deleted
-        </text>
-      </svg>
-    `
-    const headers = new Headers([
-      ['Content-Type', 'image/svg+xml'],
-      ['Cache-Control', 'public, max-age=3600']
-    ])
-    return new Response(placeholderSvg, { headers })
+    const placeholderPath = path.join(process.cwd(), 'public', 'images', 'media-removed.svg')
+    try {
+      const placeholderSvg = await readFile(placeholderPath, 'utf-8')
+      const headers = new Headers([
+        ['Content-Type', 'image/svg+xml'],
+        ['Cache-Control', 'public, max-age=3600']
+      ])
+      return new Response(placeholderSvg, { headers })
+    } catch (_error) {
+      // Fallback if file can't be read
+      return apiErrorResponse(404)
+    }
   }
 
   switch (media.type) {
