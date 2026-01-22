@@ -1,4 +1,5 @@
-import parse, { DOMNode } from 'html-react-parser'
+import parse, { DOMNode, domToReact, Element } from 'html-react-parser'
+import React from 'react'
 
 interface replacingNode {
   name: string
@@ -20,8 +21,17 @@ export const cleanClassName = (text: string) =>
         }
       }
       if (replacingNode.attribs && replacingNode.name === 'a') {
+        const element = node as Element
         replacingNode.attribs.target = '_blank'
-        return replacingNode
+        // Return a React element with onClick handler to stop propagation
+        return React.createElement(
+          'a',
+          {
+            ...replacingNode.attribs,
+            onClick: (e: React.MouseEvent) => e.stopPropagation()
+          },
+          domToReact(element.children as DOMNode[])
+        )
       }
       if (
         replacingNode.name === 'img' &&
