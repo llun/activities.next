@@ -8,6 +8,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { getJobMessage } from './getJobMessage'
 
@@ -18,7 +19,9 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-export const POST = ActivityPubVerifySenderGuard(async (request) => {
+export const POST = traceApiRoute(
+  'sharedInbox',
+  ActivityPubVerifySenderGuard(async (request) => {
   const body = await request.json()
   if (
     !isRecord(body) ||
@@ -41,3 +44,4 @@ export const POST = ActivityPubVerifySenderGuard(async (request) => {
     responseStatusCode: 202
   })
 })
+)

@@ -12,6 +12,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -26,9 +27,9 @@ interface Params {
 const isTimeline = (value: string): value is Timeline =>
   Object.values(Timeline).includes(value as Timeline)
 
-export const GET = OAuthGuard<Params>(
-  [Scope.enum.read],
-  async (req, context) => {
+export const GET = traceApiRoute(
+  'getTimeline',
+  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
     const url = new URL(req.url)
     const minStatusIdParam =
       url.searchParams.get('since_id') || url.searchParams.get('min_id')
@@ -90,5 +91,11 @@ export const GET = OAuthGuard<Params>(
         ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
       ]
     })
+  }),
+  {
+    addAttributes: async (_req, context) => {
+      const { timeline } = await context.params
+      return { timeline }
+    }
   }
 )
