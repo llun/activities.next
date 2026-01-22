@@ -97,6 +97,10 @@ export class S3FileStorage implements MediaStorage {
       return true
     } catch (e) {
       const error = e as Error
+      // If file doesn't exist (NoSuchKey), consider it already deleted (success)
+      if (error.name === 'NoSuchKey') {
+        return true
+      }
       logger.error({
         message: 'Failed to delete file from S3',
         filePath,

@@ -75,6 +75,10 @@ export class LocalFileStorage implements MediaStorage {
       return true
     } catch (e) {
       const error = e as NodeJS.ErrnoException
+      // If file doesn't exist, consider it already deleted (success)
+      if (error.code === 'ENOENT') {
+        return true
+      }
       logger.error({
         message: 'Failed to delete file from local storage',
         filePath,
