@@ -10,6 +10,7 @@ import { FollowNotification } from './components/FollowNotification'
 import { FollowRequestNotification } from './components/FollowRequestNotification'
 import { LikeNotification } from './components/LikeNotification'
 import { MentionNotification } from './components/MentionNotification'
+import { ReblogNotification } from './components/ReblogNotification'
 import { ReplyNotification } from './components/ReplyNotification'
 
 interface NotificationWithData extends GroupedNotification {
@@ -60,6 +61,8 @@ export const NotificationItem = ({
         return <ReplyNotification notification={notification as any} />
       case 'mention':
         return <MentionNotification notification={notification as any} />
+      case 'reblog':
+        return <ReblogNotification notification={notification as any} />
       default:
         return null
     }

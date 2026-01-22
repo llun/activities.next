@@ -17,9 +17,10 @@ export const metadata: Metadata = {
 }
 
 const ITEMS_PER_PAGE = 25
+const ALLOWED_LIMITS = [25, 50, 100]
 
 interface Props {
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{ page?: string; limit?: string }>
 }
 
 const Page = async ({ searchParams }: Props) => {
@@ -36,18 +37,23 @@ const Page = async ({ searchParams }: Props) => {
 
   const params = await searchParams
   const currentPage = parseInt(params.page || '1', 10)
-  const offset = (currentPage - 1) * ITEMS_PER_PAGE
+  const itemsPerPage = ALLOWED_LIMITS.includes(
+    parseInt(params.limit || String(ITEMS_PER_PAGE), 10)
+  )
+    ? parseInt(params.limit || String(ITEMS_PER_PAGE), 10)
+    : ITEMS_PER_PAGE
+  const offset = (currentPage - 1) * itemsPerPage
 
   const [notifications, totalCount] = await Promise.all([
     database.getNotifications({
       actorId: actor.id,
-      limit: ITEMS_PER_PAGE,
+      limit: itemsPerPage,
       offset
     }),
     database.getNotificationsCount({ actorId: actor.id })
   ])
 
-  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
+  const totalPages = Math.ceil(totalCount / itemsPerPage)
 
   // Group notifications by groupKey
   const groupedNotifications = groupNotifications(notifications)
@@ -92,7 +98,7 @@ const Page = async ({ searchParams }: Props) => {
   const filteredNotifications = notificationsWithData.filter((notification) => {
     if (!notification.account) return false
     if (
-      ['like', 'reply', 'mention'].includes(notification.type) &&
+      ['like', 'reply', 'mention', 'reblog'].includes(notification.type) &&
       (!notification.status || !notification.status.actor)
     ) {
       return false
@@ -102,7 +108,7 @@ const Page = async ({ searchParams }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Notifications</h1>
       </div>
 
@@ -115,6 +121,9 @@ const Page = async ({ searchParams }: Props) => {
           <NotificationsList
             notifications={filteredNotifications}
             currentActorId={actor.id}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            totalCount={totalCount}
           />
 
           {totalPages > 1 && (

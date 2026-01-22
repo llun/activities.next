@@ -1,9 +1,14 @@
-'use client'
-
 import { Mastodon } from '@llun/activities.schema'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { Button } from '@/lib/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/lib/components/ui/dropdown-menu'
 import { Status } from '@/lib/models/status'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
@@ -18,9 +23,18 @@ interface NotificationWithData extends GroupedNotification {
 interface Props {
   notifications: NotificationWithData[]
   currentActorId: string
+  currentPage: number
+  itemsPerPage: number
+  totalCount: number
 }
 
-export const NotificationsList = ({ notifications, currentActorId }: Props) => {
+export const NotificationsList = ({
+  notifications,
+  currentActorId,
+  currentPage,
+  itemsPerPage,
+  totalCount
+}: Props) => {
   const router = useRouter()
   const [readNotifications, setReadNotifications] = useState<Set<string>>(
     new Set()
@@ -33,6 +47,10 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
   const callbackRef = useRef<(entries: IntersectionObserverEntry[]) => void>(
     () => {}
   )
+
+  const handleItemsPerPageChange = (value: number) => {
+    router.push(`/notifications?limit=${value}&page=1`)
+  }
 
   const markAsRead = useCallback(
     async (notificationIds: string[]) => {
@@ -135,6 +153,31 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between rounded-xl border bg-background/80 p-4">
+        <div className="text-sm text-muted-foreground">
+          Showing {Math.min(totalCount, (currentPage - 1) * itemsPerPage + 1)}-
+          {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount}{' '}
+          notifications
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              {itemsPerPage} per page
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleItemsPerPageChange(25)}>
+              25 per page
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleItemsPerPageChange(50)}>
+              50 per page
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleItemsPerPageChange(100)}>
+              100 per page
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       {notifications.map((notification) => (
         <NotificationItem
           key={notification.id}
