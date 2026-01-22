@@ -85,6 +85,7 @@ For more Docker options, see the database-specific setup guides.
 - [Setup Guide](docs/setup.md)
 - [SQLite Setup](docs/sqlite-setup.md)
 - [PostgreSQL Setup](docs/postgresql-setup.md)
+- [Maintenance Scripts](docs/maintenance.md)
 - [Feature Roadmap](docs/features.md)
 
 ## Contributing

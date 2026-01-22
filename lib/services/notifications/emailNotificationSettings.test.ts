@@ -1,4 +1,7 @@
-import { databaseBeforeAll, getTestDatabaseTable } from '@/lib/database/testUtils'
+import {
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
 import {
   TEST_DOMAIN,
   TEST_EMAIL,

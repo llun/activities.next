@@ -4,10 +4,7 @@ import { Check, ChevronDown, Clock, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
-import {
-  ActorInfo,
-  AddActorDialog
-} from '@/lib/components/actor-switcher'
+import { ActorInfo, AddActorDialog } from '@/lib/components/actor-switcher'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -30,18 +27,17 @@ export function ActorsSection({
 }: ActorsSectionProps) {
   const router = useRouter()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  
+
   // Initialize with currentDefault if it's in the actors list, otherwise use first actor
   const getInitialActorId = () => {
-    if (currentDefault && actors.find(a => a.id === currentDefault)) {
+    if (currentDefault && actors.find((a) => a.id === currentDefault)) {
       return currentDefault
     }
     return actors[0]?.id || ''
   }
-  
-  const [selectedActorId, setSelectedActorId] = useState<string>(
-    getInitialActorId()
-  )
+
+  const [selectedActorId, setSelectedActorId] =
+    useState<string>(getInitialActorId())
   const [isSwitching, setIsSwitching] = useState(false)
   const [isSavingDefault, setIsSavingDefault] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
@@ -173,84 +169,87 @@ export function ActorsSection({
               <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+          <DropdownMenuContent
+            align="start"
+            className="w-[var(--radix-dropdown-menu-trigger-width)]"
+          >
             {actors.map((actor) => {
-                const isPendingDeletion = actor.deletionStatus === 'scheduled'
-                const isDeleting = actor.deletionStatus === 'deleting'
-                const reducedOpacity = isPendingDeletion || isDeleting
-                const isCurrent = actor.id === currentActor.id
+              const isPendingDeletion = actor.deletionStatus === 'scheduled'
+              const isDeleting = actor.deletionStatus === 'deleting'
+              const reducedOpacity = isPendingDeletion || isDeleting
+              const isCurrent = actor.id === currentActor.id
 
-                return (
-                  <DropdownMenuItem
-                    key={actor.id}
-                    onClick={() => {
-                      if (!isPendingDeletion && !isDeleting) {
-                        setSelectedActorId(actor.id)
-                      }
-                    }}
-                    disabled={
-                      isSwitching ||
-                      isSavingDefault ||
-                      isPendingDeletion ||
-                      isDeleting
+              return (
+                <DropdownMenuItem
+                  key={actor.id}
+                  onClick={() => {
+                    if (!isPendingDeletion && !isDeleting) {
+                      setSelectedActorId(actor.id)
                     }
-                    className="flex items-center gap-3"
+                  }}
+                  disabled={
+                    isSwitching ||
+                    isSavingDefault ||
+                    isPendingDeletion ||
+                    isDeleting
+                  }
+                  className="flex items-center gap-3"
+                >
+                  <Avatar
+                    className={`h-8 w-8 ${reducedOpacity ? 'opacity-60' : ''}`}
                   >
-                    <Avatar
-                      className={`h-8 w-8 ${reducedOpacity ? 'opacity-60' : ''}`}
+                    {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
+                    <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 text-xs">
+                      {getAvatarInitial(actor.username)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div
+                    className={`flex-1 overflow-hidden ${reducedOpacity ? 'opacity-60' : ''}`}
+                  >
+                    <p className="text-sm font-medium truncate">
+                      {actor.name || actor.username}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {isPendingDeletion ? (
+                        <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          Pending deletion
+                        </span>
+                      ) : isDeleting ? (
+                        <span className="text-destructive">Deleting...</span>
+                      ) : (
+                        getHandle(actor)
+                      )}
+                    </p>
+                  </div>
+                  {isCurrent && !isPendingDeletion && !isDeleting && (
+                    <span className="text-xs text-muted-foreground">
+                      Current
+                    </span>
+                  )}
+                  {actor.id === selectedActorId && (
+                    <Check className="h-4 w-4 text-primary" />
+                  )}
+                  {isPendingDeletion && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleCancelDeletion(actor.id)
+                      }}
+                      disabled={isCancelling}
                     >
-                      {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
-                      <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 text-xs">
-                        {getAvatarInitial(actor.username)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div
-                      className={`flex-1 overflow-hidden ${reducedOpacity ? 'opacity-60' : ''}`}
-                    >
-                      <p className="text-sm font-medium truncate">
-                        {actor.name || actor.username}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {isPendingDeletion ? (
-                          <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            Pending deletion
-                          </span>
-                        ) : isDeleting ? (
-                          <span className="text-destructive">Deleting...</span>
-                        ) : (
-                          getHandle(actor)
-                        )}
-                      </p>
-                    </div>
-                    {isCurrent && !isPendingDeletion && !isDeleting && (
-                      <span className="text-xs text-muted-foreground">
-                        Current
-                      </span>
-                    )}
-                    {actor.id === selectedActorId && (
-                      <Check className="h-4 w-4 text-primary" />
-                    )}
-                    {isPendingDeletion && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleCancelDeletion(actor.id)
-                        }}
-                        disabled={isCancelling}
-                      >
-                        Cancel
-                      </Button>
-              )}
-            </DropdownMenuItem>
-          )
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+                      Cancel
+                    </Button>
+                  )}
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-    {message && (
+        {message && (
           <p
             className={`text-sm ${message.type === 'success' ? 'text-green-600' : 'text-destructive'}`}
           >
@@ -261,14 +260,21 @@ export function ActorsSection({
         <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
           <Button
             onClick={handleSwitchActor}
-            disabled={isSwitching || !canSwitch || isSavingDefault || !hasMultipleActors}
+            disabled={
+              isSwitching || !canSwitch || isSavingDefault || !hasMultipleActors
+            }
             className="w-full sm:w-auto"
           >
             {isSwitching ? 'Switching...' : 'Switch to actor'}
           </Button>
           <Button
             onClick={handleSaveDefault}
-            disabled={isSavingDefault || !hasChanges || isSwitching || !hasMultipleActors}
+            disabled={
+              isSavingDefault ||
+              !hasChanges ||
+              isSwitching ||
+              !hasMultipleActors
+            }
             variant="outline"
             className="w-full sm:w-auto"
           >

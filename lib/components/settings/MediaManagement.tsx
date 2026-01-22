@@ -185,119 +185,119 @@ export function MediaManagement({
             <>
               <div className="space-y-2">
                 {medias.map((media) => {
-                const isVideo = media.mimeType.startsWith('video')
-                const isAudio = media.mimeType.startsWith('audio')
-                
-                return (
-                  <div
-                    key={media.id}
-                    className="flex items-center gap-4 rounded-lg border p-4"
-                  >
-                    {/* Square Preview */}
-                    <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border bg-muted">
-                      {isVideo ? (
-                        <video
-                          src={media.url}
-                          className="h-full w-full object-cover"
-                          muted
-                        />
-                      ) : isAudio ? (
-                        <div className="flex h-full w-full items-center justify-center bg-muted">
-                          <svg
-                            className="h-8 w-8 text-muted-foreground"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
-                            />
-                          </svg>
-                        </div>
-                      ) : (
-                        <img
-                          src={media.url}
-                          alt={media.description || 'Media'}
-                          className="h-full w-full object-cover"
-                        />
-                      )}
-                    </div>
+                  const isVideo = media.mimeType.startsWith('video')
+                  const isAudio = media.mimeType.startsWith('audio')
 
-                    {/* Media Info */}
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-muted-foreground">
-                          ID: {media.id}
-                        </span>
-                        <span className="rounded-md bg-muted px-2 py-0.5 text-xs">
-                          {media.mimeType}
-                        </span>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {media.width} × {media.height} •{' '}
-                        {formatFileSize(media.bytes)}
-                      </div>
-                      {media.description && (
-                        <div className="text-sm">{media.description}</div>
-                      )}
-                      {media.statusId && (
-                        <div className="pt-1">
-                          <Link
-                            href={`/@${media.actorId.split('/').pop()}/statuses/${
-                              media.statusId.split('/').pop()
-                            }`}
-                            className="text-xs text-primary hover:underline"
-                          >
-                            View in post →
-                          </Link>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Delete Button */}
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDeleteClick(media)}
+                  return (
+                    <div
+                      key={media.id}
+                      className="flex items-center gap-4 rounded-lg border p-4"
                     >
-                      Delete
+                      {/* Square Preview */}
+                      <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border bg-muted">
+                        {isVideo ? (
+                          <video
+                            src={media.url}
+                            className="h-full w-full object-cover"
+                            muted
+                          />
+                        ) : isAudio ? (
+                          <div className="flex h-full w-full items-center justify-center bg-muted">
+                            <svg
+                              className="h-8 w-8 text-muted-foreground"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+                              />
+                            </svg>
+                          </div>
+                        ) : (
+                          <img
+                            src={media.url}
+                            alt={media.description || 'Media'}
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+                      </div>
+
+                      {/* Media Info */}
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-muted-foreground">
+                            ID: {media.id}
+                          </span>
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs">
+                            {media.mimeType}
+                          </span>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {media.width} × {media.height} •{' '}
+                          {formatFileSize(media.bytes)}
+                        </div>
+                        {media.description && (
+                          <div className="text-sm">{media.description}</div>
+                        )}
+                        {media.statusId && (
+                          <div className="pt-1">
+                            <Link
+                              href={`/@${media.actorId.split('/').pop()}/statuses/${media.statusId
+                                .split('/')
+                                .pop()}`}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              View in post →
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Delete Button */}
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteClick(media)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Pagination Controls */}
+              {totalItems > 0 && (
+                <div className="mt-4 flex items-center justify-between border-t pt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages} • Showing {startItem}-
+                    {endItem} of {totalItems} items
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={!hasPreviousPage}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={!hasNextPage}
+                    >
+                      Next
                     </Button>
                   </div>
-                )
-              })}
-            </div>
-
-            {/* Pagination Controls */}
-            {totalItems > 0 && (
-              <div className="mt-4 flex items-center justify-between border-t pt-4">
-                <div className="text-sm text-muted-foreground">
-                  Page {currentPage} of {totalPages} • Showing {startItem}-
-                  {endItem} of {totalItems} items
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => goToPage(currentPage - 1)}
-                    disabled={!hasPreviousPage}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => goToPage(currentPage + 1)}
-                    disabled={!hasNextPage}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -316,7 +316,8 @@ export function MediaManagement({
               <div className="text-sm">
                 <div className="font-medium">Media ID: {mediaToDelete.id}</div>
                 <div className="text-muted-foreground">
-                  {mediaToDelete.mimeType} • {formatFileSize(mediaToDelete.bytes)}
+                  {mediaToDelete.mimeType} •{' '}
+                  {formatFileSize(mediaToDelete.bytes)}
                 </div>
               </div>
             </div>

@@ -1,7 +1,7 @@
 /**
  * Script to clean up media files that are not referenced in the database
  * Usage: scripts/cleanupMediaStorage [--dry-run] [--yes]
- * 
+ *
  * Options:
  *   --dry-run   Show what would be deleted without actually deleting
  *   --yes       Skip confirmation prompt and delete immediately
@@ -74,10 +74,7 @@ async function listLocalFiles(basePath: string): Promise<string[]> {
   return files
 }
 
-async function listS3Files(
-  bucket: string,
-  region: string
-): Promise<string[]> {
+async function listS3Files(bucket: string, region: string): Promise<string[]> {
   const client = new S3Client({ region })
   const files: string[] = []
 
@@ -110,11 +107,7 @@ async function deleteLocalFile(basePath: string, filePath: string) {
   await fs.unlink(fullPath)
 }
 
-async function deleteS3File(
-  bucket: string,
-  region: string,
-  filePath: string
-) {
+async function deleteS3File(bucket: string, region: string, filePath: string) {
   const { DeleteObjectCommand } = await import('@aws-sdk/client-s3')
   const client = new S3Client({ region })
   const command = new DeleteObjectCommand({
@@ -124,9 +117,7 @@ async function deleteS3File(
   await client.send(command)
 }
 
-async function promptConfirmation(
-  orphanedFiles: string[]
-): Promise<boolean> {
+async function promptConfirmation(orphanedFiles: string[]): Promise<boolean> {
   console.log('\n⚠️  This will permanently delete the following files:')
   console.log('─'.repeat(60))
 
@@ -165,13 +156,19 @@ function showHelp() {
   console.log('Usage: scripts/cleanupMediaStorage [OPTIONS]')
   console.log()
   console.log('Options:')
-  console.log('  --dry-run    Show what would be deleted without actually deleting')
+  console.log(
+    '  --dry-run    Show what would be deleted without actually deleting'
+  )
   console.log('  --yes        Skip confirmation prompt and delete immediately')
   console.log('  --help       Show this help message')
   console.log()
   console.log('Description:')
-  console.log('  This script cleans up media files that are not referenced in the database.')
-  console.log('  It supports both local file storage and S3-compatible storage.')
+  console.log(
+    '  This script cleans up media files that are not referenced in the database.'
+  )
+  console.log(
+    '  It supports both local file storage and S3-compatible storage.'
+  )
   console.log()
   console.log('Examples:')
   console.log('  # Preview what would be deleted')
@@ -187,7 +184,7 @@ function showHelp() {
 
 async function cleanupMediaStorage() {
   const args = process.argv.slice(2)
-  
+
   if (args.includes('--help') || args.includes('-h')) {
     showHelp()
     process.exit(0)
@@ -314,7 +311,9 @@ async function cleanupMediaStorage() {
       }
       deletedCount++
       if (deletedCount % 10 === 0) {
-        console.log(`   Deleted ${deletedCount}/${orphanedFiles.length} files...`)
+        console.log(
+          `   Deleted ${deletedCount}/${orphanedFiles.length} files...`
+        )
       }
     } catch (error) {
       const err = error as Error

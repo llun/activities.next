@@ -52,7 +52,9 @@ describe('reblog email template', () => {
     it('returns text content with local URL and message', () => {
       const result = getTextContent(mockActor, mockStatus)
       // Should include the actor who reblogged
-      expect(result).toContain('@reblogger@remote.example.com reblogged your post')
+      expect(result).toContain(
+        '@reblogger@remote.example.com reblogged your post'
+      )
       expect(result).toContain('Your post: This is my awesome post!')
       // Should use local server URL (test.llun.dev from mock config)
       expect(result).toContain('View this post on your server:')
@@ -63,7 +65,9 @@ describe('reblog email template', () => {
   describe('#getHTMLContent', () => {
     it('returns HTML content with message and local URL', () => {
       const result = getHTMLContent(mockActor, mockStatus)
-      expect(result).toContain('@reblogger@remote.example.com reblogged your post')
+      expect(result).toContain(
+        '@reblogger@remote.example.com reblogged your post'
+      )
       expect(result).toContain('<p>This is my awesome post!</p>')
       // Should link to local server, not remote
       expect(result).toContain('View this post on your server')

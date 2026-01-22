@@ -1,19 +1,23 @@
+import { SpanStatusCode } from '@opentelemetry/api'
+
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
+import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { getSpan } from '@/lib/utils/trace'
-import { logger } from '@/lib/utils/logger'
-import { SpanStatusCode } from '@opentelemetry/api'
 
 export const GET = AuthenticatedGuard(async (req, context) => {
   const span = getSpan('api', 'getMediasForAccount')
-  
+
   try {
     const { database, currentActor } = context
 
     const account = currentActor.account
     if (!account) {
-      span.setStatus({ code: SpanStatusCode.ERROR, message: 'No account found' })
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: 'No account found'
+      })
       span.end()
       logger.warn('Get medias failed: No account found')
       return apiErrorResponse(401)
@@ -25,7 +29,7 @@ export const GET = AuthenticatedGuard(async (req, context) => {
     const url = new URL(req.url)
     const pageParam = url.searchParams.get('page')
     const limitParam = url.searchParams.get('limit')
-    
+
     const page = Math.max(1, Math.min(10000, parseInt(pageParam || '1', 10)))
     const limit = [25, 50, 100].includes(parseInt(limitParam || '25', 10))
       ? parseInt(limitParam || '25', 10)

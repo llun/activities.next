@@ -6,9 +6,7 @@ import { DEFAULT_QUOTA_PER_ACCOUNT } from './constants'
 
 export const getQuotaLimit = (): number => {
   const config = getConfig()
-  return (
-    config.mediaStorage?.quotaPerAccount ?? DEFAULT_QUOTA_PER_ACCOUNT
-  )
+  return config.mediaStorage?.quotaPerAccount ?? DEFAULT_QUOTA_PER_ACCOUNT
 }
 
 export const checkQuotaAvailable = async (

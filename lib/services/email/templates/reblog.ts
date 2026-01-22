@@ -18,7 +18,7 @@ const getLocalStatusUrl = (status: EditableStatus): string => {
 export const getTextContent = (actor: ActorProfile, status: EditableStatus) => {
   const localUrl = getLocalStatusUrl(status)
   const actorMention = getMention(actor, true)
-  
+
   return `
 ${actorMention} reblogged your post.
 
@@ -31,7 +31,7 @@ View this post on your server: ${localUrl}
 export const getHTMLContent = (actor: ActorProfile, status: EditableStatus) => {
   const localUrl = getLocalStatusUrl(status)
   const actorMention = getMention(actor, true)
-  
+
   return `
 <h3>${actorMention} reblogged your post</h3>
 <p><strong>Your post:</strong></p>

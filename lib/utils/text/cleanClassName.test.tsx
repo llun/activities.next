@@ -56,7 +56,8 @@ describe('cleanClassName', () => {
     })
 
     it('handles links with nested elements', () => {
-      const html = '<a href="https://test.local/page"><span>Nested</span> content</a>'
+      const html =
+        '<a href="https://test.local/page"><span>Nested</span> content</a>'
       const result = cleanClassName(html)
 
       const parentClickHandler = jest.fn()
