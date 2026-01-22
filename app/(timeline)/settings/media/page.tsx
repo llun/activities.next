@@ -45,7 +45,8 @@ const Page = async ({
   // Get medias for account with their associated statusId
   const result = await database.getMediasWithStatusForAccount({
     accountId: actor.account.id,
-    limit: itemsPerPage
+    limit: itemsPerPage,
+    page
   })
 
   return (

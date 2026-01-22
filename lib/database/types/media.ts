@@ -57,6 +57,7 @@ export type GetAttachmentsForActorParams = {
 export type GetMediasForAccountParams = {
   accountId: string
   limit?: number
+  page?: number
   maxCreatedAt?: number
 }
 export type GetStorageUsageForAccountParams = {

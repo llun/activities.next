@@ -192,6 +192,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async getMediasWithStatusForAccount({
     accountId,
     limit = 100,
+    page = 1,
     maxCreatedAt
   }: GetMediasForAccountParams): Promise<PaginatedMediaWithStatus> {
     // First, get the total count
@@ -233,7 +234,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       itemsQuery = itemsQuery.where('medias.createdAt', '<', new Date(maxCreatedAt))
     }
 
-    itemsQuery = itemsQuery.limit(limit)
+    // Calculate offset for pagination
+    const offset = (page - 1) * limit
+    itemsQuery = itemsQuery.limit(limit).offset(offset)
 
     const [countResult, data] = await Promise.all([countQuery, itemsQuery])
     const total = Number(countResult?.count || 0)

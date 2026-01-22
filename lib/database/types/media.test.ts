@@ -221,6 +221,54 @@ describe('MediaDatabase', () => {
         expect(result.items.length).toBe(1)
         expect(result.total).toBeGreaterThanOrEqual(2)
       })
+
+      it('respects page parameter for pagination', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        expect(actor).toBeDefined()
+
+        // Create multiple media items to test pagination
+        const media1 = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/media-page-1.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const media2 = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/media-page-2.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        // Get first page
+        const page1Result = await database.getMediasWithStatusForAccount({
+          accountId: actor!.account!.id,
+          limit: 1,
+          page: 1
+        })
+
+        // Get second page
+        const page2Result = await database.getMediasWithStatusForAccount({
+          accountId: actor!.account!.id,
+          limit: 1,
+          page: 2
+        })
+
+        expect(page1Result.items.length).toBe(1)
+        expect(page2Result.items.length).toBe(1)
+        // Items should be different (different IDs)
+        expect(page1Result.items[0].id).not.toBe(page2Result.items[0].id)
+        // Total should be the same for both pages
+        expect(page1Result.total).toBe(page2Result.total)
+        expect(page1Result.total).toBeGreaterThanOrEqual(2)
+      })
     })
 
     describe('getMediaByIdForAccount', () => {
