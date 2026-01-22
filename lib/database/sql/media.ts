@@ -10,7 +10,8 @@ import {
   GetMediasForAccountParams,
   GetStorageUsageForAccountParams,
   Media,
-  MediaDatabase
+  MediaDatabase,
+  MediaWithStatus
 } from '@/lib/database/types/media'
 import { Attachment } from '@/lib/models/attachment'
 
@@ -191,9 +192,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     accountId,
     limit = 100,
     maxCreatedAt
-  }: GetMediasForAccountParams): Promise<
-    Array<Media & { statusId?: string }>
-  > {
+  }: GetMediasForAccountParams): Promise<MediaWithStatus[]> {
     let query = database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
       .leftJoin('attachments', function () {
@@ -204,7 +203,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         )
       })
       .where('actors.accountId', accountId)
-      .select(
+      .distinct(
         'medias.id',
         'medias.actorId',
         'medias.original',
