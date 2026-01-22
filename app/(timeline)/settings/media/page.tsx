@@ -55,8 +55,13 @@ const Page = async () => {
       used={used}
       limit={limit}
       medias={medias.map((media) => {
-        const url = `/api/v1/files/${media.original.path}`
-        const statusId = mediaUrlToStatusId.get(url)
+        // Extract just the filename from the full path
+        const filename = media.original.path.split('/').pop()
+        const url = `/api/v1/files/${filename}`
+        // Attachment URLs are stored as full URLs, so we need to match against the full URL pattern
+        const statusId = [...mediaUrlToStatusId.entries()].find(([attachmentUrl]) =>
+          attachmentUrl.endsWith(`/api/v1/files/${filename}`)
+        )?.[1]
         return {
           id: media.id,
           actorId: media.actorId,
