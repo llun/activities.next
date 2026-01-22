@@ -147,47 +147,14 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .count('medias.id as count')
       .first()
 
-    // Then get the paginated items  
-    // Join by matching the filename from media path against the filename in attachment URL
-    // Media paths: "uploads/abc123.jpg" or "/test/abc123.jpg" -> basename is "abc123.jpg"  
-    // Attachment URLs: "https://host.com/api/v1/files/abc123.jpg"
-    // 
-    // For SQLite compatibility, we extract the basename (filename after last slash).
-    // Most paths have format "directory/filename.ext" with one slash.
-    // We use SUBSTR starting after the last slash position.
+    // Then get the paginated items
     let itemsQuery = database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
       .leftJoin('attachments', function () {
-        // Extract basename: For "/test/file.jpg" get "file.jpg"
-        // Strategy: Find the last '/' by using INSTR multiple times
-        // For single-level paths: SUBSTR(path, INSTR(path, '/') + 1)
-        // For multi-level: recursively find last slash
-        // Simplified: Since paths are typically "dir/file", use INSTR to find first slash
-        // then check if there's another slash in the remainder
-        this.on(
-          database.raw(
-            `attachments.url LIKE '%/api/v1/files/' || 
-            CASE
-              WHEN INSTR(medias.original, '/') = 0 THEN
-                medias.original
-              WHEN INSTR(SUBSTR(medias.original, INSTR(medias.original, '/') + 1), '/') = 0 THEN
-                SUBSTR(medias.original, INSTR(medias.original, '/') + 1)
-              ELSE
-                SUBSTR(medias.original, INSTR(medias.original, '/') + INSTR(SUBSTR(medias.original, INSTR(medias.original, '/') + 1), '/') + 1)
-            END`
-          )
-        ).orOn(
-          database.raw(
-            `attachments.url LIKE '%/api/v1/files/' ||
-            CASE
-              WHEN INSTR(medias.thumbnail, '/') = 0 THEN
-                medias.thumbnail
-              WHEN INSTR(SUBSTR(medias.thumbnail, INSTR(medias.thumbnail, '/') + 1), '/') = 0 THEN
-                SUBSTR(medias.thumbnail, INSTR(medias.thumbnail, '/') + 1)
-              ELSE
-                SUBSTR(medias.thumbnail, INSTR(medias.thumbnail, '/') + INSTR(SUBSTR(medias.thumbnail, INSTR(medias.thumbnail, '/') + 1), '/') + 1)
-            END`
-          )
+        this.on('medias.original', '=', 'attachments.url').orOn(
+          'medias.thumbnail',
+          '=',
+          'attachments.url'
         )
       })
       .where('actors.accountId', accountId)
