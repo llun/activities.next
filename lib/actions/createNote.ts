@@ -1,12 +1,20 @@
 import { Mention } from '@llun/activities.schema'
 import crypto from 'crypto'
 
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { NotificationType } from '@/lib/database/types/notification'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor, getMention } from '@/lib/models/actor'
 import { PostBoxAttachment } from '@/lib/models/attachment'
 import { Status, StatusNote } from '@/lib/models/status'
+import { sendMail } from '@/lib/services/email'
+import {
+  getHTMLContent as getMentionHTMLContent,
+  getSubject as getMentionSubject,
+  getTextContent as getMentionTextContent
+} from '@/lib/services/email/templates/mention'
+import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
@@ -263,6 +271,75 @@ export const createNoteFromUserInput = async ({
   if (!status) {
     span.end()
     return null
+  }
+
+  // Send email notifications (best-effort, don't fail note creation if email fails)
+  const config = getConfig()
+  if (config.email) {
+    // Send email for reply notification
+    if (replyStatus && replyStatus.actorId !== currentActor.id) {
+      try {
+        const shouldSendEmail = await shouldSendEmailForNotification(
+          database,
+          replyStatus.actorId,
+          NotificationType.enum.reply
+        )
+
+        if (shouldSendEmail) {
+          const targetActor = await database.getActorFromId({
+            id: replyStatus.actorId
+          })
+
+          if (targetActor?.account) {
+            await sendMail({
+              from: config.email.serviceFromAddress,
+              to: [targetActor.account.email],
+              subject: getMentionSubject(currentActor),
+              content: {
+                text: getMentionTextContent(status),
+                html: getMentionHTMLContent(status)
+              }
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Failed to send reply notification email:', error)
+      }
+    }
+
+    // Send email for mention notifications
+    for (const mention of mentions) {
+      const mentionedActorId = mention.href
+      if (mentionedActorId !== currentActor.id) {
+        try {
+          const shouldSendEmail = await shouldSendEmailForNotification(
+            database,
+            mentionedActorId,
+            NotificationType.enum.mention
+          )
+
+          if (shouldSendEmail) {
+            const targetActor = await database.getActorFromId({
+              id: mentionedActorId
+            })
+
+            if (targetActor?.account) {
+              await sendMail({
+                from: config.email.serviceFromAddress,
+                to: [targetActor.account.email],
+                subject: getMentionSubject(currentActor),
+                content: {
+                  text: getMentionTextContent(status),
+                  html: getMentionHTMLContent(status)
+                }
+              })
+            }
+          }
+        } catch (error) {
+          console.error('Failed to send mention notification email:', error)
+        }
+      }
+    }
   }
 
   await getQueue().publish({

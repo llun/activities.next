@@ -1,9 +1,17 @@
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { acceptFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/actions/follow'
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { NotificationType } from '@/lib/database/types/notification'
 import { FollowStatus } from '@/lib/models/follow'
+import { sendMail } from '@/lib/services/email'
+import {
+  getHTMLContent,
+  getSubject,
+  getTextContent
+} from '@/lib/services/email/templates/follow'
+import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
 
 interface CreateFollowerParams {
   followRequest: FollowRequest
@@ -49,6 +57,32 @@ export const createFollower = async ({
       sourceActorId: followerActor.id,
       followId: follow.id
     })
+
+    // Send email notification for follow request (best-effort)
+    const config = getConfig()
+    if (config.email) {
+      try {
+        const shouldSendEmail = await shouldSendEmailForNotification(
+          database,
+          targetActor.id,
+          NotificationType.enum.follow_request
+        )
+
+        if (shouldSendEmail && targetActor.account) {
+          await sendMail({
+            from: config.email.serviceFromAddress,
+            to: [targetActor.account.email],
+            subject: getSubject(followerActor),
+            content: {
+              text: getTextContent(followerActor),
+              html: getHTMLContent(followerActor)
+            }
+          })
+        }
+      } catch (error) {
+        console.error('Failed to send follow request notification email:', error)
+      }
+    }
   } else {
     // Auto-accept: create follow with Accepted status and send Accept activity
     const follow = await database.createFollow({
@@ -69,6 +103,32 @@ export const createFollower = async ({
         followId: follow.id
       })
     ])
+
+    // Send email notification for auto-accepted follow (best-effort)
+    const config = getConfig()
+    if (config.email) {
+      try {
+        const shouldSendEmail = await shouldSendEmailForNotification(
+          database,
+          targetActor.id,
+          NotificationType.enum.follow
+        )
+
+        if (shouldSendEmail && targetActor.account) {
+          await sendMail({
+            from: config.email.serviceFromAddress,
+            to: [targetActor.account.email],
+            subject: getSubject(followerActor),
+            content: {
+              text: getTextContent(followerActor),
+              html: getHTMLContent(followerActor)
+            }
+          })
+        }
+      } catch (error) {
+        console.error('Failed to send follow notification email:', error)
+      }
+    }
   }
 
   return followRequest
