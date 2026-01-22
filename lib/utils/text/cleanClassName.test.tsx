@@ -10,7 +10,7 @@ import { cleanClassName } from './cleanClassName'
 describe('cleanClassName', () => {
   describe('link handling', () => {
     it('adds target="_blank" to links', () => {
-      const html = '<a href="https://example.com">Link</a>'
+      const html = '<a href="https://test.local/page">Link</a>'
       const result = cleanClassName(html)
       const { container } = render(<div>{result}</div>)
 
@@ -19,7 +19,7 @@ describe('cleanClassName', () => {
     })
 
     it('adds onClick handler that stops propagation', () => {
-      const html = '<a href="https://example.com">Link</a>'
+      const html = '<a href="https://test.local/page">Link</a>'
       const result = cleanClassName(html)
 
       const parentClickHandler = jest.fn()
@@ -38,16 +38,16 @@ describe('cleanClassName', () => {
     })
 
     it('preserves link href attribute', () => {
-      const html = '<a href="https://example.com">Link</a>'
+      const html = '<a href="https://test.local/page">Link</a>'
       const result = cleanClassName(html)
       const { container } = render(<div>{result}</div>)
 
       const link = container.querySelector('a')
-      expect(link).toHaveAttribute('href', 'https://example.com')
+      expect(link).toHaveAttribute('href', 'https://test.local/page')
     })
 
     it('preserves link content', () => {
-      const html = '<a href="https://example.com">Click here</a>'
+      const html = '<a href="https://test.local/page">Click here</a>'
       const result = cleanClassName(html)
       const { container } = render(<div>{result}</div>)
 
@@ -56,7 +56,7 @@ describe('cleanClassName', () => {
     })
 
     it('handles links with nested elements', () => {
-      const html = '<a href="https://example.com"><span>Nested</span> content</a>'
+      const html = '<a href="https://test.local/page"><span>Nested</span> content</a>'
       const result = cleanClassName(html)
 
       const parentClickHandler = jest.fn()
@@ -76,7 +76,7 @@ describe('cleanClassName', () => {
 
     it('handles multiple links in content', () => {
       const html =
-        '<p><a href="https://example.com">First</a> and <a href="https://example2.com">Second</a></p>'
+        '<p><a href="https://test.local/first">First</a> and <a href="https://test.local/second">Second</a></p>'
       const result = cleanClassName(html)
 
       const parentClickHandler = jest.fn()
@@ -135,7 +135,7 @@ describe('cleanClassName', () => {
   describe('complex content', () => {
     it('handles mixed content with links, spans, and emojis', () => {
       const html =
-        '<p>Check out <a href="https://example.com">this link</a> and <span class="invisible">hidden</span> <img class="emoji" src="emoji.png" alt="emoji"></p>'
+        '<p>Check out <a href="https://test.local/link">this link</a> and <span class="invisible">hidden</span> <img class="emoji" src="emoji.png" alt="emoji"></p>'
       const result = cleanClassName(html)
 
       const parentClickHandler = jest.fn()
