@@ -238,8 +238,11 @@ async function cleanupMediaStorage() {
   switch (config.mediaStorage.type) {
     case MediaStorageType.LocalFile: {
       console.log(`   Storage path: ${config.mediaStorage.path}`)
-      // Use the resolved basePath for consistent path handling
-      storageFiles = await listLocalFiles(basePath!)
+      // basePath is guaranteed to be defined for LocalFile storage type
+      if (!basePath) {
+        throw new Error('Base path is not defined for local file storage')
+      }
+      storageFiles = await listLocalFiles(basePath)
       break
     }
     case MediaStorageType.S3Storage:
@@ -313,8 +316,11 @@ async function cleanupMediaStorage() {
     try {
       switch (config.mediaStorage.type) {
         case MediaStorageType.LocalFile:
-          // Use the resolved basePath for consistent path handling
-          await deleteLocalFile(basePath!, file)
+          // basePath is guaranteed to be defined for LocalFile storage type
+          if (!basePath) {
+            throw new Error('Base path is not defined for local file storage')
+          }
+          await deleteLocalFile(basePath, file)
           break
         case MediaStorageType.S3Storage:
         case MediaStorageType.ObjectStorage:
