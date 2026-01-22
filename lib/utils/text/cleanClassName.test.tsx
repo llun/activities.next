@@ -130,6 +130,69 @@ describe('cleanClassName', () => {
       expect(img).toHaveClass('inline')
       expect(img).not.toHaveClass('emoji')
     })
+
+    it('converts emoji inside anchor tags', () => {
+      const html =
+        '<a href="https://test.local/page"><img class="emoji" src="emoji.png" alt="emoji"></a>'
+      const result = cleanClassName(html)
+      const { container } = render(<div>{result}</div>)
+
+      const img = container.querySelector('img')
+      expect(img).toHaveClass('size-5')
+      expect(img).toHaveClass('inline')
+      expect(img).not.toHaveClass('emoji')
+    })
+  })
+
+  describe('nested element transformations in links', () => {
+    it('preserves span class transformations inside anchor tags', () => {
+      const html =
+        '<a href="https://test.local/page"><span class="invisible">hidden text</span></a>'
+      const result = cleanClassName(html)
+      const { container } = render(<div>{result}</div>)
+
+      const span = container.querySelector('span')
+      expect(span).toHaveClass('hidden')
+      expect(span).not.toHaveClass('invisible')
+    })
+
+    it('handles ellipsis span inside anchor tags', () => {
+      const html =
+        '<a href="https://test.local/page"><span class="ellipsis">truncated</span></a>'
+      const result = cleanClassName(html)
+      const { container } = render(<div>{result}</div>)
+
+      const span = container.querySelector('span')
+      expect(span).toHaveClass('after:content-["…"]')
+      expect(span).not.toHaveClass('ellipsis')
+    })
+
+    it('handles multiple nested elements in anchor with transformations', () => {
+      const html =
+        '<a href="https://test.local/page">Text <span class="invisible">hidden</span> <img class="emoji" src="emoji.png" alt="emoji"> more text</a>'
+      const result = cleanClassName(html)
+
+      const parentClickHandler = jest.fn()
+      const { container } = render(
+        <div onClick={parentClickHandler}>{result}</div>
+      )
+
+      // Verify link stopPropagation still works
+      const link = container.querySelector('a')
+      fireEvent.click(link!)
+      expect(parentClickHandler).not.toHaveBeenCalled()
+
+      // Verify span class conversion
+      const span = container.querySelector('span')
+      expect(span).toHaveClass('hidden')
+      expect(span).not.toHaveClass('invisible')
+
+      // Verify emoji class conversion
+      const img = container.querySelector('img')
+      expect(img).toHaveClass('size-5')
+      expect(img).toHaveClass('inline')
+      expect(img).not.toHaveClass('emoji')
+    })
   })
 
   describe('complex content', () => {
