@@ -1,4 +1,5 @@
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client
@@ -30,6 +31,7 @@ import {
   PresigedMediaInput,
   PresignedUrlOutput
 } from '@/lib/services/medias/types'
+import { logger } from '@/lib/utils/logger'
 
 export class S3FileStorage implements MediaStorage {
   private static _instance: MediaStorage
@@ -81,6 +83,27 @@ export class S3FileStorage implements MediaStorage {
       contentType: (message as IncomingMessage).headers['content-type'],
       buffer: Buffer.from(await message.transformToByteArray())
     })
+  }
+
+  async deleteFile(filePath: string): Promise<boolean> {
+    try {
+      const { bucket } = this._config
+      const s3client = this._client
+      const command = new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: filePath
+      })
+      await s3client.send(command)
+      return true
+    } catch (e) {
+      const error = e as Error
+      logger.error({
+        message: 'Failed to delete file from S3',
+        filePath,
+        error: error.message
+      })
+      return false
+    }
   }
 
   isPresigedSupported() {

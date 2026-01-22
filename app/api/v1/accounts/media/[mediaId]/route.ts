@@ -1,5 +1,6 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
+import { deleteMediaFile } from '@/lib/services/medias'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
@@ -54,7 +55,30 @@ export const DELETE = AuthenticatedGuard<Params>(async (_req, context) => {
       return apiErrorResponse(404)
     }
 
-    // Delete the media
+    // Delete the storage files (original and thumbnail if present)
+    const filesToDelete: string[] = [media.original.path]
+    if (media.thumbnail) {
+      filesToDelete.push(media.thumbnail.path)
+    }
+
+    // Delete files from storage
+    const deletionResults = await Promise.allSettled(
+      filesToDelete.map((filePath) => deleteMediaFile(database, filePath))
+    )
+
+    // Log any failures but don't fail the operation
+    deletionResults.forEach((result, index) => {
+      if (result.status === 'rejected' || !result.value) {
+        logger.warn({
+          message: 'Failed to delete storage file',
+          filePath: filesToDelete[index],
+          mediaId,
+          accountId: account.id
+        })
+      }
+    })
+
+    // Delete the media record from database
     const deleted = await database.deleteMedia({ mediaId })
     if (!deleted) {
       logger.error({

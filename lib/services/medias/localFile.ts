@@ -68,6 +68,22 @@ export class LocalFileStorage implements MediaStorage {
     }
   }
 
+  async deleteFile(filePath: string): Promise<boolean> {
+    try {
+      const fullPath = path.resolve(this._config.path, filePath)
+      await fs.unlink(fullPath)
+      return true
+    } catch (e) {
+      const error = e as NodeJS.ErrnoException
+      logger.error({
+        message: 'Failed to delete file from local storage',
+        filePath,
+        error: error.message
+      })
+      return false
+    }
+  }
+
   isPresigedSupported() {
     return false
   }
