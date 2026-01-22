@@ -1,3 +1,5 @@
+'use client'
+
 import { Mastodon } from '@llun/activities.schema'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
