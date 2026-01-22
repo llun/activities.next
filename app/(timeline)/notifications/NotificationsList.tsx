@@ -157,9 +157,16 @@ export const NotificationsList = ({
     <div className="space-y-4">
       <div className="flex items-center justify-between rounded-xl border bg-background/80 p-4">
         <div className="text-sm text-muted-foreground">
-          Showing {Math.min(totalCount, (currentPage - 1) * itemsPerPage + 1)}-
-          {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount}{' '}
-          notifications
+          {totalCount === 0 ? (
+            'No notifications'
+          ) : (
+            <>
+              Showing{' '}
+              {Math.min(totalCount, (currentPage - 1) * itemsPerPage + 1)}-
+              {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount}{' '}
+              notifications
+            </>
+          )}
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -130,7 +130,8 @@ const Page = async ({ searchParams }: Props) => {
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
-              basePath={`/notifications?limit=${itemsPerPage}`}
+              basePath="/notifications"
+              queryParams={{ limit: String(itemsPerPage) }}
             />
           )}
         </>

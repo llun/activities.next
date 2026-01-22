@@ -9,14 +9,22 @@ interface Props {
   currentPage: number
   totalPages: number
   basePath: string
+  queryParams?: Record<string, string>
 }
 
 export const Pagination: FC<Props> = ({
   currentPage,
   totalPages,
-  basePath
+  basePath,
+  queryParams
 }) => {
   if (totalPages <= 1) return null
+
+  const buildUrl = (page: number) => {
+    const params = new URLSearchParams(queryParams || {})
+    params.set('page', String(page))
+    return `${basePath}?${params.toString()}`
+  }
 
   const getPageNumbers = () => {
     const pages: (number | string)[] = []
@@ -64,7 +72,7 @@ export const Pagination: FC<Props> = ({
     >
       {currentPage > 1 && (
         <Link
-          href={`${basePath}?page=${currentPage - 1}`}
+          href={buildUrl(currentPage - 1)}
           className={cn(
             'px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors',
             'border border-input bg-background'
@@ -78,7 +86,7 @@ export const Pagination: FC<Props> = ({
         typeof page === 'number' ? (
           <Link
             key={page}
-            href={`${basePath}?page=${page}`}
+            href={buildUrl(page)}
             className={cn(
               'px-3 py-2 text-sm rounded-md transition-colors',
               page === currentPage
@@ -100,7 +108,7 @@ export const Pagination: FC<Props> = ({
 
       {currentPage < totalPages && (
         <Link
-          href={`${basePath}?page=${currentPage + 1}`}
+          href={buildUrl(currentPage + 1)}
           className={cn(
             'px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors',
             'border border-input bg-background'
