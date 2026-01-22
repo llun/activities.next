@@ -106,7 +106,7 @@ export function MediaManagement({
     router.push(`/settings/media?limit=${itemsPerPage}&page=${page}`)
   }
 
-  // Show pagination controls if there are items per page items (meaning there might be more pages)
+  // Show pagination controls if there are exactly itemsPerPage items (meaning there might be more pages)
   const hasNextPage = medias.length === itemsPerPage
   const hasPreviousPage = currentPage > 1
 
