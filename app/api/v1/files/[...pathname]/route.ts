@@ -1,3 +1,4 @@
+import { readFile } from 'fs/promises'
 import { NextRequest } from 'next/server'
 import path from 'path'
 
@@ -23,7 +24,26 @@ export const GET = async (
   }
 
   const media = await getMedia(database, userPath)
-  if (!media) return apiErrorResponse(404)
+  if (!media) {
+    // Return a placeholder image for deleted media
+    const placeholderPath = path.join(
+      process.cwd(),
+      'public',
+      'images',
+      'media-removed.svg'
+    )
+    try {
+      const placeholderSvg = await readFile(placeholderPath, 'utf-8')
+      const headers = new Headers([
+        ['Content-Type', 'image/svg+xml'],
+        ['Cache-Control', 'public, max-age=3600']
+      ])
+      return new Response(placeholderSvg, { headers })
+    } catch (_error) {
+      // Fallback if file can't be read
+      return apiErrorResponse(404)
+    }
+  }
 
   switch (media.type) {
     case 'buffer': {

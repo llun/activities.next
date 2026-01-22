@@ -18,7 +18,7 @@ const getLocalStatusUrl = (status: EditableStatus): string => {
 export const getTextContent = (status: EditableStatus) => {
   const localUrl = getLocalStatusUrl(status)
   const actorMention = status.actor ? getMention(status.actor, true) : 'Unknown'
-  
+
   return `
 ${actorMention} mentioned you in a post.
 
@@ -31,7 +31,7 @@ View this post on your server: ${localUrl}
 export const getHTMLContent = (status: EditableStatus) => {
   const localUrl = getLocalStatusUrl(status)
   const actorMention = status.actor ? getMention(status.actor, true) : 'Unknown'
-  
+
   return `
 <h3>${actorMention} mentioned you in a post</h3>
 <p><strong>Message:</strong></p>

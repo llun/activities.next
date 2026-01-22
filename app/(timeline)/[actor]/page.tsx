@@ -45,7 +45,11 @@ const Page: FC<Props> = async ({ params }) => {
   }
   const actorDomain = parts[1]
 
-  const actorProfile = await getProfileData(database, decodedActorHandle, isLoggedIn)
+  const actorProfile = await getProfileData(
+    database,
+    decodedActorHandle,
+    isLoggedIn
+  )
   if (!actorProfile) {
     return notFound()
   }

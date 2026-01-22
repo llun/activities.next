@@ -93,7 +93,9 @@ const getActorIdFromAttributedTo = (
   ) {
     return (attributedTo as { id: string }).id
   }
-  throw new Error(`Invalid attributedTo format: ${JSON.stringify(attributedTo)}`)
+  throw new Error(
+    `Invalid attributedTo format: ${JSON.stringify(attributedTo)}`
+  )
 }
 
 // Helper to extract URL from note.url which can be a string, array of strings,

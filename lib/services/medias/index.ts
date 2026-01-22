@@ -68,3 +68,24 @@ export const getMedia = async (database: Database, path: string) => {
       return null
   }
 }
+
+export const deleteMediaFile = async (database: Database, path: string) => {
+  const { mediaStorage, host } = getConfig()
+  switch (mediaStorage?.type) {
+    case MediaStorageType.LocalFile: {
+      return LocalFileStorage.getStorage(
+        mediaStorage,
+        host,
+        database
+      ).deleteFile(path)
+    }
+    case MediaStorageType.S3Storage:
+    case MediaStorageType.ObjectStorage: {
+      return S3FileStorage.getStorage(mediaStorage, host, database).deleteFile(
+        path
+      )
+    }
+    default:
+      return false
+  }
+}

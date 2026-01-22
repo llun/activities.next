@@ -3,10 +3,15 @@ import { Knex } from 'knex'
 import {
   CreateAttachmentParams,
   CreateMediaParams,
+  DeleteMediaParams,
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
+  GetMediaByIdParams,
+  GetMediasForAccountParams,
+  GetStorageUsageForAccountParams,
   Media,
-  MediaDatabase
+  MediaDatabase,
+  PaginatedMediaWithStatus
 } from '@/lib/database/types/media'
 import { Attachment } from '@/lib/models/attachment'
 
@@ -127,5 +132,159 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         })
       })
       .filter((item): item is Attachment => Boolean(item))
+  },
+
+  async getMediasWithStatusForAccount({
+    accountId,
+    limit = 100,
+    page = 1,
+    maxCreatedAt
+  }: GetMediasForAccountParams): Promise<PaginatedMediaWithStatus> {
+    // First, get the total count
+    const countQuery = database('medias')
+      .join('actors', 'medias.actorId', 'actors.id')
+      .where('actors.accountId', accountId)
+      .count('medias.id as count')
+      .first()
+
+    // Then get the paginated items
+    let itemsQuery = database('medias')
+      .join('actors', 'medias.actorId', 'actors.id')
+      .leftJoin('attachments', function () {
+        this.on('medias.original', '=', 'attachments.url').orOn(
+          'medias.thumbnail',
+          '=',
+          'attachments.url'
+        )
+      })
+      .where('actors.accountId', accountId)
+      .distinct(
+        'medias.id',
+        'medias.actorId',
+        'medias.original',
+        'medias.originalBytes',
+        'medias.originalMimeType',
+        'medias.originalMetaData',
+        'medias.thumbnail',
+        'medias.thumbnailBytes',
+        'medias.thumbnailMimeType',
+        'medias.thumbnailMetaData',
+        'medias.description',
+        'medias.createdAt',
+        'attachments.statusId'
+      )
+      .orderBy('medias.createdAt', 'desc')
+
+    if (maxCreatedAt) {
+      itemsQuery = itemsQuery.where(
+        'medias.createdAt',
+        '<',
+        new Date(maxCreatedAt)
+      )
+    }
+
+    // Calculate offset for pagination
+    const offset = (page - 1) * limit
+    itemsQuery = itemsQuery.limit(limit).offset(offset)
+
+    const [countResult, data] = await Promise.all([countQuery, itemsQuery])
+    const total = Number(countResult?.count || 0)
+
+    const items = data.map((item) => ({
+      id: String(item.id),
+      actorId: item.actorId,
+      original: {
+        path: item.original,
+        bytes: Number(item.originalBytes),
+        mimeType: item.originalMimeType,
+        metaData: JSON.parse(item.originalMetaData)
+      },
+      ...(item.thumbnail
+        ? {
+            thumbnail: {
+              path: item.thumbnail,
+              bytes: Number(item.thumbnailBytes),
+              mimeType: item.thumbnailMimeType,
+              metaData: JSON.parse(item.thumbnailMetaData)
+            }
+          }
+        : {}),
+      ...(item.description ? { description: item.description } : {}),
+      ...(item.statusId ? { statusId: item.statusId } : {})
+    }))
+
+    return { items, total }
+  },
+
+  async getMediaByIdForAccount({
+    mediaId,
+    accountId
+  }: GetMediaByIdParams): Promise<Media | null> {
+    const data = await database('medias')
+      .join('actors', 'medias.actorId', 'actors.id')
+      .where('medias.id', mediaId)
+      .where('actors.accountId', accountId)
+      .select(
+        'medias.id',
+        'medias.actorId',
+        'medias.original',
+        'medias.originalBytes',
+        'medias.originalMimeType',
+        'medias.originalMetaData',
+        'medias.thumbnail',
+        'medias.thumbnailBytes',
+        'medias.thumbnailMimeType',
+        'medias.thumbnailMetaData',
+        'medias.description'
+      )
+      .first()
+
+    if (!data) return null
+
+    return {
+      id: String(data.id),
+      actorId: data.actorId,
+      original: {
+        path: data.original,
+        bytes: Number(data.originalBytes),
+        mimeType: data.originalMimeType,
+        metaData: JSON.parse(data.originalMetaData)
+      },
+      ...(data.thumbnail
+        ? {
+            thumbnail: {
+              path: data.thumbnail,
+              bytes: Number(data.thumbnailBytes),
+              mimeType: data.thumbnailMimeType,
+              metaData: JSON.parse(data.thumbnailMetaData)
+            }
+          }
+        : {}),
+      ...(data.description ? { description: data.description } : {})
+    }
+  },
+
+  async getStorageUsageForAccount({
+    accountId
+  }: GetStorageUsageForAccountParams): Promise<number> {
+    const result = await database('medias')
+      .join('actors', 'medias.actorId', 'actors.id')
+      .where('actors.accountId', accountId)
+      .sum({
+        totalOriginal: 'medias.originalBytes',
+        totalThumbnail: 'medias.thumbnailBytes'
+      })
+      .first()
+
+    if (!result) return 0
+
+    const totalOriginal = Number(result.totalOriginal) || 0
+    const totalThumbnail = Number(result.totalThumbnail) || 0
+    return totalOriginal + totalThumbnail
+  },
+
+  async deleteMedia({ mediaId }: DeleteMediaParams): Promise<boolean> {
+    const deleted = await database('medias').where('id', mediaId).del()
+    return deleted > 0
   }
 })
