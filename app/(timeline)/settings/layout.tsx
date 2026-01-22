@@ -14,7 +14,8 @@ const Layout: FC<Props> = ({ children }) => {
   const pathname = usePathname()
 
   const tabs = [
-    { name: 'Settings', url: '/settings' },
+    { name: 'General', url: '/settings' },
+    { name: 'Media', url: '/settings/media' },
     { name: 'Notifications', url: '/settings/notifications' },
     { name: 'Sessions', url: '/settings/sessions' }
   ]

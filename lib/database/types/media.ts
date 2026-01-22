@@ -26,6 +26,15 @@ export interface Media extends BaseMedia {
   id: string
 }
 
+export interface MediaWithStatus extends Media {
+  statusId?: string
+}
+
+export interface PaginatedMediaWithStatus {
+  items: MediaWithStatus[]
+  total: number
+}
+
 export type CreateMediaParams = BaseMedia
 
 export type CreateAttachmentParams = {
@@ -45,6 +54,22 @@ export type GetAttachmentsForActorParams = {
   limit?: number
   maxCreatedAt?: number
 }
+export type GetMediasForAccountParams = {
+  accountId: string
+  limit?: number
+  page?: number
+  maxCreatedAt?: number
+}
+export type GetStorageUsageForAccountParams = {
+  accountId: string
+}
+export type DeleteMediaParams = {
+  mediaId: string
+}
+export type GetMediaByIdParams = {
+  mediaId: string
+  accountId: string
+}
 
 export interface MediaDatabase {
   createMedia(params: CreateMediaParams): Promise<Media | null>
@@ -54,4 +79,12 @@ export interface MediaDatabase {
   getAttachmentsForActor(
     params: GetAttachmentsForActorParams
   ): Promise<Attachment[]>
+  getMediasWithStatusForAccount(
+    params: GetMediasForAccountParams
+  ): Promise<PaginatedMediaWithStatus>
+  getMediaByIdForAccount(params: GetMediaByIdParams): Promise<Media | null>
+  getStorageUsageForAccount(
+    params: GetStorageUsageForAccountParams
+  ): Promise<number>
+  deleteMedia(params: DeleteMediaParams): Promise<boolean>
 }

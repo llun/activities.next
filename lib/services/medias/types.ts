@@ -111,4 +111,5 @@ export interface MediaStorage {
   getFile(
     filePath: string
   ): Promise<MediaStorageGetFileOutput | MediaStorageGetRedirectOutput | null>
+  deleteFile(filePath: string): Promise<boolean>
 }

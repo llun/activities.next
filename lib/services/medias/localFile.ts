@@ -13,6 +13,7 @@ import { logger } from '@/lib/utils/logger'
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { extractVideoImage } from './extractVideoImage'
 import { extractVideoMeta } from './extractVideoMeta'
+import { checkQuotaAvailable } from './quota'
 import {
   MediaSchema,
   MediaStorage,
@@ -67,6 +68,26 @@ export class LocalFileStorage implements MediaStorage {
     }
   }
 
+  async deleteFile(filePath: string): Promise<boolean> {
+    try {
+      const fullPath = path.resolve(this._config.path, filePath)
+      await fs.unlink(fullPath)
+      return true
+    } catch (e) {
+      const error = e as NodeJS.ErrnoException
+      // If file doesn't exist, consider it already deleted (success)
+      if (error.code === 'ENOENT') {
+        return true
+      }
+      logger.error({
+        message: 'Failed to delete file from local storage',
+        filePath,
+        error: error.message
+      })
+      return false
+    }
+  }
+
   isPresigedSupported() {
     return false
   }
@@ -80,6 +101,18 @@ export class LocalFileStorage implements MediaStorage {
     const { file } = media
     if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
       return null
+    }
+
+    // Check quota before saving
+    const quotaCheck = await checkQuotaAvailable(
+      this._database,
+      actor,
+      file.size
+    )
+    if (!quotaCheck.available) {
+      throw new Error(
+        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      )
     }
 
     const { path, metaData, previewImage } = file.type.startsWith('video')

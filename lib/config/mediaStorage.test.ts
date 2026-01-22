@@ -27,6 +27,18 @@ describe('MediaStorage config', () => {
       expect(config.type).toBe('fs')
       expect(config.path).toBe('/uploads')
     })
+
+    it('parses fs config with quota', () => {
+      const config = MediaStorageFileConfig.parse({
+        type: 'fs',
+        path: '/uploads',
+        maxFileSize: 1000,
+        quotaPerAccount: 500_000_000
+      })
+
+      expect(config.type).toBe('fs')
+      expect(config.quotaPerAccount).toBe(500_000_000)
+    })
   })
 
   describe('MediaStorageS3Config schema', () => {
@@ -81,6 +93,16 @@ describe('MediaStorage config', () => {
       const config = getMediaStorageConfig()
 
       expect(config?.mediaStorage.maxFileSize).toBe(5000000)
+    })
+
+    it('builds fs config with quota per account', () => {
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'fs'
+      process.env.ACTIVITIES_MEDIA_STORAGE_PATH = '/data/uploads'
+      process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT = '750000000'
+
+      const config = getMediaStorageConfig()
+
+      expect(config?.mediaStorage.quotaPerAccount).toBe(750000000)
     })
 
     it('builds s3 config from env vars', () => {

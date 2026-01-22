@@ -1,4 +1,5 @@
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client
@@ -19,6 +20,7 @@ import { Actor } from '@/lib/models/actor'
 import { MAX_HEIGHT, MAX_WIDTH } from '@/lib/services/medias/constants'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
+import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import {
   MediaSchema,
   MediaStorage,
@@ -29,6 +31,7 @@ import {
   PresigedMediaInput,
   PresignedUrlOutput
 } from '@/lib/services/medias/types'
+import { logger } from '@/lib/utils/logger'
 
 export class S3FileStorage implements MediaStorage {
   private static _instance: MediaStorage
@@ -82,6 +85,31 @@ export class S3FileStorage implements MediaStorage {
     })
   }
 
+  async deleteFile(filePath: string): Promise<boolean> {
+    try {
+      const { bucket } = this._config
+      const s3client = this._client
+      const command = new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: filePath
+      })
+      await s3client.send(command)
+      return true
+    } catch (e) {
+      const error = e as Error
+      // If file doesn't exist (NoSuchKey), consider it already deleted (success)
+      if (error.name === 'NoSuchKey') {
+        return true
+      }
+      logger.error({
+        message: 'Failed to delete file from S3',
+        filePath,
+        error: error.message
+      })
+      return false
+    }
+  }
+
   isPresigedSupported() {
     return true
   }
@@ -90,6 +118,18 @@ export class S3FileStorage implements MediaStorage {
     actor: Actor,
     presignedMedia: PresigedMediaInput
   ) {
+    // Check quota before generating presigned URL
+    const quotaCheck = await checkQuotaAvailable(
+      this._database,
+      actor,
+      presignedMedia.size
+    )
+    if (!quotaCheck.available) {
+      throw new Error(
+        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      )
+    }
+
     const { bucket } = this._config
     const { fileName } = presignedMedia
 
@@ -163,6 +203,18 @@ export class S3FileStorage implements MediaStorage {
     const currentTime = Date.now()
     if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
       return null
+    }
+
+    // Check quota before saving
+    const quotaCheck = await checkQuotaAvailable(
+      this._database,
+      actor,
+      file.size
+    )
+    if (!quotaCheck.available) {
+      throw new Error(
+        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      )
     }
 
     if (file.type.startsWith('video')) {
