@@ -15,6 +15,7 @@ import {
 } from '@/lib/database/types/media'
 import { Attachment } from '@/lib/models/attachment'
 
+import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
 
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
@@ -197,7 +198,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         path: item.original,
         bytes: Number(item.originalBytes),
         mimeType: item.originalMimeType,
-        metaData: JSON.parse(item.originalMetaData)
+        metaData: getCompatibleJSON(item.originalMetaData)
       },
       ...(item.thumbnail
         ? {
@@ -205,7 +206,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
               path: item.thumbnail,
               bytes: Number(item.thumbnailBytes),
               mimeType: item.thumbnailMimeType,
-              metaData: JSON.parse(item.thumbnailMetaData)
+              metaData: getCompatibleJSON(item.thumbnailMetaData)
             }
           }
         : {}),
@@ -248,7 +249,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         path: data.original,
         bytes: Number(data.originalBytes),
         mimeType: data.originalMimeType,
-        metaData: JSON.parse(data.originalMetaData)
+        metaData: getCompatibleJSON(data.originalMetaData)
       },
       ...(data.thumbnail
         ? {
@@ -256,7 +257,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
               path: data.thumbnail,
               bytes: Number(data.thumbnailBytes),
               mimeType: data.thumbnailMimeType,
-              metaData: JSON.parse(data.thumbnailMetaData)
+              metaData: getCompatibleJSON(data.thumbnailMetaData)
             }
           }
         : {}),
