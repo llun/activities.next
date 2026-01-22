@@ -19,6 +19,12 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/lib/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/lib/components/ui/dropdown-menu'
 import { Progress } from '@/lib/components/ui/progress'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
@@ -46,6 +52,8 @@ export function MediaManagement({ used, limit, medias: initialMedias }: Props) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [mediaToDelete, setMediaToDelete] = useState<MediaItem | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(25)
 
   const handleDeleteClick = (media: MediaItem) => {
     setMediaToDelete(media)
@@ -82,6 +90,21 @@ export function MediaManagement({ used, limit, medias: initialMedias }: Props) {
 
   const percentUsed = (currentUsed / limit) * 100
 
+  // Pagination logic
+  const totalPages = Math.ceil(medias.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedMedias = medias.slice(startIndex, endIndex)
+
+  const handleItemsPerPageChange = (value: number) => {
+    setItemsPerPage(value)
+    setCurrentPage(1) // Reset to first page when changing items per page
+  }
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -116,10 +139,32 @@ export function MediaManagement({ used, limit, medias: initialMedias }: Props) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Your Media ({medias.length})</CardTitle>
-          <CardDescription>
-            All media files you have uploaded
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Your Media ({medias.length})</CardTitle>
+              <CardDescription>
+                All media files you have uploaded
+              </CardDescription>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  {itemsPerPage} per page
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleItemsPerPageChange(25)}>
+                  25 per page
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleItemsPerPageChange(50)}>
+                  50 per page
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleItemsPerPageChange(100)}>
+                  100 per page
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </CardHeader>
         <CardContent>
           {medias.length === 0 ? (
@@ -127,8 +172,9 @@ export function MediaManagement({ used, limit, medias: initialMedias }: Props) {
               No media uploaded yet.
             </p>
           ) : (
-            <div className="space-y-2">
-              {medias.map((media) => {
+            <>
+              <div className="space-y-2">
+                {paginatedMedias.map((media) => {
                 const isVideo = media.mimeType.startsWith('video')
                 const isAudio = media.mimeType.startsWith('audio')
                 
@@ -213,6 +259,35 @@ export function MediaManagement({ used, limit, medias: initialMedias }: Props) {
                 )
               })}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-between border-t pt-4">
+                <div className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages} • Showing {startIndex + 1}-
+                  {Math.min(endIndex, medias.length)} of {medias.length} items
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
           )}
         </CardContent>
       </Card>
