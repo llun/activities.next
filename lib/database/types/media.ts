@@ -26,6 +26,10 @@ export interface Media extends BaseMedia {
   id: string
 }
 
+export interface MediaWithStatus extends Media {
+  statusId?: string
+}
+
 export type CreateMediaParams = BaseMedia
 
 export type CreateAttachmentParams = {
@@ -70,6 +74,9 @@ export interface MediaDatabase {
     params: GetAttachmentsForActorParams
   ): Promise<Attachment[]>
   getMediasForAccount(params: GetMediasForAccountParams): Promise<Media[]>
+  getMediasWithStatusForAccount(
+    params: GetMediasForAccountParams
+  ): Promise<MediaWithStatus[]>
   getMediaByIdForAccount(params: GetMediaByIdParams): Promise<Media | null>
   getStorageUsageForAccount(
     params: GetStorageUsageForAccountParams

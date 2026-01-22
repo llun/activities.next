@@ -107,6 +107,87 @@ describe('MediaDatabase', () => {
       })
     })
 
+    describe('getMediasWithStatusForAccount', () => {
+      it('returns media with statusId when attached to posts', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.primary.id
+        })
+        expect(actor).toBeDefined()
+
+        // Create media
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/media-with-status.jpg',
+            bytes: 2000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 400, height: 400 }
+          }
+        })
+
+        expect(media).toBeDefined()
+
+        // Create attachment linking media to an existing status
+        // Use the seed data which has existing statuses
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id,
+          limit: 1
+        })
+        expect(statuses.length).toBeGreaterThan(0)
+
+        await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statuses[0].id,
+          mediaType: 'image/jpeg',
+          url: media!.original.path,
+          width: 400,
+          height: 400
+        })
+
+        // Get medias with status
+        const medias = await database.getMediasWithStatusForAccount({
+          accountId: actor!.account!.id,
+          limit: 100
+        })
+
+        // Find our test media - need to convert ID to string for comparison
+        const testMedia = medias.find((m) => m.id === String(media!.id))
+        expect(testMedia).toBeDefined()
+        expect(testMedia?.statusId).toBe(statuses[0].id)
+      })
+
+      it('returns media without statusId when not attached to posts', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.replyAuthor.id
+        })
+        expect(actor).toBeDefined()
+
+        // Create media without attaching to any status
+        const media = await database.createMedia({
+          actorId: actors.replyAuthor.id,
+          original: {
+            path: '/test/media-no-status-unique.jpg',
+            bytes: 1500,
+            mimeType: 'image/jpeg',
+            metaData: { width: 300, height: 300 }
+          }
+        })
+
+        expect(media).toBeDefined()
+
+        // Get medias with status
+        const medias = await database.getMediasWithStatusForAccount({
+          accountId: actor!.account!.id,
+          limit: 100
+        })
+
+        // Find our test media - need to convert ID to string for comparison
+        const testMedia = medias.find((m) => m.id === String(media!.id))
+        expect(testMedia).toBeDefined()
+        expect(testMedia?.statusId).toBeUndefined()
+      })
+    })
+
     describe('getMediaByIdForAccount', () => {
       it('returns null when media does not exist', async () => {
         const actor = await database.getActorFromId({ id: actors.primary.id })
