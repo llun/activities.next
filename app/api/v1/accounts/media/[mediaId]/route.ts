@@ -20,12 +20,11 @@ export const DELETE = AuthenticatedGuard<Params>(async (_req, context) => {
     }
 
     // Verify the media belongs to an actor in this account
-    const medias = await database.getMediasForAccount({
-      accountId: account.id,
-      limit: 1000
+    const media = await database.getMediaByIdForAccount({
+      mediaId,
+      accountId: account.id
     })
 
-    const media = medias.find((m) => m.id === mediaId)
     if (!media) {
       return apiErrorResponse(404)
     }

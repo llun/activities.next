@@ -56,6 +56,10 @@ export type GetStorageUsageForAccountParams = {
 export type DeleteMediaParams = {
   mediaId: string
 }
+export type GetMediaByIdParams = {
+  mediaId: string
+  accountId: string
+}
 
 export interface MediaDatabase {
   createMedia(params: CreateMediaParams): Promise<Media | null>
@@ -66,6 +70,7 @@ export interface MediaDatabase {
     params: GetAttachmentsForActorParams
   ): Promise<Attachment[]>
   getMediasForAccount(params: GetMediasForAccountParams): Promise<Media[]>
+  getMediaByIdForAccount(params: GetMediaByIdParams): Promise<Media | null>
   getStorageUsageForAccount(
     params: GetStorageUsageForAccountParams
   ): Promise<number>

@@ -107,6 +107,88 @@ describe('MediaDatabase', () => {
       })
     })
 
+    describe('getMediaByIdForAccount', () => {
+      it('returns null when media does not exist', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        expect(actor).toBeDefined()
+
+        const media = await database.getMediaByIdForAccount({
+          mediaId: 'non-existent-id',
+          accountId: actor!.account!.id
+        })
+
+        expect(media).toBeNull()
+      })
+
+      it('returns null when media belongs to different account', async () => {
+        // Create media for primary actor
+        await database.getActorFromId({
+          id: actors.primary.id
+        })
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/media-ownership.jpg',
+            bytes: 2000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 400, height: 400 }
+          }
+        })
+
+        expect(media).toBeDefined()
+
+        // Try to get it with a different account
+        const actor2 = await database.getActorFromId({
+          id: actors.replyAuthor.id
+        })
+
+        const result = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId: actor2!.account!.id
+        })
+
+        // Should be null because media belongs to different account
+        expect(result).toBeNull()
+      })
+
+      it('returns media when it belongs to the account', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.pollAuthor.id
+        })
+        expect(actor).toBeDefined()
+
+        const media = await database.createMedia({
+          actorId: actors.pollAuthor.id,
+          original: {
+            path: '/test/media-getbyid.jpg',
+            bytes: 3000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 600, height: 800 }
+          },
+          thumbnail: {
+            path: '/test/media-getbyid-thumb.jpg',
+            bytes: 400,
+            mimeType: 'image/jpeg',
+            metaData: { width: 150, height: 200 }
+          }
+        })
+
+        expect(media).toBeDefined()
+
+        const result = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId: actor!.account!.id
+        })
+
+        expect(result).toBeDefined()
+        expect(result?.id).toBe(String(media!.id))
+        expect(result?.original.path).toBe('/test/media-getbyid.jpg')
+        expect(result?.original.bytes).toBe(3000)
+        expect(result?.thumbnail).toBeDefined()
+        expect(result?.thumbnail?.bytes).toBe(400)
+      })
+    })
+
     describe('getStorageUsageForAccount', () => {
       it('returns 0 when no media exists', async () => {
         const actor = await database.getActorFromId({

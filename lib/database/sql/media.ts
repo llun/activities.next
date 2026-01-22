@@ -6,6 +6,7 @@ import {
   DeleteMediaParams,
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
+  GetMediaByIdParams,
   GetMediasForAccountParams,
   GetStorageUsageForAccountParams,
   Media,
@@ -184,6 +185,54 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         : {}),
       ...(item.description ? { description: item.description } : {})
     }))
+  },
+
+  async getMediaByIdForAccount({
+    mediaId,
+    accountId
+  }: GetMediaByIdParams): Promise<Media | null> {
+    const data = await database('medias')
+      .join('actors', 'medias.actorId', 'actors.id')
+      .where('medias.id', mediaId)
+      .where('actors.accountId', accountId)
+      .select(
+        'medias.id',
+        'medias.actorId',
+        'medias.original',
+        'medias.originalBytes',
+        'medias.originalMimeType',
+        'medias.originalMetaData',
+        'medias.thumbnail',
+        'medias.thumbnailBytes',
+        'medias.thumbnailMimeType',
+        'medias.thumbnailMetaData',
+        'medias.description'
+      )
+      .first()
+
+    if (!data) return null
+
+    return {
+      id: String(data.id),
+      actorId: data.actorId,
+      original: {
+        path: data.original,
+        bytes: Number(data.originalBytes),
+        mimeType: data.originalMimeType,
+        metaData: JSON.parse(data.originalMetaData)
+      },
+      ...(data.thumbnail
+        ? {
+            thumbnail: {
+              path: data.thumbnail,
+              bytes: Number(data.thumbnailBytes),
+              mimeType: data.thumbnailMimeType,
+              metaData: JSON.parse(data.thumbnailMetaData)
+            }
+          }
+        : {}),
+      ...(data.description ? { description: data.description } : {})
+    }
   },
 
   async getStorageUsageForAccount({
