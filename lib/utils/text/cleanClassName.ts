@@ -21,7 +21,7 @@ export const cleanClassName = (text: string) =>
         }
       }
       if (replacingNode.attribs && replacingNode.name === 'a') {
-        const element = node as Element
+        const anchorElement = node as Element
         replacingNode.attribs.target = '_blank'
         // Return a React element with onClick handler to stop propagation
         return React.createElement(
@@ -30,7 +30,7 @@ export const cleanClassName = (text: string) =>
             ...replacingNode.attribs,
             onClick: (e: React.MouseEvent) => e.stopPropagation()
           },
-          domToReact(element.children as DOMNode[])
+          domToReact(anchorElement.children as DOMNode[])
         )
       }
       if (
