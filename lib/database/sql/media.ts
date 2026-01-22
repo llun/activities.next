@@ -11,7 +11,6 @@ import {
   GetStorageUsageForAccountParams,
   Media,
   MediaDatabase,
-  MediaWithStatus,
   PaginatedMediaWithStatus
 } from '@/lib/database/types/media'
 import { Attachment } from '@/lib/models/attachment'
@@ -133,60 +132,6 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         })
       })
       .filter((item): item is Attachment => Boolean(item))
-  },
-
-  async getMediasForAccount({
-    accountId,
-    limit = 100,
-    maxCreatedAt
-  }: GetMediasForAccountParams): Promise<Media[]> {
-    let query = database('medias')
-      .join('actors', 'medias.actorId', 'actors.id')
-      .where('actors.accountId', accountId)
-      .select(
-        'medias.id',
-        'medias.actorId',
-        'medias.original',
-        'medias.originalBytes',
-        'medias.originalMimeType',
-        'medias.originalMetaData',
-        'medias.thumbnail',
-        'medias.thumbnailBytes',
-        'medias.thumbnailMimeType',
-        'medias.thumbnailMetaData',
-        'medias.description',
-        'medias.createdAt'
-      )
-      .orderBy('medias.createdAt', 'desc')
-
-    if (maxCreatedAt) {
-      query = query.where('medias.createdAt', '<', new Date(maxCreatedAt))
-    }
-
-    query = query.limit(limit)
-
-    const data = await query
-    return data.map((item) => ({
-      id: String(item.id),
-      actorId: item.actorId,
-      original: {
-        path: item.original,
-        bytes: Number(item.originalBytes),
-        mimeType: item.originalMimeType,
-        metaData: JSON.parse(item.originalMetaData)
-      },
-      ...(item.thumbnail
-        ? {
-            thumbnail: {
-              path: item.thumbnail,
-              bytes: Number(item.thumbnailBytes),
-              mimeType: item.thumbnailMimeType,
-              metaData: JSON.parse(item.thumbnailMetaData)
-            }
-          }
-        : {}),
-      ...(item.description ? { description: item.description } : {})
-    }))
   },
 
   async getMediasWithStatusForAccount({

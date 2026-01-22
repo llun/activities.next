@@ -79,7 +79,6 @@ export interface MediaDatabase {
   getAttachmentsForActor(
     params: GetAttachmentsForActorParams
   ): Promise<Attachment[]>
-  getMediasForAccount(params: GetMediasForAccountParams): Promise<Media[]>
   getMediasWithStatusForAccount(
     params: GetMediasForAccountParams
   ): Promise<PaginatedMediaWithStatus>

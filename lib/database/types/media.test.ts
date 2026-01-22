@@ -22,19 +22,19 @@ describe('MediaDatabase', () => {
       await database.destroy()
     })
 
-    describe('getMediasForAccount', () => {
+    describe('getMediasWithStatusForAccount', () => {
       it('returns empty array when no media exists', async () => {
         // Get account for primary actor
         const actor = await database.getActorFromId({ id: actors.primary.id })
         expect(actor).toBeDefined()
         expect(actor?.account?.id).toBeDefined()
 
-        const medias = await database.getMediasForAccount({
+        const result = await database.getMediasWithStatusForAccount({
           accountId: actor!.account!.id
         })
 
-        expect(medias).toBeArray()
-        expect(medias.length).toBeGreaterThanOrEqual(0)
+        expect(result.items).toBeArray()
+        expect(result.total).toBeGreaterThanOrEqual(0)
       })
 
       it('returns media for all actors in account', async () => {
@@ -61,16 +61,16 @@ describe('MediaDatabase', () => {
         expect(media1).toBeDefined()
 
         // Get medias for account - this uses join on actors.accountId
-        const medias = await database.getMediasForAccount({
+        const result = await database.getMediasWithStatusForAccount({
           accountId
         })
 
-        // The test verifies getMediasForAccount works with the join
+        // The test verifies getMediasWithStatusForAccount works with the join
         // In production this will work correctly; if it fails in test it's likely
         // a test setup issue with the accountId relationship
-        expect(medias).toBeArray()
+        expect(result.items).toBeArray()
         
-        const foundMedia = medias.find((m) => m.id === media1!.id)
+        const foundMedia = result.items.find((m) => m.id === media1!.id)
         
         // Only check details if we found the media
         if (foundMedia) {
@@ -98,16 +98,16 @@ describe('MediaDatabase', () => {
           })
         }
 
-        const medias = await database.getMediasForAccount({
+        const result = await database.getMediasWithStatusForAccount({
           accountId: actor!.account!.id,
           limit: 2
         })
 
-        expect(medias.length).toBeLessThanOrEqual(2)
+        expect(result.items.length).toBeLessThanOrEqual(2)
       })
     })
 
-    describe('getMediasWithStatusForAccount', () => {
+    describe('getMediasWithStatusForAccount - with statusId', () => {
       it('returns media with statusId when attached to posts', async () => {
         const actor = await database.getActorFromId({
           id: actors.primary.id
@@ -227,7 +227,7 @@ describe('MediaDatabase', () => {
         expect(actor).toBeDefined()
 
         // Create multiple media items to test pagination
-        const media1 = await database.createMedia({
+        await database.createMedia({
           actorId: actors.primary.id,
           original: {
             path: '/test/media-page-1.jpg',
@@ -237,7 +237,7 @@ describe('MediaDatabase', () => {
           }
         })
 
-        const media2 = await database.createMedia({
+        await database.createMedia({
           actorId: actors.primary.id,
           original: {
             path: '/test/media-page-2.jpg',
