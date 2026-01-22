@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
@@ -44,16 +45,23 @@ interface Props {
   used: number
   limit: number
   medias: MediaItem[]
+  currentPage: number
+  itemsPerPage: number
 }
 
-export function MediaManagement({ used, limit, medias: initialMedias }: Props) {
+export function MediaManagement({
+  used,
+  limit,
+  medias: initialMedias,
+  currentPage,
+  itemsPerPage
+}: Props) {
+  const router = useRouter()
   const [medias, setMedias] = useState(initialMedias)
   const [currentUsed, setCurrentUsed] = useState(used)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [mediaToDelete, setMediaToDelete] = useState<MediaItem | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(25)
 
   const handleDeleteClick = (media: MediaItem) => {
     setMediaToDelete(media)
@@ -90,20 +98,17 @@ export function MediaManagement({ used, limit, medias: initialMedias }: Props) {
 
   const percentUsed = (currentUsed / limit) * 100
 
-  // Pagination logic
-  const totalPages = Math.ceil(medias.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedMedias = medias.slice(startIndex, endIndex)
-
   const handleItemsPerPageChange = (value: number) => {
-    setItemsPerPage(value)
-    setCurrentPage(1) // Reset to first page when changing items per page
+    router.push(`/settings/media?limit=${value}&page=1`)
   }
 
   const goToPage = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
+    router.push(`/settings/media?limit=${itemsPerPage}&page=${page}`)
   }
+
+  // Show pagination controls if there are items per page items (meaning there might be more pages)
+  const hasNextPage = medias.length === itemsPerPage
+  const hasPreviousPage = currentPage > 1
 
   return (
     <div className="space-y-6">
@@ -141,7 +146,7 @@ export function MediaManagement({ used, limit, medias: initialMedias }: Props) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Your Media ({medias.length})</CardTitle>
+              <CardTitle>Your Media</CardTitle>
               <CardDescription>
                 All media files you have uploaded
               </CardDescription>
@@ -174,7 +179,7 @@ export function MediaManagement({ used, limit, medias: initialMedias }: Props) {
           ) : (
             <>
               <div className="space-y-2">
-                {paginatedMedias.map((media) => {
+                {medias.map((media) => {
                 const isVideo = media.mimeType.startsWith('video')
                 const isAudio = media.mimeType.startsWith('audio')
                 
@@ -261,18 +266,17 @@ export function MediaManagement({ used, limit, medias: initialMedias }: Props) {
             </div>
 
             {/* Pagination Controls */}
-            {totalPages > 1 && (
+            {(hasNextPage || hasPreviousPage) && (
               <div className="mt-4 flex items-center justify-between border-t pt-4">
                 <div className="text-sm text-muted-foreground">
-                  Page {currentPage} of {totalPages} • Showing {startIndex + 1}-
-                  {Math.min(endIndex, medias.length)} of {medias.length} items
+                  Page {currentPage} • Showing up to {itemsPerPage} items
                 </div>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => goToPage(currentPage - 1)}
-                    disabled={currentPage === 1}
+                    disabled={!hasPreviousPage}
                   >
                     Previous
                   </Button>
@@ -280,7 +284,7 @@ export function MediaManagement({ used, limit, medias: initialMedias }: Props) {
                     variant="outline"
                     size="sm"
                     onClick={() => goToPage(currentPage + 1)}
-                    disabled={currentPage === totalPages}
+                    disabled={!hasNextPage}
                   >
                     Next
                   </Button>

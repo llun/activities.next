@@ -14,7 +14,11 @@ export const metadata: Metadata = {
   title: 'Activities.next: Media Storage'
 }
 
-const Page = async () => {
+const Page = async ({
+  searchParams
+}: {
+  searchParams: { page?: string; limit?: string }
+}) => {
   const database = getDatabase()
   if (!database) {
     throw new Error('Fail to load database')
@@ -26,6 +30,10 @@ const Page = async () => {
     return redirect('/auth/signin')
   }
 
+  // Parse pagination parameters with defaults
+  const page = parseInt(searchParams.page || '1', 10)
+  const itemsPerPage = parseInt(searchParams.limit || '25', 10)
+
   // Get storage usage and quota limit
   const used = await database.getStorageUsageForAccount({
     accountId: actor.account.id
@@ -35,7 +43,7 @@ const Page = async () => {
   // Get medias for account with their associated statusId
   const medias = await database.getMediasWithStatusForAccount({
     accountId: actor.account.id,
-    limit: 100
+    limit: itemsPerPage
   })
 
   return (
@@ -58,6 +66,8 @@ const Page = async () => {
           statusId: media.statusId
         }
       })}
+      currentPage={page}
+      itemsPerPage={itemsPerPage}
     />
   )
 }
