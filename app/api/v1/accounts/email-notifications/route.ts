@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const EmailNotificationSettingsRequest = z.object({
   follow_request: z.string().optional(),
@@ -13,7 +14,7 @@ const EmailNotificationSettingsRequest = z.object({
   actorId: z.string().optional()
 })
 
-export const POST = AuthenticatedGuard(async (req, context) => {
+export const POST = traceApiRoute('updateEmailNotifications', AuthenticatedGuard(async (req, context) => {
   const { currentActor, database } = context
   const body = await req.formData()
   const json = Object.fromEntries(body.entries())
@@ -96,4 +97,4 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   const host = headerHost(req.headers)
   const url = new URL('/settings/notifications', `https://${host}`)
   return Response.redirect(url.toString(), 307)
-})
+}))
