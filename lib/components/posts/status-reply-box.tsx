@@ -260,7 +260,7 @@ export const StatusReplyBox: FC<Props> = ({
           <div className="flex-1 min-w-0">
             <textarea
               ref={textareaRef}
-              className="flex min-h-[60px] w-full bg-transparent text-sm placeholder:text-muted-foreground focus-visible:outline-none resize-none"
+              className="flex min-h-[60px] w-full bg-transparent text-base placeholder:text-muted-foreground focus-visible:outline-none resize-none md:text-sm"
               rows={2}
               onKeyDown={onQuickPost}
               onChange={(e) => onTextChange(e.target.value)}
