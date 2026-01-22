@@ -69,7 +69,7 @@ describe('Quota Service', () => {
 
         // Create some media first
         await database.createMedia({
-          actorId: actors.primary.id,
+          actorId: actors.replyAuthor.id,
           original: {
             path: '/test/image.jpg',
             bytes: 500,
@@ -78,7 +78,7 @@ describe('Quota Service', () => {
           }
         })
 
-        const actor = actors.primary
+        const actor = actors.replyAuthor
         // Try to add 600 more bytes (would exceed 1000)
         const result = await checkQuotaAvailable(database, actor, 600)
 
@@ -93,7 +93,7 @@ describe('Quota Service', () => {
           mediaStorage: { quotaPerAccount: mediumQuota }
         } as any)
 
-        const actor = actors.replyAuthor
+        const actor = actors.pollAuthor
         // Try to add 1000 bytes (well within quota)
         const result = await checkQuotaAvailable(database, actor, 1000)
 
@@ -110,7 +110,7 @@ describe('Quota Service', () => {
 
         // Create media with thumbnail
         await database.createMedia({
-          actorId: actors.followAuthor.id,
+          actorId: actors.extra.id,
           original: {
             path: '/test/image2.jpg',
             bytes: 1000,
@@ -125,7 +125,7 @@ describe('Quota Service', () => {
           }
         })
 
-        const actor = actors.followAuthor
+        const actor = actors.extra
         const result = await checkQuotaAvailable(database, actor, 0)
 
         expect(result.used).toBe(1200) // 1000 + 200
