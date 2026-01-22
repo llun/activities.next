@@ -47,6 +47,7 @@ interface Props {
   medias: MediaItem[]
   currentPage: number
   itemsPerPage: number
+  totalItems: number
 }
 
 export function MediaManagement({
@@ -54,7 +55,8 @@ export function MediaManagement({
   limit,
   medias: initialMedias,
   currentPage,
-  itemsPerPage
+  itemsPerPage,
+  totalItems
 }: Props) {
   const router = useRouter()
   const [medias, setMedias] = useState(initialMedias)
@@ -106,9 +108,12 @@ export function MediaManagement({
     router.push(`/settings/media?limit=${itemsPerPage}&page=${page}`)
   }
 
-  // Show pagination controls if there are exactly itemsPerPage items (meaning there might be more pages)
-  const hasNextPage = medias.length === itemsPerPage
+  // Calculate pagination based on total items
+  const totalPages = Math.ceil(totalItems / itemsPerPage)
+  const hasNextPage = currentPage < totalPages
   const hasPreviousPage = currentPage > 1
+  const startItem = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0
+  const endItem = Math.min(currentPage * itemsPerPage, totalItems)
 
   return (
     <div className="space-y-6">
@@ -266,10 +271,11 @@ export function MediaManagement({
             </div>
 
             {/* Pagination Controls */}
-            {(hasNextPage || hasPreviousPage) && (
+            {totalItems > 0 && (
               <div className="mt-4 flex items-center justify-between border-t pt-4">
                 <div className="text-sm text-muted-foreground">
-                  Page {currentPage} • Showing up to {itemsPerPage} items
+                  Page {currentPage} of {totalPages} • Showing {startItem}-
+                  {endItem} of {totalItems} items
                 </div>
                 <div className="flex gap-2">
                   <Button

@@ -11,7 +11,8 @@ import {
   GetStorageUsageForAccountParams,
   Media,
   MediaDatabase,
-  MediaWithStatus
+  MediaWithStatus,
+  PaginatedMediaWithStatus
 } from '@/lib/database/types/media'
 import { Attachment } from '@/lib/models/attachment'
 
@@ -192,8 +193,16 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     accountId,
     limit = 100,
     maxCreatedAt
-  }: GetMediasForAccountParams): Promise<MediaWithStatus[]> {
-    let query = database('medias')
+  }: GetMediasForAccountParams): Promise<PaginatedMediaWithStatus> {
+    // First, get the total count
+    const countQuery = database('medias')
+      .join('actors', 'medias.actorId', 'actors.id')
+      .where('actors.accountId', accountId)
+      .count('medias.id as count')
+      .first()
+
+    // Then get the paginated items
+    let itemsQuery = database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
       .leftJoin('attachments', function () {
         this.on('medias.original', '=', 'attachments.url').orOn(
@@ -221,13 +230,15 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .orderBy('medias.createdAt', 'desc')
 
     if (maxCreatedAt) {
-      query = query.where('medias.createdAt', '<', new Date(maxCreatedAt))
+      itemsQuery = itemsQuery.where('medias.createdAt', '<', new Date(maxCreatedAt))
     }
 
-    query = query.limit(limit)
+    itemsQuery = itemsQuery.limit(limit)
 
-    const data = await query
-    return data.map((item) => ({
+    const [countResult, data] = await Promise.all([countQuery, itemsQuery])
+    const total = Number(countResult?.count || 0)
+
+    const items = data.map((item) => ({
       id: String(item.id),
       actorId: item.actorId,
       original: {
@@ -249,6 +260,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       ...(item.description ? { description: item.description } : {}),
       ...(item.statusId ? { statusId: item.statusId } : {})
     }))
+
+    return { items, total }
   },
 
   async getMediaByIdForAccount({

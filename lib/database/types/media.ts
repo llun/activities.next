@@ -30,6 +30,11 @@ export interface MediaWithStatus extends Media {
   statusId?: string
 }
 
+export interface PaginatedMediaWithStatus {
+  items: MediaWithStatus[]
+  total: number
+}
+
 export type CreateMediaParams = BaseMedia
 
 export type CreateAttachmentParams = {
@@ -76,7 +81,7 @@ export interface MediaDatabase {
   getMediasForAccount(params: GetMediasForAccountParams): Promise<Media[]>
   getMediasWithStatusForAccount(
     params: GetMediasForAccountParams
-  ): Promise<MediaWithStatus[]>
+  ): Promise<PaginatedMediaWithStatus>
   getMediaByIdForAccount(params: GetMediaByIdParams): Promise<Media | null>
   getStorageUsageForAccount(
     params: GetStorageUsageForAccountParams

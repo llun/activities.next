@@ -145,13 +145,13 @@ describe('MediaDatabase', () => {
         })
 
         // Get medias with status
-        const medias = await database.getMediasWithStatusForAccount({
+        const result = await database.getMediasWithStatusForAccount({
           accountId: actor!.account!.id,
           limit: 100
         })
 
         // Find our test media - need to convert ID to string for comparison
-        const testMedia = medias.find((m) => m.id === String(media!.id))
+        const testMedia = result.items.find((m) => m.id === String(media!.id))
         expect(testMedia).toBeDefined()
         expect(testMedia?.statusId).toBe(statuses[0].id)
       })
@@ -176,15 +176,50 @@ describe('MediaDatabase', () => {
         expect(media).toBeDefined()
 
         // Get medias with status
-        const medias = await database.getMediasWithStatusForAccount({
+        const result = await database.getMediasWithStatusForAccount({
           accountId: actor!.account!.id,
           limit: 100
         })
 
         // Find our test media - need to convert ID to string for comparison
-        const testMedia = medias.find((m) => m.id === String(media!.id))
+        const testMedia = result.items.find((m) => m.id === String(media!.id))
         expect(testMedia).toBeDefined()
         expect(testMedia?.statusId).toBeUndefined()
+      })
+
+      it('returns correct total count', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        expect(actor).toBeDefined()
+
+        // Create multiple media items
+        await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/media-count-1.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/media-count-2.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        // Get medias with limit smaller than total
+        const result = await database.getMediasWithStatusForAccount({
+          accountId: actor!.account!.id,
+          limit: 1
+        })
+
+        expect(result.items.length).toBe(1)
+        expect(result.total).toBeGreaterThanOrEqual(2)
       })
     })
 

@@ -43,7 +43,7 @@ const Page = async ({
   const limit = getQuotaLimit()
 
   // Get medias for account with their associated statusId
-  const medias = await database.getMediasWithStatusForAccount({
+  const result = await database.getMediasWithStatusForAccount({
     accountId: actor.account.id,
     limit: itemsPerPage
   })
@@ -52,7 +52,7 @@ const Page = async ({
     <MediaManagement
       used={used}
       limit={limit}
-      medias={medias.map((media) => {
+      medias={result.items.map((media) => {
         // Extract just the filename from the full path
         const filename = media.original.path.split('/').pop()
         const url = `/api/v1/files/${filename}`
@@ -70,6 +70,7 @@ const Page = async ({
       })}
       currentPage={page}
       itemsPerPage={itemsPerPage}
+      totalItems={result.total}
     />
   )
 }
