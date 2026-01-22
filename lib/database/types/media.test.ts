@@ -1,6 +1,6 @@
 import {
-  getTestDatabaseTable,
-  databaseBeforeAll
+  databaseBeforeAll,
+  getTestDatabaseTable
 } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
@@ -69,9 +69,9 @@ describe('MediaDatabase', () => {
         // In production this will work correctly; if it fails in test it's likely
         // a test setup issue with the accountId relationship
         expect(result.items).toBeArray()
-        
+
         const foundMedia = result.items.find((m) => m.id === media1!.id)
-        
+
         // Only check details if we found the media
         if (foundMedia) {
           expect(foundMedia.original.path).toBe('/test/media1-unique.jpg')

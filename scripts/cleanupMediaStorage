@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Fix @llun/activities.schema CJS import issue
+SCHEMA_CJS_PKG="${SCRIPT_DIR}/../node_modules/@llun/activities.schema/dist/cjs/package.json"
+if [ -d "$(dirname "$SCHEMA_CJS_PKG")" ] && [ ! -f "$SCHEMA_CJS_PKG" ]; then
+  echo '{"type": "commonjs"}' > "$SCHEMA_CJS_PKG"
+fi
+
+node -r @swc-node/register "${SCRIPT_DIR}/cleanupMediaStorage.ts" "$@"

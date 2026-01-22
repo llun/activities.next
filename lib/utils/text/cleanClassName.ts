@@ -1,8 +1,8 @@
 import parse, {
   DOMNode,
-  domToReact,
   Element,
-  HTMLReactParserOptions
+  HTMLReactParserOptions,
+  domToReact
 } from 'html-react-parser'
 import React from 'react'
 

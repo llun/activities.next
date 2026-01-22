@@ -68,7 +68,9 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
               code: SpanStatusCode.ERROR,
               message: 'Failed to send mention notification email'
             })
-            span.recordException(error instanceof Error ? error : new Error(String(error)))
+            span.recordException(
+              error instanceof Error ? error : new Error(String(error))
+            )
           }
         }
         span.end()

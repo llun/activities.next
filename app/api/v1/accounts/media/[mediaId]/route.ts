@@ -1,7 +1,7 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
-import { deleteMediaFile } from '@/lib/services/medias'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { deleteMediaFile } from '@/lib/services/medias'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { getSpan } from '@/lib/utils/trace'

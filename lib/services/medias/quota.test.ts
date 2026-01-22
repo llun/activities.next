@@ -1,7 +1,7 @@
 import { getConfig } from '@/lib/config'
 import {
-  getTestDatabaseTable,
-  databaseBeforeAll
+  databaseBeforeAll,
+  getTestDatabaseTable
 } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'

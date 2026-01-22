@@ -1,8 +1,14 @@
 import { Actor } from '@llun/activities.schema'
 
+import { getActorFollowers } from '@/lib/activities/requests/getActorFollowers'
+import { getActorFollowing } from '@/lib/activities/requests/getActorFollowing'
+import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
+import { getActorPosts } from '@/lib/activities/requests/getActorPosts'
+import { getWebfingerSelf } from '@/lib/activities/requests/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
 import { Attachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
+import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 import { getProfileData } from './getProfileData'
 
@@ -13,13 +19,6 @@ jest.mock('../../../lib/activities/requests/getActorPerson')
 jest.mock('../../../lib/activities/requests/getActorPosts')
 jest.mock('../../../lib/activities/requests/getWebfingerSelf')
 jest.mock('../../../lib/utils/getPersonFromActor')
-
-import { getActorFollowers } from '@/lib/activities/requests/getActorFollowers'
-import { getActorFollowing } from '@/lib/activities/requests/getActorFollowing'
-import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
-import { getActorPosts } from '@/lib/activities/requests/getActorPosts'
-import { getWebfingerSelf } from '@/lib/activities/requests/getWebfingerSelf'
-import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 describe('getProfileData', () => {
   const mockDatabase = {

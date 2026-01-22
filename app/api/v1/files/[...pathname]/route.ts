@@ -1,6 +1,6 @@
+import { readFile } from 'fs/promises'
 import { NextRequest } from 'next/server'
 import path from 'path'
-import { readFile } from 'fs/promises'
 
 import { getDatabase } from '@/lib/database'
 import { getMedia } from '@/lib/services/medias'
@@ -26,7 +26,12 @@ export const GET = async (
   const media = await getMedia(database, userPath)
   if (!media) {
     // Return a placeholder image for deleted media
-    const placeholderPath = path.join(process.cwd(), 'public', 'images', 'media-removed.svg')
+    const placeholderPath = path.join(
+      process.cwd(),
+      'public',
+      'images',
+      'media-removed.svg'
+    )
     try {
       const placeholderSvg = await readFile(placeholderPath, 'utf-8')
       const headers = new Headers([

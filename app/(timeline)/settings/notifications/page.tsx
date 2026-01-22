@@ -81,7 +81,9 @@ const Page = async ({ searchParams }: PageProps) => {
   const selectedActor = actors.find((a) => a.id === selectedActorId) || actor
 
   // Get current email notification settings
-  const settings = await database.getActorSettings({ actorId: selectedActor.id })
+  const settings = await database.getActorSettings({
+    actorId: selectedActor.id
+  })
   const emailNotifications = settings?.emailNotifications || {}
 
   return (
@@ -110,10 +112,7 @@ const Page = async ({ searchParams }: PageProps) => {
             </p>
           </div>
 
-          <ActorSelector
-            actors={actors}
-            selectedActorId={selectedActor.id}
-          />
+          <ActorSelector actors={actors} selectedActorId={selectedActor.id} />
 
           <div className="space-y-4">
             {notificationTypes.map((notificationType) => (

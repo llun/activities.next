@@ -176,7 +176,11 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .orderBy('medias.createdAt', 'desc')
 
     if (maxCreatedAt) {
-      itemsQuery = itemsQuery.where('medias.createdAt', '<', new Date(maxCreatedAt))
+      itemsQuery = itemsQuery.where(
+        'medias.createdAt',
+        '<',
+        new Date(maxCreatedAt)
+      )
     }
 
     // Calculate offset for pagination
