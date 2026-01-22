@@ -38,19 +38,37 @@ const Page = async () => {
     limit: 100
   })
 
+  // Get all attachments for the account to find which posts use which media
+  const attachments = await database.getAttachmentsForActor({
+    actorId: actor.id,
+    limit: 1000
+  })
+
+  // Create a map of media URL to statusId
+  const mediaUrlToStatusId = new Map<string, string>()
+  attachments.forEach((attachment) => {
+    mediaUrlToStatusId.set(attachment.url, attachment.statusId)
+  })
+
   return (
     <MediaManagement
       used={used}
       limit={limit}
-      medias={medias.map((media) => ({
-        id: media.id,
-        actorId: media.actorId,
-        bytes: media.original.bytes + (media.thumbnail?.bytes ?? 0),
-        mimeType: media.original.mimeType,
-        width: media.original.metaData.width,
-        height: media.original.metaData.height,
-        description: media.description
-      }))}
+      medias={medias.map((media) => {
+        const url = `/api/v1/files/${media.original.path}`
+        const statusId = mediaUrlToStatusId.get(url)
+        return {
+          id: media.id,
+          actorId: media.actorId,
+          bytes: media.original.bytes + (media.thumbnail?.bytes ?? 0),
+          mimeType: media.original.mimeType,
+          width: media.original.metaData.width,
+          height: media.original.metaData.height,
+          description: media.description,
+          url,
+          statusId
+        }
+      })}
     />
   )
 }
