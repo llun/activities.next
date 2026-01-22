@@ -445,10 +445,10 @@ describe('MediaDatabase', () => {
         })
 
         // Check that the specific media doesn't exist anymore
-        const medias = await database.getMediasForAccount({
+        const result = await database.getMediasWithStatusForAccount({
           accountId: actor!.account!.id
         })
-        const foundMedia = medias.find((m) => m.id === media!.id)
+        const foundMedia = result.items.find((m) => m.id === media!.id)
         expect(foundMedia).toBeUndefined()
       })
 
