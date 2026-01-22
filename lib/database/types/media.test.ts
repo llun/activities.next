@@ -135,11 +135,15 @@ describe('MediaDatabase', () => {
         })
         expect(statuses.length).toBeGreaterThan(0)
 
+        // Create attachment with the full URL format that would be returned by media service
+        // Media path is "/test/media-with-status.jpg", so basename is "media-with-status.jpg"
+        // URL format: "https://host.com/api/v1/files/basename"
+        const basename = media!.original.path.split('/').pop()
         await database.createAttachment({
           actorId: actors.primary.id,
           statusId: statuses[0].id,
           mediaType: 'image/jpeg',
-          url: media!.original.path,
+          url: `https://llun.test/api/v1/files/${basename}`,
           width: 400,
           height: 400
         })
