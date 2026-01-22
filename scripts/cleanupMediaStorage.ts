@@ -6,18 +6,13 @@
  *   --dry-run   Show what would be deleted without actually deleting
  *   --yes       Skip confirmation prompt and delete immediately
  */
-import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
+import { DeleteObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import fs from 'fs/promises'
 import knex from 'knex'
 import path from 'path'
 
 import { getConfig } from '../lib/config'
 import { MediaStorageType } from '../lib/config/mediaStorage'
-
-interface MediaFile {
-  path: string
-  type: 'original' | 'thumbnail'
-}
 
 async function getAllMediaPathsFromDatabase(): Promise<Set<string>> {
   const config = getConfig()
@@ -104,11 +99,14 @@ async function listS3Files(bucket: string, region: string): Promise<string[]> {
 
 async function deleteLocalFile(basePath: string, filePath: string) {
   const fullPath = path.resolve(basePath, filePath)
+  // Ensure the resolved path is within the base path (prevent directory traversal)
+  if (!fullPath.startsWith(path.resolve(basePath))) {
+    throw new Error(`Invalid file path: ${filePath}`)
+  }
   await fs.unlink(fullPath)
 }
 
 async function deleteS3File(bucket: string, region: string, filePath: string) {
-  const { DeleteObjectCommand } = await import('@aws-sdk/client-s3')
   const client = new S3Client({ region })
   const command = new DeleteObjectCommand({
     Bucket: bucket,
@@ -289,7 +287,7 @@ async function cleanupMediaStorage() {
   }
 
   // Step 6: Delete orphaned files
-  console.log('\n🗑️  Step 4: Deleting orphaned files...')
+  console.log('\n🗑️  Step 6: Deleting orphaned files...')
 
   let deletedCount = 0
   let errorCount = 0
