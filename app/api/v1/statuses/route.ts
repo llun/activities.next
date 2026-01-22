@@ -10,6 +10,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -25,34 +26,37 @@ const NoteSchema = z.object({
   visibility: VisibilitySchema.optional()
 })
 
-export const POST = OAuthGuard([Scope.enum.write], async (req, context) => {
-  const { currentActor, database } = context
-  try {
-    const content = await req.json()
-    const note = NoteSchema.parse(content)
-    const status = await createNoteFromUserInput({
-      currentActor,
-      text: note.status,
-      replyNoteId: note.in_reply_to_id,
-      visibility: note.visibility,
-      attachments: [],
-      database
-    })
-    if (!status) return apiErrorResponse(422)
+export const POST = traceApiRoute(
+  'createStatus',
+  OAuthGuard([Scope.enum.write], async (req, context) => {
+    const { currentActor, database } = context
+    try {
+      const content = await req.json()
+      const note = NoteSchema.parse(content)
+      const status = await createNoteFromUserInput({
+        currentActor,
+        text: note.status,
+        replyNoteId: note.in_reply_to_id,
+        visibility: note.visibility,
+        attachments: [],
+        database
+      })
+      if (!status) return apiErrorResponse(422)
 
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      status,
-      currentActor.id
-    )
-    if (!mastodonStatus) return apiErrorResponse(500)
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        currentActor.id
+      )
+      if (!mastodonStatus) return apiErrorResponse(500)
 
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus
-    })
-  } catch {
-    return apiErrorResponse(400)
-  }
-})
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: mastodonStatus
+      })
+    } catch {
+      return apiErrorResponse(400)
+    }
+  })
+)

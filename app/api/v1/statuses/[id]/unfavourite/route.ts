@@ -8,6 +8,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -18,9 +19,11 @@ interface Params {
   id: string
 }
 
-export const POST = OAuthGuard<Params>(
-  [Scope.enum.write],
-  async (req, context) => {
+export const POST = traceApiRoute(
+  'unfavouriteStatus',
+  OAuthGuard<Params>(
+    [Scope.enum.write],
+    async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId) return apiErrorResponse(404)
@@ -56,5 +59,12 @@ export const POST = OAuthGuard<Params>(
       allowedMethods: CORS_HEADERS,
       data: mastodonStatus
     })
+    }
+  ),
+  {
+    addAttributes: async (_req, context) => {
+      const params = await context.params
+      return { statusId: params?.id || 'unknown' }
+    }
   }
 )
