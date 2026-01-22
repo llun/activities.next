@@ -14,7 +14,9 @@ import path from 'path'
 import { getConfig } from '../lib/config'
 import { MediaStorageType } from '../lib/config/mediaStorage'
 
-async function getAllMediaPathsFromDatabase(): Promise<Set<string>> {
+async function getAllMediaPathsFromDatabase(
+  basePath?: string
+): Promise<Set<string>> {
   const config = getConfig()
   const database = knex(config.database)
 
@@ -25,10 +27,18 @@ async function getAllMediaPathsFromDatabase(): Promise<Set<string>> {
     const paths = new Set<string>()
     for (const media of medias) {
       if (media.original) {
-        paths.add(media.original)
+        // For local file storage, normalize to relative paths
+        const originalPath = basePath
+          ? path.relative(basePath, media.original)
+          : media.original
+        paths.add(originalPath)
       }
       if (media.thumbnail) {
-        paths.add(media.thumbnail)
+        // For local file storage, normalize to relative paths
+        const thumbnailPath = basePath
+          ? path.relative(basePath, media.thumbnail)
+          : media.thumbnail
+        paths.add(thumbnailPath)
       }
     }
 
@@ -210,9 +220,15 @@ async function cleanupMediaStorage() {
 
   console.log(`Storage Type: ${config.mediaStorage.type}`)
 
+  // Determine base path for local storage normalization
+  const basePath =
+    config.mediaStorage.type === MediaStorageType.LocalFile
+      ? path.resolve(process.cwd(), config.mediaStorage.path)
+      : undefined
+
   // Step 1: Get all media paths from database
   console.log('\n📊 Step 1: Fetching media references from database...')
-  const dbPaths = await getAllMediaPathsFromDatabase()
+  const dbPaths = await getAllMediaPathsFromDatabase(basePath)
   console.log(`   Found ${dbPaths.size} media files in database`)
 
   // Step 2: List all files in storage
@@ -222,7 +238,8 @@ async function cleanupMediaStorage() {
   switch (config.mediaStorage.type) {
     case MediaStorageType.LocalFile: {
       console.log(`   Storage path: ${config.mediaStorage.path}`)
-      storageFiles = await listLocalFiles(config.mediaStorage.path)
+      // Use the resolved basePath for consistent path handling
+      storageFiles = await listLocalFiles(basePath!)
       break
     }
     case MediaStorageType.S3Storage:
@@ -296,7 +313,8 @@ async function cleanupMediaStorage() {
     try {
       switch (config.mediaStorage.type) {
         case MediaStorageType.LocalFile:
-          await deleteLocalFile(config.mediaStorage.path, file)
+          // Use the resolved basePath for consistent path handling
+          await deleteLocalFile(basePath!, file)
           break
         case MediaStorageType.S3Storage:
         case MediaStorageType.ObjectStorage:
