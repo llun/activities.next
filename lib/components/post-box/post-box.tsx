@@ -400,7 +400,7 @@ export const PostBox: FC<Props> = ({
               <TabsContent value="write" className="mt-0">
                 <textarea
                   ref={postBoxRef}
-                  className="flex min-h-[120px] w-full bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none resize-none"
+                  className="flex min-h-[120px] w-full bg-transparent px-3 py-2 text-base placeholder:text-muted-foreground focus-visible:outline-none resize-none md:text-sm"
                   rows={5}
                   onKeyDown={onQuickPost}
                   onChange={(e) => onTextChange(e.target.value)}
