@@ -8,6 +8,7 @@ import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const getReceiver = memoize(
   (config: Config) =>
@@ -17,7 +18,7 @@ const getReceiver = memoize(
     })
 )
 
-export const POST = async (request: NextRequest) => {
+export const POST = traceApiRoute('processQueueJob', async (request: NextRequest) => {
   const config = getConfig()
   if (config.queue?.type !== 'qstash') {
     return apiErrorResponse(404)
@@ -49,4 +50,4 @@ export const POST = async (request: NextRequest) => {
     allowedMethods: [HttpMethod.enum.POST],
     data: {}
   })
-}
+})

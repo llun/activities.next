@@ -11,6 +11,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { LikeStatusRequest } from './types'
 
@@ -22,7 +23,7 @@ const CORS_HEADERS = [
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = AuthenticatedGuard(async (req, context) => {
+export const POST = traceApiRoute('likeToAccount', AuthenticatedGuard(async (req, context) => {
   const { database, currentActor } = context
   const body = await req.json()
   const { statusId } = LikeStatusRequest.parse(body)
@@ -32,9 +33,9 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   await database.createLike({ actorId: currentActor.id, statusId })
   await sendLike({ currentActor, status })
   return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
-})
+}))
 
-export const DELETE = AuthenticatedGuard(async (req, context) => {
+export const DELETE = traceApiRoute('unlikeToAccount', AuthenticatedGuard(async (req, context) => {
   const { database, currentActor } = context
   const body = await req.json()
   const { statusId } = LikeStatusRequest.parse(body)
@@ -44,4 +45,4 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
   await database.deleteLike({ actorId: currentActor.id, statusId })
   await sendUndoLike({ currentActor, status })
   return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
-})
+}))

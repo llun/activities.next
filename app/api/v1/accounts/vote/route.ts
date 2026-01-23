@@ -7,6 +7,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { VotePollRequest } from './types'
 
@@ -14,7 +15,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = AuthenticatedGuard(async (req, context) => {
+export const POST = traceApiRoute('voteToAccount', AuthenticatedGuard(async (req, context) => {
   const { database, currentActor } = context
   const body = await req.json()
   const { statusId, choices } = VotePollRequest.parse(body)
@@ -71,4 +72,4 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     allowedMethods: CORS_HEADERS,
     data: { status: updatedStatus }
   })
-})
+}))

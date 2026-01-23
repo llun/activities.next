@@ -7,6 +7,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -20,7 +21,7 @@ interface Params {
   id: string
 }
 
-export const GET = OAuthGuard<Params>(
+export const GET = traceApiRoute('getNotification', OAuthGuard<Params>(
   [Scope.enum.read],
   async (req, { currentActor, database, params }) => {
     if (!database) {
@@ -55,9 +56,9 @@ export const GET = OAuthGuard<Params>(
       data: mastodonNotification
     })
   }
-)
+))
 
-export const POST = OAuthGuard<Params>(
+export const POST = traceApiRoute('dismissNotificationById', OAuthGuard<Params>(
   [Scope.enum.write],
   async (req, { currentActor, database, params }) => {
     if (!database) {
@@ -85,4 +86,4 @@ export const POST = OAuthGuard<Params>(
       data: {}
     })
   }
-)
+))

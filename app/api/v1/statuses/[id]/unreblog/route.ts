@@ -8,6 +8,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -18,36 +19,45 @@ interface Params {
   id: string
 }
 
-export const POST = OAuthGuard<Params>(
-  [Scope.enum.write],
-  async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiErrorResponse(404)
+export const POST = traceApiRoute(
+  'unreblogStatus',
+  OAuthGuard<Params>(
+    [Scope.enum.write],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId) return apiErrorResponse(404)
 
-    const statusId = idToUrl(encodedStatusId)
+      const statusId = idToUrl(encodedStatusId)
 
-    const undoStatus = await userUndoAnnounce({
-      currentActor,
-      statusId,
-      database
-    })
+      const undoStatus = await userUndoAnnounce({
+        currentActor,
+        statusId,
+        database
+      })
 
-    if (!undoStatus) {
-      return apiErrorResponse(422)
+      if (!undoStatus) {
+        return apiErrorResponse(422)
+      }
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        undoStatus,
+        currentActor.id
+      )
+      if (!mastodonStatus) return apiErrorResponse(500)
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: mastodonStatus
+      })
     }
-
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      undoStatus,
-      currentActor.id
-    )
-    if (!mastodonStatus) return apiErrorResponse(500)
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus
-    })
+  ),
+  {
+    addAttributes: async (_req, context) => {
+      const params = await context.params
+      return { statusId: params?.id || 'unknown' }
+    }
   }
 )

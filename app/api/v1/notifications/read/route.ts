@@ -7,12 +7,13 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = OAuthGuard(
+export const POST = traceApiRoute('markNotificationsRead', OAuthGuard(
   [Scope.enum.write],
   async (req, { currentActor }) => {
     const database = getDatabase()
@@ -51,4 +52,4 @@ export const POST = OAuthGuard(
       data: { success: true, marked_read: validIds.length }
     })
   }
-)
+))

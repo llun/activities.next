@@ -8,12 +8,13 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = async (req: NextRequest) => {
+export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
   const database = getDatabase()
   if (!database) return apiErrorResponse(500)
 
@@ -41,4 +42,4 @@ export const GET = async (req: NextRequest) => {
     allowedMethods: CORS_HEADERS,
     data: mastodonActor
   })
-}
+})

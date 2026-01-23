@@ -9,6 +9,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -18,7 +19,7 @@ const DismissBody = z.object({
   id: z.string()
 })
 
-export const POST = OAuthGuard(
+export const POST = traceApiRoute('dismissNotificationByBody', OAuthGuard(
   [Scope.enum.write],
   async (req, { currentActor }) => {
     const database = getDatabase()
@@ -53,4 +54,4 @@ export const POST = OAuthGuard(
       data: {}
     })
   }
-)
+))

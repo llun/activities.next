@@ -7,6 +7,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -17,36 +18,45 @@ interface Params {
   id: string
 }
 
-export const POST = OAuthGuard<Params>(
-  [Scope.enum.write],
-  async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiErrorResponse(404)
+export const POST = traceApiRoute(
+  'unpinStatus',
+  OAuthGuard<Params>(
+    [Scope.enum.write],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId) return apiErrorResponse(404)
 
-    const statusId = idToUrl(encodedStatusId)
-    const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status) return apiErrorResponse(404)
+      const statusId = idToUrl(encodedStatusId)
+      const status = await database.getStatus({ statusId, withReplies: false })
+      if (!status) return apiErrorResponse(404)
 
-    // Check ownership - only owner can unpin
-    if (status.actorId !== currentActor.id) {
-      return apiErrorResponse(403)
+      // Check ownership - only owner can unpin
+      if (status.actorId !== currentActor.id) {
+        return apiErrorResponse(403)
+      }
+
+      // Unpinning not yet implemented
+      // TODO: Implement pinning functionality with database table
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        currentActor.id
+      )
+      if (!mastodonStatus) return apiErrorResponse(500)
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: mastodonStatus
+      })
     }
-
-    // Unpinning not yet implemented
-    // TODO: Implement pinning functionality with database table
-
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      status,
-      currentActor.id
-    )
-    if (!mastodonStatus) return apiErrorResponse(500)
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus
-    })
+  ),
+  {
+    addAttributes: async (_req, context) => {
+      const params = await context.params
+      return { statusId: params?.id || 'unknown' }
+    }
   }
 )

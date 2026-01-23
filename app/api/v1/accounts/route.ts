@@ -13,6 +13,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { generateKeyPair } from '@/lib/utils/signature'
 
 import { CreateAccountRequest } from './types'
@@ -23,7 +24,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = async (request: NextRequest) => {
+export const POST = traceApiRoute('createAccount', async (request: NextRequest) => {
   const config = getConfig()
   const database = getDatabase()
   if (!database) {
@@ -135,4 +136,4 @@ export const POST = async (request: NextRequest) => {
   }
 
   return Response.redirect(getRedirectUrl(request, '/auth/signin'), 307)
-}
+})
