@@ -101,7 +101,7 @@ export function MediaManagement({
         setMediaToDelete(null)
       }
     } catch {
-      // Silently fail - user will see media is still present
+      // Silently fail on network errors or API failures - user will see media is still present
     } finally {
       setDeleting(false)
     }
