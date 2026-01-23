@@ -96,7 +96,9 @@ const Page: FC<Props> = async ({ params }) => {
   if (
     !(
       status.to.includes(ACTIVITY_STREAM_PUBLIC) ||
-      status.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
+      status.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT) ||
+      status.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
+      status.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
     )
   ) {
     return notFound()
