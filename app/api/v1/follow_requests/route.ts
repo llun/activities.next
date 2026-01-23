@@ -7,12 +7,13 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = OAuthGuard(
+export const GET = traceApiRoute('getFollowRequests', OAuthGuard(
   [Scope.enum.read],
   async (req, { currentActor }) => {
     const database = getDatabase()
@@ -47,4 +48,4 @@ export const GET = OAuthGuard(
       data: accounts.filter(Boolean)
     })
   }
-)
+))

@@ -12,6 +12,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [
@@ -43,7 +44,7 @@ const NotificationQueryParams = z.object({
     .optional()
 })
 
-export const GET = OAuthGuard(
+export const GET = traceApiRoute('getNotifications', OAuthGuard(
   [Scope.enum.read],
   async (req, { currentActor }) => {
     const database = getDatabase()
@@ -178,9 +179,9 @@ export const GET = OAuthGuard(
       ]
     })
   }
-)
+))
 
-export const POST = OAuthGuard(
+export const POST = traceApiRoute('clearAllNotifications', OAuthGuard(
   [Scope.enum.write],
   async (req, { currentActor }) => {
     const database = getDatabase()
@@ -222,4 +223,4 @@ export const POST = OAuthGuard(
       data: {}
     })
   }
-)
+))
