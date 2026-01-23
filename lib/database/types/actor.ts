@@ -91,6 +91,7 @@ export type DeleteActorDataParams = {
 export type GetActorFollowingCountParams = { actorId: string }
 export type GetActorFollowersCountParams = { actorId: string }
 export type GetActorSettingsParams = { actorId: string }
+export type GetActorFromStravaWebhookIdParams = { webhookId: string }
 
 export type IsInternalActorParams = { actorId: string }
 
@@ -139,4 +140,7 @@ export interface ActorDatabase {
   getActorSettings(
     params: GetActorSettingsParams
   ): Promise<ActorSettings | undefined>
+  getActorFromStravaWebhookId(
+    params: GetActorFromStravaWebhookIdParams
+  ): Promise<Actor | undefined>
 }

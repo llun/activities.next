@@ -73,8 +73,7 @@ interface StravaActivity {
 }
 
 // Helper function to fetch activity details from Strava API
-// Currently unused but will be needed when webhook processing is fully implemented
-async function _getStravaActivity(
+async function getStravaActivity(
   activityId: number,
   accessToken: string
 ): Promise<StravaActivity | null> {
@@ -101,8 +100,7 @@ async function _getStravaActivity(
 }
 
 // Helper function to refresh Strava OAuth tokens
-// Currently unused but will be needed when webhook processing is fully implemented
-async function _refreshStravaToken(
+async function refreshStravaToken(
   refreshToken: string,
   clientId: string,
   clientSecret: string
@@ -179,8 +177,7 @@ function formatActivity(activity: StravaActivity): string {
 }
 
 // Helper function to create a status from Strava activity
-// Currently unused but will be needed when webhook processing is fully implemented
-async function _createStatusFromActivity(
+async function createStatusFromActivity(
   actorId: string,
   activity: StravaActivity,
   database: Database
@@ -289,27 +286,69 @@ export const POST = traceApiRoute(
       return Response.json({ error: 'Database not available' }, { status: 500 })
     }
 
-    // Since we can't easily query by JSON fields across the Database interface,
-    // we'll need to check actors one by one. This is not ideal for production
-    // but works for the MVP. In production, you'd want to add an index or
-    // a separate webhook_subscriptions table.
+    // Find actor with this webhook ID
+    const actor = await database.getActorFromStravaWebhookId({ webhookId })
     
-    // For now, we'll just return success and log that we need to implement this
-    // A proper implementation would require adding methods to query by settings
-    console.log('Received Strava webhook for:', webhookId)
+    if (!actor) {
+      console.log('No actor found for webhook ID:', webhookId)
+      return Response.json({ success: true }) // Return success to avoid Strava retries
+    }
 
     const event: StravaWebhookEvent = await req.json()
-    console.log('Event:', event)
 
     // Only process new activities
     if (
       event.object_type === 'activity' &&
       event.aspect_type === 'create'
     ) {
-      // TODO: Implement actor lookup by webhookId
-      // For now, this would need a custom query or a new database method
-      // We can implement this in a follow-up commit
-      console.log('Activity created:', event.object_id)
+      const settings = await database.getActorSettings({ actorId: actor.id })
+      const stravaIntegration = settings?.stravaIntegration
+
+      if (!stravaIntegration) {
+        console.log('No Strava integration found for actor:', actor.id)
+        return Response.json({ success: true })
+      }
+
+      let accessToken = stravaIntegration.accessToken
+      const refreshToken = stravaIntegration.refreshToken
+      const tokenExpiresAt = stravaIntegration.tokenExpiresAt
+      const clientId = stravaIntegration.clientId
+      const clientSecret = stravaIntegration.clientSecret
+
+      // Check if token needs refresh
+      if (
+        refreshToken &&
+        clientId &&
+        clientSecret &&
+        tokenExpiresAt &&
+        Date.now() / 1000 > tokenExpiresAt
+      ) {
+        const newTokens = await refreshStravaToken(
+          refreshToken,
+          clientId,
+          clientSecret
+        )
+        if (newTokens) {
+          accessToken = newTokens.access_token
+          // Update actor settings with new tokens
+          await database.updateActor({
+            actorId: actor.id,
+            stravaIntegration: {
+              ...stravaIntegration,
+              accessToken: newTokens.access_token,
+              refreshToken: newTokens.refresh_token,
+              tokenExpiresAt: newTokens.expires_at
+            }
+          })
+        }
+      }
+
+      if (accessToken) {
+        const activity = await getStravaActivity(event.object_id, accessToken)
+        if (activity) {
+          await createStatusFromActivity(actor.id, activity, database)
+        }
+      }
     }
 
     return Response.json({ success: true })

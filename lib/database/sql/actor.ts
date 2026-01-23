@@ -13,6 +13,7 @@ import {
   GetActorFollowingCountParams,
   GetActorFromEmailParams,
   GetActorFromIdParams,
+  GetActorFromStravaWebhookIdParams,
   GetActorFromUsernameParams,
   GetActorSettingsParams,
   GetActorsScheduledForDeletionParams,
@@ -560,6 +561,29 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return undefined
     return getCompatibleJSON(persistedActor.settings) as ActorSettings
+  },
+
+  async getActorFromStravaWebhookId({
+    webhookId
+  }: GetActorFromStravaWebhookIdParams) {
+    // Query all actors with Strava integration and filter in memory
+    // This is not optimal but works for MVP. In production, consider indexing.
+    const actors = await database<SQLActor>('actors')
+      .whereNotNull('settings')
+      .select('*')
+
+    for (const actorRow of actors) {
+      const settings = getCompatibleJSON(actorRow.settings) as ActorSettings
+      if (
+        settings?.stravaIntegration?.webhookId === webhookId &&
+        settings?.stravaIntegration?.enabled
+      ) {
+        // Found the actor, now get full actor details
+        return this.getActorFromId({ id: actorRow.id })
+      }
+    }
+
+    return undefined
   },
 
   async scheduleActorDeletion({
