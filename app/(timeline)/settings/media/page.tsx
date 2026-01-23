@@ -59,9 +59,8 @@ const Page = async ({
       used={used}
       limit={limit}
       medias={result.items.map((media) => {
-        // Extract just the filename from the full path
-        const filename = media.original.path.split('/').pop()
-        const url = `/api/v1/files/${filename}`
+        // Use full path for the URL to support Object Storage keys
+        const url = `/api/v1/files/${media.original.path}`
         return {
           id: media.id,
           actorId: media.actorId,
