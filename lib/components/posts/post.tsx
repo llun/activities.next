@@ -14,6 +14,7 @@ import {
 import { Actions } from './actions/actions'
 import { ActorAvatar, ActorInfo } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
+import { FitnessMetrics } from './fitness-metrics'
 import { Poll } from './poll'
 
 export interface PostProps {
@@ -102,6 +103,8 @@ export const Post: FC<PostProps> = (props) => {
             status={actualStatus}
             onMediaSelected={onShowAttachment}
           />
+
+          <FitnessMetrics statusId={actualStatus.id} />
 
           <div onClick={(e) => e.stopPropagation()}>
             <Actions {...props} />
