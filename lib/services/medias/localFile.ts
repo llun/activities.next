@@ -222,7 +222,6 @@ export class LocalFileStorage implements MediaStorage {
     const uploadPath = this._config.path
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
-    const ext = path.extname(fileName) || '.webp'
     const filePath = path.resolve(
       process.cwd(),
       uploadPath,
