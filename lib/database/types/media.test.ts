@@ -505,5 +505,70 @@ describe('MediaDatabase', () => {
         expect(deleted).toBe(false)
       })
     })
+
+    describe('createMedia - fileName field', () => {
+      it('stores and retrieves original fileName', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.primary.id
+        })
+        expect(actor).toBeDefined()
+
+        // Create media with fileName
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/random-abc123.jpg',
+            bytes: 5000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 800, height: 600 },
+            fileName: 'my-vacation-photo.jpg'
+          }
+        })
+
+        expect(media).toBeDefined()
+        expect(media?.original.fileName).toBe('my-vacation-photo.jpg')
+
+        // Retrieve media and verify fileName is persisted
+        const retrieved = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId: actor!.account!.id
+        })
+
+        expect(retrieved).toBeDefined()
+        expect(retrieved?.original.fileName).toBe('my-vacation-photo.jpg')
+        expect(retrieved?.original.path).toBe('/test/random-abc123.jpg')
+      })
+
+      it('works without fileName for backward compatibility', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.primary.id
+        })
+        expect(actor).toBeDefined()
+
+        // Create media without fileName
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/another-random-xyz789.jpg',
+            bytes: 3000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 400, height: 300 }
+          }
+        })
+
+        expect(media).toBeDefined()
+        expect(media?.original.fileName).toBeUndefined()
+
+        // Retrieve media and verify no fileName is persisted
+        const retrieved = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId: actor!.account!.id
+        })
+
+        expect(retrieved).toBeDefined()
+        expect(retrieved?.original.fileName).toBeUndefined()
+        expect(retrieved?.original.path).toBe('/test/another-random-xyz789.jpg')
+      })
+    })
   })
 })
