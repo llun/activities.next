@@ -269,6 +269,54 @@ describe('MediaDatabase', () => {
         expect(page1Result.total).toBe(page2Result.total)
         expect(page1Result.total).toBeGreaterThanOrEqual(2)
       })
+
+      it('returns media with statusId when using S3 URL format', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.primary.id
+        })
+        expect(actor).toBeDefined()
+
+        // Create media with S3-style path
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: 'medias/2024-01-23/abc123-s3-test.webp',
+            bytes: 3000,
+            mimeType: 'image/webp',
+            metaData: { width: 500, height: 500 }
+          }
+        })
+
+        expect(media).toBeDefined()
+
+        // Get an existing status
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id,
+          limit: 1
+        })
+        expect(statuses.length).toBeGreaterThan(0)
+
+        // Create attachment with S3-style URL (full URL format)
+        await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statuses[0].id,
+          mediaType: 'image/webp',
+          url: `https://example.com/api/v1/files/${media!.original.path}`,
+          width: 500,
+          height: 500
+        })
+
+        // Get medias with status
+        const result = await database.getMediasWithStatusForAccount({
+          accountId: actor!.account!.id,
+          limit: 100
+        })
+
+        // Find our test media
+        const testMedia = result.items.find((m) => m.id === String(media!.id))
+        expect(testMedia).toBeDefined()
+        expect(testMedia?.statusId).toBe(statuses[0].id)
+      })
     })
 
     describe('getMediaByIdForAccount', () => {
