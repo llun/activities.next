@@ -137,7 +137,7 @@ export class S3FileStorage implements MediaStorage {
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
 
-    const ext = fileName.endsWith('.mov') ? '.mp4' : path.extname(fileName)
+    const ext = fileName.endsWith('.mov') ? '.mp4' : extname(fileName)
     const mimeType =
       presignedMedia.contentType === 'video/quicktime'
         ? 'video/mp4'
