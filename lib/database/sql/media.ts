@@ -18,6 +18,9 @@ import { Attachment } from '@/lib/models/attachment'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
 
+// Length of '/api/v1/files/' string used in URL path extraction
+const API_FILES_PATH_LENGTH = 14
+
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async createMedia({
     actorId,
@@ -148,50 +151,34 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .count('medias.id as count')
       .first()
 
+    // Helper to extract path from attachment URL (everything after '/api/v1/files/')
+    const extractPathFromUrl = database.raw(
+      `CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + ${API_FILES_PATH_LENGTH}) ELSE NULL END`
+    )
+
+    // Helper for matching path suffix (for local storage)
+    const pathEndsWithExtractedFilename = database.raw(
+      `CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN '%/' || SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + ${API_FILES_PATH_LENGTH}) ELSE NULL END`
+    )
+
     // Then get the paginated items
     let itemsQuery = database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
       .leftJoin('attachments', function () {
         // Match media with attachments using various URL formats:
-        // 1. Direct path match (for tests): attachments.url = medias.original
-        // 2. S3 URL match: extract path after '/api/v1/files/' from URL equals medias.original
-        // 3. Local file URL match: medias.original ends with '/' + filename from URL
+        // 1. Direct path match (for tests): attachments.url = medias.original/thumbnail
+        // 2. S3/ObjectStorage: extract path after '/api/v1/files/' from URL equals medias.original/thumbnail
+        // 3. Local storage: medias.original/thumbnail ends with '/' + filename from URL
         this.on(function () {
-          // Case 1: Direct path match (original)
+          // Match on original path
           this.on('medias.original', '=', 'attachments.url')
-            // Case 2: S3 - extract path from URL and match exactly
-            .orOn(
-              'medias.original',
-              '=',
-              database.raw(
-                "CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + 14) ELSE NULL END"
-              )
-            )
-            // Case 3: Local - match if original path ends with /filename
-            .orOn(
-              database.raw('medias.original'),
-              'LIKE',
-              database.raw(
-                "CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN '%/' || SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + 14) ELSE NULL END"
-              )
-            )
+            .orOn('medias.original', '=', extractPathFromUrl)
+            .orOn(database.raw('medias.original'), 'LIKE', pathEndsWithExtractedFilename)
         }).orOn(function () {
-          // Same for thumbnail
+          // Match on thumbnail path
           this.on('medias.thumbnail', '=', 'attachments.url')
-            .orOn(
-              'medias.thumbnail',
-              '=',
-              database.raw(
-                "CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + 14) ELSE NULL END"
-              )
-            )
-            .orOn(
-              database.raw('medias.thumbnail'),
-              'LIKE',
-              database.raw(
-                "CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN '%/' || SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + 14) ELSE NULL END"
-              )
-            )
+            .orOn('medias.thumbnail', '=', extractPathFromUrl)
+            .orOn(database.raw('medias.thumbnail'), 'LIKE', pathEndsWithExtractedFilename)
         })
       })
       .where('actors.accountId', accountId)
