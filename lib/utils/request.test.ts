@@ -70,5 +70,24 @@ describe('request utility', () => {
       expect(response).toBeDefined()
       expect(response.statusCode).toBe(200)
     })
+
+    it('verifies that fetch mocks are used (no real network calls)', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ verified: true }), {
+        status: 200
+      })
+
+      await request({
+        url: 'https://example.com/api/test'
+      })
+
+      // Verify that fetch was called (proving the mock is active)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://example.com/api/test',
+        expect.objectContaining({
+          method: 'GET'
+        })
+      )
+    })
   })
 })
