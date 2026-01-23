@@ -45,6 +45,17 @@ export type UpdateActorParams = {
     reply?: boolean
     reblog?: boolean
   }
+  stravaIntegration?: {
+    enabled?: boolean
+    clientId?: string
+    clientSecret?: string
+    accessToken?: string
+    refreshToken?: string
+    athleteId?: string
+    tokenExpiresAt?: number
+    webhookId?: string
+    stravaSubscriptionId?: string
+  }
 
   publicKey?: string
 

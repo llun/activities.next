@@ -13,6 +13,17 @@ export interface ActorSettings {
     reply?: boolean
     reblog?: boolean
   }
+  stravaIntegration?: {
+    enabled?: boolean
+    clientId?: string
+    clientSecret?: string
+    accessToken?: string
+    refreshToken?: string
+    athleteId?: string
+    tokenExpiresAt?: number
+    webhookId?: string // Random webhook identifier for this actor
+    stravaSubscriptionId?: string // Strava's subscription ID for webhook
+  }
 }
 
 export type ActorDeletionStatus = 'scheduled' | 'deleting' | null

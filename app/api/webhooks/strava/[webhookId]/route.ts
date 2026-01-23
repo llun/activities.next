@@ -1,0 +1,317 @@
+import { NextRequest } from 'next/server'
+import crypto from 'crypto'
+
+import { getDatabase } from '@/lib/database'
+import { Database } from '@/lib/database/types'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+// Strava webhook validation interface (currently unused, but needed for future webhook verification)
+interface _StravaWebhookValidation {
+  'hub.mode': string
+  'hub.challenge': string
+  'hub.verify_token': string
+}
+
+interface StravaWebhookEvent {
+  aspect_type: 'create' | 'update' | 'delete'
+  event_time: number
+  object_id: number
+  object_type: 'activity' | 'athlete'
+  owner_id: number
+  subscription_id: number
+  updates?: Record<string, unknown>
+}
+
+interface StravaActivity {
+  id: number
+  name: string
+  description: string
+  distance: number
+  moving_time: number
+  elapsed_time: number
+  total_elevation_gain: number
+  type: string
+  sport_type: string
+  start_date: string
+  start_date_local: string
+  timezone: string
+  achievement_count: number
+  kudos_count: number
+  comment_count: number
+  athlete_count: number
+  photo_count: number
+  map: {
+    id: string
+    polyline: string
+    summary_polyline: string
+  }
+  trainer: boolean
+  commute: boolean
+  manual: boolean
+  private: boolean
+  visibility: string
+  flagged: boolean
+  gear_id: string | null
+  start_latlng: [number, number] | null
+  end_latlng: [number, number] | null
+  average_speed: number
+  max_speed: number
+  average_heartrate?: number
+  max_heartrate?: number
+  average_watts?: number
+  max_watts?: number
+  calories?: number
+  has_heartrate: boolean
+  photos?: {
+    primary?: {
+      id: number
+      unique_id: string
+      urls: Record<string, string>
+    }
+    count: number
+  }
+}
+
+// Helper function to fetch activity details from Strava API
+// Currently unused but will be needed when webhook processing is fully implemented
+async function _getStravaActivity(
+  activityId: number,
+  accessToken: string
+): Promise<StravaActivity | null> {
+  try {
+    const response = await fetch(
+      `https://www.strava.com/api/v3/activities/${activityId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      console.error('Failed to fetch Strava activity:', response.status)
+      return null
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching Strava activity:', error)
+    return null
+  }
+}
+
+// Helper function to refresh Strava OAuth tokens
+// Currently unused but will be needed when webhook processing is fully implemented
+async function _refreshStravaToken(
+  refreshToken: string,
+  clientId: string,
+  clientSecret: string
+): Promise<{
+  access_token: string
+  refresh_token: string
+  expires_at: number
+} | null> {
+  try {
+    const response = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token'
+      })
+    })
+
+    if (!response.ok) {
+      console.error('Failed to refresh Strava token:', response.status)
+      return null
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error refreshing Strava token:', error)
+    return null
+  }
+}
+
+function formatActivity(activity: StravaActivity): string {
+  const distance = (activity.distance / 1000).toFixed(2) // Convert to km
+  const duration = Math.floor(activity.moving_time / 60) // Convert to minutes
+  const hours = Math.floor(duration / 60)
+  const minutes = duration % 60
+  const pace = activity.average_speed
+    ? (1000 / 60 / activity.average_speed).toFixed(2)
+    : null // min/km
+
+  let text = `🏃 ${activity.name}\n\n`
+  text += `📊 Activity: ${activity.type}\n`
+  text += `📏 Distance: ${distance} km\n`
+  text += `⏱️ Time: ${hours > 0 ? `${hours}h ` : ''}${minutes}m\n`
+
+  if (pace) {
+    text += `⚡ Pace: ${pace} min/km\n`
+  }
+
+  if (activity.total_elevation_gain > 0) {
+    text += `⛰️ Elevation: ${activity.total_elevation_gain.toFixed(0)}m\n`
+  }
+
+  if (activity.average_heartrate) {
+    text += `❤️ Avg Heart Rate: ${activity.average_heartrate.toFixed(0)} bpm\n`
+  }
+
+  if (activity.average_watts) {
+    text += `⚡ Avg Power: ${activity.average_watts.toFixed(0)}W\n`
+  }
+
+  if (activity.calories) {
+    text += `🔥 Calories: ${activity.calories.toFixed(0)} kcal\n`
+  }
+
+  if (activity.description) {
+    text += `\n${activity.description}`
+  }
+
+  return text
+}
+
+// Helper function to create a status from Strava activity
+// Currently unused but will be needed when webhook processing is fully implemented
+async function _createStatusFromActivity(
+  actorId: string,
+  activity: StravaActivity,
+  database: Database
+) {
+  const actor = await database.getActorFromId({ id: actorId })
+  if (!actor) {
+    throw new Error('Actor not found')
+  }
+
+  // Check if we already created a status for this activity
+  const existingActivity = await database.getFitnessActivity({
+    provider: 'strava',
+    providerId: activity.id.toString(),
+    actorId
+  })
+
+  if (existingActivity && existingActivity.statusId) {
+    console.log('Activity already exists, skipping creation')
+    return existingActivity.statusId
+  }
+
+  // Format activity as status text
+  const text = formatActivity(activity)
+
+  // Create status
+  const statusId = `${actorId}/statuses/${crypto.randomUUID()}`
+  const postId = statusId.split('/').pop()
+  const actorMention = `@${actor.username}`
+
+  await database.createNote({
+    id: statusId,
+    url: `https://${actor.domain}/${actorMention}/${postId}`,
+    actorId: actor.id,
+    text,
+    summary: null,
+    to: [`https://${actor.domain}/${actorId}/followers`],
+    cc: [],
+    reply: ''
+  })
+
+  // Save fitness activity data
+  const fitnessActivityId = crypto.randomUUID()
+  await database.createFitnessActivity({
+    id: fitnessActivityId,
+    actorId,
+    statusId,
+    provider: 'strava',
+    providerId: activity.id.toString(),
+    type: activity.type,
+    name: activity.name,
+    description: activity.description || undefined,
+    startDate: new Date(activity.start_date),
+    distance: activity.distance,
+    movingTime: activity.moving_time,
+    elapsedTime: activity.elapsed_time,
+    totalElevationGain: activity.total_elevation_gain,
+    averageSpeed: activity.average_speed,
+    maxSpeed: activity.max_speed,
+    averageHeartrate: activity.average_heartrate,
+    maxHeartrate: activity.max_heartrate,
+    averageWatts: activity.average_watts,
+    maxWatts: activity.max_watts,
+    calories: activity.calories,
+    startLatlng: activity.start_latlng || undefined,
+    endLatlng: activity.end_latlng || undefined,
+    mapPolyline: activity.map?.polyline,
+    mapSummaryPolyline: activity.map?.summary_polyline,
+    photos: activity.photos ? [activity.photos] : undefined,
+    rawData: activity
+  })
+
+  // TODO: Handle route images and photos as attachments
+
+  return statusId
+}
+
+// GET handler for webhook validation (Strava subscription verification)
+export const GET = traceApiRoute(
+  'stravaWebhookValidation',
+  async (req: NextRequest, _context: { params: Promise<{ webhookId: string }> }) => {
+    const _params = await _context.params
+    const searchParams = req.nextUrl.searchParams
+    
+    const hubMode = searchParams.get('hub.mode')
+    const hubChallenge = searchParams.get('hub.challenge')
+    const hubVerifyToken = searchParams.get('hub.verify_token')
+
+    // Strava sends a verification request when setting up the webhook
+    if (hubMode === 'subscribe' && hubVerifyToken === 'STRAVA') {
+      return Response.json({ 'hub.challenge': hubChallenge })
+    }
+
+    return Response.json({ error: 'Invalid verification request' }, { status: 400 })
+  }
+)
+
+// POST handler for webhook events
+export const POST = traceApiRoute(
+  'stravaWebhookEvent',
+  async (req: NextRequest, _context: { params: Promise<{ webhookId: string }> }) => {
+    const _params = await _context.params
+    const webhookId = _params.webhookId
+
+    const database = getDatabase()
+    if (!database) {
+      return Response.json({ error: 'Database not available' }, { status: 500 })
+    }
+
+    // Since we can't easily query by JSON fields across the Database interface,
+    // we'll need to check actors one by one. This is not ideal for production
+    // but works for the MVP. In production, you'd want to add an index or
+    // a separate webhook_subscriptions table.
+    
+    // For now, we'll just return success and log that we need to implement this
+    // A proper implementation would require adding methods to query by settings
+    console.log('Received Strava webhook for:', webhookId)
+
+    const event: StravaWebhookEvent = await req.json()
+    console.log('Event:', event)
+
+    // Only process new activities
+    if (
+      event.object_type === 'activity' &&
+      event.aspect_type === 'create'
+    ) {
+      // TODO: Implement actor lookup by webhookId
+      // For now, this would need a custom query or a new database method
+      // We can implement this in a follow-up commit
+      console.log('Activity created:', event.object_id)
+    }
+
+    return Response.json({ success: true })
+  }
+)
