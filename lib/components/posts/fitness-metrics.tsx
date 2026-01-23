@@ -1,6 +1,6 @@
 'use client'
 
-import { Activity, Timer, TrendingUp, Zap } from 'lucide-react'
+import { Activity, Heart, Timer, TrendingUp, Zap } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 
 import { Card, CardContent } from '@/lib/components/ui/card'
@@ -145,7 +145,7 @@ export const FitnessMetrics: FC<FitnessMetricsProps> = ({ statusId }) => {
 
           {activity.averageWatts !== null && (
             <div className="flex items-center gap-2">
-              <Zap className="size-4 text-muted-foreground" />
+              <Heart className="size-4 text-muted-foreground" />
               <div>
                 <div className="text-muted-foreground text-xs">Avg Power</div>
                 <div className="font-semibold">

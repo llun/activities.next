@@ -5,13 +5,6 @@ import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-// Strava webhook validation interface (currently unused, but needed for future webhook verification)
-interface _StravaWebhookValidation {
-  'hub.mode': string
-  'hub.challenge': string
-  'hub.verify_token': string
-}
-
 interface StravaWebhookEvent {
   aspect_type: 'create' | 'update' | 'delete'
   event_time: number
@@ -135,13 +128,17 @@ async function refreshStravaToken(
   }
 }
 
+// Unit conversion constants
+const METERS_TO_KM = 1000
+const SECONDS_TO_MINUTES = 60
+
 function formatActivity(activity: StravaActivity): string {
-  const distance = (activity.distance / 1000).toFixed(2) // Convert to km
-  const duration = Math.floor(activity.moving_time / 60) // Convert to minutes
-  const hours = Math.floor(duration / 60)
-  const minutes = duration % 60
+  const distance = (activity.distance / METERS_TO_KM).toFixed(2) // Convert to km
+  const duration = Math.floor(activity.moving_time / SECONDS_TO_MINUTES) // Convert to minutes
+  const hours = Math.floor(duration / SECONDS_TO_MINUTES)
+  const minutes = duration % SECONDS_TO_MINUTES
   const pace = activity.average_speed
-    ? (1000 / 60 / activity.average_speed).toFixed(2)
+    ? (METERS_TO_KM / SECONDS_TO_MINUTES / activity.average_speed).toFixed(2)
     : null // min/km
 
   let text = `🏃 ${activity.name}\n\n`
@@ -213,7 +210,7 @@ async function createStatusFromActivity(
     actorId: actor.id,
     text,
     summary: null,
-    to: [`https://${actor.domain}/${actorId}/followers`],
+    to: [actor.followersUrl],
     cc: [],
     reply: ''
   })

@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import crypto from 'crypto'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
@@ -49,7 +50,8 @@ const Page = async ({ searchParams }: PageProps) => {
   const stravaIntegration = settings?.stravaIntegration || {}
 
   // Generate webhook URL with random ID if not already present
-  const webhookId = stravaIntegration.webhookId || Math.random().toString(36).substring(2, 15)
+  const webhookId =
+    stravaIntegration.webhookId || crypto.randomUUID().substring(0, 15)
   const host = process.env.ACTIVITIES_HOST || 'localhost:3000'
   const protocol = host.includes('localhost') ? 'http' : 'https'
   const webhookUrl = `${protocol}://${host}/api/webhooks/strava/${webhookId}`
