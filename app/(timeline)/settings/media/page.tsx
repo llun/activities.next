@@ -77,7 +77,15 @@ const Page = async ({
             url = `https://${mediaStorage.hostname}/${media.original.path}`
           } else {
             // Proxy through API with full path
-            url = `https://${host}/api/v1/files/${media.original.path}`
+            // Determine protocol based on host (http for localhost, https otherwise)
+            const protocol =
+              host.startsWith('localhost') ||
+              host.startsWith('127.0.0.1') ||
+              host.startsWith('::1') ||
+              host.startsWith('[::1]')
+                ? 'http'
+                : 'https'
+            url = `${protocol}://${host}/api/v1/files/${media.original.path}`
           }
         } else {
           // Local file storage - extract just the filename
