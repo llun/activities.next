@@ -12,6 +12,7 @@ interface BaseMedia {
     bytes: number
     mimeType: string
     metaData: MetaData
+    fileName?: string
   }
   thumbnail?: {
     path: string
