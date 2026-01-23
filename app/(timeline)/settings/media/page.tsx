@@ -72,7 +72,7 @@ const Page = async ({
           mediaStorage?.type === MediaStorageType.ObjectStorage ||
           mediaStorage?.type === MediaStorageType.S3Storage
         ) {
-          if ('hostname' in mediaStorage && mediaStorage.hostname) {
+          if (mediaStorage.hostname) {
             // Direct access via configured hostname
             url = `https://${mediaStorage.hostname}/${media.original.path}`
           } else {
