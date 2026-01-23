@@ -199,6 +199,9 @@ export function MediaManagement({
                 {medias.map((media) => {
                   const isVideo = media.mimeType.startsWith('video')
                   const isAudio = media.mimeType.startsWith('audio')
+                  const postLink = media.statusId
+                    ? getPostLink(media.actorId, media.statusId)
+                    : null
 
                   return (
                     <div
@@ -255,19 +258,16 @@ export function MediaManagement({
                         {media.description && (
                           <div className="text-sm">{media.description}</div>
                         )}
-                        {media.statusId && (() => {
-                          const postLink = getPostLink(media.actorId, media.statusId)
-                          return postLink ? (
-                            <div className="pt-1">
-                              <Link
-                                href={postLink}
-                                className="text-xs text-primary hover:underline"
-                              >
-                                View in post →
-                              </Link>
-                            </div>
-                          ) : null
-                        })()}
+                        {postLink && (
+                          <div className="pt-1">
+                            <Link
+                              href={postLink}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              View in post →
+                            </Link>
+                          </div>
+                        )}
                       </div>
 
                       {/* Delete Button */}
