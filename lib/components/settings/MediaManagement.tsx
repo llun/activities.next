@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -66,7 +66,7 @@ export function MediaManagement({
   const [mediaToDelete, setMediaToDelete] = useState<MediaItem | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const getPostLink = (actorId: string, statusId: string) => {
+  const getPostLink = useCallback((actorId: string, statusId: string) => {
     try {
       const actorMention = getMentionFromActorID(actorId, true)
       const encodedStatusId = encodeURIComponent(statusId)
@@ -75,7 +75,7 @@ export function MediaManagement({
       console.error('Error generating post link:', error)
       return null
     }
-  }
+  }, [])
 
   const handleDeleteClick = (media: MediaItem) => {
     setMediaToDelete(media)
