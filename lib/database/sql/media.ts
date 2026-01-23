@@ -152,11 +152,47 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     let itemsQuery = database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
       .leftJoin('attachments', function () {
-        this.on('medias.original', '=', 'attachments.url').orOn(
-          'medias.thumbnail',
-          '=',
-          'attachments.url'
-        )
+        // Match media with attachments using various URL formats:
+        // 1. Direct path match (for tests): attachments.url = medias.original
+        // 2. S3 URL match: extract path after '/api/v1/files/' from URL equals medias.original
+        // 3. Local file URL match: medias.original ends with '/' + filename from URL
+        this.on(function () {
+          // Case 1: Direct path match (original)
+          this.on('medias.original', '=', 'attachments.url')
+            // Case 2: S3 - extract path from URL and match exactly
+            .orOn(
+              'medias.original',
+              '=',
+              database.raw(
+                "CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + 14) ELSE NULL END"
+              )
+            )
+            // Case 3: Local - match if original path ends with /filename
+            .orOn(
+              database.raw('medias.original'),
+              'LIKE',
+              database.raw(
+                "CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN '%/' || SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + 14) ELSE NULL END"
+              )
+            )
+        }).orOn(function () {
+          // Same for thumbnail
+          this.on('medias.thumbnail', '=', 'attachments.url')
+            .orOn(
+              'medias.thumbnail',
+              '=',
+              database.raw(
+                "CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + 14) ELSE NULL END"
+              )
+            )
+            .orOn(
+              database.raw('medias.thumbnail'),
+              'LIKE',
+              database.raw(
+                "CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN '%/' || SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + 14) ELSE NULL END"
+              )
+            )
+        })
       })
       .where('actors.accountId', accountId)
       .distinct(
