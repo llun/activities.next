@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 const Page = async ({
   searchParams
 }: {
-  searchParams: { page?: string; limit?: string }
+  searchParams: Promise<{ page?: string; limit?: string }>
 }) => {
   const database = getDatabase()
   if (!database) {
@@ -30,15 +30,17 @@ const Page = async ({
     return redirect('/auth/signin')
   }
 
+  const params = await searchParams
+
   // Parse pagination parameters with defaults and validation
   const page = Math.max(
     1,
-    Math.min(10000, parseInt(searchParams.page || '1', 10))
+    Math.min(10000, parseInt(params.page || '1', 10))
   )
   const itemsPerPage = [25, 50, 100].includes(
-    parseInt(searchParams.limit || '25', 10)
+    parseInt(params.limit || '25', 10)
   )
-    ? parseInt(searchParams.limit || '25', 10)
+    ? parseInt(params.limit || '25', 10)
     : 25
 
   // Get storage usage and quota limit

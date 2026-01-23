@@ -33,6 +33,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       originalBytes: original.bytes,
       originalMimeType: original.mimeType,
       originalMetaData: JSON.stringify(original.metaData),
+      ...(original.fileName ? { originalFileName: original.fileName } : null),
       ...(thumbnail
         ? {
             thumbnail: thumbnail.path,
@@ -173,6 +174,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         'medias.originalBytes',
         'medias.originalMimeType',
         'medias.originalMetaData',
+        'medias.originalFileName',
         'medias.thumbnail',
         'medias.thumbnailBytes',
         'medias.thumbnailMimeType',
@@ -205,7 +207,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         path: item.original,
         bytes: Number(item.originalBytes),
         mimeType: item.originalMimeType,
-        metaData: getCompatibleJSON(item.originalMetaData)
+        metaData: getCompatibleJSON(item.originalMetaData),
+        ...(item.originalFileName ? { fileName: item.originalFileName } : {})
       },
       ...(item.thumbnail
         ? {
@@ -239,6 +242,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         'medias.originalBytes',
         'medias.originalMimeType',
         'medias.originalMetaData',
+        'medias.originalFileName',
         'medias.thumbnail',
         'medias.thumbnailBytes',
         'medias.thumbnailMimeType',
@@ -256,7 +260,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         path: data.original,
         bytes: Number(data.originalBytes),
         mimeType: data.originalMimeType,
-        metaData: getCompatibleJSON(data.originalMetaData)
+        metaData: getCompatibleJSON(data.originalMetaData),
+        ...(data.originalFileName ? { fileName: data.originalFileName } : {})
       },
       ...(data.thumbnail
         ? {
