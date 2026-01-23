@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
 import { Progress } from '@/lib/components/ui/progress'
+import { getMentionFromActorID } from '@/lib/models/actor'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
 interface MediaItem {
@@ -246,9 +247,7 @@ export function MediaManagement({
                         {media.statusId && (
                           <div className="pt-1">
                             <Link
-                              href={`/@${media.actorId.split('/').pop()}/statuses/${media.statusId
-                                .split('/')
-                                .pop()}`}
+                              href={`/${getMentionFromActorID(media.actorId, true)}/${encodeURIComponent(media.statusId)}`}
                               className="text-xs text-primary hover:underline"
                             >
                               View in post →
