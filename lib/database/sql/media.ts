@@ -152,13 +152,23 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .first()
 
     // Helper to extract path from attachment URL (everything after '/api/v1/files/')
+    // Use database-specific functions for string operations
+    const clientType = database.client.config.client
+    const isPostgres = clientType === 'pg' || clientType === 'postgres'
+    
+    // For PostgreSQL: POSITION(substring IN string), for SQLite: INSTR(string, substring)
+    const instrFunc = isPostgres
+      ? (str: string, search: string) => `POSITION('${search}' IN ${str})`
+      : (str: string, search: string) => `INSTR(${str}, '${search}')`
+    
+    // Both support SUBSTR with same syntax: SUBSTR(string, start)
     const extractPathFromUrl = database.raw(
-      `CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + ${API_FILES_PATH_LENGTH}) ELSE NULL END`
+      `CASE WHEN ${instrFunc('attachments.url', '/api/v1/files/')} > 0 THEN SUBSTR(attachments.url, ${instrFunc('attachments.url', '/api/v1/files/')} + ${API_FILES_PATH_LENGTH}) ELSE NULL END`
     )
 
     // Helper for matching path suffix (for local storage)
     const pathEndsWithExtractedFilename = database.raw(
-      `CASE WHEN INSTR(attachments.url, '/api/v1/files/') > 0 THEN '%/' || SUBSTR(attachments.url, INSTR(attachments.url, '/api/v1/files/') + ${API_FILES_PATH_LENGTH}) ELSE NULL END`
+      `CASE WHEN ${instrFunc('attachments.url', '/api/v1/files/')} > 0 THEN '%/' || SUBSTR(attachments.url, ${instrFunc('attachments.url', '/api/v1/files/')} + ${API_FILES_PATH_LENGTH}) ELSE NULL END`
     )
 
     // Then get the paginated items
