@@ -66,6 +66,17 @@ export function MediaManagement({
   const [mediaToDelete, setMediaToDelete] = useState<MediaItem | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  const getPostLink = (actorId: string, statusId: string) => {
+    try {
+      const actorMention = getMentionFromActorID(actorId, true)
+      const encodedStatusId = encodeURIComponent(statusId)
+      return `/${actorMention}/${encodedStatusId}`
+    } catch (error) {
+      console.error('Error generating post link:', error)
+      return null
+    }
+  }
+
   const handleDeleteClick = (media: MediaItem) => {
     setMediaToDelete(media)
     setDeleteDialogOpen(true)
@@ -244,16 +255,19 @@ export function MediaManagement({
                         {media.description && (
                           <div className="text-sm">{media.description}</div>
                         )}
-                        {media.statusId && (
-                          <div className="pt-1">
-                            <Link
-                              href={`/${getMentionFromActorID(media.actorId, true)}/${encodeURIComponent(media.statusId)}`}
-                              className="text-xs text-primary hover:underline"
-                            >
-                              View in post →
-                            </Link>
-                          </div>
-                        )}
+                        {media.statusId && (() => {
+                          const postLink = getPostLink(media.actorId, media.statusId)
+                          return postLink ? (
+                            <div className="pt-1">
+                              <Link
+                                href={postLink}
+                                className="text-xs text-primary hover:underline"
+                              >
+                                View in post →
+                              </Link>
+                            </div>
+                          ) : null
+                        })()}
                       </div>
 
                       {/* Delete Button */}
