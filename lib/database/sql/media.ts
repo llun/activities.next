@@ -161,9 +161,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         // because the full filesystem path isn't present in the URL. This is a limitation
         // of using database-agnostic queries without substring extraction.
         this.on('medias.original', '=', 'attachments.url')
-          .orOn(database.raw('attachments.url'), 'LIKE', database.raw("'%' || medias.original"))
-          .orOn('medias.thumbnail', '=', 'attachments.url')
-          .orOn(database.raw('attachments.url'), 'LIKE', database.raw("'%' || medias.thumbnail"))
+        this.orOn(database.raw("attachments.url LIKE '%' || medias.original"))
+        this.orOn('medias.thumbnail', '=', 'attachments.url')
+        this.orOn(database.raw("attachments.url LIKE '%' || medias.thumbnail"))
       })
       .where('actors.accountId', accountId)
       .distinct(
