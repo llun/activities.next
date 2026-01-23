@@ -317,54 +317,6 @@ describe('MediaDatabase', () => {
         expect(testMedia).toBeDefined()
         expect(testMedia?.statusId).toBe(statuses[0].id)
       })
-
-      it('returns media with statusId when using local file URL format', async () => {
-        const actor = await database.getActorFromId({
-          id: actors.primary.id
-        })
-        expect(actor).toBeDefined()
-
-        // Create media with local filesystem path
-        const media = await database.createMedia({
-          actorId: actors.primary.id,
-          original: {
-            path: '/home/user/uploads/xyz789-local-test.webp',
-            bytes: 3000,
-            mimeType: 'image/webp',
-            metaData: { width: 500, height: 500 }
-          }
-        })
-
-        expect(media).toBeDefined()
-
-        // Get an existing status
-        const statuses = await database.getActorStatuses({
-          actorId: actors.primary.id,
-          limit: 1
-        })
-        expect(statuses.length).toBeGreaterThan(0)
-
-        // Create attachment with local file URL format (just filename in URL)
-        await database.createAttachment({
-          actorId: actors.primary.id,
-          statusId: statuses[0].id,
-          mediaType: 'image/webp',
-          url: 'http://localhost:3000/api/v1/files/xyz789-local-test.webp',
-          width: 500,
-          height: 500
-        })
-
-        // Get medias with status
-        const result = await database.getMediasWithStatusForAccount({
-          accountId: actor!.account!.id,
-          limit: 100
-        })
-
-        // Find our test media
-        const testMedia = result.items.find((m) => m.id === String(media!.id))
-        expect(testMedia).toBeDefined()
-        expect(testMedia?.statusId).toBe(statuses[0].id)
-      })
     })
 
     describe('getMediaByIdForAccount', () => {

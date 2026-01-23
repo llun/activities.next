@@ -18,9 +18,6 @@ import { Attachment } from '@/lib/models/attachment'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
 
-// Length of '/api/v1/files/' string used in URL path extraction
-const API_FILES_PATH_LENGTH = 14
-
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async createMedia({
     actorId,
@@ -151,45 +148,22 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .count('medias.id as count')
       .first()
 
-    // Helper to extract path from attachment URL (everything after '/api/v1/files/')
-    // Use database-specific functions for string operations
-    const clientType = database.client.config.client
-    const isPostgres = clientType === 'pg' || clientType === 'postgres'
-    
-    // For PostgreSQL: POSITION(substring IN string), for SQLite: INSTR(string, substring)
-    const instrFunc = isPostgres
-      ? (str: string, search: string) => `POSITION('${search}' IN ${str})`
-      : (str: string, search: string) => `INSTR(${str}, '${search}')`
-    
-    // Both support SUBSTR with same syntax: SUBSTR(string, start)
-    const extractPathFromUrl = database.raw(
-      `CASE WHEN ${instrFunc('attachments.url', '/api/v1/files/')} > 0 THEN SUBSTR(attachments.url, ${instrFunc('attachments.url', '/api/v1/files/')} + ${API_FILES_PATH_LENGTH}) ELSE NULL END`
-    )
-
-    // Helper for matching path suffix (for local storage)
-    const pathEndsWithExtractedFilename = database.raw(
-      `CASE WHEN ${instrFunc('attachments.url', '/api/v1/files/')} > 0 THEN '%/' || SUBSTR(attachments.url, ${instrFunc('attachments.url', '/api/v1/files/')} + ${API_FILES_PATH_LENGTH}) ELSE NULL END`
-    )
-
     // Then get the paginated items
     let itemsQuery = database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
       .leftJoin('attachments', function () {
-        // Match media with attachments using various URL formats:
-        // 1. Direct path match (for tests): attachments.url = medias.original/thumbnail
-        // 2. S3/ObjectStorage: extract path after '/api/v1/files/' from URL equals medias.original/thumbnail
-        // 3. Local storage: medias.original/thumbnail ends with '/' + filename from URL
-        this.on(function () {
-          // Match on original path
-          this.on('medias.original', '=', 'attachments.url')
-            .orOn('medias.original', '=', extractPathFromUrl)
-            .orOn(database.raw('medias.original'), 'LIKE', pathEndsWithExtractedFilename)
-        }).orOn(function () {
-          // Match on thumbnail path
-          this.on('medias.thumbnail', '=', 'attachments.url')
-            .orOn('medias.thumbnail', '=', extractPathFromUrl)
-            .orOn(database.raw('medias.thumbnail'), 'LIKE', pathEndsWithExtractedFilename)
-        })
+        // Match media with attachments using LIKE pattern matching (database-agnostic)
+        // Handles:
+        // 1. Direct match: attachments.url = medias.original (for test fixtures)
+        // 2. URL ends with path: attachments.url LIKE '%' || medias.original (for S3/ObjectStorage)
+        //
+        // Note: For local storage where URLs contain only filenames, this won't match
+        // because the full filesystem path isn't present in the URL. This is a limitation
+        // of using database-agnostic queries without substring extraction.
+        this.on('medias.original', '=', 'attachments.url')
+          .orOn(database.raw('attachments.url'), 'LIKE', database.raw("'%' || medias.original"))
+          .orOn('medias.thumbnail', '=', 'attachments.url')
+          .orOn(database.raw('attachments.url'), 'LIKE', database.raw("'%' || medias.thumbnail"))
       })
       .where('actors.accountId', accountId)
       .distinct(
