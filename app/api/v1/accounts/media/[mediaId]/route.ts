@@ -88,10 +88,14 @@ export const DELETE = traceApiRoute(
       const { mediaId } = (await params) ?? { mediaId: undefined }
       const account = currentActor?.account
 
-      return {
-        mediaId,
-        accountId: account?.id
+      const attributes: Record<string, string | number | boolean> = {}
+      if (mediaId) {
+        attributes.mediaId = mediaId
       }
+      if (account?.id) {
+        attributes.accountId = account.id
+      }
+      return attributes
     }
   }
 )

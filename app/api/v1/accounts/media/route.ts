@@ -70,11 +70,14 @@ export const GET = traceApiRoute(
         ? parseInt(limitParam || '25', 10)
         : 25
 
-      return {
-        accountId: account?.id,
+      const attributes: Record<string, string | number | boolean> = {
         page,
         limit
       }
+      if (account?.id) {
+        attributes.accountId = account.id
+      }
+      return attributes
     }
   }
 )

@@ -200,19 +200,18 @@ export const POST = traceApiRoute(
   }),
   {
     addAttributes: async (req) => {
+      const attributes: Record<string, string | number | boolean> = {}
       try {
         const body = await req.clone().json()
         const parsed = DeleteActorRequest.safeParse(body)
         if (parsed.success) {
-          return {
-            actorId: parsed.data.actorId,
-            delayDays: parsed.data.delayDays ?? 0
-          }
+          attributes.actorId = parsed.data.actorId
+          attributes.delayDays = parsed.data.delayDays ?? 0
         }
       } catch {
         // Ignore parsing errors for attributes
       }
-      return {}
+      return attributes
     }
   }
 )
