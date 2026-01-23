@@ -14,6 +14,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { FollowRequest } from './types'
 
@@ -26,7 +27,7 @@ const CORS_HEADERS = [
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = AuthenticatedGuard(async (req, context) => {
+export const GET = traceApiRoute('getFollowFromUrl', AuthenticatedGuard(async (req, context) => {
   const { database, currentActor } = context
   const params = new URL(req.url).searchParams
   const targetActorId = params.get('targetActorId')
@@ -37,9 +38,9 @@ export const GET = AuthenticatedGuard(async (req, context) => {
     targetActorId: targetActorId as string
   })
   return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { follow } })
-})
+}))
 
-export const POST = AuthenticatedGuard(async (req, context) => {
+export const POST = traceApiRoute('followAccountFromUrl', AuthenticatedGuard(async (req, context) => {
   const { database, currentActor } = context
   const body = await req.json()
   const { target } = FollowRequest.parse(body)
@@ -59,9 +60,9 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     data: DEFAULT_202,
     responseStatusCode: HTTP_STATUS.ACCEPTED
   })
-})
+}))
 
-export const DELETE = AuthenticatedGuard(async (req, context) => {
+export const DELETE = traceApiRoute('unfollowAccountFromUrl', AuthenticatedGuard(async (req, context) => {
   const { database, currentActor } = context
   const body = await req.json()
   const { target } = FollowRequest.parse(body)
@@ -83,4 +84,4 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
     data: DEFAULT_202,
     responseStatusCode: HTTP_STATUS.ACCEPTED
   })
-})
+}))

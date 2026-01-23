@@ -8,12 +8,13 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = AuthenticatedGuard<{ id: string }>(
+export const POST = traceApiRoute('rejectFollowRequest', AuthenticatedGuard<{ id: string }>(
   async (req, { currentActor, database, params }) => {
     if (!database) {
       return apiErrorResponse(500)
@@ -78,4 +79,4 @@ export const POST = AuthenticatedGuard<{ id: string }>(
       data: relationship
     })
   }
-)
+))

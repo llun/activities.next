@@ -8,6 +8,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +16,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = async (req: NextRequest) => {
+export const GET = traceApiRoute('webfinger', async (req: NextRequest) => {
   const url = new URL(req.url)
   const resource = url.searchParams.get('resource')
   if (!resource) return apiErrorResponse(404)
@@ -36,4 +37,4 @@ export const GET = async (req: NextRequest) => {
     allowedMethods: CORS_HEADERS,
     data: response
   })
-}
+})

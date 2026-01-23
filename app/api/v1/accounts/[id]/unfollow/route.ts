@@ -9,6 +9,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -19,40 +20,49 @@ interface Params {
   id: string
 }
 
-export const POST = OAuthGuard<Params>(
-  [Scope.enum.write],
-  async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedAccountId = (await params).id
-    if (!encodedAccountId) return apiErrorResponse(400)
+export const POST = traceApiRoute(
+  'unfollowAccount',
+  OAuthGuard<Params>(
+    [Scope.enum.write],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedAccountId = (await params).id
+      if (!encodedAccountId) return apiErrorResponse(400)
 
-    const targetActorId = idToUrl(encodedAccountId)
+      const targetActorId = idToUrl(encodedAccountId)
 
-    const existingFollow = await database.getAcceptedOrRequestedFollow({
-      actorId: currentActor.id,
-      targetActorId
-    })
+      const existingFollow = await database.getAcceptedOrRequestedFollow({
+        actorId: currentActor.id,
+        targetActorId
+      })
 
-    if (existingFollow) {
-      await Promise.all([
-        unfollow(currentActor, existingFollow),
-        database.updateFollowStatus({
-          followId: existingFollow.id,
-          status: FollowStatus.enum.Undo
-        })
-      ])
+      if (existingFollow) {
+        await Promise.all([
+          unfollow(currentActor, existingFollow),
+          database.updateFollowStatus({
+            followId: existingFollow.id,
+            status: FollowStatus.enum.Undo
+          })
+        ])
+      }
+
+      const relationship = await getRelationship({
+        database,
+        currentActor,
+        targetActorId
+      })
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: relationship
+      })
     }
-
-    const relationship = await getRelationship({
-      database,
-      currentActor,
-      targetActorId
-    })
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: relationship
-    })
+  ),
+  {
+    addAttributes: async (_req, context) => {
+      const params = await context.params
+      return { accountId: params?.id || 'unknown' }
+    }
   }
 )

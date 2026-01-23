@@ -12,6 +12,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 interface Params {
@@ -27,7 +28,7 @@ const CORS_HEADERS = [
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = OAuthGuard<Params>(
+export const GET = traceApiRoute('getStatus', OAuthGuard<Params>(
   [Scope.enum.read],
   async (req, context) => {
     const { database, currentActor, params } = context
@@ -51,14 +52,14 @@ export const GET = OAuthGuard<Params>(
       data: mastodonStatus
     })
   }
-)
+))
 
 const EditNoteSchema = z.object({
   status: z.string(),
   spoiler_text: z.string().optional()
 })
 
-export const PUT = OAuthGuard<Params>(
+export const PUT = traceApiRoute('updateStatus', OAuthGuard<Params>(
   [Scope.enum.write],
   async (req, context) => {
     const { params } = context
@@ -94,9 +95,9 @@ export const PUT = OAuthGuard<Params>(
       data: mastodonStatus
     })
   }
-)
+))
 
-export const DELETE = OAuthGuard<Params>(
+export const DELETE = traceApiRoute('deleteStatus', OAuthGuard<Params>(
   [Scope.enum.write],
   async (req, context) => {
     const { database, currentActor, params } = context
@@ -132,4 +133,4 @@ export const DELETE = OAuthGuard<Params>(
       data: mastodonStatus ?? {}
     })
   }
-)
+))

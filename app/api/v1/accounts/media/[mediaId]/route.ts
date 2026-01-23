@@ -1,39 +1,29 @@
-import { SpanStatusCode } from '@opentelemetry/api'
-
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
-import { getSpan } from '@/lib/utils/trace'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 interface Params {
   mediaId: string
 }
 
-export const DELETE = AuthenticatedGuard<Params>(async (_req, context) => {
-  const span = getSpan('api', 'deleteMedia')
-
-  try {
+export const DELETE = traceApiRoute(
+  'deleteMedia',
+  AuthenticatedGuard<Params>(async (_req, context) => {
     const { database, currentActor, params } = context
     const { mediaId } = (await params) ?? { mediaId: undefined }
 
     const account = currentActor.account
     if (!account) {
       logger.warn({ message: 'Unauthorized delete media request - no account' })
-      span.setStatus({ code: SpanStatusCode.ERROR, message: 'Unauthorized' })
-      span.end()
       return apiErrorResponse(401)
     }
 
     if (!mediaId) {
       logger.warn({ message: 'Bad request - missing mediaId' })
-      span.setStatus({ code: SpanStatusCode.ERROR, message: 'Missing mediaId' })
-      span.end()
       return apiErrorResponse(400)
     }
-
-    span.setAttribute('mediaId', mediaId)
-    span.setAttribute('accountId', account.id)
 
     // Verify the media belongs to an actor in this account
     const media = await database.getMediaByIdForAccount({
@@ -47,11 +37,6 @@ export const DELETE = AuthenticatedGuard<Params>(async (_req, context) => {
         mediaId,
         accountId: account.id
       })
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: 'Media not found'
-      })
-      span.end()
       return apiErrorResponse(404)
     }
 
@@ -86,11 +71,6 @@ export const DELETE = AuthenticatedGuard<Params>(async (_req, context) => {
         mediaId,
         accountId: account.id
       })
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: 'Failed to delete media'
-      })
-      span.end()
       return apiErrorResponse(500)
     }
 
@@ -99,22 +79,23 @@ export const DELETE = AuthenticatedGuard<Params>(async (_req, context) => {
       mediaId,
       accountId: account.id
     })
-    span.setStatus({ code: SpanStatusCode.OK })
-    span.end()
 
     return Response.json({ success: true })
-  } catch (e) {
-    const nodeErr = e as NodeJS.ErrnoException
-    logger.error({
-      message: 'Failed to delete media',
-      err: nodeErr
-    })
-    span.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: 'Failed to delete media'
-    })
-    span.recordException(nodeErr)
-    span.end()
-    return apiErrorResponse(500)
+  }),
+  {
+    addAttributes: async (_req, context) => {
+      const { currentActor, params } = context as any
+      const { mediaId } = (await params) ?? { mediaId: undefined }
+      const account = currentActor?.account
+
+      const attributes: Record<string, string | number | boolean> = {}
+      if (mediaId) {
+        attributes.mediaId = mediaId
+      }
+      if (account?.id) {
+        attributes.accountId = account.id
+      }
+      return attributes
+    }
   }
-})
+)

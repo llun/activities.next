@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const ProfileRequest = z.object({
   name: z.string().optional(),
@@ -18,7 +19,7 @@ const ProfileRequest = z.object({
   sharedInboxUrl: z.string().optional()
 })
 
-export const POST = AuthenticatedGuard(async (req, context) => {
+export const POST = traceApiRoute('updateProfile', AuthenticatedGuard(async (req, context) => {
   const { currentActor, database } = context
   const body = await req.formData()
   const json = Object.fromEntries(body.entries())
@@ -50,4 +51,4 @@ export const POST = AuthenticatedGuard(async (req, context) => {
   const host = headerHost(req.headers)
   const url = new URL('/settings', `https://${host}`)
   return Response.redirect(url.toString(), 307)
-})
+}))

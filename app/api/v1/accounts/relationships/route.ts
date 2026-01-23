@@ -6,13 +6,14 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = OAuthGuard([Scope.enum.read], async (req, context) => {
+export const GET = traceApiRoute('getAccountRelationships', OAuthGuard([Scope.enum.read], async (req, context) => {
   const { database, currentActor } = context
 
   // Get account IDs from query parameters
@@ -91,4 +92,4 @@ export const GET = OAuthGuard([Scope.enum.read], async (req, context) => {
     allowedMethods: CORS_HEADERS,
     data: relationships.filter(Boolean)
   })
-})
+}))

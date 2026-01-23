@@ -14,6 +14,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { DeleteStatusRequest, PostRequest } from './types'
 
@@ -25,7 +26,7 @@ const CORS_HEADERS = [
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = AuthenticatedGuard(async (req, context) => {
+export const POST = traceApiRoute('getAccountOutbox', AuthenticatedGuard(async (req, context) => {
   const { currentActor, database } = context
   const body = await req.json()
   try {
@@ -60,9 +61,9 @@ export const POST = AuthenticatedGuard(async (req, context) => {
     logger.error(nodeError)
     return apiErrorResponse(400)
   }
-})
+}))
 
-export const DELETE = AuthenticatedGuard(async (req, context) => {
+export const DELETE = traceApiRoute('deleteAccountOutbox', AuthenticatedGuard(async (req, context) => {
   const { currentActor, database } = context
   const body = await req.json()
   try {
@@ -76,4 +77,4 @@ export const DELETE = AuthenticatedGuard(async (req, context) => {
   } catch {
     return apiErrorResponse(400)
   }
-})
+}))

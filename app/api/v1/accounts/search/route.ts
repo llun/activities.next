@@ -9,6 +9,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -28,7 +29,7 @@ const SearchParams = z.object({
     .optional()
 })
 
-export const GET = OAuthGuard([Scope.enum.read], async (req, context) => {
+export const GET = traceApiRoute('searchAccounts', OAuthGuard([Scope.enum.read], async (req, context) => {
   const { database } = context
 
   const url = new URL(req.url)
@@ -86,4 +87,4 @@ export const GET = OAuthGuard([Scope.enum.read], async (req, context) => {
     allowedMethods: CORS_HEADERS,
     data: results.slice(0, limit)
   })
-})
+}))

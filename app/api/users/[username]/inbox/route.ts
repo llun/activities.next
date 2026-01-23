@@ -17,13 +17,16 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const Activity = z.union([Accept, Reject, Follow, Like, Undo])
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = OnlyLocalUserGuard(async (database, _, req) => {
+export const POST = traceApiRoute(
+  'actorInbox',
+  OnlyLocalUserGuard(async (database, _, req) => {
   try {
     const activity = Activity.parse(await req.json())
     switch (activity.type) {
@@ -128,3 +131,4 @@ export const POST = OnlyLocalUserGuard(async (database, _, req) => {
     return apiErrorResponse(400)
   }
 })
+)

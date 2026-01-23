@@ -6,13 +6,15 @@ import {
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { apiErrorResponse } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 type StatusParams = OnlyLocalUserGuardHandle & {
   statusId: string
 }
 
-export const GET = OnlyLocalUserGuard(
-  async (database, actor, req, query: unknown) => {
+export const GET = traceApiRoute(
+  'getActorStatus',
+  OnlyLocalUserGuard(async (database, actor, req, query: unknown) => {
     const { statusId } = await (query as AppRouterParams<StatusParams>).params
     const id = `${actor.id}/statuses/${statusId}`
     const status = await database.getStatus({ statusId: id, withReplies: true })
@@ -39,5 +41,5 @@ export const GET = OnlyLocalUserGuard(
     return Response.redirect(
       `https://${status.actor?.domain}/@${actor.username}/${statusId}`
     )
-  }
+  })
 )

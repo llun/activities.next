@@ -4,8 +4,11 @@ import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const GET = OnlyLocalUserGuard(async (database, actor, req) => {
+export const GET = traceApiRoute(
+  'getActorOutbox',
+  OnlyLocalUserGuard(async (database, actor, req) => {
   const url = new URL(req.url)
   const pageParam = url.searchParams.get('page')
   if (!pageParam) {
@@ -53,3 +56,4 @@ export const GET = OnlyLocalUserGuard(async (database, actor, req) => {
     orderedItems: items
   })
 })
+)
