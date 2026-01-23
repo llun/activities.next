@@ -65,6 +65,18 @@ interface StravaActivity {
   }
 }
 
+interface StravaPhoto {
+  unique_id: string
+  urls: {
+    '100': string
+    '600': string
+  }
+  created_at: string
+  uploaded_at: string
+  caption?: string
+  location?: [number, number]
+}
+
 // Helper function to fetch activity details from Strava API
 async function getStravaActivity(
   activityId: number,
@@ -90,6 +102,59 @@ async function getStravaActivity(
     console.error('Error fetching Strava activity:', error)
     return null
   }
+}
+
+// Helper function to fetch activity photos from Strava API
+async function getStravaActivityPhotos(
+  activityId: number,
+  accessToken: string
+): Promise<StravaPhoto[]> {
+  try {
+    const response = await fetch(
+      `https://www.strava.com/api/v3/activities/${activityId}/photos?photo_sources=true&size=600`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      console.error('Failed to fetch Strava photos:', response.status)
+      return []
+    }
+
+    const data = await response.json() as StravaPhoto[]
+    return data || []
+  } catch (error) {
+    console.error('Error fetching Strava photos:', error)
+    return []
+  }
+}
+
+// Helper function to generate static map URL from polyline
+// Uses Google Static Maps API - can be configured via environment variable
+function generateRouteMapUrl(
+  polyline: string,
+  width: number = 600,
+  height: number = 400
+): string {
+  // Encode polyline for URL
+  const encodedPolyline = encodeURIComponent(polyline)
+  
+  // Use Google Static Maps API with encoded polyline
+  // In production, you should use an API key from environment variable
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || ''
+  const baseUrl = 'https://maps.googleapis.com/maps/api/staticmap'
+  
+  const params = new URLSearchParams({
+    size: `${width}x${height}`,
+    path: `enc:${encodedPolyline}`,
+    maptype: 'roadmap',
+    ...(apiKey && { key: apiKey })
+  })
+  
+  return `${baseUrl}?${params.toString()}`
 }
 
 // Helper function to refresh Strava OAuth tokens
@@ -177,7 +242,8 @@ function formatActivity(activity: StravaActivity): string {
 async function createStatusFromActivity(
   actorId: string,
   activity: StravaActivity,
-  database: Database
+  database: Database,
+  accessToken: string
 ) {
   const actor = await database.getActorFromId({ id: actorId })
   if (!actor) {
@@ -246,7 +312,53 @@ async function createStatusFromActivity(
     rawData: activity
   })
 
-  // TODO: Handle route images and photos as attachments
+  // Create attachments for route map and photos
+  const attachmentPromises: Promise<unknown>[] = []
+
+  // Add route map as attachment if polyline exists and activity is outdoor
+  if (
+    activity.map?.summary_polyline &&
+    !activity.trainer &&
+    activity.start_latlng
+  ) {
+    const routeMapUrl = generateRouteMapUrl(activity.map.summary_polyline)
+    attachmentPromises.push(
+      database.createAttachment({
+        actorId: actor.id,
+        statusId,
+        mediaType: 'image/png',
+        url: routeMapUrl,
+        width: 600,
+        height: 400,
+        name: 'Route Map'
+      })
+    )
+  }
+
+  // Fetch and add activity photos as attachments
+  if (activity.photo_count > 0) {
+    const photos = await getStravaActivityPhotos(activity.id, accessToken)
+    for (const photo of photos) {
+      // Use the 600px version of the photo
+      const photoUrl = photo.urls['600']
+      if (photoUrl) {
+        attachmentPromises.push(
+          database.createAttachment({
+            actorId: actor.id,
+            statusId,
+            mediaType: 'image/jpeg',
+            url: photoUrl,
+            name: photo.caption || undefined
+          })
+        )
+      }
+    }
+  }
+
+  // Wait for all attachments to be created
+  if (attachmentPromises.length > 0) {
+    await Promise.all(attachmentPromises)
+  }
 
   return statusId
 }
@@ -343,7 +455,7 @@ export const POST = traceApiRoute(
       if (accessToken) {
         const activity = await getStravaActivity(event.object_id, accessToken)
         if (activity) {
-          await createStatusFromActivity(actor.id, activity, database)
+          await createStatusFromActivity(actor.id, activity, database, accessToken)
         }
       }
     }
