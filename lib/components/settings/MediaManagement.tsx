@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
 import { Progress } from '@/lib/components/ui/progress'
+import { getMentionFromActorID } from '@/lib/models/actor'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
 interface MediaItem {
@@ -65,6 +66,16 @@ export function MediaManagement({
   const [mediaToDelete, setMediaToDelete] = useState<MediaItem | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  const getPostLink = useCallback((actorId: string, statusId: string) => {
+    try {
+      const actorMention = getMentionFromActorID(actorId, true)
+      const encodedStatusId = encodeURIComponent(statusId)
+      return `/${actorMention}/${encodedStatusId}`
+    } catch {
+      return null
+    }
+  }, [])
+
   const handleDeleteClick = (media: MediaItem) => {
     setMediaToDelete(media)
     setDeleteDialogOpen(true)
@@ -88,11 +99,9 @@ export function MediaManagement({
         setCurrentUsed(currentUsed - mediaToDelete.bytes)
         setDeleteDialogOpen(false)
         setMediaToDelete(null)
-      } else {
-        console.error('Failed to delete media')
       }
-    } catch (error) {
-      console.error('Error deleting media:', error)
+    } catch {
+      // Silently fail on network errors or API failures - user will see media is still present
     } finally {
       setDeleting(false)
     }
@@ -187,6 +196,9 @@ export function MediaManagement({
                 {medias.map((media) => {
                   const isVideo = media.mimeType.startsWith('video')
                   const isAudio = media.mimeType.startsWith('audio')
+                  const postLink = media.statusId
+                    ? getPostLink(media.actorId, media.statusId)
+                    : null
 
                   return (
                     <div
@@ -243,12 +255,10 @@ export function MediaManagement({
                         {media.description && (
                           <div className="text-sm">{media.description}</div>
                         )}
-                        {media.statusId && (
+                        {postLink && (
                           <div className="pt-1">
                             <Link
-                              href={`/@${media.actorId.split('/').pop()}/statuses/${media.statusId
-                                .split('/')
-                                .pop()}`}
+                              href={postLink}
                               className="text-xs text-primary hover:underline"
                             >
                               View in post →
