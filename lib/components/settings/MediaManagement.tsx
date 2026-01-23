@@ -71,8 +71,7 @@ export function MediaManagement({
       const actorMention = getMentionFromActorID(actorId, true)
       const encodedStatusId = encodeURIComponent(statusId)
       return `/${actorMention}/${encodedStatusId}`
-    } catch (error) {
-      console.error('Error generating post link:', error)
+    } catch {
       return null
     }
   }, [])
@@ -100,11 +99,9 @@ export function MediaManagement({
         setCurrentUsed(currentUsed - mediaToDelete.bytes)
         setDeleteDialogOpen(false)
         setMediaToDelete(null)
-      } else {
-        console.error('Failed to delete media')
       }
-    } catch (error) {
-      console.error('Error deleting media:', error)
+    } catch {
+      // Silently fail - user will see media is still present
     } finally {
       setDeleting(false)
     }
