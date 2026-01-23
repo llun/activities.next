@@ -10,7 +10,7 @@ import { format } from 'date-fns'
 import fs from 'fs/promises'
 import { IncomingMessage } from 'http'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { join, extname } from 'path'
 import sharp from 'sharp'
 
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
@@ -137,15 +137,13 @@ export class S3FileStorage implements MediaStorage {
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
 
-    const finalFileName = fileName.endsWith('.mov')
-      ? `${fileName.split('.')[0]}.mp4`
-      : fileName
+    const ext = fileName.endsWith('.mov') ? '.mp4' : path.extname(fileName)
     const mimeType =
       presignedMedia.contentType === 'video/quicktime'
         ? 'video/mp4'
         : presignedMedia.contentType
 
-    const key = `medias/${timeDirectory}/${randomPrefix}-${finalFileName}`
+    const key = `medias/${timeDirectory}/${randomPrefix}${ext}`
     const { url, fields } = await createPresignedPost(this._client, {
       Bucket: bucket,
       Key: key,
@@ -166,7 +164,8 @@ export class S3FileStorage implements MediaStorage {
         metaData: {
           width: presignedMedia.width ?? 0,
           height: presignedMedia.height ?? 0
-        }
+        },
+        fileName
       }
     })
     if (!storedMedia) {
@@ -234,7 +233,8 @@ export class S3FileStorage implements MediaStorage {
           metaData: {
             width: metaData.width ?? 0,
             height: metaData.height ?? 0
-          }
+          },
+          fileName: file.name
         },
         thumbnail: {
           path: thumbnail.path,
@@ -263,7 +263,8 @@ export class S3FileStorage implements MediaStorage {
         metaData: {
           width: metaData.width ?? 0,
           height: metaData.height ?? 0
-        }
+        },
+        fileName: file.name
       },
       ...(media.description ? { description: media.description } : null)
     })
@@ -357,10 +358,8 @@ export class S3FileStorage implements MediaStorage {
     const { bucket } = this._config
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-    const fileName = file.name.endsWith('.mov')
-      ? `${file.name.split('.')[0]}.mp4`
-      : file.name
-    const path = `medias/${timeDirectory}/${randomPrefix}-${fileName}`
+    const ext = file.name.endsWith('.mov') ? '.mp4' : extname(file.name)
+    const path = `medias/${timeDirectory}/${randomPrefix}${ext}`
     const s3client = this._client
     const command = new PutObjectCommand({
       Bucket: bucket,
