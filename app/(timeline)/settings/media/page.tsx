@@ -4,8 +4,6 @@ import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { MediaManagement } from '@/lib/components/settings/MediaManagement'
-import { getConfig } from '@/lib/config'
-import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { getDatabase } from '@/lib/database'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -56,42 +54,13 @@ const Page = async ({
     page
   })
 
-  // Get config to determine media storage type and construct proper URLs
-  const config = getConfig()
-  const { mediaStorage, host } = config
-
   return (
     <MediaManagement
       used={used}
       limit={limit}
       medias={result.items.map((media) => {
-        // For Object Storage with hostname configured, use direct URL
-        // Otherwise use the API endpoint with full path
-        let url: string
-        if (
-          mediaStorage?.type === MediaStorageType.ObjectStorage ||
-          mediaStorage?.type === MediaStorageType.S3Storage
-        ) {
-          if (mediaStorage.hostname) {
-            // Direct access via configured hostname
-            url = `https://${mediaStorage.hostname}/${media.original.path}`
-          } else {
-            // Proxy through API with full path
-            // Determine protocol based on host (http for localhost, https otherwise)
-            const protocol =
-              host.startsWith('localhost') ||
-              host.startsWith('127.0.0.1') ||
-              host.startsWith('::1') ||
-              host.startsWith('[::1]')
-                ? 'http'
-                : 'https'
-            url = `${protocol}://${host}/api/v1/files/${media.original.path}`
-          }
-        } else {
-          // Local file storage - extract just the filename
-          const filename = media.original.path.split('/').pop()
-          url = `/api/v1/files/${filename}`
-        }
+        // Use full path for the URL to support Object Storage keys
+        const url = `/api/v1/files/${media.original.path}`
         return {
           id: media.id,
           actorId: media.actorId,
