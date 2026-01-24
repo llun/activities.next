@@ -6,6 +6,7 @@ import { getConfig } from '@/lib/config'
 import { sendMail } from '@/lib/services/email'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
+import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const EmailChangeRequest = z.object({
@@ -18,7 +19,12 @@ export const POST = traceApiRoute(
     const { currentActor, database } = context
 
     if (!currentActor.account) {
-      return Response.json({ error: 'Account not found' }, { status: 404 })
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'Account not found' },
+        responseStatusCode: 404
+      })
     }
 
     try {
@@ -30,10 +36,12 @@ export const POST = traceApiRoute(
         email: newEmail
       })
       if (existingAccount && existingAccount.id !== currentActor.account.id) {
-        return Response.json(
-          { error: 'Email already in use' },
-          { status: 400 }
-        )
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Email already in use' },
+          responseStatusCode: 400
+        })
       }
 
       // Generate verification code
@@ -67,10 +75,12 @@ export const POST = traceApiRoute(
           })
         } catch (error) {
           logger.error({ to: newEmail }, 'Failed to send email verification')
-          return Response.json(
-            { error: 'Failed to send verification email' },
-            { status: 500 }
-          )
+          return apiResponse({
+            req,
+            allowedMethods: [],
+            data: { error: 'Failed to send verification email' },
+            responseStatusCode: 500
+          })
         }
       } else {
         // No email config - log code in development for testing
@@ -83,32 +93,43 @@ export const POST = traceApiRoute(
           )
         } else {
           // In production without email config, we cannot complete the flow
-          return Response.json(
-            {
+          return apiResponse({
+            req,
+            allowedMethods: [],
+            data: {
               error:
                 'Email service not configured. Please contact administrator.'
             },
-            { status: 503 }
-          )
+            responseStatusCode: 500
+          })
         }
       }
 
-      return Response.json({
-        success: true,
-        message: 'Verification email sent'
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: {
+          success: true,
+          message: 'Verification email sent'
+        },
+        responseStatusCode: 200
       })
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return Response.json(
-          { error: 'Invalid email address' },
-          { status: 400 }
-        )
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Invalid email address' },
+          responseStatusCode: 400
+        })
       }
       console.error('Email change request error:', error)
-      return Response.json(
-        { error: 'Failed to request email change' },
-        { status: 500 }
-      )
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'Failed to request email change' },
+        responseStatusCode: 500
+      })
     }
   })
 )

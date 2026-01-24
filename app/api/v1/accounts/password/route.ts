@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt'
 import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PasswordChangeRequest = z.object({
@@ -15,14 +16,21 @@ export const POST = traceApiRoute(
     const { currentActor, database } = context
 
     if (!currentActor.account) {
-      return Response.json({ error: 'Account not found' }, { status: 404 })
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'Account not found' },
+        responseStatusCode: 404
+      })
     }
 
     if (!currentActor.account.passwordHash) {
-      return Response.json(
-        { error: 'Password not set for this account' },
-        { status: 400 }
-      )
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'Password not set for this account' },
+        responseStatusCode: 400
+      })
     }
 
     try {
@@ -36,10 +44,12 @@ export const POST = traceApiRoute(
       )
 
       if (!isPasswordCorrect) {
-        return Response.json(
-          { error: 'Current password is incorrect' },
-          { status: 400 }
-        )
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Current password is incorrect' },
+          responseStatusCode: 400
+        })
       }
 
       // Hash new password
@@ -51,22 +61,31 @@ export const POST = traceApiRoute(
         newPasswordHash
       })
 
-      return Response.json({
-        success: true,
-        message: 'Password changed successfully'
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: {
+          success: true,
+          message: 'Password changed successfully'
+        },
+        responseStatusCode: 200
       })
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return Response.json(
-          { error: 'Invalid password format' },
-          { status: 400 }
-        )
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Invalid password format' },
+          responseStatusCode: 400
+        })
       }
       console.error('Password change error:', error)
-      return Response.json(
-        { error: 'Failed to change password' },
-        { status: 500 }
-      )
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'Failed to change password' },
+        responseStatusCode: 500
+      })
     }
   })
 )

@@ -353,6 +353,16 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
               verifiedAt: sqlAccount.verifiedAt
                 ? getCompatibleTime(sqlAccount.verifiedAt)
                 : null
+            },
+            ...{
+              emailVerifiedAt: sqlAccount.emailVerifiedAt
+                ? getCompatibleTime(sqlAccount.emailVerifiedAt)
+                : null
+            },
+            ...{
+              emailChangeCodeExpiresAt: sqlAccount.emailChangeCodeExpiresAt
+                ? getCompatibleTime(sqlAccount.emailChangeCodeExpiresAt)
+                : null
             }
           })
         }

@@ -104,6 +104,16 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       ...(account.verifiedAt
         ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
         : null),
+      ...(account.emailVerifiedAt
+        ? { emailVerifiedAt: getCompatibleTime(account.emailVerifiedAt) }
+        : null),
+      ...(account.emailChangeCodeExpiresAt
+        ? {
+            emailChangeCodeExpiresAt: getCompatibleTime(
+              account.emailChangeCodeExpiresAt
+            )
+          }
+        : null),
       createdAt: getCompatibleTime(account.createdAt),
       updatedAt: getCompatibleTime(account.updatedAt)
     }
@@ -118,6 +128,16 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       ...account,
       ...(account.verifiedAt
         ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
+        : null),
+      ...(account.emailVerifiedAt
+        ? { emailVerifiedAt: getCompatibleTime(account.emailVerifiedAt) }
+        : null),
+      ...(account.emailChangeCodeExpiresAt
+        ? {
+            emailChangeCodeExpiresAt: getCompatibleTime(
+              account.emailChangeCodeExpiresAt
+            )
+          }
         : null),
       createdAt: getCompatibleTime(account.createdAt),
       updatedAt: getCompatibleTime(account.updatedAt)
@@ -139,6 +159,16 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       ...account,
       ...(account.verifiedAt
         ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
+        : null),
+      ...(account.emailVerifiedAt
+        ? { emailVerifiedAt: getCompatibleTime(account.emailVerifiedAt) }
+        : null),
+      ...(account.emailChangeCodeExpiresAt
+        ? {
+            emailChangeCodeExpiresAt: getCompatibleTime(
+              account.emailChangeCodeExpiresAt
+            )
+          }
         : null),
       createdAt: getCompatibleTime(account.createdAt),
       updatedAt: getCompatibleTime(account.updatedAt)
