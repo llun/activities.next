@@ -195,7 +195,8 @@ CREATE TABLE
             "thumbnailBytes" bigint,
             "thumbnailMimeType" character varying(255),
             "originalMetaData" jsonb,
-            "thumbnailMetaData" jsonb
+            "thumbnailMetaData" jsonb,
+            "originalFileName" character varying(255)
     );
 CREATE SEQUENCE public.medias_id_seq AS integer
 START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
