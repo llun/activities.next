@@ -7,6 +7,7 @@ import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getActorProfile } from '@/lib/models/actor'
+import { FollowStatus } from '@/lib/models/follow'
 import { StatusType } from '@/lib/models/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -107,15 +108,18 @@ const Page: FC<Props> = async ({ params }) => {
       return notFound()
     }
 
-    // Check if the current user follows the post owner (only accepted follows)
-    const follow = await database.getAcceptedOrRequestedFollow({
-      actorId: currentActor.id,
-      targetActorId: status.actorId
-    })
+    // Authors can always see their own non-public statuses
+    if (currentActor.id !== status.actorId) {
+      // Check if the current user follows the post owner (only accepted follows)
+      const follow = await database.getAcceptedOrRequestedFollow({
+        actorId: currentActor.id,
+        targetActorId: status.actorId
+      })
 
-    // Only accepted follows grant access to private posts
-    if (!follow || follow.status !== 'Accepted') {
-      return notFound()
+      // Only accepted follows grant access to private posts
+      if (!follow || follow.status !== FollowStatus.enum.Accepted) {
+        return notFound()
+      }
     }
   }
 
