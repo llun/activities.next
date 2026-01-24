@@ -14,9 +14,10 @@ const Layout: FC<Props> = ({ children }) => {
   const pathname = usePathname()
 
   const tabs = [
-    { name: 'Strava', url: '/settings/fitness/strava' },
-    { name: 'Garmin', url: '/settings/fitness/garmin', disabled: true },
-    { name: 'Wahoo', url: '/settings/fitness/wahoo', disabled: true }
+    { name: 'Strava', url: '/settings/fitness/strava' }
+    // Future services can be added here:
+    // { name: 'Garmin', url: '/settings/fitness/garmin', disabled: true },
+    // { name: 'Wahoo', url: '/settings/fitness/wahoo', disabled: true }
   ]
 
   return (
@@ -32,12 +33,9 @@ const Layout: FC<Props> = ({ children }) => {
       <Tabs value={pathname} className="w-full">
         <TabsList>
           {tabs.map((tab) => (
-            <Link key={tab.url} href={tab.url} className={tab.disabled ? 'pointer-events-none' : ''}>
-              <TabsTrigger value={tab.url} disabled={tab.disabled}>
+            <Link key={tab.url} href={tab.url}>
+              <TabsTrigger value={tab.url}>
                 {tab.name}
-                {tab.disabled && (
-                  <span className="ml-1 text-xs text-muted-foreground">(Coming Soon)</span>
-                )}
               </TabsTrigger>
             </Link>
           ))}
