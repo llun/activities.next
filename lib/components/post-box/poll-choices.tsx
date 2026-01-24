@@ -86,7 +86,7 @@ export const PollChoices: FC<Props> = ({
             Multiple Choices
           </label>
         </div>
-        <div className={cn('relative', { '': showDurationDropdown })}>
+        <div className="relative">
           <Button
             type="button"
             variant="secondary"
