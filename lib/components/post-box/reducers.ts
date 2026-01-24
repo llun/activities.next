@@ -117,9 +117,11 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
           URL.revokeObjectURL(attachment.url)
         }
       })
+      // Reset everything including visibility to default state after posting
       return DEFAULT_STATE
     }
     case 'setAttachments': {
+      // Preserve visibility when loading attachments (e.g., when editing)
       return {
         ...DEFAULT_STATE,
         attachments: action.attachments,
@@ -137,6 +139,7 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       const duration = state.attachments.length
         ? DEFAULT_DURATION
         : state.poll.durationInSeconds
+      // Preserve visibility when toggling poll mode
       return {
         attachments: [],
         poll: {
