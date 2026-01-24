@@ -172,36 +172,6 @@ const Page = async () => {
           </div>
         </section>
 
-        <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold">Integrations</h2>
-            <p className="text-sm text-muted-foreground">
-              Connect with other services.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="appleSharedAlbumTokenInput">
-              Apple Shared Album Token
-            </Label>
-            <Input
-              type="text"
-              id="appleSharedAlbumTokenInput"
-              name="appleSharedAlbumToken"
-              aria-describedby="appleSharedAlbumTokenHelp"
-              defaultValue={profile.appleSharedAlbumToken || ''}
-              placeholder="Enter your Apple Shared Album token"
-            />
-            <p
-              id="appleSharedAlbumTokenHelp"
-              className="text-[0.8rem] text-muted-foreground"
-            >
-              Apple Shared Album tokens contains images (and videos) that you
-              want to post with
-            </p>
-          </div>
-        </section>
-
         <div className="flex justify-end">
           <Button type="submit">Update</Button>
         </div>

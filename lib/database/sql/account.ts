@@ -392,9 +392,6 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         ...(settings.headerImageUrl
           ? { headerImageUrl: settings.headerImageUrl }
           : null),
-        ...(settings.appleSharedAlbumToken
-          ? { appleSharedAlbumToken: settings.appleSharedAlbumToken }
-          : null),
         manuallyApprovesFollowers: settings.manuallyApprovesFollowers ?? true,
         followersUrl: settings.followersUrl,
         inboxUrl: settings.inboxUrl,

@@ -280,7 +280,6 @@ describe('ActorDatabase', () => {
           summary: 'summary',
           iconUrl: 'iconUrl',
           headerImageUrl: 'headerImageUrl',
-          appleSharedAlbumToken: 'appleSharedAlbumToken',
           publicKey: 'publicKey'
         })
 
@@ -322,7 +321,6 @@ describe('ActorDatabase', () => {
           summary: 'summary2',
           iconUrl: 'iconUrl2',
           headerImageUrl: 'headerImageUrl2',
-          appleSharedAlbumToken: 'appleSharedAlbumToken2',
           publicKey: 'publicKey2'
         })
 
