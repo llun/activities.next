@@ -4,6 +4,7 @@ import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   AccountDatabase,
+  ChangePasswordParams,
   CreateAccountParams,
   CreateAccountSessionParams,
   CreateActorForAccountParams,
@@ -18,11 +19,13 @@ import {
   IsAccountExistsParams,
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
+  RequestEmailChangeParams,
   SetDefaultActorParams,
   SetSessionActorParams,
   UnlinkAccountFromProviderParams,
   UpdateAccountSessionParams,
-  VerifyAccountParams
+  VerifyAccountParams,
+  VerifyEmailChangeParams
 } from '@/lib/database/types/account'
 import { ActorSettings } from '@/lib/database/types/sql'
 import { Account } from '@/lib/models/account'
@@ -444,6 +447,59 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     const currentTime = new Date()
     await database('sessions').where('token', token).update({
       actorId,
+      updatedAt: currentTime
+    })
+  },
+
+  async requestEmailChange({
+    accountId,
+    newEmail,
+    emailChangeCode
+  }: RequestEmailChangeParams): Promise<void> {
+    const currentTime = new Date()
+    const expiresAt = new Date(currentTime.getTime() + 24 * 60 * 60 * 1000) // 24 hours
+
+    await database('accounts').where('id', accountId).update({
+      emailChangePending: newEmail,
+      emailChangeCode,
+      emailChangeCodeExpiresAt: expiresAt,
+      updatedAt: currentTime
+    })
+  },
+
+  async verifyEmailChange({
+    accountId,
+    emailChangeCode
+  }: VerifyEmailChangeParams): Promise<Account | null> {
+    const account = await database('accounts').where('id', accountId).first()
+    if (!account) return null
+    if (account.emailChangeCode !== emailChangeCode) return null
+
+    const now = new Date()
+    if (account.emailChangeCodeExpiresAt && now > new Date(account.emailChangeCodeExpiresAt)) {
+      return null
+    }
+
+    const currentTime = new Date()
+    await database('accounts').where('id', accountId).update({
+      email: account.emailChangePending,
+      emailVerifiedAt: currentTime,
+      emailChangePending: null,
+      emailChangeCode: null,
+      emailChangeCodeExpiresAt: null,
+      updatedAt: currentTime
+    })
+
+    return this.getAccountFromId({ id: accountId })
+  },
+
+  async changePassword({
+    accountId,
+    newPasswordHash
+  }: ChangePasswordParams): Promise<void> {
+    const currentTime = new Date()
+    await database('accounts').where('id', accountId).update({
+      passwordHash: newPasswordHash,
       updatedAt: currentTime
     })
   }
