@@ -81,9 +81,8 @@ export const POST = traceApiRoute(
           })
         }
       } else {
-        // No email config - cannot complete the flow
+        // No email config - in production this is an error
         if (process.env.NODE_ENV !== 'development') {
-          // In production without email config, we cannot complete the flow
           return apiResponse({
             req,
             allowedMethods: [],
@@ -94,6 +93,8 @@ export const POST = traceApiRoute(
             responseStatusCode: 500
           })
         }
+        // In development mode, return success but indicate email sending is skipped
+        // Users should check server logs for the verification code
       }
 
       return apiResponse({

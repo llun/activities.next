@@ -481,6 +481,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     })
   },
 
+  // Note: Multiple email change requests will overwrite previous pending changes.
+  // The most recent request invalidates any previous verification codes.
   async requestEmailChange({
     accountId,
     newEmail,
@@ -510,8 +512,14 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       return null
     }
 
+    // Validate that emailChangePending is not null before proceeding
+    const pendingEmail = account.emailChangePending
+    if (pendingEmail == null) {
+      return null
+    }
+
     await database('accounts').where('id', accountId).update({
-      email: account.emailChangePending,
+      email: pendingEmail,
       emailVerifiedAt: now,
       emailChangePending: null,
       emailChangeCode: null,

@@ -7,7 +7,6 @@ import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 
 interface Props {
-  accountId: string
   currentEmail: string
 }
 
@@ -81,6 +80,9 @@ export const ChangeEmailForm: FC<Props> = ({ currentEmail: _currentEmail }) => {
           placeholder="new@example.com"
           required
         />
+        <p className="text-xs text-muted-foreground">
+          A verification link will be sent to your new email address. Note: requesting a new email change will invalidate any pending verification.
+        </p>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

@@ -65,7 +65,7 @@ const Page = async () => {
           </div>
         </div>
 
-        <ChangeEmailForm accountId={account.id} currentEmail={account.email} />
+        <ChangeEmailForm currentEmail={account.email} />
       </section>
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
