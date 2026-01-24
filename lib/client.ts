@@ -9,17 +9,20 @@ import { PresignedUrlOutput } from '@/lib/services/medias/types'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
+import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { urlToId } from '@/lib/utils/urlToId'
 
 export interface CreateNoteParams {
   message: string
   replyStatus?: Status
   attachments?: PostBoxAttachment[]
+  visibility?: MastodonVisibility
 }
 export const createNote = async ({
   message,
   replyStatus,
-  attachments = []
+  attachments = [],
+  visibility
 }: CreateNoteParams) => {
   if (message.trim().length === 0 && attachments.length === 0) {
     throw new Error('Message or attachments must not be empty')
@@ -34,7 +37,8 @@ export const createNote = async ({
       type: 'note',
       replyStatus,
       message,
-      attachments
+      attachments,
+      visibility
     })
   })
   if (response.status !== 200) {
@@ -90,13 +94,15 @@ export interface CreatePollParams {
   choices: string[]
   durationInSeconds: Duration
   replyStatus?: Status
+  visibility?: MastodonVisibility
 }
 
 export const createPoll = async ({
   message,
   choices,
   durationInSeconds,
-  replyStatus
+  replyStatus,
+  visibility
 }: CreatePollParams) => {
   if (message.trim().length === 0 && choices.length === 0) {
     throw new Error('Message or choices must not be empty')
@@ -119,7 +125,8 @@ export const createPoll = async ({
       replyStatus,
       message,
       durationInSeconds,
-      choices
+      choices,
+      visibility
     })
   })
 }

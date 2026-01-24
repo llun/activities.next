@@ -51,11 +51,13 @@ import {
   setAttachments,
   setPollDurationInSeconds,
   setPollVisibility,
+  setVisibility,
   statusExtensionReducer,
   updateAttachment
 } from './reducers'
 import { ReplyPreview } from './reply-preview'
 import { UploadMediaButton } from './upload-media-button'
+import { VisibilitySelector } from './visibility-selector'
 
 interface Props {
   host: string
@@ -122,7 +124,8 @@ export const PostBox: FC<Props> = ({
           message,
           choices: poll.choices.map((item) => item.text),
           durationInSeconds: poll.durationInSeconds,
-          replyStatus
+          replyStatus,
+          visibility: postExtension.visibility
         })
 
         dispatch(resetExtension())
@@ -225,7 +228,8 @@ export const PostBox: FC<Props> = ({
       const response = await createNote({
         message,
         replyStatus,
-        attachments
+        attachments,
+        visibility: postExtension.visibility
       })
 
       const { status, attachments: storedAttachments } = response
@@ -449,6 +453,12 @@ export const PostBox: FC<Props> = ({
         />
         <div className="flex justify-between mb-3">
           <div>
+            <VisibilitySelector
+              visibility={postExtension.visibility}
+              onVisibilityChange={(visibility) =>
+                dispatch(setVisibility(visibility))
+              }
+            />
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}

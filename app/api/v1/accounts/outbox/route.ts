@@ -3,6 +3,7 @@
  * This custom endpoint is maintained for backward compatibility.
  */
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
+import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { toActivityPubObject } from '@/lib/models/status'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
@@ -33,12 +34,13 @@ export const POST = traceApiRoute('getAccountOutbox', AuthenticatedGuard(async (
     const request = PostRequest.parse(body)
     switch (request.type) {
       case 'note': {
-        const { message, replyStatus, attachments } = request
+        const { message, replyStatus, attachments, visibility } = request
         const status = await createNoteFromUserInput({
           currentActor,
           text: message,
           replyNoteId: replyStatus?.id,
           attachments,
+          visibility,
           database
         })
         if (!status) return apiErrorResponse(404)
@@ -50,6 +52,24 @@ export const POST = traceApiRoute('getAccountOutbox', AuthenticatedGuard(async (
             note: toActivityPubObject(status),
             attachments: status.attachments
           }
+        })
+      }
+      case 'poll': {
+        const { message, replyStatus, choices, durationInSeconds, visibility } = request
+        const endAt = Date.now() + durationInSeconds * 1000
+        await createPollFromUserInput({
+          currentActor,
+          text: message,
+          replyStatusId: replyStatus?.id,
+          choices,
+          endAt,
+          visibility,
+          database
+        })
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { success: true }
         })
       }
       default: {
