@@ -107,13 +107,14 @@ const Page: FC<Props> = async ({ params }) => {
       return notFound()
     }
 
-    // Check if the current user follows the post owner
+    // Check if the current user follows the post owner (only accepted follows)
     const follow = await database.getAcceptedOrRequestedFollow({
       actorId: currentActor.id,
       targetActorId: status.actorId
     })
 
-    if (!follow) {
+    // Only accepted follows grant access to private posts
+    if (!follow || follow.status !== 'Accepted') {
       return notFound()
     }
   }
