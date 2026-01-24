@@ -480,14 +480,13 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       return null
     }
 
-    const currentTime = new Date()
     await database('accounts').where('id', accountId).update({
       email: account.emailChangePending,
-      emailVerifiedAt: currentTime,
+      emailVerifiedAt: now,
       emailChangePending: null,
       emailChangeCode: null,
       emailChangeCodeExpiresAt: null,
-      updatedAt: currentTime
+      updatedAt: now
     })
 
     return this.getAccountFromId({ id: accountId })

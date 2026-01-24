@@ -44,11 +44,13 @@ export const POST = traceApiRoute(
       })
 
       // TODO: Send verification email
-      // For now, we'll just return the code for development
+      // For now, we'll just log in development mode
       // In production, this should send an email with a verification link
-      console.log(
-        `Email change verification code: ${emailChangeCode} for ${newEmail}`
-      )
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          `Email change verification code: ${emailChangeCode} for ${newEmail}`
+        )
+      }
 
       return Response.json({
         success: true,
