@@ -1,10 +1,15 @@
+import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Actor } from '@/lib/models/actor'
+import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+
+enableFetchMocks()
 
 jest.mock('../services/timelines', () => ({
   addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
@@ -35,6 +40,8 @@ describe('Visibility integration tests', () => {
   })
 
   beforeEach(() => {
+    fetchMock.resetMocks()
+    mockRequests(fetchMock)
     jest.clearAllMocks()
   })
 
