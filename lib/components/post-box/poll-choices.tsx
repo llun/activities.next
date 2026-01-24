@@ -5,7 +5,6 @@ import { FC, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import { cn } from '@/lib/utils'
 
 export const DEFAULT_DURATION = 21_600
 
@@ -74,7 +73,7 @@ export const PollChoices: FC<Props> = ({
       <div className="flex flex-row items-center gap-2 pt-2">
         <div className="flex items-center space-x-2">
           <input
-            className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            className="peer h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
             type="checkbox"
             value=""
             id="flexCheckDefault"
