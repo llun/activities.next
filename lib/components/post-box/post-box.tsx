@@ -38,6 +38,7 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/models/status'
+import { getVisibility } from '@/lib/utils/getVisibility'
 import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -51,11 +52,13 @@ import {
   setAttachments,
   setPollDurationInSeconds,
   setPollVisibility,
+  setVisibility,
   statusExtensionReducer,
   updateAttachment
 } from './reducers'
 import { ReplyPreview } from './reply-preview'
 import { UploadMediaButton } from './upload-media-button'
+import { VisibilitySelector } from './visibility-selector'
 
 interface Props {
   host: string
@@ -122,7 +125,8 @@ export const PostBox: FC<Props> = ({
           message,
           choices: poll.choices.map((item) => item.text),
           durationInSeconds: poll.durationInSeconds,
-          replyStatus
+          replyStatus,
+          visibility: postExtension.visibility
         })
 
         dispatch(resetExtension())
@@ -225,7 +229,8 @@ export const PostBox: FC<Props> = ({
       const response = await createNote({
         message,
         replyStatus,
-        attachments
+        attachments,
+        visibility: postExtension.visibility
       })
 
       const { status, attachments: storedAttachments } = response
@@ -345,7 +350,15 @@ export const PostBox: FC<Props> = ({
       setAllowPost(false)
     }
 
-    if (!replyStatus) return
+    if (!replyStatus) {
+      // Reset visibility to default when not replying
+      dispatch(setVisibility('public'))
+      return
+    }
+
+    // Initialize visibility from reply status to inherit parent visibility
+    const replyVisibility = getVisibility(replyStatus.to, replyStatus.cc)
+    dispatch(setVisibility(replyVisibility))
 
     if (replyStatus.type !== StatusType.enum.Note) {
       return
@@ -449,6 +462,21 @@ export const PostBox: FC<Props> = ({
         />
         <div className="flex justify-between mb-3">
           <div>
+            <VisibilitySelector
+              visibility={postExtension.visibility}
+              onVisibilityChange={(visibility) =>
+                dispatch(setVisibility(visibility))
+              }
+            />
+            <Button
+              type="button"
+              variant="link"
+              onClick={() =>
+                dispatch(setPollVisibility(!postExtension.poll.showing))
+              }
+            >
+              <BarChart3 className="size-4" />
+            </Button>
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
@@ -460,15 +488,6 @@ export const PostBox: FC<Props> = ({
               }
               onUploadStart={() => setWarningMsg(null)}
             />
-            <Button
-              type="button"
-              variant="link"
-              onClick={() =>
-                dispatch(setPollVisibility(!postExtension.poll.showing))
-              }
-            >
-              <BarChart3 className="size-4" />
-            </Button>
           </div>
           <div>
             {editStatus ? (
