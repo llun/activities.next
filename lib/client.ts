@@ -93,6 +93,7 @@ export interface CreatePollParams {
   message: string
   choices: string[]
   durationInSeconds: Duration
+  pollType?: 'oneOf' | 'anyOf'
   replyStatus?: Status
   visibility?: MastodonVisibility
 }
@@ -101,6 +102,7 @@ export const createPoll = async ({
   message,
   choices,
   durationInSeconds,
+  pollType,
   replyStatus,
   visibility
 }: CreatePollParams) => {
@@ -125,6 +127,7 @@ export const createPoll = async ({
       replyStatus,
       message,
       durationInSeconds,
+      pollType,
       choices,
       visibility
     })
