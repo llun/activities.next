@@ -11,7 +11,7 @@ interface Props {
   currentEmail: string
 }
 
-export const ChangeEmailForm: FC<Props> = ({ accountId, currentEmail }) => {
+export const ChangeEmailForm: FC<Props> = ({ currentEmail: _currentEmail }) => {
   const [isChanging, setIsChanging] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [message, setMessage] = useState('')
@@ -45,7 +45,7 @@ export const ChangeEmailForm: FC<Props> = ({ accountId, currentEmail }) => {
       )
       setIsChanging(false)
       setNewEmail('')
-    } catch (err) {
+    } catch (_err) {
       setError('An error occurred. Please try again.')
     } finally {
       setIsLoading(false)

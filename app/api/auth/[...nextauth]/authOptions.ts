@@ -10,7 +10,6 @@ import {
   StorageAdapter,
   userFromAccount
 } from '@/lib/services/auth/storageAdapter'
-import { headerHost } from '@/lib/services/guards/headerHost'
 
 export const getAuthOptions = memoize(() => {
   try {
@@ -27,8 +26,7 @@ export const getAuthOptions = memoize(() => {
             email: { label: 'Email', type: 'email' },
             password: { label: 'Password', type: 'password' }
           },
-          async authorize(credentials, request) {
-            const hostname = headerHost(request.headers)
+          async authorize(credentials, _request) {
             if (!credentials) return null
 
             const database = getDatabase()

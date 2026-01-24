@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
-import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
