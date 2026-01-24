@@ -1,10 +1,16 @@
 'use client'
 
 import { XCircle } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
-import { cn } from '@/lib/utils'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/lib/components/ui/dropdown-menu'
+import { Input } from '@/lib/components/ui/input'
 
 export const DEFAULT_DURATION = 21_600
 
@@ -30,30 +36,30 @@ interface Props {
   show: boolean
   choices: Choice[]
   durationInSeconds: Duration
+  pollType: 'oneOf' | 'anyOf'
   onAddChoice: () => void
   onRemoveChoice: (index: number) => void
   onChooseDuration: (durationInSeconds: Duration) => void
+  onPollTypeChange: (pollType: 'oneOf' | 'anyOf') => void
 }
 
 export const PollChoices: FC<Props> = ({
   show,
   choices,
   durationInSeconds,
+  pollType,
   onAddChoice,
   onRemoveChoice,
-  onChooseDuration
+  onChooseDuration,
+  onPollTypeChange
 }) => {
-  const [showDurationDropdown, setShowDurationDropdown] =
-    useState<boolean>(false)
-
   if (!show) return null
 
   return (
-    <div>
+    <div className="mb-4 space-y-2">
       {choices.map((choice, index) => (
-        <div key={choice.key} className="mb-1 d-flex flex-row">
-          <input
-            className="form-control"
+        <div key={choice.key} className="flex flex-row items-center gap-2">
+          <Input
             type="text"
             name="poll[]"
             placeholder={`Choice ${index + 1}`}
@@ -71,50 +77,44 @@ export const PollChoices: FC<Props> = ({
           </Button>
         </div>
       ))}
-      <div className="mb-1 d-flex flex-row">
-        <div className="form-check py-1 me-2">
+      <div className="flex flex-row items-center gap-2 pt-2">
+        <div className="flex items-center space-x-2">
           <input
-            className="form-check-input"
+            className="peer h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
             type="checkbox"
-            value=""
+            checked={pollType === 'anyOf'}
             id="flexCheckDefault"
+            onChange={(e) =>
+              onPollTypeChange(e.target.checked ? 'anyOf' : 'oneOf')
+            }
           />
-          <label className="form-check-label" htmlFor="flexCheckDefault">
+          <label
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            htmlFor="flexCheckDefault"
+          >
             Multiple Choices
           </label>
         </div>
-        <div className={cn('dropdown me-2', { show: showDurationDropdown })}>
-          <button
-            className="btn btn-secondary dropdown-toggle"
-            type="button"
-            id="dropdownMenuButton"
-            data-toggle="dropdown"
-            aria-haspopup="true"
-            aria-expanded="false"
-            onClick={() => setShowDurationDropdown(!showDurationDropdown)}
-          >
-            {SecondsToDurationText[durationInSeconds]}
-          </button>
-          <div
-            className={cn('dropdown-menu mt-1', { show: showDurationDropdown })}
-            aria-labelledby="dropdownMenuButton"
-          >
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="secondary">
+              {SecondsToDurationText[durationInSeconds]}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
             {Object.keys(SecondsToDurationText).map((duration) => (
-              <a
-                className="dropdown-item"
-                href="#"
+              <DropdownMenuItem
                 key={duration}
-                onClick={(event) => {
-                  event.preventDefault()
-                  setShowDurationDropdown(false)
+                onClick={() => {
                   onChooseDuration(parseInt(duration) as Duration)
                 }}
+                className="cursor-pointer"
               >
                 {SecondsToDurationText[parseInt(duration) as Duration]}
-              </a>
+              </DropdownMenuItem>
             ))}
-          </div>
-        </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button disabled={choices.length >= 5} onClick={() => onAddChoice()}>
           Add choice
         </Button>

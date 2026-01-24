@@ -20,6 +20,7 @@ export const CreatePollRequest = z.object({
   type: z.literal('poll'),
   message: z.string(),
   choices: z.string().array(),
+  pollType: z.enum(['oneOf', 'anyOf']).optional(),
   durationInSeconds: z
     .number()
     .refine(
