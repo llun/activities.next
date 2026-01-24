@@ -73,7 +73,7 @@ export type RequestEmailChangeParams = {
   emailChangeCode: string
 }
 export type VerifyEmailChangeParams = {
-  accountId: string
+  accountId?: string
   emailChangeCode: string
 }
 export type ChangePasswordParams = {

@@ -503,7 +503,17 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     accountId,
     emailChangeCode
   }: VerifyEmailChangeParams): Promise<Account | null> {
-    const account = await database('accounts').where('id', accountId).first()
+    // If accountId is provided, verify for that specific account
+    // Otherwise, find the account by the verification code
+    let account
+    if (accountId) {
+      account = await database('accounts').where('id', accountId).first()
+    } else {
+      account = await database('accounts')
+        .where('emailChangeCode', emailChangeCode)
+        .first()
+    }
+
     if (!account) return null
     if (account.emailChangeCode !== emailChangeCode) return null
 
@@ -518,7 +528,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       return null
     }
 
-    await database('accounts').where('id', accountId).update({
+    await database('accounts').where('id', account.id).update({
       email: pendingEmail,
       emailVerifiedAt: now,
       emailChangePending: null,
@@ -527,7 +537,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       updatedAt: now
     })
 
-    return this.getAccountFromId({ id: accountId })
+    return this.getAccountFromId({ id: account.id })
   },
 
   async changePassword({
