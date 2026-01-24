@@ -17,7 +17,6 @@ import { getActorProfile } from '@/lib/models/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AuthenticationProviders } from './AuthenticationProviders'
-import { LogoutButton } from './LogoutButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -221,21 +220,6 @@ const Page = async () => {
           />
         </section>
       )}
-
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Account</h2>
-          <p className="text-sm text-muted-foreground">
-            Manage your current session.
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">
-            Sign out from this account on this device.
-          </p>
-          <LogoutButton />
-        </div>
-      </section>
 
       <section className="space-y-4 rounded-2xl border border-destructive/20 bg-background/80 p-6 shadow-sm">
         <div>

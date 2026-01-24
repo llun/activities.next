@@ -10,6 +10,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ChangeEmailForm } from './ChangeEmailForm'
 import { ChangePasswordForm } from './ChangePasswordForm'
+import { LogoutButton } from '../LogoutButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,6 +77,21 @@ const Page = async () => {
         </div>
 
         <ChangePasswordForm />
+      </section>
+
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">Session</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage your current session.
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">
+            Sign out from this account on this device.
+          </p>
+          <LogoutButton />
+        </div>
       </section>
     </div>
   )
