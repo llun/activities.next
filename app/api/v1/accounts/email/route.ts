@@ -72,7 +72,7 @@ export const POST = traceApiRoute(
               `
             }
           })
-        } catch (error) {
+        } catch (_error) {
           return apiResponse({
             req,
             allowedMethods: [],
