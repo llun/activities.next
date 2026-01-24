@@ -55,7 +55,7 @@ export const POST = traceApiRoute('getAccountOutbox', AuthenticatedGuard(async (
         })
       }
       case 'poll': {
-        const { message, replyStatus, choices, durationInSeconds, visibility } = request
+        const { message, replyStatus, choices, durationInSeconds, pollType, visibility } = request
         const endAt = Date.now() + durationInSeconds * 1000
         await createPollFromUserInput({
           currentActor,
@@ -63,6 +63,7 @@ export const POST = traceApiRoute('getAccountOutbox', AuthenticatedGuard(async (
           replyStatusId: replyStatus?.id,
           choices,
           endAt,
+          pollType,
           visibility,
           database
         })

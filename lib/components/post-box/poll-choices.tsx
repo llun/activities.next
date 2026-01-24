@@ -1,9 +1,15 @@
 'use client'
 
 import { XCircle } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/lib/components/ui/dropdown-menu'
 import { Input } from '@/lib/components/ui/input'
 
 export const DEFAULT_DURATION = 21_600
@@ -30,22 +36,23 @@ interface Props {
   show: boolean
   choices: Choice[]
   durationInSeconds: Duration
+  pollType: 'oneOf' | 'anyOf'
   onAddChoice: () => void
   onRemoveChoice: (index: number) => void
   onChooseDuration: (durationInSeconds: Duration) => void
+  onPollTypeChange: (pollType: 'oneOf' | 'anyOf') => void
 }
 
 export const PollChoices: FC<Props> = ({
   show,
   choices,
   durationInSeconds,
+  pollType,
   onAddChoice,
   onRemoveChoice,
-  onChooseDuration
+  onChooseDuration,
+  onPollTypeChange
 }) => {
-  const [showDurationDropdown, setShowDurationDropdown] =
-    useState<boolean>(false)
-
   if (!show) return null
 
   return (
@@ -75,8 +82,11 @@ export const PollChoices: FC<Props> = ({
           <input
             className="peer h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
             type="checkbox"
-            value=""
+            checked={pollType === 'anyOf'}
             id="flexCheckDefault"
+            onChange={(e) =>
+              onPollTypeChange(e.target.checked ? 'anyOf' : 'oneOf')
+            }
           />
           <label
             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
@@ -85,32 +95,26 @@ export const PollChoices: FC<Props> = ({
             Multiple Choices
           </label>
         </div>
-        <div className="relative">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setShowDurationDropdown(!showDurationDropdown)}
-          >
-            {SecondsToDurationText[durationInSeconds]}
-          </Button>
-          {showDurationDropdown && (
-            <div className="absolute left-0 top-full z-50 mt-1 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
-              {Object.keys(SecondsToDurationText).map((duration) => (
-                <button
-                  className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                  key={duration}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    setShowDurationDropdown(false)
-                    onChooseDuration(parseInt(duration) as Duration)
-                  }}
-                >
-                  {SecondsToDurationText[parseInt(duration) as Duration]}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="secondary">
+              {SecondsToDurationText[durationInSeconds]}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {Object.keys(SecondsToDurationText).map((duration) => (
+              <DropdownMenuItem
+                key={duration}
+                onClick={() => {
+                  onChooseDuration(parseInt(duration) as Duration)
+                }}
+                className="cursor-pointer"
+              >
+                {SecondsToDurationText[parseInt(duration) as Duration]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button disabled={choices.length >= 5} onClick={() => onAddChoice()}>
           Add choice
         </Button>

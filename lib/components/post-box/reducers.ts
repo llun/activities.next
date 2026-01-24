@@ -11,6 +11,7 @@ interface StatusExtension {
     showing: boolean
     choices: Choice[]
     durationInSeconds: Duration
+    pollType: 'oneOf' | 'anyOf'
   }
   visibility: MastodonVisibility
 }
@@ -71,6 +72,12 @@ type ActionSetPollDurationInSeconds = ReturnType<
   typeof setPollDurationInSeconds
 >
 
+export const setPollType = (pollType: 'oneOf' | 'anyOf') => ({
+  type: 'setPollType' as const,
+  pollType
+})
+type ActionSetPollType = ReturnType<typeof setPollType>
+
 export const setVisibility = (visibility: MastodonVisibility) => ({
   type: 'setVisibility' as const,
   visibility
@@ -84,6 +91,7 @@ type Actions =
   | ActionAddPollChoice
   | ActionRemovePollChoice
   | ActionSetPollDurationInSeconds
+  | ActionSetPollType
   | ActionAddAttachment
   | ActionUpdateAttachment
   | ActionRemoveAttachment
@@ -101,7 +109,8 @@ export const DEFAULT_STATE: StatusExtension = {
   poll: {
     showing: false,
     choices: DEFAULT_CHOICES,
-    durationInSeconds: DEFAULT_DURATION
+    durationInSeconds: DEFAULT_DURATION,
+    pollType: 'oneOf'
   },
   visibility: 'public'
 }
@@ -178,6 +187,15 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
         poll: {
           ...state.poll,
           durationInSeconds: action.seconds
+        }
+      }
+    }
+    case 'setPollType': {
+      return {
+        ...state,
+        poll: {
+          ...state.poll,
+          pollType: action.pollType
         }
       }
     }

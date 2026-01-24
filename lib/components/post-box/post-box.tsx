@@ -51,6 +51,7 @@ import {
   resetExtension,
   setAttachments,
   setPollDurationInSeconds,
+  setPollType,
   setPollVisibility,
   setVisibility,
   statusExtensionReducer,
@@ -125,6 +126,7 @@ export const PostBox: FC<Props> = ({
           message,
           choices: poll.choices.map((item) => item.text),
           durationInSeconds: poll.durationInSeconds,
+          pollType: poll.pollType,
           replyStatus,
           visibility: postExtension.visibility
         })
@@ -454,11 +456,13 @@ export const PostBox: FC<Props> = ({
           show={postExtension.poll.showing}
           choices={postExtension.poll.choices}
           durationInSeconds={postExtension.poll.durationInSeconds}
+          pollType={postExtension.poll.pollType}
           onAddChoice={() => dispatch(addPollChoice)}
           onRemoveChoice={(index) => dispatch(removePollChoice(index))}
           onChooseDuration={(durationInSeconds: Duration) =>
             dispatch(setPollDurationInSeconds(durationInSeconds))
           }
+          onPollTypeChange={(pollType) => dispatch(setPollType(pollType))}
         />
         <div className="flex justify-between mb-3">
           <div>
