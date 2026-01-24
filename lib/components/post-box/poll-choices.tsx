@@ -4,6 +4,7 @@ import { XCircle } from 'lucide-react'
 import { FC, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
+import { Input } from '@/lib/components/ui/input'
 import { cn } from '@/lib/utils'
 
 export const DEFAULT_DURATION = 21_600
@@ -49,11 +50,10 @@ export const PollChoices: FC<Props> = ({
   if (!show) return null
 
   return (
-    <div>
+    <div className="mb-4 space-y-2">
       {choices.map((choice, index) => (
-        <div key={choice.key} className="mb-1 d-flex flex-row">
-          <input
-            className="form-control"
+        <div key={choice.key} className="flex flex-row items-center gap-2">
+          <Input
             type="text"
             name="poll[]"
             placeholder={`Choice ${index + 1}`}
@@ -71,49 +71,46 @@ export const PollChoices: FC<Props> = ({
           </Button>
         </div>
       ))}
-      <div className="mb-1 d-flex flex-row">
-        <div className="form-check py-1 me-2">
+      <div className="flex flex-row items-center gap-2 pt-2">
+        <div className="flex items-center space-x-2">
           <input
-            className="form-check-input"
+            className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
             type="checkbox"
             value=""
             id="flexCheckDefault"
           />
-          <label className="form-check-label" htmlFor="flexCheckDefault">
+          <label
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            htmlFor="flexCheckDefault"
+          >
             Multiple Choices
           </label>
         </div>
-        <div className={cn('dropdown me-2', { show: showDurationDropdown })}>
-          <button
-            className="btn btn-secondary dropdown-toggle"
+        <div className={cn('relative', { '': showDurationDropdown })}>
+          <Button
             type="button"
-            id="dropdownMenuButton"
-            data-toggle="dropdown"
-            aria-haspopup="true"
-            aria-expanded="false"
+            variant="secondary"
             onClick={() => setShowDurationDropdown(!showDurationDropdown)}
           >
             {SecondsToDurationText[durationInSeconds]}
-          </button>
-          <div
-            className={cn('dropdown-menu mt-1', { show: showDurationDropdown })}
-            aria-labelledby="dropdownMenuButton"
-          >
-            {Object.keys(SecondsToDurationText).map((duration) => (
-              <a
-                className="dropdown-item"
-                href="#"
-                key={duration}
-                onClick={(event) => {
-                  event.preventDefault()
-                  setShowDurationDropdown(false)
-                  onChooseDuration(parseInt(duration) as Duration)
-                }}
-              >
-                {SecondsToDurationText[parseInt(duration) as Duration]}
-              </a>
-            ))}
-          </div>
+          </Button>
+          {showDurationDropdown && (
+            <div className="absolute left-0 top-full z-50 mt-1 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+              {Object.keys(SecondsToDurationText).map((duration) => (
+                <button
+                  className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                  key={duration}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    setShowDurationDropdown(false)
+                    onChooseDuration(parseInt(duration) as Duration)
+                  }}
+                >
+                  {SecondsToDurationText[parseInt(duration) as Duration]}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <Button disabled={choices.length >= 5} onClick={() => onAddChoice()}>
           Add choice
