@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { externalRequest } from '@/lib/utils/request'
 
 const StravaSettingsRequest = z.object({
   clientId: z.string().optional(),
@@ -19,32 +20,30 @@ async function registerStravaWebhook(params: {
 }): Promise<{ id: string } | null> {
   try {
     // Strava webhook subscription endpoint
-    const response = await fetch(
-      'https://www.strava.com/api/v3/push_subscriptions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          client_id: params.clientId,
-          client_secret: params.clientSecret,
-          callback_url: params.callbackUrl,
-          verify_token: 'STRAVA'
-        })
-      }
-    )
+    const response = await externalRequest({
+      url: 'https://www.strava.com/api/v3/push_subscriptions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: params.clientId,
+        client_secret: params.clientSecret,
+        callback_url: params.callbackUrl,
+        verify_token: 'STRAVA'
+      })
+    })
 
-    if (!response.ok) {
+    if (response.statusCode !== 200 && response.statusCode !== 201) {
       console.error(
         'Failed to register Strava webhook:',
-        response.status,
-        await response.text()
+        response.statusCode,
+        response.body
       )
       return null
     }
 
-    return await response.json()
+    return JSON.parse(response.body as string)
   } catch (error) {
     console.error('Error registering Strava webhook:', error)
     return null
@@ -57,14 +56,12 @@ async function deleteStravaWebhook(params: {
   clientSecret: string
 }): Promise<boolean> {
   try {
-    const response = await fetch(
-      `https://www.strava.com/api/v3/push_subscriptions/${params.subscriptionId}?client_id=${params.clientId}&client_secret=${params.clientSecret}`,
-      {
-        method: 'DELETE'
-      }
-    )
+    const response = await externalRequest({
+      url: `https://www.strava.com/api/v3/push_subscriptions/${params.subscriptionId}?client_id=${params.clientId}&client_secret=${params.clientSecret}`,
+      method: 'DELETE'
+    })
 
-    return response.ok
+    return response.statusCode === 200 || response.statusCode === 204
   } catch (error) {
     console.error('Error deleting Strava webhook:', error)
     return false

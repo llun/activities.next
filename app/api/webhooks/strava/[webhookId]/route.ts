@@ -5,6 +5,7 @@ import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { saveFitnessActivityData } from '@/lib/utils/fitnessStorage'
+import { externalRequest } from '@/lib/utils/request'
 
 interface StravaWebhookEvent {
   aspect_type: 'create' | 'update' | 'delete'
@@ -84,21 +85,20 @@ async function getStravaActivity(
   accessToken: string
 ): Promise<StravaActivity | null> {
   try {
-    const response = await fetch(
-      `https://www.strava.com/api/v3/activities/${activityId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
+    const response = await externalRequest({
+      url: `https://www.strava.com/api/v3/activities/${activityId}`,
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`
       }
-    )
+    })
 
-    if (!response.ok) {
-      console.error('Failed to fetch Strava activity:', response.status)
+    if (response.statusCode !== 200) {
+      console.error('Failed to fetch Strava activity:', response.statusCode)
       return null
     }
 
-    return await response.json()
+    return JSON.parse(response.body as string)
   } catch (error) {
     console.error('Error fetching Strava activity:', error)
     return null
@@ -111,21 +111,20 @@ async function getStravaActivityPhotos(
   accessToken: string
 ): Promise<StravaPhoto[]> {
   try {
-    const response = await fetch(
-      `https://www.strava.com/api/v3/activities/${activityId}/photos?photo_sources=true&size=600`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
+    const response = await externalRequest({
+      url: `https://www.strava.com/api/v3/activities/${activityId}/photos?photo_sources=true&size=600`,
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`
       }
-    )
+    })
 
-    if (!response.ok) {
-      console.error('Failed to fetch Strava photos:', response.status)
+    if (response.statusCode !== 200) {
+      console.error('Failed to fetch Strava photos:', response.statusCode)
       return []
     }
 
-    const data = await response.json() as StravaPhoto[]
+    const data = JSON.parse(response.body as string) as StravaPhoto[]
     return data || []
   } catch (error) {
     console.error('Error fetching Strava photos:', error)
@@ -169,7 +168,8 @@ async function refreshStravaToken(
   expires_at: number
 } | null> {
   try {
-    const response = await fetch('https://www.strava.com/oauth/token', {
+    const response = await externalRequest({
+      url: 'https://www.strava.com/oauth/token',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -182,12 +182,12 @@ async function refreshStravaToken(
       })
     })
 
-    if (!response.ok) {
-      console.error('Failed to refresh Strava token:', response.status)
+    if (response.statusCode !== 200) {
+      console.error('Failed to refresh Strava token:', response.statusCode)
       return null
     }
 
-    return await response.json()
+    return JSON.parse(response.body as string)
   } catch (error) {
     console.error('Error refreshing Strava token:', error)
     return null
