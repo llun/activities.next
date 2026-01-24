@@ -7,6 +7,7 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { saveFitnessActivityData } from '@/lib/utils/fitnessStorage'
 import { externalRequest } from '@/lib/utils/request'
 import { logger } from '@/lib/utils/logger'
+import { apiResponse, apiErrorResponse } from '@/lib/utils/response'
 
 interface StravaWebhookEvent {
   aspect_type: 'create' | 'update' | 'delete'
@@ -410,10 +411,14 @@ export const GET = traceApiRoute(
 
     // Strava sends a verification request when setting up the webhook
     if (hubMode === 'subscribe' && hubVerifyToken === 'STRAVA') {
-      return Response.json({ 'hub.challenge': hubChallenge })
+      return apiResponse({
+        req,
+        allowedMethods: ['GET'],
+        data: { 'hub.challenge': hubChallenge }
+      })
     }
 
-    return Response.json({ error: 'Invalid verification request' }, { status: 400 })
+    return apiErrorResponse(400)
   }
 )
 
@@ -426,7 +431,7 @@ export const POST = traceApiRoute(
 
     const database = getDatabase()
     if (!database) {
-      return Response.json({ error: 'Database not available' }, { status: 500 })
+      return apiErrorResponse(500)
     }
 
     // Find actor with this webhook ID
@@ -437,7 +442,11 @@ export const POST = traceApiRoute(
         message: 'No actor found for webhook ID',
         webhookId
       })
-      return Response.json({ success: true }) // Return success to avoid Strava retries
+      return apiResponse({
+        req,
+        allowedMethods: ['POST'],
+        data: { success: true }
+      }) // Return success to avoid Strava retries
     }
 
     const event: StravaWebhookEvent = await req.json()
@@ -455,7 +464,11 @@ export const POST = traceApiRoute(
           message: 'No Strava integration found for actor',
           actorId: actor.id
         })
-        return Response.json({ success: true })
+        return apiResponse({
+          req,
+          allowedMethods: ['POST'],
+          data: { success: true }
+        })
       }
 
       let accessToken = stravaIntegration.accessToken
@@ -500,6 +513,10 @@ export const POST = traceApiRoute(
       }
     }
 
-    return Response.json({ success: true })
+    return apiResponse({
+      req,
+      allowedMethods: ['POST'],
+      data: { success: true }
+    })
   }
 )

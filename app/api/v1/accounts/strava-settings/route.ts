@@ -5,6 +5,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { externalRequest } from '@/lib/utils/request'
 import { logger } from '@/lib/utils/logger'
+import { apiErrorResponse } from '@/lib/utils/response'
 
 const StravaSettingsRequest = z.object({
   clientId: z.string().optional(),
@@ -88,7 +89,7 @@ export const POST = traceApiRoute(
       })
       const hasAccess = actors.some((actor) => actor.id === targetActorId)
       if (!hasAccess) {
-        return Response.json({ error: 'Unauthorized' }, { status: 403 })
+        return apiErrorResponse(403)
       }
     }
 
