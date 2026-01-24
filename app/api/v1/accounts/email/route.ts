@@ -5,7 +5,6 @@ import { z } from 'zod'
 import { getConfig } from '@/lib/config'
 import { sendMail } from '@/lib/services/email'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -74,7 +73,6 @@ export const POST = traceApiRoute(
             }
           })
         } catch (error) {
-          logger.error({ to: newEmail }, 'Failed to send email verification')
           return apiResponse({
             req,
             allowedMethods: [],
@@ -83,15 +81,8 @@ export const POST = traceApiRoute(
           })
         }
       } else {
-        // No email config - log code in development for testing
-        if (process.env.NODE_ENV === 'development') {
-          console.log(
-            `Email change verification code: ${emailChangeCode} for ${newEmail}`
-          )
-          console.log(
-            `Verification URL: https://${config.host}/settings/account/verify-email?code=${emailChangeCode}`
-          )
-        } else {
+        // No email config - cannot complete the flow
+        if (process.env.NODE_ENV !== 'development') {
           // In production without email config, we cannot complete the flow
           return apiResponse({
             req,
@@ -123,7 +114,6 @@ export const POST = traceApiRoute(
           responseStatusCode: 400
         })
       }
-      console.error('Email change request error:', error)
       return apiResponse({
         req,
         allowedMethods: [],

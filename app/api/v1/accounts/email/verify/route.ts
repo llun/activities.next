@@ -59,7 +59,6 @@ export const POST = traceApiRoute(
           responseStatusCode: 400
         })
       }
-      console.error('Email verification error:', error)
       return apiResponse({
         req,
         allowedMethods: [],

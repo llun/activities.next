@@ -79,7 +79,6 @@ export const POST = traceApiRoute(
           responseStatusCode: 400
         })
       }
-      console.error('Password change error:', error)
       return apiResponse({
         req,
         allowedMethods: [],
