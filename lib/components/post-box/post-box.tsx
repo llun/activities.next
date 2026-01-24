@@ -468,6 +468,15 @@ export const PostBox: FC<Props> = ({
                 dispatch(setVisibility(visibility))
               }
             />
+            <Button
+              type="button"
+              variant="link"
+              onClick={() =>
+                dispatch(setPollVisibility(!postExtension.poll.showing))
+              }
+            >
+              <BarChart3 className="size-4" />
+            </Button>
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
@@ -479,15 +488,6 @@ export const PostBox: FC<Props> = ({
               }
               onUploadStart={() => setWarningMsg(null)}
             />
-            <Button
-              type="button"
-              variant="link"
-              onClick={() =>
-                dispatch(setPollVisibility(!postExtension.poll.showing))
-              }
-            >
-              <BarChart3 className="size-4" />
-            </Button>
           </div>
           <div>
             {editStatus ? (
