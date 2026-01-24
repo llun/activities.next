@@ -93,15 +93,29 @@ const Page: FC<Props> = async ({ params }) => {
     url: statusUrl
   })
 
-  if (
-    !(
-      status.to.includes(ACTIVITY_STREAM_PUBLIC) ||
-      status.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT) ||
-      status.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
-      status.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
-    )
-  ) {
-    return notFound()
+  // Check if the status is publicly visible (public or unlisted)
+  const isPublicOrUnlisted =
+    status.to.includes(ACTIVITY_STREAM_PUBLIC) ||
+    status.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT) ||
+    status.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
+    status.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
+
+  // If not public/unlisted, check if the logged-in user follows the post owner
+  if (!isPublicOrUnlisted) {
+    // Private posts require authentication
+    if (!currentActor) {
+      return notFound()
+    }
+
+    // Check if the current user follows the post owner
+    const follow = await database.getAcceptedOrRequestedFollow({
+      actorId: currentActor.id,
+      targetActorId: status.actorId
+    })
+
+    if (!follow) {
+      return notFound()
+    }
   }
 
   const previouses = []
