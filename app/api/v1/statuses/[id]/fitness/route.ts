@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { logger } from '@/lib/utils/logger'
 
 export const GET = traceApiRoute(
   'getStatusFitnessActivity',
@@ -37,7 +38,11 @@ export const GET = traceApiRoute(
         calories: activity.calories
       })
     } catch (error) {
-      console.error('Error fetching fitness activity:', error)
+      logger.error({
+        err: error,
+        message: 'Error fetching fitness activity',
+        statusId
+      })
       return Response.json(
         { error: 'Internal server error' },
         { status: 500 }

@@ -6,6 +6,7 @@ import { Database } from '@/lib/database/types'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { saveFitnessActivityData } from '@/lib/utils/fitnessStorage'
 import { externalRequest } from '@/lib/utils/request'
+import { logger } from '@/lib/utils/logger'
 
 interface StravaWebhookEvent {
   aspect_type: 'create' | 'update' | 'delete'
@@ -94,13 +95,21 @@ async function getStravaActivity(
     })
 
     if (response.statusCode !== 200) {
-      console.error('Failed to fetch Strava activity:', response.statusCode)
+      logger.error({
+        message: 'Failed to fetch Strava activity',
+        statusCode: response.statusCode,
+        activityId
+      })
       return null
     }
 
     return JSON.parse(response.body as string)
   } catch (error) {
-    console.error('Error fetching Strava activity:', error)
+    logger.error({
+      err: error,
+      message: 'Error fetching Strava activity',
+      activityId
+    })
     return null
   }
 }
@@ -120,14 +129,22 @@ async function getStravaActivityPhotos(
     })
 
     if (response.statusCode !== 200) {
-      console.error('Failed to fetch Strava photos:', response.statusCode)
+      logger.error({
+        message: 'Failed to fetch Strava photos',
+        statusCode: response.statusCode,
+        activityId
+      })
       return []
     }
 
     const data = JSON.parse(response.body as string) as StravaPhoto[]
     return data || []
   } catch (error) {
-    console.error('Error fetching Strava photos:', error)
+    logger.error({
+      err: error,
+      message: 'Error fetching Strava photos',
+      activityId
+    })
     return []
   }
 }
@@ -183,13 +200,16 @@ async function refreshStravaToken(
     })
 
     if (response.statusCode !== 200) {
-      console.error('Failed to refresh Strava token:', response.statusCode)
+      logger.error({
+        message: 'Failed to refresh Strava token',
+        statusCode: response.statusCode
+      })
       return null
     }
 
     return JSON.parse(response.body as string)
   } catch (error) {
-    console.error('Error refreshing Strava token:', error)
+    logger.error({ err: error, message: 'Error refreshing Strava token' })
     return null
   }
 }
@@ -259,7 +279,11 @@ async function createStatusFromActivity(
   })
 
   if (existingActivity && existingActivity.statusId) {
-    console.log('Activity already exists, skipping creation')
+    logger.info({
+      message: 'Activity already exists, skipping creation',
+      activityId: activity.id,
+      actorId
+    })
     return existingActivity.statusId
   }
 
@@ -409,7 +433,10 @@ export const POST = traceApiRoute(
     const actor = await database.getActorFromStravaWebhookId({ webhookId })
     
     if (!actor) {
-      console.log('No actor found for webhook ID:', webhookId)
+      logger.info({
+        message: 'No actor found for webhook ID',
+        webhookId
+      })
       return Response.json({ success: true }) // Return success to avoid Strava retries
     }
 
@@ -424,7 +451,10 @@ export const POST = traceApiRoute(
       const stravaIntegration = settings?.stravaIntegration
 
       if (!stravaIntegration) {
-        console.log('No Strava integration found for actor:', actor.id)
+        logger.info({
+          message: 'No Strava integration found for actor',
+          actorId: actor.id
+        })
         return Response.json({ success: true })
       }
 

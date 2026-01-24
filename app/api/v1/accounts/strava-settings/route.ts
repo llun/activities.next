@@ -4,6 +4,7 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { externalRequest } from '@/lib/utils/request'
+import { logger } from '@/lib/utils/logger'
 
 const StravaSettingsRequest = z.object({
   clientId: z.string().optional(),
@@ -35,17 +36,17 @@ async function registerStravaWebhook(params: {
     })
 
     if (response.statusCode !== 200 && response.statusCode !== 201) {
-      console.error(
-        'Failed to register Strava webhook:',
-        response.statusCode,
-        response.body
-      )
+      logger.error({
+        message: 'Failed to register Strava webhook',
+        statusCode: response.statusCode,
+        body: response.body
+      })
       return null
     }
 
     return JSON.parse(response.body as string)
   } catch (error) {
-    console.error('Error registering Strava webhook:', error)
+    logger.error({ err: error, message: 'Error registering Strava webhook' })
     return null
   }
 }
@@ -63,7 +64,7 @@ async function deleteStravaWebhook(params: {
 
     return response.statusCode === 200 || response.statusCode === 204
   } catch (error) {
-    console.error('Error deleting Strava webhook:', error)
+    logger.error({ err: error, message: 'Error deleting Strava webhook' })
     return false
   }
 }

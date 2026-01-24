@@ -7,6 +7,7 @@ import { getConfig } from '@/lib/config'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/models/actor'
+import { logger } from '@/lib/utils/logger'
 
 /**
  * Generates a fitness activity icon as a PNG image
@@ -57,7 +58,7 @@ export async function saveFitnessActivityData(
 ): Promise<string | null> {
   const { mediaStorage } = getConfig()
   if (!mediaStorage) {
-    console.error('Media storage not configured')
+    logger.error({ message: 'Media storage not configured' })
     return null
   }
 
@@ -112,7 +113,12 @@ export async function saveFitnessActivityData(
 
     return media?.id || null
   } catch (error) {
-    console.error('Failed to save fitness activity data:', error)
+    logger.error({
+      err: error,
+      message: 'Failed to save fitness activity data',
+      actorId: actor.id,
+      activityType
+    })
     return null
   }
 }
@@ -126,7 +132,7 @@ export async function getFitnessActivityData(
 ): Promise<unknown | null> {
   const { mediaStorage } = getConfig()
   if (!mediaStorage) {
-    console.error('Media storage not configured')
+    logger.error({ message: 'Media storage not configured' })
     return null
   }
 
@@ -156,7 +162,12 @@ export async function getFitnessActivityData(
 
     return null
   } catch (error) {
-    console.error('Failed to retrieve fitness activity data:', error)
+    logger.error({
+      err: error,
+      message: 'Failed to retrieve fitness activity data',
+      mediaId,
+      actorId
+    })
     return null
   }
 }
