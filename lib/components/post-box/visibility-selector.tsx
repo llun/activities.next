@@ -58,7 +58,12 @@ export const VisibilitySelector: FC<Props> = ({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="link" title={currentOption.label}>
+        <Button
+          type="button"
+          variant="link"
+          title={currentOption.label}
+          aria-label={currentOption.label}
+        >
           {currentOption.icon}
         </Button>
       </DropdownMenuTrigger>

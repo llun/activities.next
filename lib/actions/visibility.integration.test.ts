@@ -167,5 +167,26 @@ describe('Visibility integration tests', () => {
       expect(poll?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
       expect(poll?.cc).not.toContain(ACTIVITY_STREAM_PUBLIC)
     })
+
+    it('creates direct poll with correct to/cc', async () => {
+      await createPollFromUserInput({
+        text: 'Direct poll',
+        currentActor: actor1,
+        visibility: 'direct',
+        choices: ['Yes', 'No'],
+        endAt: Date.now() + 86400000,
+        database
+      })
+
+      const statuses = await database.getActorStatuses({
+        actorId: actor1.id
+      })
+      const poll = statuses.find((s) => s.text.includes('Direct poll'))
+
+      expect(poll).toBeDefined()
+      expect(poll?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
+      expect(poll?.to).not.toContain(`${actor1.id}/followers`)
+      expect(poll?.cc).toHaveLength(0)
+    })
   })
 })

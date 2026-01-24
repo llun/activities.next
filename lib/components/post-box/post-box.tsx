@@ -38,6 +38,7 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/models/status'
+import { getVisibility } from '@/lib/utils/getVisibility'
 import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -349,7 +350,15 @@ export const PostBox: FC<Props> = ({
       setAllowPost(false)
     }
 
-    if (!replyStatus) return
+    if (!replyStatus) {
+      // Reset visibility to default when not replying
+      dispatch(setVisibility('public'))
+      return
+    }
+
+    // Initialize visibility from reply status to inherit parent visibility
+    const replyVisibility = getVisibility(replyStatus.to, replyStatus.cc)
+    dispatch(setVisibility(replyVisibility))
 
     if (replyStatus.type !== StatusType.enum.Note) {
       return
