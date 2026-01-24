@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const EmailVerifyRequest = z.object({
@@ -13,7 +14,12 @@ export const POST = traceApiRoute(
     const { currentActor, database } = context
 
     if (!currentActor.account) {
-      return Response.json({ error: 'Account not found' }, { status: 404 })
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'Account not found' },
+        responseStatusCode: 404
+      })
     }
 
     try {
@@ -26,29 +32,40 @@ export const POST = traceApiRoute(
       })
 
       if (!updatedAccount) {
-        return Response.json(
-          { error: 'Invalid or expired verification code' },
-          { status: 400 }
-        )
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Invalid or expired verification code' },
+          responseStatusCode: 400
+        })
       }
 
-      return Response.json({
-        success: true,
-        message: 'Email changed successfully',
-        email: updatedAccount.email
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: {
+          success: true,
+          message: 'Email changed successfully',
+          email: updatedAccount.email
+        },
+        responseStatusCode: 200
       })
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return Response.json(
-          { error: 'Invalid verification code' },
-          { status: 400 }
-        )
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Invalid verification code' },
+          responseStatusCode: 400
+        })
       }
       console.error('Email verification error:', error)
-      return Response.json(
-        { error: 'Failed to verify email change' },
-        { status: 500 }
-      )
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'Failed to verify email change' },
+        responseStatusCode: 500
+      })
     }
   })
 )
