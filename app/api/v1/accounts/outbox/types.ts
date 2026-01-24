@@ -3,12 +3,16 @@ import { z } from 'zod'
 import { SecondsToDurationText } from '@/lib/components/post-box/poll-choices'
 import { PostBoxAttachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
+import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 export const CreateNoteRequest = z.object({
   type: z.literal('note'),
   message: z.string(),
   replyStatus: Status.optional(),
-  attachments: PostBoxAttachment.array().optional()
+  attachments: PostBoxAttachment.array().optional(),
+  visibility: z
+    .enum(['public', 'unlisted', 'private', 'direct'])
+    .optional() as z.ZodOptional<z.ZodType<MastodonVisibility>>
 })
 export type CreateNoteRequest = z.infer<typeof CreateNoteRequest>
 
@@ -23,7 +27,10 @@ export const CreatePollRequest = z.object({
         Object.keys(SecondsToDurationText).map(parseInt).includes(value),
       `Supported duration are ${Object.keys(SecondsToDurationText).join(',')}`
     ),
-  replyStatus: Status.optional()
+  replyStatus: Status.optional(),
+  visibility: z
+    .enum(['public', 'unlisted', 'private', 'direct'])
+    .optional() as z.ZodOptional<z.ZodType<MastodonVisibility>>
 })
 export type CreatePollRequest = z.infer<typeof CreatePollRequest>
 

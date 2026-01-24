@@ -2,6 +2,7 @@ import { Reducer } from 'react'
 
 import { PostBoxAttachment } from '../../models/attachment'
 import { MAX_ATTACHMENTS } from '../../services/medias/constants'
+import { MastodonVisibility } from '../../utils/getVisibility'
 import { Choice, DEFAULT_DURATION, Duration } from './poll-choices'
 
 interface StatusExtension {
@@ -11,6 +12,7 @@ interface StatusExtension {
     choices: Choice[]
     durationInSeconds: Duration
   }
+  visibility: MastodonVisibility
 }
 
 export const resetExtension = () => ({ type: 'resetExtension' as const })
@@ -69,6 +71,12 @@ type ActionSetPollDurationInSeconds = ReturnType<
   typeof setPollDurationInSeconds
 >
 
+export const setVisibility = (visibility: MastodonVisibility) => ({
+  type: 'setVisibility' as const,
+  visibility
+})
+type ActionSetVisibility = ReturnType<typeof setVisibility>
+
 type Actions =
   | ActionReset
   | ActionSetAttachments
@@ -79,6 +87,7 @@ type Actions =
   | ActionAddAttachment
   | ActionUpdateAttachment
   | ActionRemoveAttachment
+  | ActionSetVisibility
 
 const key = () => Math.round(Math.random() * 1000)
 
@@ -93,7 +102,8 @@ export const DEFAULT_STATE: StatusExtension = {
     showing: false,
     choices: DEFAULT_CHOICES,
     durationInSeconds: DEFAULT_DURATION
-  }
+  },
+  visibility: 'public'
 }
 
 export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
@@ -107,12 +117,15 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
           URL.revokeObjectURL(attachment.url)
         }
       })
+      // Reset everything including visibility to default state after posting
       return DEFAULT_STATE
     }
     case 'setAttachments': {
+      // Preserve visibility when loading attachments (e.g., when editing)
       return {
         ...DEFAULT_STATE,
-        attachments: action.attachments
+        attachments: action.attachments,
+        visibility: state.visibility
       }
     }
     case 'setPollVisibility': {
@@ -126,13 +139,15 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       const duration = state.attachments.length
         ? DEFAULT_DURATION
         : state.poll.durationInSeconds
+      // Preserve visibility when toggling poll mode
       return {
         attachments: [],
         poll: {
           ...state.poll,
           showing: action.visible,
           durationInSeconds: duration
-        }
+        },
+        visibility: state.visibility
       }
     }
     case 'addPollChoice': {
@@ -198,6 +213,12 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
           ...state.attachments.slice(0, index),
           ...state.attachments.slice(index + 1)
         ]
+      }
+    }
+    case 'setVisibility': {
+      return {
+        ...state,
+        visibility: action.visibility
       }
     }
     default:
