@@ -101,7 +101,7 @@ const Page: FC<Props> = async ({ params }) => {
     status.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
     status.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
 
-  // If not public/unlisted, check if the logged-in user follows the post owner
+  // If not public/unlisted, check visibility based on privacy level
   if (!isPublicOrUnlisted) {
     // Private posts require authentication
     if (!currentActor) {
@@ -110,15 +110,31 @@ const Page: FC<Props> = async ({ params }) => {
 
     // Authors can always see their own non-public statuses
     if (currentActor.id !== status.actorId) {
-      // Check if the current user follows the post owner (only accepted follows)
-      const follow = await database.getAcceptedOrRequestedFollow({
-        actorId: currentActor.id,
-        targetActorId: status.actorId
-      })
+      // Check if this is a followers-only post (private) or direct message
+      const hasFollowersUrl = [...status.to, ...status.cc].some((item) =>
+        item.endsWith('/followers')
+      )
 
-      // Only accepted follows grant access to private posts
-      if (!follow || follow.status !== FollowStatus.enum.Accepted) {
-        return notFound()
+      if (hasFollowersUrl) {
+        // Private (followers-only) post: Check if user follows the author
+        const follow = await database.getAcceptedOrRequestedFollow({
+          actorId: currentActor.id,
+          targetActorId: status.actorId
+        })
+
+        // Only accepted follows grant access to private posts
+        if (!follow || follow.status !== FollowStatus.enum.Accepted) {
+          return notFound()
+        }
+      } else {
+        // Direct message: Only allow if current user is explicitly mentioned in to/cc
+        const isRecipient =
+          status.to.includes(currentActor.id) ||
+          status.cc.includes(currentActor.id)
+
+        if (!isRecipient) {
+          return notFound()
+        }
       }
     }
   }
