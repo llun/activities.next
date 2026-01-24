@@ -7,6 +7,7 @@ import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getActorProfile } from '@/lib/models/actor'
+import { FollowStatus } from '@/lib/models/follow'
 import { StatusType } from '@/lib/models/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -93,13 +94,49 @@ const Page: FC<Props> = async ({ params }) => {
     url: statusUrl
   })
 
-  if (
-    !(
-      status.to.includes(ACTIVITY_STREAM_PUBLIC) ||
-      status.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
-    )
-  ) {
-    return notFound()
+  // Check if the status is publicly visible (public or unlisted)
+  const isPublicOrUnlisted =
+    status.to.includes(ACTIVITY_STREAM_PUBLIC) ||
+    status.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT) ||
+    status.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
+    status.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
+
+  // If not public/unlisted, check visibility based on privacy level
+  if (!isPublicOrUnlisted) {
+    // Private posts require authentication
+    if (!currentActor) {
+      return notFound()
+    }
+
+    // Authors can always see their own non-public statuses
+    if (currentActor.id !== status.actorId) {
+      // Check if this is a followers-only post (private) or direct message
+      const hasFollowersUrl = [...status.to, ...status.cc].some((item) =>
+        item.endsWith('/followers')
+      )
+
+      if (hasFollowersUrl) {
+        // Private (followers-only) post: Check if user follows the author
+        const follow = await database.getAcceptedOrRequestedFollow({
+          actorId: currentActor.id,
+          targetActorId: status.actorId
+        })
+
+        // Only accepted follows grant access to private posts
+        if (!follow || follow.status !== FollowStatus.enum.Accepted) {
+          return notFound()
+        }
+      } else {
+        // Direct message: Only allow if current user is explicitly mentioned in to/cc
+        const isRecipient =
+          status.to.includes(currentActor.id) ||
+          status.cc.includes(currentActor.id)
+
+        if (!isRecipient) {
+          return notFound()
+        }
+      }
+    }
   }
 
   const previouses = []
