@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { saveFitnessActivityData } from '@/lib/utils/fitnessStorage'
 
 interface StravaWebhookEvent {
   aspect_type: 'create' | 'update' | 'delete'
@@ -283,6 +284,15 @@ async function createStatusFromActivity(
 
   // Save fitness activity data
   const fitnessActivityId = crypto.randomUUID()
+  
+  // Save raw activity data to media storage and get mediaId
+  const mediaId = await saveFitnessActivityData(
+    database,
+    actor,
+    activity,
+    activity.type
+  )
+
   await database.createFitnessActivity({
     id: fitnessActivityId,
     actorId,
@@ -309,7 +319,7 @@ async function createStatusFromActivity(
     mapPolyline: activity.map?.polyline,
     mapSummaryPolyline: activity.map?.summary_polyline,
     photos: activity.photos ? [activity.photos] : undefined,
-    rawData: activity
+    mediaId: mediaId || undefined
   })
 
   // Create attachments for route map and photos
