@@ -36,7 +36,6 @@ export type UpdateActorParams = {
   summary?: string
   iconUrl?: string
   headerImageUrl?: string
-  appleSharedAlbumToken?: string
   manuallyApprovesFollowers?: boolean
   emailNotifications?: {
     follow_request?: boolean

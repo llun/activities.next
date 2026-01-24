@@ -11,7 +11,6 @@ export const ActorProfile = z.object({
   summary: z.string().optional(),
   iconUrl: z.string().optional(),
   headerImageUrl: z.string().optional(),
-  appleSharedAlbumToken: z.string().optional(),
   manuallyApprovesFollowers: z.boolean().optional(),
 
   followersUrl: z.string(),
