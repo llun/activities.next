@@ -67,6 +67,20 @@ export type GetActorsForAccountParams = { accountId: string }
 export type SetDefaultActorParams = { accountId: string; actorId: string }
 export type SetSessionActorParams = { token: string; actorId: string }
 
+export type RequestEmailChangeParams = {
+  accountId: string
+  newEmail: string
+  emailChangeCode: string
+}
+export type VerifyEmailChangeParams = {
+  accountId?: string
+  emailChangeCode: string
+}
+export type ChangePasswordParams = {
+  accountId: string
+  newPasswordHash: string
+}
+
 export interface AccountDatabase {
   isAccountExists(params: IsAccountExistsParams): Promise<boolean>
   isUsernameExists(params: IsUsernameExistsParams): Promise<boolean>
@@ -108,4 +122,8 @@ export interface AccountDatabase {
   getActorsForAccount(params: GetActorsForAccountParams): Promise<Actor[]>
   setDefaultActor(params: SetDefaultActorParams): Promise<void>
   setSessionActor(params: SetSessionActorParams): Promise<void>
+
+  requestEmailChange(params: RequestEmailChangeParams): Promise<void>
+  verifyEmailChange(params: VerifyEmailChangeParams): Promise<Account | null>
+  changePassword(params: ChangePasswordParams): Promise<void>
 }

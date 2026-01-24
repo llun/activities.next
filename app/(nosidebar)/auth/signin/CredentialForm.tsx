@@ -30,8 +30,8 @@ export const CredentialForm: FC<Props> = ({ provider }) => {
     >
       <input name="csrfToken" type="hidden" value={csrfToken ?? ''} readOnly />
       <div className="space-y-2">
-        <Label htmlFor="inputActorId">Actor Id</Label>
-        <Input name="actorId" type="text" id="inputActorId" />
+        <Label htmlFor="inputEmail">Email</Label>
+        <Input name="email" type="email" id="inputEmail" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="inputPassword">Password</Label>
