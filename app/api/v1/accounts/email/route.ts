@@ -2,7 +2,10 @@ import crypto from 'crypto'
 
 import { z } from 'zod'
 
+import { getConfig } from '@/lib/config'
+import { sendMail } from '@/lib/services/email'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { logger } from '@/lib/utils/logger'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const EmailChangeRequest = z.object({
@@ -43,13 +46,51 @@ export const POST = traceApiRoute(
         emailChangeCode
       })
 
-      // TODO: Send verification email
-      // For now, we'll just log in development mode
-      // In production, this should send an email with a verification link
-      if (process.env.NODE_ENV === 'development') {
-        console.log(
-          `Email change verification code: ${emailChangeCode} for ${newEmail}`
-        )
+      // Send verification email
+      const config = getConfig()
+      if (config.email) {
+        try {
+          await sendMail({
+            from: config.email.serviceFromAddress,
+            to: [newEmail],
+            subject: 'Verify your new email address',
+            content: {
+              text: `You requested to change your email address. Please verify your new email by opening this link: https://${config.host}/settings/account/verify-email?code=${emailChangeCode}`,
+              html: `
+                <p>You requested to change your email address.</p>
+                <p>Please verify your new email by clicking the link below:</p>
+                <p><a href="https://${config.host}/settings/account/verify-email?code=${emailChangeCode}">Verify Email Address</a></p>
+                <p>If you didn't request this change, you can safely ignore this email.</p>
+                <p>This link will expire in 24 hours.</p>
+              `
+            }
+          })
+        } catch (error) {
+          logger.error({ to: newEmail }, 'Failed to send email verification')
+          return Response.json(
+            { error: 'Failed to send verification email' },
+            { status: 500 }
+          )
+        }
+      } else {
+        // No email config - log code in development for testing
+        if (process.env.NODE_ENV === 'development') {
+          console.log(
+            `Email change verification code: ${emailChangeCode} for ${newEmail}`
+          )
+          console.log(
+            `Verification URL: https://${config.host}/settings/account/verify-email?code=${emailChangeCode}`
+          )
+        } else {
+          // In production without email config, we cannot complete the flow
+          return Response.json(
+            {
+              error:
+                'Email service not configured. Please contact administrator.'
+            },
+            { status: 503 }
+          )
+        }
       }
 
       return Response.json({
