@@ -162,12 +162,10 @@ export class LocalFileStorage implements MediaStorage {
       this._host.startsWith('[::1]')
         ? 'http'
         : 'https'
-    const url = `${protocol}://${this._host}/api/v1/files/${storedMedia.original.path
-      .split('/')
-      .pop()}`
+    const url = `${protocol}://${this._host}/api/v1/files/${storedMedia.original.path}`
 
     const previewUrl = thumbnail
-      ? `${protocol}://${this._host}/api/v1/files/${thumbnail?.path.split('/').pop()}`
+      ? `${protocol}://${this._host}/api/v1/files/${thumbnail?.path}`
       : url
     return MediaStorageSaveFileOutput.parse({
       id: `${storedMedia.id}`,
