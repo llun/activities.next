@@ -65,7 +65,7 @@ jobs:
 
           **Triggered by:** Push to main branch
           **Commit:** ${{ github.sha }}" \
-            --label "automated-pr"
+            --label "automated pr"
 
       - name: Update existing PR
         if: steps.check-branch.outputs.exists == 'true' && steps.check-diff.outputs.has_diff == 'true' && steps.check-pr.outputs.exists == 'true'
