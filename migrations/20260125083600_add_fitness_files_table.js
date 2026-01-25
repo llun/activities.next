@@ -14,7 +14,8 @@ exports.up = function (knex) {
     table.string('iconPath').notNullable()
     table.bigInteger('fileBytes').notNullable()
     table.bigInteger('iconBytes').notNullable()
-    table.timestamps(true, true)
+    table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+    table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
     table.foreign('actorId').references('id').inTable('actors')
     table.foreign('statusId').references('id').inTable('statuses').onDelete('CASCADE')

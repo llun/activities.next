@@ -136,9 +136,11 @@ export const FitnessFileSQLDatabaseMixin = (
   async getFitnessStorageUsage(params: GetFitnessStorageUsageParams) {
     const result = await database('fitness_files')
       .where('actorId', params.actorId)
-      .sum('fileBytes as total')
+      .sum({ fileTotal: 'fileBytes', iconTotal: 'iconBytes' })
       .first()
 
-    return result?.total ? Number(result.total) : 0
+    const fileTotal = result?.fileTotal ? Number(result.fileTotal) : 0
+    const iconTotal = result?.iconTotal ? Number(result.iconTotal) : 0
+    return fileTotal + iconTotal
   }
 })
