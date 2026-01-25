@@ -1,9 +1,13 @@
 /**
+ * Combined migration for fitness integration with Strava
+ * Creates fitness_activities and fitness_files tables
+ * 
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = (knex) => {
-  return knex.schema.createTable('fitness_activities', function (table) {
+exports.up = async (knex) => {
+  // Create fitness_activities table
+  await knex.schema.createTable('fitness_activities', function (table) {
     table.string('id').primary()
     table.string('actorId').notNullable()
     table.string('statusId') // Link to the created status
@@ -37,8 +41,7 @@ exports.up = (knex) => {
     // Images and media
     table.jsonb('photos') // Array of photo URLs
     
-    // Full raw data from provider
-    table.jsonb('rawData') // Complete activity object from provider
+    // Note: rawData column intentionally not included - raw data stored in fitness_files
     
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
@@ -49,12 +52,33 @@ exports.up = (knex) => {
     table.index(['provider', 'providerId'], 'fitness_activities_provider')
     table.unique(['provider', 'providerId', 'actorId'], 'fitness_activities_unique')
   })
+
+  // Create fitness_files table for storing raw activity data separately from media
+  await knex.schema.createTable('fitness_files', (table) => {
+    table.string('id').primary()
+    table.string('actorId').notNullable().index()
+    table.string('statusId').nullable().index()
+    table.string('provider').notNullable()
+    table.string('providerId').notNullable()
+    table.string('activityType').nullable()
+    table.string('filePath').notNullable()
+    table.string('iconPath').notNullable()
+    table.bigInteger('fileBytes').notNullable()
+    table.bigInteger('iconBytes').notNullable()
+    table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
+    table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
+
+    table.foreign('actorId').references('id').inTable('actors')
+    table.foreign('statusId').references('id').inTable('statuses').onDelete('CASCADE')
+    table.unique(['provider', 'providerId', 'actorId'])
+  })
 }
 
 /**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = (knex) => {
-  return knex.schema.dropTable('fitness_activities')
+exports.down = async (knex) => {
+  await knex.schema.dropTableIfExists('fitness_files')
+  await knex.schema.dropTableIfExists('fitness_activities')
 }
