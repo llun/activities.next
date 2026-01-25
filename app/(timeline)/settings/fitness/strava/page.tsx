@@ -51,8 +51,10 @@ const Page = async ({ searchParams }: PageProps) => {
   const stravaIntegration = settings?.stravaIntegration || {}
 
   // Generate webhook URL with random ID if not already present
+  // Use alphanumeric-only characters (no hyphens or special characters)
   const webhookId =
-    stravaIntegration.webhookId || crypto.randomUUID().substring(0, 15)
+    stravaIntegration.webhookId ||
+    crypto.randomBytes(12).toString('base64url').substring(0, 16)
   const host = process.env.ACTIVITIES_HOST || 'localhost:3000'
   const protocol = host.includes('localhost') ? 'http' : 'https'
   const webhookUrl = `${protocol}://${host}/api/webhooks/strava/${webhookId}`
