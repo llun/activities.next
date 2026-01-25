@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { FC, ReactNode } from 'react'
 
 import { Tabs, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
@@ -11,6 +10,7 @@ interface Props {
 }
 
 const Layout: FC<Props> = ({ children }) => {
+  const router = useRouter()
   const pathname = usePathname()
 
   const tabs = [
@@ -33,11 +33,13 @@ const Layout: FC<Props> = ({ children }) => {
       <Tabs value={pathname} className="w-full">
         <TabsList>
           {tabs.map((tab) => (
-            <Link key={tab.url} href={tab.url}>
-              <TabsTrigger value={tab.url}>
-                {tab.name}
-              </TabsTrigger>
-            </Link>
+            <TabsTrigger
+              key={tab.url}
+              value={tab.url}
+              onClick={() => router.push(tab.url)}
+            >
+              {tab.name}
+            </TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
