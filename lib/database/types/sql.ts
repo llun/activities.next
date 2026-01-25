@@ -23,6 +23,7 @@ export interface ActorSettings {
     tokenExpiresAt?: number
     webhookId?: string // Random webhook identifier for this actor
     stravaSubscriptionId?: string // Strava's subscription ID for webhook
+    verifyToken?: string // Random token for webhook verification (per actor)
   }
 }
 
