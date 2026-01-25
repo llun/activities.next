@@ -30,14 +30,14 @@ const Layout: FC<Props> = ({ children }) => {
         </p>
       </div>
 
-      <Tabs value={pathname} className="w-full">
+      <Tabs
+        value={pathname}
+        onValueChange={(value) => router.push(value)}
+        className="w-full"
+      >
         <TabsList>
           {tabs.map((tab) => (
-            <TabsTrigger
-              key={tab.url}
-              value={tab.url}
-              onClick={() => router.push(tab.url)}
-            >
+            <TabsTrigger key={tab.url} value={tab.url}>
               {tab.name}
             </TabsTrigger>
           ))}
