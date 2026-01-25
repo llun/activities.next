@@ -153,17 +153,23 @@ export const POST = traceApiRoute(
       }
     } else if (
       !stravaIntegration.enabled &&
-      currentStravaIntegration.stravaSubscriptionId &&
-      stravaIntegration.clientId &&
-      stravaIntegration.clientSecret
+      currentStravaIntegration.stravaSubscriptionId
     ) {
       // If disabling, remove the webhook subscription
-      await deleteStravaWebhook({
-        subscriptionId: currentStravaIntegration.stravaSubscriptionId,
-        clientId: stravaIntegration.clientId,
-        clientSecret: stravaIntegration.clientSecret
-      })
-      stravaIntegration.stravaSubscriptionId = undefined
+      // Use current credentials since they may not be in the form submission
+      const clientId =
+        stravaIntegration.clientId || currentStravaIntegration.clientId
+      const clientSecret =
+        stravaIntegration.clientSecret || currentStravaIntegration.clientSecret
+
+      if (clientId && clientSecret) {
+        await deleteStravaWebhook({
+          subscriptionId: currentStravaIntegration.stravaSubscriptionId,
+          clientId,
+          clientSecret
+        })
+        stravaIntegration.stravaSubscriptionId = undefined
+      }
     }
 
     // Update actor settings
