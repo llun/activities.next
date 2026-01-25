@@ -405,6 +405,7 @@ export const GET = traceApiRoute(
   'stravaWebhookValidation',
   async (req: NextRequest, _context: { params: Promise<{ webhookId: string }> }) => {
     const _params = await _context.params
+    const webhookId = _params.webhookId
     const searchParams = req.nextUrl.searchParams
     
     const hubMode = searchParams.get('hub.mode')
@@ -412,11 +413,38 @@ export const GET = traceApiRoute(
     const hubVerifyToken = searchParams.get('hub.verify_token')
 
     // Strava sends a verification request when setting up the webhook
-    if (hubMode === 'subscribe' && hubVerifyToken === 'STRAVA') {
-      return apiResponse({
-        req,
-        allowedMethods: ['GET'],
-        data: { 'hub.challenge': hubChallenge }
+    if (hubMode === 'subscribe' && hubVerifyToken) {
+      // Find the actor with this webhook ID and verify the token matches
+      const database = getDatabase()
+      if (!database) {
+        return apiErrorResponse(500)
+      }
+
+      const actor = await database.getActorFromStravaWebhookId({ webhookId })
+      if (!actor) {
+        logger.info({
+          message: 'No actor found for webhook ID during validation',
+          webhookId
+        })
+        return apiErrorResponse(400)
+      }
+
+      const settings = await database.getActorSettings({ actorId: actor.id })
+      const stravaIntegration = settings?.stravaIntegration
+
+      // Verify the token matches the stored token for this actor
+      if (stravaIntegration?.verifyToken === hubVerifyToken) {
+        return apiResponse({
+          req,
+          allowedMethods: ['GET'],
+          data: { 'hub.challenge': hubChallenge }
+        })
+      }
+
+      logger.info({
+        message: 'Invalid verify token',
+        webhookId,
+        actorId: actor.id
       })
     }
 

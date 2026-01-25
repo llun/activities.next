@@ -55,6 +55,7 @@ export type UpdateActorParams = {
     tokenExpiresAt?: number
     webhookId?: string
     stravaSubscriptionId?: string
+    verifyToken?: string
   }
 
   publicKey?: string

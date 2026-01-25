@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import crypto from 'crypto'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
@@ -19,6 +20,7 @@ async function registerStravaWebhook(params: {
   clientId: string
   clientSecret: string
   callbackUrl: string
+  verifyToken: string
 }): Promise<{ id: string } | null> {
   try {
     // Strava webhook subscription endpoint
@@ -32,7 +34,7 @@ async function registerStravaWebhook(params: {
         client_id: params.clientId,
         client_secret: params.clientSecret,
         callback_url: params.callbackUrl,
-        verify_token: 'STRAVA'
+        verify_token: params.verifyToken
       })
     })
 
@@ -124,6 +126,11 @@ export const POST = traceApiRoute(
       const protocol = host.includes('localhost') ? 'http' : 'https'
       const callbackUrl = `${protocol}://${host}/api/webhooks/strava/${parsed.webhookId}`
 
+      // Generate a random verify token for this actor if not already set
+      if (!stravaIntegration.verifyToken) {
+        stravaIntegration.verifyToken = crypto.randomBytes(32).toString('hex')
+      }
+
       // If there's an existing subscription, delete it first
       if (currentStravaIntegration.stravaSubscriptionId) {
         await deleteStravaWebhook({
@@ -137,7 +144,8 @@ export const POST = traceApiRoute(
       const subscription = await registerStravaWebhook({
         clientId: stravaIntegration.clientId,
         clientSecret: stravaIntegration.clientSecret,
-        callbackUrl
+        callbackUrl,
+        verifyToken: stravaIntegration.verifyToken
       })
 
       if (subscription) {
