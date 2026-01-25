@@ -33,10 +33,7 @@ const Page = async ({
   const params = await searchParams
 
   // Parse pagination parameters with defaults and validation
-  const page = Math.max(
-    1,
-    Math.min(10000, parseInt(params.page || '1', 10))
-  )
+  const page = Math.max(1, Math.min(10000, parseInt(params.page || '1', 10)))
   const itemsPerPage = [25, 50, 100].includes(
     parseInt(params.limit || '25', 10)
   )

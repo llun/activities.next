@@ -21,9 +21,7 @@ interface Params {
 
 export const POST = traceApiRoute(
   'unfavouriteStatus',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
-    async (req, context) => {
+  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId) return apiErrorResponse(404)
@@ -59,8 +57,7 @@ export const POST = traceApiRoute(
       allowedMethods: CORS_HEADERS,
       data: mastodonStatus
     })
-    }
-  ),
+  }),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

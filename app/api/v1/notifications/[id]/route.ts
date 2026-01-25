@@ -21,69 +21,75 @@ interface Params {
   id: string
 }
 
-export const GET = traceApiRoute('getNotification', OAuthGuard<Params>(
-  [Scope.enum.read],
-  async (req, { currentActor, database, params }) => {
-    if (!database) {
-      return apiErrorResponse(500)
+export const GET = traceApiRoute(
+  'getNotification',
+  OAuthGuard<Params>(
+    [Scope.enum.read],
+    async (req, { currentActor, database, params }) => {
+      if (!database) {
+        return apiErrorResponse(500)
+      }
+
+      const id = (await params).id
+
+      const notifications = await database.getNotifications({
+        actorId: currentActor.id,
+        ids: [id],
+        limit: 1
+      })
+
+      if (notifications.length === 0) {
+        return apiErrorResponse(404)
+      }
+
+      const mastodonNotification = await getMastodonNotification(
+        database,
+        notifications[0],
+        { currentActorId: currentActor.id }
+      )
+
+      if (!mastodonNotification) {
+        return apiErrorResponse(404)
+      }
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: mastodonNotification
+      })
     }
+  )
+)
 
-    const id = (await params).id
+export const POST = traceApiRoute(
+  'dismissNotificationById',
+  OAuthGuard<Params>(
+    [Scope.enum.write],
+    async (req, { currentActor, database, params }) => {
+      if (!database) {
+        return apiErrorResponse(500)
+      }
 
-    const notifications = await database.getNotifications({
-      actorId: currentActor.id,
-      ids: [id],
-      limit: 1
-    })
+      const id = (await params).id
 
-    if (notifications.length === 0) {
-      return apiErrorResponse(404)
+      // Verify ownership
+      const notifications = await database.getNotifications({
+        actorId: currentActor.id,
+        ids: [id],
+        limit: 1
+      })
+
+      if (notifications.length === 0) {
+        return apiErrorResponse(404)
+      }
+
+      await database.deleteNotification(id)
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {}
+      })
     }
-
-    const mastodonNotification = await getMastodonNotification(
-      database,
-      notifications[0],
-      { currentActorId: currentActor.id }
-    )
-
-    if (!mastodonNotification) {
-      return apiErrorResponse(404)
-    }
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonNotification
-    })
-  }
-))
-
-export const POST = traceApiRoute('dismissNotificationById', OAuthGuard<Params>(
-  [Scope.enum.write],
-  async (req, { currentActor, database, params }) => {
-    if (!database) {
-      return apiErrorResponse(500)
-    }
-
-    const id = (await params).id
-
-    // Verify ownership
-    const notifications = await database.getNotifications({
-      actorId: currentActor.id,
-      ids: [id],
-      limit: 1
-    })
-
-    if (notifications.length === 0) {
-      return apiErrorResponse(404)
-    }
-
-    await database.deleteNotification(id)
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: {}
-    })
-  }
-))
+  )
+)

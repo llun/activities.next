@@ -20,31 +20,28 @@ interface Params {
 
 export const POST = traceApiRoute(
   'unblockAccount',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
-    async (req, context) => {
-      const { database, currentActor, params } = context
-      const encodedAccountId = (await params).id
-      if (!encodedAccountId) return apiErrorResponse(400)
+  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
+    const { database, currentActor, params } = context
+    const encodedAccountId = (await params).id
+    if (!encodedAccountId) return apiErrorResponse(400)
 
-      const targetActorId = idToUrl(encodedAccountId)
+    const targetActorId = idToUrl(encodedAccountId)
 
-      // Unblocking not yet implemented - return relationship with blocking: false
-      // TODO: Implement blocking functionality
+    // Unblocking not yet implemented - return relationship with blocking: false
+    // TODO: Implement blocking functionality
 
-      const relationship = await getRelationship({
-        database,
-        currentActor,
-        targetActorId
-      })
+    const relationship = await getRelationship({
+      database,
+      currentActor,
+      targetActorId
+    })
 
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: relationship
-      })
-    }
-  ),
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: relationship
+    })
+  }),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

@@ -18,36 +18,39 @@ const getReceiver = memoize(
     })
 )
 
-export const POST = traceApiRoute('processQueueJob', async (request: NextRequest) => {
-  const config = getConfig()
-  if (config.queue?.type !== 'qstash') {
-    return apiErrorResponse(404)
-  }
-
-  const receiver = getReceiver(config)
-  const body = await request.text()
-  const signature = request.headers.get('upstash-signature') ?? ''
-
-  try {
-    const isValid = await receiver.verify({
-      body,
-      signature,
-      url: `https://${headerHost(request.headers)}/api/v1/queue/qstash`
-    })
-    if (!isValid) {
-      return apiErrorResponse(400)
+export const POST = traceApiRoute(
+  'processQueueJob',
+  async (request: NextRequest) => {
+    const config = getConfig()
+    if (config.queue?.type !== 'qstash') {
+      return apiErrorResponse(404)
     }
 
-    const jsonBody = JSON.parse(body)
-    logger.debug({ body: jsonBody }, 'Received message from qstash')
-    await getQueue().handle(jsonBody)
-  } catch (e) {
-    logger.error(e)
-    return apiErrorResponse(400)
+    const receiver = getReceiver(config)
+    const body = await request.text()
+    const signature = request.headers.get('upstash-signature') ?? ''
+
+    try {
+      const isValid = await receiver.verify({
+        body,
+        signature,
+        url: `https://${headerHost(request.headers)}/api/v1/queue/qstash`
+      })
+      if (!isValid) {
+        return apiErrorResponse(400)
+      }
+
+      const jsonBody = JSON.parse(body)
+      logger.debug({ body: jsonBody }, 'Received message from qstash')
+      await getQueue().handle(jsonBody)
+    } catch (e) {
+      logger.error(e)
+      return apiErrorResponse(400)
+    }
+    return apiResponse({
+      req: request,
+      allowedMethods: [HttpMethod.enum.POST],
+      data: {}
+    })
   }
-  return apiResponse({
-    req: request,
-    allowedMethods: [HttpMethod.enum.POST],
-    data: {}
-  })
-})
+)

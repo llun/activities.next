@@ -19,33 +19,30 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getStatusSource',
-  OAuthGuard<Params>(
-    [Scope.enum.read],
-    async (req, context) => {
-      const { database, params } = context
-      const encodedStatusId = (await params).id
-      if (!encodedStatusId) return apiErrorResponse(404)
+  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
+    const { database, params } = context
+    const encodedStatusId = (await params).id
+    if (!encodedStatusId) return apiErrorResponse(404)
 
-      const statusId = idToUrl(encodedStatusId)
-      const status = await database.getStatus({ statusId, withReplies: false })
-      if (!status) return apiErrorResponse(404)
+    const statusId = idToUrl(encodedStatusId)
+    const status = await database.getStatus({ statusId, withReplies: false })
+    if (!status) return apiErrorResponse(404)
 
-      // Only note and poll statuses have text content
-      if (status.type === 'Announce') {
-        return apiErrorResponse(404)
-      }
-
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: {
-          id: urlToId(status.id),
-          text: status.text ?? '',
-          spoiler_text: status.summary ?? ''
-        }
-      })
+    // Only note and poll statuses have text content
+    if (status.type === 'Announce') {
+      return apiErrorResponse(404)
     }
-  ),
+
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: {
+        id: urlToId(status.id),
+        text: status.text ?? '',
+        spoiler_text: status.summary ?? ''
+      }
+    })
+  }),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

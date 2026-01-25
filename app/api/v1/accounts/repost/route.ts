@@ -25,40 +25,46 @@ const CORS_HEADERS = [
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = traceApiRoute('repostToAccount', AuthenticatedGuard(async (req, context) => {
-  const { database, currentActor } = context
-  const body = await req.json()
-  const { statusId } = RepostRequest.parse(body)
-  const announceStatus = await userAnnounce({
-    currentActor,
-    statusId,
-    database
+export const POST = traceApiRoute(
+  'repostToAccount',
+  AuthenticatedGuard(async (req, context) => {
+    const { database, currentActor } = context
+    const body = await req.json()
+    const { statusId } = RepostRequest.parse(body)
+    const announceStatus = await userAnnounce({
+      currentActor,
+      statusId,
+      database
+    })
+    if (!announceStatus) {
+      return apiErrorResponse(422)
+    }
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: { statusId: announceStatus.id }
+    })
   })
-  if (!announceStatus) {
-    return apiErrorResponse(422)
-  }
-  return apiResponse({
-    req,
-    allowedMethods: CORS_HEADERS,
-    data: { statusId: announceStatus.id }
-  })
-}))
+)
 
-export const DELETE = traceApiRoute('unrepostToAccount', AuthenticatedGuard(async (req, context) => {
-  const { database, currentActor } = context
-  const body = await req.json()
-  const { statusId } = RepostRequest.parse(body)
-  const undoStatus = await userUndoAnnounce({
-    currentActor,
-    statusId,
-    database
+export const DELETE = traceApiRoute(
+  'unrepostToAccount',
+  AuthenticatedGuard(async (req, context) => {
+    const { database, currentActor } = context
+    const body = await req.json()
+    const { statusId } = RepostRequest.parse(body)
+    const undoStatus = await userUndoAnnounce({
+      currentActor,
+      statusId,
+      database
+    })
+    if (!undoStatus) {
+      return apiErrorResponse(422)
+    }
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: { statusId: undoStatus.id }
+    })
   })
-  if (!undoStatus) {
-    return apiErrorResponse(422)
-  }
-  return apiResponse({
-    req,
-    allowedMethods: CORS_HEADERS,
-    data: { statusId: undoStatus.id }
-  })
-}))
+)

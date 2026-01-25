@@ -19,9 +19,9 @@ const DismissBody = z.object({
   id: z.string()
 })
 
-export const POST = traceApiRoute('dismissNotificationByBody', OAuthGuard(
-  [Scope.enum.write],
-  async (req, { currentActor }) => {
+export const POST = traceApiRoute(
+  'dismissNotificationByBody',
+  OAuthGuard([Scope.enum.write], async (req, { currentActor }) => {
     const database = getDatabase()
     if (!database) {
       return apiErrorResponse(500)
@@ -53,5 +53,5 @@ export const POST = traceApiRoute('dismissNotificationByBody', OAuthGuard(
       allowedMethods: CORS_HEADERS,
       data: {}
     })
-  }
-))
+  })
+)

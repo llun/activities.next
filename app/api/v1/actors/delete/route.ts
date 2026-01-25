@@ -109,7 +109,9 @@ export const POST = traceApiRoute(
     }
 
     // Check if actor is already being deleted
-    const deletionStatus = await database.getActorDeletionStatus({ id: actorId })
+    const deletionStatus = await database.getActorDeletionStatus({
+      id: actorId
+    })
     logger.debug({
       message: 'Retrieved actor deletion status',
       actorId,

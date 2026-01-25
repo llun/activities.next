@@ -31,7 +31,7 @@ export const getAuthOptions = memoize(() => {
 
             const database = getDatabase()
             const { email, password } = credentials
-            
+
             // Get account by email
             const account = await database?.getAccountFromEmail({ email })
             if (!account) return null

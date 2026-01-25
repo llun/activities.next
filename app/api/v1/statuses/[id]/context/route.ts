@@ -21,52 +21,49 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getStatusContext',
-  OAuthGuard<Params>(
-    [Scope.enum.read],
-    async (req, context) => {
-      const { params } = context
-      const encodedStatusId = (await params).id
-      if (!encodedStatusId) return apiErrorResponse(404)
+  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
+    const { params } = context
+    const encodedStatusId = (await params).id
+    if (!encodedStatusId) return apiErrorResponse(404)
 
-      const { database, currentActor } = context
-      const statusId = idToUrl(encodedStatusId)
+    const { database, currentActor } = context
+    const statusId = idToUrl(encodedStatusId)
 
-      const status = await database.getStatus({ statusId })
-      if (!status || status.type === StatusType.enum.Announce) {
-        return apiErrorResponse(404)
-      }
+    const status = await database.getStatus({ statusId })
+    if (!status || status.type === StatusType.enum.Announce) {
+      return apiErrorResponse(404)
+    }
 
-      const [ancestor, descendants] = await Promise.all([
-        status.reply
-          ? database
-              .getStatus({ statusId: status.reply })
-              .then((status) =>
-                status
-                  ? getMastodonStatus(database, status, currentActor.id)
-                  : null
-              )
-          : Promise.resolve(null),
-        database
-          .getStatusReplies({ statusId })
-          .then((statuses) =>
-            Promise.all(
-              statuses.map((status) =>
-                getMastodonStatus(database, status, currentActor.id)
-              )
+    const [ancestor, descendants] = await Promise.all([
+      status.reply
+        ? database
+            .getStatus({ statusId: status.reply })
+            .then((status) =>
+              status
+                ? getMastodonStatus(database, status, currentActor.id)
+                : null
+            )
+        : Promise.resolve(null),
+      database
+        .getStatusReplies({ statusId })
+        .then((statuses) =>
+          Promise.all(
+            statuses.map((status) =>
+              getMastodonStatus(database, status, currentActor.id)
             )
           )
-      ])
+        )
+    ])
 
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: {
-          ancestors: ancestor ? [ancestor] : [],
-          descendants: descendants.filter(Boolean)
-        }
-      })
-    }
-  ),
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: {
+        ancestors: ancestor ? [ancestor] : [],
+        descendants: descendants.filter(Boolean)
+      }
+    })
+  }),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

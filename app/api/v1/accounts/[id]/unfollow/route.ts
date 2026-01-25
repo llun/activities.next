@@ -22,43 +22,40 @@ interface Params {
 
 export const POST = traceApiRoute(
   'unfollowAccount',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
-    async (req, context) => {
-      const { database, currentActor, params } = context
-      const encodedAccountId = (await params).id
-      if (!encodedAccountId) return apiErrorResponse(400)
+  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
+    const { database, currentActor, params } = context
+    const encodedAccountId = (await params).id
+    if (!encodedAccountId) return apiErrorResponse(400)
 
-      const targetActorId = idToUrl(encodedAccountId)
+    const targetActorId = idToUrl(encodedAccountId)
 
-      const existingFollow = await database.getAcceptedOrRequestedFollow({
-        actorId: currentActor.id,
-        targetActorId
-      })
+    const existingFollow = await database.getAcceptedOrRequestedFollow({
+      actorId: currentActor.id,
+      targetActorId
+    })
 
-      if (existingFollow) {
-        await Promise.all([
-          unfollow(currentActor, existingFollow),
-          database.updateFollowStatus({
-            followId: existingFollow.id,
-            status: FollowStatus.enum.Undo
-          })
-        ])
-      }
-
-      const relationship = await getRelationship({
-        database,
-        currentActor,
-        targetActorId
-      })
-
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: relationship
-      })
+    if (existingFollow) {
+      await Promise.all([
+        unfollow(currentActor, existingFollow),
+        database.updateFollowStatus({
+          followId: existingFollow.id,
+          status: FollowStatus.enum.Undo
+        })
+      ])
     }
-  ),
+
+    const relationship = await getRelationship({
+      database,
+      currentActor,
+      targetActorId
+    })
+
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: relationship
+    })
+  }),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

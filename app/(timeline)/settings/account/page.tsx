@@ -8,9 +8,9 @@ import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
+import { LogoutButton } from '../LogoutButton'
 import { ChangeEmailForm } from './ChangeEmailForm'
 import { ChangePasswordForm } from './ChangePasswordForm'
-import { LogoutButton } from '../LogoutButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,11 +52,7 @@ const Page = async () => {
         <div className="space-y-2">
           <Label>Current Email</Label>
           <div className="flex items-center gap-2">
-            <Input
-              value={account.email}
-              disabled
-              className="bg-muted"
-            />
+            <Input value={account.email} disabled className="bg-muted" />
             {account.emailVerifiedAt && (
               <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
                 Verified

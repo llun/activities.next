@@ -8,10 +8,13 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = traceApiRoute('getAccountFeaturedTags', async (req: NextRequest) => {
-  return apiResponse({
-    req,
-    allowedMethods: CORS_HEADERS,
-    data: []
-  })
-})
+export const GET = traceApiRoute(
+  'getAccountFeaturedTags',
+  async (req: NextRequest) => {
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: []
+    })
+  }
+)

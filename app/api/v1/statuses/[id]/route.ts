@@ -28,9 +28,9 @@ const CORS_HEADERS = [
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = traceApiRoute('getStatus', OAuthGuard<Params>(
-  [Scope.enum.read],
-  async (req, context) => {
+export const GET = traceApiRoute(
+  'getStatus',
+  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId) return apiErrorResponse(404)
@@ -51,17 +51,17 @@ export const GET = traceApiRoute('getStatus', OAuthGuard<Params>(
       allowedMethods: CORS_HEADERS,
       data: mastodonStatus
     })
-  }
-))
+  })
+)
 
 const EditNoteSchema = z.object({
   status: z.string(),
   spoiler_text: z.string().optional()
 })
 
-export const PUT = traceApiRoute('updateStatus', OAuthGuard<Params>(
-  [Scope.enum.write],
-  async (req, context) => {
+export const PUT = traceApiRoute(
+  'updateStatus',
+  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId) return apiErrorResponse(404)
@@ -94,12 +94,12 @@ export const PUT = traceApiRoute('updateStatus', OAuthGuard<Params>(
       allowedMethods: CORS_HEADERS,
       data: mastodonStatus
     })
-  }
-))
+  })
+)
 
-export const DELETE = traceApiRoute('deleteStatus', OAuthGuard<Params>(
-  [Scope.enum.write],
-  async (req, context) => {
+export const DELETE = traceApiRoute(
+  'deleteStatus',
+  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
     if (!encodedStatusId) return apiErrorResponse(404)
@@ -132,5 +132,5 @@ export const DELETE = traceApiRoute('deleteStatus', OAuthGuard<Params>(
       allowedMethods: CORS_HEADERS,
       data: mastodonStatus ?? {}
     })
-  }
-))
+  })
+)

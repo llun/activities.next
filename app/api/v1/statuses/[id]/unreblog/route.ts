@@ -21,39 +21,36 @@ interface Params {
 
 export const POST = traceApiRoute(
   'unreblogStatus',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
-    async (req, context) => {
-      const { database, currentActor, params } = context
-      const encodedStatusId = (await params).id
-      if (!encodedStatusId) return apiErrorResponse(404)
+  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
+    const { database, currentActor, params } = context
+    const encodedStatusId = (await params).id
+    if (!encodedStatusId) return apiErrorResponse(404)
 
-      const statusId = idToUrl(encodedStatusId)
+    const statusId = idToUrl(encodedStatusId)
 
-      const undoStatus = await userUndoAnnounce({
-        currentActor,
-        statusId,
-        database
-      })
+    const undoStatus = await userUndoAnnounce({
+      currentActor,
+      statusId,
+      database
+    })
 
-      if (!undoStatus) {
-        return apiErrorResponse(422)
-      }
-
-      const mastodonStatus = await getMastodonStatus(
-        database,
-        undoStatus,
-        currentActor.id
-      )
-      if (!mastodonStatus) return apiErrorResponse(500)
-
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: mastodonStatus
-      })
+    if (!undoStatus) {
+      return apiErrorResponse(422)
     }
-  ),
+
+    const mastodonStatus = await getMastodonStatus(
+      database,
+      undoStatus,
+      currentActor.id
+    )
+    if (!mastodonStatus) return apiErrorResponse(500)
+
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: mastodonStatus
+    })
+  }),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

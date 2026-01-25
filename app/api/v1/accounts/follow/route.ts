@@ -27,61 +27,70 @@ const CORS_HEADERS = [
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = traceApiRoute('getFollowFromUrl', AuthenticatedGuard(async (req, context) => {
-  const { database, currentActor } = context
-  const params = new URL(req.url).searchParams
-  const targetActorId = params.get('targetActorId')
-  if (!targetActorId) return apiErrorResponse(404)
+export const GET = traceApiRoute(
+  'getFollowFromUrl',
+  AuthenticatedGuard(async (req, context) => {
+    const { database, currentActor } = context
+    const params = new URL(req.url).searchParams
+    const targetActorId = params.get('targetActorId')
+    if (!targetActorId) return apiErrorResponse(404)
 
-  const follow = await database.getAcceptedOrRequestedFollow({
-    actorId: currentActor.id,
-    targetActorId: targetActorId as string
-  })
-  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { follow } })
-}))
-
-export const POST = traceApiRoute('followAccountFromUrl', AuthenticatedGuard(async (req, context) => {
-  const { database, currentActor } = context
-  const body = await req.json()
-  const { target } = FollowRequest.parse(body)
-  const person = await getActorPerson({ actorId: target })
-  if (!person) return apiErrorResponse(404)
-  const followItem = await database.createFollow({
-    actorId: currentActor.id,
-    targetActorId: target,
-    status: FollowStatus.enum.Requested,
-    inbox: `${currentActor.id}/inbox`,
-    sharedInbox: `https://${currentActor.domain}/inbox`
-  })
-  await follow(followItem.id, currentActor, target)
-  return apiResponse({
-    req,
-    allowedMethods: CORS_HEADERS,
-    data: DEFAULT_202,
-    responseStatusCode: HTTP_STATUS.ACCEPTED
-  })
-}))
-
-export const DELETE = traceApiRoute('unfollowAccountFromUrl', AuthenticatedGuard(async (req, context) => {
-  const { database, currentActor } = context
-  const body = await req.json()
-  const { target } = FollowRequest.parse(body)
-  const follow = await database.getAcceptedOrRequestedFollow({
-    actorId: currentActor.id,
-    targetActorId: target
-  })
-  if (!follow) return apiErrorResponse(404)
-  await Promise.all([
-    unfollow(currentActor, follow),
-    database.updateFollowStatus({
-      followId: follow.id,
-      status: FollowStatus.enum.Undo
+    const follow = await database.getAcceptedOrRequestedFollow({
+      actorId: currentActor.id,
+      targetActorId: targetActorId as string
     })
-  ])
-  return apiResponse({
-    req,
-    allowedMethods: CORS_HEADERS,
-    data: DEFAULT_202,
-    responseStatusCode: HTTP_STATUS.ACCEPTED
+    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { follow } })
   })
-}))
+)
+
+export const POST = traceApiRoute(
+  'followAccountFromUrl',
+  AuthenticatedGuard(async (req, context) => {
+    const { database, currentActor } = context
+    const body = await req.json()
+    const { target } = FollowRequest.parse(body)
+    const person = await getActorPerson({ actorId: target })
+    if (!person) return apiErrorResponse(404)
+    const followItem = await database.createFollow({
+      actorId: currentActor.id,
+      targetActorId: target,
+      status: FollowStatus.enum.Requested,
+      inbox: `${currentActor.id}/inbox`,
+      sharedInbox: `https://${currentActor.domain}/inbox`
+    })
+    await follow(followItem.id, currentActor, target)
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: DEFAULT_202,
+      responseStatusCode: HTTP_STATUS.ACCEPTED
+    })
+  })
+)
+
+export const DELETE = traceApiRoute(
+  'unfollowAccountFromUrl',
+  AuthenticatedGuard(async (req, context) => {
+    const { database, currentActor } = context
+    const body = await req.json()
+    const { target } = FollowRequest.parse(body)
+    const follow = await database.getAcceptedOrRequestedFollow({
+      actorId: currentActor.id,
+      targetActorId: target
+    })
+    if (!follow) return apiErrorResponse(404)
+    await Promise.all([
+      unfollow(currentActor, follow),
+      database.updateFollowStatus({
+        followId: follow.id,
+        status: FollowStatus.enum.Undo
+      })
+    ])
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: DEFAULT_202,
+      responseStatusCode: HTTP_STATUS.ACCEPTED
+    })
+  })
+)
