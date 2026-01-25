@@ -518,7 +518,10 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     if (account.emailChangeCode !== emailChangeCode) return null
 
     const now = new Date()
-    if (account.emailChangeCodeExpiresAt && now > new Date(account.emailChangeCodeExpiresAt)) {
+    if (
+      account.emailChangeCodeExpiresAt &&
+      now > new Date(account.emailChangeCodeExpiresAt)
+    ) {
       return null
     }
 

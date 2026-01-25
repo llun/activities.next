@@ -52,7 +52,9 @@ export const POST = traceApiRoute(
     }
 
     // Check if actor is scheduled for deletion (can only cancel if scheduled, not if already deleting)
-    const deletionStatus = await database.getActorDeletionStatus({ id: actorId })
+    const deletionStatus = await database.getActorDeletionStatus({
+      id: actorId
+    })
     if (!deletionStatus?.status) {
       return apiResponse({
         req,

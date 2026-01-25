@@ -44,9 +44,9 @@ const NotificationQueryParams = z.object({
     .optional()
 })
 
-export const GET = traceApiRoute('getNotifications', OAuthGuard(
-  [Scope.enum.read],
-  async (req, { currentActor }) => {
+export const GET = traceApiRoute(
+  'getNotifications',
+  OAuthGuard([Scope.enum.read], async (req, { currentActor }) => {
     const database = getDatabase()
     if (!database) {
       return apiErrorResponse(500)
@@ -178,12 +178,12 @@ export const GET = traceApiRoute('getNotifications', OAuthGuard(
         ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
       ]
     })
-  }
-))
+  })
+)
 
-export const POST = traceApiRoute('clearAllNotifications', OAuthGuard(
-  [Scope.enum.write],
-  async (req, { currentActor }) => {
+export const POST = traceApiRoute(
+  'clearAllNotifications',
+  OAuthGuard([Scope.enum.write], async (req, { currentActor }) => {
     const database = getDatabase()
     if (!database) {
       return apiErrorResponse(500)
@@ -222,5 +222,5 @@ export const POST = traceApiRoute('clearAllNotifications', OAuthGuard(
       allowedMethods: CORS_HEADERS,
       data: {}
     })
-  }
-))
+  })
+)

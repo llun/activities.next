@@ -17,33 +17,36 @@ interface Params {
   id: string
 }
 
-export const POST = traceApiRoute('dismissNotification', OAuthGuard<Params>(
-  [Scope.enum.write],
-  async (req, { currentActor, params }) => {
-    const database = getDatabase()
-    if (!database) {
-      return apiErrorResponse(500)
+export const POST = traceApiRoute(
+  'dismissNotification',
+  OAuthGuard<Params>(
+    [Scope.enum.write],
+    async (req, { currentActor, params }) => {
+      const database = getDatabase()
+      if (!database) {
+        return apiErrorResponse(500)
+      }
+
+      const id = (await params).id
+
+      // Verify ownership
+      const notifications = await database.getNotifications({
+        actorId: currentActor.id,
+        ids: [id],
+        limit: 1
+      })
+
+      if (notifications.length === 0) {
+        return apiErrorResponse(404)
+      }
+
+      await database.deleteNotification(id)
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {}
+      })
     }
-
-    const id = (await params).id
-
-    // Verify ownership
-    const notifications = await database.getNotifications({
-      actorId: currentActor.id,
-      ids: [id],
-      limit: 1
-    })
-
-    if (notifications.length === 0) {
-      return apiErrorResponse(404)
-    }
-
-    await database.deleteNotification(id)
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: {}
-    })
-  }
-))
+  )
+)

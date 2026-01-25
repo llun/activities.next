@@ -13,9 +13,9 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const GET = traceApiRoute('getFollowRequestsCount', OAuthGuard(
-  [Scope.enum.read],
-  async (req, { currentActor }) => {
+export const GET = traceApiRoute(
+  'getFollowRequestsCount',
+  OAuthGuard([Scope.enum.read], async (req, { currentActor }) => {
     const database = getDatabase()
     if (!database) {
       return apiErrorResponse(500)
@@ -30,5 +30,5 @@ export const GET = traceApiRoute('getFollowRequestsCount', OAuthGuard(
       allowedMethods: CORS_HEADERS,
       data: { count }
     })
-  }
-))
+  })
+)

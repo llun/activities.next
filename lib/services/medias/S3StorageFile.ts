@@ -10,7 +10,7 @@ import { format } from 'date-fns'
 import fs from 'fs/promises'
 import { IncomingMessage } from 'http'
 import { tmpdir } from 'os'
-import { join, extname } from 'path'
+import { extname, join } from 'path'
 import sharp from 'sharp'
 
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'

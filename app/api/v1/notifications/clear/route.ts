@@ -13,9 +13,9 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = traceApiRoute('clearNotifications', OAuthGuard(
-  [Scope.enum.write],
-  async (req, { currentActor }) => {
+export const POST = traceApiRoute(
+  'clearNotifications',
+  OAuthGuard([Scope.enum.write], async (req, { currentActor }) => {
     const database = getDatabase()
     if (!database) {
       return apiErrorResponse(500)
@@ -54,5 +54,5 @@ export const POST = traceApiRoute('clearNotifications', OAuthGuard(
       allowedMethods: CORS_HEADERS,
       data: {}
     })
-  }
-))
+  })
+)

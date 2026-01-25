@@ -1,0 +1,76 @@
+name: Sync main to oltp
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if oltp branch exists
+        id: check-branch
+        run: |
+          if git ls-remote --heads origin oltp | grep -q oltp; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for differences
+        if: steps.check-branch.outputs.exists == 'true'
+        id: check-diff
+        run: |
+          git fetch origin oltp
+          if git diff --quiet origin/main origin/oltp; then
+            echo "has_diff=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_diff=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for existing PR
+        if: steps.check-branch.outputs.exists == 'true' && steps.check-diff.outputs.has_diff == 'true'
+        id: check-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing_pr=$(gh pr list --base oltp --head main --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing_pr" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "number=$existing_pr" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.check-branch.outputs.exists == 'true' && steps.check-diff.outputs.has_diff == 'true' && steps.check-pr.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base oltp \
+            --head main \
+            --title "Sync changes from main to oltp" \
+            --body "This PR syncs the latest changes from the \`main\` branch to \`oltp\`.
+
+          **Triggered by:** Push to main branch
+          **Commit:** ${{ github.sha }}" \
+            --label "automated-pr"
+
+      - name: Update existing PR
+        if: steps.check-branch.outputs.exists == 'true' && steps.check-diff.outputs.has_diff == 'true' && steps.check-pr.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ steps.check-pr.outputs.number }} \
+            --body "🔄 New changes pushed to main (commit: ${{ github.sha }})"

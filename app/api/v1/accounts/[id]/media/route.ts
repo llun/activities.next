@@ -28,10 +28,7 @@ const MediaQueryParams = z.object({
 
 export const GET = traceApiRoute(
   'getAccountMedia',
-  async (
-    req: NextRequest,
-    params: AppRouterParams<Params>
-  ) => {
+  async (req: NextRequest, params: AppRouterParams<Params>) => {
     const database = getDatabase()
     if (!database) {
       return apiErrorResponse(500)

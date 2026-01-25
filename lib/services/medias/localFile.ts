@@ -221,11 +221,7 @@ export class LocalFileStorage implements MediaStorage {
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const filename = `${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.webp`
-    const filePath = path.resolve(
-      process.cwd(),
-      uploadPath,
-      filename
-    )
+    const filePath = path.resolve(process.cwd(), uploadPath, filename)
     const resizedImage = sharp(imageBuffer)
       .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
       .rotate()
@@ -263,15 +259,13 @@ export class LocalFileStorage implements MediaStorage {
       ? { width: videoStream.width, height: videoStream.height }
       : { width: 0, height: 0 }
 
-    const ext = videoFile.name.endsWith('.mov') ? '.mp4' : path.extname(videoFile.name)
+    const ext = videoFile.name.endsWith('.mov')
+      ? '.mp4'
+      : path.extname(videoFile.name)
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const filename = `${randomPrefix}${ext}`
-    const filePath = path.resolve(
-      process.cwd(),
-      uploadPath,
-      filename
-    )
+    const filePath = path.resolve(process.cwd(), uploadPath, filename)
     await fs.writeFile(filePath, buffer)
     const previewImage = await extractVideoImage(filePath)
     return {

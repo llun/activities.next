@@ -24,10 +24,7 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getAccountFollowing',
-  async (
-    req: NextRequest,
-    params: AppRouterParams<Params>
-  ) => {
+  async (req: NextRequest, params: AppRouterParams<Params>) => {
     const database = getDatabase()
     if (!database) {
       return apiErrorResponse(500)

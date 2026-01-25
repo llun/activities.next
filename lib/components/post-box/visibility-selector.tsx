@@ -1,4 +1,4 @@
-import { Globe, Lock, Unlock, Mail } from 'lucide-react'
+import { Globe, Lock, Mail, Unlock } from 'lucide-react'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'

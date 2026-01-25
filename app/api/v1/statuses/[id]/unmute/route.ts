@@ -20,34 +20,31 @@ interface Params {
 
 export const POST = traceApiRoute(
   'unmuteStatus',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
-    async (req, context) => {
-      const { database, currentActor, params } = context
-      const encodedStatusId = (await params).id
-      if (!encodedStatusId) return apiErrorResponse(404)
+  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
+    const { database, currentActor, params } = context
+    const encodedStatusId = (await params).id
+    if (!encodedStatusId) return apiErrorResponse(404)
 
-      const statusId = idToUrl(encodedStatusId)
-      const status = await database.getStatus({ statusId, withReplies: false })
-      if (!status) return apiErrorResponse(404)
+    const statusId = idToUrl(encodedStatusId)
+    const status = await database.getStatus({ statusId, withReplies: false })
+    if (!status) return apiErrorResponse(404)
 
-      // Conversation unmuting not yet implemented
-      // TODO: Implement conversation muting functionality
+    // Conversation unmuting not yet implemented
+    // TODO: Implement conversation muting functionality
 
-      const mastodonStatus = await getMastodonStatus(
-        database,
-        status,
-        currentActor.id
-      )
-      if (!mastodonStatus) return apiErrorResponse(500)
+    const mastodonStatus = await getMastodonStatus(
+      database,
+      status,
+      currentActor.id
+    )
+    if (!mastodonStatus) return apiErrorResponse(500)
 
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: mastodonStatus
-      })
-    }
-  ),
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: mastodonStatus
+    })
+  }),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

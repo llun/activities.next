@@ -20,34 +20,31 @@ interface Params {
 
 export const POST = traceApiRoute(
   'bookmarkStatus',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
-    async (req, context) => {
-      const { database, currentActor, params } = context
-      const encodedStatusId = (await params).id
-      if (!encodedStatusId) return apiErrorResponse(404)
+  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
+    const { database, currentActor, params } = context
+    const encodedStatusId = (await params).id
+    if (!encodedStatusId) return apiErrorResponse(404)
 
-      const statusId = idToUrl(encodedStatusId)
-      const status = await database.getStatus({ statusId, withReplies: false })
-      if (!status) return apiErrorResponse(404)
+    const statusId = idToUrl(encodedStatusId)
+    const status = await database.getStatus({ statusId, withReplies: false })
+    if (!status) return apiErrorResponse(404)
 
-      // Bookmarking not yet implemented
-      // TODO: Implement bookmarking functionality with database table
+    // Bookmarking not yet implemented
+    // TODO: Implement bookmarking functionality with database table
 
-      const mastodonStatus = await getMastodonStatus(
-        database,
-        status,
-        currentActor.id
-      )
-      if (!mastodonStatus) return apiErrorResponse(500)
+    const mastodonStatus = await getMastodonStatus(
+      database,
+      status,
+      currentActor.id
+    )
+    if (!mastodonStatus) return apiErrorResponse(500)
 
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: mastodonStatus
-      })
-    }
-  ),
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: mastodonStatus
+    })
+  }),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

@@ -22,26 +22,26 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 export const POST = traceApiRoute(
   'sharedInbox',
   ActivityPubVerifySenderGuard(async (request) => {
-  const body = await request.json()
-  if (
-    !isRecord(body) ||
-    typeof body.id !== 'string' ||
-    typeof body.type !== 'string'
-  ) {
-    return apiErrorResponse(400)
-  }
-  const activity = body as unknown as StatusActivity
-  const jobMessage = getJobMessage(activity)
-  if (!jobMessage) {
-    return apiErrorResponse(404)
-  }
+    const body = await request.json()
+    if (
+      !isRecord(body) ||
+      typeof body.id !== 'string' ||
+      typeof body.type !== 'string'
+    ) {
+      return apiErrorResponse(400)
+    }
+    const activity = body as unknown as StatusActivity
+    const jobMessage = getJobMessage(activity)
+    if (!jobMessage) {
+      return apiErrorResponse(404)
+    }
 
-  await getQueue().publish(jobMessage)
-  return apiResponse({
-    req: request,
-    allowedMethods: CORS_HEADERS,
-    data: DEFAULT_202,
-    responseStatusCode: 202
+    await getQueue().publish(jobMessage)
+    return apiResponse({
+      req: request,
+      allowedMethods: CORS_HEADERS,
+      data: DEFAULT_202,
+      responseStatusCode: 202
+    })
   })
-})
 )

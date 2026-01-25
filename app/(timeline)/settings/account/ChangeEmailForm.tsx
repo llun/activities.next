@@ -61,9 +61,7 @@ export const ChangeEmailForm: FC<Props> = ({ currentEmail: _currentEmail }) => {
         >
           Change Email
         </Button>
-        {message && (
-          <p className="mt-2 text-sm text-green-600">{message}</p>
-        )}
+        {message && <p className="mt-2 text-sm text-green-600">{message}</p>}
       </div>
     )
   }
@@ -81,7 +79,9 @@ export const ChangeEmailForm: FC<Props> = ({ currentEmail: _currentEmail }) => {
           required
         />
         <p className="text-xs text-muted-foreground">
-          A verification link will be sent to your new email address. Note: requesting a new email change will invalidate any pending verification.
+          A verification link will be sent to your new email address. Note:
+          requesting a new email change will invalidate any pending
+          verification.
         </p>
       </div>
 

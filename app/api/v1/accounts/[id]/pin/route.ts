@@ -20,31 +20,28 @@ interface Params {
 
 export const POST = traceApiRoute(
   'pinAccount',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
-    async (req, context) => {
-      const { database, currentActor, params } = context
-      const encodedAccountId = (await params).id
-      if (!encodedAccountId) return apiErrorResponse(400)
+  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
+    const { database, currentActor, params } = context
+    const encodedAccountId = (await params).id
+    if (!encodedAccountId) return apiErrorResponse(400)
 
-      const targetActorId = idToUrl(encodedAccountId)
+    const targetActorId = idToUrl(encodedAccountId)
 
-      // Pin/endorse not yet implemented - return relationship with endorsed: false
-      // TODO: Implement endorsement functionality
+    // Pin/endorse not yet implemented - return relationship with endorsed: false
+    // TODO: Implement endorsement functionality
 
-      const relationship = await getRelationship({
-        database,
-        currentActor,
-        targetActorId
-      })
+    const relationship = await getRelationship({
+      database,
+      currentActor,
+      targetActorId
+    })
 
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: relationship
-      })
-    }
-  ),
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: relationship
+    })
+  }),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

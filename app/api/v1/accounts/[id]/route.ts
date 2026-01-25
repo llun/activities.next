@@ -19,28 +19,25 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getAccount',
-  OAuthGuard<Params>(
-    [Scope.enum.read],
-    async (req, context) => {
-      const { database, params } = context
-      const encodedAccountId = (await params).id
-      if (!encodedAccountId) {
-        return apiErrorResponse(400)
-      }
-      const id = idToUrl(encodedAccountId)
-      const actor = await database.getMastodonActorFromId({
-        id
-      })
-      if (!actor) {
-        return apiErrorResponse(404)
-      }
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: actor
-      })
+  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
+    const { database, params } = context
+    const encodedAccountId = (await params).id
+    if (!encodedAccountId) {
+      return apiErrorResponse(400)
     }
-  ),
+    const id = idToUrl(encodedAccountId)
+    const actor = await database.getMastodonActorFromId({
+      id
+    })
+    if (!actor) {
+      return apiErrorResponse(404)
+    }
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: actor
+    })
+  }),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params
