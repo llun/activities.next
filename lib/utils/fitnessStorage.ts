@@ -16,6 +16,28 @@ import { Actor } from '@/lib/models/actor'
 import { logger } from '@/lib/utils/logger'
 
 /**
+ * Maps activity types to their corresponding emoji
+ * @param activityType - The type of fitness activity (e.g., 'Run', 'Ride', 'Swim')
+ * @returns The emoji representing the activity type
+ */
+export function getActivityEmoji(activityType: string): string {
+  switch (activityType) {
+    case 'Run':
+      return '🏃'
+    case 'Ride':
+      return '🚴'
+    case 'Swim':
+      return '🏊'
+    case 'Walk':
+      return '🚶'
+    case 'Hike':
+      return '🥾'
+    default:
+      return '📊'
+  }
+}
+
+/**
  * Generates a fitness activity icon as a PNG image
  * This creates a simple colored icon to represent fitness data files
  */
@@ -33,18 +55,7 @@ async function generateFitnessIcon(activityType: string): Promise<Buffer> {
   const colors = colorMap[activityType] || colorMap.default
 
   // Create a 400x400 icon with activity emoji and type
-  const emoji =
-    activityType === 'Run'
-      ? '🏃'
-      : activityType === 'Ride'
-        ? '🚴'
-        : activityType === 'Swim'
-          ? '🏊'
-          : activityType === 'Walk'
-            ? '🚶'
-            : activityType === 'Hike'
-              ? '🥾'
-              : '📊'
+  const emoji = getActivityEmoji(activityType)
 
   // Create SVG with activity icon
   const svg = `
