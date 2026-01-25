@@ -310,12 +310,15 @@ async function createStatusFromActivity(
   // Save fitness activity data
   const fitnessActivityId = crypto.randomUUID()
   
-  // Save raw activity data to media storage and get mediaId
-  const mediaId = await saveFitnessActivityData(
+  // Save raw activity data to fitness storage and get fitness file ID
+  const _fitnessFileId = await saveFitnessActivityData(
     database,
     actor,
     activity,
-    activity.type
+    activity.type,
+    statusId, // Link to the status
+    'strava',
+    activity.id.toString()
   )
 
   await database.createFitnessActivity({
@@ -343,8 +346,7 @@ async function createStatusFromActivity(
     endLatlng: activity.end_latlng || undefined,
     mapPolyline: activity.map?.polyline,
     mapSummaryPolyline: activity.map?.summary_polyline,
-    photos: activity.photos ? [activity.photos] : undefined,
-    mediaId: mediaId || undefined
+    photos: activity.photos ? [activity.photos] : undefined
   })
 
   // Create attachments for route map and photos

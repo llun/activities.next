@@ -27,7 +27,6 @@ interface FitnessActivity {
   mapPolyline: string | null
   mapSummaryPolyline: string | null
   photos: string | null
-  mediaId: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -59,7 +58,6 @@ export interface CreateFitnessActivityParams {
   mapPolyline?: string
   mapSummaryPolyline?: string
   photos?: unknown[]
-  mediaId?: string
 }
 
 export interface GetFitnessActivityParams {
@@ -117,7 +115,6 @@ export const FitnessSQLDatabaseMixin = (database: Knex): FitnessDatabase => ({
       mapPolyline: params.mapPolyline || null,
       mapSummaryPolyline: params.mapSummaryPolyline || null,
       photos: params.photos ? JSON.stringify(params.photos) : null,
-      mediaId: params.mediaId || null,
       createdAt: currentTime,
       updatedAt: currentTime
     })

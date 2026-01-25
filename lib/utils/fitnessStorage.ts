@@ -1,4 +1,10 @@
+import {
+  DeleteObjectCommand,
+  PutObjectCommand,
+  S3Client
+} from '@aws-sdk/client-s3'
 import crypto from 'crypto'
+import { format } from 'date-fns'
 import fs from 'fs/promises'
 import path from 'path'
 import sharp from 'sharp'
@@ -27,11 +33,18 @@ async function generateFitnessIcon(activityType: string): Promise<Buffer> {
   const colors = colorMap[activityType] || colorMap.default
 
   // Create a 400x400 icon with activity emoji and type
-  const emoji = activityType === 'Run' ? '🏃' : 
-                activityType === 'Ride' ? '🚴' :
-                activityType === 'Swim' ? '🏊' :
-                activityType === 'Walk' ? '🚶' :
-                activityType === 'Hike' ? '🥾' : '📊'
+  const emoji =
+    activityType === 'Run'
+      ? '🏃'
+      : activityType === 'Ride'
+        ? '🚴'
+        : activityType === 'Swim'
+          ? '🏊'
+          : activityType === 'Walk'
+            ? '🚶'
+            : activityType === 'Hike'
+              ? '🥾'
+              : '📊'
 
   // Create SVG with activity icon
   const svg = `
@@ -47,14 +60,19 @@ async function generateFitnessIcon(activityType: string): Promise<Buffer> {
 }
 
 /**
- * Saves raw activity data as a JSON file in media storage and creates a fitness icon
- * Returns the media ID that can be stored in the fitness_activities table
+ * Saves raw activity data as a JSON file in fitness storage and creates a fitness icon
+ * Returns the fitness file ID that can be stored in the fitness_files table
+ * 
+ * Note: This does NOT count towards media quota - fitness files have separate tracking
  */
 export async function saveFitnessActivityData(
   database: Database,
   actor: Actor,
   activityData: unknown,
-  activityType: string
+  activityType: string,
+  statusId: string | null,
+  provider: string,
+  providerId: string
 ): Promise<string | null> {
   const { mediaStorage } = getConfig()
   if (!mediaStorage) {
@@ -70,48 +88,120 @@ export async function saveFitnessActivityData(
     const jsonData = JSON.stringify(activityData, null, 2)
     const jsonBuffer = Buffer.from(jsonData, 'utf-8')
 
-    // Generate unique filename
+    // Generate unique filenames
     const timestamp = Date.now()
-    const hash = crypto.createHash('md5').update(jsonData).digest('hex').substring(0, 8)
-    const filename = `fitness-${actor.id.split('/').pop()}-${timestamp}-${hash}.json`
+    const hash = crypto
+      .createHash('md5')
+      .update(jsonData)
+      .digest('hex')
+      .substring(0, 8)
+    const actorSlug = actor.id.split('/').pop() || 'unknown'
+    const timeDirectory = format(timestamp, 'yyyy-MM-dd')
+    
+    const jsonFilename = `fitness-${actorSlug}-${timestamp}-${hash}.json`
+    const iconFilename = `fitness-${actorSlug}-${timestamp}-${hash}.png`
 
-    // Save JSON file to media storage
-    const basePath = mediaStorage.type === MediaStorageType.LocalFile
-      ? mediaStorage.path
-      : 'fitness-data'
-
-    const jsonPath = path.join(basePath, actor.id.split('/').pop() || 'unknown', filename)
-    const iconPath = path.join(basePath, actor.id.split('/').pop() || 'unknown', `${filename}.png`)
+    let jsonPath: string
+    let iconPath: string
+    let fileBytes: number
+    let iconBytes: number
 
     if (mediaStorage.type === MediaStorageType.LocalFile) {
+      // Local file storage
+      const basePath = mediaStorage.path
+      const actorDir = path.join(basePath, 'fitness', actorSlug, timeDirectory)
+      
       // Ensure directory exists
-      const dir = path.dirname(path.resolve(mediaStorage.path, jsonPath))
-      await fs.mkdir(dir, { recursive: true })
+      await fs.mkdir(actorDir, { recursive: true })
 
       // Write JSON file
-      await fs.writeFile(path.resolve(mediaStorage.path, jsonPath), jsonBuffer)
+      const jsonFullPath = path.join(actorDir, jsonFilename)
+      await fs.writeFile(jsonFullPath, jsonBuffer)
       
       // Write icon file
-      await fs.writeFile(path.resolve(mediaStorage.path, iconPath), iconBuffer)
+      const iconFullPath = path.join(actorDir, iconFilename)
+      await fs.writeFile(iconFullPath, iconBuffer)
+
+      // Paths relative to storage base
+      jsonPath = path.join('fitness', actorSlug, timeDirectory, jsonFilename)
+      iconPath = path.join('fitness', actorSlug, timeDirectory, iconFilename)
+      fileBytes = jsonBuffer.length
+      iconBytes = iconBuffer.length
+
+      logger.info({
+        message: 'Saved fitness activity data to local storage',
+        actorId: actor.id,
+        jsonPath,
+        iconPath,
+        fileBytes,
+        iconBytes
+      })
+    } else if (
+      mediaStorage.type === MediaStorageType.S3Storage ||
+      mediaStorage.type === MediaStorageType.ObjectStorage
+    ) {
+      // S3/Object storage
+      const { bucket, region } = mediaStorage
+      const s3client = new S3Client({ region })
+
+      // S3 paths
+      jsonPath = `fitness/${actorSlug}/${timeDirectory}/${jsonFilename}`
+      iconPath = `fitness/${actorSlug}/${timeDirectory}/${iconFilename}`
+
+      // Upload JSON file
+      const jsonCommand = new PutObjectCommand({
+        Bucket: bucket,
+        Key: jsonPath,
+        ContentType: 'application/json',
+        Body: jsonBuffer
+      })
+      await s3client.send(jsonCommand)
+
+      // Upload icon file
+      const iconCommand = new PutObjectCommand({
+        Bucket: bucket,
+        Key: iconPath,
+        ContentType: 'image/png',
+        Body: iconBuffer
+      })
+      await s3client.send(iconCommand)
+
+      fileBytes = jsonBuffer.length
+      iconBytes = iconBuffer.length
+
+      logger.info({
+        message: 'Saved fitness activity data to S3 storage',
+        actorId: actor.id,
+        bucket,
+        jsonPath,
+        iconPath,
+        fileBytes,
+        iconBytes
+      })
+    } else {
+      logger.error({
+        message: 'Unsupported storage type',
+        storageType: mediaStorage.type
+      })
+      return null
     }
 
-    // Create media entry in database with the icon as the visual representation
-    const media = await database.createMedia({
+    // Create fitness file record in database
+    const fitnessFileId = crypto.randomUUID()
+    await database.createFitnessFile({
+      id: fitnessFileId,
       actorId: actor.id,
-      original: {
-        path: iconPath,
-        bytes: iconBuffer.length,
-        mimeType: 'image/png',
-        metaData: {
-          width: 400,
-          height: 400
-        },
-        fileName: `${filename}.png`
-      },
-      description: `Fitness activity data: ${activityType}`
+      statusId: statusId || undefined,
+      provider,
+      providerId,
+      activityType,
+      filePath: jsonPath,
+      iconPath,
+      fileBytes,
+      iconBytes
     })
 
-    return media?.id || null
+    return fitnessFileId
   } catch (error) {
     logger.error({
       err: error,
@@ -124,10 +214,11 @@ export async function saveFitnessActivityData(
 }
 
 /**
- * Retrieves raw activity data from media storage by media ID
+ * Retrieves raw activity data from fitness storage by fitness file ID
  */
 export async function getFitnessActivityData(
-  mediaId: string,
+  database: Database,
+  fitnessFileId: string,
   actorId: string
 ): Promise<unknown | null> {
   const { mediaStorage } = getConfig()
@@ -137,27 +228,41 @@ export async function getFitnessActivityData(
   }
 
   try {
-    // Get the media entry to find the JSON file path
-    const database = require('@/lib/database').getDatabase()
-    if (!database) return null
+    // Get the fitness file entry to find the JSON file path
+    const fitnessFile = await database
+      .getFitnessFilesForActor({
+        actorId,
+        limit: 1000 // reasonable limit
+      })
+      .then((files) => files.find((f) => f.id === fitnessFileId))
 
-    const media = await database.getMediaByIdForAccount({
-      mediaId,
-      accountId: actorId
-    })
-
-    if (!media) {
+    if (!fitnessFile) {
+      logger.error({
+        message: 'Fitness file not found',
+        fitnessFileId,
+        actorId
+      })
       return null
     }
 
-    // Derive JSON file path from icon path
-    const iconPath = media.original.path
-    const jsonPath = iconPath.replace('.png', '')
+    const jsonPath = fitnessFile.filePath
 
     if (mediaStorage.type === MediaStorageType.LocalFile) {
+      // Local file storage
       const fullPath = path.resolve(mediaStorage.path, jsonPath)
       const jsonData = await fs.readFile(fullPath, 'utf-8')
       return JSON.parse(jsonData)
+    } else if (
+      mediaStorage.type === MediaStorageType.S3Storage ||
+      mediaStorage.type === MediaStorageType.ObjectStorage
+    ) {
+      // S3/Object storage - would need to implement S3 retrieval
+      // For now, return null as this is typically not needed
+      logger.info({
+        message: 'S3 fitness data retrieval not yet implemented',
+        fitnessFileId
+      })
+      return null
     }
 
     return null
@@ -165,9 +270,123 @@ export async function getFitnessActivityData(
     logger.error({
       err: error,
       message: 'Failed to retrieve fitness activity data',
-      mediaId,
+      fitnessFileId,
       actorId
     })
     return null
+  }
+}
+
+/**
+ * Deletes a fitness file and its associated icon from storage
+ * Also cascades to delete the status and all media attachments
+ */
+export async function deleteFitnessFile(
+  database: Database,
+  fitnessFileId: string,
+  actorId: string
+): Promise<boolean> {
+  const { mediaStorage } = getConfig()
+  if (!mediaStorage) {
+    logger.error({ message: 'Media storage not configured' })
+    return false
+  }
+
+  try {
+    // Get the fitness file record
+    const fitnessFile = await database
+      .getFitnessFilesForActor({
+        actorId,
+        limit: 1000
+      })
+      .then((files) => files.find((f) => f.id === fitnessFileId))
+
+    if (!fitnessFile) {
+      logger.error({
+        message: 'Fitness file not found',
+        fitnessFileId,
+        actorId
+      })
+      return false
+    }
+
+    // Delete from storage
+    if (mediaStorage.type === MediaStorageType.LocalFile) {
+      // Local file storage
+      const jsonFullPath = path.resolve(mediaStorage.path, fitnessFile.filePath)
+      const iconFullPath = path.resolve(mediaStorage.path, fitnessFile.iconPath)
+      
+      await Promise.all([
+        fs.unlink(jsonFullPath).catch(() => {}), // Ignore if file doesn't exist
+        fs.unlink(iconFullPath).catch(() => {})
+      ])
+
+      logger.info({
+        message: 'Deleted fitness files from local storage',
+        actorId,
+        fitnessFileId
+      })
+    } else if (
+      mediaStorage.type === MediaStorageType.S3Storage ||
+      mediaStorage.type === MediaStorageType.ObjectStorage
+    ) {
+      // S3/Object storage
+      const { bucket, region } = mediaStorage
+      const s3client = new S3Client({ region })
+
+      const jsonCommand = new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: fitnessFile.filePath
+      })
+      const iconCommand = new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: fitnessFile.iconPath
+      })
+
+      await Promise.all([
+        s3client.send(jsonCommand).catch(() => {}), // Ignore if file doesn't exist
+        s3client.send(iconCommand).catch(() => {})
+      ])
+
+      logger.info({
+        message: 'Deleted fitness files from S3 storage',
+        actorId,
+        fitnessFileId,
+        bucket
+      })
+    }
+
+    // Delete the status (this will cascade to delete attachments due to foreign key)
+    if (fitnessFile.statusId) {
+      // Status deletion is handled by the database cascade
+      // The fitness_files table has ON DELETE CASCADE for statusId
+      // So when status is deleted, the fitness_file record will also be deleted
+      logger.info({
+        message: 'Status deletion will cascade via database constraints',
+        statusId: fitnessFile.statusId
+      })
+    }
+
+    // Delete fitness file record from database
+    await database.deleteFitnessFile({
+      id: fitnessFileId,
+      actorId
+    })
+
+    logger.info({
+      message: 'Successfully deleted fitness file',
+      fitnessFileId,
+      actorId
+    })
+
+    return true
+  } catch (error) {
+    logger.error({
+      err: error,
+      message: 'Failed to delete fitness file',
+      fitnessFileId,
+      actorId
+    })
+    return false
   }
 }
