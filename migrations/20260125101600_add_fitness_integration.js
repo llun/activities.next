@@ -1,7 +1,7 @@
 /**
  * Combined migration for fitness integration with Strava
  * Creates fitness_activities and fitness_files tables
- * 
+ *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
@@ -18,7 +18,7 @@ exports.up = async (knex) => {
     table.text('description') // Activity description
     table.timestamp('startDate', { useTz: true })
     table.timestamp('endDate', { useTz: true })
-    
+
     // Metrics
     table.float('distance') // in meters
     table.integer('movingTime') // in seconds
@@ -31,26 +31,41 @@ exports.up = async (knex) => {
     table.float('averageWatts') // watts
     table.float('maxWatts') // watts
     table.float('calories') // kcal
-    
+
     // Location data
     table.jsonb('startLatlng') // [lat, lng]
     table.jsonb('endLatlng') // [lat, lng]
     table.string('mapPolyline') // Encoded polyline for route
     table.string('mapSummaryPolyline') // Simplified polyline
-    
+
     // Images and media
     table.jsonb('photos') // Array of photo URLs
-    
+
     // Note: rawData column intentionally not included - raw data stored in fitness_files
-    
+
     table.timestamp('createdAt', { useTz: true }).defaultTo(knex.fn.now())
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
-    
+
     // Indexes for efficient querying
     table.index(['actorId', 'createdAt'], 'fitness_activities_actor_created')
     table.index(['statusId'], 'fitness_activities_status')
     table.index(['provider', 'providerId'], 'fitness_activities_provider')
-    table.unique(['provider', 'providerId', 'actorId'], 'fitness_activities_unique')
+    table.unique(
+      ['provider', 'providerId', 'actorId'],
+      'fitness_activities_unique'
+    )
+
+    // Foreign keys to maintain referential integrity and enable cascade deletion
+    table
+      .foreign('actorId')
+      .references('id')
+      .inTable('actors')
+      .onDelete('CASCADE')
+    table
+      .foreign('statusId')
+      .references('id')
+      .inTable('statuses')
+      .onDelete('CASCADE')
   })
 
   // Create fitness_files table for storing raw activity data separately from media
@@ -69,7 +84,11 @@ exports.up = async (knex) => {
     table.timestamp('updatedAt', { useTz: true }).defaultTo(knex.fn.now())
 
     table.foreign('actorId').references('id').inTable('actors')
-    table.foreign('statusId').references('id').inTable('statuses').onDelete('CASCADE')
+    table
+      .foreign('statusId')
+      .references('id')
+      .inTable('statuses')
+      .onDelete('CASCADE')
     table.unique(['provider', 'providerId', 'actorId'])
   })
 }

@@ -1,13 +1,17 @@
-import { NextRequest } from 'next/server'
 import crypto from 'crypto'
+import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
-import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
+import { addStatusToTimelines } from '@/lib/services/timelines'
 import { saveFitnessActivityData } from '@/lib/utils/fitnessStorage'
-import { externalRequest } from '@/lib/utils/request'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { apiResponse, apiErrorResponse } from '@/lib/utils/response'
+import { externalRequest } from '@/lib/utils/request'
+import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 interface StravaWebhookEvent {
   aspect_type: 'create' | 'update' | 'delete'
@@ -157,21 +161,20 @@ function generateRouteMapUrl(
   width: number = 600,
   height: number = 400
 ): string {
-  // Encode polyline for URL
-  const encodedPolyline = encodeURIComponent(polyline)
-  
   // Use Google Static Maps API with encoded polyline
   // In production, you should use an API key from environment variable
   const apiKey = process.env.GOOGLE_MAPS_API_KEY || ''
   const baseUrl = 'https://maps.googleapis.com/maps/api/staticmap'
-  
+
+  // URLSearchParams will handle encoding once - do NOT pre-encode the polyline
+  // as URLSearchParams already encodes special characters
   const params = new URLSearchParams({
     size: `${width}x${height}`,
-    path: `enc:${encodedPolyline}`,
+    path: `enc:${polyline}`,
     maptype: 'roadmap',
     ...(apiKey && { key: apiKey })
   })
-  
+
   return `${baseUrl}?${params.toString()}`
 }
 
@@ -296,7 +299,7 @@ async function createStatusFromActivity(
   const postId = statusId.split('/').pop()
   const actorMention = `@${actor.username}`
 
-  await database.createNote({
+  const status = await database.createNote({
     id: statusId,
     url: `https://${actor.domain}/${actorMention}/${postId}`,
     actorId: actor.id,
@@ -307,9 +310,22 @@ async function createStatusFromActivity(
     reply: ''
   })
 
+  // Add status to timelines (for local display)
+  await addStatusToTimelines(database, status)
+
+  // Enqueue federation job to send to followers
+  await getQueue().publish({
+    id: getHashFromString(statusId),
+    name: SEND_NOTE_JOB_NAME,
+    data: {
+      actorId: actor.id,
+      statusId
+    }
+  })
+
   // Save fitness activity data
   const fitnessActivityId = crypto.randomUUID()
-  
+
   // Save raw activity data to fitness storage and get fitness file ID
   const _fitnessFileId = await saveFitnessActivityData(
     database,
@@ -403,11 +419,14 @@ async function createStatusFromActivity(
 // GET handler for webhook validation (Strava subscription verification)
 export const GET = traceApiRoute(
   'stravaWebhookValidation',
-  async (req: NextRequest, _context: { params: Promise<{ webhookId: string }> }) => {
+  async (
+    req: NextRequest,
+    _context: { params: Promise<{ webhookId: string }> }
+  ) => {
     const _params = await _context.params
     const webhookId = _params.webhookId
     const searchParams = req.nextUrl.searchParams
-    
+
     const hubMode = searchParams.get('hub.mode')
     const hubChallenge = searchParams.get('hub.challenge')
     const hubVerifyToken = searchParams.get('hub.verify_token')
@@ -455,7 +474,10 @@ export const GET = traceApiRoute(
 // POST handler for webhook events
 export const POST = traceApiRoute(
   'stravaWebhookEvent',
-  async (req: NextRequest, _context: { params: Promise<{ webhookId: string }> }) => {
+  async (
+    req: NextRequest,
+    _context: { params: Promise<{ webhookId: string }> }
+  ) => {
     const _params = await _context.params
     const webhookId = _params.webhookId
 
@@ -466,7 +488,7 @@ export const POST = traceApiRoute(
 
     // Find actor with this webhook ID
     const actor = await database.getActorFromStravaWebhookId({ webhookId })
-    
+
     if (!actor) {
       logger.info({
         message: 'No actor found for webhook ID',
@@ -482,10 +504,7 @@ export const POST = traceApiRoute(
     const event: StravaWebhookEvent = await req.json()
 
     // Only process new activities
-    if (
-      event.object_type === 'activity' &&
-      event.aspect_type === 'create'
-    ) {
+    if (event.object_type === 'activity' && event.aspect_type === 'create') {
       const settings = await database.getActorSettings({ actorId: actor.id })
       const stravaIntegration = settings?.stravaIntegration
 
@@ -538,7 +557,12 @@ export const POST = traceApiRoute(
       if (accessToken) {
         const activity = await getStravaActivity(event.object_id, accessToken)
         if (activity) {
-          await createStatusFromActivity(actor.id, activity, database, accessToken)
+          await createStatusFromActivity(
+            actor.id,
+            activity,
+            database,
+            accessToken
+          )
         }
       }
     }

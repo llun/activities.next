@@ -1,20 +1,30 @@
-import { NextRequest } from 'next/server'
-
-import { getDatabase } from '@/lib/database'
-import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { Scope } from '@/lib/database/types/oauth'
+import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { apiResponse, apiErrorResponse } from '@/lib/utils/response'
+import {
+  apiErrorResponse,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+interface Params {
+  id: string
+}
 
 export const GET = traceApiRoute(
   'getStatusFitnessActivity',
-  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const params = await context.params
-    const statusId = decodeURIComponent(params.id)
+  OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
+    const { database, params } = context
+    const encodedStatusId = (await params).id
+    if (!encodedStatusId) return apiErrorResponse(404)
 
-    const database = getDatabase()
-    if (!database) {
-      return apiErrorResponse(500)
-    }
+    const statusId = decodeURIComponent(encodedStatusId)
 
     try {
       const activity = await database.getFitnessActivityByStatusId({
@@ -50,5 +60,5 @@ export const GET = traceApiRoute(
       })
       return apiErrorResponse(500)
     }
-  }
+  })
 )

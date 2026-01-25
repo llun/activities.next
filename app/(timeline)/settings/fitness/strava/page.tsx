@@ -1,14 +1,14 @@
-import { Metadata } from 'next'
 import crypto from 'crypto'
+import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { ActorSelector } from '@/lib/components/settings/ActorSelector'
+import { StravaSettingsForm } from '@/lib/components/settings/StravaSettingsForm'
 import { CopyButton } from '@/lib/components/ui/CopyButton'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
-import { StravaSettingsForm } from '@/lib/components/settings/StravaSettingsForm'
 import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -51,7 +51,7 @@ const Page = async ({ searchParams }: PageProps) => {
   const stravaIntegration = settings?.stravaIntegration || {}
 
   // Generate webhook URL with random ID if not already present
-  // Use alphanumeric-only characters (no hyphens or special characters)
+  // Use URL-safe base64 encoding (includes A-Z, a-z, 0-9, -, _)
   const webhookId =
     stravaIntegration.webhookId ||
     crypto.randomBytes(12).toString('base64url').substring(0, 16)
@@ -59,7 +59,9 @@ const Page = async ({ searchParams }: PageProps) => {
   const protocol = host.includes('localhost') ? 'http' : 'https'
   const webhookUrl = `${protocol}://${host}/api/webhooks/strava/${webhookId}`
 
-  const isConfigured = !!(stravaIntegration.clientId && stravaIntegration.clientSecret)
+  const isConfigured = !!(
+    stravaIntegration.clientId && stravaIntegration.clientSecret
+  )
 
   return (
     <div className="space-y-6">
@@ -76,7 +78,11 @@ const Page = async ({ searchParams }: PageProps) => {
             </p>
           </div>
 
-          <ActorSelector actors={actors} selectedActorId={selectedActor.id} />
+          <ActorSelector
+            actors={actors}
+            selectedActorId={selectedActor.id}
+            basePath="/settings/fitness/strava"
+          />
 
           {isConfigured && (
             <div className="rounded-lg bg-green-50 p-4 text-sm text-green-800 dark:bg-green-900/20 dark:text-green-400">

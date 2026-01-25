@@ -55,7 +55,7 @@ export const request = ({
 /**
  * External API request helper for non-ActivityPub server-side API calls
  * (e.g., Strava, Garmin, Wahoo, etc.)
- * 
+ *
  * Unlike the main `request` function, this does not include ActivityPub-specific headers
  * and is designed for general external API interactions.
  */

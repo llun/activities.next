@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter, usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { FC, ReactNode } from 'react'
 
 import { Tabs, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'

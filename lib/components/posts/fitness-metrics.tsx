@@ -37,6 +37,10 @@ function formatDistance(meters: number): string {
 }
 
 function formatPace(metersPerSecond: number): string {
+  // Guard against zero or invalid speed values
+  if (metersPerSecond <= 0 || !isFinite(metersPerSecond)) {
+    return '--:-- /km'
+  }
   // Convert to min/km
   const minutesPerKm = 1000 / 60 / metersPerSecond
   const minutes = Math.floor(minutesPerKm)
@@ -156,9 +160,7 @@ export const FitnessMetrics: FC<FitnessMetricsProps> = ({ statusId }) => {
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">⛰️</span>
                 <div>
-                  <div className="text-muted-foreground text-xs">
-                    Elevation
-                  </div>
+                  <div className="text-muted-foreground text-xs">Elevation</div>
                   <div className="font-semibold">
                     {Math.round(activity.totalElevationGain)}m
                   </div>

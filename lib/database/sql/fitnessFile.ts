@@ -34,6 +34,11 @@ export interface GetFitnessFileParams {
   actorId: string
 }
 
+export interface GetFitnessFileByIdParams {
+  id: string
+  actorId: string
+}
+
 export interface GetFitnessFilesForActorParams {
   actorId: string
   limit?: number
@@ -52,6 +57,9 @@ export interface GetFitnessStorageUsageParams {
 export interface FitnessFileDatabase {
   createFitnessFile(params: CreateFitnessFileParams): Promise<FitnessFile>
   getFitnessFile(params: GetFitnessFileParams): Promise<FitnessFile | null>
+  getFitnessFileById(
+    params: GetFitnessFileByIdParams
+  ): Promise<FitnessFile | null>
   getFitnessFilesForActor(
     params: GetFitnessFilesForActorParams
   ): Promise<FitnessFile[]>
@@ -100,6 +108,17 @@ export const FitnessFileSQLDatabaseMixin = (
       .where({
         provider: params.provider,
         providerId: params.providerId,
+        actorId: params.actorId
+      })
+      .first()
+
+    return file || null
+  },
+
+  async getFitnessFileById(params: GetFitnessFileByIdParams) {
+    const file = await database<FitnessFile>('fitness_files')
+      .where({
+        id: params.id,
         actorId: params.actorId
       })
       .first()

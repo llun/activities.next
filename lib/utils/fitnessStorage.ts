@@ -73,7 +73,7 @@ async function generateFitnessIcon(activityType: string): Promise<Buffer> {
 /**
  * Saves raw activity data as a JSON file in fitness storage and creates a fitness icon
  * Returns the fitness file ID that can be stored in the fitness_files table
- * 
+ *
  * Note: This does NOT count towards media quota - fitness files have separate tracking
  */
 export async function saveFitnessActivityData(
@@ -108,7 +108,7 @@ export async function saveFitnessActivityData(
       .substring(0, 8)
     const actorSlug = actor.id.split('/').pop() || 'unknown'
     const timeDirectory = format(timestamp, 'yyyy-MM-dd')
-    
+
     const jsonFilename = `fitness-${actorSlug}-${timestamp}-${hash}.json`
     const iconFilename = `fitness-${actorSlug}-${timestamp}-${hash}.png`
 
@@ -121,14 +121,14 @@ export async function saveFitnessActivityData(
       // Local file storage
       const basePath = mediaStorage.path
       const actorDir = path.join(basePath, 'fitness', actorSlug, timeDirectory)
-      
+
       // Ensure directory exists
       await fs.mkdir(actorDir, { recursive: true })
 
       // Write JSON file
       const jsonFullPath = path.join(actorDir, jsonFilename)
       await fs.writeFile(jsonFullPath, jsonBuffer)
-      
+
       // Write icon file
       const iconFullPath = path.join(actorDir, iconFilename)
       await fs.writeFile(iconFullPath, iconBuffer)
@@ -239,13 +239,11 @@ export async function getFitnessActivityData(
   }
 
   try {
-    // Get the fitness file entry to find the JSON file path
-    const fitnessFile = await database
-      .getFitnessFilesForActor({
-        actorId,
-        limit: 1000 // reasonable limit
-      })
-      .then((files) => files.find((f) => f.id === fitnessFileId))
+    // Get the fitness file entry directly by ID
+    const fitnessFile = await database.getFitnessFileById({
+      id: fitnessFileId,
+      actorId
+    })
 
     if (!fitnessFile) {
       logger.error({
@@ -290,7 +288,15 @@ export async function getFitnessActivityData(
 
 /**
  * Deletes a fitness file and its associated icon from storage
- * Also cascades to delete the status and all media attachments
+ * Also deletes the associated status (which cascades to delete attachments and fitness_activities via FK constraints)
+ *
+ * Cascade deletion flow:
+ * 1. Delete JSON + icon files from storage (LocalFile or S3)
+ * 2. Delete the associated status (if any) - this cascades to:
+ *    - fitness_files record (via ON DELETE CASCADE on statusId FK)
+ *    - attachments (via ON DELETE CASCADE on statusId FK)
+ *    - fitness_activities record (via ON DELETE CASCADE on statusId FK)
+ * 3. If no status, delete the fitness_files record directly
  */
 export async function deleteFitnessFile(
   database: Database,
@@ -304,13 +310,11 @@ export async function deleteFitnessFile(
   }
 
   try {
-    // Get the fitness file record
-    const fitnessFile = await database
-      .getFitnessFilesForActor({
-        actorId,
-        limit: 1000
-      })
-      .then((files) => files.find((f) => f.id === fitnessFileId))
+    // Get the fitness file record directly by ID
+    const fitnessFile = await database.getFitnessFileById({
+      id: fitnessFileId,
+      actorId
+    })
 
     if (!fitnessFile) {
       logger.error({
@@ -326,7 +330,7 @@ export async function deleteFitnessFile(
       // Local file storage
       const jsonFullPath = path.resolve(mediaStorage.path, fitnessFile.filePath)
       const iconFullPath = path.resolve(mediaStorage.path, fitnessFile.iconPath)
-      
+
       await Promise.all([
         fs.unlink(jsonFullPath).catch(() => {}), // Ignore if file doesn't exist
         fs.unlink(iconFullPath).catch(() => {})
@@ -367,28 +371,34 @@ export async function deleteFitnessFile(
       })
     }
 
-    // Delete the status (this will cascade to delete attachments due to foreign key)
+    // If there's an associated status, delete it - this will cascade to delete:
+    // - The fitness_files record (via ON DELETE CASCADE on statusId FK)
+    // - All attachments linked to the status
+    // - The fitness_activities record (via ON DELETE CASCADE on statusId FK)
     if (fitnessFile.statusId) {
-      // Status deletion is handled by the database cascade
-      // The fitness_files table has ON DELETE CASCADE for statusId
-      // So when status is deleted, the fitness_file record will also be deleted
-      logger.info({
-        message: 'Status deletion will cascade via database constraints',
+      await database.deleteStatus({
         statusId: fitnessFile.statusId
       })
+
+      logger.info({
+        message: 'Deleted status with cascade to fitness file and attachments',
+        statusId: fitnessFile.statusId,
+        fitnessFileId,
+        actorId
+      })
+    } else {
+      // No status, just delete the fitness file record directly
+      await database.deleteFitnessFile({
+        id: fitnessFileId,
+        actorId
+      })
+
+      logger.info({
+        message: 'Deleted fitness file record (no status to cascade)',
+        fitnessFileId,
+        actorId
+      })
     }
-
-    // Delete fitness file record from database
-    await database.deleteFitnessFile({
-      id: fitnessFileId,
-      actorId
-    })
-
-    logger.info({
-      message: 'Successfully deleted fitness file',
-      fitnessFileId,
-      actorId
-    })
 
     return true
   } catch (error) {

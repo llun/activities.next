@@ -1,12 +1,12 @@
-import { z } from 'zod'
 import crypto from 'crypto'
+import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { externalRequest } from '@/lib/utils/request'
 import { logger } from '@/lib/utils/logger'
+import { externalRequest } from '@/lib/utils/request'
 import { apiErrorResponse } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const StravaSettingsRequest = z.object({
   clientId: z.string().optional(),
@@ -150,6 +150,13 @@ export const POST = traceApiRoute(
 
       if (subscription) {
         stravaIntegration.stravaSubscriptionId = subscription.id.toString()
+      } else {
+        // Webhook registration failed - don't enable integration
+        stravaIntegration.enabled = false
+        logger.warn({
+          message: 'Webhook registration failed, disabling integration',
+          actorId: targetActorId
+        })
       }
     } else if (
       !stravaIntegration.enabled &&

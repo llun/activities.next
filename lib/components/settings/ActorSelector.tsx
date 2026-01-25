@@ -12,11 +12,14 @@ interface ActorSelectorProps {
     name?: string | null
   }>
   selectedActorId: string
+  /** Base path for redirection when actor changes. Defaults to /settings/notifications */
+  basePath?: string
 }
 
 export const ActorSelector: FC<ActorSelectorProps> = ({
   actors,
-  selectedActorId
+  selectedActorId,
+  basePath = '/settings/notifications'
 }) => {
   if (actors.length <= 1) return null
 
@@ -29,7 +32,7 @@ export const ActorSelector: FC<ActorSelectorProps> = ({
         value={selectedActorId}
         onChange={(e) => {
           const actorId = encodeURIComponent(e.target.value)
-          window.location.href = `/settings/notifications?actorId=${actorId}`
+          window.location.href = `${basePath}?actorId=${actorId}`
         }}
       >
         {actors.map((actorItem) => (
