@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { ActorSelector } from '@/lib/components/settings/ActorSelector'
 import { Button } from '@/lib/components/ui/button'
+import { CopyButton } from '@/lib/components/ui/CopyButton'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
@@ -126,15 +127,7 @@ const Page = async ({ searchParams }: PageProps) => {
                   readOnly
                   className="font-mono text-sm bg-muted"
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    navigator.clipboard.writeText(webhookUrl)
-                  }}
-                >
-                  Copy
-                </Button>
+                <CopyButton text={webhookUrl} />
               </div>
               <p className="text-xs text-muted-foreground">
                 Use this URL as your webhook callback URL in your Strava
