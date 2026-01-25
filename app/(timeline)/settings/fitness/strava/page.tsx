@@ -5,10 +5,10 @@ import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { ActorSelector } from '@/lib/components/settings/ActorSelector'
-import { Button } from '@/lib/components/ui/button'
 import { CopyButton } from '@/lib/components/ui/CopyButton'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
+import { StravaSettingsForm } from '@/lib/components/settings/StravaSettingsForm'
 import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -61,7 +61,10 @@ const Page = async ({ searchParams }: PageProps) => {
 
   return (
     <div className="space-y-6">
-      <form action="/api/v1/accounts/strava-settings" method="post">
+      <StravaSettingsForm
+        initialClientId={stravaIntegration.clientId}
+        initialClientSecret={stravaIntegration.clientSecret}
+      >
         <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
           <div>
             <h2 className="text-lg font-semibold">Strava Integration</h2>
@@ -90,6 +93,7 @@ const Page = async ({ searchParams }: PageProps) => {
                 defaultValue={stravaIntegration.clientId || ''}
                 placeholder="Your Strava application client ID"
                 className="font-mono text-sm"
+                required
               />
               <p className="text-xs text-muted-foreground">
                 Create a Strava API application at{' '}
@@ -113,6 +117,7 @@ const Page = async ({ searchParams }: PageProps) => {
                 defaultValue={stravaIntegration.clientSecret || ''}
                 placeholder="Your Strava application client secret"
                 className="font-mono text-sm"
+                required
               />
             </div>
 
@@ -125,7 +130,7 @@ const Page = async ({ searchParams }: PageProps) => {
                   name="webhookUrl"
                   value={webhookUrl}
                   readOnly
-                  className="font-mono text-sm bg-muted"
+                  className="font-mono text-sm bg-muted break-all"
                 />
                 <CopyButton text={webhookUrl} />
               </div>
@@ -156,11 +161,7 @@ const Page = async ({ searchParams }: PageProps) => {
             </div>
           </div>
         </section>
-
-        <div className="flex justify-end mt-6">
-          <Button type="submit">Save Settings</Button>
-        </div>
-      </form>
+      </StravaSettingsForm>
     </div>
   )
 }
