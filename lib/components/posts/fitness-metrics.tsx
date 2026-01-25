@@ -58,15 +58,11 @@ export const FitnessMetrics: FC<FitnessMetricsProps> = ({ statusId }) => {
         if (response.ok) {
           const data = await response.json()
           setActivity(data)
-        } else if (response.status === 404) {
-          // No fitness activity for this status, which is fine
-          setActivity(null)
         } else {
-          console.error('Failed to fetch fitness activity:', response.status)
+          // No fitness activity for this status or error fetching
           setActivity(null)
         }
-      } catch (error) {
-        console.error('Failed to fetch fitness activity:', error)
+      } catch {
         setActivity(null)
       } finally {
         setLoading(false)
