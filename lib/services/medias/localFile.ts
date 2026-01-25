@@ -162,12 +162,10 @@ export class LocalFileStorage implements MediaStorage {
       this._host.startsWith('[::1]')
         ? 'http'
         : 'https'
-    const url = `${protocol}://${this._host}/api/v1/files/${storedMedia.original.path
-      .split('/')
-      .pop()}`
+    const url = `${protocol}://${this._host}/api/v1/files/${storedMedia.original.path}`
 
     const previewUrl = thumbnail
-      ? `${protocol}://${this._host}/api/v1/files/${thumbnail?.path.split('/').pop()}`
+      ? `${protocol}://${this._host}/api/v1/files/${thumbnail?.path}`
       : url
     return MediaStorageSaveFileOutput.parse({
       id: `${storedMedia.id}`,
@@ -222,10 +220,11 @@ export class LocalFileStorage implements MediaStorage {
     const uploadPath = this._config.path
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
+    const filename = `${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.webp`
     const filePath = path.resolve(
       process.cwd(),
       uploadPath,
-      `${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.webp`
+      filename
     )
     const resizedImage = sharp(imageBuffer)
       .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
@@ -239,7 +238,7 @@ export class LocalFileStorage implements MediaStorage {
     return {
       image: resizedImage,
       metaData,
-      path: filePath,
+      path: filename,
       contentType: 'image/webp',
       previewImage: null
     }
@@ -267,16 +266,17 @@ export class LocalFileStorage implements MediaStorage {
     const ext = videoFile.name.endsWith('.mov') ? '.mp4' : path.extname(videoFile.name)
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
+    const filename = `${randomPrefix}${ext}`
     const filePath = path.resolve(
       process.cwd(),
       uploadPath,
-      `${randomPrefix}${ext}`
+      filename
     )
     await fs.writeFile(filePath, buffer)
     const previewImage = await extractVideoImage(filePath)
     return {
       metaData,
-      path: filePath,
+      path: filename,
       contentType: videoFile.type,
       previewImage
     }

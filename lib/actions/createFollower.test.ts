@@ -42,7 +42,6 @@ describe('#createFollower', () => {
       .mockResolvedValueOnce({
         iconUrl: undefined,
         headerImageUrl: undefined,
-        appleSharedAlbumToken: undefined,
         followersUrl: actor.followersUrl,
         inboxUrl: actor.inboxUrl,
         sharedInboxUrl: actor.sharedInboxUrl,
@@ -77,7 +76,6 @@ describe('#createFollower', () => {
       .mockResolvedValueOnce({
         iconUrl: undefined,
         headerImageUrl: undefined,
-        appleSharedAlbumToken: undefined,
         followersUrl: actor.followersUrl,
         inboxUrl: actor.inboxUrl,
         sharedInboxUrl: actor.sharedInboxUrl,

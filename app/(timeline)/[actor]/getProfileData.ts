@@ -74,7 +74,6 @@ export const getProfileData = async (
       summary: person.summary || '',
       iconUrl: person.icon?.url || '',
       headerImageUrl: person.image?.url || '',
-      appleSharedAlbumToken: '',
       publicKey: person.publicKey.publicKeyPem,
       followersUrl: person.followers,
       inboxUrl: person.inbox,

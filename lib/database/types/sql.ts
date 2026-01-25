@@ -1,7 +1,6 @@
 export interface ActorSettings {
   iconUrl?: string
   headerImageUrl?: string
-  appleSharedAlbumToken?: string
   followersUrl: string
   inboxUrl: string
   sharedInboxUrl: string
@@ -43,6 +42,10 @@ export interface SQLAccount {
   email: string
   passwordHash?: string | null
   verificationCode?: string | null
+  emailChangePending?: string | null
+  emailChangeCode?: string | null
+  emailChangeCodeExpiresAt?: number | Date | null
+  emailVerifiedAt?: number | Date | null
 
   createdAt: number | Date
   updatedAt: number | Date

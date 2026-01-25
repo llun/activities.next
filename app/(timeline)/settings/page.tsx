@@ -17,7 +17,6 @@ import { getActorProfile } from '@/lib/models/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AuthenticationProviders } from './AuthenticationProviders'
-import { LogoutButton } from './LogoutButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +74,36 @@ const Page = async () => {
           Manage your profile and account settings.
         </p>
       </div>
+
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">Actors</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage your actors, switch between them, or set a default.
+          </p>
+        </div>
+        <ActorsSection
+          currentActor={{
+            id: actor.id,
+            username: actor.username,
+            domain: actor.domain,
+            name: actor.name,
+            iconUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : null,
+            deletionStatus: actor.deletionStatus ?? null,
+            deletionScheduledAt: actor.deletionScheduledAt ?? null
+          }}
+          actors={actors.map((actorItem) => ({
+            id: actorItem.id,
+            username: actorItem.username,
+            domain: actorItem.domain,
+            name: actorItem.name,
+            iconUrl: isRealAvatar(actorItem.iconUrl) ? actorItem.iconUrl : null,
+            deletionStatus: actorItem.deletionStatus ?? null,
+            deletionScheduledAt: actorItem.deletionScheduledAt ?? null
+          }))}
+          currentDefault={actor.account.defaultActorId || null}
+        />
+      </section>
 
       <form action="/api/v1/accounts/profile" method="post">
         <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
@@ -172,70 +201,10 @@ const Page = async () => {
           </div>
         </section>
 
-        <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold">Integrations</h2>
-            <p className="text-sm text-muted-foreground">
-              Connect with other services.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="appleSharedAlbumTokenInput">
-              Apple Shared Album Token
-            </Label>
-            <Input
-              type="text"
-              id="appleSharedAlbumTokenInput"
-              name="appleSharedAlbumToken"
-              aria-describedby="appleSharedAlbumTokenHelp"
-              defaultValue={profile.appleSharedAlbumToken || ''}
-              placeholder="Enter your Apple Shared Album token"
-            />
-            <p
-              id="appleSharedAlbumTokenHelp"
-              className="text-[0.8rem] text-muted-foreground"
-            >
-              Apple Shared Album tokens contains images (and videos) that you
-              want to post with
-            </p>
-          </div>
-        </section>
-
         <div className="flex justify-end">
           <Button type="submit">Update</Button>
         </div>
       </form>
-
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Actors</h2>
-          <p className="text-sm text-muted-foreground">
-            Manage your actors, switch between them, or set a default.
-          </p>
-        </div>
-        <ActorsSection
-          currentActor={{
-            id: actor.id,
-            username: actor.username,
-            domain: actor.domain,
-            name: actor.name,
-            iconUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : null,
-            deletionStatus: actor.deletionStatus ?? null,
-            deletionScheduledAt: actor.deletionScheduledAt ?? null
-          }}
-          actors={actors.map((actorItem) => ({
-            id: actorItem.id,
-            username: actorItem.username,
-            domain: actorItem.domain,
-            name: actorItem.name,
-            iconUrl: isRealAvatar(actorItem.iconUrl) ? actorItem.iconUrl : null,
-            deletionStatus: actorItem.deletionStatus ?? null,
-            deletionScheduledAt: actorItem.deletionScheduledAt ?? null
-          }))}
-          currentDefault={actor.account.defaultActorId || null}
-        />
-      </section>
 
       {nonCredentialsProviders.length > 0 && (
         <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
@@ -251,21 +220,6 @@ const Page = async () => {
           />
         </section>
       )}
-
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Account</h2>
-          <p className="text-sm text-muted-foreground">
-            Manage your current session.
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">
-            Sign out from this account on this device.
-          </p>
-          <LogoutButton />
-        </div>
-      </section>
 
       <section className="space-y-4 rounded-2xl border border-destructive/20 bg-background/80 p-6 shadow-sm">
         <div>

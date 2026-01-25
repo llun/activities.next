@@ -9,7 +9,6 @@ const ProfileRequest = z.object({
   summary: z.string().optional(),
   iconUrl: z.string().optional(),
   headerImageUrl: z.string().optional(),
-  appleSharedAlbumToken: z.string().optional(),
   manuallyApprovesFollowers: z.string().optional(),
 
   publicKey: z.string().optional(),
