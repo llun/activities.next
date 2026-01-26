@@ -131,7 +131,7 @@ const Page: FC<Props> = async ({ params }) => {
             )}
           </div>
 
-          <Bio summary={person.summary || ''} />
+          <Bio summary={person.summary} />
 
           <div className="mt-5 flex flex-wrap gap-6 text-sm">
             <div>
