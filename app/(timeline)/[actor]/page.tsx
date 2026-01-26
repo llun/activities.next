@@ -131,9 +131,7 @@ const Page: FC<Props> = async ({ params }) => {
             )}
           </div>
 
-          <div className="mt-4 text-sm leading-relaxed break-words [&_a]:text-sky-600 dark:[&_a]:text-sky-400 [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-sky-700 dark:[&_a:hover]:text-sky-300 [&_p]:mb-4 last:[&_p]:mb-0">
-            <Bio summary={person.summary || ''} />
-          </div>
+          <Bio summary={person.summary || ''} />
 
           <div className="mt-5 flex flex-wrap gap-6 text-sm">
             <div>
