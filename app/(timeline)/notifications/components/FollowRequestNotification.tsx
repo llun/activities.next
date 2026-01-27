@@ -1,10 +1,10 @@
 'use client'
 
-import { Mastodon } from '@llun/activities.schema'
 import { useRouter } from 'next/navigation'
 import { FC } from 'react'
 
 import { FollowRequestCard } from '@/lib/components/follow-request-card/FollowRequestCard'
+import { Mastodon } from '@/lib/schema'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
 interface NotificationWithAccount extends GroupedNotification {

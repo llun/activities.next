@@ -1,8 +1,8 @@
-import { Mastodon } from '@llun/activities.schema'
 import Image from 'next/image'
 import Link from 'next/link'
 import { FC } from 'react'
 
+import { Mastodon } from '@/lib/schema'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
 interface NotificationWithAccount extends GroupedNotification {

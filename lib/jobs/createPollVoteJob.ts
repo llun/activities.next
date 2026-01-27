@@ -1,4 +1,4 @@
-import { ENTITY_TYPE_NOTE, Note } from '@llun/activities.schema'
+import { ENTITY_TYPE_NOTE, Note } from '@/lib/schema'
 
 import { recordActorIfNeeded } from '../actions/utils'
 import { StatusType } from '../models/status'

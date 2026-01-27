@@ -1,10 +1,9 @@
-import { Mastodon } from '@llun/activities.schema'
-
 import { Database } from '@/lib/database/types'
 import {
   Notification,
   NotificationType
 } from '@/lib/database/types/notification'
+import { Mastodon } from '@/lib/schema'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
 import { getMastodonStatus } from '../mastodon/getMastodonStatus'

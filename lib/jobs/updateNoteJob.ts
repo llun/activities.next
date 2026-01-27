@@ -1,11 +1,12 @@
+import { z } from 'zod'
+
 import {
   ArticleContent,
   ImageContent,
   Note,
   PageContent,
   VideoContent
-} from '@llun/activities.schema'
-import { z } from 'zod'
+} from '@/lib/schema'
 
 import { BaseNote, getContent, getSummary } from '../activities/entities/note'
 import { StatusType } from '../models/status'

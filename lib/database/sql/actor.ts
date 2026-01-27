@@ -1,4 +1,3 @@
-import { Mastodon } from '@llun/activities.schema'
 import { Knex } from 'knex'
 
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
@@ -25,6 +24,7 @@ import {
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/database/types/sql'
 import { Account } from '@/lib/models/account'
 import { Actor } from '@/lib/models/actor'
+import { Mastodon } from '@/lib/schema'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
