@@ -59,7 +59,7 @@
     "pg": "^8.17.2",
     "pino": "^10.2.1",
     "react": "^19.2.4",
-    "react-dom": "^19.2.3",
+    "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
     "react-modal": "^3.16.3",
     "rehype-sanitize": "^6.0.0",
