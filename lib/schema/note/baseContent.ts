@@ -40,7 +40,7 @@ export const BaseContent = z.object({
   replies: Collection.nullish(),
 
   attachment: z.union([Attachment, Attachment.array()]).nullish(),
-  tag: z.union([Tag, Tag.array()]),
+  tag: z.union([Tag, Tag.array()]).nullish(),
 
   published: z.string().describe('Object published datetime'),
   updated: z.string().describe('Object updated datetime').nullish()
