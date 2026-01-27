@@ -92,6 +92,7 @@ export const getProfileData = async (
     getActorFollowing({ person }),
     getActorFollowers({ person })
   ])
+
   return {
     ...actorPostsResponse,
     person,
