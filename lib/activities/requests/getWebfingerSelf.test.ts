@@ -21,4 +21,27 @@ describe('#getWebfingerSelf', () => {
     const selfUrl = await getWebfingerSelf({ account: 'notexist@llun.test' })
     expect(selfUrl).toBeNull()
   })
+
+  it('returns self href from webfinger without aliases (Misskey format)', async () => {
+    // Misskey doesn't include aliases in webfinger response
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        subject: 'acct:user@misskey.test',
+        links: [
+          {
+            rel: 'self',
+            type: 'application/activity+json',
+            href: 'https://misskey.test/users/abc123'
+          },
+          {
+            rel: 'http://webfinger.net/rel/profile-page',
+            type: 'text/html',
+            href: 'https://misskey.test/@user'
+          }
+        ]
+      })
+    )
+    const selfUrl = await getWebfingerSelf({ account: 'user@misskey.test' })
+    expect(selfUrl).toEqual('https://misskey.test/users/abc123')
+  })
 })

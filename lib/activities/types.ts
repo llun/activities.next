@@ -15,7 +15,7 @@ export type Link = z.infer<typeof Link>
 
 export const WebFinger = z.object({
   subject: z.string(),
-  aliases: z.string().array(),
+  aliases: z.string().array().optional(),
   links: Link.array()
 })
 export type WebFinger = z.infer<typeof WebFinger>
