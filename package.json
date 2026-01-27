@@ -97,7 +97,7 @@
     "@types/react-modal": "^3.16.3",
     "@types/sanitize-html": "^2.16.0",
     "@typescript-eslint/eslint-plugin": "^8.53.1",
-    "@typescript-eslint/parser": "^8.53.1",
+    "@typescript-eslint/parser": "^8.54.0",
     "dotenv-flow": "^4.1.0",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.4",
