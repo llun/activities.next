@@ -1,3 +1,7 @@
+import { BaseActivity } from '@/lib/activities/actions/base'
+import { CreateAction } from '@/lib/activities/actions/types'
+import { ContextEntity } from '@/lib/activities/entities/base'
+import { Signature } from '@/lib/activities/types'
 import {
   ArticleContent,
   ImageContent,
@@ -6,11 +10,6 @@ import {
   Question,
   VideoContent
 } from '@/lib/schema'
-
-import { BaseActivity } from '@/lib/activities/actions/base'
-import { CreateAction } from '@/lib/activities/actions/types'
-import { ContextEntity } from '@/lib/activities/entities/base'
-import { Signature } from '@/lib/activities/types'
 
 export interface CreateStatus extends BaseActivity, ContextEntity {
   type: CreateAction

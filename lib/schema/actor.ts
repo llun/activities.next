@@ -1,17 +1,18 @@
-import { z } from "zod";
-import { Image } from "./image";
-import { PropertyValue } from "./note/propertyValue";
-import { HashTag } from "./note/hashtag";
-import { Emoji } from "./note/emoji";
+import { z } from 'zod'
+
+import { Image } from './image'
+import { Emoji } from './note/emoji'
+import { HashTag } from './note/hashtag'
+import { PropertyValue } from './note/propertyValue'
 
 export const Actor = z.object({
   id: z.string(),
   type: z.union([
-    z.literal("Person"),
-    z.literal("Service"),
-    z.literal("Application"),
-    z.literal("Group"),
-    z.literal("Organization"),
+    z.literal('Person'),
+    z.literal('Service'),
+    z.literal('Application'),
+    z.literal('Group'),
+    z.literal('Organization')
   ]),
   following: z.string().url().optional(),
   followers: z.string().url().optional(),
@@ -35,11 +36,11 @@ export const Actor = z.object({
   publicKey: z.object({
     id: z.string(),
     owner: z.string(),
-    publicKeyPem: z.string(),
+    publicKeyPem: z.string()
   }),
   endpoints: z
     .object({
-      sharedInbox: z.string().url().optional(),
+      sharedInbox: z.string().url().optional()
     })
     .optional(),
   icon: Image.nullish(),
@@ -51,14 +52,14 @@ export const Actor = z.object({
       id: z.string().optional(),
       type: z.string(),
       name: z.string().optional(),
-      url: z.string().optional(),
+      url: z.string().optional()
     })
-    .optional(),
-});
-export type Actor = z.infer<typeof Actor>;
+    .optional()
+})
+export type Actor = z.infer<typeof Actor>
 
-export const Person = Actor;
-export type Person = z.infer<typeof Person>;
+export const Person = Actor
+export type Person = z.infer<typeof Person>
 
-export const Service = Actor;
-export type Service = z.infer<typeof Service>;
+export const Service = Actor
+export type Service = z.infer<typeof Service>

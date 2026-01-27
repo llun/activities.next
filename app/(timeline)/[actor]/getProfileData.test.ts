@@ -1,5 +1,3 @@
-import { Actor } from '@/lib/schema'
-
 import { getActorFollowers } from '@/lib/activities/requests/getActorFollowers'
 import { getActorFollowing } from '@/lib/activities/requests/getActorFollowing'
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
@@ -8,6 +6,7 @@ import { getWebfingerSelf } from '@/lib/activities/requests/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
 import { Attachment } from '@/lib/models/attachment'
 import { Status } from '@/lib/models/status'
+import { Actor } from '@/lib/schema'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 import { getProfileData } from './getProfileData'

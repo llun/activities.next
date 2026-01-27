@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import {
   ArticleContent,
   ImageContent,
@@ -5,7 +7,6 @@ import {
   PageContent,
   VideoContent
 } from '@/lib/schema'
-import { z } from 'zod'
 
 import { BaseNote, getContent, getSummary } from '../activities/entities/note'
 import { StatusType } from '../models/status'

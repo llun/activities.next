@@ -1,7 +1,6 @@
-import { Mastodon } from '@/lib/schema'
-
 import { Scope } from '@/lib/database/types/oauth'
 import { FollowStatus } from '@/lib/models/follow'
+import { Mastodon } from '@/lib/schema'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'

@@ -1,5 +1,6 @@
-import { Mention } from '@/lib/schema'
 import { z } from 'zod'
+
+import { Mention } from '@/lib/schema'
 
 export const TagType = z.enum(['emoji', 'mention', 'hashtag'])
 export type TagType = z.infer<typeof TagType>

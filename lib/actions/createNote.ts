@@ -1,4 +1,3 @@
-import { Mention } from '@/lib/schema'
 import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'
@@ -7,6 +6,7 @@ import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor, getMention } from '@/lib/models/actor'
 import { PostBoxAttachment } from '@/lib/models/attachment'
 import { Status, StatusNote } from '@/lib/models/status'
+import { Mention } from '@/lib/schema'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {

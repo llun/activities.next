@@ -1,4 +1,3 @@
-import { Note } from '@/lib/schema'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
@@ -6,6 +5,7 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/models/actor'
 import { StatusNote } from '@/lib/models/status'
+import { Note } from '@/lib/schema'
 import { getQueue } from '@/lib/services/queue'
 import * as timelinesService from '@/lib/services/timelines'
 import { mockRequests } from '@/lib/stub/activities'

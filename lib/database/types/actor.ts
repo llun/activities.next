@@ -1,7 +1,6 @@
-import { Mastodon } from '@/lib/schema'
-
 import { ActorSettings } from '@/lib/database/types/sql'
 import { Actor } from '@/lib/models/actor'
+import { Mastodon } from '@/lib/schema'
 
 export type CreateActorParams = {
   actorId: string

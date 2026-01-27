@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod'
 
 /**
  * Represents the relationship between accounts in Mastodon, such as following, blocking, muting, etc.
@@ -48,7 +48,7 @@ export const Relationship = z.object({
   endorsed: z.boolean(),
 
   // This user's profile bio
-  note: z.string(),
-});
+  note: z.string()
+})
 
-export type Relationship = z.infer<typeof Relationship>;
+export type Relationship = z.infer<typeof Relationship>

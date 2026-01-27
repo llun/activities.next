@@ -1,4 +1,3 @@
-import { ENTITY_TYPE_NOTE, ENTITY_TYPE_QUESTION } from '@/lib/schema'
 import isMatch from 'lodash/isMatch'
 
 import { StatusActivity } from '@/lib/activities/actions/status'
@@ -18,6 +17,7 @@ import {
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
 } from '@/lib/jobs/names'
+import { ENTITY_TYPE_NOTE, ENTITY_TYPE_QUESTION } from '@/lib/schema'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 const ENTITY_TYPE_IMAGE = 'Image'

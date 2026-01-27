@@ -1,4 +1,3 @@
-import { Accept, Follow, Like, Reject, Undo } from '@/lib/schema'
 import { z } from 'zod'
 
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
@@ -9,6 +8,7 @@ import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
 import { FollowRequest } from '@/lib/activities/actions/follow'
 import { UndoFollow } from '@/lib/activities/actions/undoFollow'
 import { UndoLike } from '@/lib/activities/actions/undoLike'
+import { Accept, Follow, Like, Reject, Undo } from '@/lib/schema'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {

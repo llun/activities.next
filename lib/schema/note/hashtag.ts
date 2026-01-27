@@ -1,9 +1,9 @@
-import { z } from "zod";
+import { z } from 'zod'
 
 export const HashTag = z.object({
-  type: z.literal("Hashtag"),
+  type: z.literal('Hashtag'),
   href: z.string().url(),
-  name: z.string().startsWith("#"),
-});
+  name: z.string().startsWith('#')
+})
 
-export type HashTag = z.infer<typeof HashTag>;
+export type HashTag = z.infer<typeof HashTag>

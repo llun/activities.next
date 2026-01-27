@@ -1,9 +1,9 @@
-import { z } from "zod";
+import { z } from 'zod'
 
 export const Mention = z.object({
-  type: z.literal("Mention"),
+  type: z.literal('Mention'),
   href: z.string(),
-  name: z.string(),
-});
+  name: z.string()
+})
 
-export type Mention = z.infer<typeof Mention>;
+export type Mention = z.infer<typeof Mention>

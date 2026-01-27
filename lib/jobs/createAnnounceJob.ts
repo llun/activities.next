@@ -1,5 +1,3 @@
-import { Announce } from '@/lib/schema'
-
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
@@ -8,6 +6,7 @@ import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { Announce } from '@/lib/schema'
 import { JobHandle } from '@/lib/services/queue/type'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { normalizeActivityPubAnnounce } from '@/lib/utils/activitypub'

@@ -1,9 +1,9 @@
 'use client'
 
-import { Mastodon } from '@/lib/schema'
 import { FC } from 'react'
 
 import { FollowRequestCard } from '@/lib/components/follow-request-card/FollowRequestCard'
+import { Mastodon } from '@/lib/schema'
 
 interface Props {
   accounts: Mastodon.Account[]

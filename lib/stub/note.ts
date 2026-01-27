@@ -1,6 +1,6 @@
-import { Note } from '@/lib/schema'
 import crypto from 'crypto'
 
+import { Note } from '@/lib/schema'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL

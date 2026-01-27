@@ -1,13 +1,13 @@
-import { z } from "zod";
+import { z } from 'zod'
 
-import { Image } from "../image";
+import { Image } from '../image'
 
 export const Emoji = z.object({
-  type: z.literal("Emoji"),
+  type: z.literal('Emoji'),
   id: z.string().optional(),
   name: z.string(),
   updated: z.string(),
-  icon: Image,
-});
+  icon: Image
+})
 
-export type Emoji = z.infer<typeof Emoji>;
+export type Emoji = z.infer<typeof Emoji>
