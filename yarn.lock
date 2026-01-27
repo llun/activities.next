@@ -2693,10 +2693,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@next/env@npm:^16.1.4":
-  version: 16.1.4
-  resolution: "@next/env@npm:16.1.4"
-  checksum: 10c0/60f79696d4b28250033ed4a227e414bd8d5c04117d0fce5c1a97a24e712bde4c251cd4a82c1a2f161607d52fbdcd86001047f79e8e8c574693975c4d718fffd1
+"@next/env@npm:^16.1.6":
+  version: 16.1.6
+  resolution: "@next/env@npm:16.1.6"
+  checksum: 10c0/ed7023edb94b9b2e5da3f9c99d08b614da9757c1edd0ecec792fce4d336b4f0c64db1a84955e07cfbd848b9e61c4118fff28f4098cd7b0a7f97814a90565ebe6
   languageName: node
   linkType: hard
 
@@ -5839,7 +5839,7 @@ __metadata:
     "@eslint/eslintrc": "npm:^3.3.3"
     "@eslint/js": "npm:^9.39.2"
     "@jmondi/oauth2-server": "npm:^4.2.2"
-    "@next/env": "npm:^16.1.4"
+    "@next/env": "npm:^16.1.6"
     "@next/eslint-plugin-next": "npm:^16.1.4"
     "@opentelemetry/api": "npm:^1.9.0"
     "@radix-ui/react-avatar": "npm:^1.1.11"
