@@ -16,7 +16,7 @@
   "dependencies": {
     "@auth/core": "^0.40.0",
     "@aws-sdk/client-lambda": "^3.975.0",
-    "@aws-sdk/client-s3": "^3.974.0",
+    "@aws-sdk/client-s3": "^3.975.0",
     "@aws-sdk/s3-presigned-post": "^3.975.0",
     "@aws-sdk/util-utf8-node": "^3.259.0",
     "@date-fns/utc": "^2.1.1",
