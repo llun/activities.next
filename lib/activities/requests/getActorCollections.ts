@@ -46,12 +46,16 @@ export const getActorCollections = async ({ person, field }: Params) =>
 
       const collection = JSON.parse(fieldResponse.body) as OrderedCollection
       const pageUrl = getOrderCollectionFirstPage(collection)
+
+      // Return totalItems even if page URL is not available
+      // This is common for remote actors where Mastodon only provides totalItems
+      // without exposing the actual list of followers/following
       if (!pageUrl) {
-        span.recordException(
-          new Error(`Person ${field} does not contain page url`)
-        )
         span.end()
-        return null
+        return {
+          page: null,
+          totalItems: collection.totalItems ?? 0
+        }
       }
 
       try {
@@ -66,10 +70,14 @@ export const getActorCollections = async ({ person, field }: Params) =>
           })
           span.recordException(
             new Error(
-              `Person ${field} with page returns ${fieldResponse.statusCode}`
+              `Person ${field} with page returns ${response.statusCode}`
             )
           )
-          return null
+          // Return totalItems even if page fetch fails
+          return {
+            page: null,
+            totalItems: collection.totalItems ?? 0
+          }
         }
         return {
           page: JSON.parse(response.body) as OrderedCollectionPage,
@@ -79,7 +87,11 @@ export const getActorCollections = async ({ person, field }: Params) =>
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)
         logger.error(`[getActorCollections.${field}] ${nodeError.message}`)
-        return { statusesCount: 0, statuses: [] }
+        // Return totalItems even on error
+        return {
+          page: null,
+          totalItems: collection.totalItems ?? 0
+        }
       } finally {
         span.end()
       }

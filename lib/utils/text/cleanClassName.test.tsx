@@ -96,6 +96,17 @@ describe('cleanClassName', () => {
       fireEvent.click(links[1])
       expect(parentClickHandler).not.toHaveBeenCalled()
     })
+
+    it('converts class attribute to className for anchor elements', () => {
+      const html = '<a href="https://test.local/page" class="mention">@user</a>'
+      const result = cleanClassName(html)
+      const { container } = render(<div>{result}</div>)
+
+      const link = container.querySelector('a')
+      expect(link).toHaveClass('mention')
+      // Verify no React warning about invalid DOM property 'class'
+      expect(link).toHaveAttribute('href', 'https://test.local/page')
+    })
   })
 
   describe('span class handling', () => {

@@ -30,10 +30,12 @@ export const cleanClassName = (text: string) => {
         replacingNode.attribs.target = '_blank'
         // Return a React element with onClick handler to stop propagation
         // Pass options to domToReact to preserve child transformations
+        const { class: className, ...restAttribs } = replacingNode.attribs
         return React.createElement(
           'a',
           {
-            ...replacingNode.attribs,
+            ...restAttribs,
+            className,
             onClick: (e: React.MouseEvent) => e.stopPropagation()
           },
           domToReact(anchorElement.children as DOMNode[], options)

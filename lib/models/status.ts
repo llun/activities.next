@@ -4,7 +4,11 @@ import { z } from 'zod'
 
 import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
 import { Document } from '@/lib/activities/entities/document'
-import { getContent, getSummary } from '@/lib/activities/entities/note'
+import {
+  getContent,
+  getReply,
+  getSummary
+} from '@/lib/activities/entities/note'
 import { ActorProfile } from '@/lib/models/actor'
 import { Attachment, getDocumentFromAttachment } from '@/lib/models/attachment'
 import { PollChoice } from '@/lib/models/pollChoice'
@@ -153,7 +157,7 @@ export const fromNote = (note: Note): StatusNote => {
     cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter(identity),
     edits: [],
 
-    reply: note.inReplyTo || '',
+    reply: getReply(note.inReplyTo) || '',
     replies: [],
 
     attachments: attachments.map((attachment) => ({

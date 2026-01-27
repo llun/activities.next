@@ -97,6 +97,21 @@ describe('Status', () => {
         updatedAt: expect.toBeNumber()
       })
     })
+
+    it('handles inReplyTo as an object with id property', () => {
+      const note = MockMastodonActivityPubNote({
+        content: 'Hello',
+        withContext: true
+      })
+      // Override inReplyTo with an object (some servers send this format)
+      // Cast through unknown since the runtime code handles both string and object formats
+      const noteWithObjectReply = {
+        ...note,
+        inReplyTo: { id: 'https://other.network/users/test/status/2' }
+      } as unknown as Parameters<typeof fromNote>[0]
+      const status = fromNote(noteWithObjectReply)
+      expect(status.reply).toBe('https://other.network/users/test/status/2')
+    })
   })
 
   describe('#toObject', () => {
