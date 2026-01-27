@@ -1,4 +1,3 @@
-import { Note } from '@llun/activities.schema'
 import crypto from 'crypto'
 
 import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
@@ -29,6 +28,7 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/models/status'
+import { Note } from '@/lib/schema'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL

@@ -234,7 +234,7 @@ describe('createNoteJob', () => {
     })
   })
 
-  // @llun/activities.schema doesn't accept url arrays, so we normalize to a string.
+  // @/lib/schema doesn't accept url arrays, so we normalize to a string.
   it('adds image activity with array URLs into database', async () => {
     const image = {
       type: 'Image',

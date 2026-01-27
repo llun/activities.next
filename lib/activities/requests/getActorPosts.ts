@@ -1,9 +1,8 @@
-import { Actor } from '@llun/activities.schema'
-
 import { getNote } from '@/lib/activities'
 import { AnnounceAction, CreateAction } from '@/lib/activities/actions/types'
 import { Database } from '@/lib/database/types'
 import { Status, fromAnnoucne, fromNote } from '@/lib/models/status'
+import { Actor } from '@/lib/schema'
 import { getTracer } from '@/lib/utils/trace'
 
 import { getActorCollections } from './getActorCollections'

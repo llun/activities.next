@@ -1,11 +1,12 @@
+import { z } from 'zod'
+
 import {
   ArticleContent,
   ImageContent,
   Note,
   PageContent,
   VideoContent
-} from '@llun/activities.schema'
-import { z } from 'zod'
+} from '@/lib/schema'
 
 import { recordActorIfNeeded } from '../actions/utils'
 import {

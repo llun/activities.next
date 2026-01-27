@@ -1,4 +1,4 @@
-import { Note, Question } from '@llun/activities.schema'
+import { Note, Question } from '@/lib/schema'
 
 import { ContextEntity } from '../entities/base'
 import { BaseActivity } from './base'

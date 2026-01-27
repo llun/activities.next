@@ -1,10 +1,9 @@
-import { Mastodon } from '@llun/activities.schema'
-
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { getMastodonAttachment } from '@/lib/models/attachment'
 import { Status, StatusType } from '@/lib/models/status'
 import { Tag, TagType } from '@/lib/models/tag'
+import { Mastodon } from '@/lib/schema'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { processStatusText } from '@/lib/utils/text/processStatusText'

@@ -1,4 +1,3 @@
-import { ENTITY_TYPE_QUESTION, Note, Question } from '@llun/activities.schema'
 import identity from 'lodash/identity'
 import { z } from 'zod'
 
@@ -13,6 +12,7 @@ import { ActorProfile } from '@/lib/models/actor'
 import { Attachment, getDocumentFromAttachment } from '@/lib/models/attachment'
 import { PollChoice } from '@/lib/models/pollChoice'
 import { Tag, getMentionFromTag } from '@/lib/models/tag'
+import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/schema'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const StatusType = z.enum(['Note', 'Announce', 'Poll'])
