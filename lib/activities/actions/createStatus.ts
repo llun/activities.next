@@ -5,7 +5,7 @@ import {
   PageContent,
   Question,
   VideoContent
-} from '@llun/activities.schema'
+} from '@/lib/schema'
 
 import { BaseActivity } from '@/lib/activities/actions/base'
 import { CreateAction } from '@/lib/activities/actions/types'

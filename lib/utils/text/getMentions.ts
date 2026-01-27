@@ -1,4 +1,4 @@
-import { Mention } from '@llun/activities.schema'
+import { Mention } from '@/lib/schema'
 
 import { getWebfingerSelf } from '@/lib/activities/requests/getWebfingerSelf'
 import { Actor, getMention, getMentionFromActorID } from '@/lib/models/actor'

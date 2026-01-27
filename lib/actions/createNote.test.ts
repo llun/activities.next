@@ -1,4 +1,4 @@
-import { Note } from '@llun/activities.schema'
+import { Note } from '@/lib/schema'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'

@@ -1,6 +1,6 @@
 'use client'
 
-import { Mastodon } from '@llun/activities.schema'
+import { Mastodon } from '@/lib/schema'
 import { FC } from 'react'
 
 import { FollowRequestCard } from '@/lib/components/follow-request-card/FollowRequestCard'

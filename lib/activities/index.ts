@@ -1,4 +1,4 @@
-import { Note } from '@llun/activities.schema'
+import { Note } from '@/lib/schema'
 import crypto from 'crypto'
 
 import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'

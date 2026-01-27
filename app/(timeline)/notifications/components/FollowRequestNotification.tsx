@@ -1,6 +1,6 @@
 'use client'
 
-import { Mastodon } from '@llun/activities.schema'
+import { Mastodon } from '@/lib/schema'
 import { useRouter } from 'next/navigation'
 import { FC } from 'react'
 

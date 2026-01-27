@@ -1,6 +1,6 @@
 'use client'
 
-import { Mastodon } from '@llun/activities.schema'
+import { Mastodon } from '@/lib/schema'
 import { useEffect, useRef } from 'react'
 
 import { Status } from '@/lib/models/status'

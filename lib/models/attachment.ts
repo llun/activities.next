@@ -1,4 +1,4 @@
-import { Document, Mastodon } from '@llun/activities.schema'
+import { Document, Mastodon } from '@/lib/schema'
 import { z } from 'zod'
 
 export const UploadedAttachment = z.object({

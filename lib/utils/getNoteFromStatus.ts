@@ -1,4 +1,4 @@
-import { Note } from '@llun/activities.schema'
+import { Note } from '@/lib/schema'
 
 import { getConfig } from '@/lib/config'
 import { getDocumentFromAttachment } from '@/lib/models/attachment'

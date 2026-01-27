@@ -1,4 +1,4 @@
-import { Mastodon } from '@llun/activities.schema'
+import { Mastodon } from '@/lib/schema'
 
 import { ActorSettings } from '@/lib/database/types/sql'
 import { Actor } from '@/lib/models/actor'

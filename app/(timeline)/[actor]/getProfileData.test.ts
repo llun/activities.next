@@ -1,4 +1,4 @@
-import { Actor } from '@llun/activities.schema'
+import { Actor } from '@/lib/schema'
 
 import { getActorFollowers } from '@/lib/activities/requests/getActorFollowers'
 import { getActorFollowing } from '@/lib/activities/requests/getActorFollowing'

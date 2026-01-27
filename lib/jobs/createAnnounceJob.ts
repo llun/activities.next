@@ -1,4 +1,4 @@
-import { Announce } from '@llun/activities.schema'
+import { Announce } from '@/lib/schema'
 
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'

@@ -1,6 +1,6 @@
 'use client'
 
-import { Mastodon } from '@llun/activities.schema'
+import { Mastodon } from '@/lib/schema'
 import Image from 'next/image'
 import { FC, useState } from 'react'
 import sanitizeHtml from 'sanitize-html'

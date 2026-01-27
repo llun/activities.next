@@ -1,4 +1,4 @@
-import { Actor } from '@llun/activities.schema'
+import { Actor } from '@/lib/schema'
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { mockRequests } from '@/lib/stub/activities'

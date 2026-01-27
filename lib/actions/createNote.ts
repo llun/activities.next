@@ -1,4 +1,4 @@
-import { Mention } from '@llun/activities.schema'
+import { Mention } from '@/lib/schema'
 import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'

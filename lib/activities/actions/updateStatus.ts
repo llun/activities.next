@@ -5,7 +5,7 @@ import {
   PageContent,
   Question,
   VideoContent
-} from '@llun/activities.schema'
+} from '@/lib/schema'
 
 import { ContextEntity } from '../entities/base'
 import { Signature } from '../types'

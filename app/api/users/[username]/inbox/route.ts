@@ -1,4 +1,4 @@
-import { Accept, Follow, Like, Reject, Undo } from '@llun/activities.schema'
+import { Accept, Follow, Like, Reject, Undo } from '@/lib/schema'
 import { z } from 'zod'
 
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'

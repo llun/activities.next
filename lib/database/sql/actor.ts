@@ -1,4 +1,4 @@
-import { Mastodon } from '@llun/activities.schema'
+import { Mastodon } from '@/lib/schema'
 import { Knex } from 'knex'
 
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'

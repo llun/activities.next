@@ -1,4 +1,4 @@
-import { Mastodon } from '@llun/activities.schema'
+import { Mastodon } from '@/lib/schema'
 import { z } from 'zod'
 
 import { Scope } from '@/lib/database/types/oauth'

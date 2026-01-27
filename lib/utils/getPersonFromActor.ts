@@ -1,4 +1,4 @@
-import { Actor as ActivityPubActor } from '@llun/activities.schema'
+import { Actor as ActivityPubActor } from '@/lib/schema'
 
 import { Actor } from '@/lib/models/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'

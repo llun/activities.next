@@ -4,7 +4,7 @@ import {
   Note,
   PageContent,
   VideoContent
-} from '@llun/activities.schema'
+} from '@/lib/schema'
 import { z } from 'zod'
 
 import { recordActorIfNeeded } from '../actions/utils'

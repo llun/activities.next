@@ -1,4 +1,4 @@
-import { Mastodon } from '@llun/activities.schema'
+import { Mastodon } from '@/lib/schema'
 
 import { Database } from '@/lib/database/types'
 import {

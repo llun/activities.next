@@ -1,4 +1,4 @@
-import { Actor } from '@llun/activities.schema'
+import { Actor } from '@/lib/schema'
 
 import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { logger } from '@/lib/utils/logger'

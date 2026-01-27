@@ -1,4 +1,4 @@
-import { ENTITY_TYPE_NOTE, ENTITY_TYPE_QUESTION } from '@llun/activities.schema'
+import { ENTITY_TYPE_NOTE, ENTITY_TYPE_QUESTION } from '@/lib/schema'
 import isMatch from 'lodash/isMatch'
 
 import { StatusActivity } from '@/lib/activities/actions/status'
