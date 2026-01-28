@@ -10,7 +10,11 @@ This document outlines the plan to consolidate all type definitions in the proje
 - [Duplicate Analysis](#duplicate-analysis)
 - [Migration Strategy](#migration-strategy)
 - [Naming Conventions](#naming-conventions)
+- [Transformation Strategy](#transformation-strategy)
 - [Implementation Steps](#implementation-steps)
+- [Testing Strategy](#testing-strategy)
+- [Rollback Plan](#rollback-plan)
+- [Success Criteria](#success-criteria)
 
 ---
 
@@ -101,9 +105,9 @@ lib/types/
 ├── activitypub/                # ActivityPub protocol types
 │   ├── index.ts
 │   ├── actor.ts                # APActor, APPerson, APService
-│   ├── activities.ts           # Accept, Follow, Like, Announce, Undo, Reject
-│   ├── objects.ts              # Note, Question, Document, Image, Tombstone
-│   ├── collections.ts          # Collection, OrderedCollection, pages
+│   ├── activities.ts           # APAccept, APFollow, APLike, APAnnounce, APUndo, APReject
+│   ├── objects.ts              # APNote, APQuestion, APDocument, APImage, APTombstone
+│   ├── collections.ts          # APCollection, APOrderedCollection, pages
 │   └── webfinger.ts            # WebFinger, Link
 │
 └── mastodon/                   # Mastodon API response types
@@ -289,12 +293,12 @@ import * as Mastodon from '@/lib/types/mastodon'
 // Usage: Mastodon.Account, Mastodon.Status
 
 // ActivityPub types
-import { Note, Follow } from '@/lib/types/activitypub'
+import { APNote, APFollow } from '@/lib/types/activitypub'
 ```
 
-### Exception: ActivityPub Actor
+### ActivityPub Naming Convention
 
-Use `APActor` prefix to distinguish from domain `Actor`:
+Use `AP` prefix consistently for all ActivityPub types to distinguish from domain types:
 
 ```typescript
 // In lib/types/activitypub/actor.ts
@@ -304,6 +308,21 @@ export type APActor = z.infer<typeof APActor>
 // Convenience aliases
 export const APPerson = APActor
 export const APService = APActor
+
+// In lib/types/activitypub/activities.ts
+export const APFollow = z.object({ ... })
+export const APLike = z.object({ ... })
+export const APAccept = z.object({ ... })
+export const APAnnounce = z.object({ ... })
+export const APReject = z.object({ ... })
+export const APUndo = z.object({ ... })
+
+// In lib/types/activitypub/objects.ts
+export const APNote = z.object({ ... })
+export const APQuestion = z.object({ ... })
+export const APDocument = z.object({ ... })
+export const APImage = z.object({ ... })
+export const APTombstone = z.object({ ... })
 ```
 
 ### Import Examples After Migration
@@ -312,8 +331,8 @@ export const APService = APActor
 // Domain models (internal use)
 import { Actor, Status, Account } from '@/lib/types/domain'
 
-// ActivityPub protocol (federation)
-import { APActor, Note, Follow, Like } from '@/lib/types/activitypub'
+// ActivityPub protocol (federation) - all prefixed with AP
+import { APActor, APNote, APFollow, APLike } from '@/lib/types/activitypub'
 
 // Mastodon API (client responses)
 import * as Mastodon from '@/lib/types/mastodon'
@@ -323,10 +342,66 @@ import { Account, Status } from '@/lib/types/mastodon'
 // Database operations
 import { SQLActor, CreateActorParams, ActorDatabase } from '@/lib/types/database'
 
-// Combined import
+// Combined import example
 import { Actor } from '@/lib/types/domain'
 import { APActor } from '@/lib/types/activitypub'
 import * as Mastodon from '@/lib/types/mastodon'
+```
+
+---
+
+## Transformation Strategy
+
+To address the "Scattered Transformations" problem, transformation functions will be co-located with their related domain types. This keeps the conversion logic close to the type definitions and makes maintenance easier.
+
+### Transformation Function Locations
+
+| Transformation | Current Location | New Location |
+|----------------|------------------|--------------|
+| `getActor()` (SQL → Domain) | `lib/database/sql/actor.ts` | Keep in `lib/database/sql/actor.ts` (database layer responsibility) |
+| `getMastodonActor()` (Domain → Mastodon) | `lib/database/sql/actor.ts` | Move to `lib/types/domain/actor.ts` |
+| `fromNote()` (ActivityPub → Domain) | `lib/models/status.ts` | Keep in `lib/types/domain/status.ts` |
+| `toActivityPubObject()` (Domain → ActivityPub) | `lib/models/status.ts` | Keep in `lib/types/domain/status.ts` |
+| `getPersonFromActor()` (Domain → ActivityPub) | `lib/utils/getPersonFromActor.ts` | Move to `lib/types/domain/actor.ts` |
+| `getMastodonStatus()` (Domain → Mastodon) | `lib/services/mastodon/getMastodonStatus.ts` | Keep in services (requires database access) |
+| `getMastodonAttachment()` | `lib/models/attachment.ts` | Keep in `lib/types/domain/attachment.ts` |
+| `getDocumentFromAttachment()` | `lib/models/attachment.ts` | Keep in `lib/types/domain/attachment.ts` |
+
+### Transformation Principles
+
+1. **Domain types own their transformations**: Functions that convert to/from domain types live with those domain types
+2. **Database layer transforms SQL rows**: `getActor()`, `getStatus()` etc. stay in database SQL modules
+3. **Service layer handles complex transformations**: Functions requiring database queries (like `getMastodonStatus()`) stay in services
+4. **Pure transformations move to types**: Simple conversion functions without side effects move to type modules
+
+### Example: Actor Transformations
+
+```typescript
+// lib/types/domain/actor.ts
+import { z } from 'zod'
+import { APActor } from '@/lib/types/activitypub'
+
+export const Actor = z.object({ ... })
+export type Actor = z.infer<typeof Actor>
+
+// Transform domain Actor to ActivityPub Person
+export const toActivityPubPerson = (actor: Actor): APActor => {
+  return APActor.parse({
+    id: actor.id,
+    type: 'Person',
+    preferredUsername: actor.username,
+    // ... mapping
+  })
+}
+
+// Transform domain Actor to Mastodon Account (basic, no DB)
+export const toBasicMastodonAccount = (actor: Actor) => {
+  return {
+    id: actor.id,
+    username: actor.username,
+    // ... basic mapping without counts
+  }
+}
 ```
 
 ---
@@ -415,6 +490,20 @@ Move from `lib/schema/mastodon/`:
 3. **After import updates**: Run `yarn lint` and `yarn build`
 4. **Final verification**: Full test suite + manual testing
 
+### Test Commands
+
+```bash
+# After each implementation step
+yarn test
+
+# After updating imports
+yarn lint
+yarn build
+
+# Final verification
+yarn test && yarn lint && yarn build
+```
+
 ---
 
 ## Rollback Plan
@@ -424,24 +513,22 @@ If issues arise:
 2. Can revert import changes file-by-file
 3. Old files not deleted until final verification
 
----
+### Emergency Rollback Steps
 
-## Timeline Estimate
-
-| Phase | Tasks |
-|-------|-------|
-| Phase 1 | Create new structure, move types |
-| Phase 2 | Add re-exports for backward compatibility |
-| Phase 3 | Update imports across codebase |
-| Phase 4 | Remove old files, final cleanup |
+1. Revert the latest commit with import changes
+2. Re-exports will continue to work from old locations
+3. Debug and fix issues before re-attempting
 
 ---
 
 ## Success Criteria
 
-- [ ] All types in `lib/types/` directory
-- [ ] No duplicate type definitions
-- [ ] Clear naming conventions followed
-- [ ] All tests passing
-- [ ] Build succeeds
+- [ ] All types consolidated in `lib/types/` directory
+- [ ] No duplicate type definitions remain
+- [ ] Consistent `AP` prefix for all ActivityPub types
+- [ ] All transformation functions co-located appropriately
+- [ ] All tests passing (`yarn test`)
+- [ ] Linting passes (`yarn lint`)
+- [ ] Build succeeds (`yarn build`)
 - [ ] ~78% reduction in type files (95 → 21)
+- [ ] Clear import patterns documented and followed
