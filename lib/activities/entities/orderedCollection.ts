@@ -8,7 +8,7 @@ export interface ContextEntity {
 export interface OrderedCollectionPage extends ContextEntity {
   id?: string
   type: 'OrderedCollectionPage'
-  orderedItems: unknown[]
+  orderedItems: (string | Record<string, unknown>)[]
   next?: string
   prev?: string
 }

@@ -26,7 +26,7 @@ import {
   UpdateAccountSessionParams,
   VerifyAccountParams,
   VerifyEmailChangeParams
-} from '@/lib/database/types/account'
+} from '@/lib/types/database/operations'
 import { ActorSettings } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'

@@ -3,8 +3,7 @@ import { omit } from 'lodash'
 
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { AccountDatabase } from '@/lib/database/types/account'
-import { ActorDatabase } from '@/lib/database/types/actor'
+import { AccountDatabase, ActorDatabase } from '@/lib/types/database/operations'
 import {
   CreateAccessTokenParams,
   CreateAuthCodeParams,

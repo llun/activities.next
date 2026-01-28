@@ -102,7 +102,7 @@ export type StartActorDeletionParams = { actorId: string }
 export type DeleteActorDataParams = { actorId: string }
 
 export interface ActorDatabase {
-  createActor(params: CreateActorParams): Promise<string>
+  createActor(params: CreateActorParams): Promise<Actor | null>
   createMastodonActor(
     params: CreateActorParams
   ): Promise<Mastodon.Account | null>
@@ -130,7 +130,6 @@ export interface ActorDatabase {
   isCurrentActorFollowing(
     params: IsCurrentActorFollowingParams
   ): Promise<boolean>
-  getMastodonActor(actor: Actor): Promise<Mastodon.Account>
   scheduleActorDeletion(params: ScheduleActorDeletionParams): Promise<void>
   cancelActorDeletion(params: CancelActorDeletionParams): Promise<void>
   startActorDeletion(params: StartActorDeletionParams): Promise<void>
@@ -416,7 +415,7 @@ export interface StatusDatabase {
   createNote(params: CreateNoteParams): Promise<Status>
   createAnnounce(params: CreateAnnounceParams): Promise<Status>
   createPoll(params: CreatePollParams): Promise<Status>
-  updateNote(params: UpdateNoteParams): Promise<void>
+  updateNote(params: UpdateNoteParams): Promise<Status | null>
   updatePoll(params: UpdatePollParams): Promise<void>
   getStatus(params: GetStatusParams): Promise<Status | null>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>

@@ -20,7 +20,7 @@ import {
   ScheduleActorDeletionParams,
   StartActorDeletionParams,
   UpdateActorParams
-} from '@/lib/database/types/actor'
+} from '@/lib/types/database/operations'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
@@ -131,7 +131,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .leftJoin('accounts', 'actors.accountId', 'accounts.id')
       .where('accounts.email', email)
       .first()
-    if (!persistedActor) return undefined
+    if (!persistedActor) return null
 
     const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
       await database.transaction(async (trx) => {
@@ -198,7 +198,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .where('username', username)
       .andWhere('domain', domain)
       .first()
-    if (!persistedActor) return undefined
+    if (!persistedActor) return null
 
     const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
       await database.transaction(async (trx) => {
@@ -255,7 +255,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const persistedActor = await database<SQLActor>('actors')
       .where('id', id)
       .first()
-    if (!persistedActor) return undefined
+    if (!persistedActor) return null
 
     if (!persistedActor.accountId) {
       const [totalFollowers, totalFollowing, totalStatus, lastStatus] =
@@ -490,7 +490,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const persistedActor = await database<SQLActor>('actors')
       .where('id', actorId)
       .first()
-    if (!persistedActor) return undefined
+    if (!persistedActor) return null
 
     const persistedSettings = getCompatibleJSON(persistedActor.settings)
     const settings: ActorSettings = {
@@ -556,7 +556,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .where('id', actorId)
       .select('settings')
       .first()
-    if (!persistedActor) return undefined
+    if (!persistedActor) return null
     return getCompatibleJSON(persistedActor.settings) as ActorSettings
   },
 
@@ -611,7 +611,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .where('id', id)
       .select('deletionStatus', 'deletionScheduledAt')
       .first()
-    if (!persistedActor) return undefined
+    if (!persistedActor) return null
     return {
       status: persistedActor.deletionStatus ?? null,
       scheduledAt: persistedActor.deletionScheduledAt
