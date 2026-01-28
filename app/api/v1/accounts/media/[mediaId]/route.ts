@@ -1,3 +1,4 @@
+import { Actor } from '@/lib/types/domain/actor'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { logger } from '@/lib/utils/logger'
@@ -84,6 +85,7 @@ export const DELETE = traceApiRoute(
   }),
   {
     addAttributes: async (_req, context) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { currentActor, params } = context as any
       const { mediaId } = (await params) ?? { mediaId: undefined }
       const account = currentActor?.account

@@ -13,7 +13,9 @@ export type BaseNote =
   | ArticleContent
   | VideoContent
 
-export const getUrl = (url: string | any | any[]): string | undefined => {
+type UrlValue = string | { href?: string } | (string | { href?: string })[]
+
+export const getUrl = (url: UrlValue): string | undefined => {
   if (Array.isArray(url)) {
     const first = url[0]
     if (typeof first === 'string') return first
@@ -23,7 +25,9 @@ export const getUrl = (url: string | any | any[]): string | undefined => {
   return url?.href
 }
 
-export const getReply = (reply: string | any): string | undefined => {
+type ReplyValue = string | { id?: string } | null | undefined
+
+export const getReply = (reply: ReplyValue): string | undefined => {
   if (typeof reply === 'string') return reply
   return reply?.id
 }

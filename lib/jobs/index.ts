@@ -26,6 +26,9 @@ import { sendUpdateNoteJob } from './sendUpdateNoteJob'
 import { updateNoteJob } from './updateNoteJob'
 import { updatePollJob } from './updatePollJob'
 
+// Re-export JobHandle for external use
+export type { JobHandle }
+
 export const JOBS: Record<string, JobHandle> = {
   [CREATE_NOTE_JOB_NAME]: createNoteJob,
   [UPDATE_NOTE_JOB_NAME]: updateNoteJob,

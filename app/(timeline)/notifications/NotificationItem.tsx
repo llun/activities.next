@@ -48,18 +48,18 @@ export const NotificationItem = ({
       case 'follow_request':
         return (
           <FollowRequestNotification
-            notification={notification as any}
+            notification={notification as NotificationWithData & { account: Mastodon.Account }}
             currentActorId={currentActorId}
           />
         )
       case 'follow':
-        return <FollowNotification notification={notification as any} />
+        return <FollowNotification notification={notification as NotificationWithData & { account: Mastodon.Account }} />
       case 'like':
-        return <LikeNotification notification={notification as any} />
+        return <LikeNotification notification={notification as NotificationWithData & { account: Mastodon.Account; status: Status }} />
       case 'reply':
-        return <ReplyNotification notification={notification as any} />
+        return <ReplyNotification notification={notification as NotificationWithData & { account: Mastodon.Account; status: Status }} />
       case 'mention':
-        return <MentionNotification notification={notification as any} />
+        return <MentionNotification notification={notification as NotificationWithData & { account: Mastodon.Account; status: Status }} />
       default:
         return null
     }

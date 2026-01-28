@@ -1,3 +1,5 @@
+import { NextRequest } from 'next/server'
+
 import { getDatabase } from '@/lib/database'
 import { revokeToken } from '@/lib/services/oauth/revoke'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -12,7 +14,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-export const POST = traceApiRoute('revokeToken', async (req: Request) => {
+export const POST = traceApiRoute('revokeToken', async (req: NextRequest) => {
   const database = getDatabase()
   if (!database) return apiErrorResponse(500)
 
@@ -47,7 +49,7 @@ export const POST = traceApiRoute('revokeToken', async (req: Request) => {
 
   // RFC 7009 specifies returning 200 OK on success
   return apiResponse({
-    req: req as any,
+    req,
     allowedMethods: CORS_HEADERS,
     data: {}
   })

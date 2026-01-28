@@ -1,3 +1,4 @@
+import { Actor } from '@/lib/types/domain/actor'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
 import { logger } from '@/lib/utils/logger'
@@ -60,6 +61,7 @@ export const GET = traceApiRoute(
   }),
   {
     addAttributes: async (req, context) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { currentActor } = context as any
       const account = currentActor?.account
       const url = new URL(req.url)
