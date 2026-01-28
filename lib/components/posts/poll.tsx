@@ -5,7 +5,7 @@ import { FC, useState } from 'react'
 
 import { votePoll } from '@/lib/client'
 
-import { Status, StatusType } from '../../models/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 
 interface Props {
   status: Status

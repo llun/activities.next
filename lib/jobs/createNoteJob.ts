@@ -17,7 +17,7 @@ import {
   getSummary,
   getTags
 } from '../activities/entities/note'
-import { StatusType } from '../models/status'
+import { StatusType } from '@/lib/types/domain/status'
 import { addStatusToTimelines } from '../services/timelines'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'

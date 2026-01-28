@@ -1,6 +1,6 @@
 import { Reducer } from 'react'
 
-import { PostBoxAttachment } from '../../models/attachment'
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { MAX_ATTACHMENTS } from '../../services/medias/constants'
 import { MastodonVisibility } from '../../utils/getVisibility'
 import { Choice, DEFAULT_DURATION, Duration } from './poll-choices'

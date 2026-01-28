@@ -1,4 +1,4 @@
-import { Attachment } from '../../models/attachment'
+import { Attachment } from '@/lib/types/domain/attachment'
 
 interface MetaData {
   width: number

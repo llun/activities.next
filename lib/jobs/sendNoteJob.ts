@@ -11,7 +11,7 @@ import { logger } from '@/lib/utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
 import { getTracer } from '@/lib/utils/trace'
 
-import { StatusType } from '../models/status'
+import { StatusType } from '@/lib/types/domain/status'
 import { getMentions } from '../utils/text/getMentions'
 
 export const JobData = z.object({

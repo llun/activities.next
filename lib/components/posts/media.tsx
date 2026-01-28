@@ -1,6 +1,6 @@
 import { FC, MouseEvent } from 'react'
 
-import { Attachment } from '../../models/attachment'
+import { Attachment } from '@/lib/types/domain/attachment'
 
 interface Props {
   caption?: string

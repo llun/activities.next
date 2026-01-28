@@ -1,6 +1,6 @@
 import { FC } from 'react'
 
-import { Status, StatusType } from '../../../models/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { PostProps } from '../post'
 import { DeleteButton } from './delete-button'
 import { EditButton } from './edit-button'

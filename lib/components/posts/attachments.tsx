@@ -1,7 +1,7 @@
 import { FC } from 'react'
 
-import { Attachment } from '../../models/attachment'
-import { Status, StatusType } from '../../models/status'
+import { Attachment } from '@/lib/types/domain/attachment'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { Media } from './media'
 
 export type OnMediaSelectedHandle = (

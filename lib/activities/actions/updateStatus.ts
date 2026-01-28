@@ -8,7 +8,7 @@ import {
 } from '@/lib/types/activitypub'
 
 import { ContextEntity } from '../entities/base'
-import { Signature } from '../types'
+import { Signature } from '@/lib/types/activitypub/webfinger'
 import { BaseActivity } from './base'
 import { UpdateAction } from './types'
 

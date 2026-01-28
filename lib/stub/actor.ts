@@ -1,4 +1,4 @@
-import { Actor } from '../models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 
 export const MOCK_SECRET_PHASES = 'secret phases'
 const MOCK_PUBLIC_KEY = `

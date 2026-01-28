@@ -1,5 +1,5 @@
 import { getTestSQLDatabase } from '../../database/testUtils'
-import { Status } from '../../models/status'
+import { Status } from '@/lib/types/domain/status'
 import { TEST_DOMAIN } from '../../stub/const'
 import { seedDatabase } from '../../stub/database'
 import { ACTOR1_ID } from '../../stub/seed/actor1'

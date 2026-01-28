@@ -5,7 +5,7 @@ import { Button } from '@/lib/components/ui/button'
 import { logger } from '@/lib/utils/logger'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
-import { PostBoxAttachment } from '../../models/attachment'
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import {
   ACCEPTED_FILE_TYPES,
   MAX_ATTACHMENTS,

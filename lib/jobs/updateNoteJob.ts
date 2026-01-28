@@ -9,7 +9,7 @@ import {
 } from '@/lib/types/activitypub'
 
 import { BaseNote, getContent, getSummary } from '../activities/entities/note'
-import { StatusType } from '../models/status'
+import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { UPDATE_NOTE_JOB_NAME } from './names'

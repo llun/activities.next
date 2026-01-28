@@ -2,7 +2,7 @@ import { FC, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 
-import { Attachment } from '../../models/attachment'
+import { Attachment } from '@/lib/types/domain/attachment'
 import { Modal } from '../modal/modal'
 import { Media } from '../posts/media'
 
