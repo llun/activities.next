@@ -1,16 +1,16 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
+import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
-import { Actor } from '@/lib/models/actor'
-import { Status, StatusAnnounce, StatusNote } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockAnnounceStatus } from '@/lib/stub/announce'
 import { seedDatabase } from '@/lib/stub/database'
 import { stubNoteId } from '@/lib/stub/note'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { Actor } from '@/lib/types/domain/actor'
+import { Status, StatusAnnounce, StatusNote } from '@/lib/types/domain/status'
 
 enableFetchMocks()
 

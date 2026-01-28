@@ -1,9 +1,9 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Actor, getMention } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { Actor, getMention } from '@/lib/types/domain/actor'
 import { getMentions } from '@/lib/utils/text/getMentions'
 
 describe('#getMentions', () => {

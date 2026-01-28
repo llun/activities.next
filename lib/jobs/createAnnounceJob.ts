@@ -6,9 +6,9 @@ import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
-import { Announce } from '@/lib/schema'
 import { JobHandle } from '@/lib/services/queue/type'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { Announce } from '@/lib/types/activitypub'
 import { normalizeActivityPubAnnounce } from '@/lib/utils/activitypub'
 
 export const createAnnounceJob: JobHandle = createJobHandle(

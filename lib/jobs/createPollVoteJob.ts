@@ -1,7 +1,7 @@
-import { ENTITY_TYPE_NOTE, Note } from '@/lib/schema'
+import { ENTITY_TYPE_NOTE, Note } from '@/lib/types/activitypub'
+import { StatusType } from '@/lib/types/domain/status'
 
 import { recordActorIfNeeded } from '../actions/utils'
-import { StatusType } from '../models/status'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_VOTE_JOB_NAME } from './names'

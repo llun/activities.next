@@ -1,34 +1,34 @@
 import crypto from 'crypto'
 
-import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
-import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
-import { CreateStatus } from '@/lib/activities/actions/createStatus'
-import { DeleteStatus } from '@/lib/activities/actions/deleteStatus'
-import { FollowRequest } from '@/lib/activities/actions/follow'
-import { LikeStatus } from '@/lib/activities/actions/like'
-import { RejectFollow } from '@/lib/activities/actions/rejectFollow'
+import { AcceptFollow } from '@/lib/activities/acceptFollow'
+import { AnnounceStatus } from '@/lib/activities/announceStatus'
+import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
+import { CreateStatus } from '@/lib/activities/createStatus'
+import { DeleteStatus } from '@/lib/activities/deleteStatus'
+import { FollowRequest } from '@/lib/activities/followAction'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
+import { LikeStatus } from '@/lib/activities/likeAction'
+import { RejectFollow } from '@/lib/activities/rejectFollow'
+import { UndoFollow } from '@/lib/activities/undoFollow'
+import { UndoLike } from '@/lib/activities/undoLike'
+import { UndoStatus } from '@/lib/activities/undoStatus'
+import { UpdateStatus } from '@/lib/activities/updateStatus'
+import { Note } from '@/lib/types/activitypub'
 import {
   AnnounceAction,
   CreateAction,
   DeleteAction,
   UndoAction,
   UpdateAction
-} from '@/lib/activities/actions/types'
-import { UndoFollow } from '@/lib/activities/actions/undoFollow'
-import { UndoLike } from '@/lib/activities/actions/undoLike'
-import { UndoStatus } from '@/lib/activities/actions/undoStatus'
-import { UpdateStatus } from '@/lib/activities/actions/updateStatus'
-import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
-import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
-import { Actor } from '@/lib/models/actor'
-import { Follow } from '@/lib/models/follow'
+} from '@/lib/types/activitypub/activities'
+import { Actor } from '@/lib/types/domain/actor'
+import { Follow } from '@/lib/types/domain/follow'
 import {
   Status,
   StatusAnnounce,
   StatusPoll,
   StatusType
-} from '@/lib/models/status'
-import { Note } from '@/lib/schema'
+} from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL

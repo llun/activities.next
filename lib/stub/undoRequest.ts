@@ -1,7 +1,8 @@
 import crypto from 'crypto'
 
-import { UndoAction } from '../activities/actions/types'
-import { UndoFollow } from '../activities/actions/undoFollow'
+import { UndoFollow } from '@/lib/activities/undoFollow'
+import { UndoAction } from '@/lib/types/activitypub/activities'
+
 import { MockFollowRequest } from './followRequest'
 
 interface UndoFollowRequestParams {

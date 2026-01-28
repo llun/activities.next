@@ -3,9 +3,9 @@ import { z } from 'zod'
 import { sendUpdateNote } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
-import { FollowStatus } from '@/lib/models/follow'
-import { StatusType } from '@/lib/models/status'
 import { JobHandle } from '@/lib/services/queue/type'
+import { FollowStatus } from '@/lib/types/domain/follow'
+import { StatusType } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT

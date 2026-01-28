@@ -29,6 +29,7 @@
 - **NEVER** use `console.log`, `console.warn`, `console.error`, or any `console.*` methods in committed code.
 - Script files in `scripts/` are an exception and may use `console.*` for CLI output.
 - For server-side code (API routes, services, jobs, models, lib utilities), use the logger from `@/lib/utils/logger`:
+
   ```typescript
   import { logger } from '@/lib/utils/logger'
 
@@ -36,6 +37,7 @@
   logger.warn({ message: 'Warning message' })
   logger.error({ message: 'Error occurred' })
   ```
+
 - **Do NOT** use logger in React components or client-side code—logging is for server-side only.
 
 ## API Response Guidelines

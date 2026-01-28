@@ -1,6 +1,6 @@
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
-import { Status } from '@/lib/models/status'
+import { Actor } from '@/lib/types/domain/actor'
+import { Status } from '@/lib/types/domain/status'
 import { getTracer } from '@/lib/utils/trace'
 
 import { mainTimelineRule } from './main'
@@ -23,7 +23,7 @@ export const addStatusToTimelines = async (
         )
       ).filter(
         (actor): actor is Actor =>
-          actor !== undefined && actor.privateKey !== ''
+          actor !== undefined && actor !== null && actor.privateKey !== ''
       )
       const getLocalActorsFromFollowerUrl = (
         await Promise.all(

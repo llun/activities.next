@@ -9,8 +9,8 @@ import {
   TabsList,
   TabsTrigger
 } from '@/lib/components/ui/tabs'
-import { Attachment } from '@/lib/models/attachment'
-import { Status, StatusType } from '@/lib/models/status'
+import { Attachment } from '@/lib/types/domain/attachment'
+import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { ActorMediaGallery } from './ActorMediaGallery'
 

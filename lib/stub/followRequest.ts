@@ -1,10 +1,9 @@
 import crypto from 'crypto'
 
+import { AcceptFollow } from '@/lib/activities/acceptFollow'
+import { FollowRequest } from '@/lib/activities/followAction'
+import { RejectFollow } from '@/lib/activities/rejectFollow'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
-
-import { AcceptFollow } from '../activities/actions/acceptFollow'
-import { FollowRequest } from '../activities/actions/follow'
-import { RejectFollow } from '../activities/actions/rejectFollow'
 
 interface FollowRequestParams {
   withContext?: boolean

@@ -1,6 +1,6 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { NotificationType } from '@/lib/database/types/notification'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
+import { NotificationType } from '@/lib/types/database/operations'
 
 import { getMastodonNotification } from './getMastodonNotification'
 

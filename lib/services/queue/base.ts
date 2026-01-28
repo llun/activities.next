@@ -1,7 +1,7 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
 import { getDatabase } from '@/lib/database'
-import { JOBS } from '@/lib/jobs'
+import { JOBS, JobHandle } from '@/lib/jobs'
 import { logger } from '@/lib/utils/logger'
 import { getTracer } from '@/lib/utils/trace'
 
@@ -24,7 +24,9 @@ export const defaultJobHandle =
 
       const jobName = String(message.name)
       const hasJob = Object.prototype.hasOwnProperty.call(JOBS, jobName)
-      const job = hasJob ? (JOBS as any)[jobName] : undefined
+      const job = hasJob
+        ? (JOBS as Record<string, JobHandle>)[jobName]
+        : undefined
       if (!hasJob || typeof job !== 'function') {
         logger.error({ message }, 'Unknown job name')
         span.setStatus({

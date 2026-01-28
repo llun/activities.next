@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 
 export type AppRouterParams<P> = { params: Promise<P> }
 export type AppRouterApiHandle<P> = (

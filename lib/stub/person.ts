@@ -1,4 +1,4 @@
-import { Actor } from '@/lib/schema'
+import { Actor } from '@/lib/types/activitypub'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 

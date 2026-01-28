@@ -84,6 +84,7 @@ export const DELETE = traceApiRoute(
   }),
   {
     addAttributes: async (_req, context) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { currentActor, params } = context as any
       const { mediaId } = (await params) ?? { mediaId: undefined }
       const account = currentActor?.account

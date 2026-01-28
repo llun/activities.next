@@ -1,6 +1,6 @@
 import _ from 'lodash'
 
-import { Status, StatusType } from '@/lib/models/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 import { sanitizeText } from '@/lib/utils/text/sanitizeText'
