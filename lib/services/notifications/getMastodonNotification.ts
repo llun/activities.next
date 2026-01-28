@@ -117,7 +117,7 @@ export const getMastodonNotification = async (
           .map((actorId) => database.getMastodonActorFromId({ id: actorId }))
       )
       mastodonNotification.grouped_accounts = groupedAccounts.filter(
-        (acc): acc is Mastodon.Account => acc !== null
+        (acc: Mastodon.Account | null): acc is Mastodon.Account => acc !== null
       )
     }
   }

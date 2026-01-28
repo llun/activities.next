@@ -15,7 +15,7 @@ import sharp from 'sharp'
 
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
-import { Media } from '@/lib/database/types/media'
+import { Media } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { MAX_HEIGHT, MAX_WIDTH } from '@/lib/services/medias/constants'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'

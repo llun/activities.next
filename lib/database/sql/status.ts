@@ -824,6 +824,109 @@ export const StatusSQLDatabaseMixin = (
       .increment('totalVotes', 1)
   }
 
+  async function getStatusFromUrl({ url }: { url: string }) {
+    const status = await database<{ id: string }>('statuses')
+      .where('url', url)
+      .first('id')
+    if (!status) return null
+    return getStatus({ statusId: status.id })
+  }
+
+  async function getActorAnnouncedStatusId({
+    actorId,
+    originalStatusId
+  }: {
+    actorId: string
+    originalStatusId: string
+  }) {
+    const result = await database('statuses')
+      .where('actorId', actorId)
+      .andWhere('originalStatusId', originalStatusId)
+      .first<{ id: string }>('id')
+    return result?.id ?? null
+  }
+
+  async function countStatus({ actorId }: { actorId: string }) {
+    const result = await database('statuses')
+      .where('actorId', actorId)
+      .count<{ count: string }>('* as count')
+      .first()
+    return parseInt(result?.count ?? '0', 10)
+  }
+
+  async function updatePollChoice({
+    statusId,
+    choices
+  }: {
+    statusId: string
+    choices: { title: string }[]
+  }) {
+    await database('poll_choices').where('statusId', statusId).delete()
+    if (choices.length > 0) {
+      await database('poll_choices').insert(
+        choices.map((choice, index) => ({
+          statusId,
+          choiceId: index,
+          title: choice.title,
+          totalVotes: 0
+        }))
+      )
+    }
+  }
+
+  async function addPollVote({
+    actorId,
+    statusId,
+    choice
+  }: {
+    actorId: string
+    statusId: string
+    choice: number
+  }) {
+    await database('poll_answers').insert({
+      actorId,
+      statusId,
+      answerId: choice
+    })
+  }
+
+  async function getPollVotes({
+    actorId,
+    statusId
+  }: {
+    actorId: string
+    statusId: string
+  }) {
+    const results = await database('poll_answers')
+      .where({ actorId, statusId })
+      .select<{ answerId: number }[]>('answerId')
+    return results.map((r) => r.answerId)
+  }
+
+  async function addStatusTag({
+    actorId,
+    statusId,
+    type,
+    name,
+    value
+  }: {
+    actorId: string
+    statusId: string
+    type: string
+    name: string
+    value: string
+  }) {
+    await database('tags').insert({
+      actorId,
+      statusId,
+      type,
+      name,
+      value,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+  }
+
   return {
     createNote,
     updateNote,
@@ -832,11 +935,18 @@ export const StatusSQLDatabaseMixin = (
     updatePoll,
     getStatus,
     getStatusReplies,
+    getStatusFromUrl,
+    getActorAnnouncedStatusId,
     hasActorAnnouncedStatus,
     getActorAnnounceStatus,
     getActorStatusesCount,
     getActorStatuses,
     deleteStatus,
+    countStatus,
+    updatePollChoice,
+    addPollVote,
+    getPollVotes,
+    addStatusTag,
     getFavouritedBy,
     createTag,
     getTags,
