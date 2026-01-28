@@ -388,7 +388,7 @@ describe('ActorDatabase', () => {
 
         await database.deleteActor({ actorId })
         const deleted = await database.getActorFromId({ id: actorId })
-        expect(deleted).toBeUndefined()
+        expect(deleted).toBeNull()
       })
     })
 
@@ -583,7 +583,7 @@ describe('ActorDatabase', () => {
 
         // Verify actor is deleted
         const actor = await database.getActorFromId({ id: actorId })
-        expect(actor).toBeUndefined()
+        expect(actor).toBeNull()
       })
     })
   })

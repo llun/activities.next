@@ -1,6 +1,5 @@
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { deleteMediaFile } from '@/lib/services/medias'
-import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'

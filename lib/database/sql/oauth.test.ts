@@ -2,6 +2,7 @@ import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
 
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
+import { Scope } from '@/lib/types/database/operations'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
 import { AuthCode } from '@/lib/types/oauth2/authCode'
@@ -13,7 +14,6 @@ import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '../testUtils'
-import { Scope } from './oauth'
 
 describe('OAuthDatabase', () => {
   const table: TestDatabaseTable = getTestDatabaseTable()
