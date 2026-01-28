@@ -1,5 +1,5 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Status } from '@/lib/models/status'
+import { Status } from '@/lib/types/domain/status'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'

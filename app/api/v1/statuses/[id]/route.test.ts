@@ -1,5 +1,5 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Status, StatusType } from '@/lib/models/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'

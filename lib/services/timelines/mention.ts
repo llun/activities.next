@@ -2,8 +2,8 @@ import { SpanStatusCode } from '@opentelemetry/api'
 
 import { getConfig } from '@/lib/config'
 import { NotificationType } from '@/lib/database/types/notification'
-import { getActorURL } from '@/lib/models/actor'
-import { StatusType } from '@/lib/models/status'
+import { getActorURL } from '@/lib/types/domain/actor'
+import { StatusType } from '@/lib/types/domain/status'
 import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,

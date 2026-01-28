@@ -1,4 +1,4 @@
-import { Status } from '@/lib/models/status'
+import { Status } from '@/lib/types/domain/status'
 import { Timeline } from '@/lib/services/timelines/types'
 
 export type GetTimelineParams = {

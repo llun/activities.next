@@ -1,6 +1,6 @@
 import { Reducer } from 'react'
 
-import { EditableStatus, Status } from '@/lib/models/status'
+import { EditableStatus, Status } from '@/lib/types/domain/status'
 
 export const replyAction = (status: Status) => ({
   type: 'reply' as const,

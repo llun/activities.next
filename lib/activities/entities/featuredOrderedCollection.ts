@@ -1,4 +1,4 @@
-import { Note } from '@/lib/schema'
+import { Note } from '@/lib/types/activitypub'
 
 import { ContextEntity } from './base'
 

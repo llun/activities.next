@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from 'react'
 
-import { Status } from '@/lib/models/status'
-import { Mastodon } from '@/lib/schema'
+import { Status } from '@/lib/types/domain/status'
+import { Mastodon } from '@/lib/types/activitypub'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
 import { FollowNotification } from './components/FollowNotification'

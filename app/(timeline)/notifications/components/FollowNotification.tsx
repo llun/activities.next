@@ -2,7 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { Mastodon } from '@/lib/schema'
+import { Mastodon } from '@/lib/types/activitypub'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
 interface NotificationWithAccount extends GroupedNotification {

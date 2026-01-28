@@ -3,7 +3,7 @@ import {
   Notification,
   NotificationType
 } from '@/lib/database/types/notification'
-import { Mastodon } from '@/lib/schema'
+import { Mastodon } from '@/lib/types/activitypub'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
 import { getMastodonStatus } from '../mastodon/getMastodonStatus'

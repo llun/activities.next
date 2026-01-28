@@ -4,7 +4,7 @@ import { generate } from 'peggy'
 import util from 'util'
 
 import { getConfig } from '@/lib/config'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
 import { getSpan } from '@/lib/utils/trace'
 

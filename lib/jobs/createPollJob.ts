@@ -1,4 +1,4 @@
-import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/schema'
+import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/types/activitypub'
 
 import { recordActorIfNeeded } from '../actions/utils'
 import {

@@ -4,9 +4,9 @@ import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { getActorPosts } from '@/lib/activities/requests/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/requests/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
-import { Attachment } from '@/lib/models/attachment'
-import { Status } from '@/lib/models/status'
-import { Actor } from '@/lib/schema'
+import { Attachment } from '@/lib/types/domain/attachment'
+import { Status } from '@/lib/types/domain/status'
+import { Actor } from '@/lib/types/activitypub'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 type ProfileData = {

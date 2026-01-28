@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { Scope } from '@/lib/database/types/oauth'
-import { Mastodon } from '@/lib/schema'
+import { Mastodon } from '@/lib/types/activitypub'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'

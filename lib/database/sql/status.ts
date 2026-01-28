@@ -27,16 +27,16 @@ import {
   UpdateNoteParams,
   UpdatePollParams
 } from '@/lib/database/types/status'
-import { Actor, getActorProfile } from '@/lib/models/actor'
-import { PollChoice } from '@/lib/models/pollChoice'
+import { Actor, getActorProfile } from '@/lib/types/domain/actor'
+import { PollChoice } from '@/lib/types/domain/pollChoice'
 import {
   Status,
   StatusAnnounce,
   StatusNote,
   StatusPoll,
   StatusType
-} from '@/lib/models/status'
-import { Tag } from '@/lib/models/tag'
+} from '@/lib/types/domain/status'
+import { Tag } from '@/lib/types/domain/tag'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 

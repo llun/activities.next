@@ -6,7 +6,7 @@ import {
   Note,
   PageContent,
   VideoContent
-} from '@/lib/schema'
+} from '@/lib/types/activitypub'
 
 import { recordActorIfNeeded } from '../actions/utils'
 import {

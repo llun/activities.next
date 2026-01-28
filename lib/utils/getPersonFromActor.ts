@@ -1,5 +1,5 @@
-import { Actor } from '@/lib/models/actor'
-import { Actor as ActivityPubActor } from '@/lib/schema'
+import { Actor } from '@/lib/types/domain/actor'
+import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const getPersonFromActor = (

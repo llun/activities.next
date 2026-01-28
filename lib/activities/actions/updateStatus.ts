@@ -5,7 +5,7 @@ import {
   PageContent,
   Question,
   VideoContent
-} from '@/lib/schema'
+} from '@/lib/types/activitypub'
 
 import { ContextEntity } from '../entities/base'
 import { Signature } from '../types'

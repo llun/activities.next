@@ -1,5 +1,5 @@
 import { getConfig } from '@/lib/config'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 
 export const getSubject = (actor: Actor) =>
   `Your actor @${actor.username}@${actor.domain} has been deleted from ${getConfig().host}`

@@ -2,7 +2,7 @@ import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { NotificationType } from '@/lib/database/types/notification'
-import { FollowStatus } from '@/lib/models/follow'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,

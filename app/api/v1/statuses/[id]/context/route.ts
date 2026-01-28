@@ -1,5 +1,5 @@
 import { Scope } from '@/lib/database/types/oauth'
-import { StatusType } from '@/lib/models/status'
+import { StatusType } from '@/lib/types/domain/status'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'

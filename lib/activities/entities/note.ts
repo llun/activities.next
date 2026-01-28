@@ -4,7 +4,7 @@ import {
   Note,
   PageContent,
   VideoContent
-} from '@/lib/schema'
+} from '@/lib/types/activitypub'
 
 export type BaseNote =
   | Note

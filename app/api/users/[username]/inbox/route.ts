@@ -8,7 +8,7 @@ import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
 import { FollowRequest } from '@/lib/activities/actions/follow'
 import { UndoFollow } from '@/lib/activities/actions/undoFollow'
 import { UndoLike } from '@/lib/activities/actions/undoLike'
-import { Accept, Follow, Like, Reject, Undo } from '@/lib/schema'
+import { Accept, Follow, Like, Reject, Undo } from '@/lib/types/activitypub'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {

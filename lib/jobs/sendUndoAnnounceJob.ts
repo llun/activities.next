@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { undoAnnounce } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
-import { StatusType } from '@/lib/models/status'
+import { StatusType } from '@/lib/types/domain/status'
 import { JobHandle } from '@/lib/services/queue/type'
 import { getTracer } from '@/lib/utils/trace'
 

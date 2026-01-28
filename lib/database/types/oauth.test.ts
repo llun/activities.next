@@ -1,8 +1,8 @@
 import { DateInterval, generateRandomToken } from '@jmondi/oauth2-server'
 
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
-import { Account } from '@/lib/models/account'
-import { Actor } from '@/lib/models/actor'
+import { Account } from '@/lib/types/domain/account'
+import { Actor } from '@/lib/types/domain/actor'
 import { AuthCode } from '@/lib/models/oauth2/authCode'
 import { Client } from '@/lib/models/oauth2/client'
 import { Token } from '@/lib/models/oauth2/token'

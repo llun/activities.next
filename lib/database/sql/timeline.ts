@@ -7,7 +7,7 @@ import {
   GetTimelineParams,
   TimelineDatabase
 } from '@/lib/database/types/timeline'
-import { Status } from '@/lib/models/status'
+import { Status } from '@/lib/types/domain/status'
 import { Timeline } from '@/lib/services/timelines/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 

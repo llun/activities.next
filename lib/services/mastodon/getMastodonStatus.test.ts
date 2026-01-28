@@ -1,6 +1,6 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { getMentionFromActorID } from '@/lib/models/actor'
-import { Status, StatusType } from '@/lib/models/status'
+import { getMentionFromActorID } from '@/lib/types/domain/actor'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'

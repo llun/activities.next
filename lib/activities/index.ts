@@ -20,15 +20,15 @@ import { UndoStatus } from '@/lib/activities/actions/undoStatus'
 import { UpdateStatus } from '@/lib/activities/actions/updateStatus'
 import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
-import { Actor } from '@/lib/models/actor'
-import { Follow } from '@/lib/models/follow'
+import { Actor } from '@/lib/types/domain/actor'
+import { Follow } from '@/lib/types/domain/follow'
 import {
   Status,
   StatusAnnounce,
   StatusPoll,
   StatusType
-} from '@/lib/models/status'
-import { Note } from '@/lib/schema'
+} from '@/lib/types/domain/status'
+import { Note } from '@/lib/types/activitypub'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL

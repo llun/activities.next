@@ -1,6 +1,6 @@
 import { getConfig } from '@/lib/config'
-import { ActorProfile, getMention } from '@/lib/models/actor'
-import { EditableStatus } from '@/lib/models/status'
+import { ActorProfile, getMention } from '@/lib/types/domain/actor'
+import { EditableStatus } from '@/lib/types/domain/status'
 
 export const getSubject = (actor: ActorProfile) =>
   `@${actor.username} reblogged your post in ${getConfig().host}`

@@ -1,6 +1,6 @@
-import { Account } from '@/lib/models/account'
-import { Actor } from '@/lib/models/actor'
-import { Session } from '@/lib/models/session'
+import { Account } from '@/lib/types/domain/account'
+import { Actor } from '@/lib/types/domain/actor'
+import { Session } from '@/lib/types/domain/session'
 
 export type IsAccountExistsParams = { email: string }
 export type IsUsernameExistsParams = { username: string; domain: string }

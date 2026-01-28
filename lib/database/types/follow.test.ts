@@ -5,7 +5,7 @@ import {
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
-import { Follow, FollowStatus } from '@/lib/models/follow'
+import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 

@@ -12,8 +12,8 @@ import {
   TabsList,
   TabsTrigger
 } from '@/lib/components/ui/tabs'
-import { ActorProfile } from '@/lib/models/actor'
-import { EditableStatus, Status } from '@/lib/models/status'
+import { ActorProfile } from '@/lib/types/domain/actor'
+import { EditableStatus, Status } from '@/lib/types/domain/status'
 import { Timeline } from '@/lib/services/timelines/types'
 
 import { clearAction, editAction, statusActionReducer } from './reducer'

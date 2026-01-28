@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
 import { Progress } from '@/lib/components/ui/progress'
-import { getMentionFromActorID } from '@/lib/models/actor'
+import { getMentionFromActorID } from '@/lib/types/domain/actor'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
 interface MediaItem {

@@ -1,5 +1,5 @@
-import { ActorProfile } from '@/lib/models/actor'
-import { EditableStatus, StatusType } from '@/lib/models/status'
+import { ActorProfile } from '@/lib/types/domain/actor'
+import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 
 import { getHTMLContent, getSubject, getTextContent } from './reblog'
 

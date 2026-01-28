@@ -13,7 +13,7 @@ import {
   MediaDatabase,
   PaginatedMediaWithStatus
 } from '@/lib/database/types/media'
-import { Attachment } from '@/lib/models/attachment'
+import { Attachment } from '@/lib/types/domain/attachment'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'

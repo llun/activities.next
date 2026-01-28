@@ -1,4 +1,4 @@
-import { FollowStatus } from '@/lib/models/follow'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'

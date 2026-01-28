@@ -1,7 +1,7 @@
 import { getConfig } from '@/lib/config'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 import { S3FileStorage } from '@/lib/services/medias/S3StorageFile'
 import { LocalFileStorage } from '@/lib/services/medias/localFile'
 import { MediaSchema, PresigedMediaInput } from '@/lib/services/medias/types'

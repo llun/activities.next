@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 import { headerHost } from './headerHost'

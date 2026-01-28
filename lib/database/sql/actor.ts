@@ -21,10 +21,10 @@ import {
   StartActorDeletionParams,
   UpdateActorParams
 } from '@/lib/database/types/actor'
-import { ActorSettings, SQLAccount, SQLActor } from '@/lib/database/types/sql'
-import { Account } from '@/lib/models/account'
-import { Actor } from '@/lib/models/actor'
-import { Mastodon } from '@/lib/schema'
+import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
+import { Account } from '@/lib/types/domain/account'
+import { Actor } from '@/lib/types/domain/actor'
+import { Mastodon } from '@/lib/types/activitypub'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 

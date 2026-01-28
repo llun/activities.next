@@ -1,8 +1,8 @@
 import { getNote } from '@/lib/activities'
 import { AnnounceAction, CreateAction } from '@/lib/activities/actions/types'
 import { Database } from '@/lib/database/types'
-import { Status, fromAnnoucne, fromNote } from '@/lib/models/status'
-import { Actor } from '@/lib/schema'
+import { Status, fromAnnoucne, fromNote } from '@/lib/types/domain/status'
+import { Actor } from '@/lib/types/activitypub'
 import { getTracer } from '@/lib/utils/trace'
 
 import { getActorCollections } from './getActorCollections'

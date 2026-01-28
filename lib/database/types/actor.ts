@@ -2,8 +2,8 @@
 export * from '@/lib/types/database/operations'
 
 import { ActorSettings } from '@/lib/types/database/rows'
-import { Actor } from '@/lib/models/actor'
-import { Mastodon } from '@/lib/schema'
+import { Actor } from '@/lib/types/domain/actor'
+import { Mastodon } from '@/lib/types/activitypub'
 
 export type CreateActorParams = {
   actorId: string

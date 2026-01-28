@@ -1,5 +1,5 @@
 import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
-import { Actor } from '@/lib/schema'
+import { Actor } from '@/lib/types/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { getTracer } from '@/lib/utils/trace'

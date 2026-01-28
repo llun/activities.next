@@ -1,7 +1,7 @@
 import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { Scope } from '@/lib/database/types/oauth'
-import { FollowStatus } from '@/lib/models/follow'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'

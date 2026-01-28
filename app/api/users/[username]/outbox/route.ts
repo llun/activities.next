@@ -1,5 +1,5 @@
 import { AnnounceAction, CreateAction } from '@/lib/activities/actions/types'
-import { StatusType } from '@/lib/models/status'
+import { StatusType } from '@/lib/types/domain/status'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { cleanJson } from '@/lib/utils/cleanJson'

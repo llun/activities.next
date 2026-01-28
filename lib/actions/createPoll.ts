@@ -7,7 +7,7 @@ import {
 } from '@/lib/actions/createNote'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { Actor, getMention } from '@/lib/models/actor'
+import { Actor, getMention } from '@/lib/types/domain/actor'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'

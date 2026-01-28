@@ -5,7 +5,7 @@ import { FC } from 'react'
 
 import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
-import { ActorProfile } from '@/lib/models/actor'
+import { ActorProfile } from '@/lib/types/domain/actor'
 
 interface Props {
   users: ActorProfile[]

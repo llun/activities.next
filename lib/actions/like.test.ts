@@ -2,7 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { likeRequest } from '@/lib/actions/like'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Status, StatusNote, toActivityPubObject } from '@/lib/models/status'
+import { Status, StatusNote, toActivityPubObject } from '@/lib/types/domain/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'

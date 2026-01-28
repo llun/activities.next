@@ -1,4 +1,4 @@
-import { toActivityPubObject } from '@/lib/models/status'
+import { toActivityPubObject } from '@/lib/types/domain/status'
 import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardHandle

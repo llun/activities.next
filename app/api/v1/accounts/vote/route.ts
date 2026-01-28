@@ -1,5 +1,5 @@
 import { sendPollVotes } from '@/lib/activities'
-import { StatusType } from '@/lib/models/status'
+import { StatusType } from '@/lib/types/domain/status'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {

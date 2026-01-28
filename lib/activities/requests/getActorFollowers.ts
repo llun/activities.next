@@ -1,4 +1,4 @@
-import { Actor } from '@/lib/schema'
+import { Actor } from '@/lib/types/activitypub'
 
 import { getActorCollections } from './getActorCollections'
 

@@ -1,4 +1,4 @@
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 import { urlToId } from '@/lib/utils/urlToId'
 
 export interface UserInfo {

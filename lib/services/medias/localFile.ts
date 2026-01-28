@@ -7,7 +7,7 @@ import sharp from 'sharp'
 
 import { MediaStorageFileConfig } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'

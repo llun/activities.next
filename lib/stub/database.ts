@@ -1,6 +1,6 @@
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
-import { FollowStatus } from '@/lib/models/follow'
+import { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'

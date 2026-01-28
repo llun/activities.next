@@ -4,7 +4,7 @@ import {
   getOrderCollectionFirstPage
 } from '@/lib/activities/entities/orderedCollection'
 import { OrderedCollectionPage } from '@/lib/activities/entities/orderedCollectionPage'
-import { Actor } from '@/lib/schema'
+import { Actor } from '@/lib/types/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { getTracer } from '@/lib/utils/trace'

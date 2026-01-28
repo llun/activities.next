@@ -3,7 +3,7 @@
 import { formatDistance, formatRelative } from 'date-fns'
 import { FC } from 'react'
 
-import { Session } from '@/lib/models/session'
+import { Session } from '@/lib/types/domain/session'
 
 import { DeleteSessionButton } from '../../../app/(timeline)/settings/sessions/DeleteSessionButton'
 

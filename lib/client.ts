@@ -3,8 +3,8 @@ import {
   Attachment,
   PostBoxAttachment,
   UploadedAttachment
-} from '@/lib/models/attachment'
-import { Status } from '@/lib/models/status'
+} from '@/lib/types/domain/attachment'
+import { Status } from '@/lib/types/domain/status'
 import { PresignedUrlOutput } from '@/lib/services/medias/types'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'

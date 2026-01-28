@@ -17,8 +17,8 @@ import {
   GetLocalFollowsFromInboxUrlParams,
   UpdateFollowStatusParams
 } from '@/lib/database/types/follow'
-import { Account } from '@/lib/models/account'
-import { Follow, FollowStatus } from '@/lib/models/follow'
+import { Account } from '@/lib/types/domain/account'
+import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 
 const fixFollowDataDate = (data: Follow): Follow => ({
   ...data,

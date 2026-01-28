@@ -1,6 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { Actor } from '@/lib/schema'
+import { Actor } from '@/lib/types/activitypub'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockActivityPubFollowers } from '@/lib/stub/followers'
 import { MockActivityPubPerson } from '@/lib/stub/person'

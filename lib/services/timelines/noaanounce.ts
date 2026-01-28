@@ -1,4 +1,4 @@
-import { StatusType } from '@/lib/models/status'
+import { StatusType } from '@/lib/types/domain/status'
 import { getTracer } from '@/lib/utils/trace'
 
 import { NoAnnounceTimelineRule, Timeline } from './types'

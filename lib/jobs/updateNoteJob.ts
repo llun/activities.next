@@ -6,7 +6,7 @@ import {
   Note,
   PageContent,
   VideoContent
-} from '@/lib/schema'
+} from '@/lib/types/activitypub'
 
 import { BaseNote, getContent, getSummary } from '../activities/entities/note'
 import { StatusType } from '../models/status'

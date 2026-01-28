@@ -4,7 +4,7 @@
  */
 import { follow, unfollow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
-import { FollowStatus } from '@/lib/models/follow'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
