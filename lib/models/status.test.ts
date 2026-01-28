@@ -1,19 +1,19 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Actor } from '@/lib/models/actor'
+import { mockRequests } from '@/lib/stub/activities'
+import { seedDatabase } from '@/lib/stub/database'
+import { MockMastodonActivityPubNote } from '@/lib/stub/note'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { Actor } from '@/lib/types/domain/actor'
 import {
   Status,
   StatusNote,
   StatusType,
   fromNote,
   toActivityPubObject
-} from '@/lib/models/status'
-import { mockRequests } from '@/lib/stub/activities'
-import { seedDatabase } from '@/lib/stub/database'
-import { MockMastodonActivityPubNote } from '@/lib/stub/note'
-import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
-import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+} from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 

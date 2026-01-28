@@ -1,14 +1,16 @@
 import identity from 'lodash/identity'
 import { z } from 'zod'
 
-// These imports will be updated once ActivityPub types are migrated
 import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
 import {
-  getContent,
-  getReply,
-  getSummary
-} from '@/lib/activities/entities/note'
-import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/schema'
+  APArticleContent,
+  APImageContent,
+  APNote,
+  APPageContent,
+  APQuestion,
+  APVideoContent,
+  ENTITY_TYPE_QUESTION
+} from '@/lib/types/activitypub'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { ActorProfile } from './actor'
@@ -22,6 +24,108 @@ interface Document {
   mediaType: string
   url: string
   name?: string | null
+}
+
+// Use APNote type
+type Note = z.infer<typeof APNote>
+type Question = z.infer<typeof APQuestion>
+
+// Utility functions for extracting data from ActivityPub notes
+// (moved from lib/activities/entities/note.ts)
+// BaseNote is a union of all content types that can be processed
+export type BaseNote =
+  | Note
+  | z.infer<typeof APImageContent>
+  | z.infer<typeof APPageContent>
+  | z.infer<typeof APArticleContent>
+  | z.infer<typeof APVideoContent>
+
+export const getUrl = (
+  url: string | unknown | unknown[]
+): string | undefined => {
+  if (Array.isArray(url)) {
+    const first = url[0]
+    if (typeof first === 'string') return first
+    return (first as { href?: string })?.href
+  }
+  if (typeof url === 'string') return url
+  return (url as { href?: string })?.href
+}
+
+export const getReply = (reply: string | unknown): string | undefined => {
+  if (typeof reply === 'string') return reply
+  return (reply as { id?: string })?.id
+}
+
+export const getContent = (object: BaseNote) => {
+  if (object.content) {
+    if (Array.isArray(object.content)) {
+      return object.content[0]
+    }
+    return object.content
+  }
+
+  if (object.contentMap) {
+    if (Array.isArray(object.contentMap)) {
+      return object.contentMap[0]
+    }
+
+    const keys = Object.keys(object.contentMap)
+    if (keys.length === 0) return ''
+
+    const key = Object.keys(object.contentMap)[0]
+    return object.contentMap[key]
+  }
+  return ''
+}
+
+export const getSummary = (object: BaseNote) => {
+  if (object.summary) return object.summary
+  if (object.summaryMap) {
+    const keys = Object.keys(object.summaryMap)
+    if (keys.length === 0) return ''
+
+    const key = Object.keys(object.summaryMap)[0]
+    return object.summaryMap[key]
+  }
+  return ''
+}
+
+export const getAttachments = (object: BaseNote) => {
+  const attachments = []
+  if (object.attachment) {
+    if (Array.isArray(object.attachment)) {
+      attachments.push(...object.attachment)
+    } else {
+      attachments.push(object.attachment)
+    }
+  }
+
+  if (['Image', 'Video'].includes(object.type)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const unsafeObject = object as any
+    const url = getUrl(unsafeObject.url)
+    if (url) {
+      attachments.push({
+        type: 'Document',
+        mediaType:
+          unsafeObject.mediaType ||
+          (object.type === 'Image' ? 'image/jpeg' : 'video/mp4'),
+        url,
+        name: unsafeObject.name,
+        width: unsafeObject.width,
+        height: unsafeObject.height,
+        blurhash: unsafeObject.blurhash
+      })
+    }
+  }
+  return attachments
+}
+
+export const getTags = (object: BaseNote) => {
+  if (!object.tag) return []
+  if (Array.isArray(object.tag)) return object.tag
+  return [object.tag]
 }
 
 export const StatusType = z.enum(['Note', 'Announce', 'Poll'])
@@ -113,8 +217,6 @@ const getActorIdFromAttributedTo = (
 
 // Helper to extract URL from note.url which can be a string, array of strings,
 // or array of Link objects (some ActivityPub implementations like Mastodon return arrays)
-// Note: The TypeScript schema types url as string | null | undefined, but some
-// implementations like Mastodon/ruby.social actually send arrays
 const getUrlFromNote = (note: Note): string => {
   const noteUrl = note.url as unknown
   if (typeof noteUrl === 'string') {
@@ -127,7 +229,6 @@ const getUrlFromNote = (note: Note): string => {
     if (firstUrl) {
       return firstUrl
     }
-    // Some implementations return Link objects in the array
     const linkWithHref = noteUrl.find(
       (item): item is { href: string } =>
         typeof item === 'object' &&
@@ -225,7 +326,7 @@ export const fromAnnoucne = (
 
 export const toActivityPubObject = (status: Status): Note | Question => {
   if (status.type === StatusType.enum.Poll) {
-    return Question.parse({
+    return APQuestion.parse({
       id: status.id,
       type: ENTITY_TYPE_QUESTION,
       summary: status.summary || null,
@@ -253,12 +354,12 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       ...(status.updatedAt
         ? { updated: getISOTimeUTC(status.updatedAt) }
         : null)
-    })
+    }) as Question
   }
 
   const originalStatus =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
-  return Note.parse({
+  return APNote.parse({
     id: originalStatus.id,
     type: originalStatus.type,
     summary: originalStatus.summary || null,
@@ -285,5 +386,5 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     ...(originalStatus.updatedAt
       ? { updated: getISOTimeUTC(originalStatus.updatedAt) }
       : null)
-  })
+  }) as Note
 }

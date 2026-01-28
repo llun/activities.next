@@ -7,17 +7,17 @@ import {
   PageContent,
   VideoContent
 } from '@/lib/schema'
-
-import { recordActorIfNeeded } from '../actions/utils'
 import {
   BaseNote,
+  StatusType,
   getAttachments,
   getContent,
   getReply,
   getSummary,
   getTags
-} from '../activities/entities/note'
-import { StatusType } from '../models/status'
+} from '@/lib/types/domain/status'
+
+import { recordActorIfNeeded } from '../actions/utils'
 import { addStatusToTimelines } from '../services/timelines'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'

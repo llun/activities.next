@@ -2,7 +2,7 @@ import { Trash2 } from 'lucide-react'
 import { FC } from 'react'
 
 import { deleteStatus } from '@/lib/client'
-import { Status, StatusNote, StatusPoll } from '@/lib/models/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 
 interface Props {
   status: StatusNote | StatusPoll

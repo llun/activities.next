@@ -1,5 +1,5 @@
 import { Database } from '@/lib/database/types'
-import { NotificationType } from '@/lib/database/types/notification'
+import { NotificationType } from '@/lib/types/database'
 
 /**
  * Check if email notifications are enabled for a specific notification type

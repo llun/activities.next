@@ -3,7 +3,6 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 import { acceptFollowRequest } from '@/lib/actions//acceptFollowRequest'
 import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { FollowStatus } from '@/lib/models/follow'
 import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
@@ -15,6 +14,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { MockFollowRequestResponse } from '@/lib/stub/followRequest'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
+import { FollowStatus } from '@/lib/types/domain/follow'
 
 enableFetchMocks()
 

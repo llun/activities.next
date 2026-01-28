@@ -1,8 +1,9 @@
 import jwt from 'jsonwebtoken'
 import { NextRequest, NextResponse } from 'next/server'
 
+import { Scope } from '@/lib/types/database'
+
 import { getTestSQLDatabase } from '../../database/testUtils'
-import { Scope } from '../../database/types/oauth'
 import { MOCK_SECRET_PHASES } from '../../stub/actor'
 import { seedDatabase } from '../../stub/database'
 import { seedActor1 } from '../../stub/seed/actor1'

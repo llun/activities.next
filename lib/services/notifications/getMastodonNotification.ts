@@ -1,10 +1,7 @@
 import { Database } from '@/lib/database/types'
-import {
-  Notification,
-  NotificationType
-} from '@/lib/database/types/notification'
 import { Mastodon } from '@/lib/schema'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
+import { Notification, NotificationType } from '@/lib/types/database'
 
 import { getMastodonStatus } from '../mastodon/getMastodonStatus'
 

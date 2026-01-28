@@ -2,6 +2,7 @@ import { Knex } from 'knex'
 
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { Mastodon } from '@/lib/schema'
 import {
   ActorDatabase,
   CancelActorDeletionParams,
@@ -20,11 +21,10 @@ import {
   ScheduleActorDeletionParams,
   StartActorDeletionParams,
   UpdateActorParams
-} from '@/lib/database/types/actor'
-import { ActorSettings, SQLAccount, SQLActor } from '@/lib/database/types/sql'
-import { Account } from '@/lib/models/account'
-import { Actor } from '@/lib/models/actor'
-import { Mastodon } from '@/lib/schema'
+} from '@/lib/types/database'
+import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database'
+import { Account } from '@/lib/types/domain/account'
+import { Actor } from '@/lib/types/domain/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 

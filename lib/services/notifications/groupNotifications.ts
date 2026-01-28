@@ -1,4 +1,4 @@
-import { Notification } from '@/lib/database/types/notification'
+import { Notification } from '@/lib/types/database'
 
 export interface GroupedNotification extends Notification {
   groupedActors?: string[]

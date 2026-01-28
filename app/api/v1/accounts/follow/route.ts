@@ -4,8 +4,8 @@
  */
 import { follow, unfollow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
-import { FollowStatus } from '@/lib/models/follow'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,

@@ -10,8 +10,8 @@ import {
 
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
 import { Database } from '@/lib/database/types'
-import { Scope } from '@/lib/database/types/oauth'
-import { Token } from '@/lib/models/oauth2/token'
+import { Scope } from '@/lib/types/database'
+import { Token } from '@/lib/types/domain/oauth2/token'
 
 export class TokenRepository implements OAuthTokenRepository {
   database: Database

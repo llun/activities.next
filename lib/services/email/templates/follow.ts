@@ -1,5 +1,5 @@
 import { getConfig } from '@/lib/config'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 
 export const getSubject = (actor: Actor) =>
   `@${actor.username} is following you in ${getConfig().host}`

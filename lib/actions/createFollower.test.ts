@@ -1,12 +1,12 @@
 import { createFollower } from '@/lib/actions/createFollower'
 import { acceptFollow } from '@/lib/activities'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Actor } from '@/lib/models/actor'
-import { FollowStatus } from '@/lib/models/follow'
 import { testUserId } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockFollowRequest } from '@/lib/stub/followRequest'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
 
 jest.mock('../activities')
 jest.mock('../activities/requests/getActorPerson')

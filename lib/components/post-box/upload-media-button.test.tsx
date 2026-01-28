@@ -5,8 +5,8 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 
-import { PostBoxAttachment } from '@/lib/models/attachment'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { logger } from '@/lib/utils/logger'
 import { resizeImage } from '@/lib/utils/resizeImage'
 

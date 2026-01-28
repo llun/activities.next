@@ -15,8 +15,6 @@ import sharp from 'sharp'
 
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
-import { Media } from '@/lib/database/types/media'
-import { Actor } from '@/lib/models/actor'
 import { MAX_HEIGHT, MAX_WIDTH } from '@/lib/services/medias/constants'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
@@ -31,6 +29,8 @@ import {
   PresigedMediaInput,
   PresignedUrlOutput
 } from '@/lib/services/medias/types'
+import { Media } from '@/lib/types/database'
+import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
 export class S3FileStorage implements MediaStorage {

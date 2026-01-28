@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 // Import from existing location until database types are migrated
-import { Scope } from '@/lib/database/types/oauth'
+import { Scope } from '@/lib/types/database'
 
 import { Client } from './client'
 import { User } from './user'

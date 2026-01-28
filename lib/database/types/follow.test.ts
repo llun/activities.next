@@ -5,9 +5,9 @@ import {
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
-import { Follow, FollowStatus } from '@/lib/models/follow'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
+import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 
 describe('FollowDatabase', () => {
   const { actors, follows: seedFollows, externalActors } = DatabaseSeed

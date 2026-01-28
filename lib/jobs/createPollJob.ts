@@ -1,12 +1,13 @@
-import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/schema'
-
-import { recordActorIfNeeded } from '../actions/utils'
+import { ENTITY_TYPE_QUESTION, Question } from '@/lib/schema'
 import {
+  BaseNote,
   getContent,
   getReply,
   getSummary,
   getTags
-} from '../activities/entities/note'
+} from '@/lib/types/domain/status'
+
+import { recordActorIfNeeded } from '../actions/utils'
 import { addStatusToTimelines } from '../services/timelines'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
@@ -36,8 +37,8 @@ export const createPollJob = createJobHandle(
     }
 
     // TODO: Move Poll to schema
-    const text = getContent(question as unknown as Note)
-    const summary = getSummary(question as unknown as Note)
+    const text = getContent(question as unknown as BaseNote)
+    const summary = getSummary(question as unknown as BaseNote)
     const pollType = question.oneOf
       ? 'oneOf'
       : question.anyOf
@@ -84,7 +85,7 @@ export const createPollJob = createJobHandle(
       })
     ])
 
-    const tags = getTags(question as unknown as Note)
+    const tags = getTags(question as unknown as BaseNote)
     await Promise.all([
       addStatusToTimelines(database, status),
       ...tags.map((item) => {

@@ -1,4 +1,4 @@
-import { NotificationType } from '@/lib/database/types/notification'
+import { NotificationType } from '@/lib/types/database'
 
 import { GroupedNotification, groupNotifications } from './groupNotifications'
 

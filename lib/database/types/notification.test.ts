@@ -1,5 +1,6 @@
+import { NotificationType } from '@/lib/types/database'
+
 import { databaseBeforeAll, getTestDatabaseTable } from '../testUtils'
-import { NotificationType } from './notification'
 
 describe('Notification Database', () => {
   const table = getTestDatabaseTable()

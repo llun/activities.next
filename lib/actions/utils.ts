@@ -1,6 +1,6 @@
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 
 interface RecordActorIfNeededParams {
   actorId: string

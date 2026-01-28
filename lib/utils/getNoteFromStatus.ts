@@ -1,8 +1,8 @@
 import { getConfig } from '@/lib/config'
-import { getDocumentFromAttachment } from '@/lib/models/attachment'
-import { Status, StatusType } from '@/lib/models/status'
-import { getMentionFromTag } from '@/lib/models/tag'
 import { Note } from '@/lib/schema'
+import { getDocumentFromAttachment } from '@/lib/types/domain/attachment'
+import { Status, StatusType } from '@/lib/types/domain/status'
+import { getMentionFromTag } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 

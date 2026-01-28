@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 // Import from existing location until database types are migrated
-import { GrantIdentifiers, Scope } from '@/lib/database/types/oauth'
+import { GrantIdentifiers, Scope } from '@/lib/types/database'
 
 export const Client = z.object({
   id: z.string(),

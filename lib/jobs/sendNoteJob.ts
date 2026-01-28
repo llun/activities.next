@@ -4,14 +4,14 @@ import { sendNote } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
-import { FollowStatus } from '@/lib/models/follow'
 import { JobHandle } from '@/lib/services/queue/type'
+import { FollowStatus } from '@/lib/types/domain/follow'
+import { StatusType } from '@/lib/types/domain/status'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
 import { getTracer } from '@/lib/utils/trace'
 
-import { StatusType } from '../models/status'
 import { getMentions } from '../utils/text/getMentions'
 
 export const JobData = z.object({

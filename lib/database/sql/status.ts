@@ -2,9 +2,9 @@ import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { ActorDatabase } from '@/lib/database/types/actor'
-import { LikeDatabase } from '@/lib/database/types/like'
-import { MediaDatabase } from '@/lib/database/types/media'
+import { ActorDatabase } from '@/lib/types/database'
+import { LikeDatabase } from '@/lib/types/database'
+import { MediaDatabase } from '@/lib/types/database'
 import {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -26,17 +26,17 @@ import {
   StatusDatabase,
   UpdateNoteParams,
   UpdatePollParams
-} from '@/lib/database/types/status'
-import { Actor, getActorProfile } from '@/lib/models/actor'
-import { PollChoice } from '@/lib/models/pollChoice'
+} from '@/lib/types/database'
+import { Actor, getActorProfile } from '@/lib/types/domain/actor'
+import { PollChoice } from '@/lib/types/domain/pollChoice'
 import {
   Status,
   StatusAnnounce,
   StatusNote,
   StatusPoll,
   StatusType
-} from '@/lib/models/status'
-import { Tag } from '@/lib/models/tag'
+} from '@/lib/types/domain/status'
+import { Tag } from '@/lib/types/domain/tag'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 

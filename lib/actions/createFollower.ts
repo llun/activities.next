@@ -2,8 +2,8 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { acceptFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/actions/follow'
 import { Database } from '@/lib/database/types'
-import { NotificationType } from '@/lib/database/types/notification'
-import { FollowStatus } from '@/lib/models/follow'
+import { NotificationType } from '@/lib/types/database'
+import { FollowStatus } from '@/lib/types/domain/follow'
 
 interface CreateFollowerParams {
   followRequest: FollowRequest

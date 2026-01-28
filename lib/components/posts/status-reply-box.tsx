@@ -27,9 +27,9 @@ import {
   ActorProfile,
   getMention,
   getMentionFromActorID
-} from '@/lib/models/actor'
-import { Attachment } from '@/lib/models/attachment'
-import { Status, StatusNote, StatusType } from '@/lib/models/status'
+} from '@/lib/types/domain/actor'
+import { Attachment } from '@/lib/types/domain/attachment'
+import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 
 interface Props {
   profile: ActorProfile

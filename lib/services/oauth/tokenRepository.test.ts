@@ -1,7 +1,8 @@
 import { OAuthScope } from '@jmondi/oauth2-server'
 
+import { Scope } from '@/lib/types/database'
+
 import { getTestSQLDatabase } from '../../database/testUtils'
-import { Scope } from '../../database/types/oauth'
 import { seedDatabase } from '../../stub/database'
 import { TokenRepository } from './tokenRepository'
 

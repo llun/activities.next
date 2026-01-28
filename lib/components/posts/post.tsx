@@ -3,8 +3,8 @@ import _ from 'lodash'
 import { ExternalLink, Repeat2 } from 'lucide-react'
 import { FC } from 'react'
 
-import { ActorProfile } from '@/lib/models/actor'
-import { EditableStatus, Status, StatusType } from '@/lib/models/status'
+import { ActorProfile } from '@/lib/types/domain/actor'
+import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import {
   getActualStatus,

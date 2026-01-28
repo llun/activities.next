@@ -7,9 +7,13 @@ import {
   PageContent,
   VideoContent
 } from '@/lib/schema'
+import {
+  BaseNote,
+  StatusType,
+  getContent,
+  getSummary
+} from '@/lib/types/domain/status'
 
-import { BaseNote, getContent, getSummary } from '../activities/entities/note'
-import { StatusType } from '../models/status'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { UPDATE_NOTE_JOB_NAME } from './names'

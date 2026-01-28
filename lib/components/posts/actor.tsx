@@ -7,7 +7,7 @@ import {
   getMention,
   getMentionDomainFromActorID,
   getMentionFromActorID
-} from '@/lib/models/actor'
+} from '@/lib/types/domain/actor'
 
 interface Props {
   actor?: ActorProfile | null

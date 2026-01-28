@@ -1,14 +1,13 @@
 import omit from 'lodash/omit'
 
 import { MockActor } from '@/lib/stub/actor'
-
 import {
   getActorProfile,
   getActorURL,
   getMention,
   getMentionDomainFromActorID,
   getMentionFromActorID
-} from './actor'
+} from '@/lib/types/domain/actor'
 
 describe('Actor', () => {
   describe('#getActorProfile', () => {

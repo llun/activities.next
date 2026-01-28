@@ -1,6 +1,6 @@
 import { deleteStatus } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 import { getSpan } from '@/lib/utils/trace'
 
 interface DeleteStatusFromUserInputParams {

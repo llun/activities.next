@@ -2,7 +2,7 @@ import { Adapter, AdapterAccount, AdapterUser } from 'next-auth/adapters'
 import { JWT, decode } from 'next-auth/jwt'
 
 import { getDatabase } from '@/lib/database'
-import { Account } from '@/lib/models/account'
+import { Account } from '@/lib/types/domain/account'
 
 const NoImplementationError = new Error('No implmentation')
 

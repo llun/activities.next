@@ -8,7 +8,7 @@ import { ActorSelector } from '@/lib/components/settings/ActorSelector'
 import { Button } from '@/lib/components/ui/button'
 import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
-import { NotificationType } from '@/lib/database/types/notification'
+import { NotificationType } from '@/lib/types/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 export const dynamic = 'force-dynamic'

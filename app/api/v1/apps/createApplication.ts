@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'
-import { Scope } from '@/lib/database/types/oauth'
+import { Scope } from '@/lib/types/database'
 import { getTracer } from '@/lib/utils/trace'
 
 import {

@@ -1,7 +1,7 @@
 import { rejectFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/actions/follow'
-import { FollowStatus } from '@/lib/models/follow'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,

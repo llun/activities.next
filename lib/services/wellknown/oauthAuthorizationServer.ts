@@ -1,5 +1,5 @@
 import { getConfig } from '@/lib/config'
-import { UsableScopes } from '@/lib/database/types/oauth'
+import { UsableScopes } from '@/lib/types/database'
 
 export interface OAuthAuthorizationServerMetadata {
   issuer: string

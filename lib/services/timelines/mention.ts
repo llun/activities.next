@@ -1,9 +1,6 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
 import { getConfig } from '@/lib/config'
-import { NotificationType } from '@/lib/database/types/notification'
-import { getActorURL } from '@/lib/models/actor'
-import { StatusType } from '@/lib/models/status'
 import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
@@ -11,6 +8,9 @@ import {
   getTextContent
 } from '@/lib/services/email/templates/mention'
 import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
+import { NotificationType } from '@/lib/types/database'
+import { getActorURL } from '@/lib/types/domain/actor'
+import { StatusType } from '@/lib/types/domain/status'
 import { getTracer } from '@/lib/utils/trace'
 
 import { MentionTimelineRule, Timeline } from './types'

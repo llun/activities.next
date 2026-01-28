@@ -15,13 +15,13 @@ import {
 } from '@/lib/activities'
 import { CreateStatus } from '@/lib/activities/actions/createStatus'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Actor } from '@/lib/models/actor'
-import { StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { Actor } from '@/lib/types/domain/actor'
+import { StatusType } from '@/lib/types/domain/status'
 
 enableFetchMocks()
 

@@ -2,9 +2,7 @@ import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { NotificationType } from '@/lib/database/types/notification'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
-import { Actor } from '@/lib/models/actor'
 import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
@@ -14,6 +12,8 @@ import {
 import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { NotificationType } from '@/lib/types/database'
+import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getTracer } from '@/lib/utils/trace'

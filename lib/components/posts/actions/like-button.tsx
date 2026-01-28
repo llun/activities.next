@@ -2,8 +2,8 @@ import { Heart } from 'lucide-react'
 import { FC, useState } from 'react'
 
 import { likeStatus, undoLikeStatus } from '@/lib/client'
-import { ActorProfile } from '@/lib/models/actor'
-import { StatusNote, StatusPoll } from '@/lib/models/status'
+import { ActorProfile } from '@/lib/types/domain/actor'
+import { StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
 interface LikeButtonProps {

@@ -1,8 +1,8 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { FollowStatus } from '@/lib/models/follow'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { getRelationship } from '../../../../../../lib/services/accounts/relationship'

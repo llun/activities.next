@@ -6,9 +6,9 @@ import { FC } from 'react'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
-import { getActorProfile } from '@/lib/models/actor'
-import { FollowStatus } from '@/lib/models/follow'
-import { StatusType } from '@/lib/models/status'
+import { getActorProfile } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
+import { StatusType } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
