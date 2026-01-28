@@ -9,7 +9,7 @@ import {
   Notification,
   NotificationDatabase,
   UpdateNotificationParams
-} from '@/lib/database/types/notification'
+} from '@/lib/types/database/operations'
 
 const fixNotificationDataDate = (data: Notification): Notification => ({
   ...data,

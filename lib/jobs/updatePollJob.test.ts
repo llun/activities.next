@@ -4,9 +4,9 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createPollJob } from '@/lib/jobs/createPollJob'
 import { CREATE_POLL_JOB_NAME, UPDATE_POLL_JOB_NAME } from '@/lib/jobs/names'
 import { updatePollJob } from '@/lib/jobs/updatePollJob'
-import { StatusType } from '@/lib/models/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
+import { StatusType } from '@/lib/types/domain/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 enableFetchMocks()

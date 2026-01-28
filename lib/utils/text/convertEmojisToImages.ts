@@ -1,4 +1,4 @@
-import { Tag } from '../../models/tag'
+import { Tag } from '@/lib/types/domain/tag'
 
 export const convertEmojisToImages = (text: string, tags: Tag[]) =>
   tags

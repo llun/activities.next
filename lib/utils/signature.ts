@@ -4,8 +4,8 @@ import { generate } from 'peggy'
 import util from 'util'
 
 import { getConfig } from '@/lib/config'
-import { Actor } from '@/lib/models/actor'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
+import { Actor } from '@/lib/types/domain/actor'
 import { getSpan } from '@/lib/utils/trace'
 
 import { FORWARDED_HOST } from '../constants'

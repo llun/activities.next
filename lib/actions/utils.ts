@@ -1,6 +1,6 @@
-import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 
 interface RecordActorIfNeededParams {
   actorId: string
@@ -20,7 +20,7 @@ export const recordActorIfNeeded = async ({
   if (!existingActor) {
     const person = await getActorPerson({ actorId })
     if (!person) return
-    return database.createActor({
+    const actor = await database.createActor({
       actorId,
       username: person.preferredUsername,
       domain: new URL(person.id).hostname,
@@ -31,6 +31,7 @@ export const recordActorIfNeeded = async ({
       publicKey: person.publicKey.publicKeyPem || '',
       createdAt: new Date(person.published ?? Date.now()).getTime()
     })
+    return actor ?? undefined
   }
 
   const currentTime = Date.now()
@@ -38,7 +39,7 @@ export const recordActorIfNeeded = async ({
   if (currentTime - existingActor.updatedAt > 3 * 86_400_000) {
     const person = await getActorPerson({ actorId })
     if (!person) return undefined
-    return database.updateActor({
+    const actor = await database.updateActor({
       actorId,
       followersUrl: person.followers ?? '',
       inboxUrl: person.inbox,
@@ -46,6 +47,7 @@ export const recordActorIfNeeded = async ({
       ...(person.icon ? { iconUrl: person.icon.url } : {}),
       publicKey: person.publicKey.publicKeyPem || ''
     })
+    return actor ?? undefined
   }
   return existingActor
 }

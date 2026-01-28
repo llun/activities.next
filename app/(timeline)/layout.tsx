@@ -6,7 +6,7 @@ import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
 import { Sidebar } from '@/lib/components/layout/sidebar'
 import { getDatabase } from '@/lib/database'
-import { getActorProfile, getMention } from '@/lib/models/actor'
+import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 

@@ -5,7 +5,7 @@ import { FC, useState } from 'react'
 import sanitizeHtml from 'sanitize-html'
 
 import { Button } from '@/lib/components/ui/button'
-import { Mastodon } from '@/lib/schema'
+import { Mastodon } from '@/lib/types/activitypub'
 
 interface Props {
   account: Mastodon.Account

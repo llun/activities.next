@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 
 import { Media } from '@/lib/components/posts/media'
 import { Button } from '@/lib/components/ui/button'
-import { Attachment } from '@/lib/models/attachment'
+import { Attachment } from '@/lib/types/domain/attachment'
 import { cn } from '@/lib/utils'
 
 interface Props {

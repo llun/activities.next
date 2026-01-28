@@ -5,9 +5,9 @@ import { FC, useState } from 'react'
 
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Post } from '@/lib/components/posts/post'
-import { ActorProfile } from '@/lib/models/actor'
-import { Attachment } from '@/lib/models/attachment'
-import { Status } from '@/lib/models/status'
+import { ActorProfile } from '@/lib/types/domain/actor'
+import { Attachment } from '@/lib/types/domain/attachment'
+import { Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 

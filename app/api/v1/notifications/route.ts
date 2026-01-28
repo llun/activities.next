@@ -1,11 +1,11 @@
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { Scope } from '@/lib/database/types/oauth'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
+import { NotificationType, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,
@@ -88,13 +88,13 @@ export const GET = traceApiRoute(
       if (type === 'favourite') return 'like'
       if (type === 'reblog') return 'reblog'
       return type
-    })
+    }) as NotificationType[] | undefined
 
     const internalExcludeTypes = excludeTypes?.map((type) => {
       if (type === 'favourite') return 'like'
       if (type === 'reblog') return 'reblog'
       return type
-    })
+    }) as NotificationType[] | undefined
 
     // Fetch notifications
     const notifications = await database.getNotifications({
@@ -102,8 +102,8 @@ export const GET = traceApiRoute(
       limit,
       maxNotificationId: maxId,
       minNotificationId: minId || sinceId,
-      types: internalTypes as any,
-      excludeTypes: internalExcludeTypes as any
+      types: internalTypes,
+      excludeTypes: internalExcludeTypes
     })
 
     // Group notifications if requested

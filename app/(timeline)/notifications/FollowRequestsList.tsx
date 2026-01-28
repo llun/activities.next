@@ -3,7 +3,7 @@
 import { FC } from 'react'
 
 import { FollowRequestCard } from '@/lib/components/follow-request-card/FollowRequestCard'
-import { Mastodon } from '@/lib/schema'
+import { Mastodon } from '@/lib/types/activitypub'
 
 interface Props {
   accounts: Mastodon.Account[]

@@ -1,6 +1,6 @@
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 
 import { DEFAULT_QUOTA_PER_ACCOUNT } from './constants'
 

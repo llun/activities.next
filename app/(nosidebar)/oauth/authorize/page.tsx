@@ -5,7 +5,7 @@ import { FC } from 'react'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
-import { Actor } from '@/lib/models/actor'
+import { Actor } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AuthorizeCard } from './AuthorizeCard'

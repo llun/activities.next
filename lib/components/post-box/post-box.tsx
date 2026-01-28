@@ -30,14 +30,14 @@ import {
   ActorProfile,
   getMention,
   getMentionFromActorID
-} from '@/lib/models/actor'
-import { Attachment } from '@/lib/models/attachment'
+} from '@/lib/types/domain/actor'
+import { Attachment } from '@/lib/types/domain/attachment'
 import {
   EditableStatus,
   Status,
   StatusNote,
   StatusType
-} from '@/lib/models/status'
+} from '@/lib/types/domain/status'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 import { urlToId } from '@/lib/utils/urlToId'

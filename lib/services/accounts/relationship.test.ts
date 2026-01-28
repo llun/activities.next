@@ -1,4 +1,4 @@
-import { FollowStatus } from '@/lib/models/follow'
+import { FollowStatus } from '@/lib/types/domain/follow'
 
 import { getRelationship } from './relationship'
 

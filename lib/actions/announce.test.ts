@@ -1,15 +1,15 @@
 import { userAnnounce } from '@/lib/actions/announce'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { NotificationType } from '@/lib/database/types/notification'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { JobData } from '@/lib/jobs/sendAnnounceJob'
-import { Actor } from '@/lib/models/actor'
-import { Status, StatusType } from '@/lib/models/status'
 import { getQueue } from '@/lib/services/queue'
 import * as timelinesService from '@/lib/services/timelines'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { NotificationType } from '@/lib/types/database/operations'
+import { Actor } from '@/lib/types/domain/actor'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 jest.mock('../services/queue', () => ({

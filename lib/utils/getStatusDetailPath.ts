@@ -1,5 +1,5 @@
-import { getMention } from '@/lib/models/actor'
-import { Status } from '@/lib/models/status'
+import { getMention } from '@/lib/types/domain/actor'
+import { Status } from '@/lib/types/domain/status'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 export const getStatusDetailPath = (status: Status) => {

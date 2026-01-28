@@ -2,6 +2,7 @@ import { Knex } from 'knex'
 
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { Mastodon } from '@/lib/types/activitypub'
 import {
   ActorDatabase,
   CancelActorDeletionParams,
@@ -20,11 +21,10 @@ import {
   ScheduleActorDeletionParams,
   StartActorDeletionParams,
   UpdateActorParams
-} from '@/lib/database/types/actor'
-import { ActorSettings, SQLAccount, SQLActor } from '@/lib/database/types/sql'
-import { Account } from '@/lib/models/account'
-import { Actor } from '@/lib/models/actor'
-import { Mastodon } from '@/lib/schema'
+} from '@/lib/types/database/operations'
+import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
+import { Account } from '@/lib/types/domain/account'
+import { Actor } from '@/lib/types/domain/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -131,7 +131,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .leftJoin('accounts', 'actors.accountId', 'accounts.id')
       .where('accounts.email', email)
       .first()
-    if (!persistedActor) return undefined
+    if (!persistedActor) return null
 
     const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
       await database.transaction(async (trx) => {
@@ -198,7 +198,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .where('username', username)
       .andWhere('domain', domain)
       .first()
-    if (!persistedActor) return undefined
+    if (!persistedActor) return null
 
     const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
       await database.transaction(async (trx) => {
@@ -255,7 +255,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const persistedActor = await database<SQLActor>('actors')
       .where('id', id)
       .first()
-    if (!persistedActor) return undefined
+    if (!persistedActor) return null
 
     if (!persistedActor.accountId) {
       const [totalFollowers, totalFollowing, totalStatus, lastStatus] =
@@ -490,7 +490,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const persistedActor = await database<SQLActor>('actors')
       .where('id', actorId)
       .first()
-    if (!persistedActor) return undefined
+    if (!persistedActor) return null
 
     const persistedSettings = getCompatibleJSON(persistedActor.settings)
     const settings: ActorSettings = {
@@ -523,6 +523,38 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
   async deleteActor({ actorId }: DeleteActorParams) {
     await database('actors').where('id', actorId).delete()
+  },
+
+  async updateActorFollowersCount(actorId: string) {
+    const count = await this.getActorFollowersCount({ actorId })
+    await database('actors')
+      .where('id', actorId)
+      .update({ followersCount: count })
+  },
+
+  async updateActorFollowingCount(actorId: string) {
+    const count = await this.getActorFollowingCount({ actorId })
+    await database('actors')
+      .where('id', actorId)
+      .update({ followingCount: count })
+  },
+
+  async increaseActorStatusCount(actorId: string, amount: number = 1) {
+    await database('actors')
+      .where('id', actorId)
+      .increment('statusesCount', amount)
+  },
+
+  async decreaseActorStatusCount(actorId: string, amount: number = 1) {
+    await database('actors')
+      .where('id', actorId)
+      .decrement('statusesCount', amount)
+  },
+
+  async updateActorLastStatusAt(actorId: string, time: number) {
+    await database('actors')
+      .where('id', actorId)
+      .update({ lastStatusAt: new Date(time) })
   },
 
   async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {

@@ -60,6 +60,7 @@ export const GET = traceApiRoute(
   }),
   {
     addAttributes: async (req, context) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { currentActor } = context as any
       const account = currentActor?.account
       const url = new URL(req.url)

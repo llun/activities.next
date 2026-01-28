@@ -1,12 +1,12 @@
-import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/schema'
-
-import { recordActorIfNeeded } from '../actions/utils'
 import {
   getContent,
   getReply,
   getSummary,
   getTags
-} from '../activities/entities/note'
+} from '@/lib/activities/note'
+import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/types/activitypub'
+
+import { recordActorIfNeeded } from '../actions/utils'
 import { addStatusToTimelines } from '../services/timelines'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'

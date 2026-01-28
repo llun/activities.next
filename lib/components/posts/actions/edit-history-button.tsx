@@ -2,7 +2,7 @@ import { formatDistance } from 'date-fns'
 import { History } from 'lucide-react'
 import { FC, useState } from 'react'
 
-import { Status, StatusNote, StatusPoll } from '@/lib/models/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'

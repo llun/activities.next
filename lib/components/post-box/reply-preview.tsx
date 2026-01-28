@@ -3,7 +3,7 @@ import { FC } from 'react'
 
 import { ActorInfo } from '@/lib/components/posts/actor'
 import { Button } from '@/lib/components/ui/button'
-import { Status } from '@/lib/models/status'
+import { Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { processStatusText } from '@/lib/utils/text/processStatusText'

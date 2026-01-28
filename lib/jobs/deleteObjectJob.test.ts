@@ -3,10 +3,10 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { deleteObjectJob } from '@/lib/jobs/deleteObjectJob'
 import { DELETE_OBJECT_JOB_NAME } from '@/lib/jobs/names'
-import { Actor } from '@/lib/models/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { Actor } from '@/lib/types/domain/actor'
 
 enableFetchMocks()
 

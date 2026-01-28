@@ -2,8 +2,8 @@ import { Repeat2 } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 
 import { repostStatus, undoRepostStatus } from '@/lib/client'
-import { ActorProfile } from '@/lib/models/actor'
-import { Status, StatusType } from '@/lib/models/status'
+import { ActorProfile } from '@/lib/types/domain/actor'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
 interface RepostButtonProps {

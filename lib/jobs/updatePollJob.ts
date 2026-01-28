@@ -1,7 +1,7 @@
-import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/schema'
+import { getContent, getSummary } from '@/lib/activities/note'
+import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/types/activitypub'
+import { StatusType } from '@/lib/types/domain/status'
 
-import { getContent, getSummary } from '../activities/entities/note'
-import { StatusType } from '../models/status'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { UPDATE_POLL_JOB_NAME } from './names'

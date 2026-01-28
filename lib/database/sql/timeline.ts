@@ -1,14 +1,14 @@
 import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
-import { StatusDatabase } from '@/lib/database/types/status'
+import { Timeline } from '@/lib/services/timelines/types'
+import { StatusDatabase } from '@/lib/types/database/operations'
 import {
   CreateTimelineStatusParams,
   GetTimelineParams,
   TimelineDatabase
-} from '@/lib/database/types/timeline'
-import { Status } from '@/lib/models/status'
-import { Timeline } from '@/lib/services/timelines/types'
+} from '@/lib/types/database/operations'
+import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 export const TimelineSQLDatabaseMixin = (

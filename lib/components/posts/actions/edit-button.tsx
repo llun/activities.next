@@ -1,7 +1,7 @@
 import { Pencil } from 'lucide-react'
 import { FC } from 'react'
 
-import { EditableStatus, Status, StatusType } from '@/lib/models/status'
+import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
 
 interface Props {
   status: Status

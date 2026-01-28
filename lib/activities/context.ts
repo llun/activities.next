@@ -1,4 +1,4 @@
-import { Context } from './entities/base'
+import { Context } from '@/lib/types/activitypub'
 
 export const PersonContext: Context[] = [
   'https://www.w3.org/ns/activitystreams',

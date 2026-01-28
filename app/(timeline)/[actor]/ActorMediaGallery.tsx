@@ -6,7 +6,7 @@ import { getActorMedia } from '@/lib/client'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Media } from '@/lib/components/posts/media'
 import { Button } from '@/lib/components/ui/button'
-import { Attachment } from '@/lib/models/attachment'
+import { Attachment } from '@/lib/types/domain/attachment'
 
 interface Props {
   actorId: string

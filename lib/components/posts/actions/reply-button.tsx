@@ -1,7 +1,7 @@
 import { MessageCircle } from 'lucide-react'
 import { FC } from 'react'
 
-import { Status, StatusNote, StatusPoll } from '@/lib/models/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 
 interface Props {
   className?: string

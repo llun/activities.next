@@ -1,9 +1,9 @@
 import { follow } from '@/lib/activities'
-import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
-import { Scope } from '@/lib/database/types/oauth'
-import { FollowStatus } from '@/lib/models/follow'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { Scope } from '@/lib/types/database/operations'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,

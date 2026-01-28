@@ -3,8 +3,7 @@ import { omit } from 'lodash'
 
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { AccountDatabase } from '@/lib/database/types/account'
-import { ActorDatabase } from '@/lib/database/types/actor'
+import { AccountDatabase, ActorDatabase } from '@/lib/types/database/operations'
 import {
   CreateAccessTokenParams,
   CreateAuthCodeParams,
@@ -20,11 +19,11 @@ import {
   TouchAccessTokenParams,
   UpdateClientParams,
   UpdateRefreshTokenParams
-} from '@/lib/database/types/oauth'
-import { AuthCode } from '@/lib/models/oauth2/authCode'
-import { Client } from '@/lib/models/oauth2/client'
-import { Token } from '@/lib/models/oauth2/token'
-import { User } from '@/lib/models/oauth2/user'
+} from '@/lib/types/database/operations'
+import { AuthCode } from '@/lib/types/oauth2/authCode'
+import { Client } from '@/lib/types/oauth2/client'
+import { Token } from '@/lib/types/oauth2/token'
+import { User } from '@/lib/types/oauth2/user'
 
 export const OAuthSQLDatabaseMixin = (
   database: Knex,

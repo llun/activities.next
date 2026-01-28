@@ -1,4 +1,4 @@
-import { Announce, Tombstone } from '@/lib/schema'
+import { Announce, Tombstone } from '@/lib/types/activitypub'
 
 import { normalizeActivityPubAnnounce } from '../utils/activitypub'
 import { getTracer } from '../utils/trace'

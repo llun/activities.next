@@ -1,4 +1,4 @@
-import { StatusActivity } from '@/lib/activities/actions/status'
+import { StatusActivity } from '@/lib/activities/statusAction'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
