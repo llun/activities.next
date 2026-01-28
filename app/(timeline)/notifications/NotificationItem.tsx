@@ -18,6 +18,15 @@ interface NotificationWithData extends GroupedNotification {
   groupedAccounts?: (Mastodon.Account | null)[] | null
 }
 
+export type NotificationWithAccount = NotificationWithData & {
+  account: Mastodon.Account
+}
+
+export type NotificationWithAccountAndStatus = NotificationWithData & {
+  account: Mastodon.Account
+  status: Status
+}
+
 interface Props {
   notification: NotificationWithData
   currentActorId: string
@@ -48,55 +57,32 @@ export const NotificationItem = ({
       case 'follow_request':
         return (
           <FollowRequestNotification
-            notification={
-              notification as NotificationWithData & {
-                account: Mastodon.Account
-              }
-            }
+            notification={notification as NotificationWithAccount}
             currentActorId={currentActorId}
           />
         )
       case 'follow':
         return (
           <FollowNotification
-            notification={
-              notification as NotificationWithData & {
-                account: Mastodon.Account
-              }
-            }
+            notification={notification as NotificationWithAccount}
           />
         )
       case 'like':
         return (
           <LikeNotification
-            notification={
-              notification as NotificationWithData & {
-                account: Mastodon.Account
-                status: Status
-              }
-            }
+            notification={notification as NotificationWithAccountAndStatus}
           />
         )
       case 'reply':
         return (
           <ReplyNotification
-            notification={
-              notification as NotificationWithData & {
-                account: Mastodon.Account
-                status: Status
-              }
-            }
+            notification={notification as NotificationWithAccountAndStatus}
           />
         )
       case 'mention':
         return (
           <MentionNotification
-            notification={
-              notification as NotificationWithData & {
-                account: Mastodon.Account
-                status: Status
-              }
-            }
+            notification={notification as NotificationWithAccountAndStatus}
           />
         )
       default:
