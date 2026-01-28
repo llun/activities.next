@@ -1,7 +1,7 @@
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { CreateStatus } from '../activities/actions/createStatus'
-import { Document } from '../activities/entities/document'
+import { Document } from '@/lib/types/activitypub/objects'
 import { MockMastodonActivityPubNote } from './note'
 import { ACTOR1_ID } from './seed/actor1'
 

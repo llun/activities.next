@@ -20,7 +20,7 @@ import {
   TouchAccessTokenParams,
   UpdateClientParams,
   UpdateRefreshTokenParams
-} from '@/lib/database/types/oauth'
+} from '@/lib/types/database/operations'
 import { AuthCode } from '@/lib/models/oauth2/authCode'
 import { Client } from '@/lib/models/oauth2/client'
 import { Token } from '@/lib/models/oauth2/token'

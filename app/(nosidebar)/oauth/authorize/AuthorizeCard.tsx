@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
 import { Label } from '@/lib/components/ui/label'
-import { UsableScopes } from '@/lib/database/types/oauth'
+import { UsableScopes } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { Client } from '@/lib/models/oauth2/client'
 

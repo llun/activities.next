@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 
-import { Document } from '../activities/entities/document'
+import { Document } from '@/lib/types/activitypub/objects'
 
 interface Params {
   url: string

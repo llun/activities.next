@@ -1,6 +1,6 @@
 import { userAnnounce } from '@/lib/actions/announce'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { NotificationType } from '@/lib/database/types/notification'
+import { NotificationType } from '@/lib/types/database/operations'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { JobData } from '@/lib/jobs/sendAnnounceJob'
 import { Actor } from '@/lib/types/domain/actor'

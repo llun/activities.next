@@ -10,6 +10,7 @@ import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Session } from '@/lib/types/domain/session'
 import { Status } from '@/lib/types/domain/status'
 import { TagType } from '@/lib/types/domain/tag'
+import { ActorSettings } from '@/lib/types/database/rows'
 import { Mastodon } from '@/lib/schema'
 import { Timeline } from '@/lib/services/timelines/types'
 
@@ -91,14 +92,36 @@ export type GetActorDeletionStatusParams = {
   actorId: string
 }
 
+export type GetActorFollowingCountParams = { actorId: string }
+export type GetActorFollowersCountParams = { actorId: string }
+export type GetActorSettingsParams = { actorId: string }
+export type IsInternalActorParams = { actorId: string }
+export type CancelActorDeletionParams = { actorId: string }
+export type GetActorsScheduledForDeletionParams = { beforeDate: Date }
+export type StartActorDeletionParams = { actorId: string }
+export type DeleteActorDataParams = { actorId: string }
+
 export interface ActorDatabase {
   createActor(params: CreateActorParams): Promise<string>
+  createMastodonActor(
+    params: CreateActorParams
+  ): Promise<Mastodon.Account | null>
   getActorFromId(params: GetActorFromIdParams): Promise<Actor | null>
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | null>
   getActorFromUsername(
     params: GetActorFromUsernameParams
   ): Promise<Actor | null>
+  getMastodonActorFromEmail(
+    params: GetActorFromEmailParams
+  ): Promise<Mastodon.Account | null>
+  getMastodonActorFromUsername(
+    params: GetActorFromUsernameParams
+  ): Promise<Mastodon.Account | null>
+  getMastodonActorFromId(
+    params: GetActorFromIdParams
+  ): Promise<Mastodon.Account | null>
   updateActor(params: UpdateActorParams): Promise<Actor | null>
+  deleteActor(params: DeleteActorParams): Promise<void>
   updateActorFollowersCount(actorId: string): Promise<void>
   updateActorFollowingCount(actorId: string): Promise<void>
   increaseActorStatusCount(actorId: string, amount?: number): Promise<void>
@@ -109,11 +132,21 @@ export interface ActorDatabase {
   ): Promise<boolean>
   getMastodonActor(actor: Actor): Promise<Mastodon.Account>
   scheduleActorDeletion(params: ScheduleActorDeletionParams): Promise<void>
-  startActorDeletion(params: DeleteActorParams): Promise<void>
-  deleteActor(params: DeleteActorParams): Promise<void>
+  cancelActorDeletion(params: CancelActorDeletionParams): Promise<void>
+  startActorDeletion(params: StartActorDeletionParams): Promise<void>
+  getActorsScheduledForDeletion(
+    params: GetActorsScheduledForDeletionParams
+  ): Promise<Actor[]>
+  deleteActorData(params: DeleteActorDataParams): Promise<void>
   getActorDeletionStatus(
     params: GetActorDeletionStatusParams
   ): Promise<'scheduled' | 'deleting' | null>
+  getActorFollowingCount(params: GetActorFollowingCountParams): Promise<number>
+  getActorFollowersCount(params: GetActorFollowersCountParams): Promise<number>
+  isInternalActor(params: IsInternalActorParams): Promise<boolean>
+  getActorSettings(
+    params: GetActorSettingsParams
+  ): Promise<ActorSettings | undefined>
 }
 
 // ============================================================================
@@ -335,6 +368,14 @@ export type AddStatusTagParams = {
   value: string
 }
 
+export type GetActorStatusesCountParams = { actorId: string }
+export type GetActorStatusesParams = {
+  actorId: string
+  minStatusId?: string | null
+  maxStatusId?: string | null
+  limit?: number
+}
+
 export interface StatusDatabase {
   createNote(params: CreateNoteParams): Promise<Status>
   createAnnounce(params: CreateAnnounceParams): Promise<Status>
@@ -353,6 +394,8 @@ export interface StatusDatabase {
   addPollVote(params: AddPollVoteParams): Promise<void>
   getPollVotes(params: GetPollVotesParams): Promise<number[]>
   addStatusTag(params: AddStatusTagParams): Promise<void>
+  getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
+  getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
 }
 
 // ============================================================================

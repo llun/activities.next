@@ -1,7 +1,7 @@
 import { LikeStatus } from '@/lib/activities/actions/like'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { NotificationType } from '@/lib/database/types/notification'
+import { NotificationType } from '@/lib/types/database/operations'
 import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,

@@ -2,7 +2,7 @@ import { Database } from '@/lib/database/types'
 import {
   Notification,
   NotificationType
-} from '@/lib/database/types/notification'
+} from '@/lib/types/database/operations'
 import { Mastodon } from '@/lib/types/activitypub'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 

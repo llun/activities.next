@@ -1,5 +1,17 @@
-import { ContextEntity } from './base'
-import { OrderedCollectionPage } from './orderedCollectionPage'
+// Utility functions for OrderedCollection
+// These are kept as they contain business logic, not just type definitions
+
+export interface ContextEntity {
+  '@context': string | string[]
+}
+
+export interface OrderedCollectionPage extends ContextEntity {
+  id?: string
+  type: 'OrderedCollectionPage'
+  orderedItems: unknown[]
+  next?: string
+  prev?: string
+}
 
 export interface OrderedCollection extends ContextEntity {
   id: string

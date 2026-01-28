@@ -2,7 +2,7 @@ import identity from 'lodash/identity'
 import { z } from 'zod'
 
 import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
-import { Document } from '@/lib/activities/entities/document'
+import { Document } from '@/lib/types/activitypub/objects'
 import {
   getContent,
   getReply,
@@ -12,7 +12,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, getDocumentFromAttachment } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import { Tag, getMentionFromTag } from '@/lib/types/domain/tag'
-import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/schema'
+import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/types/activitypub/objects'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const StatusType = z.enum(['Note', 'Announce', 'Poll'])

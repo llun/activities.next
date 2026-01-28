@@ -7,7 +7,7 @@ import {
 } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-import { Document } from '../activities/entities/document'
+import { Document } from '@/lib/types/activitypub/objects'
 import { TEST_DOMAIN } from './const'
 import { ACTOR1_ID, seedActor1 } from './seed/actor1'
 

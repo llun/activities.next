@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'
-import { NotificationType } from '@/lib/database/types/notification'
+import { NotificationType } from '@/lib/types/database/operations'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'

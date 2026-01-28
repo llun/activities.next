@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
-import { Scope } from '@/lib/database/types/oauth'
+import { Scope } from '@/lib/types/database/operations'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {

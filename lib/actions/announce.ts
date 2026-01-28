@@ -2,7 +2,7 @@ import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { NotificationType } from '@/lib/database/types/notification'
+import { NotificationType } from '@/lib/types/database/operations'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Actor } from '@/lib/types/domain/actor'
 import { sendMail } from '@/lib/services/email'

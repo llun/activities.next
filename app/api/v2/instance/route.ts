@@ -1,6 +1,6 @@
 import { getConfig } from '@/lib/config'
 import { VERSION } from '@/lib/constants'
-import { Scope } from '@/lib/database/types/oauth'
+import { Scope } from '@/lib/types/database/operations'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import {
   ACCEPTED_FILE_TYPES,

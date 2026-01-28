@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { Scope } from '@/lib/database/types/oauth'
+import { Scope } from '@/lib/types/database/operations'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getUserInfo } from '@/lib/services/oauth/userinfo'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'

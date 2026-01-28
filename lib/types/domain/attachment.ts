@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
-import { Document, Mastodon } from '@/lib/schema'
+import { Document } from '@/lib/types/activitypub/objects'
+import * as Mastodon from '@/lib/types/mastodon'
 
 export const UploadedAttachment = z.object({
   type: z.literal('upload'),
