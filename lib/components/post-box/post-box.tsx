@@ -428,7 +428,7 @@ export const PostBox: FC<Props> = ({
               <TabsContent value="preview" className="mt-0">
                 <div className="flex min-h-[120px] w-full bg-transparent px-3 py-2 text-sm">
                   {text ? (
-                    <div className="prose prose-sm max-w-none">
+                    <div className="markdown-content max-w-none">
                       <ReactMarkdown
                         rehypePlugins={[
                           [
