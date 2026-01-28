@@ -1,33 +1,7 @@
 // ActivityPub Actor types
 import { z } from 'zod'
 
-// Forward declarations - these will be resolved at runtime
-// Importing from ./objects creates proper module resolution
-const Image = z.object({
-  type: z.literal('Image'),
-  mediaType: z.string().nullish(),
-  url: z.string()
-})
-
-const Emoji = z.object({
-  type: z.literal('Emoji'),
-  id: z.string().optional(),
-  name: z.string(),
-  updated: z.string(),
-  icon: Image
-})
-
-const HashTag = z.object({
-  type: z.literal('Hashtag'),
-  href: z.string().url(),
-  name: z.string().startsWith('#')
-})
-
-const PropertyValue = z.object({
-  type: z.literal('PropertyValue'),
-  name: z.string(),
-  value: z.string()
-})
+import { Emoji, HashTag, Image, PropertyValue } from './objects'
 
 // APActor - ActivityPub Actor (Person, Service, etc.)
 // Prefixed with "AP" to distinguish from domain Actor type
