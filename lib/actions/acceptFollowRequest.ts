@@ -1,8 +1,6 @@
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { NotificationType } from '@/lib/types/database/operations'
-import { FollowStatus } from '@/lib/types/domain/follow'
 import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
@@ -10,6 +8,8 @@ import {
   getTextContent
 } from '@/lib/services/email/templates/follow'
 import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
+import { NotificationType } from '@/lib/types/database/operations'
+import { FollowStatus } from '@/lib/types/domain/follow'
 
 interface AcceptFollowRequestParams {
   activity: AcceptFollow

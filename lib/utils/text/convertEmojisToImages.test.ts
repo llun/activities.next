@@ -1,4 +1,5 @@
 import { Tag } from '@/lib/types/domain/tag'
+
 import { convertEmojisToImages } from './convertEmojisToImages'
 
 describe('#convertEmojisToImages', () => {

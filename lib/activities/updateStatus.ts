@@ -6,11 +6,11 @@ import {
   Question,
   VideoContent
 } from '@/lib/types/activitypub'
-
 import { ContextEntity } from '@/lib/types/activitypub'
-import { Signature } from '@/lib/types/activitypub/webfinger'
-import { BaseActivity } from './actionsBase'
 import { UpdateAction } from '@/lib/types/activitypub/activities'
+import { Signature } from '@/lib/types/activitypub/webfinger'
+
+import { BaseActivity } from './actionsBase'
 
 export interface UpdateStatus extends BaseActivity, ContextEntity {
   type: UpdateAction

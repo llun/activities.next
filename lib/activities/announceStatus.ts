@@ -1,6 +1,7 @@
 import { ContextEntity } from '@/lib/types/activitypub'
-import { BaseActivity } from './actionsBase'
 import { AnnounceAction } from '@/lib/types/activitypub/activities'
+
+import { BaseActivity } from './actionsBase'
 
 export interface AnnounceStatus extends BaseActivity, ContextEntity {
   type: AnnounceAction

@@ -1,5 +1,8 @@
 import { Attachment } from '@/lib/types/domain/attachment'
-import { getDocumentFromAttachment, getMastodonAttachment } from '@/lib/types/domain/attachment'
+import {
+  getDocumentFromAttachment,
+  getMastodonAttachment
+} from '@/lib/types/domain/attachment'
 
 describe('attachment', () => {
   const baseAttachment: Attachment = {

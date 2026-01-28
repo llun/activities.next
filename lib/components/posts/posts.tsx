@@ -3,12 +3,12 @@
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
-import { cn } from '@/lib/utils'
-import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
-
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { EditableStatus, Status } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
+import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
+
 import { MediasModal } from '../medias-modal/medias-modal'
 import { Post } from './post'
 import { StatusReplyBox } from './status-reply-box'

@@ -1,10 +1,13 @@
 import { getNote } from '@/lib/activities'
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
-import { AnnounceAction, CreateAction } from '@/lib/types/activitypub/activities'
 import { Database } from '@/lib/database/types'
-import { Status, fromAnnoucne, fromNote } from '@/lib/types/domain/status'
 import { Actor } from '@/lib/types/activitypub'
+import {
+  AnnounceAction,
+  CreateAction
+} from '@/lib/types/activitypub/activities'
 import { Note } from '@/lib/types/activitypub/objects'
+import { Status, fromAnnoucne, fromNote } from '@/lib/types/domain/status'
 import { getTracer } from '@/lib/utils/trace'
 
 import { getActorCollections } from './getActorCollections'
@@ -53,7 +56,10 @@ export const getActorPosts: GetActorPostsFunction = async ({
             if (!note) return null
             const originalStatus = fromNote(note)
             if (actor) originalStatus.actor = actor
-            return fromAnnoucne(item as unknown as AnnounceStatus, originalStatus)
+            return fromAnnoucne(
+              item as unknown as AnnounceStatus,
+              originalStatus
+            )
           }
 
           // Unsupported activity

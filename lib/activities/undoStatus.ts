@@ -1,7 +1,8 @@
 import { ContextEntity } from '@/lib/types/activitypub'
-import { AnnounceStatus } from './announceStatus'
-import { BaseActivity } from './actionsBase'
 import { UndoAction } from '@/lib/types/activitypub/activities'
+
+import { BaseActivity } from './actionsBase'
+import { AnnounceStatus } from './announceStatus'
 
 export interface UndoStatus extends BaseActivity, ContextEntity {
   type: UndoAction

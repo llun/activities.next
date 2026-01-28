@@ -1,6 +1,6 @@
-import { Scope } from '@/lib/types/database/operations'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
+import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,

@@ -1,10 +1,10 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { getMentionFromActorID } from '@/lib/types/domain/actor'
-import { Status, StatusType } from '@/lib/types/domain/status'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { getMentionFromActorID } from '@/lib/types/domain/actor'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT

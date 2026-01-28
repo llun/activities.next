@@ -1,7 +1,11 @@
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
-import { Actor, getMention, getMentionFromActorID } from '@/lib/types/domain/actor'
-import { Status } from '@/lib/types/domain/status'
 import { Mention } from '@/lib/types/activitypub'
+import {
+  Actor,
+  getMention,
+  getMentionFromActorID
+} from '@/lib/types/domain/actor'
+import { Status } from '@/lib/types/domain/status'
 import {
   MENTION_GLOBAL_REGEX,
   MentionMatchGroup

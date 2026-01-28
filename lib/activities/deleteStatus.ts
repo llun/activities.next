@@ -1,6 +1,7 @@
 import { ContextEntity } from '@/lib/types/activitypub'
-import { BaseActivity } from './actionsBase'
 import { DeleteAction } from '@/lib/types/activitypub/activities'
+
+import { BaseActivity } from './actionsBase'
 
 export interface DeleteStatus extends BaseActivity, ContextEntity {
   type: DeleteAction

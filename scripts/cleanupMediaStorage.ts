@@ -6,7 +6,11 @@
  *   --dry-run   Show what would be deleted without actually deleting
  *   --yes       Skip confirmation prompt and delete immediately
  */
-import { DeleteObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+  S3Client
+} from '@aws-sdk/client-s3'
 import fs from 'fs/promises'
 import knex from 'knex'
 import path from 'path'

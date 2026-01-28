@@ -5,8 +5,8 @@
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
-import { toActivityPubObject } from '@/lib/types/domain/status'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { toActivityPubObject } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import {

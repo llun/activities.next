@@ -1,9 +1,9 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Status } from '@/lib/types/domain/status'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 

@@ -24,7 +24,9 @@ export const defaultJobHandle =
 
       const jobName = String(message.name)
       const hasJob = Object.prototype.hasOwnProperty.call(JOBS, jobName)
-      const job = hasJob ? (JOBS as Record<string, JobHandle>)[jobName] : undefined
+      const job = hasJob
+        ? (JOBS as Record<string, JobHandle>)[jobName]
+        : undefined
       if (!hasJob || typeof job !== 'function') {
         logger.error({ message }, 'Unknown job name')
         span.setStatus({

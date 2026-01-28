@@ -1,7 +1,5 @@
 import { BaseActivity } from '@/lib/activities/actionsBase'
-import { CreateAction } from '@/lib/types/activitypub/activities'
 import { ContextEntity } from '@/lib/types/activitypub'
-import { Signature } from '@/lib/types/activitypub/webfinger'
 import {
   ArticleContent,
   ImageContent,
@@ -10,6 +8,8 @@ import {
   Question,
   VideoContent
 } from '@/lib/types/activitypub'
+import { CreateAction } from '@/lib/types/activitypub/activities'
+import { Signature } from '@/lib/types/activitypub/webfinger'
 
 export interface CreateStatus extends BaseActivity, ContextEntity {
   type: CreateAction

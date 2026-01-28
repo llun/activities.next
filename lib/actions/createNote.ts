@@ -1,14 +1,14 @@
 import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'
-import { NotificationType } from '@/lib/types/database/operations'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
+import { addStatusToTimelines } from '@/lib/services/timelines'
+import { Mention } from '@/lib/types/activitypub'
+import { NotificationType } from '@/lib/types/database/operations'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
-import { Mention } from '@/lib/types/activitypub'
-import { getQueue } from '@/lib/services/queue'
-import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT

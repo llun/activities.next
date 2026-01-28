@@ -1,9 +1,9 @@
-import { toActivityPubObject } from '@/lib/types/domain/status'
 import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardHandle
 } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { AppRouterParams } from '@/lib/services/guards/types'
+import { toActivityPubObject } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'

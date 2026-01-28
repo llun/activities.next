@@ -3,9 +3,9 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { Status } from '@/lib/types/domain/status'
-import { Mastodon } from '@/lib/types/activitypub'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
+import { Mastodon } from '@/lib/types/activitypub'
+import { Status } from '@/lib/types/domain/status'
 
 import { NotificationItem } from './NotificationItem'
 

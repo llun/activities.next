@@ -1,10 +1,10 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Actor } from '@/lib/types/activitypub'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { Actor } from '@/lib/types/activitypub'
 
 import { getActorPerson } from './getActorPerson'
 import { getActorPosts } from './getActorPosts'

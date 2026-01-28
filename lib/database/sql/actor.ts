@@ -2,6 +2,7 @@ import { Knex } from 'knex'
 
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { Mastodon } from '@/lib/types/activitypub'
 import {
   ActorDatabase,
   CancelActorDeletionParams,
@@ -24,7 +25,6 @@ import {
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
-import { Mastodon } from '@/lib/types/activitypub'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -527,24 +527,34 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
   async updateActorFollowersCount(actorId: string) {
     const count = await this.getActorFollowersCount({ actorId })
-    await database('actors').where('id', actorId).update({ followersCount: count })
+    await database('actors')
+      .where('id', actorId)
+      .update({ followersCount: count })
   },
 
   async updateActorFollowingCount(actorId: string) {
     const count = await this.getActorFollowingCount({ actorId })
-    await database('actors').where('id', actorId).update({ followingCount: count })
+    await database('actors')
+      .where('id', actorId)
+      .update({ followingCount: count })
   },
 
   async increaseActorStatusCount(actorId: string, amount: number = 1) {
-    await database('actors').where('id', actorId).increment('statusesCount', amount)
+    await database('actors')
+      .where('id', actorId)
+      .increment('statusesCount', amount)
   },
 
   async decreaseActorStatusCount(actorId: string, amount: number = 1) {
-    await database('actors').where('id', actorId).decrement('statusesCount', amount)
+    await database('actors')
+      .where('id', actorId)
+      .decrement('statusesCount', amount)
   },
 
   async updateActorLastStatusAt(actorId: string, time: number) {
-    await database('actors').where('id', actorId).update({ lastStatusAt: new Date(time) })
+    await database('actors')
+      .where('id', actorId)
+      .update({ lastStatusAt: new Date(time) })
   },
 
   async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {

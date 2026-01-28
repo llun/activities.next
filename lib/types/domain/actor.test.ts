@@ -1,7 +1,6 @@
 import omit from 'lodash/omit'
 
 import { MockActor } from '@/lib/stub/actor'
-
 import {
   getActorProfile,
   getActorURL,

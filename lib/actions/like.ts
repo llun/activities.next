@@ -1,7 +1,6 @@
 import { LikeStatus } from '@/lib/activities/likeAction'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { NotificationType } from '@/lib/types/database/operations'
 import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
@@ -9,6 +8,7 @@ import {
   getTextContent
 } from '@/lib/services/email/templates/like'
 import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
+import { NotificationType } from '@/lib/types/database/operations'
 
 interface LikeRequestParams {
   activity: LikeStatus

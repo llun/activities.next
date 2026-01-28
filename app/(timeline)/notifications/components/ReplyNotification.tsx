@@ -2,10 +2,10 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { FC } from 'react'
 
+import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
+import { Mastodon } from '@/lib/types/activitypub'
 import { getMention } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
-import { Mastodon } from '@/lib/types/activitypub'
-import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
 interface NotificationWithData extends GroupedNotification {
   account: Mastodon.Account

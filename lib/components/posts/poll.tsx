@@ -4,7 +4,6 @@ import { formatDistance } from 'date-fns'
 import { FC, useState } from 'react'
 
 import { votePoll } from '@/lib/client'
-
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 interface Props {

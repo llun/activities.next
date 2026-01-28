@@ -3,11 +3,11 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createPollVoteJob } from '@/lib/jobs/createPollVoteJob'
 import { CREATE_POLL_VOTE_JOB_NAME } from '@/lib/jobs/names'
-import { Actor } from '@/lib/types/domain/actor'
-import { StatusPoll } from '@/lib/types/domain/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { Actor } from '@/lib/types/domain/actor'
+import { StatusPoll } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()

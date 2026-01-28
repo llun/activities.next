@@ -1,11 +1,11 @@
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { NotificationType, Scope } from '@/lib/types/database/operations'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
+import { NotificationType, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,

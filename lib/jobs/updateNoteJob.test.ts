@@ -4,10 +4,10 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME, UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { updateNoteJob } from '@/lib/jobs/updateNoteJob'
-import { Status, StatusType } from '@/lib/types/domain/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
+import { Status, StatusType } from '@/lib/types/domain/status'
 
 enableFetchMocks()
 

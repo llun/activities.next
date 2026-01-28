@@ -2,13 +2,6 @@ import isMatch from 'lodash/isMatch'
 
 import { StatusActivity } from '@/lib/activities/statusAction'
 import {
-  AnnounceAction,
-  CreateAction,
-  DeleteAction,
-  UndoAction,
-  UpdateAction
-} from '@/lib/types/activitypub/activities'
-import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
   CREATE_POLL_JOB_NAME,
@@ -18,6 +11,13 @@ import {
   UPDATE_POLL_JOB_NAME
 } from '@/lib/jobs/names'
 import { ENTITY_TYPE_NOTE, ENTITY_TYPE_QUESTION } from '@/lib/types/activitypub'
+import {
+  AnnounceAction,
+  CreateAction,
+  DeleteAction,
+  UndoAction,
+  UpdateAction
+} from '@/lib/types/activitypub/activities'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 const ENTITY_TYPE_IMAGE = 'Image'

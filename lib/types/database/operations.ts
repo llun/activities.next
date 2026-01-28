@@ -1,8 +1,9 @@
 // Database operation parameters and interfaces
 // Consolidated from lib/database/types/*.ts
-
 import { z } from 'zod'
 
+import { Timeline } from '@/lib/services/timelines/types'
+import { ActorSettings } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -10,10 +11,7 @@ import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Session } from '@/lib/types/domain/session'
 import { Status } from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
-import { ActorSettings } from '@/lib/types/database/rows'
 import * as Mastodon from '@/lib/types/mastodon'
-import { Timeline } from '@/lib/services/timelines/types'
-
 // OAuth2 models - these are in lib/models/oauth2 and not being moved
 import { AuthCode } from '@/lib/types/oauth2/authCode'
 import { Client } from '@/lib/types/oauth2/client'

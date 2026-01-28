@@ -1,15 +1,6 @@
 import { z } from 'zod'
 
 import {
-  ArticleContent,
-  ImageContent,
-  Note,
-  PageContent,
-  VideoContent
-} from '@/lib/types/activitypub'
-
-import { recordActorIfNeeded } from '../actions/utils'
-import {
   BaseNote,
   getAttachments,
   getContent,
@@ -17,7 +8,16 @@ import {
   getSummary,
   getTags
 } from '@/lib/activities/note'
+import {
+  ArticleContent,
+  ImageContent,
+  Note,
+  PageContent,
+  VideoContent
+} from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
+
+import { recordActorIfNeeded } from '../actions/utils'
 import { addStatusToTimelines } from '../services/timelines'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'

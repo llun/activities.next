@@ -5,7 +5,11 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 
-import { StatusAnnounce, StatusNote, StatusType } from '@/lib/types/domain/status'
+import {
+  StatusAnnounce,
+  StatusNote,
+  StatusType
+} from '@/lib/types/domain/status'
 
 import { ReplyPreview } from './reply-preview'
 

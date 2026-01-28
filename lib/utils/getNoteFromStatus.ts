@@ -1,8 +1,8 @@
 import { getConfig } from '@/lib/config'
+import { Note } from '@/lib/types/activitypub'
 import { getDocumentFromAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getMentionFromTag } from '@/lib/types/domain/tag'
-import { Note } from '@/lib/types/activitypub'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 

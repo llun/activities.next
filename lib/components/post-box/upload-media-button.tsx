@@ -2,10 +2,10 @@ import { ImagePlus } from 'lucide-react'
 import { FC, SyntheticEvent, useRef } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { logger } from '@/lib/utils/logger'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
-import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import {
   ACCEPTED_FILE_TYPES,
   MAX_ATTACHMENTS,

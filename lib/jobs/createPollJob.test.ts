@@ -3,11 +3,11 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createPollJob } from '@/lib/jobs/createPollJob'
 import { CREATE_POLL_JOB_NAME } from '@/lib/jobs/names'
-import { Actor } from '@/lib/types/domain/actor'
-import { StatusType } from '@/lib/types/domain/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { Actor } from '@/lib/types/domain/actor'
+import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
@@ -371,8 +371,16 @@ describe('createPollJob', () => {
       endTime: getISOTimeUTC(Date.now() + 24 * 60 * 60 * 1000),
       url: `https://somewhere.test/actors/pollcreator/questions/${Date.now()}`,
       oneOf: [
-        { type: 'Note', name: 'Yes', replies: { type: 'Collection', totalItems: 0 } },
-        { type: 'Note', name: 'No', replies: { type: 'Collection', totalItems: 0 } }
+        {
+          type: 'Note',
+          name: 'Yes',
+          replies: { type: 'Collection', totalItems: 0 }
+        },
+        {
+          type: 'Note',
+          name: 'No',
+          replies: { type: 'Collection', totalItems: 0 }
+        }
       ]
       // Note: No tag field at all, simulating real ActivityPub payloads
     }

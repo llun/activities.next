@@ -1,8 +1,8 @@
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
-import { getQueue } from '@/lib/services/queue'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getSpan } from '@/lib/utils/trace'
 

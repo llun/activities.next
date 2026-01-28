@@ -2,10 +2,10 @@ import { z } from 'zod'
 
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
-import { Scope } from '@/lib/types/database/operations'
-import { StatusType } from '@/lib/types/domain/status'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { Scope } from '@/lib/types/database/operations'
+import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,

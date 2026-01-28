@@ -4,19 +4,19 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
+import { Actor } from '@/lib/types/activitypub'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
-import { Actor } from '@/lib/types/activitypub'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 import { getProfileData } from './getProfileData'
 
 // Mock dependencies - use relative paths for jest.mock()
-jest.mock('../../../lib/activities/requests/getActorFollowers')
-jest.mock('../../../lib/activities/requests/getActorFollowing')
-jest.mock('../../../lib/activities/requests/getActorPerson')
-jest.mock('../../../lib/activities/requests/getActorPosts')
-jest.mock('../../../lib/activities/requests/getWebfingerSelf')
+jest.mock('../../../lib/activities/getActorFollowers')
+jest.mock('../../../lib/activities/getActorFollowing')
+jest.mock('../../../lib/activities/getActorPerson')
+jest.mock('../../../lib/activities/getActorPosts')
+jest.mock('../../../lib/activities/getWebfingerSelf')
 jest.mock('../../../lib/utils/getPersonFromActor')
 
 describe('getProfileData', () => {

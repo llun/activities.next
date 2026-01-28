@@ -2,11 +2,11 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { Actor } from '@/lib/types/domain/actor'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()

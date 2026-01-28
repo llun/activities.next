@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
-
 import { Actor } from '@/lib/types/domain/actor'
+
 import { ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from './constants'
 
 const FILE_TYPE_ERROR_MESSAGE = `Only ${ACCEPTED_FILE_TYPES.join(',')} are accepted`

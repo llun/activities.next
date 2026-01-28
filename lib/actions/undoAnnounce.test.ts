@@ -2,11 +2,11 @@ import { userUndoAnnounce } from '@/lib/actions/undoAnnounce'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { JobData } from '@/lib/jobs/sendUndoAnnounceJob'
-import { Actor } from '@/lib/types/domain/actor'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { Actor } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 // Mock the queue

@@ -1,7 +1,7 @@
 import { Database } from '@/lib/database/types'
+import { Mastodon } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { Mastodon } from '@/lib/types/activitypub'
 import { urlToId } from '@/lib/utils/urlToId'
 
 interface GetRelationshipParams {

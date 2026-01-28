@@ -2,11 +2,18 @@ import crypto from 'crypto'
 
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
+import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { CreateStatus } from '@/lib/activities/createStatus'
 import { DeleteStatus } from '@/lib/activities/deleteStatus'
 import { FollowRequest } from '@/lib/activities/followAction'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { LikeStatus } from '@/lib/activities/likeAction'
 import { RejectFollow } from '@/lib/activities/rejectFollow'
+import { UndoFollow } from '@/lib/activities/undoFollow'
+import { UndoLike } from '@/lib/activities/undoLike'
+import { UndoStatus } from '@/lib/activities/undoStatus'
+import { UpdateStatus } from '@/lib/activities/updateStatus'
+import { Note } from '@/lib/types/activitypub'
 import {
   AnnounceAction,
   CreateAction,
@@ -14,12 +21,6 @@ import {
   UndoAction,
   UpdateAction
 } from '@/lib/types/activitypub/activities'
-import { UndoFollow } from '@/lib/activities/undoFollow'
-import { UndoLike } from '@/lib/activities/undoLike'
-import { UndoStatus } from '@/lib/activities/undoStatus'
-import { UpdateStatus } from '@/lib/activities/updateStatus'
-import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
-import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Actor } from '@/lib/types/domain/actor'
 import { Follow } from '@/lib/types/domain/follow'
 import {
@@ -28,7 +29,6 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/types/domain/status'
-import { Note } from '@/lib/types/activitypub'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL

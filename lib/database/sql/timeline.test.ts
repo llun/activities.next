@@ -1,7 +1,7 @@
-import { FollowStatus } from '@/lib/types/domain/follow'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { waitFor } from '@/lib/utils/waitFor'

@@ -2,9 +2,9 @@
 
 import { useEffect, useRef } from 'react'
 
-import { Status } from '@/lib/types/domain/status'
-import { Mastodon } from '@/lib/types/activitypub'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
+import { Mastodon } from '@/lib/types/activitypub'
+import { Status } from '@/lib/types/domain/status'
 
 import { FollowNotification } from './components/FollowNotification'
 import { FollowRequestNotification } from './components/FollowRequestNotification'
@@ -48,18 +48,57 @@ export const NotificationItem = ({
       case 'follow_request':
         return (
           <FollowRequestNotification
-            notification={notification as NotificationWithData & { account: Mastodon.Account }}
+            notification={
+              notification as NotificationWithData & {
+                account: Mastodon.Account
+              }
+            }
             currentActorId={currentActorId}
           />
         )
       case 'follow':
-        return <FollowNotification notification={notification as NotificationWithData & { account: Mastodon.Account }} />
+        return (
+          <FollowNotification
+            notification={
+              notification as NotificationWithData & {
+                account: Mastodon.Account
+              }
+            }
+          />
+        )
       case 'like':
-        return <LikeNotification notification={notification as NotificationWithData & { account: Mastodon.Account; status: Status }} />
+        return (
+          <LikeNotification
+            notification={
+              notification as NotificationWithData & {
+                account: Mastodon.Account
+                status: Status
+              }
+            }
+          />
+        )
       case 'reply':
-        return <ReplyNotification notification={notification as NotificationWithData & { account: Mastodon.Account; status: Status }} />
+        return (
+          <ReplyNotification
+            notification={
+              notification as NotificationWithData & {
+                account: Mastodon.Account
+                status: Status
+              }
+            }
+          />
+        )
       case 'mention':
-        return <MentionNotification notification={notification as NotificationWithData & { account: Mastodon.Account; status: Status }} />
+        return (
+          <MentionNotification
+            notification={
+              notification as NotificationWithData & {
+                account: Mastodon.Account
+                status: Status
+              }
+            }
+          />
+        )
       default:
         return null
     }

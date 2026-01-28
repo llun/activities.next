@@ -1,6 +1,5 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { Actor } from '@/lib/types/activitypub'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockActivityPubFollowers } from '@/lib/stub/followers'
 import { MockActivityPubPerson } from '@/lib/stub/person'
@@ -8,6 +7,7 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
+import { Actor } from '@/lib/types/activitypub'
 
 import { getActorFollowers } from './getActorFollowers'
 import { getActorPerson } from './getActorPerson'

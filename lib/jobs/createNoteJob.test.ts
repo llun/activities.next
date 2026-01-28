@@ -3,13 +3,13 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
-import { Actor } from '@/lib/types/domain/actor'
-import { Status, StatusType } from '@/lib/types/domain/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockImageDocument } from '@/lib/stub/imageDocument'
 import { MockLitepubNote, MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { Actor } from '@/lib/types/domain/actor'
+import { Status, StatusType } from '@/lib/types/domain/status'
 
 enableFetchMocks()
 
