@@ -6,7 +6,7 @@ import {
   getReply,
   getSummary,
   getTags
-} from '../activities/entities/note'
+} from '@/lib/activities/note'
 import { addStatusToTimelines } from '../services/timelines'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'

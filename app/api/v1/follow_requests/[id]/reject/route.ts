@@ -1,5 +1,5 @@
 import { rejectFollow } from '@/lib/activities'
-import { FollowRequest } from '@/lib/activities/actions/follow'
+import { FollowRequest } from '@/lib/activities/followAction'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'

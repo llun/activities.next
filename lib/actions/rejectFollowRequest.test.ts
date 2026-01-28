@@ -1,7 +1,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
-import { RejectFollow } from '@/lib/activities/actions/rejectFollow'
+import { RejectFollow } from '@/lib/activities/rejectFollow'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { mockRequests } from '@/lib/stub/activities'

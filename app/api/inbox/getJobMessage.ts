@@ -1,6 +1,6 @@
 import isMatch from 'lodash/isMatch'
 
-import { StatusActivity } from '@/lib/activities/actions/status'
+import { StatusActivity } from '@/lib/activities/statusAction'
 import {
   AnnounceAction,
   CreateAction,

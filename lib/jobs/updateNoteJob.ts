@@ -8,7 +8,7 @@ import {
   VideoContent
 } from '@/lib/types/activitypub'
 
-import { BaseNote, getContent, getSummary } from '../activities/entities/note'
+import { BaseNote, getContent, getSummary } from '@/lib/activities/note'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'

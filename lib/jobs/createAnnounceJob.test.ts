@@ -1,6 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
+import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'

@@ -3,7 +3,7 @@ import {
   OrderedCollection,
   OrderedCollectionPage,
   getOrderCollectionFirstPage
-} from '@/lib/activities/entities/orderedCollection'
+} from '@/lib/activities/orderedCollection'
 import { Actor } from '@/lib/types/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'

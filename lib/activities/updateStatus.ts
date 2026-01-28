@@ -7,10 +7,10 @@ import {
   VideoContent
 } from '@/lib/types/activitypub'
 
-import { ContextEntity } from '../entities/base'
+import { ContextEntity } from '@/lib/types/activitypub'
 import { Signature } from '@/lib/types/activitypub/webfinger'
-import { BaseActivity } from './base'
-import { UpdateAction } from './types'
+import { BaseActivity } from './actionsBase'
+import { UpdateAction } from '@/lib/types/activitypub/activities'
 
 export interface UpdateStatus extends BaseActivity, ContextEntity {
   type: UpdateAction

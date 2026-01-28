@@ -1,5 +1,5 @@
-import { ContextEntity } from '../entities/base'
-import { BaseActivity } from './base'
+import { ContextEntity } from '@/lib/types/activitypub'
+import { BaseActivity } from './actionsBase'
 
 export interface FollowRequest extends ContextEntity, BaseActivity {
   type: 'Follow'

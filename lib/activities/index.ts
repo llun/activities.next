@@ -1,12 +1,12 @@
 import crypto from 'crypto'
 
-import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
-import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
-import { CreateStatus } from '@/lib/activities/actions/createStatus'
-import { DeleteStatus } from '@/lib/activities/actions/deleteStatus'
-import { FollowRequest } from '@/lib/activities/actions/follow'
-import { LikeStatus } from '@/lib/activities/actions/like'
-import { RejectFollow } from '@/lib/activities/actions/rejectFollow'
+import { AcceptFollow } from '@/lib/activities/acceptFollow'
+import { AnnounceStatus } from '@/lib/activities/announceStatus'
+import { CreateStatus } from '@/lib/activities/createStatus'
+import { DeleteStatus } from '@/lib/activities/deleteStatus'
+import { FollowRequest } from '@/lib/activities/followAction'
+import { LikeStatus } from '@/lib/activities/likeAction'
+import { RejectFollow } from '@/lib/activities/rejectFollow'
 import {
   AnnounceAction,
   CreateAction,
@@ -14,10 +14,10 @@ import {
   UndoAction,
   UpdateAction
 } from '@/lib/types/activitypub/activities'
-import { UndoFollow } from '@/lib/activities/actions/undoFollow'
-import { UndoLike } from '@/lib/activities/actions/undoLike'
-import { UndoStatus } from '@/lib/activities/actions/undoStatus'
-import { UpdateStatus } from '@/lib/activities/actions/updateStatus'
+import { UndoFollow } from '@/lib/activities/undoFollow'
+import { UndoLike } from '@/lib/activities/undoLike'
+import { UndoStatus } from '@/lib/activities/undoStatus'
+import { UpdateStatus } from '@/lib/activities/updateStatus'
 import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Actor } from '@/lib/types/domain/actor'

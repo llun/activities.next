@@ -13,7 +13,7 @@ import {
   sendUndoLike,
   unfollow
 } from '@/lib/activities'
-import { CreateStatus } from '@/lib/activities/actions/createStatus'
+import { CreateStatus } from '@/lib/activities/createStatus'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'

@@ -16,7 +16,7 @@ import {
   getReply,
   getSummary,
   getTags
-} from '../activities/entities/note'
+} from '@/lib/activities/note'
 import { StatusType } from '@/lib/types/domain/status'
 import { addStatusToTimelines } from '../services/timelines'
 import { normalizeActivityPubContent } from '../utils/activitypub'

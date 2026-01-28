@@ -1,4 +1,4 @@
-import { RejectFollow } from '@/lib/activities/actions/rejectFollow'
+import { RejectFollow } from '@/lib/activities/rejectFollow'
 import { Database } from '@/lib/database/types'
 import { FollowStatus } from '@/lib/types/domain/follow'
 

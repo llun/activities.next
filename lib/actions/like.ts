@@ -1,4 +1,4 @@
-import { LikeStatus } from '@/lib/activities/actions/like'
+import { LikeStatus } from '@/lib/activities/likeAction'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { NotificationType } from '@/lib/types/database/operations'

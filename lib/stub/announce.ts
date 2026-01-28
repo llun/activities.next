@@ -1,6 +1,6 @@
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-import { AnnounceStatus } from '../activities/actions/announceStatus'
+import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL

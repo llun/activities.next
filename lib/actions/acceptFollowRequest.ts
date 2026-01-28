@@ -1,4 +1,4 @@
-import { AcceptFollow } from '@/lib/activities/actions/acceptFollow'
+import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { NotificationType } from '@/lib/types/database/operations'

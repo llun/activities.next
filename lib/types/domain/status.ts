@@ -1,13 +1,13 @@
 import identity from 'lodash/identity'
 import { z } from 'zod'
 
-import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
+import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { Document } from '@/lib/types/activitypub/objects'
 import {
   getContent,
   getReply,
   getSummary
-} from '@/lib/activities/entities/note'
+} from '@/lib/activities/note'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, getDocumentFromAttachment } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'

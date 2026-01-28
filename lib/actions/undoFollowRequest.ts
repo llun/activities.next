@@ -1,4 +1,4 @@
-import { UndoFollow } from '@/lib/activities/actions/undoFollow'
+import { UndoFollow } from '@/lib/activities/undoFollow'
 import { Database } from '@/lib/database/types'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
