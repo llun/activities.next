@@ -13,8 +13,6 @@ import { TagType } from '@/lib/types/domain/tag'
 import { Mastodon } from '@/lib/schema'
 import { Timeline } from '@/lib/services/timelines/types'
 
-import { ActorSettings } from './rows'
-
 // OAuth2 models - these are in lib/models/oauth2 and not being moved
 import { AuthCode } from '@/lib/models/oauth2/authCode'
 import { Client } from '@/lib/models/oauth2/client'

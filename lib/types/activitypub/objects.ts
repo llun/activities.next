@@ -219,6 +219,19 @@ export const ArticleContent = BaseContent.extend({
 })
 export type ArticleContent = z.infer<typeof ArticleContent>
 
+/**
+ * Video content type used by PeerTube and similar services.
+ */
+export const VideoContent = BaseContent.extend({
+  type: z.literal('Video'),
+  name: z.string().nullish(),
+  mediaType: z.string().nullish(),
+  width: z.number().nullish(),
+  height: z.number().nullish(),
+  blurhash: z.string().nullish()
+})
+export type VideoContent = z.infer<typeof VideoContent>
+
 // ============================================================================
 // Tombstone (Deleted Object)
 // ============================================================================

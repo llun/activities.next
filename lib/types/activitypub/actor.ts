@@ -90,3 +90,13 @@ export type APPerson = z.infer<typeof APPerson>
 
 export const APService = APActor
 export type APService = z.infer<typeof APService>
+
+// Backward compatibility exports (keep old names)
+export const Actor = APActor
+export type Actor = z.infer<typeof Actor>
+
+export const Person = APActor
+export type Person = z.infer<typeof Person>
+
+export const Service = APActor
+export type Service = z.infer<typeof Service>
