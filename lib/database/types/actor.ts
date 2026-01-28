@@ -1,4 +1,7 @@
-import { ActorSettings } from '@/lib/database/types/sql'
+// Re-export from new consolidated location
+export * from '@/lib/types/database/operations'
+
+import { ActorSettings } from '@/lib/types/database/rows'
 import { Actor } from '@/lib/models/actor'
 import { Mastodon } from '@/lib/schema'
 
