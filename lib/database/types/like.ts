@@ -1,15 +1,8 @@
-interface BaseLikeParams {
-  actorId: string
-  statusId: string
-}
-export type CreateLikeParams = BaseLikeParams
-export type DeleteLikeParams = BaseLikeParams
-export type GetLikeCountParams = Pick<BaseLikeParams, 'statusId'>
-export type IsActorLikedStatusParams = BaseLikeParams
-
-export interface LikeDatabase {
-  createLike(params: CreateLikeParams): Promise<void>
-  deleteLike(params: DeleteLikeParams): Promise<void>
-  getLikeCount(params: GetLikeCountParams): Promise<number>
-  isActorLikedStatus(params: IsActorLikedStatusParams): Promise<boolean>
-}
+// Re-export from new location for backward compatibility
+export {
+  LikeDatabase,
+  CreateLikeParams,
+  DeleteLikeParams,
+  GetLikeCountParams,
+  IsActorLikedStatusParams
+} from '@/lib/types/database/operations'

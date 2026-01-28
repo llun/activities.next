@@ -1,12 +1,2 @@
-import { z } from 'zod'
-
-import { Account } from '@/lib/models/account'
-import { Actor } from '@/lib/models/actor'
-
-export const User = z.object({
-  id: z.string(),
-  actor: Actor,
-  account: Account
-})
-
-export type User = z.infer<typeof User>
+// Re-export from new location for backward compatibility
+export { User } from '@/lib/types/domain/oauth2/user'

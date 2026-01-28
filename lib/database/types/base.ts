@@ -1,4 +1,2 @@
-export interface BaseDatabase {
-  migrate(): Promise<void>
-  destroy(): Promise<void>
-}
+// Re-export from new location for backward compatibility
+export { BaseDatabase } from '@/lib/types/database/operations'
