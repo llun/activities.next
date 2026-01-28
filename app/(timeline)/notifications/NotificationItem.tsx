@@ -13,22 +13,17 @@ import { MentionNotification } from './components/MentionNotification'
 import { ReplyNotification } from './components/ReplyNotification'
 
 interface NotificationWithData extends GroupedNotification {
-  account: Mastodon.Account | null
-  status?: Status | null
+  account: Mastodon.Account
+  status?: Status
   groupedAccounts?: (Mastodon.Account | null)[] | null
 }
 
-export type NotificationWithAccount = NotificationWithData & {
-  account: Mastodon.Account
-}
-
-export type NotificationWithAccountAndStatus = NotificationWithData & {
-  account: Mastodon.Account
-  status: Status
-}
-
 interface Props {
-  notification: NotificationWithData
+  notification: GroupedNotification & {
+    account: Mastodon.Account | null
+    status?: Status | null
+    groupedAccounts?: (Mastodon.Account | null)[] | null
+  }
   currentActorId: string
   isRead: boolean
   observeElement: (element: HTMLElement | null) => void
@@ -52,37 +47,43 @@ export const NotificationItem = ({
     return null
   }
 
+  // After null check, we know account is non-null
+  const notificationWithAccount: NotificationWithData = {
+    ...notification,
+    account: notification.account,
+    status: notification.status ?? undefined
+  }
+
   const renderNotification = () => {
-    switch (notification.type) {
+    switch (notificationWithAccount.type) {
       case 'follow_request':
         return (
           <FollowRequestNotification
-            notification={notification as NotificationWithAccount}
+            notification={notificationWithAccount}
             currentActorId={currentActorId}
           />
         )
       case 'follow':
         return (
-          <FollowNotification
-            notification={notification as NotificationWithAccount}
-          />
+          <FollowNotification notification={notificationWithAccount} />
         )
       case 'like':
+        // Status-requiring notifications - type assertion for compatibility
         return (
           <LikeNotification
-            notification={notification as NotificationWithAccountAndStatus}
+            notification={notificationWithAccount as NotificationWithData & { status: Status }}
           />
         )
       case 'reply':
         return (
           <ReplyNotification
-            notification={notification as NotificationWithAccountAndStatus}
+            notification={notificationWithAccount as NotificationWithData & { status: Status }}
           />
         )
       case 'mention':
         return (
           <MentionNotification
-            notification={notification as NotificationWithAccountAndStatus}
+            notification={notificationWithAccount as NotificationWithData & { status: Status }}
           />
         )
       default:
