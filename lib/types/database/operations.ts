@@ -11,7 +11,7 @@ import { Session } from '@/lib/types/domain/session'
 import { Status } from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import { ActorSettings } from '@/lib/types/database/rows'
-import { Mastodon } from '@/lib/schema'
+import * as Mastodon from '@/lib/types/mastodon'
 import { Timeline } from '@/lib/services/timelines/types'
 
 // OAuth2 models - these are in lib/models/oauth2 and not being moved

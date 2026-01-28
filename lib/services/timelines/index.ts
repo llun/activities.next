@@ -23,7 +23,7 @@ export const addStatusToTimelines = async (
         )
       ).filter(
         (actor): actor is Actor =>
-          actor !== undefined && actor.privateKey !== ''
+          actor !== undefined && actor !== null && actor.privateKey !== ''
       )
       const getLocalActorsFromFollowerUrl = (
         await Promise.all(
