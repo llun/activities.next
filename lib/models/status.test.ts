@@ -8,7 +8,7 @@ import {
   StatusType,
   fromNote,
   toActivityPubObject
-} from '@/lib/models/status'
+} from '@/lib/types/domain/status'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'

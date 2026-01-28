@@ -8,7 +8,7 @@ import {
   getMention,
   getMentionDomainFromActorID,
   getMentionFromActorID
-} from './actor'
+} from '@/lib/types/domain/actor'
 
 describe('Actor', () => {
   describe('#getActorProfile', () => {

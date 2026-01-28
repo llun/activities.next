@@ -9,7 +9,7 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Session } from '@/lib/types/domain/session'
 import { Status } from '@/lib/types/domain/status'
-import { TagType } from '@/lib/types/domain/tag'
+import { Tag, TagType } from '@/lib/types/domain/tag'
 import { ActorSettings } from '@/lib/types/database/rows'
 import { Mastodon } from '@/lib/schema'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -83,7 +83,7 @@ export type UpdateActorParams = {
 }
 export type ScheduleActorDeletionParams = {
   actorId: string
-  scheduledAt: number
+  scheduledAt: Date | null // null means immediate deletion
 }
 export type DeleteActorParams = {
   actorId: string
@@ -139,8 +139,8 @@ export interface ActorDatabase {
   ): Promise<Actor[]>
   deleteActorData(params: DeleteActorDataParams): Promise<void>
   getActorDeletionStatus(
-    params: GetActorDeletionStatusParams
-  ): Promise<'scheduled' | 'deleting' | null>
+    params: GetActorFromIdParams
+  ): Promise<{ status: string | null; scheduledAt: number | null } | undefined>
   getActorFollowingCount(params: GetActorFollowingCountParams): Promise<number>
   getActorFollowersCount(params: GetActorFollowersCountParams): Promise<number>
   isInternalActor(params: IsInternalActorParams): Promise<boolean>
@@ -376,6 +376,42 @@ export type GetActorStatusesParams = {
   limit?: number
 }
 
+export type HasActorAnnouncedStatusParams = BaseStatusParams & {
+  actorId?: string
+}
+export type GetFavouritedByParams = BaseStatusParams
+
+export type CreateTagParams = {
+  statusId: string
+  name: string
+  type: TagType
+  value?: string
+}
+export type GetTagsParams = {
+  statusId: string
+}
+export type GetStatusReblogsCountParams = {
+  statusId: string
+}
+
+export type CreatePollAnswerParams = {
+  statusId: string
+  actorId: string
+  choice: number
+}
+export type HasActorVotedParams = {
+  statusId: string
+  actorId: string
+}
+export type GetActorPollVotesParams = {
+  statusId: string
+  actorId: string
+}
+export type IncrementPollChoiceVotesParams = {
+  statusId: string
+  choiceIndex: number
+}
+
 export interface StatusDatabase {
   createNote(params: CreateNoteParams): Promise<Status>
   createAnnounce(params: CreateAnnounceParams): Promise<Status>
@@ -388,6 +424,12 @@ export interface StatusDatabase {
   getActorAnnouncedStatusId(
     params: GetActorAnnouncedStatusIdParams
   ): Promise<string | null>
+  hasActorAnnouncedStatus(
+    params: HasActorAnnouncedStatusParams
+  ): Promise<boolean>
+  getActorAnnounceStatus(
+    params: HasActorAnnouncedStatusParams
+  ): Promise<Status | null>
   deleteStatus(params: DeleteStatusParams): Promise<void>
   countStatus(params: CountStatusParams): Promise<number>
   updatePollChoice(params: UpdatePollChoiceParams): Promise<void>
@@ -396,6 +438,16 @@ export interface StatusDatabase {
   addStatusTag(params: AddStatusTagParams): Promise<void>
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
+  getFavouritedBy(params: GetFavouritedByParams): Promise<Actor[]>
+  createTag(params: CreateTagParams): Promise<Tag>
+  getTags(params: GetTagsParams): Promise<Tag[]>
+  getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
+  createPollAnswer(params: CreatePollAnswerParams): Promise<void>
+  hasActorVoted(params: HasActorVotedParams): Promise<boolean>
+  getActorPollVotes(params: GetActorPollVotesParams): Promise<number[]>
+  incrementPollChoiceVotes(
+    params: IncrementPollChoiceVotesParams
+  ): Promise<void>
 }
 
 // ============================================================================
