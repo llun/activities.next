@@ -89,7 +89,7 @@ export const Post: FC<PostProps> = (props) => {
             )}
           </div>
 
-          <div className="mt-1 text-sm leading-relaxed break-words markdown-content [&_p]:mb-4 last:[&_p]:mb-0">
+          <div className="mt-1 text-sm leading-relaxed break-words markdown-content">
             {processedAndCleanedText}
           </div>
 
