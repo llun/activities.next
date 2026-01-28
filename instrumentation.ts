@@ -1,5 +1,5 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { type Instrumentation } from 'next'
-import { trace, SpanStatusCode } from '@opentelemetry/api'
 
 export const onRequestError: Instrumentation.onRequestError = async (
   err,

@@ -1,5 +1,5 @@
 // Re-export from new location for backward compatibility
-export {
+export type {
   ActorDatabase,
   CreateActorParams,
   GetActorFromEmailParams,
@@ -20,4 +20,4 @@ export {
 } from '@/lib/types/database/operations'
 
 // Also re-export ActorSettings from rows for backward compatibility
-export { ActorSettings } from '@/lib/types/database/rows'
+export type { ActorSettings } from '@/lib/types/database/rows'

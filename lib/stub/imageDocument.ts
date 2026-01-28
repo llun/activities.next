@@ -1,6 +1,8 @@
 import crypto from 'crypto'
 
-import { Document } from '../activities/entities/document'
+import { APDocument } from '@/lib/types/activitypub'
+
+type Document = APDocument
 
 interface Params {
   url: string

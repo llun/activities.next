@@ -1,7 +1,8 @@
 import { z } from 'zod'
 
-import { Account } from './account'
 import { logger } from '@/lib/utils/logger'
+
+import { Account } from './account'
 
 export const ActorProfile = z.object({
   id: z.string(),

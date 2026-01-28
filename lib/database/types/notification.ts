@@ -1,8 +1,9 @@
 // Re-export from new location for backward compatibility
-export {
+export { NotificationType } from '@/lib/types/database/operations'
+
+export type {
   NotificationDatabase,
   Notification,
-  NotificationType,
   CreateNotificationParams,
   GetNotificationsParams,
   GetNotificationsCountParams,

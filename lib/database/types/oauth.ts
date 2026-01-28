@@ -1,6 +1,6 @@
 // Re-export from new location for backward compatibility
+// Zod schemas (values)
 export {
-  OAuthDatabase,
   Scope,
   UsableScopes,
   GrantIdentifiers,
@@ -18,3 +18,6 @@ export {
   GetAuthCodeParams,
   RevokeAuthCodeParams
 } from '@/lib/types/database/operations'
+
+// Type-only exports
+export type { OAuthDatabase } from '@/lib/types/database/operations'

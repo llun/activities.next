@@ -1,7 +1,7 @@
 import {
-  OrderedCollection,
+  APOrderedCollection,
   getOrderCollectionFirstPage
-} from './orderedCollection'
+} from '@/lib/types/activitypub'
 
 describe('orderedCollection', () => {
   describe('#getOrderCollectionFirstPage', () => {
@@ -10,8 +10,7 @@ describe('orderedCollection', () => {
     })
 
     it('returns null when first is not set', () => {
-      const collection: OrderedCollection = {
-        '@context': 'https://www.w3.org/ns/activitystreams',
+      const collection: APOrderedCollection = {
         id: 'https://example.com/collection',
         type: 'OrderedCollection',
         totalItems: 10
@@ -21,8 +20,7 @@ describe('orderedCollection', () => {
     })
 
     it('returns first when it is a string', () => {
-      const collection: OrderedCollection = {
-        '@context': 'https://www.w3.org/ns/activitystreams',
+      const collection: APOrderedCollection = {
         id: 'https://example.com/collection',
         type: 'OrderedCollection',
         totalItems: 10,
@@ -35,15 +33,14 @@ describe('orderedCollection', () => {
     })
 
     it('returns id from first when it is an OrderedCollectionPage', () => {
-      const collection: OrderedCollection = {
-        '@context': 'https://www.w3.org/ns/activitystreams',
+      const collection: APOrderedCollection = {
         id: 'https://example.com/collection',
         type: 'OrderedCollection',
         totalItems: 10,
         first: {
-          '@context': 'https://www.w3.org/ns/activitystreams',
           id: 'https://example.com/collection?page=1',
           type: 'OrderedCollectionPage',
+          next: '',
           orderedItems: []
         }
       }
@@ -54,18 +51,19 @@ describe('orderedCollection', () => {
     })
 
     it('returns null when first page has no id', () => {
-      const collection: OrderedCollection = {
-        '@context': 'https://www.w3.org/ns/activitystreams',
+      const collection = {
         id: 'https://example.com/collection',
-        type: 'OrderedCollection',
+        type: 'OrderedCollection' as const,
         first: {
-          '@context': 'https://www.w3.org/ns/activitystreams',
-          type: 'OrderedCollectionPage',
+          type: 'OrderedCollectionPage' as const,
+          next: '',
           orderedItems: []
-        } as OrderedCollection['first']
+        }
       }
 
-      expect(getOrderCollectionFirstPage(collection)).toBeNull()
+      expect(
+        getOrderCollectionFirstPage(collection as APOrderedCollection)
+      ).toBeNull()
     })
   })
 })

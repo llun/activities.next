@@ -371,8 +371,16 @@ describe('createPollJob', () => {
       endTime: getISOTimeUTC(Date.now() + 24 * 60 * 60 * 1000),
       url: `https://somewhere.test/actors/pollcreator/questions/${Date.now()}`,
       oneOf: [
-        { type: 'Note', name: 'Yes', replies: { type: 'Collection', totalItems: 0 } },
-        { type: 'Note', name: 'No', replies: { type: 'Collection', totalItems: 0 } }
+        {
+          type: 'Note',
+          name: 'Yes',
+          replies: { type: 'Collection', totalItems: 0 }
+        },
+        {
+          type: 'Note',
+          name: 'No',
+          replies: { type: 'Collection', totalItems: 0 }
+        }
       ]
       // Note: No tag field at all, simulating real ActivityPub payloads
     }

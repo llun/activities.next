@@ -1,4 +1,4 @@
-import { WebFinger } from '@/lib/activities/types'
+import { WebFinger } from '@/lib/types/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { getTracer } from '@/lib/utils/trace'

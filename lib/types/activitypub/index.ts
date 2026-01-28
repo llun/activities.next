@@ -70,4 +70,5 @@ export {
 } from './collections'
 
 // WebFinger types
-export { APLink, WebFinger, Signature, APError } from './webfinger'
+export { APLink, WebFinger } from './webfinger'
+export type { Signature, APError } from './webfinger'

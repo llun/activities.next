@@ -1,10 +1,10 @@
 import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
-import {
-  OrderedCollection,
-  getOrderCollectionFirstPage
-} from '@/lib/activities/entities/orderedCollection'
-import { OrderedCollectionPage } from '@/lib/activities/entities/orderedCollectionPage'
 import { Actor } from '@/lib/schema'
+import {
+  APOrderedCollection,
+  APOrderedCollectionPage,
+  getOrderCollectionFirstPage
+} from '@/lib/types/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { getTracer } from '@/lib/utils/trace'
@@ -43,7 +43,7 @@ export const getActorCollections = async ({ person, field }: Params) =>
         return null
       }
 
-      const collection = JSON.parse(fieldResponse.body) as OrderedCollection
+      const collection = JSON.parse(fieldResponse.body) as APOrderedCollection
       const pageUrl = getOrderCollectionFirstPage(collection)
 
       // Return totalItems even if page URL is not available
@@ -79,7 +79,7 @@ export const getActorCollections = async ({ person, field }: Params) =>
           }
         }
         return {
-          page: JSON.parse(response.body) as OrderedCollectionPage,
+          page: JSON.parse(response.body) as APOrderedCollectionPage,
           totalItems: collection.totalItems ?? 0
         }
       } catch (error) {

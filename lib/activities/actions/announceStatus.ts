@@ -1,4 +1,5 @@
-import { ContextEntity } from '../entities/base'
+import { ContextEntity } from '@/lib/types/activitypub'
+
 import { BaseActivity } from './base'
 import { AnnounceAction } from './types'
 

@@ -1,18 +1,18 @@
 // Database operation parameter types and interfaces
 import { z } from 'zod'
 
+import { Mastodon } from '@/lib/schema'
+import { Timeline } from '@/lib/services/timelines/types'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
-import { Session } from '@/lib/types/domain/session'
-import { Status } from '@/lib/types/domain/status'
-import { Tag, TagType } from '@/lib/types/domain/tag'
 import { AuthCode } from '@/lib/types/domain/oauth2/authCode'
 import { Client } from '@/lib/types/domain/oauth2/client'
 import { Token } from '@/lib/types/domain/oauth2/token'
-import { Timeline } from '@/lib/services/timelines/types'
-import { Mastodon } from '@/lib/schema'
+import { Session } from '@/lib/types/domain/session'
+import { Status } from '@/lib/types/domain/status'
+import { Tag, TagType } from '@/lib/types/domain/tag'
 
 import { ActorSettings } from './rows'
 

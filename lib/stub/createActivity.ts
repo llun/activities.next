@@ -1,9 +1,11 @@
+import { APDocument } from '@/lib/types/activitypub'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { CreateStatus } from '../activities/actions/createStatus'
-import { Document } from '../activities/entities/document'
 import { MockMastodonActivityPubNote } from './note'
 import { ACTOR1_ID } from './seed/actor1'
+
+type Document = APDocument
 
 const CONTEXT = {
   '@context': [

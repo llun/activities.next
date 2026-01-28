@@ -24,26 +24,28 @@ This document outlines the plan to consolidate all type definitions in the proje
 
 Types are currently scattered across 6 different locations:
 
-| Location | Purpose | File Count |
-|----------|---------|------------|
-| `lib/models/` | Domain/Business models (Zod) | 14 files |
-| `lib/schema/` | ActivityPub protocol schemas (Zod) | 30+ files |
-| `lib/schema/mastodon/` | Mastodon API response schemas (Zod) | 15+ files |
-| `lib/database/types/` | Database operation params & interfaces | 20+ files |
-| `lib/database/types/sql.ts` | SQL row type definitions | 1 file |
-| `lib/activities/entities/` | ActivityPub entities (TS interfaces) | 14 files |
-| `lib/activities/types.ts` | WebFinger and related types | 1 file |
+| Location                    | Purpose                                | File Count |
+| --------------------------- | -------------------------------------- | ---------- |
+| `lib/models/`               | Domain/Business models (Zod)           | 14 files   |
+| `lib/schema/`               | ActivityPub protocol schemas (Zod)     | 30+ files  |
+| `lib/schema/mastodon/`      | Mastodon API response schemas (Zod)    | 15+ files  |
+| `lib/database/types/`       | Database operation params & interfaces | 20+ files  |
+| `lib/database/types/sql.ts` | SQL row type definitions               | 1 file     |
+| `lib/activities/entities/`  | ActivityPub entities (TS interfaces)   | 14 files   |
+| `lib/activities/types.ts`   | WebFinger and related types            | 1 file     |
 
 **Total: ~95 files containing type definitions**
 
 ### Current Type Examples
 
 **Actor** is defined in 3 places:
+
 - `lib/models/actor.ts` - Internal domain model
 - `lib/schema/actor.ts` - ActivityPub Actor (Person/Service)
 - `lib/activities/entities/person.ts` - ActivityPub Person interface
 
 **Document** is defined in 2 places:
+
 - `lib/schema/note/document.ts` - Zod schema
 - `lib/activities/entities/document.ts` - TypeScript interface
 
@@ -52,26 +54,33 @@ Types are currently scattered across 6 different locations:
 ## Problems Identified
 
 ### 1. Name Collisions
+
 Same names used for different concepts:
+
 - `Actor` (domain) vs `Actor` (ActivityPub)
 - `Account` (domain) vs `Account` (Mastodon API)
 - `Status` (domain) vs `Status` (Mastodon API)
 
 ### 2. Duplicate Definitions
+
 TypeScript interfaces in `lib/activities/entities/` duplicate Zod schemas in `lib/schema/`:
+
 - `document.ts` (interface) ↔ `schema/note/document.ts` (Zod)
 - `image.ts` (interface) ↔ `schema/image.ts` (Zod)
 - `person.ts` (interface) ↔ `schema/actor.ts` (Zod)
 - `collection.ts` (interface) ↔ `schema/collection.ts` (Zod)
 
 ### 3. Scattered Transformations
+
 Type conversion logic is spread across many files:
+
 - `lib/database/sql/actor.ts` → `getActor()`, `getMastodonActor()`
 - `lib/models/status.ts` → `fromNote()`, `toActivityPubObject()`
 - `lib/utils/getPersonFromActor.ts` → `getPersonFromActor()`
 - `lib/services/mastodon/getMastodonStatus.ts` → `getMastodonStatus()`
 
 ### 4. Inconsistent Patterns
+
 - Some places use Zod schemas
 - Some places use TypeScript interfaces
 - No clear convention for when to use which
@@ -160,35 +169,36 @@ lib/types/
 
 ### Files to Delete (replaced by Zod schemas)
 
-| File | Replacement |
-|------|-------------|
-| `lib/activities/entities/document.ts` | `lib/types/activitypub/objects.ts` |
-| `lib/activities/entities/image.ts` | `lib/types/activitypub/objects.ts` |
-| `lib/activities/entities/collection.ts` | `lib/types/activitypub/collections.ts` |
-| `lib/activities/entities/person.ts` | `lib/types/activitypub/actor.ts` |
-| `lib/activities/entities/propertyValue.ts` | `lib/types/activitypub/objects.ts` |
-| `lib/activities/entities/follow.ts` | `lib/types/activitypub/activities.ts` |
+| File                                       | Replacement                            |
+| ------------------------------------------ | -------------------------------------- |
+| `lib/activities/entities/document.ts`      | `lib/types/activitypub/objects.ts`     |
+| `lib/activities/entities/image.ts`         | `lib/types/activitypub/objects.ts`     |
+| `lib/activities/entities/collection.ts`    | `lib/types/activitypub/collections.ts` |
+| `lib/activities/entities/person.ts`        | `lib/types/activitypub/actor.ts`       |
+| `lib/activities/entities/propertyValue.ts` | `lib/types/activitypub/objects.ts`     |
+| `lib/activities/entities/follow.ts`        | `lib/types/activitypub/activities.ts`  |
 
 ### Files to Merge
 
-| Files | Merge Into |
-|-------|------------|
-| `lib/activities/entities/base.ts` | `lib/types/activitypub/index.ts` |
-| `lib/activities/entities/orderedCollection.ts` | `lib/types/activitypub/collections.ts` |
-| `lib/activities/entities/orderedCollectionPage.ts` | `lib/types/activitypub/collections.ts` |
-| `lib/activities/entities/collectionPage.ts` | `lib/types/activitypub/collections.ts` |
+| Files                                                  | Merge Into                             |
+| ------------------------------------------------------ | -------------------------------------- |
+| `lib/activities/entities/base.ts`                      | `lib/types/activitypub/index.ts`       |
+| `lib/activities/entities/orderedCollection.ts`         | `lib/types/activitypub/collections.ts` |
+| `lib/activities/entities/orderedCollectionPage.ts`     | `lib/types/activitypub/collections.ts` |
+| `lib/activities/entities/collectionPage.ts`            | `lib/types/activitypub/collections.ts` |
 | `lib/activities/entities/featuredOrderedCollection.ts` | `lib/types/activitypub/collections.ts` |
-| `lib/activities/types.ts` | `lib/types/activitypub/webfinger.ts` |
+| `lib/activities/types.ts`                              | `lib/types/activitypub/webfinger.ts`   |
 
 ### Files to Keep (utility functions, not types)
 
-| File | Reason |
-|------|--------|
+| File                              | Reason                                                      |
+| --------------------------------- | ----------------------------------------------------------- |
 | `lib/activities/entities/note.ts` | Contains utility functions (`getContent`, `getReply`, etc.) |
 
 ### Consolidation Summary
 
 **Database types** (12+ files → 2 files):
+
 ```
 lib/database/types/actor.ts
 lib/database/types/status.ts
@@ -205,6 +215,7 @@ lib/database/types/sql.ts           →  lib/types/database/rows.ts
 ```
 
 **ActivityPub schemas** (20+ files → 4 files):
+
 ```
 lib/schema/actor.ts
 lib/schema/accept.ts
@@ -224,15 +235,15 @@ lib/schema/collection.ts            →  lib/types/activitypub/collections.ts
 
 ### File Count Comparison
 
-| Location | Before | After |
-|----------|--------|-------|
-| `lib/models/` | 14 files | 0 (moved to `lib/types/domain/`) |
-| `lib/schema/` | 30+ files | 0 (moved to `lib/types/activitypub/`) |
-| `lib/schema/mastodon/` | 15+ files | 0 (moved to `lib/types/mastodon/`) |
-| `lib/database/types/` | 20+ files | 0 (moved to `lib/types/database/`) |
-| `lib/activities/entities/` | 14 files | 1 file (note.ts - utilities only) |
-| `lib/activities/types.ts` | 1 file | 0 (moved) |
-| **`lib/types/`** | 0 | ~20 files |
+| Location                   | Before    | After                                 |
+| -------------------------- | --------- | ------------------------------------- |
+| `lib/models/`              | 14 files  | 0 (moved to `lib/types/domain/`)      |
+| `lib/schema/`              | 30+ files | 0 (moved to `lib/types/activitypub/`) |
+| `lib/schema/mastodon/`     | 15+ files | 0 (moved to `lib/types/mastodon/`)    |
+| `lib/database/types/`      | 20+ files | 0 (moved to `lib/types/database/`)    |
+| `lib/activities/entities/` | 14 files  | 1 file (note.ts - utilities only)     |
+| `lib/activities/types.ts`  | 1 file    | 0 (moved)                             |
+| **`lib/types/`**           | 0         | ~20 files                             |
 
 **Net reduction: ~95 files → ~21 files (78% reduction)**
 
@@ -286,14 +297,12 @@ No prefixes needed - use directory namespace:
 
 ```typescript
 // Domain types
+// Usage: Mastodon.Account, Mastodon.Status
+// ActivityPub types
+import { APFollow, APNote } from '@/lib/types/activitypub'
 import { Actor, Status } from '@/lib/types/domain'
-
 // Mastodon types (use namespace to avoid collision)
 import * as Mastodon from '@/lib/types/mastodon'
-// Usage: Mastodon.Account, Mastodon.Status
-
-// ActivityPub types
-import { APNote, APFollow } from '@/lib/types/activitypub'
 ```
 
 ### ActivityPub Naming Convention
@@ -356,16 +365,16 @@ To address the "Scattered Transformations" problem, transformation functions wil
 
 ### Transformation Function Locations
 
-| Transformation | Current Location | New Location |
-|----------------|------------------|--------------|
-| `getActor()` (SQL → Domain) | `lib/database/sql/actor.ts` | Keep in `lib/database/sql/actor.ts` (database layer responsibility) |
-| `getMastodonActor()` (Domain → Mastodon) | `lib/database/sql/actor.ts` | Move to `lib/types/domain/actor.ts` |
-| `fromNote()` (ActivityPub → Domain) | `lib/models/status.ts` | Keep in `lib/types/domain/status.ts` |
-| `toActivityPubObject()` (Domain → ActivityPub) | `lib/models/status.ts` | Keep in `lib/types/domain/status.ts` |
-| `getPersonFromActor()` (Domain → ActivityPub) | `lib/utils/getPersonFromActor.ts` | Move to `lib/types/domain/actor.ts` |
-| `getMastodonStatus()` (Domain → Mastodon) | `lib/services/mastodon/getMastodonStatus.ts` | Keep in services (requires database access) |
-| `getMastodonAttachment()` | `lib/models/attachment.ts` | Keep in `lib/types/domain/attachment.ts` |
-| `getDocumentFromAttachment()` | `lib/models/attachment.ts` | Keep in `lib/types/domain/attachment.ts` |
+| Transformation                                 | Current Location                             | New Location                                                        |
+| ---------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
+| `getActor()` (SQL → Domain)                    | `lib/database/sql/actor.ts`                  | Keep in `lib/database/sql/actor.ts` (database layer responsibility) |
+| `getMastodonActor()` (Domain → Mastodon)       | `lib/database/sql/actor.ts`                  | Move to `lib/types/domain/actor.ts`                                 |
+| `fromNote()` (ActivityPub → Domain)            | `lib/models/status.ts`                       | Keep in `lib/types/domain/status.ts`                                |
+| `toActivityPubObject()` (Domain → ActivityPub) | `lib/models/status.ts`                       | Keep in `lib/types/domain/status.ts`                                |
+| `getPersonFromActor()` (Domain → ActivityPub)  | `lib/utils/getPersonFromActor.ts`            | Move to `lib/types/domain/actor.ts`                                 |
+| `getMastodonStatus()` (Domain → Mastodon)      | `lib/services/mastodon/getMastodonStatus.ts` | Keep in services (requires database access)                         |
+| `getMastodonAttachment()`                      | `lib/models/attachment.ts`                   | Keep in `lib/types/domain/attachment.ts`                            |
+| `getDocumentFromAttachment()`                  | `lib/models/attachment.ts`                   | Keep in `lib/types/domain/attachment.ts`                            |
 
 ### Transformation Principles
 
@@ -509,6 +518,7 @@ yarn test && yarn lint && yarn build
 ## Rollback Plan
 
 If issues arise:
+
 1. Re-exports ensure backward compatibility
 2. Can revert import changes file-by-file
 3. Old files not deleted until final verification

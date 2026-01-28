@@ -22,7 +22,9 @@ export const APCollectionWithFirstPage = z.object({
     items: z.union([z.any(), z.array(z.any())])
   })
 })
-export type APCollectionWithFirstPage = z.infer<typeof APCollectionWithFirstPage>
+export type APCollectionWithFirstPage = z.infer<
+  typeof APCollectionWithFirstPage
+>
 
 export const APCollectionWithItems = z.object({
   id: z.string(),
@@ -67,7 +69,9 @@ export const APFeaturedOrderedCollection = z.object({
   totalItems: z.number(),
   orderedItems: z.array(z.any())
 })
-export type APFeaturedOrderedCollection = z.infer<typeof APFeaturedOrderedCollection>
+export type APFeaturedOrderedCollection = z.infer<
+  typeof APFeaturedOrderedCollection
+>
 
 // ============================================================================
 // Helper Functions

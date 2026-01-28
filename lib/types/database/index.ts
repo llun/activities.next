@@ -1,7 +1,7 @@
 // Database types - SQL row types and operation parameters
 
 // SQL row types
-export {
+export type {
   ActorSettings,
   ActorDeletionStatus,
   SQLActor,

@@ -6,9 +6,8 @@ import {
   Question,
   VideoContent
 } from '@/lib/schema'
+import { ContextEntity, Signature } from '@/lib/types/activitypub'
 
-import { ContextEntity } from '../entities/base'
-import { Signature } from '../types'
 import { BaseActivity } from './base'
 import { UpdateAction } from './types'
 

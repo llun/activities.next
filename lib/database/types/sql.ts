@@ -1,5 +1,5 @@
 // Re-export from new location for backward compatibility
-export {
+export type {
   ActorSettings,
   ActorDeletionStatus,
   SQLActor,

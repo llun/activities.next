@@ -1,11 +1,6 @@
 import identity from 'lodash/identity'
 import { z } from 'zod'
 
-import { ActorProfile } from './actor'
-import { Attachment, getDocumentFromAttachment } from './attachment'
-import { PollChoice } from './pollChoice'
-import { Tag, getMentionFromTag } from './tag'
-
 // These imports will be updated once ActivityPub types are migrated
 import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
 import {
@@ -15,6 +10,11 @@ import {
 } from '@/lib/activities/entities/note'
 import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/schema'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+
+import { ActorProfile } from './actor'
+import { Attachment, getDocumentFromAttachment } from './attachment'
+import { PollChoice } from './pollChoice'
+import { Tag, getMentionFromTag } from './tag'
 
 // Document type for fromNote transformation
 interface Document {
