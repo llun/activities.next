@@ -1,6 +1,6 @@
 import { HTTPError } from 'got'
 
-import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { getTracer } from '@/lib/utils/trace'
 

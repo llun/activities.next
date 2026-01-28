@@ -1,4 +1,4 @@
-import { User } from '@/lib/models/oauth2/user'
+import { User } from '@/lib/types/oauth2/user'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getOAuth2Server } from '@/lib/services/oauth/server'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'

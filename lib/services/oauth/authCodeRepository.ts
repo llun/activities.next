@@ -13,7 +13,7 @@ import {
 import { DEFAULT_OAUTH_TOKEN_LENGTH } from '@/lib/constants'
 import { Database } from '@/lib/database/types'
 import { Scope } from '@/lib/types/database/operations'
-import { AuthCode } from '@/lib/models/oauth2/authCode'
+import { AuthCode } from '@/lib/types/oauth2/authCode'
 
 export class AuthCodeRepository implements OAuthAuthCodeRepository {
   database: Database

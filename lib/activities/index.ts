@@ -13,13 +13,13 @@ import {
   DeleteAction,
   UndoAction,
   UpdateAction
-} from '@/lib/activities/actions/types'
+} from '@/lib/types/activitypub/activities'
 import { UndoFollow } from '@/lib/activities/actions/undoFollow'
 import { UndoLike } from '@/lib/activities/actions/undoLike'
 import { UndoStatus } from '@/lib/activities/actions/undoStatus'
 import { UpdateStatus } from '@/lib/activities/actions/updateStatus'
 import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
-import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Actor } from '@/lib/types/domain/actor'
 import { Follow } from '@/lib/types/domain/follow'
 import {

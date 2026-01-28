@@ -7,7 +7,7 @@ import {
   DeleteAction,
   UndoAction,
   UpdateAction
-} from '@/lib/activities/actions/types'
+} from '@/lib/types/activitypub/activities'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,

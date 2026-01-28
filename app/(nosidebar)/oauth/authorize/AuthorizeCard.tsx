@@ -23,7 +23,7 @@ import {
 import { Label } from '@/lib/components/ui/label'
 import { UsableScopes } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
-import { Client } from '@/lib/models/oauth2/client'
+import { Client } from '@/lib/types/oauth2/client'
 
 import { SearchParams } from './types'
 

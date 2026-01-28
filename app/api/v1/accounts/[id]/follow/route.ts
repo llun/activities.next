@@ -1,5 +1,5 @@
 import { follow } from '@/lib/activities'
-import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { getRelationship } from '@/lib/services/accounts/relationship'

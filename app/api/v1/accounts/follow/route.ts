@@ -3,7 +3,7 @@
  * This custom endpoint is maintained for backward compatibility.
  */
 import { follow, unfollow } from '@/lib/activities'
-import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'

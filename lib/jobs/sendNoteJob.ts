@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { sendNote } from '@/lib/activities'
-import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { FollowStatus } from '@/lib/types/domain/follow'

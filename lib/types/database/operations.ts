@@ -15,9 +15,9 @@ import * as Mastodon from '@/lib/types/mastodon'
 import { Timeline } from '@/lib/services/timelines/types'
 
 // OAuth2 models - these are in lib/models/oauth2 and not being moved
-import { AuthCode } from '@/lib/models/oauth2/authCode'
-import { Client } from '@/lib/models/oauth2/client'
-import { Token } from '@/lib/models/oauth2/token'
+import { AuthCode } from '@/lib/types/oauth2/authCode'
+import { Client } from '@/lib/types/oauth2/client'
+import { Token } from '@/lib/types/oauth2/token'
 
 // ============================================================================
 // Base Database

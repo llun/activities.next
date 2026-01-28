@@ -1,6 +1,6 @@
 import { getNote } from '@/lib/activities'
 import { AnnounceStatus } from '@/lib/activities/actions/announceStatus'
-import { AnnounceAction, CreateAction } from '@/lib/activities/actions/types'
+import { AnnounceAction, CreateAction } from '@/lib/types/activitypub/activities'
 import { Database } from '@/lib/database/types'
 import { Status, fromAnnoucne, fromNote } from '@/lib/types/domain/status'
 import { Actor } from '@/lib/types/activitypub'

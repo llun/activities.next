@@ -1,4 +1,4 @@
-import { getActorPerson } from '@/lib/activities/requests/getActorPerson'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 

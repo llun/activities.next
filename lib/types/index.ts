@@ -11,3 +11,6 @@ export * as ActivityPub from './activitypub'
 
 // Mastodon API types
 export * as Mastodon from './mastodon'
+
+// OAuth2 types
+export * as OAuth2 from './oauth2'

@@ -20,10 +20,10 @@ import {
   UpdateClientParams,
   UpdateRefreshTokenParams
 } from '@/lib/types/database/operations'
-import { AuthCode } from '@/lib/models/oauth2/authCode'
-import { Client } from '@/lib/models/oauth2/client'
-import { Token } from '@/lib/models/oauth2/token'
-import { User } from '@/lib/models/oauth2/user'
+import { AuthCode } from '@/lib/types/oauth2/authCode'
+import { Client } from '@/lib/types/oauth2/client'
+import { Token } from '@/lib/types/oauth2/token'
+import { User } from '@/lib/types/oauth2/user'
 
 export const OAuthSQLDatabaseMixin = (
   database: Knex,
