@@ -16,7 +16,7 @@ import {
   GetLocalFollowersForActorIdParams,
   GetLocalFollowsFromInboxUrlParams,
   UpdateFollowStatusParams
-} from '@/lib/database/types/follow'
+} from '@/lib/types/database/operations'
 import { Account } from '@/lib/types/domain/account'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 

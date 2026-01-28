@@ -6,7 +6,7 @@ import {
   GetLikeCountParams,
   IsActorLikedStatusParams,
   LikeDatabase
-} from '@/lib/database/types/like'
+} from '@/lib/types/database/operations'
 
 export const LikeSQLDatabaseMixin = (database: Knex): LikeDatabase => ({
   async createLike({ actorId, statusId }: CreateLikeParams) {

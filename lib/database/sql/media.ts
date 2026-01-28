@@ -12,7 +12,7 @@ import {
   Media,
   MediaDatabase,
   PaginatedMediaWithStatus
-} from '@/lib/database/types/media'
+} from '@/lib/types/database/operations'
 import { Attachment } from '@/lib/types/domain/attachment'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
