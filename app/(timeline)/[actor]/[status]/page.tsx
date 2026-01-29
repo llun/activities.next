@@ -8,7 +8,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { StatusType } from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
@@ -139,27 +139,34 @@ const Page: FC<Props> = async ({ params }) => {
     }
   }
 
-  const previouses = []
+  const previouses: Array<Status | { id: string; reply: string }> = []
   if (status.type !== StatusType.enum.Announce && status.reply) {
+    let replyId = status.reply
     let replyStatus = await database.getStatus({
-      statusId: status.reply,
+      statusId: replyId,
       withReplies: false
     })
-    while (previouses.length < 3 && replyStatus) {
-      previouses.push(replyStatus)
-      // This should be impossible
-      if (replyStatus.type === StatusType.enum.Announce) {
-        replyStatus = null
+
+    while (previouses.length < 3) {
+      if (replyStatus) {
+        previouses.push(replyStatus)
+        // This should be impossible
+        if (replyStatus.type === StatusType.enum.Announce) {
+          break
+        }
+        if (!replyStatus.reply) {
+          break
+        }
+        replyId = replyStatus.reply
+        replyStatus = await database.getStatus({
+          statusId: replyStatus.reply,
+          withReplies: false
+        })
+      } else {
+        // Parent doesn't exist locally - add placeholder
+        previouses.push({ id: replyId, reply: replyId })
         break
       }
-      if (!replyStatus.reply) {
-        replyStatus = null
-        break
-      }
-      replyStatus = await database.getStatus({
-        statusId: replyStatus.reply,
-        withReplies: false
-      })
     }
   }
 
@@ -167,19 +174,52 @@ const Page: FC<Props> = async ({ params }) => {
     <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
       <Header />
 
-      {previouses.reverse().map((item) => (
-        <div
-          key={item.id}
-          className="border-b border-l-4 border-l-primary/20 bg-muted/30"
-        >
-          <StatusBox
-            host={host}
-            currentTime={currentTime}
-            currentActor={currentActorProfile}
-            status={cleanJson(item)}
-          />
-        </div>
-      ))}
+      {previouses.reverse().map((item) => {
+        // Check if this is a placeholder for unavailable status
+        if ('type' in item) {
+          // It's a real Status object
+          return (
+            <div
+              key={item.id}
+              className="border-b border-l-4 border-l-primary/20 bg-muted/30"
+            >
+              <StatusBox
+                host={host}
+                currentTime={currentTime}
+                currentActor={currentActorProfile}
+                status={cleanJson(item)}
+              />
+            </div>
+          )
+        } else {
+          // It's a placeholder for missing parent status
+          return (
+            <div
+              key={item.id}
+              className="border-b border-l-4 border-l-primary/20 bg-muted/30"
+            >
+              <div className="p-4 text-sm text-muted-foreground">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-muted" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="mb-2 font-medium">Status not available</div>
+                    <div className="text-xs">
+                      This status is not available on this server. It may have
+                      been deleted or is from a remote server that hasn&apos;t
+                      been fetched yet.
+                    </div>
+                    <div className="mt-2 text-xs break-all opacity-50">
+                      {item.reply}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        }
+      })}
 
       <div className="border-b bg-background">
         <StatusBox
