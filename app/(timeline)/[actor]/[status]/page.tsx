@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { fetchAndStoreRemoteStatus } from '@/lib/actions/fetchRemoteStatus'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getActorProfile } from '@/lib/types/domain/actor'
@@ -139,6 +140,9 @@ const Page: FC<Props> = async ({ params }) => {
     }
   }
 
+  // Track if we fetched any missing parent statuses
+  let fetchedMissingStatus = false
+
   // Type for placeholder when parent status doesn't exist in local database
   type PlaceholderStatus = { id: string; isMissing: true }
 
@@ -166,7 +170,12 @@ const Page: FC<Props> = async ({ params }) => {
           withReplies: false
         })
       } else {
-        // Parent doesn't exist locally - add placeholder
+        // Parent doesn't exist locally - fetch and store it
+        const fetched = await fetchAndStoreRemoteStatus(database, replyId)
+        if (fetched) {
+          fetchedMissingStatus = true
+        }
+        // Add placeholder to show refresh message
         previouses.push({ id: replyId, isMissing: true })
         break
       }
@@ -192,11 +201,27 @@ const Page: FC<Props> = async ({ params }) => {
                     <div className="h-10 w-10 rounded-full bg-muted" />
                   </div>
                   <div className="flex-1">
-                    <div className="mb-2 font-medium">Status not available</div>
+                    <div className="mb-2 font-medium">
+                      {fetchedMissingStatus
+                        ? 'Parent status fetched'
+                        : 'Status not available'}
+                    </div>
                     <div className="text-xs">
-                      This status is not available on this server. It may have
-                      been deleted or is from a remote server that hasn&apos;t
-                      been fetched yet.
+                      {fetchedMissingStatus ? (
+                        <>
+                          The parent status has been fetched from the remote
+                          server and stored locally.{' '}
+                          <span className="font-semibold">
+                            Please refresh this page to view it.
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          This status is not available on this server. It may
+                          have been deleted or could not be fetched from the
+                          remote server.
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
