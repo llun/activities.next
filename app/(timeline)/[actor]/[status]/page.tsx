@@ -1,12 +1,14 @@
+import crypto from 'crypto'
 import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
-import { fetchAndStoreRemoteStatus } from '@/lib/actions/fetchRemoteStatus'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -16,6 +18,7 @@ import {
 } from '@/lib/utils/activitystream'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { logger } from '@/lib/utils/logger'
 
 import { Header } from './Header'
 import { StatusBox } from './StatusBox'
@@ -140,9 +143,6 @@ const Page: FC<Props> = async ({ params }) => {
     }
   }
 
-  // Track if we fetched any missing parent statuses
-  let fetchedMissingStatus = false
-
   // Type for placeholder when parent status doesn't exist in local database
   type PlaceholderStatus = { id: string; isMissing: true }
 
@@ -170,12 +170,20 @@ const Page: FC<Props> = async ({ params }) => {
           withReplies: false
         })
       } else {
-        // Parent doesn't exist locally - fetch and store it
-        const fetched = await fetchAndStoreRemoteStatus(database, replyId)
-        if (fetched) {
-          fetchedMissingStatus = true
-        }
-        // Add placeholder to show refresh message
+        // Parent doesn't exist locally - queue job to fetch it in background
+        // This is fire-and-forget - we show placeholder immediately
+        getQueue()
+          .publish({
+            id: crypto.randomUUID(),
+            name: FETCH_REMOTE_STATUS_JOB_NAME,
+            data: { statusUrl: replyId }
+          })
+          .catch((error) => {
+            // Log error but don't block rendering
+            logger.error({ error, statusUrl: replyId }, 'Failed to queue fetch job')
+          })
+
+        // Add placeholder to show that fetch is in progress
         previouses.push({ id: replyId, isMissing: true })
         break
       }
@@ -202,26 +210,14 @@ const Page: FC<Props> = async ({ params }) => {
                   </div>
                   <div className="flex-1">
                     <div className="mb-2 font-medium">
-                      {fetchedMissingStatus
-                        ? 'Parent status fetched'
-                        : 'Status not available'}
+                      Fetching parent status...
                     </div>
                     <div className="text-xs">
-                      {fetchedMissingStatus ? (
-                        <>
-                          The parent status has been fetched from the remote
-                          server and stored locally.{' '}
-                          <span className="font-semibold">
-                            Please refresh this page to view it.
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          This status is not available on this server. It may
-                          have been deleted or could not be fetched from the
-                          remote server.
-                        </>
-                      )}
+                      The parent status is being fetched from the remote server
+                      in the background.{' '}
+                      <span className="font-semibold">
+                        Please refresh this page in a moment to view it.
+                      </span>
                     </div>
                   </div>
                 </div>
