@@ -1,3 +1,5 @@
+import crypto from 'crypto'
+
 import {
   getContent,
   getReply,
@@ -8,9 +10,10 @@ import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/types/activitypub'
 
 import { recordActorIfNeeded } from '../actions/utils'
 import { addStatusToTimelines } from '../services/timelines'
+import { getQueue } from '../services/queue'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
-import { CREATE_POLL_JOB_NAME } from './names'
+import { CREATE_POLL_JOB_NAME, FETCH_REMOTE_STATUS_JOB_NAME } from './names'
 
 export const createPollJob = createJobHandle(
   CREATE_POLL_JOB_NAME,
@@ -104,5 +107,30 @@ export const createPollJob = createJobHandle(
         })
       })
     ])
+
+    // Check if this poll has a parent that doesn't exist locally
+    // If so, queue a job to fetch it
+    const replyId = getReply(question.inReplyTo)
+    if (replyId) {
+      const parentStatus = await database.getStatus({
+        statusId: replyId,
+        withReplies: false
+      })
+      
+      if (!parentStatus) {
+        // Parent doesn't exist locally - queue job to fetch it
+        // Fire-and-forget: don't block on this
+        getQueue()
+          .publish({
+            id: crypto.randomUUID(),
+            name: FETCH_REMOTE_STATUS_JOB_NAME,
+            data: { statusUrl: replyId }
+          })
+          .catch(() => {
+            // Silently fail - fetching parent is best effort
+            // The main poll has already been created successfully
+          })
+      }
+    }
   }
 )
