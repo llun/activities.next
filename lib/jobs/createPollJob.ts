@@ -115,7 +115,7 @@ export const createPollJob = createJobHandle(
         statusId: replyId,
         withReplies: false
       })
-      
+
       if (!parentStatus) {
         // Parent doesn't exist locally - queue job to fetch it
         // Fire-and-forget: don't block on this

@@ -60,6 +60,43 @@
   return apiErrorResponse(StatusCode.NotFound)
   ```
 
+## Server Component Architecture
+
+- **Server components** in `app/` (pages, layouts) should **NOT** directly call queue operations or background job services.
+- Queue operations like `getQueue().publish()` should be placed in **API routes** (`app/api/`).
+- This maintains proper separation of concerns: server components handle rendering, API routes handle business logic.
+- Example:
+
+  **❌ Incorrect** - Queue logic in server component:
+
+  ```typescript
+  // app/(timeline)/[actor]/[status]/page.tsx
+  import { getQueue } from '@/lib/services/queue'
+
+  const Page = async () => {
+    // Don't do this in server components
+    await getQueue().publish({ ... })
+  }
+  ```
+
+  **✅ Correct** - Queue logic in API route:
+
+  ```typescript
+  // Server component calls API
+  // app/(timeline)/[actor]/[status]/page.tsx
+  fetch('/api/v1/statuses/fetch-remote', {
+    method: 'POST',
+    body: JSON.stringify({ statusUrl })
+  })
+
+  // API route handles queue
+  // app/api/v1/statuses/fetch-remote/route.ts
+  export const POST = async (request) => {
+    await getQueue().publish({ ... })
+    return apiResponse({ ... })
+  }
+  ```
+
 ## Testing Guidelines
 
 - Jest is configured via `jest.config.js` with SWC transforms.

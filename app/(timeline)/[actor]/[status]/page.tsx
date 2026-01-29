@@ -178,7 +178,10 @@ const Page: FC<Props> = async ({ params }) => {
           body: JSON.stringify({ statusUrl: replyId })
         }).catch((error) => {
           // Log error but don't block rendering
-          logger.error({ error, statusUrl: replyId }, 'Failed to queue fetch job')
+          logger.error(
+            { error, statusUrl: replyId },
+            'Failed to queue fetch job'
+          )
         })
 
         // Add placeholder to show that fetch is in progress

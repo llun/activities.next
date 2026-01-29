@@ -64,26 +64,36 @@ export const NotificationItem = ({
           />
         )
       case 'follow':
-        return (
-          <FollowNotification notification={notificationWithAccount} />
-        )
+        return <FollowNotification notification={notificationWithAccount} />
       case 'like':
         // Status-requiring notifications - type assertion for compatibility
         return (
           <LikeNotification
-            notification={notificationWithAccount as NotificationWithData & { status: Status }}
+            notification={
+              notificationWithAccount as NotificationWithData & {
+                status: Status
+              }
+            }
           />
         )
       case 'reply':
         return (
           <ReplyNotification
-            notification={notificationWithAccount as NotificationWithData & { status: Status }}
+            notification={
+              notificationWithAccount as NotificationWithData & {
+                status: Status
+              }
+            }
           />
         )
       case 'mention':
         return (
           <MentionNotification
-            notification={notificationWithAccount as NotificationWithData & { status: Status }}
+            notification={
+              notificationWithAccount as NotificationWithData & {
+                status: Status
+              }
+            }
           />
         )
       default:

@@ -134,7 +134,10 @@ export async function fetchAndStoreRemoteStatus(
       })
     ])
 
-    logger.info({ statusId: note.id }, 'Successfully fetched and stored remote status')
+    logger.info(
+      { statusId: note.id },
+      'Successfully fetched and stored remote status'
+    )
     return true
   } catch (error) {
     logger.error({ error, statusUrl }, 'Error fetching remote status')
