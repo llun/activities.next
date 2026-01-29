@@ -64,6 +64,7 @@
 
 - **Server components** in `app/` (pages, layouts) should **NOT** directly call queue operations or background job services.
 - Queue operations like `getQueue().publish()` should be placed in **API routes** (`app/api/`).
+- Similarly, functions like `fetchAndStoreRemoteStatus()` that involve async operations should not be called directly from server components.
 - This maintains proper separation of concerns: server components handle rendering, API routes handle business logic.
 - Example:
 
@@ -76,6 +77,18 @@
   const Page = async () => {
     // Don't do this in server components
     await getQueue().publish({ ... })
+  }
+  ```
+
+  **❌ Incorrect** - Direct async operation in server component:
+
+  ```typescript
+  // app/(timeline)/[actor]/[status]/page.tsx
+  import { fetchAndStoreRemoteStatus } from '@/lib/actions/fetchRemoteStatus'
+
+  const Page = async () => {
+    // Don't do this in server components
+    await fetchAndStoreRemoteStatus(database, statusUrl)
   }
   ```
 
