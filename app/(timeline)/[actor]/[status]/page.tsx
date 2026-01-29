@@ -139,7 +139,10 @@ const Page: FC<Props> = async ({ params }) => {
     }
   }
 
-  const previouses: Array<Status | { id: string; reply: string }> = []
+  // Type for placeholder when parent status doesn't exist in local database
+  type PlaceholderStatus = { id: string; isMissing: true }
+
+  const previouses: Array<Status | PlaceholderStatus> = []
   if (status.type !== StatusType.enum.Announce && status.reply) {
     let replyId = status.reply
     let replyStatus = await database.getStatus({
@@ -150,7 +153,7 @@ const Page: FC<Props> = async ({ params }) => {
     while (previouses.length < 3) {
       if (replyStatus) {
         previouses.push(replyStatus)
-        // This should be impossible
+        // Announce statuses cannot be replies according to ActivityPub spec
         if (replyStatus.type === StatusType.enum.Announce) {
           break
         }
@@ -164,7 +167,7 @@ const Page: FC<Props> = async ({ params }) => {
         })
       } else {
         // Parent doesn't exist locally - add placeholder
-        previouses.push({ id: replyId, reply: replyId })
+        previouses.push({ id: replyId, isMissing: true })
         break
       }
     }
@@ -176,22 +179,7 @@ const Page: FC<Props> = async ({ params }) => {
 
       {previouses.reverse().map((item) => {
         // Check if this is a placeholder for unavailable status
-        if ('type' in item) {
-          // It's a real Status object
-          return (
-            <div
-              key={item.id}
-              className="border-b border-l-4 border-l-primary/20 bg-muted/30"
-            >
-              <StatusBox
-                host={host}
-                currentTime={currentTime}
-                currentActor={currentActorProfile}
-                status={cleanJson(item)}
-              />
-            </div>
-          )
-        } else {
+        if ('isMissing' in item) {
           // It's a placeholder for missing parent status
           return (
             <div
@@ -210,12 +198,24 @@ const Page: FC<Props> = async ({ params }) => {
                       been deleted or is from a remote server that hasn&apos;t
                       been fetched yet.
                     </div>
-                    <div className="mt-2 text-xs break-all opacity-50">
-                      {item.reply}
-                    </div>
                   </div>
                 </div>
               </div>
+            </div>
+          )
+        } else {
+          // It's a real Status object
+          return (
+            <div
+              key={item.id}
+              className="border-b border-l-4 border-l-primary/20 bg-muted/30"
+            >
+              <StatusBox
+                host={host}
+                currentTime={currentTime}
+                currentActor={currentActorProfile}
+                status={cleanJson(item)}
+              />
             </div>
           )
         }
