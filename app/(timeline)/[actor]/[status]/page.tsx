@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
@@ -7,8 +6,6 @@ import { FC } from 'react'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
-import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
-import { getQueue } from '@/lib/services/queue'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -172,16 +169,17 @@ const Page: FC<Props> = async ({ params }) => {
       } else {
         // Parent doesn't exist locally - queue job to fetch it in background
         // This is fire-and-forget - we show placeholder immediately
-        getQueue()
-          .publish({
-            id: crypto.randomUUID(),
-            name: FETCH_REMOTE_STATUS_JOB_NAME,
-            data: { statusUrl: replyId }
-          })
-          .catch((error) => {
-            // Log error but don't block rendering
-            logger.error({ error, statusUrl: replyId }, 'Failed to queue fetch job')
-          })
+        // Call API endpoint to queue the fetch job
+        fetch(`https://${host}/api/v1/statuses/fetch-remote`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ statusUrl: replyId })
+        }).catch((error) => {
+          // Log error but don't block rendering
+          logger.error({ error, statusUrl: replyId }, 'Failed to queue fetch job')
+        })
 
         // Add placeholder to show that fetch is in progress
         previouses.push({ id: replyId, isMissing: true })
