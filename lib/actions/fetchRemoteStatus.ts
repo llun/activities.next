@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { getNote } from '@/lib/activities'
 import {
   BaseNote,
@@ -8,6 +10,13 @@ import {
   getTags
 } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
+import {
+  ArticleContent,
+  ImageContent,
+  Note,
+  PageContent,
+  VideoContent
+} from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
@@ -30,8 +39,17 @@ export async function fetchAndStoreRemoteStatus(
       return false
     }
 
-    // Parse and validate the note
-    const note = normalizeActivityPubContent(rawNote) as BaseNote
+    // Parse and validate the note with Zod schema
+    const BaseNoteSchema = z.union([
+      Note,
+      ImageContent,
+      PageContent,
+      ArticleContent,
+      VideoContent
+    ])
+    const note = BaseNoteSchema.parse(
+      normalizeActivityPubContent(rawNote)
+    ) as BaseNote
 
     // Check if we already have this status
     const existingStatus = await database.getStatus({
