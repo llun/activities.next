@@ -20,7 +20,6 @@ import { StatusType } from '@/lib/types/domain/status'
 
 import { recordActorIfNeeded } from '../actions/utils'
 import { addStatusToTimelines } from '../services/timelines'
-import { getQueue } from '../services/queue'
 import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { CREATE_NOTE_JOB_NAME, FETCH_REMOTE_STATUS_JOB_NAME } from './names'
@@ -134,11 +133,14 @@ export const createNoteJob = createJobHandle(
       if (!parentStatus) {
         // Parent doesn't exist locally - queue job to fetch it
         // Fire-and-forget: don't block on this
-        getQueue()
-          .publish({
-            id: crypto.randomUUID(),
-            name: FETCH_REMOTE_STATUS_JOB_NAME,
-            data: { statusUrl: replyId }
+        // Use dynamic import to avoid circular dependency
+        import('../services/queue')
+          .then(({ getQueue }) => {
+            return getQueue().publish({
+              id: crypto.randomUUID(),
+              name: FETCH_REMOTE_STATUS_JOB_NAME,
+              data: { statusUrl: replyId }
+            })
           })
           .catch(() => {
             // Silently fail - fetching parent is best effort
