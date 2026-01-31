@@ -6,9 +6,12 @@ import { FC } from 'react'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
+import { Status } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
@@ -17,6 +20,7 @@ import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { Header } from './Header'
+import { RemoteStatusLoading } from './RemoteStatusLoading'
 import { StatusBox } from './StatusBox'
 
 interface Props {
@@ -80,6 +84,42 @@ const Page: FC<Props> = async ({ params }) => {
     statusId = decodedStatusParam
   }
 
+  // Check temporary storage if not found locally
+  if (!status) {
+    const tempStatus = (await database.getTemporaryStatus({
+      statusId: fullStatusId
+    })) as Status | null
+
+    if (tempStatus) {
+      status = tempStatus
+      statusId = fullStatusId
+    } else if (currentActor) {
+      // If logged in and not found, queue fetch job
+      const queue = getQueue()
+      await queue.publishDelayed?.(
+        {
+          id: `fetch-${fullStatusId}-${Date.now()}`,
+          name: FETCH_REMOTE_STATUS_JOB_NAME,
+          data: { statusId: fullStatusId }
+        },
+        0 // run immediately (or no delay supported)
+      )
+
+      // If queue doesn't support delayed, it might run immediately via `publish` if we fallback,
+      // but `publishDelayed` is what we call.
+      // Actually `publishDelayed` is optional.
+      if (!queue.publishDelayed) {
+        await queue.publish({
+          id: `fetch-${fullStatusId}-${Date.now()}`,
+          name: FETCH_REMOTE_STATUS_JOB_NAME,
+          data: { statusId: fullStatusId }
+        })
+      }
+
+      return <RemoteStatusLoading statusId={fullStatusId} />
+    }
+  }
+
   if (!status) {
     return notFound()
   }
@@ -89,10 +129,22 @@ const Page: FC<Props> = async ({ params }) => {
       ? status.originalStatus.url
       : status.url
 
-  const replies = await database.getStatusReplies({
-    statusId,
-    url: statusUrl
-  })
+  let replies: Status[] = []
+
+  if (
+    status.type === StatusType.enum.Note &&
+    status.replies &&
+    status.replies.length > 0
+  ) {
+    // If replies are embedded (e.g. temporary status), use them
+    replies = status.replies as Status[]
+  } else {
+    // Otherwise fetch from database
+    replies = await database.getStatusReplies({
+      statusId,
+      url: statusUrl
+    })
+  }
 
   // Check if the status is publicly visible (public or unlisted)
   const isPublicOrUnlisted =

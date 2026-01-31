@@ -8,6 +8,7 @@ export interface JobMessage {
 
 export interface Queue {
   publish(message: JobMessage): Promise<void>
+  publishDelayed?(message: JobMessage, delay: number): Promise<void>
   handle(message: JobMessage): Promise<void>
 }
 
