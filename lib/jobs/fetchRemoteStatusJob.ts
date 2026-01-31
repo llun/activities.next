@@ -136,7 +136,7 @@ export const fetchRemoteStatusJob = createJobHandle(
         }
 
         let itemsFetched = 0
-        const replies: Status[] = []
+        const fetchedReplies: Status[] = []
 
         while (page && itemsFetched < 100) {
             const items = page.orderedItems || page.items || []
@@ -188,7 +188,7 @@ export const fetchRemoteStatusJob = createJobHandle(
                 })
             )).filter((item): item is Status => item !== null)
 
-            replies.push(...pageReplies)
+            fetchedReplies.push(...pageReplies)
 
             if (itemsFetched >= 100) break
 
@@ -200,10 +200,10 @@ export const fetchRemoteStatusJob = createJobHandle(
             }
         }
 
-        if (replies.length > 0) {
+        if (fetchedReplies.length > 0) {
             // Update parent status with replies
             if (status.type === 'Note') { // StatusNote
-                status.replies = replies
+                status.replies = fetchedReplies
                 await database.createTemporaryStatus({
                     statusId: status.id,
                     status: status,
