@@ -84,40 +84,18 @@ const Page: FC<Props> = async ({ params }) => {
     statusId = decodedStatusParam
   }
 
-  // Check temporary storage if not found locally
-  if (!status) {
-    const tempStatus = (await database.getTemporaryStatus({
-      statusId: fullStatusId
-    })) as Status | null
+  // Try to fetch remote status if not found and user is logged in
+  if (!status && session) {
+    const queue = getQueue()
+    // Queue the fetch job
+    await queue.publish({
+      id: `fetch-remote-status-${fullStatusId}-${Date.now()}`,
+      name: FETCH_REMOTE_STATUS_JOB_NAME,
+      data: { statusId: fullStatusId }
+    })
 
-    if (tempStatus) {
-      status = tempStatus
-      statusId = fullStatusId
-    } else if (currentActor) {
-      // If logged in and not found, queue fetch job
-      const queue = getQueue()
-      await queue.publishDelayed?.(
-        {
-          id: `fetch-${fullStatusId}-${Date.now()}`,
-          name: FETCH_REMOTE_STATUS_JOB_NAME,
-          data: { statusId: fullStatusId }
-        },
-        0 // run immediately (or no delay supported)
-      )
-
-      // If queue doesn't support delayed, it might run immediately via `publish` if we fallback,
-      // but `publishDelayed` is what we call.
-      // Actually `publishDelayed` is optional.
-      if (!queue.publishDelayed) {
-        await queue.publish({
-          id: `fetch-${fullStatusId}-${Date.now()}`,
-          name: FETCH_REMOTE_STATUS_JOB_NAME,
-          data: { statusId: fullStatusId }
-        })
-      }
-
-      return <RemoteStatusLoading statusId={fullStatusId} />
-    }
+    // Show loading state
+    return <RemoteStatusLoading statusId={fullStatusId} />
   }
 
   if (!status) {

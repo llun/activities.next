@@ -871,27 +871,3 @@ export interface TimelineDatabase {
   createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
 }
 
-// ============================================================================
-// Temporary Status Database
-// ============================================================================
-
-export type CreateTemporaryStatusParams = {
-  statusId: string
-  status: unknown
-  ttl: number
-}
-
-export type GetTemporaryStatusParams = {
-  statusId: string
-}
-
-export type DeleteTemporaryStatusParams = {
-  statusId: string
-}
-
-export interface TemporaryStatusDatabase {
-  createTemporaryStatus(params: CreateTemporaryStatusParams): Promise<void>
-  getTemporaryStatus(params: GetTemporaryStatusParams): Promise<unknown | null>
-  deleteTemporaryStatus(params: DeleteTemporaryStatusParams): Promise<void>
-  deleteExpiredTemporaryStatuses(): Promise<void>
-}

@@ -1,16 +1,16 @@
 'use client'
 
 import { AlertCircle, Loader2, RefreshCw } from 'lucide-react'
-import React from 'react'
+import React, { FC } from 'react'
 
 
 import { Button } from '@/lib/components/ui/button'
 
 interface Props {
-  statusId: string
+  _statusId: string
 }
 
-export const RemoteStatusLoading: React.FC<Props> = ({ statusId }) => {
+export const RemoteStatusLoading: FC<Props> = ({ _statusId }) => {
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center p-4">
       <div className="mb-8 text-center">

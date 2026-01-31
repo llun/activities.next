@@ -8,12 +8,6 @@ import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
 import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
-import {
-  createTemporaryStatus,
-  deleteExpiredTemporaryStatuses,
-  deleteTemporaryStatus,
-  getTemporaryStatus
-} from '@/lib/database/sql/temporaryStatus'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
 
@@ -58,18 +52,5 @@ export const getSQLDatabase = (config: Knex.Config): Database => {
     ...statusDatabase,
     ...statusDatabase,
     ...timelineDatabase,
-
-    async createTemporaryStatus(params) {
-      return createTemporaryStatus(database, params)
-    },
-    async getTemporaryStatus(params) {
-      return getTemporaryStatus(database, params.statusId)
-    },
-    async deleteTemporaryStatus(params) {
-      return deleteTemporaryStatus(database, params.statusId)
-    },
-    async deleteExpiredTemporaryStatuses() {
-      return deleteExpiredTemporaryStatuses(database)
-    }
   }
 }
