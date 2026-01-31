@@ -5,6 +5,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getQueue } from '@/lib/services/queue'
 import { JobMessage } from '@/lib/services/queue/type'
 import { Note } from '@/lib/types/activitypub/objects'
+import { getActorProfile } from '@/lib/types/domain/actor'
 import { fromNote, Status } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 import { request } from '@/lib/utils/request'
@@ -60,7 +61,7 @@ const fetchRemoteStatus = async (
 
     // 5. Convert to Status
     const status = fromNote(sanitizedNote)
-    status.actor = actor.getProfile() // Attach actor profile for display
+    status.actor = getActorProfile(actor) // Attach actor profile for display
 
     // 6. Store in temp storage
     await database.createTemporaryStatus({
@@ -173,7 +174,7 @@ export const fetchRemoteStatusJob = createJobHandle(
 
                     // 5. Convert to Status
                     const replyStatus = fromNote(sanitizedReply)
-                    replyStatus.actor = actor.getProfile()
+                    replyStatus.actor = getActorProfile(actor)
 
                     // 6. Store in temp (optional if we embed, but good for direct links)
                     // We'll store it so if someone clicks the reply timestamp it loads fast
