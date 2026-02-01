@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { getNote } from '@/lib/activities'
 import { recordActorIfNeeded } from '@/lib/actions/utils'
+import { Database } from '@/lib/database/types'
 import { Note } from '@/lib/types/activitypub/objects'
 import { Status } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
@@ -11,7 +12,7 @@ import { createJobHandle } from './createJobHandle'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from './names'
 
 const fetchRemoteStatus = async (
-    database: any,
+    database: Database,
     statusId: string,
     depth = 0
 ): Promise<Status | null> => {
@@ -134,7 +135,7 @@ export const fetchRemoteStatusJob = createJobHandle(
 
             // Process items in parallel
             await Promise.all(
-                items.map(async (item: any) => {
+                items.map(async (item: unknown) => {
                     if (itemsFetched >= 100) return
                     let activityOrNote = item
 
