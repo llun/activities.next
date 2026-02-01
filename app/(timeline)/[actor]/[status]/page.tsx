@@ -94,7 +94,7 @@ const Page: FC<Props> = async ({ params }) => {
     })
 
     // Show loading state
-    return <RemoteStatusLoading _statusId={fullStatusId} />
+    return <RemoteStatusLoading />
   }
 
   if (!status) {
