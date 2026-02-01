@@ -49,27 +49,6 @@ export class QStashQueue implements Queue {
     })
   }
 
-  async publishDelayed(message: JobMessage, delay: number): Promise<void> {
-    await getTracer().startActiveSpan('queue.publishDelayed', async (span) => {
-      try {
-        await this._client.publishJSON({
-          url: this._url,
-          body: message,
-          timeout: MAX_JOB_TIMEOUT_SECONDS,
-          retries: MAX_JOB_RETRIES,
-          deduplicationId: Buffer.from(message.id).toString('base64url'),
-          delay
-        })
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        throw error
-      } finally {
-        span.end()
-      }
-    })
-  }
-
   handle(message: JobMessage) {
     return defaultJobHandle('qstash')(message)
   }
