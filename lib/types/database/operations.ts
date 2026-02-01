@@ -870,4 +870,3 @@ export interface TimelineDatabase {
   }: GetTimelineParams): Promise<Status[]>
   createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
 }
-

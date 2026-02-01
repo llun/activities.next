@@ -21,4 +21,3 @@ export type Database = AccountDatabase &
   StatusDatabase &
   TimelineDatabase &
   BaseDatabase
-

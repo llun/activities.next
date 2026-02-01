@@ -3,7 +3,6 @@
 import { AlertCircle, Loader2, RefreshCw } from 'lucide-react'
 import React, { FC } from 'react'
 
-
 import { Button } from '@/lib/components/ui/button'
 
 interface Props {
@@ -36,15 +35,13 @@ export const RemoteStatusLoading: FC<Props> = ({ _statusId }) => {
           <div className="flex-1">
             <h5 className="mb-1 font-medium">Please wait</h5>
             <p className="text-sm opacity-90">
-              Once the loading spinner stops or after a few seconds, click the refresh button below to check if the content is ready.
+              Once the loading spinner stops or after a few seconds, click the
+              refresh button below to check if the content is ready.
             </p>
           </div>
         </div>
 
-        <Button
-          onClick={() => window.location.reload()}
-          className="mt-4 gap-2"
-        >
+        <Button onClick={() => window.location.reload()} className="mt-4 gap-2">
           <RefreshCw className="h-4 w-4" />
           Check Again
         </Button>
