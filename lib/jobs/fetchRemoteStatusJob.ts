@@ -4,7 +4,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
 import { Note } from '@/lib/types/activitypub/objects'
-import { Status } from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 import { request } from '@/lib/utils/request'
 
@@ -66,7 +66,9 @@ const fetchRemoteStatus = async (
     id: sanitizedNote.id,
     url: sanitizedNote.url || sanitizedNote.id,
     actorId: sanitizedNote.attributedTo,
-    text: sanitizedNote.content || '',
+    text: Array.isArray(sanitizedNote.content)
+      ? sanitizedNote.content.join('')
+      : sanitizedNote.content || '',
     summary: sanitizedNote.summary || '',
     to,
     cc,
@@ -80,7 +82,7 @@ const fetchRemoteStatus = async (
   const status = await database.getStatus({ statusId: sanitizedNote.id })
 
   // 7. Fetch parent (if any)
-  if (status && status.reply) {
+  if (status && status.type !== StatusType.enum.Announce && status.reply) {
     await fetchRemoteStatus(database, status.reply, depth + 1)
   }
 
@@ -121,7 +123,8 @@ export const fetchRemoteStatusJob = createJobHandle(
     if (!collection) return
 
     // Get first page
-    let page = collection.first
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let page = (collection as any).first
     if (typeof page === 'string') {
       page = await client.fetch(page)
     }
@@ -135,7 +138,8 @@ export const fetchRemoteStatusJob = createJobHandle(
       await Promise.all(
         items.map(async (item: unknown) => {
           if (itemsFetched >= 100) return
-          let activityOrNote = item
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let activityOrNote: any = item
 
           if (typeof item === 'string') {
             activityOrNote = await client.fetch(item)
@@ -188,7 +192,9 @@ export const fetchRemoteStatusJob = createJobHandle(
             id: sanitizedReply.id,
             url: sanitizedReply.url || sanitizedReply.id,
             actorId: sanitizedReply.attributedTo,
-            text: sanitizedReply.content || '',
+            text: Array.isArray(sanitizedReply.content)
+              ? sanitizedReply.content.join('')
+              : sanitizedReply.content || '',
             summary: sanitizedReply.summary || '',
             to: replyTo,
             cc: replyCc,

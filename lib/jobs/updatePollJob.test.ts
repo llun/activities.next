@@ -61,7 +61,7 @@ const MockActivityPubQuestion = (
     ]
   }
 
-  const question: any = {
+  const question = {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id,
     type: 'Question',

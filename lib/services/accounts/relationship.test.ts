@@ -1,3 +1,5 @@
+import { Database } from '@/lib/database/types'
+import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
 import { getRelationship } from './relationship'
@@ -32,8 +34,8 @@ describe('#getRelationship', () => {
     })
 
     const relationship = await getRelationship({
-      database: mockDatabase as any,
-      currentActor: mockCurrentActor as any,
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
       targetActorId: 'https://example.com/users/target'
     })
 
@@ -49,8 +51,8 @@ describe('#getRelationship', () => {
     mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
 
     const relationship = await getRelationship({
-      database: mockDatabase as any,
-      currentActor: mockCurrentActor as any,
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
       targetActorId: 'https://example.com/users/target'
     })
 
@@ -67,8 +69,8 @@ describe('#getRelationship', () => {
     })
 
     const relationship = await getRelationship({
-      database: mockDatabase as any,
-      currentActor: mockCurrentActor as any,
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
       targetActorId: 'https://example.com/users/target'
     })
 
@@ -85,8 +87,8 @@ describe('#getRelationship', () => {
     })
 
     const relationship = await getRelationship({
-      database: mockDatabase as any,
-      currentActor: mockCurrentActor as any,
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
       targetActorId: 'https://example.com/users/target'
     })
 
@@ -117,8 +119,8 @@ describe('#getRelationship', () => {
     mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
 
     const relationship = await getRelationship({
-      database: mockDatabase as any,
-      currentActor: mockCurrentActor as any,
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
       targetActorId: 'https://example.com/users/target'
     })
 
@@ -134,8 +136,8 @@ describe('#getRelationship', () => {
     mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
 
     const relationship = await getRelationship({
-      database: mockDatabase as any,
-      currentActor: mockCurrentActor as any,
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
       targetActorId: 'https://example.com/users/target'
     })
 
