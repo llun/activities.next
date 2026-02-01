@@ -62,21 +62,25 @@ const fetchRemoteStatus = async (
       ? [sanitizedNote.cc]
       : []
 
-  await database.createNote({
-    id: sanitizedNote.id,
-    url: sanitizedNote.url || sanitizedNote.id,
-    actorId: sanitizedNote.attributedTo,
-    text: Array.isArray(sanitizedNote.content)
-      ? sanitizedNote.content.join('')
-      : sanitizedNote.content || '',
-    summary: sanitizedNote.summary || '',
-    to,
-    cc,
-    reply: sanitizedNote.inReplyTo || '',
-    createdAt: sanitizedNote.published
-      ? new Date(sanitizedNote.published).getTime()
-      : Date.now()
-  })
+  try {
+    await database.createNote({
+      id: sanitizedNote.id,
+      url: sanitizedNote.url || sanitizedNote.id,
+      actorId: sanitizedNote.attributedTo,
+      text: Array.isArray(sanitizedNote.content)
+        ? sanitizedNote.content.join('')
+        : sanitizedNote.content || '',
+      summary: sanitizedNote.summary || '',
+      to,
+      cc,
+      reply: sanitizedNote.inReplyTo || '',
+      createdAt: sanitizedNote.published
+        ? new Date(sanitizedNote.published).getTime()
+        : Date.now()
+    })
+  } catch {
+    // Ignore error if status already exists
+  }
 
   // 6. Get the created status
   const status = await database.getStatus({ statusId: sanitizedNote.id })
@@ -188,21 +192,25 @@ export const fetchRemoteStatusJob = createJobHandle(
               ? [sanitizedReply.cc]
               : []
 
-          await database.createNote({
-            id: sanitizedReply.id,
-            url: sanitizedReply.url || sanitizedReply.id,
-            actorId: sanitizedReply.attributedTo,
-            text: Array.isArray(sanitizedReply.content)
-              ? sanitizedReply.content.join('')
-              : sanitizedReply.content || '',
-            summary: sanitizedReply.summary || '',
-            to: replyTo,
-            cc: replyCc,
-            reply: sanitizedReply.inReplyTo || '',
-            createdAt: sanitizedReply.published
-              ? new Date(sanitizedReply.published).getTime()
-              : Date.now()
-          })
+          try {
+            await database.createNote({
+              id: sanitizedReply.id,
+              url: sanitizedReply.url || sanitizedReply.id,
+              actorId: sanitizedReply.attributedTo,
+              text: Array.isArray(sanitizedReply.content)
+                ? sanitizedReply.content.join('')
+                : sanitizedReply.content || '',
+              summary: sanitizedReply.summary || '',
+              to: replyTo,
+              cc: replyCc,
+              reply: sanitizedReply.inReplyTo || '',
+              createdAt: sanitizedReply.published
+                ? new Date(sanitizedReply.published).getTime()
+                : Date.now()
+            })
+          } catch {
+            // Ignore error if status already exists
+          }
 
           itemsFetched++
         })
