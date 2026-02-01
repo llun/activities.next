@@ -1,4 +1,4 @@
-import { SpanStatusCode, trace } from '@opentelemetry/api'
+import { SpanStatusCode, Tracer, trace } from '@opentelemetry/api'
 import { NextRequest } from 'next/server'
 
 import { traceApiRoute } from './traceApiRoute'
@@ -22,7 +22,7 @@ describe('traceApiRoute', () => {
     // Mock the trace module
     jest.spyOn(trace, 'getTracer').mockReturnValue({
       startSpan: jest.fn().mockReturnValue(mockSpan)
-    } as any)
+    } as unknown as Tracer)
   })
 
   afterEach(() => {
@@ -145,7 +145,7 @@ describe('traceApiRoute', () => {
     const startSpanMock = jest.fn().mockReturnValue(mockSpan)
     jest.spyOn(trace, 'getTracer').mockReturnValue({
       startSpan: startSpanMock
-    } as any)
+    } as unknown as Tracer)
 
     const wrapped = traceApiRoute('testRoute', handler, { op: 'custom' })
     const req = new NextRequest('http://localhost/api/test')

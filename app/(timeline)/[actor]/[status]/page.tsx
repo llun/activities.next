@@ -6,9 +6,11 @@ import { FC } from 'react'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { StatusType } from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
@@ -17,6 +19,7 @@ import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { Header } from './Header'
+import { RemoteStatusLoading } from './RemoteStatusLoading'
 import { StatusBox } from './StatusBox'
 
 interface Props {
@@ -80,6 +83,20 @@ const Page: FC<Props> = async ({ params }) => {
     statusId = decodedStatusParam
   }
 
+  // Try to fetch remote status if not found and user is logged in
+  if (!status && session) {
+    const queue = getQueue()
+    // Queue the fetch job with a deterministic ID to avoid duplicates
+    await queue.publish({
+      id: `fetch-remote-status-${fullStatusId}`,
+      name: FETCH_REMOTE_STATUS_JOB_NAME,
+      data: { statusId: fullStatusId }
+    })
+
+    // Show loading state
+    return <RemoteStatusLoading />
+  }
+
   if (!status) {
     return notFound()
   }
@@ -89,10 +106,22 @@ const Page: FC<Props> = async ({ params }) => {
       ? status.originalStatus.url
       : status.url
 
-  const replies = await database.getStatusReplies({
-    statusId,
-    url: statusUrl
-  })
+  let replies: Status[] = []
+
+  if (
+    status.type === StatusType.enum.Note &&
+    status.replies &&
+    status.replies.length > 0
+  ) {
+    // If replies are embedded (e.g. temporary status), use them
+    replies = status.replies as Status[]
+  } else {
+    // Otherwise fetch from database
+    replies = await database.getStatusReplies({
+      statusId,
+      url: statusUrl
+    })
+  }
 
   // Check if the status is publicly visible (public or unlisted)
   const isPublicOrUnlisted =

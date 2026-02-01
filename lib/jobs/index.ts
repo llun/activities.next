@@ -5,6 +5,7 @@ import { createPollJob } from './createPollJob'
 import { createPollVoteJob } from './createPollVoteJob'
 import { deleteActorJob } from './deleteActorJob'
 import { deleteObjectJob } from './deleteObjectJob'
+import { fetchRemoteStatusJob } from './fetchRemoteStatusJob'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
@@ -12,6 +13,7 @@ import {
   CREATE_POLL_VOTE_JOB_NAME,
   DELETE_ACTOR_JOB_NAME,
   DELETE_OBJECT_JOB_NAME,
+  FETCH_REMOTE_STATUS_JOB_NAME,
   SEND_ANNOUNCE_JOB_NAME,
   SEND_NOTE_JOB_NAME,
   SEND_UNDO_ANNOUNCE_JOB_NAME,
@@ -41,5 +43,6 @@ export const JOBS: Record<string, JobHandle> = {
   [SEND_ANNOUNCE_JOB_NAME]: sendAnnounceJob,
   [SEND_NOTE_JOB_NAME]: sendNoteJob,
   [SEND_UPDATE_NOTE_JOB_NAME]: sendUpdateNoteJob,
-  [SEND_UNDO_ANNOUNCE_JOB_NAME]: sendUndoAnnounceJob
+  [SEND_UNDO_ANNOUNCE_JOB_NAME]: sendUndoAnnounceJob,
+  [FETCH_REMOTE_STATUS_JOB_NAME]: fetchRemoteStatusJob
 }
