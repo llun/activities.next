@@ -10,8 +10,7 @@ import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { StatusType } from '@/lib/types/domain/status'
-import { Status } from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
@@ -87,9 +86,9 @@ const Page: FC<Props> = async ({ params }) => {
   // Try to fetch remote status if not found and user is logged in
   if (!status && session) {
     const queue = getQueue()
-    // Queue the fetch job
+    // Queue the fetch job with a deterministic ID to avoid duplicates
     await queue.publish({
-      id: `fetch-remote-status-${fullStatusId}-${Date.now()}`,
+      id: `fetch-remote-status-${fullStatusId}`,
       name: FETCH_REMOTE_STATUS_JOB_NAME,
       data: { statusId: fullStatusId }
     })

@@ -50,7 +50,7 @@ export const getSQLDatabase = (config: Knex.Config): Database => {
     ...notificationDatabase,
     ...oauthDatabase,
     ...statusDatabase,
-    ...statusDatabase,
+
     ...timelineDatabase
   }
 }

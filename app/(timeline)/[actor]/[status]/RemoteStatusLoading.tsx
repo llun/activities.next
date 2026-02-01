@@ -5,11 +5,9 @@ import React, { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 
-interface Props {
-  _statusId: string
-}
+interface Props {}
 
-export const RemoteStatusLoading: FC<Props> = ({ _statusId }) => {
+export const RemoteStatusLoading: FC<Props> = () => {
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center p-4">
       <div className="mb-8 text-center">
@@ -30,7 +28,7 @@ export const RemoteStatusLoading: FC<Props> = ({ _statusId }) => {
           </p>
         </div>
 
-        <div className="flex max-w-md items-start items-center gap-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-900/50 dark:bg-yellow-950/20 dark:text-yellow-200">
+        <div className="flex max-w-md items-center gap-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-900/50 dark:bg-yellow-950/20 dark:text-yellow-200">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <div className="flex-1">
             <h5 className="mb-1 font-medium">Please wait</h5>
