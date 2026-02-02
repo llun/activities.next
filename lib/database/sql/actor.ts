@@ -480,6 +480,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     headerImageUrl,
     manuallyApprovesFollowers,
     emailNotifications,
+    fitness,
 
     publicKey,
 
@@ -501,6 +502,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         ? { manuallyApprovesFollowers }
         : null),
       ...(emailNotifications !== undefined ? { emailNotifications } : null),
+      ...(fitness !== undefined ? { fitness } : null),
 
       ...(followersUrl ? { followersUrl } : null),
       ...(inboxUrl ? { inboxUrl } : null),

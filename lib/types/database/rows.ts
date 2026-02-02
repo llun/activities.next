@@ -15,6 +15,12 @@ export interface ActorSettings {
     reply?: boolean
     reblog?: boolean
   }
+  fitness?: {
+    strava?: {
+      clientId: string
+      clientSecret: string
+    }
+  }
 }
 
 export type ActorDeletionStatus = 'scheduled' | 'deleting' | null
