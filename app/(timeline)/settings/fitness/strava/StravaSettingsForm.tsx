@@ -24,9 +24,12 @@ export const StravaSettingsForm: FC = () => {
   const [showUnlinkDialog, setShowUnlinkDialog] = useState(false)
 
   useEffect(() => {
+    const controller = new AbortController()
     const fetchSettings = async () => {
       try {
-        const response = await fetch('/api/v1/settings/fitness/strava')
+        const response = await fetch('/api/v1/settings/fitness/strava', {
+          signal: controller.signal
+        })
         const data = await response.json()
 
         if (data.configured) {
@@ -34,12 +37,19 @@ export const StravaSettingsForm: FC = () => {
           setClientId(data.clientId)
           setClientSecret('••••••••')
         }
-      } catch (_err) {
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return
+        }
         setError('Failed to load settings')
       }
     }
 
     fetchSettings()
+
+    return () => {
+      controller.abort()
+    }
   }, [])
 
   const handleSave = async (e: React.FormEvent) => {

@@ -48,10 +48,14 @@ describe('Strava Settings API', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockGetServerSession.mockReset()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
+    })
+    await database.updateActor({
+      actorId: ACTOR1_ID,
+      fitness: {}
     })
   })
 

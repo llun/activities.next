@@ -9,7 +9,8 @@ import { StatusType } from '@/lib/types/domain/status'
 enableFetchMocks()
 
 const REMOTE_ACTOR_ID = 'https://mastodon.social/users/testUser'
-const REMOTE_STATUS_ID = 'https://mastodon.social/users/testUser/statuses/123456789'
+const REMOTE_STATUS_ID =
+  'https://mastodon.social/users/testUser/statuses/123456789'
 const PUBLIC_STREAM = 'https://www.w3.org/ns/activitystreams#Public'
 
 const MOCK_ACTOR = {
@@ -104,7 +105,7 @@ describe('fetchRemoteStatusJob', () => {
   it('fetches parent status recursively', async () => {
     const STATUS_ID = `${REMOTE_STATUS_ID}/3`
     const PARENT_ID = 'https://mastodon.social/users/testUser/statuses/parent'
-    
+
     fetchMock.mockResponse(async (req) => {
       if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
       if (req.url === STATUS_ID) {
@@ -148,7 +149,8 @@ describe('fetchRemoteStatusJob', () => {
   it('fetches replies collection', async () => {
     const STATUS_ID = `${REMOTE_STATUS_ID}/4`
     const REPLIES_ID = `${STATUS_ID}/replies`
-    const REPLY_ITEM_ID = 'https://mastodon.social/users/otherUser/statuses/reply1'
+    const REPLY_ITEM_ID =
+      'https://mastodon.social/users/otherUser/statuses/reply1'
 
     fetchMock.mockResponse(async (req) => {
       if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
