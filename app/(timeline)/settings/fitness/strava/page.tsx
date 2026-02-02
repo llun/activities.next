@@ -4,6 +4,8 @@ import { Card } from '@/lib/components/ui/card'
 
 import { StravaSettingsForm } from './StravaSettingsForm'
 
+export const dynamic = 'force-dynamic'
+
 const StravaPage: FC = () => {
   return (
     <div className="space-y-6">
