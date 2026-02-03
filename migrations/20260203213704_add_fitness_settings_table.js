@@ -48,7 +48,7 @@ exports.up = function (knex) {
       // SQLite: CREATE UNIQUE INDEX ... WHERE deletedAt IS NULL
       // PostgreSQL: Same syntax
       return knex.raw(
-        'CREATE UNIQUE INDEX fitness_settings_unique_active ON fitness_settings(actorId, serviceType) WHERE deletedAt IS NULL'
+        'CREATE UNIQUE INDEX "fitness_settings_unique_active" ON "fitness_settings" ("actorId", "serviceType") WHERE "deletedAt" IS NULL'
       )
     })
 }
