@@ -56,7 +56,6 @@ export const POST = traceApiRoute(
   'saveStravaSettings',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
-    const config = getConfig()
 
     try {
       const body = await req.json()
@@ -92,7 +91,7 @@ export const POST = traceApiRoute(
         data: {
           success: true,
           message: 'Strava settings saved successfully',
-          authorizeUrl: `${config.host}/api/v1/settings/fitness/strava/authorize`
+          authorizeUrl: '/api/v1/settings/fitness/strava/authorize'
         },
         responseStatusCode: 200
       })
