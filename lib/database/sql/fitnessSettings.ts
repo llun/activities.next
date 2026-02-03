@@ -79,6 +79,17 @@ export const FitnessSettingsSQLDatabaseMixin = (
     oauthState,
     oauthStateExpiry
   }: CreateFitnessSettingsParams): Promise<FitnessSettings> {
+    const existing = await database('fitness_settings')
+      .where({ actorId, serviceType })
+      .whereNull('deletedAt')
+      .first()
+
+    if (existing) {
+      throw new Error(
+        `Fitness settings already exist for actor ${actorId} and service ${serviceType}`
+      )
+    }
+
     const id = uuidv4()
     const currentTime = new Date()
 
