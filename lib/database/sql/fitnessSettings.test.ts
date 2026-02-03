@@ -151,6 +151,13 @@ describe('FitnessSettings database operations', () => {
         clientId: '11111'
       })
 
+      // Verify first insert exists (this read operation helps ensure DB consistency in tests)
+      const existing = await database.getFitnessSettings({
+        actorId: `${testActorId}-unique`,
+        serviceType: 'strava'
+      })
+      expect(existing).not.toBeNull()
+
       // Attempting to create duplicate should fail
       await expect(
         database.createFitnessSettings({
