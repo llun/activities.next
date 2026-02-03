@@ -23,6 +23,7 @@ export const GET = traceApiRoute(
     const { searchParams } = new URL(req.url)
 
     const code = searchParams.get('code')
+    const state = searchParams.get('state')
     const error = searchParams.get('error')
 
     if (error) {
@@ -46,6 +47,31 @@ export const GET = traceApiRoute(
     if (!stravaSettings?.clientId || !stravaSettings?.clientSecret) {
       return Response.redirect(
         `${config.host}/settings/fitness/strava?error=not_configured`
+      )
+    }
+
+    // Validate OAuth state for CSRF protection
+    if (!state || state !== stravaSettings.oauthState) {
+      logger.error({
+        message: 'OAuth state mismatch - potential CSRF attack',
+        actorId: currentActor.id
+      })
+      return Response.redirect(
+        `${config.host}/settings/fitness/strava?error=invalid_state`
+      )
+    }
+
+    // Check state expiry
+    if (
+      !stravaSettings.oauthStateExpiry ||
+      Date.now() > stravaSettings.oauthStateExpiry
+    ) {
+      logger.error({
+        message: 'OAuth state expired',
+        actorId: currentActor.id
+      })
+      return Response.redirect(
+        `${config.host}/settings/fitness/strava?error=state_expired`
       )
     }
 
@@ -80,7 +106,7 @@ export const GET = traceApiRoute(
       const webhookId = randomBytes(16).toString('hex')
 
       const updatedSettings = {
-        ...settings,
+        ...(settings || {}),
         fitness: {
           ...(settings?.fitness || {}),
           strava: {
@@ -89,7 +115,9 @@ export const GET = traceApiRoute(
             refreshToken: tokenData.refresh_token,
             expiresAt: tokenData.expires_at,
             athleteId: tokenData.athlete.id,
-            webhookId
+            webhookId,
+            oauthState: undefined,
+            oauthStateExpiry: undefined
           }
         }
       }

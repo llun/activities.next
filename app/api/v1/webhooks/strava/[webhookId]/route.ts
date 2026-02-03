@@ -12,10 +12,25 @@ export const GET = traceApiRoute(
     const { searchParams } = new URL(req.url)
 
     const mode = searchParams.get('hub.mode')
-    const _token = searchParams.get('hub.verify_token')
+    const token = searchParams.get('hub.verify_token')
     const challenge = searchParams.get('hub.challenge')
 
     if (mode === 'subscribe' && challenge) {
+      // Validate verify token if configured
+      const expectedToken = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
+      if (expectedToken && token !== expectedToken) {
+        logger.warn({
+          message: 'Strava webhook verification token mismatch',
+          webhookId
+        })
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Invalid verify token' },
+          responseStatusCode: 403
+        })
+      }
+
       logger.info({
         message: 'Strava webhook verification request',
         webhookId
@@ -54,16 +69,20 @@ export const POST = traceApiRoute(
       })
 
       const database = await getDatabase()
-      const actors = await database.getActorFromUsername({
-        username: '',
-        domain: ''
-      })
+
+      // TODO: This is inefficient for large user bases. Consider:
+      // 1. Adding a database index on settings->fitness->strava->webhookId
+      // 2. Creating a separate webhook_mappings table
+      // 3. Using a key-value store for webhook ID -> actor ID lookups
+      const sqlActors = await database.knex('actors').select('*')
 
       let actorWithWebhook = null
-      for (const actor of actors) {
-        const settings = await database.getActorSettings({ actorId: actor.id })
+      for (const sqlActor of sqlActors) {
+        const settings = await database.getActorSettings({
+          actorId: sqlActor.id
+        })
         if (settings?.fitness?.strava?.webhookId === webhookId) {
-          actorWithWebhook = actor
+          actorWithWebhook = sqlActor
           break
         }
       }

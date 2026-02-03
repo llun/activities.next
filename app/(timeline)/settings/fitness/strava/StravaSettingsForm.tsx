@@ -104,14 +104,12 @@ export const StravaSettingsForm: FC = () => {
         return
       }
 
-      setMessage('Settings saved! Redirecting to Strava for authorization...')
+      setMessage('Redirecting to Strava for authorization...')
       setIsConfigured(true)
       setClientSecret('••••••••')
 
       if (data.authorizeUrl) {
-        setTimeout(() => {
-          window.location.href = data.authorizeUrl
-        }, 1500)
+        window.location.href = data.authorizeUrl
       }
     } catch (_err) {
       setError('An error occurred. Please try again.')
