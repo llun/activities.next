@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -13,6 +14,7 @@ export const GET = traceApiRoute(
   'getStravaSettings',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
+    const config = getConfig()
 
     const settings = await database.getActorSettings({
       actorId: currentActor.id
@@ -29,10 +31,8 @@ export const GET = traceApiRoute(
       })
     }
 
-    const url = new URL(req.url)
-    const host = url.origin
     const webhookUrl = stravaSettings.webhookId
-      ? `${host}/api/v1/webhooks/strava/${stravaSettings.webhookId}`
+      ? `${config.host}/api/v1/webhooks/strava/${stravaSettings.webhookId}`
       : undefined
 
     return apiResponse({
@@ -53,6 +53,7 @@ export const POST = traceApiRoute(
   'saveStravaSettings',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
+    const config = getConfig()
 
     try {
       const body = await req.json()
@@ -78,16 +79,13 @@ export const POST = traceApiRoute(
         ...updatedSettings
       })
 
-      const url = new URL(req.url)
-      const host = url.origin
-
       return apiResponse({
         req,
         allowedMethods: [],
         data: {
           success: true,
           message: 'Strava settings saved successfully',
-          authorizeUrl: `${host}/api/v1/settings/fitness/strava/authorize`
+          authorizeUrl: `${config.host}/api/v1/settings/fitness/strava/authorize`
         },
         responseStatusCode: 200
       })

@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto'
 
+import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -8,6 +9,7 @@ export const GET = traceApiRoute(
   'stravaAuthorize',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
+    const config = getConfig()
 
     const settings = await database.getActorSettings({
       actorId: currentActor.id
@@ -24,9 +26,7 @@ export const GET = traceApiRoute(
     }
 
     const state = randomBytes(16).toString('hex')
-    const url = new URL(req.url)
-    const host = url.origin
-    const redirectUri = `${host}/api/v1/settings/fitness/strava/callback`
+    const redirectUri = `${config.host}/api/v1/settings/fitness/strava/callback`
 
     const stravaAuthUrl = new URL('https://www.strava.com/oauth/authorize')
     stravaAuthUrl.searchParams.set('client_id', stravaSettings.clientId)
