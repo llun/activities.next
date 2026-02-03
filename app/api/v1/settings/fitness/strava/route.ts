@@ -31,8 +31,9 @@ export const GET = traceApiRoute(
       })
     }
 
-    const webhookUrl = stravaSettings.webhookId
-      ? `${config.host}/api/v1/webhooks/strava/${stravaSettings.webhookId}`
+    // Use actorId as webhook ID for direct lookup
+    const webhookUrl = stravaSettings.accessToken
+      ? `${config.host}/api/v1/webhooks/strava/${currentActor.id}`
       : undefined
 
     return apiResponse({

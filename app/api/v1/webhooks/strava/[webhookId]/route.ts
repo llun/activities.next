@@ -68,29 +68,14 @@ export const POST = traceApiRoute(
         aspectType: body.aspect_type
       })
 
+      // webhookId is the actorId - direct lookup, no iteration needed
       const database = await getDatabase()
+      const settings = await database.getActorSettings({ actorId: webhookId })
 
-      // TODO: This is inefficient for large user bases. Consider:
-      // 1. Adding a database index on settings->fitness->strava->webhookId
-      // 2. Creating a separate webhook_mappings table
-      // 3. Using a key-value store for webhook ID -> actor ID lookups
-      const sqlActors = await database.knex('actors').select('*')
-
-      let actorWithWebhook = null
-      for (const sqlActor of sqlActors) {
-        const settings = await database.getActorSettings({
-          actorId: sqlActor.id
-        })
-        if (settings?.fitness?.strava?.webhookId === webhookId) {
-          actorWithWebhook = sqlActor
-          break
-        }
-      }
-
-      if (!actorWithWebhook) {
+      if (!settings?.fitness?.strava?.accessToken) {
         logger.warn({
-          message: 'No actor found for webhook ID',
-          webhookId
+          message: 'No Strava connection found for actor',
+          actorId: webhookId
         })
         return apiResponse({
           req,
@@ -102,7 +87,7 @@ export const POST = traceApiRoute(
 
       logger.info({
         message: 'Strava activity event',
-        actorId: actorWithWebhook.id,
+        actorId: webhookId,
         event: body
       })
 

@@ -1,4 +1,3 @@
-import { randomBytes } from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
@@ -103,8 +102,6 @@ export const GET = traceApiRoute(
 
       const tokenData: StravaTokenResponse = await tokenResponse.json()
 
-      const webhookId = randomBytes(16).toString('hex')
-
       const updatedSettings = {
         ...(settings || {}),
         fitness: {
@@ -115,7 +112,6 @@ export const GET = traceApiRoute(
             refreshToken: tokenData.refresh_token,
             expiresAt: tokenData.expires_at,
             athleteId: tokenData.athlete.id,
-            webhookId,
             oauthState: undefined,
             oauthStateExpiry: undefined
           }
