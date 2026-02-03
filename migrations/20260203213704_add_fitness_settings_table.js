@@ -39,6 +39,9 @@ exports.up = function (knex) {
         ['actorId', 'serviceType', 'deletedAt'],
         'fitness_settings_idx'
       )
+
+      // Index for webhook token lookup (used in webhook verification)
+      table.index('webhookToken', 'fitness_settings_webhook_token_idx')
     })
     .then(() => {
       // Add partial unique index for non-deleted rows
