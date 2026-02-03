@@ -138,23 +138,23 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-lambda@npm:^3.980.0":
-  version: 3.980.0
-  resolution: "@aws-sdk/client-lambda@npm:3.980.0"
+"@aws-sdk/client-lambda@npm:^3.982.0":
+  version: 3.982.0
+  resolution: "@aws-sdk/client-lambda@npm:3.982.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:5.2.0"
     "@aws-crypto/sha256-js": "npm:5.2.0"
-    "@aws-sdk/core": "npm:^3.973.5"
-    "@aws-sdk/credential-provider-node": "npm:^3.972.4"
+    "@aws-sdk/core": "npm:^3.973.6"
+    "@aws-sdk/credential-provider-node": "npm:^3.972.5"
     "@aws-sdk/middleware-host-header": "npm:^3.972.3"
     "@aws-sdk/middleware-logger": "npm:^3.972.3"
     "@aws-sdk/middleware-recursion-detection": "npm:^3.972.3"
-    "@aws-sdk/middleware-user-agent": "npm:^3.972.5"
+    "@aws-sdk/middleware-user-agent": "npm:^3.972.6"
     "@aws-sdk/region-config-resolver": "npm:^3.972.3"
     "@aws-sdk/types": "npm:^3.973.1"
-    "@aws-sdk/util-endpoints": "npm:3.980.0"
+    "@aws-sdk/util-endpoints": "npm:3.982.0"
     "@aws-sdk/util-user-agent-browser": "npm:^3.972.3"
-    "@aws-sdk/util-user-agent-node": "npm:^3.972.3"
+    "@aws-sdk/util-user-agent-node": "npm:^3.972.4"
     "@smithy/config-resolver": "npm:^4.4.6"
     "@smithy/core": "npm:^3.22.0"
     "@smithy/eventstream-serde-browser": "npm:^4.2.8"
@@ -186,7 +186,7 @@ __metadata:
     "@smithy/util-utf8": "npm:^4.2.0"
     "@smithy/util-waiter": "npm:^4.2.8"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/1aee115aab64e913d07c2d5622f6b525f857c8154f09073e086315f4943bc88b81fb0d47b1a14007ac564681bdda7da688da1ffc4e8a607c9da9cbe6f4c40e3b
+  checksum: 10c0/bb03d8734d93e3fa44e41fdd21904fbe2b021916c2e7da02bed0ba932100574087f497b459b03664edeae3b29303b68b2eb8206b654665077af4ddfcbc7c300d
   languageName: node
   linkType: hard
 
@@ -5500,7 +5500,7 @@ __metadata:
   resolution: "activities.next@workspace:."
   dependencies:
     "@auth/core": "npm:^0.40.0"
-    "@aws-sdk/client-lambda": "npm:^3.980.0"
+    "@aws-sdk/client-lambda": "npm:^3.982.0"
     "@aws-sdk/client-s3": "npm:^3.982.0"
     "@aws-sdk/s3-presigned-post": "npm:^3.980.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
