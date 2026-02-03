@@ -1,0 +1,48 @@
+import { randomBytes } from 'crypto'
+
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { apiResponse } from '@/lib/utils/response'
+import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+export const GET = traceApiRoute(
+  'stravaAuthorize',
+  AuthenticatedGuard(async (req, context) => {
+    const { currentActor, database } = context
+
+    const settings = await database.getActorSettings({
+      actorId: currentActor.id
+    })
+
+    const stravaSettings = settings?.fitness?.strava
+    if (!stravaSettings?.clientId) {
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'Strava credentials not configured' },
+        responseStatusCode: 400
+      })
+    }
+
+    const state = randomBytes(16).toString('hex')
+    const url = new URL(req.url)
+    const host = url.origin
+    const redirectUri = `${host}/api/v1/settings/fitness/strava/callback`
+
+    const stravaAuthUrl = new URL('https://www.strava.com/oauth/authorize')
+    stravaAuthUrl.searchParams.set('client_id', stravaSettings.clientId)
+    stravaAuthUrl.searchParams.set('redirect_uri', redirectUri)
+    stravaAuthUrl.searchParams.set('response_type', 'code')
+    stravaAuthUrl.searchParams.set('scope', 'activity:read_all')
+    stravaAuthUrl.searchParams.set('state', state)
+
+    return apiResponse({
+      req,
+      allowedMethods: [],
+      data: {
+        authorizeUrl: stravaAuthUrl.toString(),
+        state
+      },
+      responseStatusCode: 200
+    })
+  })
+)

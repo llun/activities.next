@@ -29,12 +29,20 @@ export const GET = traceApiRoute(
       })
     }
 
+    const url = new URL(req.url)
+    const host = url.origin
+    const webhookUrl = stravaSettings.webhookId
+      ? `${host}/api/v1/webhooks/strava/${stravaSettings.webhookId}`
+      : undefined
+
     return apiResponse({
       req,
       allowedMethods: [],
       data: {
         configured: true,
-        clientId: stravaSettings.clientId
+        clientId: stravaSettings.clientId,
+        connected: !!stravaSettings.accessToken,
+        webhookUrl
       },
       responseStatusCode: 200
     })
@@ -70,12 +78,16 @@ export const POST = traceApiRoute(
         ...updatedSettings
       })
 
+      const url = new URL(req.url)
+      const host = url.origin
+
       return apiResponse({
         req,
         allowedMethods: [],
         data: {
           success: true,
-          message: 'Strava settings saved successfully'
+          message: 'Strava settings saved successfully',
+          authorizeUrl: `${host}/api/v1/settings/fitness/strava/authorize`
         },
         responseStatusCode: 200
       })

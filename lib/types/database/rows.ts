@@ -19,6 +19,11 @@ export interface ActorSettings {
     strava?: {
       clientId: string
       clientSecret: string
+      accessToken?: string
+      refreshToken?: string
+      expiresAt?: number
+      athleteId?: number
+      webhookId?: string
     }
   }
 }
