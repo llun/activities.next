@@ -15,19 +15,6 @@ export interface ActorSettings {
     reply?: boolean
     reblog?: boolean
   }
-  fitness?: {
-    strava?: {
-      clientId: string
-      clientSecret: string
-      accessToken?: string
-      refreshToken?: string
-      expiresAt?: number
-      athleteId?: number
-      webhookVerifyToken?: string
-      oauthState?: string
-      oauthStateExpiry?: number
-    }
-  }
 }
 
 export type ActorDeletionStatus = 'scheduled' | 'deleting' | null

@@ -38,19 +38,19 @@ export const GET = traceApiRoute(
       )
     }
 
-    const settings = await database.getActorSettings({
-      actorId: currentActor.id
+    const fitnessSettings = await database.getFitnessSettings({
+      actorId: currentActor.id,
+      serviceType: 'strava'
     })
 
-    const stravaSettings = settings?.fitness?.strava
-    if (!stravaSettings?.clientId || !stravaSettings?.clientSecret) {
+    if (!fitnessSettings?.clientId || !fitnessSettings?.clientSecret) {
       return Response.redirect(
         `https://${config.host}/settings/fitness/strava?error=not_configured`
       )
     }
 
     // Validate OAuth state for CSRF protection
-    if (!state || state !== stravaSettings.oauthState) {
+    if (!state || state !== fitnessSettings.oauthState) {
       logger.error({
         message: 'OAuth state mismatch - potential CSRF attack',
         actorId: currentActor.id
@@ -62,8 +62,8 @@ export const GET = traceApiRoute(
 
     // Check state expiry
     if (
-      !stravaSettings.oauthStateExpiry ||
-      Date.now() > stravaSettings.oauthStateExpiry
+      !fitnessSettings.oauthStateExpiry ||
+      Date.now() > fitnessSettings.oauthStateExpiry
     ) {
       logger.error({
         message: 'OAuth state expired',
@@ -81,8 +81,8 @@ export const GET = traceApiRoute(
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          client_id: stravaSettings.clientId,
-          client_secret: stravaSettings.clientSecret,
+          client_id: fitnessSettings.clientId,
+          client_secret: fitnessSettings.clientSecret,
           code,
           grant_type: 'authorization_code'
         })
@@ -102,31 +102,18 @@ export const GET = traceApiRoute(
 
       const tokenData: StravaTokenResponse = await tokenResponse.json()
 
-      const updatedSettings = {
-        ...(settings || {}),
-        fitness: {
-          ...(settings?.fitness || {}),
-          strava: {
-            ...stravaSettings,
-            accessToken: tokenData.access_token,
-            refreshToken: tokenData.refresh_token,
-            expiresAt: tokenData.expires_at,
-            athleteId: tokenData.athlete.id,
-            oauthState: undefined,
-            oauthStateExpiry: undefined
-          }
-        }
-      }
-
-      await database.updateActor({
-        actorId: currentActor.id,
-        ...updatedSettings
+      await database.updateFitnessSettings({
+        id: fitnessSettings.id,
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        tokenExpiresAt: tokenData.expires_at * 1000,
+        oauthState: undefined,
+        oauthStateExpiry: undefined
       })
 
       logger.info({
         message: 'Strava OAuth successful',
-        actorId: currentActor.id,
-        athleteId: tokenData.athlete.id
+        actorId: currentActor.id
       })
 
       return Response.redirect(

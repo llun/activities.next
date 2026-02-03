@@ -1,8 +1,8 @@
-import { randomBytes } from 'crypto'
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { generateAlphanumeric } from '@/lib/utils/crypto'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -17,13 +17,12 @@ export const GET = traceApiRoute(
     const { currentActor, database } = context
     const config = getConfig()
 
-    const settings = await database.getActorSettings({
-      actorId: currentActor.id
+    const fitnessSettings = await database.getFitnessSettings({
+      actorId: currentActor.id,
+      serviceType: 'strava'
     })
 
-    const stravaSettings = settings?.fitness?.strava
-
-    if (!stravaSettings) {
+    if (!fitnessSettings) {
       return apiResponse({
         req,
         allowedMethods: [],
@@ -32,8 +31,7 @@ export const GET = traceApiRoute(
       })
     }
 
-    // Use actorId as webhook ID for direct lookup
-    const webhookUrl = stravaSettings.accessToken
+    const webhookUrl = fitnessSettings.accessToken
       ? `https://${config.host}/api/v1/webhooks/strava/${currentActor.id}`
       : undefined
 
@@ -42,10 +40,9 @@ export const GET = traceApiRoute(
       allowedMethods: [],
       data: {
         configured: true,
-        clientId: stravaSettings.clientId,
-        connected: !!stravaSettings.accessToken,
-        webhookUrl,
-        webhookVerifyToken: stravaSettings.webhookVerifyToken
+        clientId: fitnessSettings.clientId,
+        connected: !!fitnessSettings.accessToken,
+        webhookUrl
       },
       responseStatusCode: 200
     })
@@ -61,29 +58,29 @@ export const POST = traceApiRoute(
       const body = await req.json()
       const { clientId, clientSecret } = StravaSettingsRequest.parse(body)
 
-      const currentSettings = await database.getActorSettings({
-        actorId: currentActor.id
-      })
-
-      // Generate webhook verify token for Strava webhook subscription
-      const webhookVerifyToken = randomBytes(16).toString('hex')
-
-      const updatedSettings = {
-        ...currentSettings,
-        fitness: {
-          ...(currentSettings?.fitness || {}),
-          strava: {
-            clientId,
-            clientSecret,
-            webhookVerifyToken
-          }
-        }
-      }
-
-      await database.updateActor({
+      const existing = await database.getFitnessSettings({
         actorId: currentActor.id,
-        ...updatedSettings
+        serviceType: 'strava'
       })
+
+      const webhookToken = generateAlphanumeric(32)
+
+      if (existing) {
+        await database.updateFitnessSettings({
+          id: existing.id,
+          clientId,
+          clientSecret,
+          webhookToken
+        })
+      } else {
+        await database.createFitnessSettings({
+          actorId: currentActor.id,
+          serviceType: 'strava',
+          clientId,
+          clientSecret,
+          webhookToken
+        })
+      }
 
       return apiResponse({
         req,
@@ -122,11 +119,12 @@ export const DELETE = traceApiRoute(
     const { currentActor, database } = context
 
     try {
-      const currentSettings = await database.getActorSettings({
-        actorId: currentActor.id
+      const existing = await database.getFitnessSettings({
+        actorId: currentActor.id,
+        serviceType: 'strava'
       })
 
-      if (!currentSettings?.fitness?.strava) {
+      if (!existing) {
         return apiResponse({
           req,
           allowedMethods: [],
@@ -135,26 +133,15 @@ export const DELETE = traceApiRoute(
         })
       }
 
-      const updatedSettings = {
-        ...currentSettings,
-        fitness: {
-          ...(currentSettings.fitness || {}),
-          strava: undefined
-        }
-      }
-
-      await database.updateActor({
+      await database.deleteFitnessSettings({
         actorId: currentActor.id,
-        ...updatedSettings
+        serviceType: 'strava'
       })
 
       return apiResponse({
         req,
         allowedMethods: [],
-        data: {
-          success: true,
-          message: 'Strava settings removed successfully'
-        },
+        data: { success: true, message: 'Strava settings removed successfully' },
         responseStatusCode: 200
       })
     } catch (_error) {
