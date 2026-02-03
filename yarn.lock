@@ -5130,7 +5130,7 @@ __metadata:
     framer-motion: "npm:^12.29.2"
     globals: "npm:^17.3.0"
     got: "npm:^14.6.6"
-    html-react-parser: "npm:^5.2.15"
+    html-react-parser: "npm:^5.2.16"
     husky: "npm:^9.1.7"
     jest: "npm:^30.2.0"
     jest-environment-jsdom: "npm:^30.2.0"
@@ -7795,13 +7795,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"html-dom-parser@npm:5.1.4":
-  version: 5.1.4
-  resolution: "html-dom-parser@npm:5.1.4"
+"html-dom-parser@npm:5.1.7":
+  version: 5.1.7
+  resolution: "html-dom-parser@npm:5.1.7"
   dependencies:
     domhandler: "npm:5.0.3"
     htmlparser2: "npm:10.1.0"
-  checksum: 10c0/3c87ff8caac7a2ca9fada9de8f1e830261abb150d2743c79f6cc3904fe5ffc701bce9fe8cb495040e689f943e804ff009bfbfc99d73bdbd236ac8dd0559b63db
+  checksum: 10c0/a97ca5cb361ffb36da46eb1b5421e7eb48c34e6056053bcb7926a4dd5669c6cea6bdae8da5575f3e4105cad9d88a23a19417151838e01bbef806907aefe503a0
   languageName: node
   linkType: hard
 
@@ -7821,12 +7821,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"html-react-parser@npm:^5.2.15":
-  version: 5.2.15
-  resolution: "html-react-parser@npm:5.2.15"
+"html-react-parser@npm:^5.2.16":
+  version: 5.2.16
+  resolution: "html-react-parser@npm:5.2.16"
   dependencies:
     domhandler: "npm:5.0.3"
-    html-dom-parser: "npm:5.1.4"
+    html-dom-parser: "npm:5.1.7"
     react-property: "npm:2.0.2"
     style-to-js: "npm:1.1.21"
   peerDependencies:
@@ -7835,7 +7835,7 @@ __metadata:
   peerDependenciesMeta:
     "@types/react":
       optional: true
-  checksum: 10c0/11aa6c1dc603812645c403dd9bc6acfed9e1232fc87933e76f39e959e6d74a7bcfd592e5baa9e41d6cc932c8d348865fdced7e98ac4f0827bb08e8131abf016e
+  checksum: 10c0/d481d724f679ef72beb1ed2758e7f8f5a278b35c111655b3c68a9e88b8c86a4a34a92546631e93e98e140aea31d6aa5c91a927a598962c939f6d6fce8f23c025
   languageName: node
   linkType: hard
 
