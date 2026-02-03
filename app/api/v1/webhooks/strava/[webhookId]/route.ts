@@ -18,7 +18,6 @@ export const GET = traceApiRoute(
     const challenge = searchParams.get('hub.challenge')
 
     if (mode === 'subscribe' && challenge) {
-      // Validate verify token against actor's stored token
       const database = await getDatabase()
       if (!database) {
         return apiResponse({
@@ -29,11 +28,14 @@ export const GET = traceApiRoute(
         })
       }
 
-      const settings = await database.getActorSettings({ actorId: webhookId })
+      const fitnessSettings = await database.getFitnessSettings({
+        actorId: webhookId,
+        serviceType: 'strava'
+      })
 
-      if (!settings?.fitness?.strava?.webhookVerifyToken) {
+      if (!fitnessSettings?.webhookToken) {
         logger.warn({
-          message: 'No webhook verify token configured for actor',
+          message: 'No webhook token configured for actor',
           actorId: webhookId
         })
         return apiResponse({
@@ -44,7 +46,7 @@ export const GET = traceApiRoute(
         })
       }
 
-      if (token !== settings.fitness.strava.webhookVerifyToken) {
+      if (token !== fitnessSettings.webhookToken) {
         logger.warn({
           message: 'Strava webhook verification token mismatch',
           actorId: webhookId
@@ -94,7 +96,6 @@ export const POST = traceApiRoute(
         aspectType: body.aspect_type
       })
 
-      // webhookId is the actorId - direct lookup, no iteration needed
       const database = await getDatabase()
       if (!database) {
         return apiResponse({
@@ -105,9 +106,12 @@ export const POST = traceApiRoute(
         })
       }
 
-      const settings = await database.getActorSettings({ actorId: webhookId })
+      const fitnessSettings = await database.getFitnessSettings({
+        actorId: webhookId,
+        serviceType: 'strava'
+      })
 
-      if (!settings?.fitness?.strava?.accessToken) {
+      if (!fitnessSettings?.accessToken) {
         logger.warn({
           message: 'No Strava connection found for actor',
           actorId: webhookId
