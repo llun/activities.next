@@ -1,10 +1,5 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 
-// Mock uuid to avoid ESM issues
-jest.mock('uuid', () => ({
-  v4: jest.fn(() => 'test-uuid-' + Math.random().toString(36).substring(7))
-}))
-
 describe('FitnessSettings database operations', () => {
   let database: Awaited<ReturnType<typeof getTestSQLDatabase>>
   const testActorId = 'test-actor-123'

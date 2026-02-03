@@ -1,5 +1,10 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { TEST_DOMAIN } from '@/lib/stub/const'
+
+jest.mock('../../config', () => ({
+  getConfig: jest.fn().mockReturnValue({ host: TEST_DOMAIN })
+}))
+
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -12,10 +17,6 @@ import {
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { getMastodonStatus } from './getMastodonStatus'
-
-jest.mock('../../config', () => ({
-  getConfig: jest.fn().mockReturnValue({ host: TEST_DOMAIN })
-}))
 
 describe('#getMastodonStatus', () => {
   const database = getTestSQLDatabase()
