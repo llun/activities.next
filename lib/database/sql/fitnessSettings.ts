@@ -38,6 +38,11 @@ export interface GetFitnessSettingsParams {
   serviceType: string
 }
 
+export interface GetFitnessSettingsByWebhookTokenParams {
+  webhookToken: string
+  serviceType: string
+}
+
 export interface DeleteFitnessSettingsParams {
   actorId: string
   serviceType: string
@@ -52,6 +57,9 @@ export interface FitnessSettingsDatabase {
   ) => Promise<FitnessSettings | null>
   getFitnessSettings: (
     params: GetFitnessSettingsParams
+  ) => Promise<FitnessSettings | null>
+  getFitnessSettingsByWebhookToken: (
+    params: GetFitnessSettingsByWebhookTokenParams
   ) => Promise<FitnessSettings | null>
   deleteFitnessSettings: (params: DeleteFitnessSettingsParams) => Promise<void>
 }
@@ -180,6 +188,39 @@ export const FitnessSettingsSQLDatabaseMixin = (
   }: GetFitnessSettingsParams): Promise<FitnessSettings | null> {
     const row = await database('fitness_settings')
       .where({ actorId, serviceType })
+      .whereNull('deletedAt')
+      .first<SQLFitnessSettings>()
+
+    if (!row) return null
+
+    return {
+      id: row.id,
+      actorId: row.actorId,
+      serviceType: row.serviceType,
+      clientId: row.clientId || undefined,
+      clientSecret: row.clientSecret ? decrypt(row.clientSecret) : undefined,
+      webhookToken: row.webhookToken || undefined,
+      accessToken: row.accessToken ? decrypt(row.accessToken) : undefined,
+      refreshToken: row.refreshToken ? decrypt(row.refreshToken) : undefined,
+      tokenExpiresAt: row.tokenExpiresAt
+        ? getCompatibleTime(row.tokenExpiresAt)
+        : undefined,
+      oauthState: row.oauthState || undefined,
+      oauthStateExpiry: row.oauthStateExpiry
+        ? getCompatibleTime(row.oauthStateExpiry)
+        : undefined,
+      createdAt: getCompatibleTime(row.createdAt),
+      updatedAt: getCompatibleTime(row.updatedAt),
+      deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
+    }
+  },
+
+  async getFitnessSettingsByWebhookToken({
+    webhookToken,
+    serviceType
+  }: GetFitnessSettingsByWebhookTokenParams): Promise<FitnessSettings | null> {
+    const row = await database('fitness_settings')
+      .where({ webhookToken, serviceType })
       .whereNull('deletedAt')
       .first<SQLFitnessSettings>()
 

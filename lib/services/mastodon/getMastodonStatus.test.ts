@@ -1,5 +1,6 @@
 import { TEST_DOMAIN } from '@/lib/stub/const'
 
+// prettier-ignore
 jest.mock('../../config', () => ({
   getConfig: jest.fn().mockReturnValue({ host: TEST_DOMAIN })
 }))

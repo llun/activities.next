@@ -47,7 +47,9 @@ describe('FitnessSettings database operations', () => {
       'multi',
       'recreate',
       'multi-delete',
-      'oauth-flow'
+      'oauth-flow',
+      'webhook',
+      'webhook-deleted'
     ]
 
     for (const suffix of suffixes) {
@@ -388,6 +390,57 @@ describe('FitnessSettings database operations', () => {
 
       expect(settings1?.clientId).toBe('12345')
       expect(settings2?.clientId).toBe('99999')
+    })
+  })
+
+  describe('getFitnessSettingsByWebhookToken', () => {
+    it('retrieves settings by webhook token', async () => {
+      const created = await database.createFitnessSettings({
+        actorId: `${testActorId}-webhook`,
+        serviceType: 'strava',
+        clientId: '12345',
+        webhookToken: 'webhook-abc-123',
+        accessToken: 'access-token'
+      })
+
+      const fetched = await database.getFitnessSettingsByWebhookToken({
+        webhookToken: 'webhook-abc-123',
+        serviceType: 'strava'
+      })
+
+      expect(fetched?.id).toBe(created.id)
+      expect(fetched?.actorId).toBe(`${testActorId}-webhook`)
+      expect(fetched?.clientId).toBe('12345')
+      expect(fetched?.webhookToken).toBe('webhook-abc-123')
+    })
+
+    it('returns null for non-existent webhook token', async () => {
+      const result = await database.getFitnessSettingsByWebhookToken({
+        webhookToken: 'non-existent-token',
+        serviceType: 'strava'
+      })
+
+      expect(result).toBeNull()
+    })
+
+    it('returns null for soft-deleted entry', async () => {
+      await database.createFitnessSettings({
+        actorId: `${testActorId}-webhook-deleted`,
+        serviceType: 'strava',
+        webhookToken: 'deleted-webhook-token'
+      })
+
+      await database.deleteFitnessSettings({
+        actorId: `${testActorId}-webhook-deleted`,
+        serviceType: 'strava'
+      })
+
+      const result = await database.getFitnessSettingsByWebhookToken({
+        webhookToken: 'deleted-webhook-token',
+        serviceType: 'strava'
+      })
+
+      expect(result).toBeNull()
     })
   })
 

@@ -5,12 +5,12 @@ import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-type Params = { webhookId: string }
+type Params = { webhookToken: string }
 
 export const GET = traceApiRoute(
   'stravaWebhookVerification',
   async (req: NextRequest, context: { params: Promise<Params> }) => {
-    const { webhookId } = await context.params
+    const { webhookToken } = await context.params
     const { searchParams } = new URL(req.url)
 
     const mode = searchParams.get('hub.mode')
@@ -28,15 +28,14 @@ export const GET = traceApiRoute(
         })
       }
 
-      const fitnessSettings = await database.getFitnessSettings({
-        actorId: webhookId,
+      const fitnessSettings = await database.getFitnessSettingsByWebhookToken({
+        webhookToken,
         serviceType: 'strava'
       })
 
-      if (!fitnessSettings?.webhookToken) {
+      if (!fitnessSettings) {
         logger.warn({
-          message: 'No webhook token configured for actor',
-          actorId: webhookId
+          message: 'No fitness settings found for webhook token'
         })
         return apiResponse({
           req,
@@ -49,7 +48,7 @@ export const GET = traceApiRoute(
       if (token !== fitnessSettings.webhookToken) {
         logger.warn({
           message: 'Strava webhook verification token mismatch',
-          actorId: webhookId
+          actorId: fitnessSettings.actorId
         })
         return apiResponse({
           req,
@@ -61,7 +60,7 @@ export const GET = traceApiRoute(
 
       logger.info({
         message: 'Strava webhook verification successful',
-        actorId: webhookId
+        actorId: fitnessSettings.actorId
       })
 
       return apiResponse({
@@ -84,14 +83,13 @@ export const GET = traceApiRoute(
 export const POST = traceApiRoute(
   'stravaWebhookEvent',
   async (req: NextRequest, context: { params: Promise<Params> }) => {
-    const { webhookId } = await context.params
+    const { webhookToken } = await context.params
 
     try {
       const body = await req.json()
 
       logger.info({
         message: 'Strava webhook event received',
-        webhookId,
         eventType: body.object_type,
         aspectType: body.aspect_type
       })
@@ -106,15 +104,14 @@ export const POST = traceApiRoute(
         })
       }
 
-      const fitnessSettings = await database.getFitnessSettings({
-        actorId: webhookId,
+      const fitnessSettings = await database.getFitnessSettingsByWebhookToken({
+        webhookToken,
         serviceType: 'strava'
       })
 
       if (!fitnessSettings?.accessToken) {
         logger.warn({
-          message: 'No Strava connection found for actor',
-          actorId: webhookId
+          message: 'No Strava connection found for webhook token'
         })
         return apiResponse({
           req,
@@ -126,7 +123,7 @@ export const POST = traceApiRoute(
 
       logger.info({
         message: 'Strava activity event',
-        actorId: webhookId,
+        actorId: fitnessSettings.actorId,
         event: body
       })
 

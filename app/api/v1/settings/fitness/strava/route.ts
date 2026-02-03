@@ -31,8 +31,8 @@ export const GET = traceApiRoute(
       })
     }
 
-    const webhookUrl = fitnessSettings.accessToken
-      ? `https://${config.host}/api/v1/webhooks/strava/${currentActor.id}`
+    const webhookUrl = fitnessSettings.webhookToken
+      ? `https://${config.host}/api/v1/webhooks/strava/${fitnessSettings.webhookToken}`
       : undefined
 
     return apiResponse({
