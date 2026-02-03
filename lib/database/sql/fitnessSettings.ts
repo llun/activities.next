@@ -23,14 +23,14 @@ export interface CreateFitnessSettingsParams {
 
 export interface UpdateFitnessSettingsParams {
   id: string
-  clientId?: string
-  clientSecret?: string
-  webhookToken?: string
-  accessToken?: string
-  refreshToken?: string
-  tokenExpiresAt?: number
-  oauthState?: string
-  oauthStateExpiry?: number
+  clientId?: string | null
+  clientSecret?: string | null
+  webhookToken?: string | null
+  accessToken?: string | null
+  refreshToken?: string | null
+  tokenExpiresAt?: number | null
+  oauthState?: string | null
+  oauthStateExpiry?: number | null
 }
 
 export interface GetFitnessSettingsParams {
@@ -124,10 +124,11 @@ export const FitnessSettingsSQLDatabaseMixin = (
       updatedAt: new Date()
     }
 
-    if (clientId !== undefined) updateData.clientId = clientId
+    if (clientId !== undefined) updateData.clientId = clientId || null
     if (clientSecret !== undefined)
       updateData.clientSecret = clientSecret ? encrypt(clientSecret) : null
-    if (webhookToken !== undefined) updateData.webhookToken = webhookToken
+    if (webhookToken !== undefined)
+      updateData.webhookToken = webhookToken || null
     if (accessToken !== undefined)
       updateData.accessToken = accessToken ? encrypt(accessToken) : null
     if (refreshToken !== undefined)
@@ -136,7 +137,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       updateData.tokenExpiresAt = tokenExpiresAt
         ? new Date(tokenExpiresAt)
         : null
-    if (oauthState !== undefined) updateData.oauthState = oauthState
+    if (oauthState !== undefined) updateData.oauthState = oauthState || null
     if (oauthStateExpiry !== undefined)
       updateData.oauthStateExpiry = oauthStateExpiry
         ? new Date(oauthStateExpiry)

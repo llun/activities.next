@@ -1,13 +1,66 @@
-import { getDatabase, getSQLiteDatabase } from '@/lib/database/testUtils'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
+
+// Mock uuid to avoid ESM issues
+jest.mock('uuid', () => ({
+  v4: jest.fn(() => 'test-uuid-' + Math.random().toString(36).substring(7))
+}))
 
 describe('FitnessSettings database operations', () => {
-  let database: Awaited<ReturnType<typeof getDatabase>>
+  let database: Awaited<ReturnType<typeof getTestSQLDatabase>>
   const testActorId = 'test-actor-123'
   const testActorId2 = 'test-actor-456'
 
   beforeAll(async () => {
-    database = await getSQLiteDatabase()
+    database = getTestSQLDatabase()
     await database.migrate()
+
+    // Create test actors for foreign key constraints
+    const createTestActor = async (id: string, username: string) => {
+      await database.createActor({
+        actorId: id,
+        username,
+        domain: 'test.example.com',
+        inboxUrl: `https://test.example.com/users/${username}/inbox`,
+        outboxUrl: `https://test.example.com/users/${username}/outbox`,
+        followersUrl: `https://test.example.com/users/${username}/followers`,
+        sharedInboxUrl: `https://test.example.com/shared/inbox`,
+        publicKey: `test-public-key-${username}`,
+        privateKey: `test-private-key-${username}`,
+        createdAt: Date.now()
+      })
+    }
+
+    // Create main test actors
+    await createTestActor(testActorId, 'testactor1')
+    await createTestActor(testActorId2, 'testactor2')
+
+    // Create test actors for all test cases
+    const suffixes = [
+      'encrypt',
+      'oauth',
+      'minimal',
+      'unique',
+      'get',
+      'get-deleted',
+      'update',
+      'tokens',
+      'clear-state',
+      'partial',
+      'delete',
+      'delete-time',
+      'deleted',
+      'multi',
+      'recreate',
+      'multi-delete',
+      'oauth-flow'
+    ]
+
+    for (const suffix of suffixes) {
+      await createTestActor(
+        `${testActorId}-${suffix}`,
+        `testactor-${suffix.replace('-', '_')}`
+      )
+    }
   })
 
   afterAll(async () => {
@@ -183,8 +236,8 @@ describe('FitnessSettings database operations', () => {
       const updated = await database.updateFitnessSettings({
         id: created.id,
         accessToken: 'token-from-oauth',
-        oauthState: undefined,
-        oauthStateExpiry: undefined
+        oauthState: null,
+        oauthStateExpiry: null
       })
 
       expect(updated?.accessToken).toBe('token-from-oauth')
@@ -483,8 +536,8 @@ describe('FitnessSettings database operations', () => {
         accessToken: 'ya29.access-token',
         refreshToken: 'refresh-token-abc',
         tokenExpiresAt: Date.now() + 3600000,
-        oauthState: undefined,
-        oauthStateExpiry: undefined
+        oauthState: null,
+        oauthStateExpiry: null
       })
 
       expect(afterAuth?.accessToken).toBe('ya29.access-token')
