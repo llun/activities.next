@@ -14,10 +14,7 @@ export function encrypt(text: string): string {
   if (!text) return ''
 
   const config = getConfig()
-  const key = crypto
-    .createHash('sha256')
-    .update(config.secretPhase)
-    .digest()
+  const key = crypto.createHash('sha256').update(config.secretPhase).digest()
 
   const iv = crypto.randomBytes(IV_LENGTH)
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
@@ -37,10 +34,7 @@ export function decrypt(text: string): string {
   if (!text) return ''
 
   const config = getConfig()
-  const key = crypto
-    .createHash('sha256')
-    .update(config.secretPhase)
-    .digest()
+  const key = crypto.createHash('sha256').update(config.secretPhase).digest()
 
   const [ivHex, encryptedHex] = text.split(':')
   if (!ivHex || !encryptedHex) {
@@ -62,13 +56,30 @@ export function decrypt(text: string): string {
  * @returns Random alphanumeric string (A-Za-z0-9)
  */
 export function generateAlphanumeric(length: number = 32): string {
-  const chars =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const charsLength = chars.length
   let result = ''
 
-  const randomBytes = crypto.randomBytes(length)
-  for (let i = 0; i < length; i++) {
-    result += chars[randomBytes[i] % chars.length]
+  // Generate enough random bytes to avoid modulo bias
+  // We need more bytes than the output length to ensure uniform distribution
+  const randomBytesNeeded = length * 2
+  const randomBytesBuffer = crypto.randomBytes(randomBytesNeeded)
+
+  let bytesUsed = 0
+  while (result.length < length && bytesUsed < randomBytesNeeded) {
+    const byte = randomBytesBuffer[bytesUsed]
+    bytesUsed++
+
+    // Reject bytes that would cause modulo bias
+    // Only use bytes that fit evenly into our character set
+    if (byte < 256 - (256 % charsLength)) {
+      result += chars[byte % charsLength]
+    }
+  }
+
+  // Fallback: if we somehow didn't generate enough (extremely unlikely)
+  if (result.length < length) {
+    return generateAlphanumeric(length)
   }
 
   return result

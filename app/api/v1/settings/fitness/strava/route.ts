@@ -141,7 +141,10 @@ export const DELETE = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: [],
-        data: { success: true, message: 'Strava settings removed successfully' },
+        data: {
+          success: true,
+          message: 'Strava settings removed successfully'
+        },
         responseStatusCode: 200
       })
     } catch (_error) {
