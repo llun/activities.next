@@ -5,10 +5,12 @@ import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+type Params = { webhookId: string }
+
 export const GET = traceApiRoute(
   'stravaWebhookVerification',
-  async (req: NextRequest, { params }) => {
-    const { webhookId } = await params
+  async (req: NextRequest, context: { params: Promise<Params> }) => {
+    const { webhookId } = await context.params
     const { searchParams } = new URL(req.url)
 
     const mode = searchParams.get('hub.mode')
@@ -18,6 +20,15 @@ export const GET = traceApiRoute(
     if (mode === 'subscribe' && challenge) {
       // Validate verify token against actor's stored token
       const database = await getDatabase()
+      if (!database) {
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Database unavailable' },
+          responseStatusCode: 500
+        })
+      }
+
       const settings = await database.getActorSettings({ actorId: webhookId })
 
       if (!settings?.fitness?.strava?.webhookVerifyToken) {
@@ -70,8 +81,8 @@ export const GET = traceApiRoute(
 
 export const POST = traceApiRoute(
   'stravaWebhookEvent',
-  async (req: NextRequest, { params }) => {
-    const { webhookId } = await params
+  async (req: NextRequest, context: { params: Promise<Params> }) => {
+    const { webhookId } = await context.params
 
     try {
       const body = await req.json()
@@ -85,6 +96,15 @@ export const POST = traceApiRoute(
 
       // webhookId is the actorId - direct lookup, no iteration needed
       const database = await getDatabase()
+      if (!database) {
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Database unavailable' },
+          responseStatusCode: 500
+        })
+      }
+
       const settings = await database.getActorSettings({ actorId: webhookId })
 
       if (!settings?.fitness?.strava?.accessToken) {
