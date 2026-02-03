@@ -24,6 +24,8 @@ export interface ActorSettings {
       expiresAt?: number
       athleteId?: number
       webhookId?: string
+      oauthState?: string
+      oauthStateExpiry?: number
     }
   }
 }

@@ -28,6 +28,24 @@ export const GET = traceApiRoute(
     const state = randomBytes(16).toString('hex')
     const redirectUri = `${config.host}/api/v1/settings/fitness/strava/callback`
 
+    // Store state in actor settings for CSRF validation
+    const updatedSettings = {
+      ...(settings || {}),
+      fitness: {
+        ...(settings?.fitness || {}),
+        strava: {
+          ...stravaSettings,
+          oauthState: state,
+          oauthStateExpiry: Date.now() + 10 * 60 * 1000 // 10 minutes
+        }
+      }
+    }
+
+    await database.updateActor({
+      actorId: currentActor.id,
+      ...updatedSettings
+    })
+
     const stravaAuthUrl = new URL('https://www.strava.com/oauth/authorize')
     stravaAuthUrl.searchParams.set('client_id', stravaSettings.clientId)
     stravaAuthUrl.searchParams.set('redirect_uri', redirectUri)
