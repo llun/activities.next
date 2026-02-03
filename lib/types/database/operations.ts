@@ -72,6 +72,12 @@ export type UpdateActorParams = {
     reply?: boolean
     reblog?: boolean
   }
+  fitness?: {
+    strava?: {
+      clientId: string
+      clientSecret: string
+    }
+  }
 
   publicKey?: string
 
