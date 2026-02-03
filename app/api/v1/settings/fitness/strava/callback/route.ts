@@ -28,13 +28,13 @@ export const GET = traceApiRoute(
     if (error) {
       logger.error({ message: 'Strava OAuth error', error })
       return Response.redirect(
-        `${config.host}/settings/fitness/strava?error=authorization_failed`
+        `https://${config.host}/settings/fitness/strava?error=authorization_failed`
       )
     }
 
     if (!code) {
       return Response.redirect(
-        `${config.host}/settings/fitness/strava?error=no_code`
+        `https://${config.host}/settings/fitness/strava?error=no_code`
       )
     }
 
@@ -45,7 +45,7 @@ export const GET = traceApiRoute(
     const stravaSettings = settings?.fitness?.strava
     if (!stravaSettings?.clientId || !stravaSettings?.clientSecret) {
       return Response.redirect(
-        `${config.host}/settings/fitness/strava?error=not_configured`
+        `https://${config.host}/settings/fitness/strava?error=not_configured`
       )
     }
 
@@ -56,7 +56,7 @@ export const GET = traceApiRoute(
         actorId: currentActor.id
       })
       return Response.redirect(
-        `${config.host}/settings/fitness/strava?error=invalid_state`
+        `https://${config.host}/settings/fitness/strava?error=invalid_state`
       )
     }
 
@@ -70,7 +70,7 @@ export const GET = traceApiRoute(
         actorId: currentActor.id
       })
       return Response.redirect(
-        `${config.host}/settings/fitness/strava?error=state_expired`
+        `https://${config.host}/settings/fitness/strava?error=state_expired`
       )
     }
 
@@ -96,7 +96,7 @@ export const GET = traceApiRoute(
           error: errorData
         })
         return Response.redirect(
-          `${config.host}/settings/fitness/strava?error=token_exchange_failed`
+          `https://${config.host}/settings/fitness/strava?error=token_exchange_failed`
         )
       }
 
@@ -130,12 +130,12 @@ export const GET = traceApiRoute(
       })
 
       return Response.redirect(
-        `${config.host}/settings/fitness/strava?success=true`
+        `https://${config.host}/settings/fitness/strava?success=true`
       )
     } catch (error) {
       logger.error({ message: 'Strava callback error', error })
       return Response.redirect(
-        `${config.host}/settings/fitness/strava?error=unexpected_error`
+        `https://${config.host}/settings/fitness/strava?error=unexpected_error`
       )
     }
   })
