@@ -20,6 +20,7 @@ export const StravaSettingsForm: FC = () => {
   const [isConfigured, setIsConfigured] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
+  const [webhookVerifyToken, setWebhookVerifyToken] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -40,6 +41,7 @@ export const StravaSettingsForm: FC = () => {
           setClientId(data.clientId)
           setClientSecret('••••••••')
           setWebhookUrl(data.webhookUrl || '')
+          setWebhookVerifyToken(data.webhookVerifyToken || '')
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
@@ -141,6 +143,7 @@ export const StravaSettingsForm: FC = () => {
       setClientId('')
       setClientSecret('')
       setWebhookUrl('')
+      setWebhookVerifyToken('')
       setShowUnlinkDialog(false)
     } catch (_err) {
       setError('An error occurred. Please try again.')
@@ -217,6 +220,22 @@ export const StravaSettingsForm: FC = () => {
             />
             <p className="text-[0.8rem] text-muted-foreground">
               Use this URL to configure Strava webhook subscriptions
+            </p>
+          </div>
+        )}
+
+        {webhookVerifyToken && (
+          <div className="space-y-2">
+            <Label htmlFor="webhookVerifyToken">Webhook Verify Token</Label>
+            <Input
+              type="text"
+              id="webhookVerifyToken"
+              value={webhookVerifyToken}
+              readOnly
+              className="bg-muted"
+            />
+            <p className="text-[0.8rem] text-muted-foreground">
+              Use this token when creating the webhook subscription on Strava
             </p>
           </div>
         )}

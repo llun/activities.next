@@ -23,6 +23,7 @@ export interface ActorSettings {
       refreshToken?: string
       expiresAt?: number
       athleteId?: number
+      webhookVerifyToken?: string
       oauthState?: string
       oauthStateExpiry?: number
     }

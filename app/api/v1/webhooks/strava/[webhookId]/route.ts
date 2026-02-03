@@ -16,12 +16,27 @@ export const GET = traceApiRoute(
     const challenge = searchParams.get('hub.challenge')
 
     if (mode === 'subscribe' && challenge) {
-      // Validate verify token if configured
-      const expectedToken = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
-      if (expectedToken && token !== expectedToken) {
+      // Validate verify token against actor's stored token
+      const database = await getDatabase()
+      const settings = await database.getActorSettings({ actorId: webhookId })
+
+      if (!settings?.fitness?.strava?.webhookVerifyToken) {
+        logger.warn({
+          message: 'No webhook verify token configured for actor',
+          actorId: webhookId
+        })
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Webhook not configured' },
+          responseStatusCode: 404
+        })
+      }
+
+      if (token !== settings.fitness.strava.webhookVerifyToken) {
         logger.warn({
           message: 'Strava webhook verification token mismatch',
-          webhookId
+          actorId: webhookId
         })
         return apiResponse({
           req,
@@ -32,8 +47,8 @@ export const GET = traceApiRoute(
       }
 
       logger.info({
-        message: 'Strava webhook verification request',
-        webhookId
+        message: 'Strava webhook verification successful',
+        actorId: webhookId
       })
 
       return apiResponse({
