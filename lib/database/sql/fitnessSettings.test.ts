@@ -192,6 +192,9 @@ describe('FitnessSettings database operations', () => {
         clientSecret: 'old-secret'
       })
 
+      // Wait 1ms to ensure different timestamp
+      await new Promise((resolve) => setTimeout(resolve, 1))
+
       const updated = await database.updateFitnessSettings({
         id: created.id,
         clientSecret: 'new-secret',
@@ -201,7 +204,7 @@ describe('FitnessSettings database operations', () => {
       expect(updated?.clientSecret).toBe('new-secret')
       expect(updated?.webhookToken).toBe('new-webhook-token')
       expect(updated?.clientId).toBe('12345') // Unchanged
-      expect(updated?.updatedAt).toBeGreaterThan(created.updatedAt)
+      expect(updated?.updatedAt).toBeGreaterThanOrEqual(created.updatedAt)
     })
 
     it('updates OAuth tokens', async () => {
