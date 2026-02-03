@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto'
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
@@ -43,7 +44,8 @@ export const GET = traceApiRoute(
         configured: true,
         clientId: stravaSettings.clientId,
         connected: !!stravaSettings.accessToken,
-        webhookUrl
+        webhookUrl,
+        webhookVerifyToken: stravaSettings.webhookVerifyToken
       },
       responseStatusCode: 200
     })
@@ -64,13 +66,17 @@ export const POST = traceApiRoute(
         actorId: currentActor.id
       })
 
+      // Generate webhook verify token for Strava webhook subscription
+      const webhookVerifyToken = randomBytes(16).toString('hex')
+
       const updatedSettings = {
         ...currentSettings,
         fitness: {
           ...(currentSettings?.fitness || {}),
           strava: {
             clientId,
-            clientSecret
+            clientSecret,
+            webhookVerifyToken
           }
         }
       }
