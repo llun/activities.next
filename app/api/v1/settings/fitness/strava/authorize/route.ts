@@ -1,5 +1,7 @@
 import { randomBytes } from 'crypto'
 
+import { NextResponse } from 'next/server'
+
 import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { apiResponse } from '@/lib/utils/response'
@@ -26,7 +28,7 @@ export const GET = traceApiRoute(
     }
 
     const state = randomBytes(16).toString('hex')
-    const redirectUri = `${config.host}/api/v1/settings/fitness/strava/callback`
+    const redirectUri = `https://${config.host}/api/v1/settings/fitness/strava/callback`
 
     // Store state in actor settings for CSRF validation
     const updatedSettings = {
@@ -53,14 +55,7 @@ export const GET = traceApiRoute(
     stravaAuthUrl.searchParams.set('scope', 'activity:read_all')
     stravaAuthUrl.searchParams.set('state', state)
 
-    return apiResponse({
-      req,
-      allowedMethods: [],
-      data: {
-        authorizeUrl: stravaAuthUrl.toString(),
-        state
-      },
-      responseStatusCode: 200
-    })
+    // Redirect to Strava OAuth page
+    return NextResponse.redirect(stravaAuthUrl.toString())
   })
 )
