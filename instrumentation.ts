@@ -4,14 +4,10 @@ import { type Instrumentation } from 'next'
 export const runtime = 'nodejs'
 
 export const register = async () => {
-  // Only run registration in Node.js runtime
-  if (typeof (globalThis as any).EdgeRuntime !== 'undefined') {
-    return
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { registerNodeInstrumentation } = await import('./instrumentation.node')
+    registerNodeInstrumentation()
   }
-
-  // Dynamically import Node.js-specific code
-  const { registerNodeInstrumentation } = await import('./instrumentation.node')
-  await registerNodeInstrumentation()
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (
