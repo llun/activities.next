@@ -7,6 +7,7 @@ import {
   CreateAction
 } from '@/lib/types/activitypub/activities'
 import { Note } from '@/lib/types/activitypub/objects'
+import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Status, fromAnnoucne, fromNote } from '@/lib/types/domain/status'
 import { getTracer } from '@/lib/utils/trace'
 
@@ -15,6 +16,7 @@ import { getActorCollections } from './getActorCollections'
 type GetActorPostsFunction = (params: {
   database: Database
   person: Actor
+  signingActor?: DomainActor
 }) => Promise<{
   statusesCount: number
   statuses: Status[]
@@ -22,7 +24,8 @@ type GetActorPostsFunction = (params: {
 
 export const getActorPosts: GetActorPostsFunction = async ({
   database,
-  person
+  person,
+  signingActor
 }) =>
   getTracer().startActiveSpan(
     'activities.getActorPosts',
@@ -33,7 +36,8 @@ export const getActorPosts: GetActorPostsFunction = async ({
       const actor = await database.getActorFromId({ id: person.id })
       const value = await getActorCollections({
         person,
-        field: 'outbox'
+        field: 'outbox',
+        signingActor
       })
       if (!value) {
         span.end()
