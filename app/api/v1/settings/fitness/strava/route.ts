@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
+import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { generateAlphanumeric } from '@/lib/utils/crypto'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -13,14 +15,14 @@ export const GET = traceApiRoute(
   'getStravaSettings',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
+    const config = getConfig()
 
-    const settings = await database.getActorSettings({
-      actorId: currentActor.id
+    const fitnessSettings = await database.getFitnessSettings({
+      actorId: currentActor.id,
+      serviceType: 'strava'
     })
 
-    const stravaSettings = settings?.fitness?.strava
-
-    if (!stravaSettings) {
+    if (!fitnessSettings) {
       return apiResponse({
         req,
         allowedMethods: [],
@@ -29,12 +31,18 @@ export const GET = traceApiRoute(
       })
     }
 
+    const webhookUrl = fitnessSettings.webhookToken
+      ? `https://${config.host}/api/v1/webhooks/strava/${fitnessSettings.webhookToken}`
+      : undefined
+
     return apiResponse({
       req,
       allowedMethods: [],
       data: {
         configured: true,
-        clientId: stravaSettings.clientId
+        clientId: fitnessSettings.clientId,
+        connected: !!fitnessSettings.accessToken,
+        webhookUrl
       },
       responseStatusCode: 200
     })
@@ -50,32 +58,37 @@ export const POST = traceApiRoute(
       const body = await req.json()
       const { clientId, clientSecret } = StravaSettingsRequest.parse(body)
 
-      const currentSettings = await database.getActorSettings({
-        actorId: currentActor.id
-      })
-
-      const updatedSettings = {
-        ...currentSettings,
-        fitness: {
-          ...(currentSettings?.fitness || {}),
-          strava: {
-            clientId,
-            clientSecret
-          }
-        }
-      }
-
-      await database.updateActor({
+      const existing = await database.getFitnessSettings({
         actorId: currentActor.id,
-        ...updatedSettings
+        serviceType: 'strava'
       })
+
+      const webhookToken = generateAlphanumeric(32)
+
+      if (existing) {
+        await database.updateFitnessSettings({
+          id: existing.id,
+          clientId,
+          clientSecret,
+          webhookToken
+        })
+      } else {
+        await database.createFitnessSettings({
+          actorId: currentActor.id,
+          serviceType: 'strava',
+          clientId,
+          clientSecret,
+          webhookToken
+        })
+      }
 
       return apiResponse({
         req,
         allowedMethods: [],
         data: {
           success: true,
-          message: 'Strava settings saved successfully'
+          message: 'Strava settings saved successfully',
+          authorizeUrl: '/api/v1/settings/fitness/strava/authorize'
         },
         responseStatusCode: 200
       })
@@ -106,11 +119,12 @@ export const DELETE = traceApiRoute(
     const { currentActor, database } = context
 
     try {
-      const currentSettings = await database.getActorSettings({
-        actorId: currentActor.id
+      const existing = await database.getFitnessSettings({
+        actorId: currentActor.id,
+        serviceType: 'strava'
       })
 
-      if (!currentSettings?.fitness?.strava) {
+      if (!existing) {
         return apiResponse({
           req,
           allowedMethods: [],
@@ -119,17 +133,9 @@ export const DELETE = traceApiRoute(
         })
       }
 
-      const updatedSettings = {
-        ...currentSettings,
-        fitness: {
-          ...(currentSettings.fitness || {}),
-          strava: undefined
-        }
-      }
-
-      await database.updateActor({
+      await database.deleteFitnessSettings({
         actorId: currentActor.id,
-        ...updatedSettings
+        serviceType: 'strava'
       })
 
       return apiResponse({

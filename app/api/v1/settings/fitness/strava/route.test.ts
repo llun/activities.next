@@ -18,6 +18,7 @@ jest.mock('../../../../auth/[...nextauth]/authOptions', () => ({
 jest.mock('../../../../../../lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
+    secretPhase: 'test-secret-for-encryption',
     allowEmails: [],
     allowActorDomains: []
   })
@@ -53,9 +54,10 @@ describe('Strava Settings API', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
-    await database.updateActor({
+    // Clean up fitness settings
+    await database.deleteFitnessSettings({
       actorId: ACTOR1_ID,
-      fitness: {}
+      serviceType: 'strava'
     })
   })
 
@@ -76,14 +78,11 @@ describe('Strava Settings API', () => {
     })
 
     it('returns clientId without secret when configured', async () => {
-      await database.updateActor({
+      await database.createFitnessSettings({
         actorId: ACTOR1_ID,
-        fitness: {
-          strava: {
-            clientId: '12345',
-            clientSecret: 'secret123'
-          }
-        }
+        serviceType: 'strava',
+        clientId: '12345',
+        clientSecret: 'secret123'
       })
 
       const request = new NextRequest(
@@ -122,9 +121,12 @@ describe('Strava Settings API', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
 
-      const settings = await database.getActorSettings({ actorId: ACTOR1_ID })
-      expect(settings?.fitness?.strava?.clientId).toBe('54321')
-      expect(settings?.fitness?.strava?.clientSecret).toBe('newsecret456')
+      const settings = await database.getFitnessSettings({
+        actorId: ACTOR1_ID,
+        serviceType: 'strava'
+      })
+      expect(settings?.clientId).toBe('54321')
+      expect(settings?.clientSecret).toBe('newsecret456')
     })
 
     it('rejects non-numeric client ID', async () => {
@@ -168,14 +170,11 @@ describe('Strava Settings API', () => {
 
   describe('DELETE /api/v1/settings/fitness/strava', () => {
     it('removes existing Strava settings', async () => {
-      await database.updateActor({
+      await database.createFitnessSettings({
         actorId: ACTOR1_ID,
-        fitness: {
-          strava: {
-            clientId: '99999',
-            clientSecret: 'deleteme'
-          }
-        }
+        serviceType: 'strava',
+        clientId: '99999',
+        clientSecret: 'deleteme'
       })
 
       const request = new NextRequest(
@@ -191,19 +190,14 @@ describe('Strava Settings API', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
 
-      const settings = await database.getActorSettings({ actorId: ACTOR1_ID })
-      expect(settings?.fitness?.strava).toBeUndefined()
+      const settings = await database.getFitnessSettings({
+        actorId: ACTOR1_ID,
+        serviceType: 'strava'
+      })
+      expect(settings).toBeNull()
     })
 
     it('returns 404 when no settings exist', async () => {
-      const settings = await database.getActorSettings({ actorId: ACTOR1_ID })
-      if (settings?.fitness?.strava) {
-        await database.updateActor({
-          actorId: ACTOR1_ID,
-          fitness: {}
-        })
-      }
-
       const request = new NextRequest(
         'http://llun.test/api/v1/settings/fitness/strava',
         {

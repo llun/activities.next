@@ -1,3 +1,4 @@
+import { FitnessSettingsDatabase } from '@/lib/database/sql/fitnessSettings'
 import {
   AccountDatabase,
   ActorDatabase,
@@ -13,6 +14,7 @@ import {
 
 export type Database = AccountDatabase &
   ActorDatabase &
+  FitnessSettingsDatabase &
   FollowDatabase &
   LikeDatabase &
   MediaDatabase &
