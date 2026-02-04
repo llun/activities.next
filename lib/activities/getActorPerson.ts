@@ -3,7 +3,7 @@ import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
-import { signedGetHeaders } from '@/lib/utils/signature'
+import { signedHeaders } from '@/lib/utils/signature'
 import { getTracer } from '@/lib/utils/trace'
 
 export type GetActorPersonFunction = (params: {
@@ -23,8 +23,8 @@ export const getActorPerson: GetActorPersonFunction = ({
 
       // Add signed headers if a signing actor is provided
       if (signingActor) {
-        const signedHeaders = signedGetHeaders(signingActor, actorId)
-        Object.assign(headers, signedHeaders)
+        const signatureHeaders = signedHeaders(signingActor, 'get', actorId)
+        Object.assign(headers, signatureHeaders)
       }
 
       const { statusCode, body } = await request({
