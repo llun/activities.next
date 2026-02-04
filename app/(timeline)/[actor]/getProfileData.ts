@@ -65,7 +65,8 @@ export const getProfileData = async (
   const actorId = await getWebfingerSelf({ account: actorHandle.slice(1) })
   if (!actorId) return null
 
-  const person = await getActorPerson({ actorId, signingActor })
+  const signingParams = signingActor ? { signingActor } : {}
+  const person = await getActorPerson({ actorId, ...signingParams })
   if (!person) return null
 
   if (persistedActor) {
@@ -88,10 +89,10 @@ export const getProfileData = async (
     actorFollowingResponse,
     actorFollowersResponse
   ] = await Promise.all([
-    getActorPosts({ database, person }),
+    getActorPosts({ database, person, ...signingParams }),
     database.getAttachmentsForActor({ actorId: person.id }),
-    getActorFollowing({ person }),
-    getActorFollowers({ person })
+    getActorFollowing({ person, ...signingParams }),
+    getActorFollowers({ person, ...signingParams })
   ])
 
   return {
