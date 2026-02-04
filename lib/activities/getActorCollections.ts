@@ -21,8 +21,16 @@ export const getActorCollections = async ({
   person,
   field,
   signingActor
-}: Params) =>
-  getTracer().startActiveSpan(
+}: Params) => {
+  const createHeaders = (
+    actor: DomainActor | undefined,
+    url: string
+  ): Record<string, string> => ({
+    Accept: DEFAULT_ACCEPT,
+    ...(actor ? signedHeaders(actor, 'get', url) : {})
+  })
+
+  return getTracer().startActiveSpan(
     `activities.${field}`,
     {
       attributes: { actorId: person.id, field }
@@ -34,14 +42,9 @@ export const getActorCollections = async ({
         return null
       }
 
-      const getHeaders = (url: string) => ({
-        Accept: DEFAULT_ACCEPT,
-        ...(signingActor ? signedHeaders(signingActor, 'get', url) : {})
-      })
-
       const fieldResponse = await request({
         url: person[field],
-        headers: getHeaders(person[field])
+        headers: createHeaders(signingActor, person[field])
       })
       if (fieldResponse.statusCode !== 200) {
         span.setAttributes({
@@ -72,7 +75,7 @@ export const getActorCollections = async ({
       try {
         const response = await request({
           url: pageUrl,
-          headers: getHeaders(pageUrl)
+          headers: createHeaders(signingActor, pageUrl)
         })
         if (response.statusCode !== 200) {
           span.setAttributes({
@@ -108,3 +111,4 @@ export const getActorCollections = async ({
       }
     }
   )
+}
