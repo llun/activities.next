@@ -1,5 +1,4 @@
 /**
-export const runtime = 'nodejs'
 
  * @deprecated Use POST /api/v1/accounts/:id/follow and /unfollow instead
  * This custom endpoint is maintained for backward compatibility.

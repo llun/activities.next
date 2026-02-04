@@ -5,8 +5,6 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 export const GET = traceApiRoute(
   'getActorDomains',
   AuthenticatedGuard(async (req: NextRequest) => {

@@ -1,5 +1,4 @@
 /**
-export const runtime = 'nodejs'
 
  * @deprecated Use POST /api/v1/statuses for creating and DELETE /api/v1/statuses/:id for deleting
  * This custom endpoint is maintained for backward compatibility.

@@ -10,8 +10,6 @@ import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 const getReceiver = memoize(
   (config: Config) =>
     new Receiver({

@@ -8,8 +8,6 @@ import { getDatabase } from '@/lib/database'
 import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 const SwitchActorRequest = z.object({
   actorId: z.string().min(1)
 })

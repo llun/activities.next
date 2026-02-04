@@ -5,8 +5,6 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 const PasswordChangeRequest = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8)

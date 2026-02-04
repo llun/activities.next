@@ -7,8 +7,6 @@ import { getQueue } from '@/lib/services/queue'
 import { HTTP_STATUS } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 export const POST = traceApiRoute(
   'processActorDeletions',
   async (req: NextRequest) => {

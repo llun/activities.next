@@ -11,8 +11,6 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 const DeleteActorRequest = z.object({
   actorId: z.string().min(1),
   delayDays: z.number().min(0).max(30).optional() // 0 = immediate, 3 = 3 days delay

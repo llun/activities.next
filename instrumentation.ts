@@ -1,15 +1,6 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { type Instrumentation } from 'next'
 
-export const runtime = 'nodejs'
-
-export const register = async () => {
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { registerNodeInstrumentation } = await import('./instrumentation.node')
-    registerNodeInstrumentation()
-  }
-}
-
 export const onRequestError: Instrumentation.onRequestError = async (
   err,
   _request,
