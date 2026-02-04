@@ -12,6 +12,8 @@ import {
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
+export const runtime = 'nodejs'
+
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const DEFAULT_LIMIT = 40
 const MAX_LIMIT = 80

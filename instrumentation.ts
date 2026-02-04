@@ -1,6 +1,8 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { type Instrumentation } from 'next'
 
+export const runtime = 'nodejs'
+
 export const register = async () => {
   // Only run registration in Node.js runtime
   if (typeof (globalThis as any).EdgeRuntime !== 'undefined') {

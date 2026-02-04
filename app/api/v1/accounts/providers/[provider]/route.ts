@@ -7,6 +7,8 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+export const runtime = 'nodejs'
+
 export const DELETE = traceApiRoute(
   'unlinkProvider',
   async (

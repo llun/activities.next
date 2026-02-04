@@ -6,6 +6,8 @@ import { generateAlphanumeric } from '@/lib/utils/crypto'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+export const runtime = 'nodejs'
+
 const StravaSettingsRequest = z.object({
   clientId: z.string().regex(/^\d+$/, 'Client ID must be numeric'),
   clientSecret: z.string().min(1, 'Client Secret is required')

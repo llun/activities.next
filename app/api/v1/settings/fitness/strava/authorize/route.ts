@@ -6,6 +6,8 @@ import { generateAlphanumeric } from '@/lib/utils/crypto'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+export const runtime = 'nodejs'
+
 export const GET = traceApiRoute(
   'stravaAuthorize',
   AuthenticatedGuard(async (req, context) => {

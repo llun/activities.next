@@ -9,6 +9,8 @@ import { cleanJson } from '@/lib/utils/cleanJson'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+export const runtime = 'nodejs'
+
 export const GET = traceApiRoute(
   'getActorOutbox',
   OnlyLocalUserGuard(async (database, actor, req) => {

@@ -8,6 +8,8 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+export const runtime = 'nodejs'
+
 const SetDefaultActorRequest = z.object({
   actorId: z.string().min(1)
 })
