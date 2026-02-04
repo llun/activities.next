@@ -5,8 +5,6 @@ import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 type Params = { webhookToken: string }
 
 export const GET = traceApiRoute(

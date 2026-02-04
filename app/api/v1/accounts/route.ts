@@ -18,8 +18,6 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { CreateAccountRequest } from './types'
 
-export const runtime = 'nodejs'
-
 const BCRYPT_ROUND = 10
 const MAIN_ERROR_MESSAGE = 'Validation failed'
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]

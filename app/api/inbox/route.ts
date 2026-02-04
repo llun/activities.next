@@ -12,8 +12,6 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { getJobMessage } from './getJobMessage'
 
-export const runtime = 'nodejs'
-
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)

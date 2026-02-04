@@ -15,8 +15,6 @@ import {
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { urlToId } from '@/lib/utils/urlToId'
 
-export const runtime = 'nodejs'
-
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
   HttpMethod.enum.GET,

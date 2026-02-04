@@ -5,8 +5,6 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 interface StravaTokenResponse {
   access_token: string
   refresh_token: string

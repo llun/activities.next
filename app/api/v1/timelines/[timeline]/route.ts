@@ -15,8 +15,6 @@ import {
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
-export const runtime = 'nodejs'
-
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const UNSUPPORTED_TIMELINE = [Timeline.LOCAL_PUBLIC]
 

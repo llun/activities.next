@@ -4,8 +4,6 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 const EmailNotificationSettingsRequest = z.object({
   follow_request: z.string().optional(),
   follow: z.string().optional(),

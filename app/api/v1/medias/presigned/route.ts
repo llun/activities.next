@@ -4,8 +4,6 @@ import { PresigedMediaInput } from '@/lib/services/medias/types'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 export const POST = traceApiRoute(
   'getPresignedUrl',
   AuthenticatedGuard(async (req, context) => {

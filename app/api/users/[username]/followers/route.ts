@@ -2,8 +2,6 @@ import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 export const GET = traceApiRoute(
   'getActorFollowers',
   OnlyLocalUserGuard(async (database, actor) => {

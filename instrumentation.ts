@@ -1,8 +1,6 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { type Instrumentation } from 'next'
 
-export const runtime = 'nodejs'
-
 export const onRequestError: Instrumentation.onRequestError = async (
   err,
   _request,

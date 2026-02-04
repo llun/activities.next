@@ -7,8 +7,6 @@ import { getMedia } from '@/lib/services/medias'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-export const runtime = 'nodejs'
-
 interface Params {
   pathname: string[]
 }

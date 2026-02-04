@@ -15,8 +15,6 @@ import {
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
-export const runtime = 'nodejs'
-
 interface Params {
   id: string
 }
