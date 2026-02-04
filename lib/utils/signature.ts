@@ -130,6 +130,38 @@ export function signedHeaders(
   }
 }
 
+export function signedGetHeaders(currentActor: Actor, targetUrl: string) {
+  const url = new URL(targetUrl)
+  const host = url.host
+  const date = new Date().toUTCString()
+
+  const headers = {
+    host,
+    date
+  }
+  if (!currentActor.privateKey) {
+    return headers
+  }
+
+  const signedString = [
+    `(request-target): get ${url.pathname}`,
+    `host: ${host}`,
+    `date: ${date}`
+  ].join('\n')
+  const signer = crypto.createSign('rsa-sha256')
+  signer.write(signedString)
+  signer.end()
+  const signature = signer.sign(
+    { key: currentActor.privateKey, passphrase: getConfig().secretPhase },
+    'base64'
+  )
+  const signatureHeader = `keyId="${currentActor.id}#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="${signature}"`
+  return {
+    ...headers,
+    signature: signatureHeader
+  }
+}
+
 export function generateKeyPair(secretPhase: string) {
   return util.promisify(crypto.generateKeyPair)('rsa', {
     modulusLength: 4096,

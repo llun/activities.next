@@ -5,6 +5,7 @@ import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/activitypub'
+import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
@@ -22,7 +23,8 @@ type ProfileData = {
 export const getProfileData = async (
   database: Database,
   actorHandle: string,
-  isLoggedIn: boolean = true
+  isLoggedIn: boolean = true,
+  signingActor?: DomainActor
 ): Promise<ProfileData | null> => {
   const [username, domain] = actorHandle.split('@').slice(1)
   const persistedActor = await database.getActorFromUsername({
@@ -63,7 +65,7 @@ export const getProfileData = async (
   const actorId = await getWebfingerSelf({ account: actorHandle.slice(1) })
   if (!actorId) return null
 
-  const person = await getActorPerson({ actorId })
+  const person = await getActorPerson({ actorId, signingActor })
   if (!person) return null
 
   if (persistedActor) {

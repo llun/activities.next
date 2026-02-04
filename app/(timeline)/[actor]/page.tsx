@@ -44,10 +44,14 @@ const Page: FC<Props> = async ({ params }) => {
   }
   const actorDomain = parts[1]
 
+  // Get current actor first so we can use it to sign requests for remote actors
+  const currentActor = await getActorFromSession(database, session)
+
   const actorProfile = await getProfileData(
     database,
     decodedActorHandle,
-    isLoggedIn
+    isLoggedIn,
+    currentActor ?? undefined
   )
   if (!actorProfile) {
     return notFound()
@@ -62,7 +66,6 @@ const Page: FC<Props> = async ({ params }) => {
     followersCount
   } = actorProfile
 
-  const currentActor = await getActorFromSession(database, session)
   const isCurrentUser = currentActor?.id === person.id
 
   const initials = (person.name || '')
