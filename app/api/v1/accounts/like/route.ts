@@ -1,4 +1,6 @@
 /**
+export const runtime = 'nodejs'
+
  * @deprecated Use POST /api/v1/statuses/:id/favourite instead
  * This custom endpoint is maintained for backward compatibility.
  */

@@ -1,4 +1,6 @@
 /**
+export const runtime = 'nodejs'
+
  * @deprecated Use POST /api/v1/statuses/:id/reblog and /unreblog instead
  * This custom endpoint is maintained for backward compatibility.
  */

@@ -2,6 +2,8 @@ import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+export const runtime = 'nodejs'
+
 export const GET = traceApiRoute(
   'getActor',
   OnlyLocalUserGuard(async (_, actor, req) => {

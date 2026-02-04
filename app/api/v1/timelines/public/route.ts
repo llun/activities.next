@@ -4,6 +4,8 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+export const runtime = 'nodejs'
+
 export const dynamic = 'force-dynamic'
 
 export const GET = traceApiRoute('getPublicTimeline', async () => {

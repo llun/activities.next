@@ -96,7 +96,6 @@
     "@types/react-dom": "^19.2.3",
     "@types/react-modal": "^3.16.3",
     "@types/sanitize-html": "^2.16.0",
-    "@types/uuid": "^11.0.0",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
     "dotenv-flow": "^4.1.0",

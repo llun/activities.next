@@ -1,5 +1,4 @@
 import { Knex } from 'knex'
-import { v4 as uuidv4 } from 'uuid'
 
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
@@ -90,7 +89,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       )
     }
 
-    const id = uuidv4()
+    const id = crypto.randomUUID()
     const currentTime = new Date()
 
     const row: Partial<SQLFitnessSettings> = {

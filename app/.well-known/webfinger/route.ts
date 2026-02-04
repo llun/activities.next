@@ -9,6 +9,8 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 
+export const runtime = 'nodejs'
+
 export const dynamic = 'force-dynamic'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]

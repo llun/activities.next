@@ -8,6 +8,8 @@ import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+export const runtime = 'nodejs'
+
 type StatusParams = OnlyLocalUserGuardHandle & {
   statusId: string
 }

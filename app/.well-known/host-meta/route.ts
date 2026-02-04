@@ -4,6 +4,8 @@ import { getHostMetaXML } from '@/lib/services/wellknown'
 import { HttpMethod, getCORSHeaders } from '@/lib/utils/getCORSHeaders'
 import { defaultOptions } from '@/lib/utils/response'
 
+export const runtime = 'nodejs'
+
 export const dynamic = 'force-dynamic'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]

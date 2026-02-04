@@ -3,6 +3,8 @@ import { getOAuth2Server } from '@/lib/services/oauth/server'
 import { User } from '@/lib/types/oauth2/user'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+export const runtime = 'nodejs'
+
 export const POST = traceApiRoute(
   'authorizeApp',
   AuthenticatedGuard(async (req, context) => {

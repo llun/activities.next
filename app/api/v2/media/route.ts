@@ -5,6 +5,8 @@ import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+export const runtime = 'nodejs'
+
 export const POST = traceApiRoute(
   'uploadMediaV2',
   AuthenticatedGuard(async (req, context) => {

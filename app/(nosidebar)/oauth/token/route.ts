@@ -6,6 +6,8 @@ import { getQueryParams } from '@/lib/utils/getQueryParams'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { StatusCode, apiResponse, defaultOptions } from '@/lib/utils/response'
 
+export const runtime = 'nodejs'
+
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)

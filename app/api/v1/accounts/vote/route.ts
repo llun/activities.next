@@ -11,6 +11,8 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { VotePollRequest } from './types'
 
+export const runtime = 'nodejs'
+
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
