@@ -15,7 +15,7 @@ import { getMastodonStatus } from './getMastodonStatus'
 
 // prettier-ignore
 jest.mock('../../config', () => ({
-  getConfig: jest.fn().mockReturnValue({ host: TEST_DOMAIN })
+  getConfig: jest.fn().mockReturnValue({ host: 'test.llun.dev' })
 }))
 
 describe('#getMastodonStatus', () => {
