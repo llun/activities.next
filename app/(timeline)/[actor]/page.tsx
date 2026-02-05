@@ -14,6 +14,7 @@ import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorTimelines } from './ActorTimelines'
+import { ProfileHeaderImage } from './ProfileHeaderImage'
 import { getProfileData } from './getProfileData'
 
 interface Props {
@@ -102,15 +103,7 @@ const Page: FC<Props> = async ({ params }) => {
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <div className="relative h-36 bg-muted md:h-52">
-          {headerImageUrl && (
-            <img
-              src={headerImageUrl}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          )}
-        </div>
+        <ProfileHeaderImage actorId={person.id} imageUrl={headerImageUrl} />
 
         <div className="relative px-6 pb-6">
           <Avatar className="relative -mt-10 h-20 w-20 border-4 border-background">
