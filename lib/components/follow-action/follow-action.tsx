@@ -2,7 +2,12 @@
 
 import { FC, useEffect, useState } from 'react'
 
-import { follow, isFollowing, unfollow } from '../../client'
+import {
+  FollowStatusType,
+  follow,
+  getFollowStatus,
+  unfollow
+} from '../../client'
 import { Button } from '../ui/button'
 
 export interface FollowActionProps {
@@ -13,27 +18,34 @@ export const FollowAction: FC<FollowActionProps> = ({
   targetActorId,
   isLoggedIn
 }) => {
-  const [followingStatus, setFollowingStatus] = useState<boolean | undefined>()
+  const [followingStatus, setFollowingStatus] = useState<
+    FollowStatusType | undefined
+  >()
   useEffect(() => {
-    isFollowing({ targetActorId }).then(setFollowingStatus)
+    getFollowStatus({ targetActorId }).then(setFollowingStatus)
   }, [targetActorId])
 
   const onFollow = async (targetActorId: string) => {
     const followResult = await follow({ targetActorId })
     if (!followResult) return
-    setFollowingStatus(true)
+    // After following, check actual status from API since it might be 'requested'
+    const newStatus = await getFollowStatus({ targetActorId })
+    setFollowingStatus(newStatus)
   }
 
   const onUnfollow = async (targetActorId: string) => {
+    // Unfollowing or cancelling a pending request uses the same unfollow API
     const unfollowResult = await unfollow({ targetActorId })
     if (!unfollowResult) return
-    setFollowingStatus(false)
+    setFollowingStatus('not_following')
   }
+
+  const onCancelRequest = onUnfollow
 
   if (!isLoggedIn) return null
   if (followingStatus === undefined) return null
 
-  if (!followingStatus) {
+  if (followingStatus === 'not_following') {
     return (
       <div className="flex-shrink-0">
         <Button type="button" onClick={() => onFollow(targetActorId)}>
@@ -42,6 +54,21 @@ export const FollowAction: FC<FollowActionProps> = ({
       </div>
     )
   }
+
+  if (followingStatus === 'requested') {
+    return (
+      <div className="flex-shrink-0">
+        <Button
+          variant="outline"
+          type="button"
+          onClick={() => onCancelRequest(targetActorId)}
+        >
+          Requested
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex-shrink-0">
       <Button

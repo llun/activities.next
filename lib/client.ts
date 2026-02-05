@@ -311,11 +311,16 @@ interface FollowParams {
   targetActorId: string
 }
 
+export type FollowStatusType = 'not_following' | 'requested' | 'following'
+
 /**
- * Checks if current user is following the target actor using Mastodon-compatible API
+ * Gets the follow status of the current user to the target actor
+ * @returns 'following' if actively following, 'requested' if follow is pending approval, 'not_following' otherwise
  * @see https://docs.joinmastodon.org/methods/accounts/#relationships
  */
-export const isFollowing = async ({ targetActorId }: FollowParams) => {
+export const getFollowStatus = async ({
+  targetActorId
+}: FollowParams): Promise<FollowStatusType> => {
   const encodedId = urlToId(targetActorId)
   const response = await fetch(
     `/api/v1/accounts/relationships?id[]=${encodedId}`,
@@ -327,12 +332,30 @@ export const isFollowing = async ({ targetActorId }: FollowParams) => {
     }
   )
   if (response.status !== 200) {
-    return false
+    return 'not_following'
   }
 
   const relationships = await response.json()
-  if (!relationships.length) return false
-  return relationships[0].following === true
+  if (!relationships.length) return 'not_following'
+
+  const relationship = relationships[0]
+  if (relationship.following === true) {
+    return 'following'
+  }
+  if (relationship.requested === true) {
+    return 'requested'
+  }
+  return 'not_following'
+}
+
+/**
+ * Checks if current user is following the target actor using Mastodon-compatible API
+ * @deprecated Use getFollowStatus for more detailed status including pending requests
+ * @see https://docs.joinmastodon.org/methods/accounts/#relationships
+ */
+export const isFollowing = async ({ targetActorId }: FollowParams) => {
+  const status = await getFollowStatus({ targetActorId })
+  return status === 'following'
 }
 
 /**
