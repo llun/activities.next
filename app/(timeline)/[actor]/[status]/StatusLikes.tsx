@@ -4,7 +4,6 @@ import { Heart } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useEffect, useMemo, useState } from 'react'
 
-import { getStatusFavouritedBy } from '@/lib/client'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -15,6 +14,8 @@ import {
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
+
+import { useFavouritedBy } from './useFavouritedBy'
 
 const PREVIEW_LIMIT = 5
 const DIALOG_PAGE_SIZE = 20
@@ -41,52 +42,38 @@ const getInitials = (account: MastodonAccount) => {
 
 const getPageOffset = (page: number) => (page - 1) * DIALOG_PAGE_SIZE
 
-export const StatusLikes: FC<Props> = ({ statusId, totalLikes }) => {
-  const [recentLikes, setRecentLikes] = useState<MastodonAccount[]>([])
-  const [dialogLikes, setDialogLikes] = useState<MastodonAccount[]>([])
-  const [likesCount, setLikesCount] = useState(totalLikes)
-  const [isRecentLoading, setIsRecentLoading] = useState(false)
-  const [isDialogLoading, setIsDialogLoading] = useState(false)
+export const StatusLikes: FC<Props> = ({
+  statusId,
+  totalLikes: _totalLikes
+}) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
 
-  useEffect(() => {
-    setLikesCount(totalLikes)
-  }, [totalLikes])
+  // Fetch recent likes for preview (always enabled)
+  const {
+    accounts: recentLikes,
+    isLoading: isRecentLoading,
+    totalCount: recentTotalCount
+  } = useFavouritedBy({
+    statusId,
+    limit: PREVIEW_LIMIT,
+    enabled: true
+  })
 
-  useEffect(() => {
-    if (totalLikes === 0) {
-      setRecentLikes([])
-      return
-    }
+  // Fetch paginated likes for dialog (only when dialog is open)
+  const {
+    accounts: dialogLikes,
+    isLoading: isDialogLoading,
+    totalCount: dialogTotalCount
+  } = useFavouritedBy({
+    statusId,
+    limit: DIALOG_PAGE_SIZE,
+    offset: getPageOffset(currentPage),
+    enabled: isDialogOpen
+  })
 
-    let isStale = false
-    const run = async () => {
-      setIsRecentLoading(true)
-      try {
-        const result = await getStatusFavouritedBy({
-          statusId,
-          limit: PREVIEW_LIMIT
-        })
-        if (isStale) return
-
-        setRecentLikes(result.accounts)
-        setLikesCount((previous) =>
-          result.total > 0 || previous === 0 ? result.total : previous
-        )
-      } finally {
-        if (!isStale) {
-          setIsRecentLoading(false)
-        }
-      }
-    }
-
-    run()
-
-    return () => {
-      isStale = true
-    }
-  }, [statusId, totalLikes])
+  // Use the most recent total count from either source
+  const likesCount = isDialogOpen ? dialogTotalCount : recentTotalCount
 
   const totalPages = useMemo(() => {
     if (likesCount <= 0) return 1
@@ -97,38 +84,6 @@ export const StatusLikes: FC<Props> = ({ statusId, totalLikes }) => {
     if (currentPage <= totalPages) return
     setCurrentPage(totalPages)
   }, [currentPage, totalPages])
-
-  useEffect(() => {
-    if (!isDialogOpen) return
-
-    let isStale = false
-    const run = async () => {
-      setIsDialogLoading(true)
-      try {
-        const result = await getStatusFavouritedBy({
-          statusId,
-          limit: DIALOG_PAGE_SIZE,
-          offset: getPageOffset(currentPage)
-        })
-        if (isStale) return
-
-        setDialogLikes(result.accounts)
-        setLikesCount((previous) =>
-          result.total > 0 || previous === 0 ? result.total : previous
-        )
-      } finally {
-        if (!isStale) {
-          setIsDialogLoading(false)
-        }
-      }
-    }
-
-    run()
-
-    return () => {
-      isStale = true
-    }
-  }, [currentPage, isDialogOpen, statusId])
 
   if (likesCount === 0) return null
 
