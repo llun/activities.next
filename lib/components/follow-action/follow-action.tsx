@@ -34,17 +34,13 @@ export const FollowAction: FC<FollowActionProps> = ({
   }
 
   const onUnfollow = async (targetActorId: string) => {
+    // Unfollowing or cancelling a pending request uses the same unfollow API
     const unfollowResult = await unfollow({ targetActorId })
     if (!unfollowResult) return
     setFollowingStatus('not_following')
   }
 
-  const onCancelRequest = async (targetActorId: string) => {
-    // Cancelling a pending request uses the same unfollow API
-    const unfollowResult = await unfollow({ targetActorId })
-    if (!unfollowResult) return
-    setFollowingStatus('not_following')
-  }
+  const onCancelRequest = onUnfollow
 
   if (!isLoggedIn) return null
   if (followingStatus === undefined) return null
