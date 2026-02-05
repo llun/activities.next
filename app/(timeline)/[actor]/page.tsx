@@ -80,10 +80,10 @@ const Page: FC<Props> = async ({ params }) => {
     if (typeof person.image === 'string') return null
     if (Array.isArray(person.image)) return null
     if (person.image.type !== 'Image') return null
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const image = person.image as any
-    if (typeof image.url !== 'string') return null
-    return image.url
+    return {
+      url: person.image.url,
+      mediaType: person.image.mediaType ?? null
+    }
   }
 
   const getIconImage = () => {
@@ -97,13 +97,19 @@ const Page: FC<Props> = async ({ params }) => {
     return image.url
   }
 
-  const headerImageUrl = getHeaderImage()
+  const headerImage = getHeaderImage()
+  const headerImageUrl = headerImage?.url ?? null
+  const headerImageMediaType = headerImage?.mediaType ?? null
   const iconImageUrl = getIconImage()
 
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <ProfileHeaderImage actorId={person.id} imageUrl={headerImageUrl} />
+        <ProfileHeaderImage
+          actorId={person.id}
+          imageUrl={headerImageUrl}
+          mediaType={headerImageMediaType}
+        />
 
         <div className="relative px-6 pb-6">
           <Avatar className="relative -mt-10 h-20 w-20 border-4 border-background">

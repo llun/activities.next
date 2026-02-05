@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, useState } from 'react'
+import { FC, useMemo, useState } from 'react'
 
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import type { Attachment } from '@/lib/types/domain/attachment'
@@ -8,26 +8,50 @@ import type { Attachment } from '@/lib/types/domain/attachment'
 interface Props {
   actorId: string
   imageUrl: string | null
+  mediaType: string | null
 }
 
-export const ProfileHeaderImage: FC<Props> = ({ actorId, imageUrl }) => {
+const inferImageMediaType = (url: string) => {
+  try {
+    const pathname = new URL(url, 'http://localhost').pathname.toLowerCase()
+    if (pathname.endsWith('.png')) return 'image/png'
+    if (pathname.endsWith('.gif')) return 'image/gif'
+    if (pathname.endsWith('.webp')) return 'image/webp'
+    if (pathname.endsWith('.avif')) return 'image/avif'
+    if (pathname.endsWith('.svg')) return 'image/svg+xml'
+    if (pathname.endsWith('.jpg') || pathname.endsWith('.jpeg'))
+      return 'image/jpeg'
+  } catch {
+    return 'image/*'
+  }
+
+  return 'image/*'
+}
+
+export const ProfileHeaderImage: FC<Props> = ({
+  actorId,
+  imageUrl,
+  mediaType
+}) => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
 
-  const headerMedia: Attachment[] | null = imageUrl
-    ? [
-        {
-          id: `profile-header-${actorId}`,
-          actorId,
-          statusId: `profile-header-${actorId}`,
-          type: 'Document',
-          mediaType: 'image/jpeg',
-          url: imageUrl,
-          name: 'Profile header image',
-          createdAt: 0,
-          updatedAt: 0
-        }
-      ]
-    : null
+  const headerMedia = useMemo<Attachment[] | null>(() => {
+    if (!imageUrl) return null
+
+    return [
+      {
+        id: `profile-header-${actorId}`,
+        actorId,
+        statusId: `profile-header-${actorId}`,
+        type: 'Document',
+        mediaType: mediaType ?? inferImageMediaType(imageUrl),
+        url: imageUrl,
+        name: 'Profile header image',
+        createdAt: 0,
+        updatedAt: 0
+      }
+    ]
+  }, [actorId, imageUrl, mediaType])
 
   return (
     <div className="relative h-36 bg-muted md:h-52">
