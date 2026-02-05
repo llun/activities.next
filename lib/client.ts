@@ -8,6 +8,7 @@ import {
   UploadedAttachment
 } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
+import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -204,17 +205,74 @@ export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
   })
 }
 
+export interface GetStatusFavouritedByParams extends DefaultStatusParams {
+  limit?: number
+  offset?: number
+}
+
+export interface StatusFavouritedByResult {
+  accounts: MastodonAccount[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export const getStatusFavouritedBy = async ({
-  statusId
-}: DefaultStatusParams) => {
-  const response = await fetch(
-    `/api/v1/statuses/${urlToId(statusId)}/favourited_by`,
-    {
-      headers: { 'Content-Type': 'application/json' }
+  statusId,
+  limit,
+  offset = 0
+}: GetStatusFavouritedByParams): Promise<StatusFavouritedByResult> => {
+  const query = new URLSearchParams()
+  if (typeof limit === 'number') {
+    query.append('limit', `${limit}`)
+  }
+  if (offset > 0) {
+    query.append('offset', `${offset}`)
+  }
+  const path = `/api/v1/statuses/${urlToId(statusId)}/favourited_by${
+    query.toString().length > 0 ? `?${query.toString()}` : ''
+  }`
+
+  const response = await fetch(path, {
+    headers: { 'Content-Type': 'application/json' }
+  })
+
+  if (response.status !== 200) {
+    return {
+      accounts: [],
+      total: 0,
+      limit: limit ?? 0,
+      offset
     }
+  }
+
+  const parseHeaderNumber = (value: string | null, fallback: number) => {
+    const parsed = parseInt(value ?? '', 10)
+    return Number.isNaN(parsed) ? fallback : parsed
+  }
+
+  const accounts = (
+    (await response.json()) as (MastodonAccount | null)[]
+  ).filter((account): account is MastodonAccount => Boolean(account))
+  const resolvedOffset = parseHeaderNumber(
+    response.headers.get('X-Offset'),
+    offset
   )
-  if (response.status !== 200) return []
-  return response.json()
+  const resolvedTotal = parseHeaderNumber(
+    response.headers.get('X-Total-Count'),
+    accounts.length
+  )
+  const resolvedLimit = parseHeaderNumber(
+    response.headers.get('X-Limit'),
+    limit ?? accounts.length
+  )
+
+  return {
+    accounts,
+    total: resolvedTotal,
+    limit: resolvedLimit,
+    offset: resolvedOffset
+  }
 }
 
 /**

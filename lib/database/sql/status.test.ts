@@ -325,6 +325,32 @@ describe('StatusDatabase', () => {
         expect(actors).toHaveLength(1)
         expect(actors[0].id).toBe(replyAuthorId)
       })
+
+      it('supports limit and offset pagination', async () => {
+        const statusId = statuses.primary.post
+        await database.createLike({ actorId: primaryActorId, statusId })
+        await database.createLike({ actorId: replyAuthorId, statusId })
+        await database.createLike({ actorId: pollAuthorId, statusId })
+
+        const firstPage = await database.getFavouritedBy({
+          statusId,
+          limit: 2
+        })
+        const secondPage = await database.getFavouritedBy({
+          statusId,
+          limit: 2,
+          offset: 2
+        })
+
+        expect(firstPage).toHaveLength(2)
+        expect(secondPage).toHaveLength(1)
+
+        const actorIds = [...firstPage, ...secondPage].map((item) => item.id)
+        expect(new Set(actorIds).size).toBe(3)
+        expect(actorIds).toEqual(
+          expect.arrayContaining([primaryActorId, replyAuthorId, pollAuthorId])
+        )
+      })
     })
 
     describe('createNote', () => {

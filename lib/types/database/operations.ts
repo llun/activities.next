@@ -382,7 +382,10 @@ export type GetActorStatusesParams = {
 export type HasActorAnnouncedStatusParams = BaseStatusParams & {
   actorId?: string
 }
-export type GetFavouritedByParams = BaseStatusParams
+export type GetFavouritedByParams = BaseStatusParams & {
+  limit?: number
+  offset?: number
+}
 
 export type CreateTagParams = {
   statusId: string
