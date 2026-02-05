@@ -535,9 +535,24 @@ export const StatusSQLDatabaseMixin = (
   }
 
   async function getFavouritedBy({
-    statusId
+    statusId,
+    limit,
+    offset = 0
   }: GetFavouritedByParams): Promise<Actor[]> {
-    const result = await database('likes').where({ statusId })
+    let query = database('likes')
+      .where({ statusId })
+      .orderBy('createdAt', 'desc')
+      .orderBy('actorId', 'asc')
+
+    if (typeof limit === 'number') {
+      query = query.limit(limit)
+    }
+
+    if (offset > 0) {
+      query = query.offset(offset)
+    }
+
+    const result = await query
     const actors = await Promise.all(
       result.map((item) => actorDatabase.getActorFromId({ id: item.actorId }))
     )
