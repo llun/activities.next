@@ -8,6 +8,8 @@ const COUNTER_PREFIXES = [
   'media-usage:'
 ]
 
+exports.config = { transaction: false }
+
 const COUNTERS_TMP_TABLE = 'counters_tmp_new'
 
 const parseInteger = (input) => {

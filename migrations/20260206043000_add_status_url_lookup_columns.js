@@ -1,5 +1,7 @@
 const crypto = require('crypto')
 
+exports.config = { transaction: false }
+
 const parseStatusContent = (content) => {
   if (!content) return null
   if (typeof content === 'string') {
@@ -24,48 +26,70 @@ const getStatusUrlHash = (url) =>
  */
 exports.up = async function up(knex) {
   const hasUrlColumn = await knex.schema.hasColumn('statuses', 'url')
-  if (!hasUrlColumn) {
-    await knex.schema.alterTable('statuses', function (table) {
-      table.text('url').nullable()
-    })
-  }
-
   const hasUrlHashColumn = await knex.schema.hasColumn('statuses', 'urlHash')
-  if (!hasUrlHashColumn) {
+
+  if (!hasUrlColumn || !hasUrlHashColumn) {
     await knex.schema.alterTable('statuses', function (table) {
-      table.string('urlHash', 64).nullable()
-      table.index('urlHash', 'statusesUrlHashIndex')
+      if (!hasUrlColumn) {
+        table.text('url').nullable()
+      }
+      if (!hasUrlHashColumn) {
+        table.string('urlHash', 64).nullable()
+        table.index('urlHash', 'statusesUrlHashIndex')
+      }
     })
   }
 
-  const statuses = await knex('statuses').select(
-    'id',
-    'content',
-    'url',
-    'urlHash'
-  )
-  for (const status of statuses) {
-    const content = parseStatusContent(status.content)
-    const contentUrl =
-      content && typeof content.url === 'string' && content.url.length > 0
-        ? content.url
-        : null
-    const nextUrl =
-      typeof status.url === 'string' && status.url.length > 0
-        ? status.url
-        : contentUrl
-    if (!nextUrl) continue
+  const totalResult = await knex('statuses').count('* as cnt').first()
+  const total = Number(totalResult.cnt)
+  console.log(`Backfilling url/urlHash for ${total} statuses...`)
 
-    const nextUrlHash = getStatusUrlHash(nextUrl)
-    if (status.url === nextUrl && status.urlHash === nextUrlHash) {
-      continue
+  const BATCH_SIZE = 500
+  let lastId = ''
+  let processed = 0
+  let updated = 0
+
+  while (true) {
+    const statuses = await knex('statuses')
+      .select('id', 'content', 'url', 'urlHash')
+      .where('id', '>', lastId)
+      .orderBy('id')
+      .limit(BATCH_SIZE)
+    if (statuses.length === 0) break
+
+    lastId = statuses[statuses.length - 1].id
+
+    for (const status of statuses) {
+      const content = parseStatusContent(status.content)
+      const contentUrl =
+        content && typeof content.url === 'string' && content.url.length > 0
+          ? content.url
+          : null
+      const nextUrl =
+        typeof status.url === 'string' && status.url.length > 0
+          ? status.url
+          : contentUrl
+      if (!nextUrl) continue
+
+      const nextUrlHash = getStatusUrlHash(nextUrl)
+      if (status.url === nextUrl && status.urlHash === nextUrlHash) {
+        continue
+      }
+
+      await knex('statuses').where('id', status.id).update({
+        url: nextUrl,
+        urlHash: nextUrlHash
+      })
+      updated++
     }
 
-    await knex('statuses').where('id', status.id).update({
-      url: nextUrl,
-      urlHash: nextUrlHash
-    })
+    processed += statuses.length
+    console.log(
+      `  Progress: ${processed}/${total} (${Math.round((processed / total) * 100)}%) - ${updated} updated`
+    )
   }
+
+  console.log(`Done. Processed ${processed} statuses, updated ${updated}.`)
 }
 
 /**
@@ -74,17 +98,17 @@ exports.up = async function up(knex) {
  */
 exports.down = async function down(knex) {
   const hasUrlHashColumn = await knex.schema.hasColumn('statuses', 'urlHash')
-  if (hasUrlHashColumn) {
-    await knex.schema.alterTable('statuses', function (table) {
-      table.dropIndex(['urlHash'], 'statusesUrlHashIndex')
-      table.dropColumn('urlHash')
-    })
-  }
-
   const hasUrlColumn = await knex.schema.hasColumn('statuses', 'url')
-  if (hasUrlColumn) {
+
+  if (hasUrlHashColumn || hasUrlColumn) {
     await knex.schema.alterTable('statuses', function (table) {
-      table.dropColumn('url')
+      if (hasUrlHashColumn) {
+        table.dropIndex(['urlHash'], 'statusesUrlHashIndex')
+        table.dropColumn('urlHash')
+      }
+      if (hasUrlColumn) {
+        table.dropColumn('url')
+      }
     })
   }
 }
