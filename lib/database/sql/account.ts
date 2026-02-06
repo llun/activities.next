@@ -1,5 +1,6 @@
 import { Knex } from 'knex'
 
+import { CounterKey, getCounterValues } from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
@@ -394,26 +395,19 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     for (const sqlActor of sqlActors) {
       const settings = getCompatibleJSON<ActorSettings>(sqlActor.settings)
 
-      const [totalFollowers, totalFollowing, totalStatus, lastStatus] =
-        await database.transaction(async (trx) => {
-          return Promise.all([
-            trx('follows')
-              .where('targetActorId', sqlActor.id)
-              .andWhere('status', 'Accepted')
-              .count<{ count: string }>('* as count')
-              .first(),
-            trx('follows')
-              .where('actorId', sqlActor.id)
-              .andWhere('status', 'Accepted')
-              .count<{ count: string }>('* as count')
-              .first(),
-            trx('counters').where('id', `total-status:${sqlActor.id}`).first(),
-            trx('statuses')
-              .where('actorId', sqlActor.id)
-              .orderBy('createdAt', 'desc')
-              .first<{ createdAt: number | Date }>('createdAt')
-          ])
-        })
+      const [counters, lastStatus] = await database.transaction(async (trx) => {
+        return Promise.all([
+          getCounterValues(trx, [
+            CounterKey.totalFollowers(sqlActor.id),
+            CounterKey.totalFollowing(sqlActor.id),
+            CounterKey.totalStatus(sqlActor.id)
+          ]),
+          trx('statuses')
+            .where('actorId', sqlActor.id)
+            .orderBy('createdAt', 'desc')
+            .first<{ createdAt: number | Date }>('createdAt')
+        ])
+      })
 
       const actor = Actor.parse({
         id: sqlActor.id,
@@ -439,9 +433,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
             ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
             : null)
         }),
-        followingCount: parseInt(totalFollowing?.count ?? '0', 10),
-        followersCount: parseInt(totalFollowers?.count ?? '0', 10),
-        statusCount: totalStatus?.value ?? 0,
+        followingCount: counters[CounterKey.totalFollowing(sqlActor.id)] ?? 0,
+        followersCount: counters[CounterKey.totalFollowers(sqlActor.id)] ?? 0,
+        statusCount: counters[CounterKey.totalStatus(sqlActor.id)] ?? 0,
         lastStatusAt: lastStatus?.createdAt
           ? getCompatibleTime(lastStatus.createdAt)
           : null,

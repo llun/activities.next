@@ -1,5 +1,15 @@
 import { Knex } from 'knex'
 
+import {
+  CounterKey,
+  decreaseCounterValue,
+  deleteCounterValue,
+  getCounterValue,
+  getCounterValues,
+  increaseCounterValue,
+  parseCounterValue,
+  setCounterValue
+} from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { Mastodon } from '@/lib/types/activitypub'
@@ -25,6 +35,7 @@ import {
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -39,6 +50,44 @@ export interface SQLActorDatabase extends ActorDatabase {
   ) => Actor
   getMastodonActor: (actorId: string) => Promise<Mastodon.Account | null>
 }
+
+const getActorCounterSummary = async (
+  trx: Knex.Transaction,
+  actorId: string
+): Promise<{
+  followersCount: number
+  followingCount: number
+  statusCount: number
+}> => {
+  const counters = await getCounterValues(trx, [
+    CounterKey.totalFollowers(actorId),
+    CounterKey.totalFollowing(actorId),
+    CounterKey.totalStatus(actorId)
+  ])
+
+  return {
+    followersCount: counters[CounterKey.totalFollowers(actorId)] ?? 0,
+    followingCount: counters[CounterKey.totalFollowing(actorId)] ?? 0,
+    statusCount: counters[CounterKey.totalStatus(actorId)] ?? 0
+  }
+}
+
+const parseStatusContent = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  content: any
+): string | Record<string, unknown> | null => {
+  if (!content) return null
+  if (typeof content === 'string') {
+    try {
+      return getCompatibleJSON(content)
+    } catch {
+      return content
+    }
+  }
+  return content
+}
+
+const getStatusUrlHash = (url: string): string => getHashFromString(url)
 
 export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   async createActor({
@@ -133,38 +182,27 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return null
 
-    const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
-      await database.transaction(async (trx) => {
+    const [account, counters, lastStatus] = await database.transaction(
+      async (trx) => {
         return Promise.all([
           trx<Account>('accounts')
             .where('id', persistedActor.accountId)
             .first(),
-          trx('follows')
-            .where('targetActorId', persistedActor.id)
-            .andWhere('status', 'Accepted')
-            .count<{ count: string }>('* as count')
-            .first(),
-          trx('follows')
-            .where('actorId', persistedActor.id)
-            .andWhere('status', 'Accepted')
-            .count<{ count: string }>('* as count')
-            .first(),
-          trx('counters')
-            .where('id', `total-status:${persistedActor.id}`)
-            .first(),
+          getActorCounterSummary(trx, persistedActor.id),
           trx('statuses')
             .where('actorId', persistedActor.id)
             .orderBy('createdAt', 'desc')
             .first<{ createdAt: number | Date }>('createdAt')
         ])
-      })
+      }
+    )
 
     const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return this.getActor(
       persistedActor,
-      parseInt(totalFollowing?.count ?? '0', 10),
-      parseInt(totalFollowers?.count ?? '0', 10),
-      totalStatus?.value ?? 0,
+      counters.followingCount,
+      counters.followersCount,
+      counters.statusCount,
       getCompatibleTime(lastStatusCreatedAt),
       account
     )
@@ -200,38 +238,27 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return null
 
-    const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
-      await database.transaction(async (trx) => {
+    const [account, counters, lastStatus] = await database.transaction(
+      async (trx) => {
         return Promise.all([
           trx<Account>('accounts')
             .where('id', persistedActor.accountId)
             .first(),
-          trx('follows')
-            .where('targetActorId', persistedActor.id)
-            .andWhere('status', 'Accepted')
-            .count<{ count: string }>('* as count')
-            .first(),
-          trx('follows')
-            .where('actorId', persistedActor.id)
-            .andWhere('status', 'Accepted')
-            .count<{ count: string }>('* as count')
-            .first(),
-          trx('counters')
-            .where('id', `total-status:${persistedActor.id}`)
-            .first(),
+          getActorCounterSummary(trx, persistedActor.id),
           trx('statuses')
             .where('actorId', persistedActor.id)
             .orderBy('createdAt', 'desc')
             .first<{ createdAt: number | Date }>('createdAt')
         ])
-      })
+      }
+    )
 
     const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return this.getActor(
       persistedActor,
-      parseInt(totalFollowing?.count ?? '0', 10),
-      parseInt(totalFollowers?.count ?? '0', 10),
-      totalStatus?.value ?? 0,
+      counters.followingCount,
+      counters.followersCount,
+      counters.statusCount,
       getCompatibleTime(lastStatusCreatedAt),
       account
     )
@@ -258,60 +285,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     if (!persistedActor) return null
 
     if (!persistedActor.accountId) {
-      const [totalFollowers, totalFollowing, totalStatus, lastStatus] =
-        await database.transaction(async (trx) => {
-          return Promise.all([
-            trx('follows')
-              .where('targetActorId', persistedActor.id)
-              .andWhere('status', 'Accepted')
-              .count<{ count: string }>('* as count')
-              .first(),
-            trx('follows')
-              .where('actorId', persistedActor.id)
-              .andWhere('status', 'Accepted')
-              .count<{ count: string }>('* as count')
-              .first(),
-            trx('counters')
-              .where('id', `total-status:${persistedActor.id}`)
-              .first(),
-            trx('statuses')
-              .where('actorId', persistedActor.id)
-              .orderBy('createdAt', 'desc')
-              .first<{ createdAt: number | Date }>('createdAt')
-          ])
-        })
-
-      const lastStatusCreatedAt = lastStatus?.createdAt
-        ? lastStatus.createdAt
-        : 0
-      return this.getActor(
-        persistedActor,
-        parseInt(totalFollowing?.count ?? '0', 10),
-        parseInt(totalFollowers?.count ?? '0', 10),
-        totalStatus?.value ?? 0,
-        getCompatibleTime(lastStatusCreatedAt)
-      )
-    }
-
-    const [account, totalFollowers, totalFollowing, totalStatus, lastStatus] =
-      await database.transaction(async (trx) => {
+      const [counters, lastStatus] = await database.transaction(async (trx) => {
         return Promise.all([
-          trx<Account>('accounts')
-            .where('id', persistedActor.accountId)
-            .first(),
-          trx('follows')
-            .where('targetActorId', persistedActor.id)
-            .andWhere('status', 'Accepted')
-            .count<{ count: string }>('* as count')
-            .first(),
-          trx('follows')
-            .where('actorId', persistedActor.id)
-            .andWhere('status', 'Accepted')
-            .count<{ count: string }>('* as count')
-            .first(),
-          trx('counters')
-            .where('id', `total-status:${persistedActor.id}`)
-            .first(),
+          getActorCounterSummary(trx, persistedActor.id),
           trx('statuses')
             .where('actorId', persistedActor.id)
             .orderBy('createdAt', 'desc')
@@ -319,12 +295,39 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         ])
       })
 
+      const lastStatusCreatedAt = lastStatus?.createdAt
+        ? lastStatus.createdAt
+        : 0
+      return this.getActor(
+        persistedActor,
+        counters.followingCount,
+        counters.followersCount,
+        counters.statusCount,
+        getCompatibleTime(lastStatusCreatedAt)
+      )
+    }
+
+    const [account, counters, lastStatus] = await database.transaction(
+      async (trx) => {
+        return Promise.all([
+          trx<Account>('accounts')
+            .where('id', persistedActor.accountId)
+            .first(),
+          getActorCounterSummary(trx, persistedActor.id),
+          trx('statuses')
+            .where('actorId', persistedActor.id)
+            .orderBy('createdAt', 'desc')
+            .first<{ createdAt: number | Date }>('createdAt')
+        ])
+      }
+    )
+
     const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return this.getActor(
       persistedActor,
-      parseInt(totalFollowing?.count ?? '0', 10),
-      parseInt(totalFollowers?.count ?? '0', 10),
-      totalStatus?.value ?? 0,
+      counters.followingCount,
+      counters.followersCount,
+      counters.statusCount,
       getCompatibleTime(lastStatusCreatedAt),
       account
     )
@@ -406,27 +409,16 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!sqlActor) return null
 
-    const [lastStatus, totalStatus, totalFollowers, totalFollowing] =
-      await database.transaction(async (trx) =>
-        Promise.all([
-          trx('statuses')
-            .where('actorId', actorId)
-            .orderBy('createdAt', 'desc')
-            .select('createdAt')
-            .first<{ createdAt: number | Date }>(),
-          trx('counters').where('id', `total-status:${actorId}`).first(),
-          trx('follows')
-            .where('targetActorId', actorId)
-            .andWhere('status', 'Accepted')
-            .count<{ count: string }>('* as count')
-            .first(),
-          trx('follows')
-            .where('actorId', actorId)
-            .andWhere('status', 'Accepted')
-            .count<{ count: string }>('* as count')
-            .first()
-        ])
-      )
+    const [lastStatus, counters] = await database.transaction(async (trx) =>
+      Promise.all([
+        trx('statuses')
+          .where('actorId', actorId)
+          .orderBy('createdAt', 'desc')
+          .select('createdAt')
+          .first<{ createdAt: number | Date }>(),
+        getActorCounterSummary(trx, actorId)
+      ])
+    )
 
     const settings = getCompatibleJSON(sqlActor.settings)
     const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
@@ -466,9 +458,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt), true)
         : null,
 
-      followers_count: parseInt(totalFollowers?.count ?? '0', 10),
-      following_count: parseInt(totalFollowing?.count ?? '0', 10),
-      statuses_count: totalStatus?.value ?? 0
+      followers_count: counters.followersCount,
+      following_count: counters.followingCount,
+      statuses_count: counters.statusCount
     })
   },
 
@@ -528,53 +520,57 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   },
 
   async updateActorFollowersCount(actorId: string) {
-    const count = await this.getActorFollowersCount({ actorId })
-    await database('actors')
-      .where('id', actorId)
-      .update({ followersCount: count })
-  },
-
-  async updateActorFollowingCount(actorId: string) {
-    const count = await this.getActorFollowingCount({ actorId })
-    await database('actors')
-      .where('id', actorId)
-      .update({ followingCount: count })
-  },
-
-  async increaseActorStatusCount(actorId: string, amount: number = 1) {
-    await database('actors')
-      .where('id', actorId)
-      .increment('statusesCount', amount)
-  },
-
-  async decreaseActorStatusCount(actorId: string, amount: number = 1) {
-    await database('actors')
-      .where('id', actorId)
-      .decrement('statusesCount', amount)
-  },
-
-  async updateActorLastStatusAt(actorId: string, time: number) {
-    await database('actors')
-      .where('id', actorId)
-      .update({ lastStatusAt: new Date(time) })
-  },
-
-  async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
-    const result = await database('follows')
-      .where('actorId', actorId)
-      .andWhere('status', 'Accepted')
-      .count<{ count: string }>('* as count')
-      .first()
-    return parseInt(result?.count ?? '0', 10)
-  },
-
-  async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
     const result = await database('follows')
       .where('targetActorId', actorId)
       .andWhere('status', 'Accepted')
       .count<{ count: string }>('* as count')
       .first()
-    return parseInt(result?.count ?? '0', 10)
+    await setCounterValue(
+      database,
+      CounterKey.totalFollowers(actorId),
+      parseInt(result?.count ?? '0', 10)
+    )
+  },
+
+  async updateActorFollowingCount(actorId: string) {
+    const result = await database('follows')
+      .where('actorId', actorId)
+      .andWhere('status', 'Accepted')
+      .count<{ count: string }>('* as count')
+      .first()
+    await setCounterValue(
+      database,
+      CounterKey.totalFollowing(actorId),
+      parseInt(result?.count ?? '0', 10)
+    )
+  },
+
+  async increaseActorStatusCount(actorId: string, amount: number = 1) {
+    await increaseCounterValue(
+      database,
+      CounterKey.totalStatus(actorId),
+      amount
+    )
+  },
+
+  async decreaseActorStatusCount(actorId: string, amount: number = 1) {
+    await decreaseCounterValue(
+      database,
+      CounterKey.totalStatus(actorId),
+      amount
+    )
+  },
+
+  async updateActorLastStatusAt(_actorId: string, _time: number) {
+    // `lastStatusAt` is derived from statuses and not persisted on actors.
+  },
+
+  async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
+    return getCounterValue(database, CounterKey.totalFollowing(actorId))
+  },
+
+  async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
+    return getCounterValue(database, CounterKey.totalFollowers(actorId))
   },
 
   async isInternalActor({ actorId }: IsInternalActorParams) {
@@ -656,19 +652,203 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
   async deleteActorData({ actorId }: DeleteActorDataParams) {
     await database.transaction(async (trx) => {
-      // Get all status IDs for this actor to delete related data
-      const statuses = await trx('statuses')
-        .where('actorId', actorId)
-        .select('id')
+      const currentTime = new Date()
 
-      const statusIds = statuses.map((s) => s.id)
+      const persistedActor = await trx('actors')
+        .where('id', actorId)
+        .first<{ accountId: string | null }>('accountId')
+
+      const actorStatuses = await trx('statuses')
+        .where('actorId', actorId)
+        .select('id', 'type', 'reply', 'content')
+
+      const statusIds = actorStatuses.map((status) => status.id)
+      const statusReferenceToId = new Map<string, string>()
+      const replyReferences = Array.from(
+        new Set(
+          actorStatuses
+            .map((status) => status.reply)
+            .filter((reply): reply is string => Boolean(reply))
+        )
+      )
+      if (replyReferences.length > 0) {
+        const replyReferenceHashes = Array.from(
+          new Set(replyReferences.map((reply) => getStatusUrlHash(reply)))
+        )
+        const parentStatuses = await trx('statuses')
+          .whereIn('id', replyReferences)
+          .orWhere((builder) =>
+            builder
+              .whereIn('urlHash', replyReferenceHashes)
+              .whereIn('url', replyReferences)
+          )
+          .select('id', 'url')
+
+        for (const parentStatus of parentStatuses) {
+          statusReferenceToId.set(parentStatus.id, parentStatus.id)
+          if (parentStatus.url) {
+            statusReferenceToId.set(parentStatus.url, parentStatus.id)
+          }
+        }
+      }
+
+      if (actorStatuses.length > 0) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.totalStatus(actorId),
+          actorStatuses.length,
+          currentTime
+        )
+      }
+
+      const reblogCounterChanges: Record<string, number> = {}
+      const replyCounterChanges: Record<string, number> = {}
+      for (const status of actorStatuses) {
+        if (status.type === 'Announce') {
+          const content = parseStatusContent(status.content)
+          const originalStatusId =
+            typeof content === 'string'
+              ? content
+              : typeof content?.url === 'string'
+                ? content.url
+                : typeof status.content === 'string'
+                  ? status.content
+                  : null
+
+          if (originalStatusId) {
+            reblogCounterChanges[originalStatusId] =
+              (reblogCounterChanges[originalStatusId] || 0) + 1
+          }
+        }
+
+        if (status.reply) {
+          const parentStatusId = statusReferenceToId.get(status.reply)
+          if (parentStatusId) {
+            replyCounterChanges[parentStatusId] =
+              (replyCounterChanges[parentStatusId] || 0) + 1
+          }
+        }
+      }
+
+      for (const [statusId, count] of Object.entries(reblogCounterChanges)) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.totalReblog(statusId),
+          count,
+          currentTime
+        )
+      }
+      for (const [statusId, count] of Object.entries(replyCounterChanges)) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.totalReply(statusId),
+          count,
+          currentTime
+        )
+      }
+
+      const acceptedFollowing = await trx('follows')
+        .where('actorId', actorId)
+        .andWhere('status', 'Accepted')
+        .select('targetActorId')
+
+      if (acceptedFollowing.length > 0) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.totalFollowing(actorId),
+          acceptedFollowing.length,
+          currentTime
+        )
+
+        const followerAdjustments: Record<string, number> = {}
+        for (const follow of acceptedFollowing) {
+          followerAdjustments[follow.targetActorId] =
+            (followerAdjustments[follow.targetActorId] || 0) + 1
+        }
+        for (const [targetActorId, count] of Object.entries(
+          followerAdjustments
+        )) {
+          await decreaseCounterValue(
+            trx,
+            CounterKey.totalFollowers(targetActorId),
+            count,
+            currentTime
+          )
+        }
+      }
+
+      const acceptedFollowers = await trx('follows')
+        .where('targetActorId', actorId)
+        .andWhere('status', 'Accepted')
+        .select('actorId')
+      if (acceptedFollowers.length > 0) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.totalFollowers(actorId),
+          acceptedFollowers.length,
+          currentTime
+        )
+
+        const followingAdjustments: Record<string, number> = {}
+        for (const follow of acceptedFollowers) {
+          followingAdjustments[follow.actorId] =
+            (followingAdjustments[follow.actorId] || 0) + 1
+        }
+
+        for (const [followerActorId, count] of Object.entries(
+          followingAdjustments
+        )) {
+          await decreaseCounterValue(
+            trx,
+            CounterKey.totalFollowing(followerActorId),
+            count,
+            currentTime
+          )
+        }
+      }
+
+      const likesMadeByActor = await trx('likes')
+        .where('actorId', actorId)
+        .select('statusId')
+      const likeAdjustments: Record<string, number> = {}
+      for (const like of likesMadeByActor) {
+        likeAdjustments[like.statusId] =
+          (likeAdjustments[like.statusId] || 0) + 1
+      }
+      for (const [statusId, count] of Object.entries(likeAdjustments)) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.totalLike(statusId),
+          count,
+          currentTime
+        )
+      }
+
+      const medias = await trx('medias')
+        .where('actorId', actorId)
+        .select('originalBytes', 'thumbnailBytes')
+      const totalMediaBytes = medias.reduce(
+        (sum, media) =>
+          sum +
+          parseCounterValue(media.originalBytes) +
+          parseCounterValue(media.thumbnailBytes),
+        0
+      )
+      if (persistedActor?.accountId && totalMediaBytes > 0) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(persistedActor.accountId),
+          totalMediaBytes,
+          currentTime
+        )
+      }
 
       if (statusIds.length > 0) {
         // Get poll choice IDs before deleting them
         const pollChoices = await trx('poll_choices')
           .whereIn('statusId', statusIds)
           .select('choiceId')
-        const choiceIds = pollChoices.map((c) => c.choiceId)
+        const choiceIds = pollChoices.map((choice) => choice.choiceId)
 
         // Delete status-related data
         await trx('tags').whereIn('statusId', statusIds).delete()
@@ -704,8 +884,15 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // Delete medias created by this actor
       await trx('medias').where('actorId', actorId).delete()
 
-      // Delete counters for this actor
-      await trx('counters').where('id', `total-status:${actorId}`).delete()
+      await deleteCounterValue(trx, CounterKey.totalStatus(actorId))
+      await deleteCounterValue(trx, CounterKey.totalFollowers(actorId))
+      await deleteCounterValue(trx, CounterKey.totalFollowing(actorId))
+
+      for (const statusId of statusIds) {
+        await deleteCounterValue(trx, CounterKey.totalLike(statusId))
+        await deleteCounterValue(trx, CounterKey.totalReblog(statusId))
+        await deleteCounterValue(trx, CounterKey.totalReply(statusId))
+      }
 
       // Delete notifications table entries if exists
       try {

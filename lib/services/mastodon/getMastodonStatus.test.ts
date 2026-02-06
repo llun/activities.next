@@ -542,6 +542,37 @@ describe('#getMastodonStatus', () => {
     })
   })
 
+  describe('replies_count', () => {
+    it('returns correct replies_count for status with replies', async () => {
+      const parentStatus = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/replies-count-test-parent`,
+        url: `${ACTOR1_ID}/statuses/replies-count-test-parent`,
+        actorId: ACTOR1_ID,
+        text: 'Parent status for replies count',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await database.createNote({
+        id: `${ACTOR2_ID}/statuses/replies-count-test-child`,
+        url: `${ACTOR2_ID}/statuses/replies-count-test-child`,
+        actorId: ACTOR2_ID,
+        text: 'Reply status',
+        reply: parentStatus.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const status = (await database.getStatus({
+        statusId: parentStatus.id
+      })) as Status
+
+      const mastodonStatus = await getMastodonStatus(database, status)
+
+      expect(mastodonStatus?.replies_count).toBe(1)
+    })
+  })
+
   describe('text field', () => {
     it('includes plain text source in text field', async () => {
       const statusWithMarkdown = await database.createNote({
