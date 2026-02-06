@@ -5,7 +5,7 @@ const MAX_ADJUST_RETRIES = 100
 
 type CounterRow = {
   id: string
-  value: number | string | bigint | null
+  value: number | string | null
 }
 
 const clampCounterValue = (value: number): number => {
