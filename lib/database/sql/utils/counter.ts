@@ -1,7 +1,7 @@
 import { Knex } from 'knex'
 
 const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER
-const MAX_ADJUST_RETRIES = 20
+const MAX_ADJUST_RETRIES = 100
 
 type CounterRow = {
   id: string
