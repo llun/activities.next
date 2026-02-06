@@ -59,6 +59,7 @@ exports.up = async function up(knex) {
 
     lastId = statuses[statuses.length - 1].id
 
+    const updatePromises = []
     for (const status of statuses) {
       const content = parseStatusContent(status.content)
       const contentUrl =
@@ -76,11 +77,17 @@ exports.up = async function up(knex) {
         continue
       }
 
-      await knex('statuses').where('id', status.id).update({
-        url: nextUrl,
-        urlHash: nextUrlHash
-      })
-      updated++
+      updatePromises.push(
+        knex('statuses').where('id', status.id).update({
+          url: nextUrl,
+          urlHash: nextUrlHash
+        })
+      )
+    }
+
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises)
+      updated += updatePromises.length
     }
 
     processed += statuses.length
