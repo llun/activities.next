@@ -50,6 +50,21 @@ const rebuildCountersTable = async (knex) => {
     return
   }
 
+  // Rename leftover pkey from a previous partial run to avoid conflicts
+  const isPg =
+    knex.client.config.client === 'pg' ||
+    knex.client.config.client === 'postgresql'
+  if (isPg) {
+    const pkey = await knex.raw(
+      `SELECT conname FROM pg_constraint WHERE conname = 'counters_tmp_new_pkey'`
+    )
+    if (pkey.rows.length > 0) {
+      await knex.raw(
+        `ALTER TABLE "counters" RENAME CONSTRAINT "counters_tmp_new_pkey" TO "counters_pkey"`
+      )
+    }
+  }
+
   await knex.schema.dropTableIfExists(COUNTERS_TMP_TABLE)
   await createCountersTable(knex, COUNTERS_TMP_TABLE, false)
 
