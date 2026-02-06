@@ -18,12 +18,14 @@ describe('#getActorPerson', () => {
     const person = await getActorPerson({
       actorId: ACTOR1_ID
     })
-    expect(person).toMatchObject(
-      MockActivityPubPerson({
-        id: ACTOR1_ID,
-        withContext: false
-      })
-    )
+    const expected = MockActivityPubPerson({
+      id: ACTOR1_ID,
+      withContext: false
+    })
+    expect(person).toMatchObject({
+      ...expected,
+      published: expect.any(String)
+    })
   })
 
   it('returns null for not found actor', async () => {
