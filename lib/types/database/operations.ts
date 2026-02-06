@@ -399,6 +399,9 @@ export type GetTagsParams = {
 export type GetStatusReblogsCountParams = {
   statusId: string
 }
+export type GetStatusRepliesCountParams = {
+  statusId: string
+}
 
 export type CreatePollAnswerParams = {
   statusId: string
@@ -448,6 +451,7 @@ export interface StatusDatabase {
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>
   getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
+  getStatusRepliesCount(params: GetStatusRepliesCountParams): Promise<number>
   createPollAnswer(params: CreatePollAnswerParams): Promise<void>
   hasActorVoted(params: HasActorVotedParams): Promise<boolean>
   getActorPollVotes(params: GetActorPollVotesParams): Promise<number[]>

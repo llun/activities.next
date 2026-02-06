@@ -310,6 +310,22 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('getStatusRepliesCount', () => {
+      it('returns reply count for status with replies', async () => {
+        const count = await database.getStatusRepliesCount({
+          statusId: statuses.primary.post
+        })
+        expect(count).toBe(2)
+      })
+
+      it('returns zero when status has no replies', async () => {
+        const count = await database.getStatusRepliesCount({
+          statusId: statuses.primary.secondPost
+        })
+        expect(count).toBe(0)
+      })
+    })
+
     describe('getFavouritedBy', () => {
       it('returns actors who favourited the status', async () => {
         const actors = await database.getFavouritedBy({
@@ -696,6 +712,66 @@ describe('StatusDatabase', () => {
           })
         ).toBeArrayOfSize(0)
         expect(afterDeleteCount).toBe(beforeDeleteCount - 1)
+      })
+
+      it('decreases reply counter when deleting a reply', async () => {
+        const parentStatusId = statuses.primary.post
+        const replyStatusId = `${extraActorId}/statuses/reply-counter-delete-test`
+
+        const beforeRepliesCount = await database.getStatusRepliesCount({
+          statusId: parentStatusId
+        })
+
+        await database.createNote({
+          id: replyStatusId,
+          url: replyStatusId,
+          actorId: extraActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Reply for delete counter test',
+          reply: parentStatusId
+        })
+
+        const afterCreateRepliesCount = await database.getStatusRepliesCount({
+          statusId: parentStatusId
+        })
+        expect(afterCreateRepliesCount).toBe(beforeRepliesCount + 1)
+
+        await database.deleteStatus({ statusId: replyStatusId })
+
+        const afterDeleteRepliesCount = await database.getStatusRepliesCount({
+          statusId: parentStatusId
+        })
+        expect(afterDeleteRepliesCount).toBe(beforeRepliesCount)
+      })
+
+      it('decreases reblog counter when deleting an announce', async () => {
+        const originalStatusId = statuses.primary.post
+        const announceId = `${extraActorId}/statuses/reblog-counter-delete-test`
+
+        const beforeReblogsCount = await database.getStatusReblogsCount({
+          statusId: originalStatusId
+        })
+
+        await database.createAnnounce({
+          id: announceId,
+          actorId: extraActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId
+        })
+
+        const afterCreateReblogsCount = await database.getStatusReblogsCount({
+          statusId: originalStatusId
+        })
+        expect(afterCreateReblogsCount).toBe(beforeReblogsCount + 1)
+
+        await database.deleteStatus({ statusId: announceId })
+
+        const afterDeleteReblogsCount = await database.getStatusReblogsCount({
+          statusId: originalStatusId
+        })
+        expect(afterDeleteReblogsCount).toBe(beforeReblogsCount)
       })
     })
   })

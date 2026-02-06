@@ -1,6 +1,12 @@
 import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import {
+  CounterKey,
+  decreaseCounterValue,
+  getCounterValue,
+  increaseCounterValue
+} from '@/lib/database/sql/utils/counter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { ActorDatabase } from '@/lib/types/database/operations'
 import { LikeDatabase } from '@/lib/types/database/operations'
@@ -18,6 +24,7 @@ import {
   GetFavouritedByParams,
   GetStatusParams,
   GetStatusReblogsCountParams,
+  GetStatusRepliesCountParams,
   GetStatusRepliesParams,
   GetTagsParams,
   HasActorAnnouncedStatusParams,
@@ -46,6 +53,111 @@ export const StatusSQLDatabaseMixin = (
   likeDatabase: LikeDatabase,
   mediaDatabase: MediaDatabase
 ): StatusDatabase => {
+  const parseStatusContent = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    content: any
+  ):
+    | string
+    | {
+        url?: string
+      }
+    | null => {
+    if (!content) return null
+    if (typeof content === 'string') {
+      try {
+        return getCompatibleJSON(content)
+      } catch {
+        return content
+      }
+    }
+    return content
+  }
+
+  const getOriginalStatusIdFromAnnounceContent = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    content: any
+  ): string | null => {
+    const parsed = parseStatusContent(content)
+    if (!parsed) return null
+    if (typeof parsed === 'string') {
+      return parsed
+    }
+    if (typeof parsed.url === 'string' && parsed.url.length > 0) {
+      return parsed.url
+    }
+    return null
+  }
+
+  const resolveParentStatusIdByReply = async (
+    reply: string,
+    trx: Knex.Transaction
+  ): Promise<string | null> => {
+    if (!reply) return null
+
+    const byId = await trx('statuses')
+      .where('id', reply)
+      .first<{ id: string }>('id')
+    if (byId?.id) return byId.id
+
+    const statuses = await trx('statuses').select('id', 'content')
+    for (const status of statuses) {
+      const parsed = parseStatusContent(status.content)
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        typeof parsed.url === 'string' &&
+        parsed.url === reply
+      ) {
+        return status.id
+      }
+    }
+
+    return null
+  }
+
+  const updateStatusCounters = async ({
+    actorId,
+    type,
+    reply,
+    content,
+    step,
+    trx,
+    currentTime
+  }: {
+    actorId: string
+    type: StatusType
+    reply: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    content: any
+    step: 'increment' | 'decrement'
+    trx: Knex.Transaction
+    currentTime: Date
+  }) => {
+    const adjust =
+      step === 'increment' ? increaseCounterValue : decreaseCounterValue
+
+    await adjust(trx, CounterKey.totalStatus(actorId), 1, currentTime)
+
+    if (type === StatusType.enum.Announce) {
+      const originalStatusId = getOriginalStatusIdFromAnnounceContent(content)
+      if (originalStatusId) {
+        await adjust(
+          trx,
+          CounterKey.totalReblog(originalStatusId),
+          1,
+          currentTime
+        )
+      }
+    }
+
+    if (reply) {
+      const parentStatusId = await resolveParentStatusIdByReply(reply, trx)
+      if (parentStatusId) {
+        await adjust(trx, CounterKey.totalReply(parentStatusId), 1, currentTime)
+      }
+    }
+  }
+
   // Public
   async function createNote({
     id,
@@ -76,7 +188,19 @@ export const StatusSQLDatabaseMixin = (
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })
-      await updateCount(actorId, currentTime, 'increment', trx)
+      await updateStatusCounters({
+        actorId,
+        type: StatusType.enum.Note,
+        reply,
+        content: {
+          url,
+          text,
+          summary
+        },
+        step: 'increment',
+        trx,
+        currentTime
+      })
       await Promise.all(
         to.map((actorId) =>
           trx('recipients').insert({
@@ -189,7 +313,15 @@ export const StatusSQLDatabaseMixin = (
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })
-      await updateCount(actorId, currentTime, 'increment', trx)
+      await updateStatusCounters({
+        actorId,
+        type: StatusType.enum.Announce,
+        reply: '',
+        content: originalStatusId,
+        step: 'increment',
+        trx,
+        currentTime
+      })
       await Promise.all(
         to.map((actorId) =>
           trx('recipients').insert({
@@ -273,7 +405,21 @@ export const StatusSQLDatabaseMixin = (
         createdAt: statusCreatedAt,
         updatedAt: statusUpdatedAt
       })
-      await updateCount(actorId, currentTime, 'increment', trx)
+      await updateStatusCounters({
+        actorId,
+        type: StatusType.enum.Poll,
+        reply,
+        content: {
+          url,
+          text,
+          summary,
+          endAt,
+          pollType
+        },
+        step: 'increment',
+        trx,
+        currentTime
+      })
       await Promise.all(
         choices.map((choice) =>
           trx('poll_choices').insert({
@@ -460,11 +606,7 @@ export const StatusSQLDatabaseMixin = (
   async function getActorStatusesCount({
     actorId
   }: GetActorStatusesCountParams) {
-    const result = await database('counters')
-      .where('id', `total-status:${actorId}`)
-      .first()
-    if (!result) return 0
-    return result.value
+    return getCounterValue(database, CounterKey.totalStatus(actorId))
   }
 
   async function getActorStatuses({
@@ -523,7 +665,15 @@ export const StatusSQLDatabaseMixin = (
     await Promise.all(
       replies.map(({ id }) => deleteStatus({ statusId: id, trx }))
     )
-    await updateCount(status.actorId, new Date(), 'decrement', trx)
+    await updateStatusCounters({
+      actorId: status.actorId,
+      type: status.type,
+      reply: status.reply || '',
+      content: status.content,
+      step: 'decrement',
+      trx,
+      currentTime: new Date()
+    })
     await Promise.all([
       trx('statuses').where('id', statusId).delete(),
       trx('recipients').where('statusId', statusId).delete(),
@@ -661,10 +811,7 @@ export const StatusSQLDatabaseMixin = (
             .orderBy('createdAt', 'desc')
         : Promise.resolve([]),
       actorDatabase.getActorFromId({ id: data.actorId }),
-      database('likes')
-        .where('statusId', data.id)
-        .count<{ count: string }>('* as count')
-        .first(),
+      getCounterValue(database, CounterKey.totalLike(data.id)),
       currentActorId
         ? likeDatabase.isActorLikedStatus({
             statusId: data.id,
@@ -706,7 +853,7 @@ export const StatusSQLDatabaseMixin = (
       summary: content.summary,
       reply: data.reply,
       replies: repliesNote,
-      totalLikes: parseInt(totalLikes?.count ?? '0', 10),
+      totalLikes,
       isActorLiked: isActorLikedStatusResult,
       actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
       isLocalActor: Boolean(actor?.account),
@@ -748,44 +895,16 @@ export const StatusSQLDatabaseMixin = (
     return StatusNote.parse(base)
   }
 
-  async function updateCount(
-    actorId: string,
-    time: Date,
-    step: 'increment' | 'decrement',
-    trx: Knex.Transaction
-  ) {
-    const count = await trx('counters')
-      .where({
-        id: `total-status:${actorId}`
-      })
-      .first()
-    if (!count) {
-      await trx('counters').insert({
-        id: `total-status:${actorId}`,
-        value: 1,
-        createdAt: time,
-        updatedAt: time
-      })
-    } else {
-      await trx('counters')
-        .where({ id: `total-status:${actorId}` })
-        .update({
-          value: count.value + (step === 'increment' ? 1 : -1),
-          updatedAt: time
-        })
-    }
-  }
-
   async function getStatusReblogsCount({
     statusId
   }: GetStatusReblogsCountParams): Promise<number> {
-    const result = await database('statuses')
-      .where('type', StatusType.enum.Announce)
-      .where('content', statusId)
-      .count<{ count: string }>('* as count')
-      .first()
-    if (!result) return 0
-    return parseInt(result.count, 10)
+    return getCounterValue(database, CounterKey.totalReblog(statusId))
+  }
+
+  async function getStatusRepliesCount({
+    statusId
+  }: GetStatusRepliesCountParams): Promise<number> {
+    return getCounterValue(database, CounterKey.totalReply(statusId))
   }
 
   async function createPollAnswer({
@@ -840,11 +959,19 @@ export const StatusSQLDatabaseMixin = (
   }
 
   async function getStatusFromUrl({ url }: { url: string }) {
-    const status = await database<{ id: string }>('statuses')
-      .where('url', url)
-      .first('id')
-    if (!status) return null
-    return getStatus({ statusId: status.id })
+    const statuses = await database('statuses').select('id', 'content')
+    for (const status of statuses) {
+      const content = parseStatusContent(status.content)
+      if (
+        content &&
+        typeof content === 'object' &&
+        typeof content.url === 'string' &&
+        content.url === url
+      ) {
+        return getStatus({ statusId: status.id })
+      }
+    }
+    return null
   }
 
   async function getActorAnnouncedStatusId({
@@ -862,11 +989,7 @@ export const StatusSQLDatabaseMixin = (
   }
 
   async function countStatus({ actorId }: { actorId: string }) {
-    const result = await database('statuses')
-      .where('actorId', actorId)
-      .count<{ count: string }>('* as count')
-      .first()
-    return parseInt(result?.count ?? '0', 10)
+    return getCounterValue(database, CounterKey.totalStatus(actorId))
   }
 
   async function updatePollChoice({
@@ -966,6 +1089,7 @@ export const StatusSQLDatabaseMixin = (
     createTag,
     getTags,
     getStatusReblogsCount,
+    getStatusRepliesCount,
     createPollAnswer,
     hasActorVoted,
     getActorPollVotes,
