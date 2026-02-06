@@ -29,6 +29,9 @@ exports.up = async function up(knex) {
   const hasUrlHashColumn = await knex.schema.hasColumn('statuses', 'urlHash')
 
   if (!hasUrlColumn || !hasUrlHashColumn) {
+    console.log(
+      `Adding columns to statuses: ${[!hasUrlColumn && 'url', !hasUrlHashColumn && 'urlHash'].filter(Boolean).join(', ')}...`
+    )
     await knex.schema.alterTable('statuses', function (table) {
       if (!hasUrlColumn) {
         table.text('url').nullable()
@@ -38,6 +41,9 @@ exports.up = async function up(knex) {
         table.index('urlHash', 'statusesUrlHashIndex')
       }
     })
+    console.log('  Columns added')
+  } else {
+    console.log('Columns url and urlHash already exist, skipping schema change')
   }
 
   const totalResult = await knex('statuses').count('* as cnt').first()
