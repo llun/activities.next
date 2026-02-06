@@ -215,6 +215,22 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('getStatusFromUrl', () => {
+      it('returns status by URL', async () => {
+        const status = await database.getStatusFromUrl({
+          url: statuses.primary.post
+        })
+        expect(status?.id).toBe(statuses.primary.post)
+      })
+
+      it('returns null for unknown URL', async () => {
+        const status = await database.getStatusFromUrl({
+          url: 'https://example.test/statuses/does-not-exist'
+        })
+        expect(status).toBeNull()
+      })
+    })
+
     describe('getActorStatuses', () => {
       it('returns statuses for specific actor', async () => {
         const statuses = await database.getActorStatuses({
@@ -323,6 +339,35 @@ describe('StatusDatabase', () => {
           statusId: statuses.primary.secondPost
         })
         expect(count).toBe(0)
+      })
+
+      it('counts replies that reference parent URL', async () => {
+        const parentStatusId = `${emptyActorId}/statuses/url-parent`
+        const parentStatusUrl = `${emptyActorId}/statuses/url-parent`
+
+        await database.createNote({
+          id: parentStatusId,
+          url: parentStatusUrl,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Parent status for URL-based reply counting'
+        })
+
+        await database.createNote({
+          id: `${pollAuthorId}/statuses/url-reply`,
+          url: `${pollAuthorId}/statuses/url-reply`,
+          actorId: pollAuthorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Reply by parent URL',
+          reply: parentStatusUrl
+        })
+
+        const count = await database.getStatusRepliesCount({
+          statusId: parentStatusId
+        })
+        expect(count).toBe(1)
       })
     })
 

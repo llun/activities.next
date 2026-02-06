@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER
+const MAX_ADJUST_RETRIES = 20
 
 type CounterRow = {
   id: string
@@ -36,6 +37,22 @@ export const CounterKey = {
 }
 
 type SQLDatabase = Knex | Knex.Transaction
+
+const ensureCounterRow = async (
+  database: SQLDatabase,
+  id: string,
+  currentTime: Date
+) => {
+  await database('counters')
+    .insert({
+      id,
+      value: 0,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+    .onConflict('id')
+    .ignore()
+}
 
 export const getCounterValue = async (
   database: SQLDatabase,
@@ -93,24 +110,35 @@ const adjustCounterValue = async (
 ): Promise<void> => {
   if (delta === 0) return
 
-  const existing = await database<CounterRow>('counters')
-    .where('id', id)
-    .first()
-  if (!existing) {
-    await database('counters').insert({
-      id,
-      value: clampCounterValue(delta),
-      createdAt: currentTime,
-      updatedAt: currentTime
-    })
-    return
+  await ensureCounterRow(database, id, currentTime)
+
+  for (let attempt = 0; attempt < MAX_ADJUST_RETRIES; attempt += 1) {
+    const existing = await database<CounterRow>('counters')
+      .where('id', id)
+      .first('value')
+
+    if (!existing) {
+      await ensureCounterRow(database, id, currentTime)
+      continue
+    }
+
+    const nextValue = clampCounterValue(
+      parseCounterValue(existing.value) + delta
+    )
+    const updated = await database('counters')
+      .where('id', id)
+      .andWhere('value', existing.value)
+      .update({
+        value: nextValue,
+        updatedAt: currentTime
+      })
+
+    if (updated > 0) {
+      return
+    }
   }
 
-  const nextValue = clampCounterValue(parseCounterValue(existing.value) + delta)
-  await database('counters').where('id', id).update({
-    value: nextValue,
-    updatedAt: currentTime
-  })
+  throw new Error(`Failed to adjust counter "${id}" after concurrent updates`)
 }
 
 export const increaseCounterValue = async (

@@ -44,6 +44,7 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
@@ -88,6 +89,8 @@ export const StatusSQLDatabaseMixin = (
     return null
   }
 
+  const getStatusUrlHash = (url: string): string => getHashFromString(url)
+
   const resolveParentStatusIdByReply = async (
     reply: string,
     trx: Knex.Transaction
@@ -99,18 +102,11 @@ export const StatusSQLDatabaseMixin = (
       .first<{ id: string }>('id')
     if (byId?.id) return byId.id
 
-    const statuses = await trx('statuses').select('id', 'content')
-    for (const status of statuses) {
-      const parsed = parseStatusContent(status.content)
-      if (
-        parsed &&
-        typeof parsed === 'object' &&
-        typeof parsed.url === 'string' &&
-        parsed.url === reply
-      ) {
-        return status.id
-      }
-    }
+    const byUrl = await trx('statuses')
+      .where('urlHash', getStatusUrlHash(reply))
+      .andWhere('url', reply)
+      .first<{ id: string }>('id')
+    if (byUrl?.id) return byUrl.id
 
     return null
   }
@@ -177,6 +173,8 @@ export const StatusSQLDatabaseMixin = (
     await database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
+        url,
+        urlHash: getStatusUrlHash(url),
         actorId,
         type: StatusType.enum.Note,
         content: JSON.stringify({
@@ -280,6 +278,8 @@ export const StatusSQLDatabaseMixin = (
       await trx('statuses')
         .where('id', status.id)
         .update({
+          url: status.url || null,
+          urlHash: status.url ? getStatusUrlHash(status.url) : null,
           content: JSON.stringify({
             url: status.url,
             text,
@@ -306,6 +306,8 @@ export const StatusSQLDatabaseMixin = (
     await database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
+        url: null,
+        urlHash: null,
         actorId,
         type: StatusType.enum.Announce,
         reply: '',
@@ -392,6 +394,8 @@ export const StatusSQLDatabaseMixin = (
     await database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
+        url,
+        urlHash: getStatusUrlHash(url),
         actorId,
         type: StatusType.enum.Poll,
         content: JSON.stringify({
@@ -518,6 +522,8 @@ export const StatusSQLDatabaseMixin = (
         await trx('statuses')
           .where('id', statusId)
           .update({
+            url: data.url || null,
+            urlHash: data.url ? getStatusUrlHash(data.url) : null,
             content: JSON.stringify({
               url: data.url,
               text: nextText,
@@ -843,7 +849,7 @@ export const StatusSQLDatabaseMixin = (
     const content = getCompatibleJSON(data.content)
     const base = {
       id: data.id,
-      url: content.url,
+      url: content.url ?? data.url,
       to: to.map((item) => item.actorId),
       cc: cc.map((item) => item.actorId),
       actorId: data.actorId,
@@ -959,18 +965,15 @@ export const StatusSQLDatabaseMixin = (
   }
 
   async function getStatusFromUrl({ url }: { url: string }) {
-    const statuses = await database('statuses').select('id', 'content')
-    for (const status of statuses) {
-      const content = parseStatusContent(status.content)
-      if (
-        content &&
-        typeof content === 'object' &&
-        typeof content.url === 'string' &&
-        content.url === url
-      ) {
-        return getStatus({ statusId: status.id })
-      }
+    const status = await database('statuses')
+      .where('urlHash', getStatusUrlHash(url))
+      .andWhere('url', url)
+      .first<{ id: string }>('id')
+
+    if (status?.id) {
+      return getStatus({ statusId: status.id })
     }
+
     return null
   }
 

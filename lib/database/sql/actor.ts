@@ -35,6 +35,7 @@ import {
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -86,25 +87,7 @@ const parseStatusContent = (
   return content
 }
 
-const getStatusReferenceMap = (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  statuses: any[]
-) => {
-  const statusReferenceToId = new Map<string, string>()
-  for (const status of statuses) {
-    statusReferenceToId.set(status.id, status.id)
-
-    const content = parseStatusContent(status.content)
-    if (
-      content &&
-      typeof content === 'object' &&
-      typeof content.url === 'string'
-    ) {
-      statusReferenceToId.set(content.url, status.id)
-    }
-  }
-  return statusReferenceToId
-}
+const getStatusUrlHash = (url: string): string => getHashFromString(url)
 
 export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   async createActor({
@@ -675,15 +658,39 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         .where('id', actorId)
         .first<{ accountId: string | null }>('accountId')
 
-      const [allStatuses, actorStatuses] = await Promise.all([
-        trx('statuses').select('id', 'content'),
-        trx('statuses')
-          .where('actorId', actorId)
-          .select('id', 'type', 'reply', 'content')
-      ])
+      const actorStatuses = await trx('statuses')
+        .where('actorId', actorId)
+        .select('id', 'type', 'reply', 'content')
 
       const statusIds = actorStatuses.map((status) => status.id)
-      const statusReferenceToId = getStatusReferenceMap(allStatuses)
+      const statusReferenceToId = new Map<string, string>()
+      const replyReferences = Array.from(
+        new Set(
+          actorStatuses
+            .map((status) => status.reply)
+            .filter((reply): reply is string => Boolean(reply))
+        )
+      )
+      if (replyReferences.length > 0) {
+        const replyReferenceHashes = Array.from(
+          new Set(replyReferences.map((reply) => getStatusUrlHash(reply)))
+        )
+        const parentStatuses = await trx('statuses')
+          .whereIn('id', replyReferences)
+          .orWhere((builder) =>
+            builder
+              .whereIn('urlHash', replyReferenceHashes)
+              .whereIn('url', replyReferences)
+          )
+          .select('id', 'url')
+
+        for (const parentStatus of parentStatuses) {
+          statusReferenceToId.set(parentStatus.id, parentStatus.id)
+          if (parentStatus.url) {
+            statusReferenceToId.set(parentStatus.url, parentStatus.id)
+          }
+        }
+      }
 
       if (actorStatuses.length > 0) {
         await decreaseCounterValue(
