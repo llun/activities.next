@@ -604,6 +604,7 @@ export type CreateAttachmentParams = {
   width?: number
   height?: number
   name?: string
+  mediaId?: string
 }
 export type GetAttachmentsParams = {
   statusId: string

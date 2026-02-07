@@ -206,7 +206,8 @@ export const createNoteFromUserInput = async ({
         url: attachment.url,
         width: attachment.width,
         height: attachment.height,
-        name: attachment.name
+        name: attachment.name,
+        mediaId: attachment.id
       })
     ),
     ...mentions.map((mention) =>

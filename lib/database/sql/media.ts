@@ -93,7 +93,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     url,
     width,
     height,
-    name = ''
+    name = '',
+    mediaId
   }: CreateAttachmentParams): Promise<Attachment> {
     const currentTime = new Date()
     const data = Attachment.parse({
@@ -111,6 +112,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     })
     await database('attachments').insert({
       ...data,
+      mediaId,
       createdAt: currentTime,
       updatedAt: currentTime
     })
@@ -182,20 +184,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     // Then get the paginated items
     let itemsQuery = database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
-      .leftJoin('attachments', function () {
-        // Match media with attachments using LIKE pattern matching (database-agnostic)
-        // Handles:
-        // 1. Direct match: attachments.url = medias.original (for test fixtures)
-        // 2. URL ends with path: attachments.url LIKE '%' || medias.original (for S3/ObjectStorage)
-        //
-        // Note: For local storage where URLs contain only filenames, this won't match
-        // because the full filesystem path isn't present in the URL. This is a limitation
-        // of using database-agnostic queries without substring extraction.
-        this.on('medias.original', '=', 'attachments.url')
-        this.orOn(database.raw("attachments.url LIKE '%' || medias.original"))
-        this.orOn('medias.thumbnail', '=', 'attachments.url')
-        this.orOn(database.raw("attachments.url LIKE '%' || medias.thumbnail"))
-      })
+      .leftJoin('attachments', 'medias.id', 'attachments.mediaId')
       .where('actors.accountId', accountId)
       .distinct(
         'medias.id',
