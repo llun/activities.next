@@ -1,20 +1,32 @@
 /**
  * @param { import("knex").Knex } knex
- * @returns { Promise<void> }
+ * @returns { boolean }
  */
-exports.up = async (knex) => {
-  const isPg =
-    knex.client.config.client === 'pg' ||
-    knex.client.config.client === 'postgresql'
-  if (!isPg) return
+const isPostgres = (knex) =>
+  knex.client.config.client === 'pg' ||
+  knex.client.config.client === 'postgresql'
 
-  const column = await knex('information_schema.columns')
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<{ data_type: string } | undefined> }
+ */
+const getMediaIdColumn = (knex) =>
+  knex('information_schema.columns')
     .select('data_type')
     .where({
       table_name: 'attachments',
       column_name: 'mediaId'
     })
     .first()
+
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+exports.up = async (knex) => {
+  if (!isPostgres(knex)) return
+
+  const column = await getMediaIdColumn(knex)
 
   if (!column || column.data_type === 'integer') return
 
@@ -23,7 +35,7 @@ exports.up = async (knex) => {
     ALTER TABLE "attachments"
     ALTER COLUMN "mediaId" TYPE integer
     USING CASE
-      WHEN "mediaId" ~ '^[0-9]+$' THEN "mediaId"::integer
+      WHEN "mediaId" ~ '^[0-9]{1,10}$' AND "mediaId"::bigint <= 2147483647 THEN "mediaId"::integer
       ELSE NULL
     END
   `)
@@ -37,18 +49,9 @@ exports.up = async (knex) => {
  * @returns { Promise<void> }
  */
 exports.down = async (knex) => {
-  const isPg =
-    knex.client.config.client === 'pg' ||
-    knex.client.config.client === 'postgresql'
-  if (!isPg) return
+  if (!isPostgres(knex)) return
 
-  const column = await knex('information_schema.columns')
-    .select('data_type')
-    .where({
-      table_name: 'attachments',
-      column_name: 'mediaId'
-    })
-    .first()
+  const column = await getMediaIdColumn(knex)
 
   if (!column || column.data_type !== 'integer') return
 
