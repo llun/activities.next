@@ -25,8 +25,9 @@ export const TimelineSQLDatabaseMixin = (
     switch (timeline) {
       case Timeline.LOCAL_PUBLIC: {
         const query = database('recipients')
-          .leftJoin('statuses', 'recipients.statusId', 'statuses.id')
-          .leftJoin('actors', 'statuses.actorId', 'actors.id')
+          .select('recipients.statusId')
+          .innerJoin('statuses', 'recipients.statusId', 'statuses.id')
+          .innerJoin('actors', 'statuses.actorId', 'actors.id')
           .where('recipients.type', 'to')
           .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
           .whereNotNull('actors.privateKey')
