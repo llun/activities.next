@@ -26,23 +26,19 @@ exports.up = async function up(knex) {
   console.log(`Found ${mediaCounts.length} accounts with media`)
 
   const currentTime = new Date()
+  const BATCH_SIZE = 500
+  for (let i = 0; i < mediaCounts.length; i += BATCH_SIZE) {
+    const batch = mediaCounts.slice(i, i + BATCH_SIZE)
+    const countersToUpsert = batch.map((row) => ({
+      id: `${COUNTER_PREFIX}${row.accountId}`,
+      value: parseInteger(row.count),
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }))
 
-  for (const row of mediaCounts) {
-    const counterId = `${COUNTER_PREFIX}${row.accountId}`
-    const count = parseInteger(row.count)
-
-    await knex('counters')
-      .insert({
-        id: counterId,
-        value: count,
-        createdAt: currentTime,
-        updatedAt: currentTime
-      })
-      .onConflict('id')
-      .merge({
-        value: count,
-        updatedAt: currentTime
-      })
+    if (countersToUpsert.length > 0) {
+      await knex('counters').insert(countersToUpsert).onConflict('id').merge()
+    }
   }
 
   console.log(`Done. Backfilled ${mediaCounts.length} total-media counters.`)
