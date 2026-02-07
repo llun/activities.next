@@ -56,7 +56,7 @@ const rebuildCountersTable = async (knex) => {
     knex.client.config.client === 'postgresql'
   if (isPg) {
     const pkey = await knex.raw(
-      `SELECT conname FROM pg_constraint WHERE conname = 'counters_tmp_new_pkey'`
+      `SELECT conname FROM pg_constraint WHERE conname = 'counters_tmp_new_pkey' AND conrelid = 'counters'::regclass`
     )
     if (pkey.rows.length > 0) {
       await knex.raw(
@@ -76,14 +76,18 @@ const rebuildCountersTable = async (knex) => {
   )
 
   if (existingRows.length > 0) {
-    await knex(COUNTERS_TMP_TABLE).insert(
-      existingRows.map((row) => ({
-        id: row.id,
-        value: parseInteger(row.value),
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt
-      }))
-    )
+    const BATCH_SIZE = 500
+    for (let i = 0; i < existingRows.length; i += BATCH_SIZE) {
+      const batch = existingRows.slice(i, i + BATCH_SIZE)
+      await knex(COUNTERS_TMP_TABLE).insert(
+        batch.map((row) => ({
+          id: row.id,
+          value: parseInteger(row.value),
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt
+        }))
+      )
+    }
   }
 
   await knex.schema.dropTable('counters')
