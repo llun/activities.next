@@ -84,7 +84,7 @@ describe('getSQLDatabase', () => {
     jest.clearAllMocks()
   })
 
-  it('creates a composed database and wires mixin dependencies', async () => {
+  const createComposedDatabase = () => {
     const knexDatabase = {
       migrate: {
         latest: jest.fn().mockResolvedValue(undefined)
@@ -140,6 +140,32 @@ describe('getSQLDatabase', () => {
 
     const database = getSQLDatabase(config)
 
+    return {
+      accountDatabase,
+      actorDatabase,
+      database,
+      followerDatabase,
+      fitnessSettingsDatabase,
+      knexDatabase,
+      likeDatabase,
+      mediaDatabase,
+      notificationDatabase,
+      oauthDatabase,
+      statusDatabase,
+      timelineDatabase
+    }
+  }
+
+  it('wires mixin dependencies correctly', () => {
+    const {
+      accountDatabase,
+      actorDatabase,
+      knexDatabase,
+      likeDatabase,
+      mediaDatabase,
+      statusDatabase
+    } = createComposedDatabase()
+
     expect(knexMock).toHaveBeenCalledWith(config)
     expect(accountMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(actorMixinMock).toHaveBeenCalledWith(knexDatabase)
@@ -160,6 +186,22 @@ describe('getSQLDatabase', () => {
       mediaDatabase
     )
     expect(timelineMixinMock).toHaveBeenCalledWith(knexDatabase, statusDatabase)
+  })
+
+  it('exposes methods from all composed mixins', () => {
+    const {
+      accountDatabase,
+      actorDatabase,
+      database,
+      followerDatabase,
+      fitnessSettingsDatabase,
+      likeDatabase,
+      mediaDatabase,
+      notificationDatabase,
+      oauthDatabase,
+      statusDatabase,
+      timelineDatabase
+    } = createComposedDatabase()
 
     expect(database.isAccountExists).toBe(accountDatabase.isAccountExists)
     expect(database.getActorFromId).toBe(actorDatabase.getActorFromId)
@@ -175,10 +217,16 @@ describe('getSQLDatabase', () => {
     expect(database.createClient).toBe(oauthDatabase.createClient)
     expect(database.getStatus).toBe(statusDatabase.getStatus)
     expect(database.getTimeline).toBe(timelineDatabase.getTimeline)
+  })
 
+  it('merges properties with later mixins taking precedence', () => {
+    const { database } = createComposedDatabase()
     const merged = database as unknown as Record<string, string>
     expect(merged.testPriority).toBe('timeline')
+  })
 
+  it('proxies migrate and destroy to knex lifecycle methods', async () => {
+    const { database, knexDatabase } = createComposedDatabase()
     await database.migrate()
     expect(knexDatabase.migrate.latest).toHaveBeenCalledTimes(1)
 

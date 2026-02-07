@@ -12,8 +12,10 @@ describe('getCompatibleJSON', () => {
   })
 
   it('returns empty object for nullish input', () => {
-    expect(getCompatibleJSON<{}>(undefined as unknown as {})).toEqual({})
-    expect(getCompatibleJSON<{}>(null as unknown as {})).toEqual({})
+    // @ts-expect-error Testing runtime behavior with undefined input.
+    expect(getCompatibleJSON<{}>(undefined)).toEqual({})
+    // @ts-expect-error Testing runtime behavior with null input.
+    expect(getCompatibleJSON<{}>(null)).toEqual({})
   })
 
   it('throws for invalid JSON string', () => {
