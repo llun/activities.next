@@ -93,18 +93,18 @@ export const FollowerFirestoreDatabaseMixin = (
   },
 
   async getLocalActorsFromFollowerUrl({
-    followerUrl: _followerUrl
+    followerUrl
   }: GetLocalActorsFromFollowerUrlParams): Promise<Actor[]> {
-    // This is tricky in Firestore because we store settings as JSON string in SQL,
-    // and I did the same in my Firestore Actor mixin for compatibility.
-    // However, it's better to store it as a map in Firestore.
-    // Let's assume for now we might need to query by settings.followersUrl.
-    // Since it's a JSON string, we can't easily query it.
-    // I should probably change Actor settings to be a map in Firestore.
-    
-    // For now, let's just return empty or implement a slow scan if needed.
-    // But better: update ActorFirestoreDatabaseMixin to store settings as Map.
-    return []
+    const result = await database
+      .collection('actors')
+      .where('followersUrl', '==', followerUrl)
+      .get()
+    const actors = await Promise.all(
+      result.docs.map((doc) =>
+        _actorDatabase.getActorFromId({ id: doc.data().id })
+      )
+    )
+    return actors.filter((actor): actor is Actor => actor !== null)
   },
 
   async getAcceptedOrRequestedFollow({

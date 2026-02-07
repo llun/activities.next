@@ -2,6 +2,10 @@ import { Firestore } from '@google-cloud/firestore'
 
 import { getCompatibleTime } from '@/lib/database/firestore/utils'
 import {
+  CounterKey,
+  getCounterValue
+} from '@/lib/database/firestore/utils/counter'
+import {
   AccountDatabase,
   ChangePasswordParams,
   CreateAccountParams,
@@ -420,8 +424,13 @@ export const AccountFirestoreDatabaseMixin = (
     const results: Actor[] = []
     for (const doc of result.docs) {
       const data = doc.data() as ActorData
-      // In Firestore implementation, we might need a separate way to handle counters
-      // For now, I'll just put 0 or fetch them if I implement counters collection
+
+      const [followingCount, followersCount, statusCount] = await Promise.all([
+        getCounterValue(database, CounterKey.totalFollowing(data.id)),
+        getCounterValue(database, CounterKey.totalFollowers(data.id)),
+        getCounterValue(database, CounterKey.totalStatus(data.id))
+      ])
+
       results.push(
         Actor.parse({
           id: data.id,
@@ -438,9 +447,9 @@ export const AccountFirestoreDatabaseMixin = (
           publicKey: data.publicKey,
           privateKey: data.privateKey ?? null,
           account,
-          followingCount: 0, // TODO: Implement counters
-          followersCount: 0, // TODO: Implement counters
-          statusCount: 0, // TODO: Implement counters
+          followingCount,
+          followersCount,
+          statusCount,
           lastStatusAt: getCompatibleTime(data.lastStatusAt),
           createdAt: getCompatibleTime(data.createdAt),
           updatedAt: getCompatibleTime(data.updatedAt),

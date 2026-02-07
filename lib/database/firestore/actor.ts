@@ -2,6 +2,12 @@ import { Firestore } from '@google-cloud/firestore'
 
 import { getCompatibleTime } from '@/lib/database/firestore/utils'
 import {
+  CounterKey,
+  decreaseCounterValue,
+  getCounterValue,
+  increaseCounterValue
+} from '@/lib/database/firestore/utils/counter'
+import {
   ActorDatabase,
   CancelActorDeletionParams,
   CreateActorParams,
@@ -67,6 +73,9 @@ export const ActorFirestoreDatabaseMixin = (
       domain: params.domain,
       name: params.name ?? null,
       summary: params.summary ?? null,
+      followersUrl: params.followersUrl,
+      inboxUrl: params.inboxUrl,
+      sharedInboxUrl: params.sharedInboxUrl,
       settings: JSON.stringify(actorSettings),
       publicKey: params.publicKey,
       privateKey: params.privateKey ?? null,
@@ -119,6 +128,12 @@ export const ActorFirestoreDatabaseMixin = (
 
     const settings = JSON.parse(data.settings) as ActorSettings
 
+    const [followingCount, followersCount, statusCount] = await Promise.all([
+      getCounterValue(database, CounterKey.totalFollowing(data.id)),
+      getCounterValue(database, CounterKey.totalFollowers(data.id)),
+      getCounterValue(database, CounterKey.totalStatus(data.id))
+    ])
+
     return Actor.parse({
       id: data.id,
       username: data.username,
@@ -134,9 +149,9 @@ export const ActorFirestoreDatabaseMixin = (
       publicKey: data.publicKey,
       privateKey: data.privateKey ?? null,
       account,
-      followingCount: 0, // TODO: Implement counters
-      followersCount: 0, // TODO: Implement counters
-      statusCount: 0, // TODO: Implement counters
+      followingCount,
+      followersCount,
+      statusCount,
       lastStatusAt: getCompatibleTime(data.lastStatusAt),
       createdAt: getCompatibleTime(data.createdAt),
       updatedAt: getCompatibleTime(data.updatedAt),
@@ -237,26 +252,26 @@ export const ActorFirestoreDatabaseMixin = (
     await database.collection('actors').doc(encodeURIComponent(actorId)).delete()
   },
 
-  async updateActorFollowersCount(_actorId: string): Promise<void> {
-    // TODO: Implement counters
+  async updateActorFollowersCount(actorId: string): Promise<void> {
+    await increaseCounterValue(database, CounterKey.totalFollowers(actorId))
   },
 
-  async updateActorFollowingCount(_actorId: string): Promise<void> {
-    // TODO: Implement counters
+  async updateActorFollowingCount(actorId: string): Promise<void> {
+    await increaseCounterValue(database, CounterKey.totalFollowing(actorId))
   },
 
   async increaseActorStatusCount(
-    _actorId: string,
-    _amount?: number
+    actorId: string,
+    amount?: number
   ): Promise<void> {
-    // TODO: Implement counters
+    await increaseCounterValue(database, CounterKey.totalStatus(actorId), amount)
   },
 
   async decreaseActorStatusCount(
-    _actorId: string,
-    _amount?: number
+    actorId: string,
+    amount?: number
   ): Promise<void> {
-    // TODO: Implement counters
+    await decreaseCounterValue(database, CounterKey.totalStatus(actorId), amount)
   },
 
   async updateActorLastStatusAt(actorId: string, time: number): Promise<void> {
@@ -352,17 +367,15 @@ export const ActorFirestoreDatabaseMixin = (
   },
 
   async getActorFollowingCount(
-    _params: GetActorFollowingCountParams
+    params: GetActorFollowingCountParams
   ): Promise<number> {
-    // TODO: Implement counters
-    return 0
+    return getCounterValue(database, CounterKey.totalFollowing(params.actorId))
   },
 
   async getActorFollowersCount(
-    _params: GetActorFollowersCountParams
+    params: GetActorFollowersCountParams
   ): Promise<number> {
-    // TODO: Implement counters
-    return 0
+    return getCounterValue(database, CounterKey.totalFollowers(params.actorId))
   },
 
   async isInternalActor({ actorId }: IsInternalActorParams): Promise<boolean> {
