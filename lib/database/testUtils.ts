@@ -1,6 +1,7 @@
 import { noop } from 'lodash'
 import { Client as PostgresClient } from 'pg'
 
+import { getFirestoreDatabase } from '@/lib/database/firestore'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 
@@ -55,13 +56,27 @@ const DATABASES: Record<string, GetTestDatabase> = {
       await client.query(`CREATE DATABASE ${TEST_PG_TABLE}`)
       await client.end()
     }
+  }),
+  firestore: () => ({
+    name: 'firestore',
+    database: getFirestoreDatabase({
+      client: 'firestore',
+      projectId: 'test',
+      host: process.env.FIRESTORE_EMULATOR_HOST || 'localhost',
+      port: process.env.FIRESTORE_EMULATOR_PORT
+        ? parseInt(process.env.FIRESTORE_EMULATOR_PORT, 10)
+        : 8080,
+      ssl: false
+    }),
+    prepare: noop
   })
 }
 
 export const getTestDatabaseTable = (): TestDatabaseTable => {
   switch (process.env.TEST_DATABASE_TYPE) {
     case 'sqlite':
-    case 'pg': {
+    case 'pg':
+    case 'firestore': {
       const { name, database, prepare } =
         DATABASES[process.env.TEST_DATABASE_TYPE]()
       return [[name, database, prepare]]

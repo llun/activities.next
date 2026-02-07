@@ -2,7 +2,15 @@ import { Knex } from 'knex'
 
 import { matcher } from './utils'
 
-export type DatabaseConfig = Knex.Config
+export interface FirestoreConfig {
+  client: 'firestore'
+  projectId: string
+  host?: string
+  port?: number
+  ssl?: boolean
+}
+
+export type DatabaseConfig = Knex.Config | FirestoreConfig
 
 export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
   if (process.env.ACTIVITIES_DATABASE) {
@@ -13,6 +21,19 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
   if (!hasEnvironmentDatabase) return null
 
   switch (process.env.ACTIVITIES_DATABASE_CLIENT) {
+    case 'firestore': {
+      return {
+        database: {
+          client: 'firestore',
+          projectId: process.env.ACTIVITIES_DATABASE_FIRESTORE_PROJECT_ID || '',
+          host: process.env.ACTIVITIES_DATABASE_FIRESTORE_HOST,
+          port: process.env.ACTIVITIES_DATABASE_FIRESTORE_PORT
+            ? parseInt(process.env.ACTIVITIES_DATABASE_FIRESTORE_PORT, 10)
+            : undefined,
+          ssl: process.env.ACTIVITIES_DATABASE_FIRESTORE_SSL === 'true'
+        }
+      }
+    }
     case 'better-sqlite3':
     case 'sqlite3': {
       return {
