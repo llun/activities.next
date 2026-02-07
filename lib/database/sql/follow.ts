@@ -1,6 +1,12 @@
 import { Knex } from 'knex'
 
 import { SQLActorDatabase } from '@/lib/database/sql/actor'
+import {
+  CounterKey,
+  decreaseCounterValue,
+  getCounterValues,
+  increaseCounterValue
+} from '@/lib/database/sql/utils/counter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   CreateFollowParams,
@@ -58,12 +64,31 @@ export const FollowerSQLDatabaseMixin = (
       createdAt: currentTime.getTime(),
       updatedAt: currentTime.getTime()
     }
-    await database('follows').insert({
-      ...follow,
-      inbox,
-      sharedInbox,
-      createdAt: currentTime,
-      updatedAt: currentTime
+    await database.transaction(async (trx) => {
+      await trx('follows').insert({
+        ...follow,
+        inbox,
+        sharedInbox,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+
+      if (status === FollowStatus.enum.Accepted) {
+        await Promise.all([
+          increaseCounterValue(
+            trx,
+            CounterKey.totalFollowing(actorId),
+            1,
+            currentTime
+          ),
+          increaseCounterValue(
+            trx,
+            CounterKey.totalFollowers(targetActorId),
+            1,
+            currentTime
+          )
+        ])
+      }
     })
     return follow
   },
@@ -140,28 +165,13 @@ export const FollowerSQLDatabaseMixin = (
         .select('actors.*')
       return Promise.all(
         localActors.map(async (actor) => {
-          const [
-            account,
-            totalFollowers,
-            totalFollowing,
-            totalStatus,
-            lastStatus
-          ] = await Promise.all([
+          const [account, counters, lastStatus] = await Promise.all([
             trx<Account>('accounts').where('id', actor.accountId).first(),
-            trx('follows')
-              .where('targetActorId', actor.id)
-              .andWhere('status', 'Accepted')
-              .count<{ count: string }>('* as count')
-              .first(),
-            trx('follows')
-              .where('actorId', actor.id)
-              .andWhere('status', 'Accepted')
-              .count<{ count: string }>('* as count')
-              .first(),
-            trx('statuses')
-              .where('actorId', actor.id)
-              .count<{ count: string }>('id as count')
-              .first(),
+            getCounterValues(trx, [
+              CounterKey.totalFollowers(actor.id),
+              CounterKey.totalFollowing(actor.id),
+              CounterKey.totalStatus(actor.id)
+            ]),
             trx('statuses')
               .where('actorId', actor.id)
               .orderBy('createdAt', 'desc')
@@ -172,9 +182,9 @@ export const FollowerSQLDatabaseMixin = (
             : 0
           return actorDatabase.getActor(
             actor,
-            parseInt(totalFollowing?.count ?? '0', 10),
-            parseInt(totalFollowers?.count ?? '0', 10),
-            parseInt(totalStatus?.count ?? '0', 10),
+            counters[CounterKey.totalFollowing(actor.id)] ?? 0,
+            counters[CounterKey.totalFollowers(actor.id)] ?? 0,
+            counters[CounterKey.totalStatus(actor.id)] ?? 0,
             typeof lastStatusCreatedAt === 'number'
               ? lastStatusCreatedAt
               : lastStatusCreatedAt.getTime(),
@@ -221,9 +231,54 @@ export const FollowerSQLDatabaseMixin = (
   },
 
   async updateFollowStatus({ followId, status }: UpdateFollowStatusParams) {
-    await database('follows').where('id', followId).update({
-      status,
-      updatedAt: new Date()
+    const currentTime = new Date()
+    await database.transaction(async (trx) => {
+      const existingFollow = await trx('follows')
+        .where('id', followId)
+        .first<Follow>()
+      if (!existingFollow) return
+
+      await trx('follows').where('id', followId).update({
+        status,
+        updatedAt: currentTime
+      })
+
+      const wasAccepted = existingFollow.status === FollowStatus.enum.Accepted
+      const isAccepted = status === FollowStatus.enum.Accepted
+
+      if (!wasAccepted && isAccepted) {
+        await Promise.all([
+          increaseCounterValue(
+            trx,
+            CounterKey.totalFollowing(existingFollow.actorId),
+            1,
+            currentTime
+          ),
+          increaseCounterValue(
+            trx,
+            CounterKey.totalFollowers(existingFollow.targetActorId),
+            1,
+            currentTime
+          )
+        ])
+      }
+
+      if (wasAccepted && !isAccepted) {
+        await Promise.all([
+          decreaseCounterValue(
+            trx,
+            CounterKey.totalFollowing(existingFollow.actorId),
+            1,
+            currentTime
+          ),
+          decreaseCounterValue(
+            trx,
+            CounterKey.totalFollowers(existingFollow.targetActorId),
+            1,
+            currentTime
+          )
+        ])
+      }
     })
   },
 

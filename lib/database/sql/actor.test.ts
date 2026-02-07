@@ -11,6 +11,7 @@ import {
   TEST_PASSWORD_HASH,
   TEST_USERNAME3
 } from '@/lib/stub/const'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -553,10 +554,13 @@ describe('ActorDatabase', () => {
     })
 
     describe('#deleteActorData', () => {
-      it('deletes all actor data', async () => {
+      it('deletes actor data and keeps related counters consistent', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-data-${suffix}`
         const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        const peerUsername = `delete-data-peer-${suffix}`
+        const peerActorId = `https://${TEST_DOMAIN}/users/${peerUsername}`
 
         await database.createAccount({
           email: `${username}@${TEST_DOMAIN}`,
@@ -566,24 +570,116 @@ describe('ActorDatabase', () => {
           privateKey: `privateKey-${suffix}`,
           publicKey: `publicKey-${suffix}`
         })
-
-        // Create some data for the actor
-        await database.createNote({
-          id: `${actorId}/statuses/test-${suffix}`,
-          url: `${actorId}/statuses/test-${suffix}`,
-          actorId,
-          to: ['https://www.w3.org/ns/activitystreams#Public'],
-          cc: [],
-          text: 'Test status',
-          createdAt: Date.now()
+        await database.createAccount({
+          email: `${peerUsername}@${TEST_DOMAIN}`,
+          username: peerUsername,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-peer-${suffix}`,
+          publicKey: `publicKey-peer-${suffix}`
         })
 
-        // Delete actor data
+        const targetStatusId = `${peerActorId}/statuses/delete-data-target-${suffix}`
+        await database.createNote({
+          id: targetStatusId,
+          url: targetStatusId,
+          actorId: peerActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Target status'
+        })
+
+        await database.createNote({
+          id: `${actorId}/statuses/reply-${suffix}`,
+          url: `${actorId}/statuses/reply-${suffix}`,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Reply from actor to delete',
+          reply: targetStatusId
+        })
+        await database.createAnnounce({
+          id: `${actorId}/statuses/reblog-${suffix}`,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: targetStatusId
+        })
+        await database.createLike({
+          actorId,
+          statusId: targetStatusId
+        })
+        await database.createFollow({
+          actorId,
+          targetActorId: peerActorId,
+          inbox: `${actorId}/inbox`,
+          sharedInbox: `${actorId}/inbox`,
+          status: 'Accepted'
+        })
+        await database.createFollow({
+          actorId: peerActorId,
+          targetActorId: actorId,
+          inbox: `${peerActorId}/inbox`,
+          sharedInbox: `${peerActorId}/inbox`,
+          status: 'Accepted'
+        })
+        await database.createMedia({
+          actorId,
+          original: {
+            path: `/tmp/delete-data-${suffix}.jpg`,
+            bytes: 1700,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const actor = await database.getActorFromId({ id: actorId })
+        const accountId = actor?.account?.id
+        expect(accountId).toBeDefined()
+
+        const [
+          beforeFollowers,
+          beforeFollowing,
+          beforeLikes,
+          beforeReblogs,
+          beforeReplies,
+          beforeMediaUsage
+        ] = await Promise.all([
+          database.getActorFollowersCount({ actorId: peerActorId }),
+          database.getActorFollowingCount({ actorId: peerActorId }),
+          database.getLikeCount({ statusId: targetStatusId }),
+          database.getStatusReblogsCount({ statusId: targetStatusId }),
+          database.getStatusRepliesCount({ statusId: targetStatusId }),
+          database.getStorageUsageForAccount({ accountId: accountId! })
+        ])
+
         await database.deleteActorData({ actorId })
 
-        // Verify actor is deleted
-        const actor = await database.getActorFromId({ id: actorId })
-        expect(actor).toBeNull()
+        const deletedActor = await database.getActorFromId({ id: actorId })
+        expect(deletedActor).toBeNull()
+
+        const [
+          afterFollowers,
+          afterFollowing,
+          afterLikes,
+          afterReblogs,
+          afterReplies,
+          afterMediaUsage
+        ] = await Promise.all([
+          database.getActorFollowersCount({ actorId: peerActorId }),
+          database.getActorFollowingCount({ actorId: peerActorId }),
+          database.getLikeCount({ statusId: targetStatusId }),
+          database.getStatusReblogsCount({ statusId: targetStatusId }),
+          database.getStatusRepliesCount({ statusId: targetStatusId }),
+          database.getStorageUsageForAccount({ accountId: accountId! })
+        ])
+
+        expect(afterFollowers).toBe(beforeFollowers - 1)
+        expect(afterFollowing).toBe(beforeFollowing - 1)
+        expect(afterLikes).toBe(beforeLikes - 1)
+        expect(afterReblogs).toBe(beforeReblogs - 1)
+        expect(afterReplies).toBe(beforeReplies - 1)
+        expect(afterMediaUsage).toBe(beforeMediaUsage - 1700)
       })
     })
   })

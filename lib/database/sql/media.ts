@@ -1,6 +1,13 @@
 import { Knex } from 'knex'
 
 import {
+  CounterKey,
+  decreaseCounterValue,
+  getCounterValue,
+  increaseCounterValue,
+  parseCounterValue
+} from '@/lib/database/sql/utils/counter'
+import {
   CreateAttachmentParams,
   CreateMediaParams,
   DeleteMediaParams,
@@ -27,33 +34,50 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   }: CreateMediaParams) {
     if (!actorId) return null
 
-    const content = {
-      actorId,
-      original: original.path,
-      originalBytes: original.bytes,
-      originalMimeType: original.mimeType,
-      originalMetaData: JSON.stringify(original.metaData),
-      ...(original.fileName ? { originalFileName: original.fileName } : null),
-      ...(thumbnail
-        ? {
-            thumbnail: thumbnail.path,
-            thumbnailBytes: thumbnail.bytes,
-            thumbnailMimeType: thumbnail.mimeType,
-            thumbnailMetaData: JSON.stringify(thumbnail.metaData)
-          }
-        : null),
-      ...(description ? { description } : null)
-    }
+    return database.transaction(async (trx) => {
+      const actor = await trx('actors')
+        .where('id', actorId)
+        .select<{ accountId: string | null }>('accountId')
+        .first()
 
-    const ids = await database('medias').insert(content, ['id'])
-    if (ids.length === 0) return null
-    return {
-      id: ids[0].id,
-      actorId,
-      original,
-      ...(thumbnail ? { thumbnail } : null),
-      ...(description ? { description } : null)
-    } as Media
+      const content = {
+        actorId,
+        original: original.path,
+        originalBytes: original.bytes,
+        originalMimeType: original.mimeType,
+        originalMetaData: JSON.stringify(original.metaData),
+        ...(original.fileName ? { originalFileName: original.fileName } : null),
+        ...(thumbnail
+          ? {
+              thumbnail: thumbnail.path,
+              thumbnailBytes: thumbnail.bytes,
+              thumbnailMimeType: thumbnail.mimeType,
+              thumbnailMetaData: JSON.stringify(thumbnail.metaData)
+            }
+          : null),
+        ...(description ? { description } : null)
+      }
+
+      const ids = await trx('medias').insert(content, ['id'])
+      if (ids.length === 0) return null
+
+      const usageDelta = original.bytes + (thumbnail?.bytes ?? 0)
+      if (actor?.accountId && usageDelta > 0) {
+        await increaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(actor.accountId),
+          usageDelta
+        )
+      }
+
+      return {
+        id: ids[0].id,
+        actorId,
+        original,
+        ...(thumbnail ? { thumbnail } : null),
+        ...(description ? { description } : null)
+      } as Media
+    })
   },
   async createAttachment({
     actorId,
@@ -280,24 +304,42 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async getStorageUsageForAccount({
     accountId
   }: GetStorageUsageForAccountParams): Promise<number> {
-    const result = await database('medias')
-      .join('actors', 'medias.actorId', 'actors.id')
-      .where('actors.accountId', accountId)
-      .sum({
-        totalOriginal: 'medias.originalBytes',
-        totalThumbnail: 'medias.thumbnailBytes'
-      })
-      .first()
-
-    if (!result) return 0
-
-    const totalOriginal = Number(result.totalOriginal) || 0
-    const totalThumbnail = Number(result.totalThumbnail) || 0
-    return totalOriginal + totalThumbnail
+    return getCounterValue(database, CounterKey.mediaUsage(accountId))
   },
 
   async deleteMedia({ mediaId }: DeleteMediaParams): Promise<boolean> {
-    const deleted = await database('medias').where('id', mediaId).del()
-    return deleted > 0
+    return database.transaction(async (trx) => {
+      const media = await trx('medias')
+        .where('id', mediaId)
+        .select('actorId', 'originalBytes', 'thumbnailBytes')
+        .first<{
+          actorId: string
+          originalBytes: number | string | bigint | null
+          thumbnailBytes: number | string | bigint | null
+        }>()
+      if (!media) return false
+
+      const actor = await trx('actors')
+        .where('id', media.actorId)
+        .select<{ accountId: string | null }>('accountId')
+        .first()
+
+      const deleted = await trx('medias').where('id', mediaId).del()
+      if (!deleted) return false
+
+      const usageDelta =
+        parseCounterValue(media.originalBytes) +
+        parseCounterValue(media.thumbnailBytes)
+
+      if (actor?.accountId && usageDelta > 0) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(actor.accountId),
+          usageDelta
+        )
+      }
+
+      return true
+    })
   }
 })

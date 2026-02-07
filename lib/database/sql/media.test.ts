@@ -500,6 +500,42 @@ describe('MediaDatabase', () => {
         expect(foundMedia).toBeUndefined()
       })
 
+      it('decreases storage usage when deleting media', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.empty.id
+        })
+        expect(actor?.account).toBeDefined()
+
+        const media = await database.createMedia({
+          actorId: actors.empty.id,
+          original: {
+            path: '/test/usage-decrease-original.jpg',
+            bytes: 2200,
+            mimeType: 'image/jpeg',
+            metaData: { width: 300, height: 200 }
+          },
+          thumbnail: {
+            path: '/test/usage-decrease-thumbnail.jpg',
+            bytes: 400,
+            mimeType: 'image/jpeg',
+            metaData: { width: 120, height: 80 }
+          }
+        })
+        expect(media).toBeDefined()
+
+        const beforeDeleteUsage = await database.getStorageUsageForAccount({
+          accountId: actor!.account!.id
+        })
+
+        const deleted = await database.deleteMedia({ mediaId: media!.id })
+        expect(deleted).toBe(true)
+
+        const afterDeleteUsage = await database.getStorageUsageForAccount({
+          accountId: actor!.account!.id
+        })
+        expect(afterDeleteUsage).toBe(beforeDeleteUsage - 2600)
+      })
+
       it('returns false when media does not exist', async () => {
         const deleted = await database.deleteMedia({ mediaId: '999999' })
         expect(deleted).toBe(false)
