@@ -141,7 +141,8 @@ describe('MediaDatabase', () => {
           mediaType: 'image/jpeg',
           url: media!.original.path,
           width: 400,
-          height: 400
+          height: 400,
+          mediaId: media!.id
         })
 
         // Get medias with status
@@ -303,7 +304,8 @@ describe('MediaDatabase', () => {
           mediaType: 'image/webp',
           url: `https://example.com/api/v1/files/${media!.original.path}`,
           width: 500,
-          height: 500
+          height: 500,
+          mediaId: media!.id
         })
 
         // Get medias with status
