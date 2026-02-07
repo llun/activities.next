@@ -33,7 +33,8 @@ export const CounterKey = {
   totalLike: (statusId: string) => `total-like:${statusId}`,
   totalReblog: (statusId: string) => `total-reblog:${statusId}`,
   totalReply: (statusId: string) => `total-reply:${statusId}`,
-  mediaUsage: (accountId: string) => `media-usage:${accountId}`
+  mediaUsage: (accountId: string) => `media-usage:${accountId}`,
+  totalMedia: (accountId: string) => `total-media:${accountId}`
 }
 
 type SQLDatabase = Knex | Knex.Transaction
