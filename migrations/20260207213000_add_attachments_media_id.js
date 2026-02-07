@@ -18,6 +18,7 @@ exports.up = async (knex) => {
     WHERE 
       (attachments.url = medias.original)
       OR (attachments.url LIKE '%' || medias.original)
+      OR (attachments.url = medias.thumbnail)
       OR (attachments.url LIKE '%' || medias.thumbnail)
   `)
 
@@ -36,5 +37,6 @@ exports.down = (knex) => {
     return knex.schema.alterTable('attachments', function (table) {
         table.dropIndex(['mediaId'], 'attachments_mediaId_idx')
         table.dropColumn('mediaId')
+        table.index(['url'], 'attachments_url_idx')
     })
 }
