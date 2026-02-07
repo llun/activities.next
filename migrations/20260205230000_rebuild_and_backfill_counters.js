@@ -8,6 +8,8 @@ const COUNTER_PREFIXES = [
   'media-usage:'
 ]
 
+exports.config = { transaction: false }
+
 const COUNTERS_TMP_TABLE = 'counters_tmp_new'
 
 const parseInteger = (input) => {
@@ -48,6 +50,21 @@ const rebuildCountersTable = async (knex) => {
     return
   }
 
+  // Rename leftover pkey from a previous partial run to avoid conflicts
+  const isPg =
+    knex.client.config.client === 'pg' ||
+    knex.client.config.client === 'postgresql'
+  if (isPg) {
+    const pkey = await knex.raw(
+      `SELECT conname FROM pg_constraint WHERE conname = 'counters_tmp_new_pkey' AND conrelid = 'counters'::regclass`
+    )
+    if (pkey.rows.length > 0) {
+      await knex.raw(
+        `ALTER TABLE "counters" RENAME CONSTRAINT "counters_tmp_new_pkey" TO "counters_pkey"`
+      )
+    }
+  }
+
   await knex.schema.dropTableIfExists(COUNTERS_TMP_TABLE)
   await createCountersTable(knex, COUNTERS_TMP_TABLE, false)
 
@@ -59,14 +76,18 @@ const rebuildCountersTable = async (knex) => {
   )
 
   if (existingRows.length > 0) {
-    await knex(COUNTERS_TMP_TABLE).insert(
-      existingRows.map((row) => ({
-        id: row.id,
-        value: parseInteger(row.value),
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt
-      }))
-    )
+    const BATCH_SIZE = 500
+    for (let i = 0; i < existingRows.length; i += BATCH_SIZE) {
+      const batch = existingRows.slice(i, i + BATCH_SIZE)
+      await knex(COUNTERS_TMP_TABLE).insert(
+        batch.map((row) => ({
+          id: row.id,
+          value: parseInteger(row.value),
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt
+        }))
+      )
+    }
   }
 
   await knex.schema.dropTable('counters')
@@ -97,11 +118,13 @@ const upsertCounter = async (knex, id, value, currentTime) => {
  * @returns { Promise<void> }
  */
 exports.up = async function up(knex) {
+  console.log('Rebuilding counters table...')
   await rebuildCountersTable(knex)
 
   const currentTime = new Date()
   const computed = new Map()
 
+  console.log('Loading statuses...')
   const statuses = await knex('statuses').select(
     'id',
     'actorId',
@@ -136,6 +159,8 @@ exports.up = async function up(knex) {
     }
   }
 
+  console.log(`  Computed counters from ${statuses.length} statuses`)
+
   for (const status of statuses) {
     if (!status.reply || typeof status.reply !== 'string') continue
     const parentStatusId = statusReferenceToId.get(status.reply)
@@ -145,13 +170,16 @@ exports.up = async function up(knex) {
     computed.set(key, (computed.get(key) || 0) + 1)
   }
 
+  console.log('Loading likes...')
   const likes = await knex('likes').select('statusId')
   for (const like of likes) {
     if (!like.statusId) continue
     const key = `total-like:${like.statusId}`
     computed.set(key, (computed.get(key) || 0) + 1)
   }
+  console.log(`  Computed counters from ${likes.length} likes`)
 
+  console.log('Loading follows...')
   const acceptedFollows = await knex('follows')
     .where('status', 'Accepted')
     .select('actorId', 'targetActorId')
@@ -166,7 +194,9 @@ exports.up = async function up(knex) {
       computed.set(key, (computed.get(key) || 0) + 1)
     }
   }
+  console.log(`  Computed counters from ${acceptedFollows.length} follows`)
 
+  console.log('Loading medias...')
   const medias = await knex('medias')
     .leftJoin('actors', 'medias.actorId', 'actors.id')
     .select('actors.accountId as accountId', 'originalBytes', 'thumbnailBytes')
@@ -180,9 +210,16 @@ exports.up = async function up(knex) {
     const key = `media-usage:${media.accountId}`
     computed.set(key, (computed.get(key) || 0) + totalBytes)
   }
+  console.log(`  Computed counters from ${medias.length} medias`)
 
+  console.log(`Upserting ${computed.size} counters...`)
+  let upserted = 0
   for (const [key, value] of computed.entries()) {
     await upsertCounter(knex, key, value, currentTime)
+    upserted++
+    if (upserted % 500 === 0) {
+      console.log(`  Progress: ${upserted}/${computed.size}`)
+    }
   }
 
   const existingTargetCounterIds = (await knex('counters').select('id'))
@@ -197,6 +234,10 @@ exports.up = async function up(knex) {
     if (computed.has(id)) continue
     await upsertCounter(knex, id, 0, currentTime)
   }
+
+  console.log(
+    `Done. Upserted ${upserted} counters, zeroed ${existingTargetCounterIds.filter((id) => !computed.has(id)).length} stale counters.`
+  )
 }
 
 /**
