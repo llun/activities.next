@@ -27,7 +27,7 @@
 ## Logging Guidelines
 
 - **NEVER** use `console.log`, `console.warn`, `console.error`, or any `console.*` methods in committed code.
-- Script files in `scripts/` are an exception and may use `console.*` for CLI output.
+- Migration files in `migrations/` and script files in `scripts/` are exceptions and may use `console.*` for CLI output.
 - For server-side code (API routes, services, jobs, models, lib utilities), use the logger from `@/lib/utils/logger`:
 
   ```typescript
