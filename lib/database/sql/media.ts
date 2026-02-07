@@ -49,11 +49,11 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         ...(original.fileName ? { originalFileName: original.fileName } : null),
         ...(thumbnail
           ? {
-            thumbnail: thumbnail.path,
-            thumbnailBytes: thumbnail.bytes,
-            thumbnailMimeType: thumbnail.mimeType,
-            thumbnailMetaData: JSON.stringify(thumbnail.metaData)
-          }
+              thumbnail: thumbnail.path,
+              thumbnailBytes: thumbnail.bytes,
+              thumbnailMimeType: thumbnail.mimeType,
+              thumbnailMetaData: JSON.stringify(thumbnail.metaData)
+            }
           : null),
         ...(description ? { description } : null)
       }
@@ -230,13 +230,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       },
       ...(item.thumbnail
         ? {
-          thumbnail: {
-            path: item.thumbnail,
-            bytes: Number(item.thumbnailBytes),
-            mimeType: item.thumbnailMimeType,
-            metaData: getCompatibleJSON(item.thumbnailMetaData)
+            thumbnail: {
+              path: item.thumbnail,
+              bytes: Number(item.thumbnailBytes),
+              mimeType: item.thumbnailMimeType,
+              metaData: getCompatibleJSON(item.thumbnailMetaData)
+            }
           }
-        }
         : {}),
       ...(item.description ? { description: item.description } : {}),
       ...(item.statusId ? { statusId: item.statusId } : {})
@@ -283,13 +283,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       },
       ...(data.thumbnail
         ? {
-          thumbnail: {
-            path: data.thumbnail,
-            bytes: Number(data.thumbnailBytes),
-            mimeType: data.thumbnailMimeType,
-            metaData: getCompatibleJSON(data.thumbnailMetaData)
+            thumbnail: {
+              path: data.thumbnail,
+              bytes: Number(data.thumbnailBytes),
+              mimeType: data.thumbnailMimeType,
+              metaData: getCompatibleJSON(data.thumbnailMetaData)
+            }
           }
-        }
         : {}),
       ...(data.description ? { description: data.description } : {})
     }
