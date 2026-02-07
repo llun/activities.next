@@ -25,8 +25,9 @@ export const TimelineSQLDatabaseMixin = (
     switch (timeline) {
       case Timeline.LOCAL_PUBLIC: {
         const query = database('recipients')
-          .leftJoin('statuses', 'recipients.statusId', 'statuses.id')
-          .leftJoin('actors', 'statuses.actorId', 'actors.id')
+          .select('recipients.statusId')
+          .innerJoin('statuses', 'recipients.statusId', 'statuses.id')
+          .innerJoin('actors', 'statuses.actorId', 'actors.id')
           .where('recipients.type', 'to')
           .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
           .whereNotNull('actors.privateKey')
@@ -34,13 +35,9 @@ export const TimelineSQLDatabaseMixin = (
           .orderBy('recipients.createdAt', 'desc')
           .limit(limit)
         const local = await query
-        const statuses = (
-          await Promise.all(
-            local.map((item) =>
-              statusDatabase.getStatus({ statusId: item.statusId })
-            )
-          )
-        ).filter((item): item is Status => !!item)
+        const statuses = await statusDatabase.getStatusesByIds({
+          statusIds: local.map((item) => item.statusId)
+        })
         return statuses
       }
       case Timeline.MAIN:

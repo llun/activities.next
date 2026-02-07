@@ -26,6 +26,7 @@ import {
   GetStatusReblogsCountParams,
   GetStatusRepliesCountParams,
   GetStatusRepliesParams,
+  GetStatusesByIdsParams,
   GetTagsParams,
   HasActorAnnouncedStatusParams,
   HasActorVotedParams,
@@ -653,6 +654,40 @@ export const StatusSQLDatabaseMixin = (
     return statusesWithAttachments
   }
 
+  async function getStatusesByIds({
+    statusIds,
+    currentActorId,
+    withReplies
+  }: GetStatusesByIdsParams): Promise<Status[]> {
+    if (statusIds.length === 0) {
+      return []
+    }
+
+    const uniqueStatusIds = [...new Set(statusIds)]
+    const statuses = await database('statuses')
+      .whereIn('id', uniqueStatusIds)
+      .select()
+    const statusMap = new Map(
+      statuses.map((statusData) => [statusData.id, statusData] as const)
+    )
+    const orderedStatusData = statusIds
+      .map((statusId) => statusMap.get(statusId))
+      .filter((statusData) => Boolean(statusData))
+    const statusesWithAttachments = (
+      await Promise.all(
+        orderedStatusData.map((statusData) =>
+          getStatusWithAttachmentsFromData(
+            statusData,
+            currentActorId,
+            withReplies
+          )
+        )
+      )
+    ).filter((status): status is Status => status !== null)
+
+    return statusesWithAttachments
+  }
+
   async function deleteStatus({
     statusId,
     trx
@@ -1082,6 +1117,7 @@ export const StatusSQLDatabaseMixin = (
     getActorAnnounceStatus,
     getActorStatusesCount,
     getActorStatuses,
+    getStatusesByIds,
     deleteStatus,
     countStatus,
     updatePollChoice,

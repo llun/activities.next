@@ -378,6 +378,11 @@ export type GetActorStatusesParams = {
   maxStatusId?: string | null
   limit?: number
 }
+export type GetStatusesByIdsParams = {
+  statusIds: string[]
+  currentActorId?: string
+  withReplies?: boolean
+}
 
 export type HasActorAnnouncedStatusParams = BaseStatusParams & {
   actorId?: string
@@ -447,6 +452,7 @@ export interface StatusDatabase {
   addStatusTag(params: AddStatusTagParams): Promise<void>
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
+  getStatusesByIds(params: GetStatusesByIdsParams): Promise<Status[]>
   getFavouritedBy(params: GetFavouritedByParams): Promise<Actor[]>
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>
