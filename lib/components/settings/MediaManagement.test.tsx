@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 
 import { MediaManagement } from './MediaManagement'
 
@@ -14,6 +14,64 @@ jest.mock('next/navigation', () => ({
 }))
 
 describe('MediaManagement', () => {
+  describe('pagination state sync', () => {
+    it('updates displayed items when medias prop changes', async () => {
+      const firstPageMedias = [
+        {
+          id: 'media-1',
+          actorId: 'https://example.com/users/alice',
+          bytes: 1024,
+          mimeType: 'image/png',
+          width: 800,
+          height: 600,
+          url: '/api/v1/files/test-1.png'
+        }
+      ]
+
+      const secondPageMedias = [
+        {
+          id: 'media-2',
+          actorId: 'https://example.com/users/alice',
+          bytes: 2048,
+          mimeType: 'image/png',
+          width: 800,
+          height: 600,
+          url: '/api/v1/files/test-2.png'
+        }
+      ]
+
+      const { rerender } = render(
+        <MediaManagement
+          used={3072}
+          limit={10485760}
+          medias={firstPageMedias}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={2}
+        />
+      )
+
+      expect(screen.getByText('ID: media-1')).toBeInTheDocument()
+      expect(screen.queryByText('ID: media-2')).not.toBeInTheDocument()
+
+      rerender(
+        <MediaManagement
+          used={3072}
+          limit={10485760}
+          medias={secondPageMedias}
+          currentPage={2}
+          itemsPerPage={25}
+          totalItems={2}
+        />
+      )
+
+      await waitFor(() => {
+        expect(screen.getByText('ID: media-2')).toBeInTheDocument()
+        expect(screen.queryByText('ID: media-1')).not.toBeInTheDocument()
+      })
+    })
+  })
+
   describe('post link generation', () => {
     it('generates correct link for local actor', () => {
       const medias = [
