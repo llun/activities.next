@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -65,6 +65,11 @@ export function MediaManagement({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [mediaToDelete, setMediaToDelete] = useState<MediaItem | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    setMedias(initialMedias)
+    setCurrentUsed(used)
+  }, [initialMedias, used])
 
   const getPostLink = useCallback((actorId: string, statusId: string) => {
     try {
