@@ -35,13 +35,9 @@ export const TimelineSQLDatabaseMixin = (
           .orderBy('recipients.createdAt', 'desc')
           .limit(limit)
         const local = await query
-        const statuses = (
-          await Promise.all(
-            local.map((item) =>
-              statusDatabase.getStatus({ statusId: item.statusId })
-            )
-          )
-        ).filter((item): item is Status => !!item)
+        const statuses = await statusDatabase.getStatusesByIds({
+          statusIds: local.map((item) => item.statusId)
+        })
         return statuses
       }
       case Timeline.MAIN:
