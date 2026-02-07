@@ -49,11 +49,11 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         ...(original.fileName ? { originalFileName: original.fileName } : null),
         ...(thumbnail
           ? {
-              thumbnail: thumbnail.path,
-              thumbnailBytes: thumbnail.bytes,
-              thumbnailMimeType: thumbnail.mimeType,
-              thumbnailMetaData: JSON.stringify(thumbnail.metaData)
-            }
+            thumbnail: thumbnail.path,
+            thumbnailBytes: thumbnail.bytes,
+            thumbnailMimeType: thumbnail.mimeType,
+            thumbnailMetaData: JSON.stringify(thumbnail.metaData)
+          }
           : null),
         ...(description ? { description } : null)
       }
@@ -62,11 +62,18 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       if (ids.length === 0) return null
 
       const usageDelta = original.bytes + (thumbnail?.bytes ?? 0)
-      if (actor?.accountId && usageDelta > 0) {
+      if (actor?.accountId) {
+        if (usageDelta > 0) {
+          await increaseCounterValue(
+            trx,
+            CounterKey.mediaUsage(actor.accountId),
+            usageDelta
+          )
+        }
         await increaseCounterValue(
           trx,
-          CounterKey.mediaUsage(actor.accountId),
-          usageDelta
+          CounterKey.totalMedia(actor.accountId),
+          1
         )
       }
 
@@ -166,12 +173,11 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     page = 1,
     maxCreatedAt
   }: GetMediasForAccountParams): Promise<PaginatedMediaWithStatus> {
-    // First, get the total count
-    const countQuery = database('medias')
-      .join('actors', 'medias.actorId', 'actors.id')
-      .where('actors.accountId', accountId)
-      .count('medias.id as count')
-      .first()
+    // Get total count from counter table for performance
+    const totalPromise = getCounterValue(
+      database,
+      CounterKey.totalMedia(accountId)
+    )
 
     // Then get the paginated items
     let itemsQuery = database('medias')
@@ -221,8 +227,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     const offset = (page - 1) * limit
     itemsQuery = itemsQuery.limit(limit).offset(offset)
 
-    const [countResult, data] = await Promise.all([countQuery, itemsQuery])
-    const total = Number(countResult?.count || 0)
+    const [total, data] = await Promise.all([totalPromise, itemsQuery])
 
     const items = data.map((item) => ({
       id: String(item.id),
@@ -236,13 +241,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       },
       ...(item.thumbnail
         ? {
-            thumbnail: {
-              path: item.thumbnail,
-              bytes: Number(item.thumbnailBytes),
-              mimeType: item.thumbnailMimeType,
-              metaData: getCompatibleJSON(item.thumbnailMetaData)
-            }
+          thumbnail: {
+            path: item.thumbnail,
+            bytes: Number(item.thumbnailBytes),
+            mimeType: item.thumbnailMimeType,
+            metaData: getCompatibleJSON(item.thumbnailMetaData)
           }
+        }
         : {}),
       ...(item.description ? { description: item.description } : {}),
       ...(item.statusId ? { statusId: item.statusId } : {})
@@ -289,13 +294,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       },
       ...(data.thumbnail
         ? {
-            thumbnail: {
-              path: data.thumbnail,
-              bytes: Number(data.thumbnailBytes),
-              mimeType: data.thumbnailMimeType,
-              metaData: getCompatibleJSON(data.thumbnailMetaData)
-            }
+          thumbnail: {
+            path: data.thumbnail,
+            bytes: Number(data.thumbnailBytes),
+            mimeType: data.thumbnailMimeType,
+            metaData: getCompatibleJSON(data.thumbnailMetaData)
           }
+        }
         : {}),
       ...(data.description ? { description: data.description } : {})
     }
@@ -331,11 +336,18 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         parseCounterValue(media.originalBytes) +
         parseCounterValue(media.thumbnailBytes)
 
-      if (actor?.accountId && usageDelta > 0) {
+      if (actor?.accountId) {
+        if (usageDelta > 0) {
+          await decreaseCounterValue(
+            trx,
+            CounterKey.mediaUsage(actor.accountId),
+            usageDelta
+          )
+        }
         await decreaseCounterValue(
           trx,
-          CounterKey.mediaUsage(actor.accountId),
-          usageDelta
+          CounterKey.totalMedia(actor.accountId),
+          1
         )
       }
 
