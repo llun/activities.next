@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { Database } from '@/lib/database/types'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { DELETE, GET, POST } from './route'
@@ -22,7 +23,17 @@ jest.mock('../../../../../../lib/config', () => ({
   })
 }))
 
-let mockDatabase: any = null
+type MockDatabase = Pick<
+  Database,
+  | 'getFitnessSettings'
+  | 'createFitnessSettings'
+  | 'deleteFitnessSettings'
+  | 'updateFitnessSettings'
+  | 'getAccountFromEmail'
+  | 'getActorFromId'
+>
+
+let mockDatabase: MockDatabase | null = null
 jest.mock('../../../../../../lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -44,7 +55,7 @@ jest.mock('../../../../../../lib/services/strava/webhookSubscription', () => ({
 
 describe('Strava Settings API', () => {
   // Mock database object
-  const mockDb = {
+  const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessSettings: jest.fn(),
     createFitnessSettings: jest.fn(),
     deleteFitnessSettings: jest.fn(),
@@ -54,7 +65,7 @@ describe('Strava Settings API', () => {
   }
 
   beforeAll(async () => {
-    mockDatabase = mockDb as any
+    mockDatabase = mockDb
   })
 
   afterAll(async () => {
