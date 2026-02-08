@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { FC } from 'react'
 
+import { Logo } from '../layout/logo'
 import { NotificationBadge } from '../notification-badge/NotificationBadge'
 import { Button } from '../ui/button'
 
@@ -20,9 +21,7 @@ export const Header: FC<Props> = ({ session, followRequestCount = 0 }) => {
   return (
     <header className="navbar navbar-expand-lg bg-light">
       <nav className="container">
-        <Link prefetch={false} className="navbar-brand" href={'/'}>
-          Activities
-        </Link>
+        <Logo size="md" className="navbar-brand" />
         {isLoggedIn && (
           <div className="d-flex justify-content-start">
             <Button variant="link">

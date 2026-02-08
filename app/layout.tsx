@@ -10,7 +10,11 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'Activities.next'
+  title: 'Activities.next',
+  manifest: '/manifest.webmanifest',
+  icons: {
+    apple: [{ url: '/logo.png', type: 'image/png' }]
+  }
 }
 
 export default function RootLayout({
