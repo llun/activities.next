@@ -62,18 +62,38 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
+  const actorFromPath = await database.getActorFromUsername({
+    username: parts[0],
+    domain: parts[1]
+  })
+  const actorIdFromPath = actorFromPath?.id
+  const isStatusHash = /^[a-f0-9]{64}$/i.test(decodedStatusParam)
+
   const protocol = parts[1].startsWith('localhost') ? 'http' : 'https'
   const isFullStatusUrl = /^https?:\/\//.test(decodedStatusParam)
   const fullStatusId = isFullStatusUrl
     ? decodedStatusParam
     : `${protocol}://${parts[1]}/users/${parts[0]}/statuses/${decodedStatusParam}`
 
+  let status: Status | null = null
+  let statusId = ''
+
+  if (isStatusHash) {
+    status = await database.getStatusFromUrlHash({
+      urlHash: decodedStatusParam,
+      actorId: actorIdFromPath
+    })
+    statusId = status?.id ?? ''
+  }
+
   // Try full URL format first (ActivityPub standard), then fallback to raw id (for legacy/mock data)
-  let status = await database.getStatus({
-    statusId: fullStatusId,
-    withReplies: false
-  })
-  let statusId = fullStatusId
+  if (!status) {
+    status = await database.getStatus({
+      statusId: fullStatusId,
+      withReplies: false
+    })
+    statusId = fullStatusId
+  }
 
   if (!status && !isFullStatusUrl) {
     status = await database.getStatus({
@@ -84,7 +104,7 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   // Try to fetch remote status if not found and user is logged in
-  if (!status && session) {
+  if (!status && session && !isStatusHash) {
     const queue = getQueue()
     // Queue the fetch job with a deterministic ID to avoid duplicates
     await queue.publish({
