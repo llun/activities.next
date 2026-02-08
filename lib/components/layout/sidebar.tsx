@@ -127,7 +127,7 @@ export function Sidebar({
           <Logo showText={false} size="md" />
         </div>
 
-        <nav className="flex-1 py-4">
+        <nav className="flex-1 pb-4">
           <ul className="space-y-2">
             {navItems.map((item) => {
               const isActive =
