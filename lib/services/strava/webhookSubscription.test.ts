@@ -123,13 +123,27 @@ describe('webhookSubscription', () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 400,
-        json: () =>
-          Promise.resolve({ message: 'Callback URL validation failed' })
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({ message: 'Callback URL validation failed' })
+          )
       })
 
       await expect(
         createSubscription(clientId, clientSecret, callbackUrl, verifyToken)
       ).rejects.toThrow('Callback URL validation failed')
+    })
+
+    it('throws generic error when API returns non-JSON response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve('Internal server error')
+      })
+
+      await expect(
+        createSubscription(clientId, clientSecret, callbackUrl, verifyToken)
+      ).rejects.toThrow('Failed to create subscription: 500')
     })
   })
 
@@ -216,7 +230,10 @@ describe('webhookSubscription', () => {
         .mockResolvedValueOnce({
           ok: false,
           status: 400,
-          json: () => Promise.resolve({ message: 'Callback validation failed' })
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({ message: 'Callback validation failed' })
+            )
         })
 
       const result = await ensureWebhookSubscription(params)

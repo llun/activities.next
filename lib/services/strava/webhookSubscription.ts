@@ -103,14 +103,23 @@ export async function createSubscription(
   )
 
   if (!response.ok) {
-    const error: StravaErrorResponse = await response.json().catch(() => ({}))
+    const errorText = await response.text()
+    let parsedError: StravaErrorResponse | null = null
+
+    try {
+      parsedError = JSON.parse(errorText) as StravaErrorResponse
+    } catch {
+      // Ignore parse errors for non-JSON responses
+    }
+
     logger.error({
       message: 'Failed to create Strava subscription',
       status: response.status,
-      error
+      error: errorText
     })
     throw new Error(
-      error.message || `Failed to create subscription: ${response.status}`
+      parsedError?.message ||
+        `Failed to create subscription: ${response.status}`
     )
   }
 
