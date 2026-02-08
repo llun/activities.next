@@ -22,6 +22,8 @@ import {
   GetActorStatusesCountParams,
   GetActorStatusesParams,
   GetFavouritedByParams,
+  GetStatusFromUrlHashParams,
+  GetStatusFromUrlParams,
   GetStatusParams,
   GetStatusReblogsCountParams,
   GetStatusRepliesCountParams,
@@ -999,7 +1001,7 @@ export const StatusSQLDatabaseMixin = (
       .increment('totalVotes', 1)
   }
 
-  async function getStatusFromUrl({ url }: { url: string }) {
+  async function getStatusFromUrl({ url }: GetStatusFromUrlParams) {
     const status = await database('statuses')
       .where('urlHash', getStatusUrlHash(url))
       .andWhere('url', url)
@@ -1010,6 +1012,21 @@ export const StatusSQLDatabaseMixin = (
     }
 
     return null
+  }
+
+  async function getStatusFromUrlHash({
+    urlHash,
+    actorId
+  }: GetStatusFromUrlHashParams) {
+    const query = database('statuses').where('urlHash', urlHash)
+    if (actorId) {
+      query.andWhere('actorId', actorId)
+    }
+
+    const status = await query.first<{ id: string }>('id')
+    if (!status?.id) return null
+
+    return getStatus({ statusId: status.id })
   }
 
   async function getActorAnnouncedStatusId({
@@ -1112,6 +1129,7 @@ export const StatusSQLDatabaseMixin = (
     getStatus,
     getStatusReplies,
     getStatusFromUrl,
+    getStatusFromUrlHash,
     getActorAnnouncedStatusId,
     hasActorAnnouncedStatus,
     getActorAnnounceStatus,

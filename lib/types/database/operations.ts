@@ -338,6 +338,10 @@ export type DeleteStatusParams = BaseStatusParams
 export type GetStatusFromUrlParams = {
   url: string
 }
+export type GetStatusFromUrlHashParams = {
+  urlHash: string
+  actorId?: string
+}
 
 export type GetActorAnnouncedStatusIdParams = {
   actorId: string
@@ -435,6 +439,9 @@ export interface StatusDatabase {
   getStatus(params: GetStatusParams): Promise<Status | null>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
   getStatusFromUrl(params: GetStatusFromUrlParams): Promise<Status | null>
+  getStatusFromUrlHash(
+    params: GetStatusFromUrlHashParams
+  ): Promise<Status | null>
   getActorAnnouncedStatusId(
     params: GetActorAnnouncedStatusIdParams
   ): Promise<string | null>
