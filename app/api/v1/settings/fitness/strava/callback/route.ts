@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { ensureWebhookSubscription } from '@/lib/services/strava/webhookSubscription'
 import { logger } from '@/lib/utils/logger'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -101,6 +102,30 @@ export const GET = traceApiRoute(
       }
 
       const tokenData: StravaTokenResponse = await tokenResponse.json()
+
+      // Ensure webhook subscription exists
+      const webhookResult = await ensureWebhookSubscription({
+        clientId: fitnessSettings.clientId,
+        clientSecret: fitnessSettings.clientSecret,
+        callbackUrl: `https://${config.host}/api/v1/webhooks/strava/${fitnessSettings.webhookToken}`,
+        verifyToken: fitnessSettings.webhookToken!
+      })
+
+      if (!webhookResult.success) {
+        logger.error({
+          message: 'Failed to create Strava webhook subscription',
+          actorId: currentActor.id,
+          error: webhookResult.error
+        })
+        // Clear the settings since webhook subscription failed
+        await database.deleteFitnessSettings({
+          actorId: currentActor.id,
+          serviceType: 'strava'
+        })
+        return Response.redirect(
+          `https://${config.host}/settings/fitness/strava?error=webhook_subscription_failed`
+        )
+      }
 
       await database.updateFitnessSettings({
         id: fitnessSettings.id,

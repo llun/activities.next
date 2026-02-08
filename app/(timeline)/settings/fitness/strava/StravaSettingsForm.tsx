@@ -64,7 +64,9 @@ export const StravaSettingsForm: FC = () => {
         setError(
           errorType === 'authorization_failed'
             ? 'Authorization was denied or failed'
-            : 'Failed to connect to Strava'
+            : errorType === 'webhook_subscription_failed'
+              ? 'Failed to create webhook subscription. Please try again.'
+              : 'Failed to connect to Strava'
         )
         window.history.replaceState(
           {},
