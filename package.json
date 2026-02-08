@@ -12,6 +12,7 @@
     "migrate": "knex migrate:latest",
     "migrate:make": "knex migrate:make",
     "start:firestore": "firebase emulators:start --only firestore",
+    "migrate:firestore": "node -r @swc-node/register scripts/migrateSqlToFirestore.ts",
     "prepare": "husky"
   },
   "dependencies": {
