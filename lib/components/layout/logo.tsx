@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 
 interface LogoProps {
@@ -6,16 +7,10 @@ interface LogoProps {
   className?: string
 }
 
-const textSizes = {
+const sizes = {
   sm: 'text-lg',
   md: 'text-xl',
   lg: 'text-2xl'
-}
-
-const markSizes = {
-  sm: 'h-7 w-7 text-sm',
-  md: 'h-8 w-8 text-base',
-  lg: 'h-9 w-9 text-lg'
 }
 
 export function Logo({
@@ -27,20 +22,17 @@ export function Logo({
     <Link
       href="/"
       aria-label="Activities home"
-      className={`flex items-center gap-2 ${className}`}
+      className={`inline-flex items-center gap-2 font-semibold tracking-tight ${sizes[size]} ${className}`}
     >
-      {!showText && (
-        <span
-          className={`flex items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold ${markSizes[size]}`}
-        >
-          A
-        </span>
-      )}
-      {showText && (
-        <span className={`font-semibold tracking-tight ${textSizes[size]}`}>
-          Activities
-        </span>
-      )}
+      <Image
+        src="/logo-nav.png"
+        alt=""
+        aria-hidden="true"
+        width={32}
+        height={32}
+        className="h-8 w-8 shrink-0 object-contain"
+      />
+      {showText && <span>Activities</span>}
     </Link>
   )
 }
