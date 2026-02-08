@@ -56,7 +56,7 @@ export function Sidebar({
     <TooltipProvider delayDuration={0}>
       {/* Full sidebar - Desktop */}
       <aside className="fixed left-0 top-0 z-40 h-screen w-[280px] border-r bg-background/90 backdrop-blur hidden xl:flex flex-col">
-        <div className="p-6">
+        <div className="px-6 pt-6 pb-2">
           <Logo size="md" />
         </div>
 
