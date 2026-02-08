@@ -9,7 +9,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
-import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
+import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
 import { StatusLikes } from './StatusLikes'
 
@@ -45,8 +45,10 @@ export const StatusBox: FC<Props> = ({
         )}
         onClick={() => {
           if (variant === 'detail') return
-          const detailPath = getStatusDetailPath(status)
-          if (detailPath) router.push(detailPath)
+          void (async () => {
+            const detailPath = await getStatusDetailPathClient(status)
+            if (detailPath) router.push(detailPath)
+          })()
         }}
       >
         <Post

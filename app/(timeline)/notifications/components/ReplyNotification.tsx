@@ -6,6 +6,7 @@ import { GroupedNotification } from '@/lib/services/notifications/groupNotificat
 import { Mastodon } from '@/lib/types/activitypub'
 import { getMention } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 
 interface NotificationWithData extends GroupedNotification {
   account: Mastodon.Account
@@ -25,7 +26,9 @@ export const ReplyNotification: FC<Props> = ({ notification }) => {
     status.type === StatusType.enum.Announce ? status.originalStatus : status
   const hasMultiple = groupedCount && groupedCount > 1
 
-  const statusUrl = `/${getMention(status.actor, true)}/${status.id.split('/').pop()}`
+  const statusUrl =
+    getStatusDetailPath(status) ??
+    `/${getMention(status.actor, true)}/${encodeURIComponent(status.id)}`
 
   return (
     <div className="flex items-start gap-4">

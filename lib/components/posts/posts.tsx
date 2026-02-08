@@ -7,7 +7,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { EditableStatus, Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
-import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
+import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
 import { MediasModal } from '../medias-modal/medias-modal'
 import { Post } from './post'
@@ -80,8 +80,10 @@ export const Posts: FC<Props> = ({
           <div
             className="cursor-pointer transition-colors hover:bg-muted/40 -m-4 p-4"
             onClick={() => {
-              const detailPath = getStatusDetailPath(status)
-              if (detailPath) router.push(detailPath)
+              void (async () => {
+                const detailPath = await getStatusDetailPathClient(status)
+                if (detailPath) router.push(detailPath)
+              })()
             }}
           >
             <Post

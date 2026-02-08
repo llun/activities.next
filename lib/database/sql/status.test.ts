@@ -7,6 +7,7 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { TagType } from '@/lib/types/domain/tag'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { databaseBeforeAll, getTestDatabaseTable } from '../testUtils'
 import { Database } from '../types'
@@ -226,6 +227,40 @@ describe('StatusDatabase', () => {
       it('returns null for unknown URL', async () => {
         const status = await database.getStatusFromUrl({
           url: 'https://example.test/statuses/does-not-exist'
+        })
+        expect(status).toBeNull()
+      })
+    })
+
+    describe('getStatusFromUrlHash', () => {
+      it('returns status by URL hash', async () => {
+        const status = await database.getStatusFromUrlHash({
+          urlHash: getHashFromString(statuses.primary.post)
+        })
+        expect(status?.id).toBe(statuses.primary.post)
+      })
+
+      it('returns status by URL hash scoped to actor', async () => {
+        const status = await database.getStatusFromUrlHash({
+          urlHash: getHashFromString(statuses.primary.post),
+          actorId: primaryActorId
+        })
+        expect(status?.id).toBe(statuses.primary.post)
+      })
+
+      it('returns null for unknown URL hash', async () => {
+        const status = await database.getStatusFromUrlHash({
+          urlHash: getHashFromString(
+            'https://example.test/statuses/does-not-exist'
+          )
+        })
+        expect(status).toBeNull()
+      })
+
+      it('returns null for actor mismatch', async () => {
+        const status = await database.getStatusFromUrlHash({
+          urlHash: getHashFromString(statuses.primary.post),
+          actorId: replyAuthorId
         })
         expect(status).toBeNull()
       })
