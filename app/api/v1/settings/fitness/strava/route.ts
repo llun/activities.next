@@ -2,7 +2,12 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import {
+  deleteSubscription,
+  getSubscription
+} from '@/lib/services/strava/webhookSubscription'
 import { generateAlphanumeric } from '@/lib/utils/crypto'
+import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -131,6 +136,35 @@ export const DELETE = traceApiRoute(
           data: { error: 'No Strava settings to remove' },
           responseStatusCode: 404
         })
+      }
+
+      // Delete webhook subscription if credentials exist
+      if (existing.clientId && existing.clientSecret) {
+        try {
+          const subscription = await getSubscription(
+            existing.clientId,
+            existing.clientSecret
+          )
+          if (subscription) {
+            await deleteSubscription(
+              existing.clientId,
+              existing.clientSecret,
+              subscription.id
+            )
+            logger.info({
+              message: 'Deleted Strava webhook subscription',
+              actorId: currentActor.id,
+              subscriptionId: subscription.id
+            })
+          }
+        } catch (error) {
+          logger.warn({
+            message: 'Failed to delete Strava webhook subscription',
+            actorId: currentActor.id,
+            error
+          })
+          // Continue with deletion even if webhook cleanup fails
+        }
       }
 
       await database.deleteFitnessSettings({

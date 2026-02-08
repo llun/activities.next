@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken'
 
+import { Database } from '@/lib/database/types'
+
 import { revokeToken } from './revoke'
 
 // Mock jsonwebtoken
@@ -31,7 +33,7 @@ describe('#revokeToken', () => {
     mockDatabase.revokeAccessToken.mockResolvedValue(undefined)
 
     const result = await revokeToken({
-      database: mockDatabase as any,
+      database: mockDatabase as unknown as Database,
       token: 'valid-jwt-token'
     })
 
@@ -51,7 +53,7 @@ describe('#revokeToken', () => {
     mockDatabase.revokeAccessToken.mockResolvedValue(undefined)
 
     const result = await revokeToken({
-      database: mockDatabase as any,
+      database: mockDatabase as unknown as Database,
       token: 'refresh-token-value',
       tokenTypeHint: 'refresh_token'
     })
@@ -69,7 +71,7 @@ describe('#revokeToken', () => {
     mockDatabase.getAccessTokenByRefreshToken.mockResolvedValue(null)
 
     const result = await revokeToken({
-      database: mockDatabase as any,
+      database: mockDatabase as unknown as Database,
       token: 'unknown-token'
     })
 
@@ -86,7 +88,7 @@ describe('#revokeToken', () => {
     mockDatabase.revokeAccessToken.mockResolvedValue(undefined)
 
     const result = await revokeToken({
-      database: mockDatabase as any,
+      database: mockDatabase as unknown as Database,
       token: 'some-refresh-token'
     })
 
@@ -99,7 +101,7 @@ describe('#revokeToken', () => {
     mockDatabase.getAccessTokenByRefreshToken.mockResolvedValue(null)
 
     const result = await revokeToken({
-      database: mockDatabase as any,
+      database: mockDatabase as unknown as Database,
       token: 'valid-jwt-but-deleted'
     })
 

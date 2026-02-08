@@ -25,7 +25,7 @@ describe('Quota Service', () => {
     it('returns default quota when not configured', () => {
       mockGetConfig.mockReturnValue({
         mediaStorage: {}
-      } as any)
+      } as unknown as ReturnType<typeof getConfig>)
       expect(getQuotaLimit()).toBe(DEFAULT_QUOTA_PER_ACCOUNT)
     })
 
@@ -33,7 +33,7 @@ describe('Quota Service', () => {
       const customQuota = 500_000_000 // 500MB
       mockGetConfig.mockReturnValue({
         mediaStorage: { quotaPerAccount: customQuota }
-      } as any)
+      } as unknown as ReturnType<typeof getConfig>)
       expect(getQuotaLimit()).toBe(customQuota)
     })
   })
@@ -51,7 +51,7 @@ describe('Quota Service', () => {
       it('returns available true when no media exists', async () => {
         mockGetConfig.mockReturnValue({
           mediaStorage: { quotaPerAccount: DEFAULT_QUOTA_PER_ACCOUNT }
-        } as any)
+        } as unknown as ReturnType<typeof getConfig>)
 
         const actor = actors.primary
         const result = await checkQuotaAvailable(database, actor, 1000)
@@ -65,7 +65,7 @@ describe('Quota Service', () => {
         const smallQuota = 1000 // 1KB quota
         mockGetConfig.mockReturnValue({
           mediaStorage: { quotaPerAccount: smallQuota }
-        } as any)
+        } as unknown as ReturnType<typeof getConfig>)
 
         // Create some media first
         await database.createMedia({
@@ -91,7 +91,7 @@ describe('Quota Service', () => {
         const mediumQuota = 10_000 // 10KB quota
         mockGetConfig.mockReturnValue({
           mediaStorage: { quotaPerAccount: mediumQuota }
-        } as any)
+        } as unknown as ReturnType<typeof getConfig>)
 
         const actor = actors.pollAuthor
         // Try to add 1000 bytes (well within quota)
@@ -106,7 +106,7 @@ describe('Quota Service', () => {
         const mediumQuota = 10_000
         mockGetConfig.mockReturnValue({
           mediaStorage: { quotaPerAccount: mediumQuota }
-        } as any)
+        } as unknown as ReturnType<typeof getConfig>)
 
         // Create media with thumbnail
         await database.createMedia({
