@@ -1,7 +1,5 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { DELETE, GET, POST } from './route'
@@ -24,7 +22,7 @@ jest.mock('../../../../../../lib/config', () => ({
   })
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: any = null
 jest.mock('../../../../../../lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -35,18 +33,32 @@ jest.mock('next/headers', () => ({
   })
 }))
 
+const mockGetSubscription = jest.fn()
+const mockDeleteSubscription = jest.fn()
+jest.mock('../../../../../../lib/services/strava/webhookSubscription', () => ({
+  getSubscription: (...args: unknown[]) => mockGetSubscription(...args),
+  deleteSubscription: (...args: unknown[]) => mockDeleteSubscription(...args),
+  createSubscription: jest.fn(),
+  ensureWebhookSubscription: jest.fn().mockResolvedValue({ success: true })
+}))
+
 describe('Strava Settings API', () => {
-  const database = getTestSQLDatabase()
+  // Mock database object
+  const mockDb = {
+    getFitnessSettings: jest.fn(),
+    createFitnessSettings: jest.fn(),
+    deleteFitnessSettings: jest.fn(),
+    updateFitnessSettings: jest.fn(),
+    getAccountFromEmail: jest.fn(),
+    getActorFromId: jest.fn()
+  }
 
   beforeAll(async () => {
-    await database.migrate()
-    await seedDatabase(database)
-    mockDatabase = database
+    mockDatabase = mockDb as any
   })
 
   afterAll(async () => {
-    if (!database) return
-    await database.destroy()
+    // No cleanup needed for mock
   })
 
   beforeEach(async () => {
@@ -54,15 +66,30 @@ describe('Strava Settings API', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
-    // Clean up fitness settings
-    await database.deleteFitnessSettings({
-      actorId: ACTOR1_ID,
-      serviceType: 'strava'
+
+    // Reset mocks
+    jest.clearAllMocks()
+
+    // Default mock implementations
+    mockDb.getFitnessSettings.mockResolvedValue(null)
+    mockDb.createFitnessSettings.mockResolvedValue({})
+    mockDb.deleteFitnessSettings.mockResolvedValue(undefined)
+    mockDb.updateFitnessSettings.mockResolvedValue({})
+    mockDb.getAccountFromEmail.mockResolvedValue({
+      id: 'account-1',
+      email: seedActor1.email,
+      defaultActorId: ACTOR1_ID
+    })
+    mockDb.getActorFromId.mockResolvedValue({
+      ...seedActor1,
+      id: ACTOR1_ID
     })
   })
 
   describe('GET /api/v1/settings/fitness/strava', () => {
     it('returns configured: false when no settings exist', async () => {
+      mockDb.getFitnessSettings.mockResolvedValue(null)
+
       const request = new NextRequest(
         'http://llun.test/api/v1/settings/fitness/strava',
         {
@@ -78,7 +105,7 @@ describe('Strava Settings API', () => {
     })
 
     it('returns clientId without secret when configured', async () => {
-      await database.createFitnessSettings({
+      mockDb.getFitnessSettings.mockResolvedValue({
         actorId: ACTOR1_ID,
         serviceType: 'strava',
         clientId: '12345',
@@ -104,6 +131,8 @@ describe('Strava Settings API', () => {
 
   describe('POST /api/v1/settings/fitness/strava', () => {
     it('saves valid Strava settings', async () => {
+      mockDb.getFitnessSettings.mockResolvedValue(null)
+
       const request = new NextRequest(
         'http://llun.test/api/v1/settings/fitness/strava',
         {
@@ -121,12 +150,14 @@ describe('Strava Settings API', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
 
-      const settings = await database.getFitnessSettings({
-        actorId: ACTOR1_ID,
-        serviceType: 'strava'
-      })
-      expect(settings?.clientId).toBe('54321')
-      expect(settings?.clientSecret).toBe('newsecret456')
+      expect(mockDb.createFitnessSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR1_ID,
+          serviceType: 'strava',
+          clientId: '54321',
+          clientSecret: 'newsecret456'
+        })
+      )
     })
 
     it('rejects non-numeric client ID', async () => {
@@ -170,11 +201,15 @@ describe('Strava Settings API', () => {
 
   describe('DELETE /api/v1/settings/fitness/strava', () => {
     it('removes existing Strava settings', async () => {
-      await database.createFitnessSettings({
+      mockDb.getFitnessSettings.mockResolvedValue({
         actorId: ACTOR1_ID,
         serviceType: 'strava',
         clientId: '99999',
         clientSecret: 'deleteme'
+      })
+
+      mockGetSubscription.mockResolvedValueOnce({
+        id: 12345
       })
 
       const request = new NextRequest(
@@ -190,14 +225,24 @@ describe('Strava Settings API', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
 
-      const settings = await database.getFitnessSettings({
+      // Verified delete was called
+      expect(mockDb.deleteFitnessSettings).toHaveBeenCalledWith({
         actorId: ACTOR1_ID,
         serviceType: 'strava'
       })
-      expect(settings).toBeNull()
+
+      // Verify webhook logic
+      expect(mockGetSubscription).toHaveBeenCalledWith('99999', 'deleteme')
+      expect(mockDeleteSubscription).toHaveBeenCalledWith(
+        '99999',
+        'deleteme',
+        12345
+      )
     })
 
     it('returns 404 when no settings exist', async () => {
+      mockDb.getFitnessSettings.mockResolvedValue(null)
+
       const request = new NextRequest(
         'http://llun.test/api/v1/settings/fitness/strava',
         {
