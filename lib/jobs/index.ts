@@ -18,6 +18,7 @@ import {
   SEND_NOTE_JOB_NAME,
   SEND_UNDO_ANNOUNCE_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME,
+  STRAVA_ACTIVITY_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
 } from './names'
@@ -25,6 +26,7 @@ import { sendAnnounceJob } from './sendAnnounceJob'
 import { sendNoteJob } from './sendNoteJob'
 import { sendUndoAnnounceJob } from './sendUndoAnnounceJob'
 import { sendUpdateNoteJob } from './sendUpdateNoteJob'
+import { stravaActivityJob } from './stravaActivityJob'
 import { updateNoteJob } from './updateNoteJob'
 import { updatePollJob } from './updatePollJob'
 
@@ -44,5 +46,6 @@ export const JOBS: Record<string, JobHandle> = {
   [SEND_NOTE_JOB_NAME]: sendNoteJob,
   [SEND_UPDATE_NOTE_JOB_NAME]: sendUpdateNoteJob,
   [SEND_UNDO_ANNOUNCE_JOB_NAME]: sendUndoAnnounceJob,
-  [FETCH_REMOTE_STATUS_JOB_NAME]: fetchRemoteStatusJob
+  [FETCH_REMOTE_STATUS_JOB_NAME]: fetchRemoteStatusJob,
+  [STRAVA_ACTIVITY_JOB_NAME]: stravaActivityJob
 }
