@@ -28,9 +28,9 @@ export function Logo({
         src="/logo.png"
         alt=""
         aria-hidden="true"
-        width={24}
-        height={24}
-        className="h-[1em] w-[1em] shrink-0 object-contain"
+        width={32}
+        height={32}
+        className="h-8 w-8 shrink-0 object-contain"
       />
       {showText && <span>Activities</span>}
     </Link>
