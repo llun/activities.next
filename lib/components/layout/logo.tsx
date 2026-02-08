@@ -25,7 +25,7 @@ export function Logo({
       className={`inline-flex items-center gap-2 font-semibold tracking-tight ${sizes[size]} ${className}`}
     >
       <Image
-        src="/logo.png"
+        src="/logo-nav.png"
         alt=""
         aria-hidden="true"
         width={32}

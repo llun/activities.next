@@ -13,7 +13,9 @@ export const metadata: Metadata = {
   title: 'Activities.next',
   manifest: '/manifest.webmanifest',
   icons: {
-    apple: [{ url: '/logo.png', type: 'image/png' }]
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }
+    ]
   }
 }
 
