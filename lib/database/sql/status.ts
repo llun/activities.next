@@ -1023,10 +1023,10 @@ export const StatusSQLDatabaseMixin = (
       query.andWhere('actorId', actorId)
     }
 
-    const status = await query.first<{ id: string }>('id')
-    if (!status?.id) return null
+    const status = await query.first()
+    if (!status) return null
 
-    return getStatus({ statusId: status.id })
+    return getStatusWithAttachmentsFromData(status)
   }
 
   async function getActorAnnouncedStatusId({
