@@ -7,6 +7,7 @@ import {
   PostBoxAttachment,
   UploadedAttachment
 } from '@/lib/types/domain/attachment'
+import { UploadedFitFile } from '@/lib/types/domain/fitFile'
 import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
@@ -17,16 +18,18 @@ export interface CreateNoteParams {
   message: string
   replyStatus?: Status
   attachments?: PostBoxAttachment[]
+  fitFile?: UploadedFitFile
   visibility?: MastodonVisibility
 }
 export const createNote = async ({
   message,
   replyStatus,
   attachments = [],
+  fitFile,
   visibility
 }: CreateNoteParams) => {
-  if (message.trim().length === 0 && attachments.length === 0) {
-    throw new Error('Message or attachments must not be empty')
+  if (message.trim().length === 0 && attachments.length === 0 && !fitFile) {
+    throw new Error('Message, attachments, or FIT file must not be empty')
   }
 
   const response = await fetch('/api/v1/accounts/outbox', {
@@ -39,6 +42,7 @@ export const createNote = async ({
       replyStatus,
       message,
       attachments,
+      fitFile,
       visibility
     })
   })

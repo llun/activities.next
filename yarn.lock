@@ -5116,6 +5116,7 @@ __metadata:
     eslint-plugin-n: "npm:^17.23.2"
     eslint-plugin-promise: "npm:^7.2.1"
     eslint-plugin-unused-imports: "npm:^4.3.0"
+    fit-file-parser: "npm:^2.3.2"
     fluent-ffmpeg: "npm:^2.1.3"
     framer-motion: "npm:^12.31.0"
     globals: "npm:^17.3.0"
@@ -5666,6 +5667,16 @@ __metadata:
     base64-js: "npm:^1.3.1"
     ieee754: "npm:^1.1.13"
   checksum: 10c0/27cac81cff434ed2876058d72e7c4789d11ff1120ef32c9de48f59eab58179b66710c488987d295ae89a228f835fc66d088652dffeb8e3ba8659f80eb091d55e
+  languageName: node
+  linkType: hard
+
+"buffer@npm:^6.0.3":
+  version: 6.0.3
+  resolution: "buffer@npm:6.0.3"
+  dependencies:
+    base64-js: "npm:^1.3.1"
+    ieee754: "npm:^1.2.1"
+  checksum: 10c0/2a905fbbcde73cc5d8bd18d1caa23715d5f83a5935867c2329f0ac06104204ba7947be098fe1317fbd8830e26090ff8e764f08cd14fefc977bb248c3487bcbd0
   languageName: node
   linkType: hard
 
@@ -7256,6 +7267,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"fit-file-parser@npm:^2.3.2":
+  version: 2.3.2
+  resolution: "fit-file-parser@npm:2.3.2"
+  dependencies:
+    buffer: "npm:^6.0.3"
+  checksum: 10c0/99d55236535161b09f4f61fb48e2934ebc4988ce7d2de7466f6915869ebf88975e7578afe6a4ee2bb516b6947a21afa15cc712c5a68702f526142acfaf6e7a5f
+  languageName: node
+  linkType: hard
+
 "flat-cache@npm:^4.0.0":
   version: 4.0.1
   resolution: "flat-cache@npm:4.0.1"
@@ -7947,7 +7967,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ieee754@npm:^1.1.13":
+"ieee754@npm:^1.1.13, ieee754@npm:^1.2.1":
   version: 1.2.1
   resolution: "ieee754@npm:1.2.1"
   checksum: 10c0/b0782ef5e0935b9f12883a2e2aa37baa75da6e66ce6515c168697b42160807d9330de9a32ec1ed73149aea02e0d822e572bca6f1e22bdcbd2149e13b050b17bb

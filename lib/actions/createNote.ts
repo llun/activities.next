@@ -2,12 +2,15 @@ import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { parseFitFileToFitnessActivity } from '@/lib/services/fitness/fitFile'
 import { getQueue } from '@/lib/services/queue'
+import { formatActivitySummary } from '@/lib/services/strava/activitySummary'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { UploadedFitFile } from '@/lib/types/domain/fitFile'
 import { Status, StatusNote } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -141,6 +144,7 @@ interface CreateNoteFromUserInputParams {
   replyNoteId?: string
   currentActor: Actor
   attachments?: PostBoxAttachment[]
+  fitFile?: UploadedFitFile
   visibility?: MastodonVisibility
   database: Database
 }
@@ -149,17 +153,65 @@ export const createNoteFromUserInput = async ({
   replyNoteId,
   currentActor,
   attachments = [],
+  fitFile,
   visibility,
   database
 }: CreateNoteFromUserInputParams) => {
-  const span = getSpan('actions', 'createNoteFromUser', { text, replyNoteId })
+  const span = getSpan('actions', 'createNoteFromUser', {
+    text,
+    replyNoteId,
+    withFitFile: Boolean(fitFile)
+  })
   const replyStatus = replyNoteId
     ? await database.getStatus({ statusId: replyNoteId, withReplies: false })
     : null
 
   const postId = crypto.randomUUID()
   const statusId = `${currentActor.id}/statuses/${postId}`
-  const mentions = await getMentions({ text, currentActor, replyStatus })
+  const parsedFitActivity = fitFile
+    ? await parseFitFileToFitnessActivity({
+        actorId: currentActor.id,
+        statusId,
+        fitFile
+      })
+    : null
+  const effectiveText =
+    text.trim().length === 0 && parsedFitActivity
+      ? formatActivitySummary({
+          id: parsedFitActivity.id,
+          actorId: parsedFitActivity.actorId,
+          stravaActivityId: parsedFitActivity.stravaActivityId,
+          statusId: parsedFitActivity.statusId,
+          name: parsedFitActivity.name,
+          type: parsedFitActivity.type,
+          sportType: parsedFitActivity.sportType ?? null,
+          startDate: parsedFitActivity.startDate,
+          timezone: parsedFitActivity.timezone ?? null,
+          distance: parsedFitActivity.distance ?? null,
+          movingTime: parsedFitActivity.movingTime ?? null,
+          elapsedTime: parsedFitActivity.elapsedTime ?? null,
+          totalElevationGain: parsedFitActivity.totalElevationGain ?? null,
+          averageSpeed: parsedFitActivity.averageSpeed ?? null,
+          maxSpeed: parsedFitActivity.maxSpeed ?? null,
+          averageHeartrate: parsedFitActivity.averageHeartrate ?? null,
+          maxHeartrate: parsedFitActivity.maxHeartrate ?? null,
+          averageCadence: parsedFitActivity.averageCadence ?? null,
+          averageWatts: parsedFitActivity.averageWatts ?? null,
+          kilojoules: parsedFitActivity.kilojoules ?? null,
+          calories: parsedFitActivity.calories ?? null,
+          startLatlng: parsedFitActivity.startLatlng ?? null,
+          endLatlng: parsedFitActivity.endLatlng ?? null,
+          summaryPolyline: parsedFitActivity.summaryPolyline ?? null,
+          mapAttachmentId: parsedFitActivity.mapAttachmentId ?? null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+      : text
+  const mentions = await getMentions({
+    text: effectiveText,
+    currentActor,
+    replyStatus
+  })
 
   // Determine effective visibility:
   // 1. Use provided visibility if specified
@@ -187,7 +239,7 @@ export const createNoteFromUserInput = async ({
 
     actorId: currentActor.id,
 
-    text,
+    text: effectiveText,
     summary: null,
 
     to,
@@ -217,7 +269,15 @@ export const createNoteFromUserInput = async ({
         value: mention.href,
         type: 'mention'
       })
-    )
+    ),
+    ...(parsedFitActivity
+      ? [
+          database.createFitnessActivity({
+            ...parsedFitActivity,
+            statusId
+          })
+        ]
+      : [])
   ])
 
   // Create notifications for replies and mentions

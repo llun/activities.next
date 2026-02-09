@@ -58,8 +58,31 @@ import {
   updateAttachment
 } from './reducers'
 import { ReplyPreview } from './reply-preview'
+import { UploadFitButton } from './upload-fit-button'
 import { UploadMediaButton } from './upload-media-button'
 import { VisibilitySelector } from './visibility-selector'
+
+const fileToBase64 = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error('Failed to read file'))
+        return
+      }
+      const payload = reader.result.split(',')[1]
+      if (!payload) {
+        reject(new Error('Failed to encode file'))
+        return
+      }
+      resolve(payload)
+    }
+    reader.onerror = () => {
+      reject(reader.error ?? new Error('Failed to read file'))
+    }
+    reader.readAsDataURL(file)
+  })
+}
 
 interface Props {
   host: string
@@ -88,6 +111,7 @@ export const PostBox: FC<Props> = ({
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [currentTab, setCurrentTab] = useState<string>('write')
   const [text, setText] = useState<string>('')
+  const [fitFile, setFitFile] = useState<File | null>(null)
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
@@ -112,6 +136,21 @@ export const PostBox: FC<Props> = ({
     }
   }, [])
 
+  useEffect(() => {
+    if (editStatus) {
+      const originalText = sanitizeHtml(editStatus.text, { allowedTags: [] })
+      const canUpdate = text.trim().length > 0 && text !== originalText
+      setAllowPost(canUpdate)
+      return
+    }
+
+    const canPost =
+      text.trim().length > 0 ||
+      postExtension.attachments.length > 0 ||
+      Boolean(fitFile)
+    setAllowPost(canPost)
+  }, [editStatus, fitFile, postExtension.attachments.length, text])
+
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
 
@@ -132,6 +171,7 @@ export const PostBox: FC<Props> = ({
         })
 
         dispatch(resetExtension())
+        setFitFile(null)
         setIsPosting(false)
         return
       }
@@ -146,6 +186,7 @@ export const PostBox: FC<Props> = ({
         dispatch(resetExtension())
 
         setText('')
+        setFitFile(null)
         setIsPosting(false)
         return
       }
@@ -228,10 +269,18 @@ export const PostBox: FC<Props> = ({
         )
         .map((a) => a.uploadedAttachment)
 
+      const fitFilePayload = fitFile
+        ? {
+            name: fitFile.name,
+            contentBase64: await fileToBase64(fitFile)
+          }
+        : undefined
+
       const response = await createNote({
         message,
         replyStatus,
         attachments,
+        fitFile: fitFilePayload,
         visibility: postExtension.visibility
       })
 
@@ -240,6 +289,7 @@ export const PostBox: FC<Props> = ({
       dispatch(resetExtension())
 
       setText('')
+      setFitFile(null)
       setIsPosting(false)
     } catch {
       setIsPosting(false)
@@ -251,6 +301,7 @@ export const PostBox: FC<Props> = ({
   const onCloseReply = () => {
     onDiscardReply()
     setText('')
+    setFitFile(null)
   }
 
   const onRemoveAttachment = (attachmentIndex: number) => {
@@ -276,18 +327,6 @@ export const PostBox: FC<Props> = ({
 
   const onTextChange = (value: string) => {
     setText(value)
-    if (value.trim().length === 0) {
-      setAllowPost(false)
-      return
-    }
-    if (
-      editStatus &&
-      value === sanitizeHtml(editStatus.text, { allowedTags: [] })
-    ) {
-      setAllowPost(false)
-      return
-    }
-    setAllowPost(true)
   }
 
   /**
@@ -340,17 +379,14 @@ export const PostBox: FC<Props> = ({
   }
 
   useEffect(() => {
+    setFitFile(null)
+
     if (editStatus) {
       setText(editStatus.text)
-      setAllowPost(false) // Initial state for edit is disabled until changed? Or should we check?
-      // Original logic in onTextChange checked if text === editStatus.text.
-      // So if we set text to editStatus.text, allowPost should be false.
-      // But we need to update allowPost.
       return
-    } else {
-      setText('')
-      setAllowPost(false)
     }
+
+    setText('')
 
     if (!replyStatus) {
       // Reset visibility to default when not replying
@@ -373,7 +409,6 @@ export const PostBox: FC<Props> = ({
 
     const [value, start, end] = defaultMessage
     setText(value)
-    setAllowPost(true)
 
     // We need to wait for render to focus and set selection
     // Using setTimeout as a simple way to wait for next tick after render
@@ -492,6 +527,20 @@ export const PostBox: FC<Props> = ({
               }
               onUploadStart={() => setWarningMsg(null)}
             />
+            <UploadFitButton
+              isMediaUploadEnabled={isMediaUploadEnabled}
+              fitFile={fitFile}
+              onSelectFitFile={(file) => {
+                setFitFile(file)
+                setWarningMsg(null)
+              }}
+              onDuplicateError={() =>
+                setWarningMsg('The FIT file is already selected')
+              }
+              onInvalidFileError={() =>
+                setWarningMsg('Only .fit files are supported')
+              }
+            />
           </div>
           <div>
             {editStatus ? (
@@ -511,6 +560,21 @@ export const PostBox: FC<Props> = ({
         </div>
         {warningMsg ? (
           <div className="text-xs text-destructive mb-3">{warningMsg}</div>
+        ) : null}
+        {fitFile ? (
+          <div className="mb-3 flex items-center gap-2 text-xs">
+            <span className="rounded-md bg-muted px-2 py-1">
+              FIT: {fitFile.name}
+            </span>
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto p-0 text-xs"
+              onClick={() => setFitFile(null)}
+            >
+              Remove
+            </Button>
+          </div>
         ) : null}
         <div className="grid gap-4 grid-cols-8">
           {postExtension.attachments.map((item, index) => {

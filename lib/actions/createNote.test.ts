@@ -3,6 +3,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { parseFitFileToFitnessActivity } from '@/lib/services/fitness/fitFile'
 import { getQueue } from '@/lib/services/queue'
 import * as timelinesService from '@/lib/services/timelines'
 import { mockRequests } from '@/lib/stub/activities'
@@ -30,8 +31,16 @@ jest.mock('../services/timelines', () => ({
   addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
 }))
 
+jest.mock('../services/fitness/fitFile', () => ({
+  parseFitFileToFitnessActivity: jest.fn()
+}))
+
 describe('Create note action', () => {
   const database = getTestSQLDatabase()
+  const mockParseFitFileToFitnessActivity =
+    parseFitFileToFitnessActivity as jest.MockedFunction<
+      typeof parseFitFileToFitnessActivity
+    >
   let actor1: Actor
   let actor2: Actor
 
@@ -57,6 +66,7 @@ describe('Create note action', () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     jest.clearAllMocks()
+    mockParseFitFileToFitnessActivity.mockReset()
   })
 
   describe('#createNoteFromUserInput', () => {
@@ -383,6 +393,83 @@ How are you?
         // The original author (actor2) should be in the 'to' recipients
         expect(replyStatus.to).toContain(actor2.id)
         expect(replyStatus.to).toContain(`${actor1.id}/followers`)
+      })
+    })
+
+    describe('fit file support', () => {
+      it('creates linked fitness activity when fit file is uploaded', async () => {
+        const fitFile = {
+          name: 'morning-run.fit',
+          contentBase64: Buffer.from('fit-content').toString('base64')
+        }
+        mockParseFitFileToFitnessActivity.mockResolvedValue({
+          id: 'fit-1',
+          actorId: actor1.id,
+          stravaActivityId: 123456,
+          statusId: `${actor1.id}/statuses/fit-1`,
+          name: 'Morning Run',
+          type: 'Run',
+          startDate: new Date('2026-02-08T07:00:00.000Z'),
+          distance: 5000,
+          movingTime: 1500,
+          elapsedTime: 1560,
+          averageSpeed: 3.33
+        })
+
+        const status = (await createNoteFromUserInput({
+          text: 'Uploaded FIT activity',
+          currentActor: actor1,
+          fitFile,
+          database
+        })) as StatusNote
+
+        expect(mockParseFitFileToFitnessActivity).toHaveBeenCalledWith({
+          actorId: actor1.id,
+          statusId: status.id,
+          fitFile
+        })
+
+        const activity = await database.getFitnessActivityByStatusId({
+          statusId: status.id
+        })
+        expect(activity).not.toBeNull()
+        expect(activity).toMatchObject({
+          actorId: actor1.id,
+          statusId: status.id,
+          name: 'Morning Run',
+          type: 'Run',
+          distance: 5000
+        })
+      })
+
+      it('generates status text from fit activity when message is empty', async () => {
+        mockParseFitFileToFitnessActivity.mockResolvedValue({
+          id: 'fit-2',
+          actorId: actor1.id,
+          stravaActivityId: 654321,
+          statusId: `${actor1.id}/statuses/fit-2`,
+          name: 'Evening Ride',
+          type: 'Ride',
+          startDate: new Date('2026-02-08T18:00:00.000Z'),
+          distance: 25000,
+          movingTime: 3600,
+          elapsedTime: 3660,
+          totalElevationGain: 320,
+          averageSpeed: 6.9
+        })
+
+        const status = (await createNoteFromUserInput({
+          text: '',
+          currentActor: actor1,
+          fitFile: {
+            name: 'evening-ride.fit',
+            contentBase64: Buffer.from('fit-content').toString('base64')
+          },
+          database
+        })) as StatusNote
+
+        expect(status.text).toContain('Evening Ride')
+        expect(status.text).toContain('📏')
       })
     })
   })

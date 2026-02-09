@@ -37,12 +37,14 @@ export const POST = traceApiRoute(
       const request = PostRequest.parse(body)
       switch (request.type) {
         case 'note': {
-          const { message, replyStatus, attachments, visibility } = request
+          const { message, replyStatus, attachments, fitFile, visibility } =
+            request
           const status = await createNoteFromUserInput({
             currentActor,
             text: message,
             replyNoteId: replyStatus?.id,
             attachments,
+            fitFile,
             visibility,
             database
           })

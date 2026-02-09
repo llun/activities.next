@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { SecondsToDurationText } from '@/lib/components/post-box/poll-choices'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { UploadedFitFile } from '@/lib/types/domain/fitFile'
 import { Status } from '@/lib/types/domain/status'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
@@ -10,6 +11,7 @@ export const CreateNoteRequest = z.object({
   message: z.string(),
   replyStatus: Status.optional(),
   attachments: PostBoxAttachment.array().optional(),
+  fitFile: UploadedFitFile.optional(),
   visibility: z
     .enum(['public', 'unlisted', 'private', 'direct'])
     .optional() as z.ZodOptional<z.ZodType<MastodonVisibility>>
