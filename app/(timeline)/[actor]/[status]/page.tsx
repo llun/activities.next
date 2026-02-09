@@ -7,6 +7,7 @@ import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { toStatusActivityData } from '@/lib/services/fitness/activityData'
 import { getQueue } from '@/lib/services/queue'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -126,6 +127,17 @@ const Page: FC<Props> = async ({ params }) => {
       ? status.originalStatus.url
       : status.url
 
+  const activityTargetStatusId =
+    status.type === StatusType.enum.Announce
+      ? status.originalStatus.id
+      : status.id
+  const fitnessActivity = await database.getFitnessActivityByStatusId({
+    statusId: activityTargetStatusId
+  })
+  const activityData = fitnessActivity
+    ? toStatusActivityData(fitnessActivity)
+    : null
+
   let replies: Status[] = []
 
   if (
@@ -214,7 +226,7 @@ const Page: FC<Props> = async ({ params }) => {
 
   return (
     <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-      <Header />
+      <Header isActivity={Boolean(activityData)} />
 
       {previouses.reverse().map((item) => (
         <div
@@ -236,6 +248,7 @@ const Page: FC<Props> = async ({ params }) => {
           currentTime={currentTime}
           currentActor={currentActorProfile}
           status={cleanJson(status)}
+          activity={activityData ? cleanJson(activityData) : null}
           variant="detail"
         />
       </div>

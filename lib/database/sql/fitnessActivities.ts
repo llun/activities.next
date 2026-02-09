@@ -48,6 +48,10 @@ export interface GetFitnessActivityByStravaIdParams {
   stravaActivityId: number
 }
 
+export interface GetFitnessActivityByStatusIdParams {
+  statusId: string
+}
+
 export interface GetFitnessActivitiesByActorParams {
   actorId: string
   limit?: number
@@ -71,6 +75,9 @@ export interface FitnessActivityDatabase {
   ) => Promise<FitnessActivity | null>
   getFitnessActivityByStravaId: (
     params: GetFitnessActivityByStravaIdParams
+  ) => Promise<FitnessActivity | null>
+  getFitnessActivityByStatusId: (
+    params: GetFitnessActivityByStatusIdParams
   ) => Promise<FitnessActivity | null>
   getFitnessActivitiesByActor: (
     params: GetFitnessActivitiesByActorParams
@@ -281,6 +288,18 @@ export const FitnessActivitySQLDatabaseMixin = (
   }: GetFitnessActivityByStravaIdParams): Promise<FitnessActivity | null> {
     const row = await database('fitness_activities')
       .where({ actorId, stravaActivityId: stravaActivityId.toString() })
+      .first<SQLFitnessActivity>()
+
+    if (!row) return null
+
+    return rowToFitnessActivity(row)
+  },
+
+  async getFitnessActivityByStatusId({
+    statusId
+  }: GetFitnessActivityByStatusIdParams): Promise<FitnessActivity | null> {
+    const row = await database('fitness_activities')
+      .where({ statusId })
       .first<SQLFitnessActivity>()
 
     if (!row) return null

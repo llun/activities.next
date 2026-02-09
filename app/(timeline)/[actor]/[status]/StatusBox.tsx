@@ -5,12 +5,14 @@ import { FC, useState } from 'react'
 
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Post } from '@/lib/components/posts/post'
+import { StatusActivityData } from '@/lib/services/fitness/activityData'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
+import { FitnessActivityDetail } from './FitnessActivityDetail'
 import { StatusLikes } from './StatusLikes'
 
 interface Props {
@@ -18,6 +20,7 @@ interface Props {
   currentTime: Date
   currentActor?: ActorProfile | null
   status: Status
+  activity?: StatusActivityData | null
   variant?: 'detail' | 'comment'
 }
 
@@ -26,6 +29,7 @@ export const StatusBox: FC<Props> = ({
   currentTime,
   currentActor,
   status,
+  activity,
   variant = 'comment'
 }) => {
   const router = useRouter()
@@ -51,16 +55,29 @@ export const StatusBox: FC<Props> = ({
           })()
         }}
       >
-        <Post
-          host={host}
-          currentActor={currentActor ?? undefined}
-          currentTime={currentTime}
-          status={status}
-          showActions={variant === 'detail'}
-          onShowAttachment={(allMedias, index) => {
-            setModalMedias({ medias: allMedias, initialSelection: index })
-          }}
-        />
+        {variant === 'detail' && activity ? (
+          <FitnessActivityDetail
+            host={host}
+            currentTime={currentTime}
+            currentActor={currentActor}
+            status={status}
+            activity={activity}
+            onShowAttachment={(allMedias, index) => {
+              setModalMedias({ medias: allMedias, initialSelection: index })
+            }}
+          />
+        ) : (
+          <Post
+            host={host}
+            currentActor={currentActor ?? undefined}
+            currentTime={currentTime}
+            status={status}
+            showActions={variant === 'detail'}
+            onShowAttachment={(allMedias, index) => {
+              setModalMedias({ medias: allMedias, initialSelection: index })
+            }}
+          />
+        )}
         {variant === 'detail' && (
           <StatusLikes
             statusId={actualStatus.id}
