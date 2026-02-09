@@ -1,4 +1,4 @@
-import { formatDistanceToNow } from 'date-fns'
+import { formatDistance } from 'date-fns'
 import {
   ExternalLink,
   Flame,
@@ -128,7 +128,9 @@ export const FitnessActivityDetail: FC<Props> = ({
             </h2>
             <p className="text-xs text-muted-foreground">
               {formatActivityStartDate(activity.startDate)} · posted{' '}
-              {formatDistanceToNow(actualStatus.createdAt)} ago
+              {formatDistance(actualStatus.createdAt, currentTime, {
+                addSuffix: true
+              })}
             </p>
           </div>
 

@@ -32,8 +32,9 @@ export const formatActivityPace = (
   if (!metersPerSecond || metersPerSecond <= 0) return '--'
 
   const secondsPerKm = 1000 / metersPerSecond
-  const minutes = Math.floor(secondsPerKm / 60)
-  const seconds = Math.round(secondsPerKm % 60)
+  const roundedSecondsPerKm = Math.round(secondsPerKm)
+  const minutes = Math.floor(roundedSecondsPerKm / 60)
+  const seconds = roundedSecondsPerKm % 60
 
   return `${minutes}:${seconds.toString().padStart(2, '0')}/km`
 }

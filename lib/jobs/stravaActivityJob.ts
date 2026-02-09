@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { Database } from '@/lib/database/types'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
+import { STRAVA_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
+import { saveMedia } from '@/lib/services/medias'
 import { formatActivitySummary } from '@/lib/services/strava/activitySummary'
 import {
   generateMapImage,
@@ -17,8 +19,6 @@ import {
 import { FitnessActivity } from '@/lib/types/domain/fitnessActivity'
 import { logger } from '@/lib/utils/logger'
 import { getTracer } from '@/lib/utils/trace'
-
-export const STRAVA_ACTIVITY_JOB_NAME = 'StravaActivityJob'
 
 export const JobData = z.object({
   actorId: z.string(),
@@ -127,12 +127,7 @@ export const stravaActivityJob = createJobHandle(
           )
         } else if (!existingActivity) {
           // Create new activity and status
-          await handleCreateActivity(
-            database,
-            stravaActivity,
-            actorId,
-            accessToken
-          )
+          await handleCreateActivity(database, stravaActivity, actorId)
         }
       } catch (error) {
         logger.error({
@@ -210,8 +205,7 @@ async function handleUpdateActivity(
 async function handleCreateActivity(
   database: Database,
   stravaActivity: Awaited<ReturnType<typeof getActivity>>,
-  actorId: string,
-  _accessToken: string
+  actorId: string
 ): Promise<void> {
   if (!stravaActivity) return
 
@@ -273,27 +267,41 @@ async function handleCreateActivity(
       )
 
       if (mapImageBuffer) {
-        // For now, we'll create a data URL for the map
-        // In production, this should be uploaded to media storage
-        const base64Image = mapImageBuffer.toString('base64')
         const contentType = getMapImageContentType()
-        const mediaId = crypto.randomUUID()
-
-        mapAttachment = {
-          type: 'upload',
-          id: mediaId,
-          url: `data:${contentType};base64,${base64Image}`,
-          mediaType: contentType,
-          width: 600,
-          height: 400,
-          name: `${stravaActivity.name} route map`
-        }
-
-        logger.info({
-          message: 'Generated map image for activity',
-          activityId,
-          stravaActivityId: stravaActivity.id
+        const mapFile = new File(
+          [mapImageBuffer],
+          `${activityId}-route-map.${contentType.split('/')[1] ?? 'png'}`,
+          { type: contentType }
+        )
+        const storedMap = await saveMedia(database, actor, {
+          file: mapFile,
+          description: `${stravaActivity.name} route map`
         })
+
+        if (storedMap) {
+          mapAttachment = {
+            type: 'upload',
+            id: storedMap.id,
+            url: storedMap.url,
+            mediaType: storedMap.mime_type,
+            width: storedMap.meta.original.width,
+            height: storedMap.meta.original.height,
+            name: `${stravaActivity.name} route map`
+          }
+
+          logger.info({
+            message: 'Generated map image for activity',
+            activityId,
+            stravaActivityId: stravaActivity.id,
+            mediaId: storedMap.id
+          })
+        } else {
+          logger.warn({
+            message: 'Failed to store map image in media storage',
+            activityId,
+            stravaActivityId: stravaActivity.id
+          })
+        }
       }
     } catch (error) {
       logger.error({
@@ -315,16 +323,24 @@ async function handleCreateActivity(
   })
 
   if (status) {
-    // Update activity with status ID
+    const mapAttachmentId = mapAttachment
+      ? (status.attachments.find(
+          (attachment) => attachment.url === mapAttachment.url
+        )?.id ?? null)
+      : null
+
+    // Update activity with status ID and resolved map attachment ID
     await database.updateFitnessActivity(activityId, {
-      statusId: status.id
+      statusId: status.id,
+      mapAttachmentId
     })
 
     logger.info({
       message: 'Created status for Strava activity',
       activityId,
       statusId: status.id,
-      stravaActivityId: stravaActivity.id
+      stravaActivityId: stravaActivity.id,
+      mapAttachmentId
     })
   }
 }

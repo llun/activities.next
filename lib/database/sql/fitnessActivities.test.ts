@@ -1,3 +1,4 @@
+import { parseLatLng } from '@/lib/database/sql/fitnessActivities'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -72,5 +73,21 @@ describe('FitnessActivities database operations', () => {
 
     const activity = await database.getFitnessActivityByStatusId({ statusId })
     expect(activity).toBeNull()
+  })
+
+  describe('parseLatLng', () => {
+    it('parses JSON string coordinates', () => {
+      expect(parseLatLng('[35.6762,139.6503]')).toEqual([35.6762, 139.6503])
+    })
+
+    it('accepts deserialized array coordinates', () => {
+      expect(parseLatLng([35.6762, 139.6503])).toEqual([35.6762, 139.6503])
+    })
+
+    it('returns null for invalid values', () => {
+      expect(parseLatLng('{"lat":35.6}')).toBeNull()
+      expect(parseLatLng(['35.6', '139.6'])).toBeNull()
+      expect(parseLatLng(null)).toBeNull()
+    })
   })
 })

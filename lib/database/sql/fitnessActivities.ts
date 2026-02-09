@@ -30,8 +30,8 @@ interface SQLFitnessActivity {
   averageWatts: number | null
   kilojoules: number | null
   calories: number | null
-  startLatlng: string | null // JSONB stored as string
-  endLatlng: string | null
+  startLatlng: unknown
+  endLatlng: unknown
   summaryPolyline: string | null
   mapAttachmentId: string | null
   rawData: string | null
@@ -85,12 +85,24 @@ export interface FitnessActivityDatabase {
   deleteFitnessActivity: (params: DeleteFitnessActivityParams) => Promise<void>
 }
 
-function parseLatLng(value: string | null): LatLng | null {
+export function parseLatLng(value: unknown): LatLng | null {
   if (!value) return null
+  if (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    value.every((coordinate) => typeof coordinate === 'number')
+  ) {
+    return [value[0], value[1]]
+  }
+  if (typeof value !== 'string') return null
   try {
     const parsed = JSON.parse(value)
-    if (Array.isArray(parsed) && parsed.length === 2) {
-      return parsed as LatLng
+    if (
+      Array.isArray(parsed) &&
+      parsed.length === 2 &&
+      parsed.every((coordinate) => typeof coordinate === 'number')
+    ) {
+      return [parsed[0], parsed[1]]
     }
     return null
   } catch {

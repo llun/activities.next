@@ -108,60 +108,60 @@ export const POST = traceApiRoute(
         objectId: body.object_id
       })
 
-      // Strava requires 200 response within 2 seconds
-      // We must respond quickly and process asynchronously
-      const database = await getDatabase()
-      if (!database) {
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: 'Database unavailable' },
-          responseStatusCode: 500
-        })
-      }
-
-      const fitnessSettings = await database.getFitnessSettingsByWebhookToken({
-        webhookToken,
-        serviceType: 'strava'
-      })
-
-      if (!fitnessSettings?.accessToken) {
-        logger.warn({
-          message: 'No Strava connection found for webhook token'
-        })
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: 'Invalid webhook' },
-          responseStatusCode: 404
-        })
-      }
-
-      // Only process activity events
-      if (body.object_type === 'activity') {
-        // Queue job for async processing
-        await getQueue().publish({
-          id: getHashFromString(
-            `strava-activity-${fitnessSettings.actorId}-${body.object_id}-${body.aspect_type}`
-          ),
-          name: STRAVA_ACTIVITY_JOB_NAME,
-          data: {
-            actorId: fitnessSettings.actorId,
-            stravaActivityId: body.object_id,
-            aspectType: body.aspect_type
-          }
-        })
-
-        logger.info({
-          message: 'Queued Strava activity job',
-          actorId: fitnessSettings.actorId,
-          stravaActivityId: body.object_id,
-          aspectType: body.aspect_type
-        })
-      } else {
+      // Strava requires a quick ACK. Queue and DB work run asynchronously.
+      if (body.object_type !== 'activity') {
         logger.info({
           message: 'Ignoring non-activity Strava event',
           objectType: body.object_type
+        })
+      } else {
+        void (async () => {
+          const database = await getDatabase()
+          if (!database) {
+            logger.error({
+              message: 'Database unavailable while processing Strava webhook'
+            })
+            return
+          }
+
+          const fitnessSettings =
+            await database.getFitnessSettingsByWebhookToken({
+              webhookToken,
+              serviceType: 'strava'
+            })
+
+          if (!fitnessSettings?.accessToken) {
+            logger.warn({
+              message: 'No Strava connection found for webhook token'
+            })
+            return
+          }
+
+          await getQueue().publish({
+            id: getHashFromString(
+              `strava-activity-${fitnessSettings.actorId}-${body.object_id}-${body.aspect_type}`
+            ),
+            name: STRAVA_ACTIVITY_JOB_NAME,
+            data: {
+              actorId: fitnessSettings.actorId,
+              stravaActivityId: body.object_id,
+              aspectType: body.aspect_type
+            }
+          })
+
+          logger.info({
+            message: 'Queued Strava activity job',
+            actorId: fitnessSettings.actorId,
+            stravaActivityId: body.object_id,
+            aspectType: body.aspect_type
+          })
+        })().catch((error) => {
+          logger.error({
+            message: 'Failed to process Strava webhook event asynchronously',
+            error,
+            objectId: body.object_id,
+            aspectType: body.aspect_type
+          })
         })
       }
 

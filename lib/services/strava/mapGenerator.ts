@@ -256,7 +256,7 @@ export async function generateMapImage(
   options: MapGeneratorOptions = {}
 ): Promise<Buffer | null> {
   try {
-    // Try Geoapify first, fall back to staticmap.net
+    // Use staticmap.net as it does not require an API key.
     const url = generateOSMStaticMapUrl(polyline, options)
 
     logger.info({

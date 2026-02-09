@@ -42,6 +42,10 @@ describe('activityFormat', () => {
       expect(formatActivityPace(1000 / 300)).toBe('5:00/km')
     })
 
+    it('handles pace rounding without producing xx:60', () => {
+      expect(formatActivityPace(1000 / 299.6)).toBe('5:00/km')
+    })
+
     it('formats speed as km/h', () => {
       expect(formatActivitySpeed(10)).toBe('36.0 km/h')
     })
