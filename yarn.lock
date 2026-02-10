@@ -138,9 +138,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-lambda@npm:^3.986.0":
-  version: 3.986.0
-  resolution: "@aws-sdk/client-lambda@npm:3.986.0"
+"@aws-sdk/client-lambda@npm:^3.987.0":
+  version: 3.987.0
+  resolution: "@aws-sdk/client-lambda@npm:3.987.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:5.2.0"
     "@aws-crypto/sha256-js": "npm:5.2.0"
@@ -152,7 +152,7 @@ __metadata:
     "@aws-sdk/middleware-user-agent": "npm:^3.972.7"
     "@aws-sdk/region-config-resolver": "npm:^3.972.3"
     "@aws-sdk/types": "npm:^3.973.1"
-    "@aws-sdk/util-endpoints": "npm:3.986.0"
+    "@aws-sdk/util-endpoints": "npm:3.987.0"
     "@aws-sdk/util-user-agent-browser": "npm:^3.972.3"
     "@aws-sdk/util-user-agent-node": "npm:^3.972.5"
     "@smithy/config-resolver": "npm:^4.4.6"
@@ -186,7 +186,7 @@ __metadata:
     "@smithy/util-utf8": "npm:^4.2.0"
     "@smithy/util-waiter": "npm:^4.2.8"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/c239f29b03bfb7ed85f97bfc5d96152aec8860d1ccb55fe299ef708b477178d4e9fb767b1f1b6bfeac7067eb6bd85587fbc335b3e9abb6795c10ffb518ce710e
+  checksum: 10c0/6a938307c9654dc78503c11eac0b2dc7310b1ce2a3ba6446069f4f6b838a3fbc38fd77b75657a989b962340e691a7823cc93cac88170541cba5f53c72f3ca7aa
   languageName: node
   linkType: hard
 
@@ -774,6 +774,19 @@ __metadata:
     "@smithy/util-endpoints": "npm:^3.2.8"
     tslib: "npm:^2.6.2"
   checksum: 10c0/d30c843d109e0ac5da2103445f5299b5b08cb94634ac0d72509c16c39b8e423bbba2f3cb22f44862fe4252e862e95db33bf2472ce301facef9592ef52bb96c33
+  languageName: node
+  linkType: hard
+
+"@aws-sdk/util-endpoints@npm:3.987.0":
+  version: 3.987.0
+  resolution: "@aws-sdk/util-endpoints@npm:3.987.0"
+  dependencies:
+    "@aws-sdk/types": "npm:^3.973.1"
+    "@smithy/types": "npm:^4.12.0"
+    "@smithy/url-parser": "npm:^4.2.8"
+    "@smithy/util-endpoints": "npm:^3.2.8"
+    tslib: "npm:^2.6.2"
+  checksum: 10c0/20c64c0021e9f76787a444ec5e48a9b9ba20d3974e5d0f0ffca606bd44ba21637e8bb444d7130eb56b13677accd1204a2e25ba9331ddbe9eb1edae61e5e5ca68
   languageName: node
   linkType: hard
 
@@ -5208,7 +5221,7 @@ __metadata:
   resolution: "activities.next@workspace:."
   dependencies:
     "@auth/core": "npm:^0.40.0"
-    "@aws-sdk/client-lambda": "npm:^3.986.0"
+    "@aws-sdk/client-lambda": "npm:^3.987.0"
     "@aws-sdk/client-s3": "npm:^3.986.0"
     "@aws-sdk/s3-presigned-post": "npm:^3.986.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
