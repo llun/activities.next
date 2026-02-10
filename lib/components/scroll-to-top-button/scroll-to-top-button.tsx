@@ -1,29 +1,45 @@
 'use client'
 
 import { ArrowUp } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 
 export const ScrollToTopButton: FC = () => {
   const [isVisible, setIsVisible] = useState(false)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    const toggleVisibility = () => {
-      // Show button when page is scrolled down more than 300px
-      if (window.scrollY > 300) {
-        setIsVisible(true)
-      } else {
-        setIsVisible(false)
-      }
-    }
-
-    window.addEventListener('scroll', toggleVisibility)
-
-    return () => {
-      window.removeEventListener('scroll', toggleVisibility)
+  const toggleVisibility = useCallback(() => {
+    // Show button when page is scrolled down more than 300px
+    if (window.scrollY > 300) {
+      setIsVisible(true)
+    } else {
+      setIsVisible(false)
     }
   }, [])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // Throttle scroll events to improve performance
+      if (timeoutRef.current) {
+        return
+      }
+
+      timeoutRef.current = setTimeout(() => {
+        toggleVisibility()
+        timeoutRef.current = null
+      }, 100)
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [toggleVisibility])
 
   const scrollToTop = () => {
     window.scrollTo({
