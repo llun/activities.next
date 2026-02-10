@@ -144,7 +144,11 @@ export const StatusReplyBox: FC<Props> = ({
     try {
       const uploadResults = await Promise.all(
         postExtension.attachments.map(async (attachment) => {
-          if (!attachment.file) return attachment
+          if (!attachment.file)
+            return {
+              originalId: attachment.id,
+              uploadedAttachment: attachment
+            }
 
           dispatch(
             updateAttachment(attachment.id, {
@@ -168,7 +172,10 @@ export const StatusReplyBox: FC<Props> = ({
               file: undefined
             }
             dispatch(updateAttachment(attachment.id, newAttachment))
-            return newAttachment
+            return {
+              originalId: attachment.id,
+              uploadedAttachment: newAttachment
+            }
           } catch {
             dispatch(
               updateAttachment(attachment.id, {
@@ -184,9 +191,13 @@ export const StatusReplyBox: FC<Props> = ({
       const currentAttachmentIds = new Set(
         postExtensionRef.current.attachments.map((a) => a.id)
       )
-      const attachments = uploadResults.filter((a) =>
-        currentAttachmentIds.has(a.id)
-      )
+      const attachments = uploadResults
+        .filter(
+          (a) =>
+            currentAttachmentIds.has(a.originalId) ||
+            currentAttachmentIds.has(a.uploadedAttachment.id)
+        )
+        .map((a) => a.uploadedAttachment)
 
       const response = await createNote({
         message,
