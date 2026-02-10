@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 
 import { ScrollToTopButton } from './scroll-to-top-button'
@@ -24,19 +24,19 @@ describe('ScrollToTopButton', () => {
   })
 
   afterEach(() => {
-    jest.runOnlyPendingTimers()
+    act(() => {
+      jest.runOnlyPendingTimers()
+    })
     jest.useRealTimers()
   })
 
-  it('should not be visible when scroll position is less than 300px', () => {
+  it('should not render button when scroll position is less than 300px', () => {
     Object.defineProperty(window, 'scrollY', { value: 200 })
     render(<ScrollToTopButton />)
 
-    const button = screen.getByLabelText('Scroll to top')
-    expect(button).toHaveClass('opacity-0')
-    expect(button).toHaveAttribute('aria-hidden', 'true')
-    expect(button).toHaveAttribute('tabIndex', '-1')
-    expect(button).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: 'Scroll to top' })
+    ).not.toBeInTheDocument()
   })
 
   it('should be visible when scroll position is greater than 300px', () => {
@@ -44,9 +44,9 @@ describe('ScrollToTopButton', () => {
     render(<ScrollToTopButton />)
 
     const button = screen.getByRole('button', { name: 'Scroll to top' })
-    expect(button).toHaveClass('opacity-100')
-    expect(button).toHaveAttribute('aria-hidden', 'false')
-    expect(button).toHaveAttribute('tabIndex', '0')
+    expect(button).toHaveClass('bg-white')
+    expect(button).toHaveClass('animate-in')
+    expect(button).toHaveTextContent('Scroll to top')
     expect(button).not.toBeDisabled()
   })
 
@@ -54,40 +54,44 @@ describe('ScrollToTopButton', () => {
     Object.defineProperty(window, 'scrollY', { value: 0 })
     render(<ScrollToTopButton />)
 
-    const button = screen.getByLabelText('Scroll to top')
-    expect(button).toHaveClass('opacity-0')
+    expect(
+      screen.queryByRole('button', { name: 'Scroll to top' })
+    ).not.toBeInTheDocument()
 
     // Simulate scrolling past threshold
     Object.defineProperty(window, 'scrollY', { value: 350 })
     fireEvent.scroll(window)
 
     // Fast-forward throttle timeout
-    await waitFor(() => {
+    await act(async () => {
       jest.advanceTimersByTime(100)
-      expect(button).toHaveClass('opacity-100')
-      expect(button).toHaveAttribute('aria-hidden', 'false')
-      expect(button).not.toBeDisabled()
     })
+
+    expect(screen.getByRole('button', { name: 'Scroll to top' })).toHaveClass(
+      'bg-white'
+    )
   })
 
   it('should hide button after scrolling back above threshold', async () => {
     Object.defineProperty(window, 'scrollY', { value: 400 })
     render(<ScrollToTopButton />)
 
-    const button = screen.getByLabelText('Scroll to top')
-    expect(button).toHaveClass('opacity-100')
+    expect(screen.getByRole('button', { name: 'Scroll to top' })).toHaveClass(
+      'bg-white'
+    )
 
     // Simulate scrolling back to top
     Object.defineProperty(window, 'scrollY', { value: 100 })
     fireEvent.scroll(window)
 
     // Fast-forward throttle timeout
-    await waitFor(() => {
+    await act(async () => {
       jest.advanceTimersByTime(100)
-      expect(button).toHaveClass('opacity-0')
-      expect(button).toHaveAttribute('aria-hidden', 'true')
-      expect(button).toBeDisabled()
     })
+
+    expect(
+      screen.queryByRole('button', { name: 'Scroll to top' })
+    ).not.toBeInTheDocument()
   })
 
   it('should call window.scrollTo with smooth behavior when clicked', () => {
@@ -118,21 +122,23 @@ describe('ScrollToTopButton', () => {
       jest.advanceTimersByTime(100)
     })
 
-    const button = screen.getByLabelText('Scroll to top')
-    expect(button).toHaveClass('opacity-100')
+    const button = screen.getByRole('button', { name: 'Scroll to top' })
+    expect(button).toHaveClass('bg-white')
 
     // Subsequent scrolls should be throttled
     Object.defineProperty(window, 'scrollY', { value: 200 })
     fireEvent.scroll(window)
 
     // No immediate change (throttled)
-    expect(button).toHaveClass('opacity-100')
+    expect(button).toHaveClass('bg-white')
 
     // After throttle timeout, should update
     await act(async () => {
       jest.advanceTimersByTime(100)
     })
-    expect(button).toHaveClass('opacity-0')
+    expect(
+      screen.queryByRole('button', { name: 'Scroll to top' })
+    ).not.toBeInTheDocument()
   })
 
   it('should clean up event listener and timeout on unmount', () => {
@@ -163,8 +169,8 @@ describe('ScrollToTopButton', () => {
     Object.defineProperty(window, 'scrollY', { value: 500 })
     const { unmount } = render(<ScrollToTopButton />)
 
-    const button = screen.getByLabelText('Scroll to top')
-    expect(button).toHaveClass('opacity-100')
+    const button = screen.getByRole('button', { name: 'Scroll to top' })
+    expect(button).toHaveClass('bg-white')
     expect(button).not.toBeDisabled()
 
     unmount()
@@ -173,8 +179,8 @@ describe('ScrollToTopButton', () => {
     Object.defineProperty(window, 'scrollY', { value: 100 })
     render(<ScrollToTopButton />)
 
-    const button2 = screen.getByLabelText('Scroll to top')
-    expect(button2).toHaveClass('opacity-0')
-    expect(button2).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: 'Scroll to top' })
+    ).not.toBeInTheDocument()
   })
 })

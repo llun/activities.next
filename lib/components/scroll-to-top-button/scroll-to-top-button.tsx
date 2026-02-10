@@ -1,9 +1,6 @@
 'use client'
 
-import { ArrowUp } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
-
-import { cn } from '@/lib/utils'
 
 export const ScrollToTopButton: FC = () => {
   const [isVisible, setIsVisible] = useState(false)
@@ -51,23 +48,17 @@ export const ScrollToTopButton: FC = () => {
     })
   }
 
+  if (!isVisible) {
+    return null
+  }
+
   return (
     <button
       onClick={scrollToTop}
-      className={cn(
-        'fixed bottom-20 right-4 z-50 rounded-full bg-primary text-primary-foreground shadow-lg transition-all duration-300 hover:bg-primary/90 md:hidden',
-        isVisible
-          ? 'opacity-100 translate-y-0'
-          : 'opacity-0 translate-y-10 pointer-events-none'
-      )}
+      className="fixed inset-x-0 mx-auto w-fit bottom-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] z-50 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-lg md:hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-200"
       aria-label="Scroll to top"
-      tabIndex={isVisible ? 0 : -1}
-      aria-hidden={!isVisible}
-      disabled={!isVisible}
     >
-      <div className="p-3">
-        <ArrowUp className="h-6 w-6" />
-      </div>
+      Scroll to top
     </button>
   )
 }
