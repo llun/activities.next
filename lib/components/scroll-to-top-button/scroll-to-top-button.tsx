@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 
 export const ScrollToTopButton: FC = () => {
   const [isVisible, setIsVisible] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const timeoutRef = useRef<number | null>(null)
 
   const toggleVisibility = useCallback(() => {
     // Show button when page is scrolled down more than 300px
@@ -25,7 +25,7 @@ export const ScrollToTopButton: FC = () => {
         return
       }
 
-      timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = window.setTimeout(() => {
         toggleVisibility()
         timeoutRef.current = null
       }, 100)
@@ -36,7 +36,7 @@ export const ScrollToTopButton: FC = () => {
     return () => {
       window.removeEventListener('scroll', handleScroll)
       if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
+        window.clearTimeout(timeoutRef.current)
       }
     }
   }, [toggleVisibility])
