@@ -58,6 +58,7 @@ export const StatusReplyBox: FC<Props> = ({
     DEFAULT_STATE
   )
   const postExtensionRef = useRef(postExtension)
+  const removedAttachmentIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     postExtensionRef.current = postExtension
@@ -139,6 +140,7 @@ export const StatusReplyBox: FC<Props> = ({
     setAllowPost(false)
     setIsPosting(true)
     setWarningMsg(null)
+    removedAttachmentIdsRef.current.clear()
     const message = text
 
     try {
@@ -191,11 +193,14 @@ export const StatusReplyBox: FC<Props> = ({
       const currentAttachmentIds = new Set(
         postExtensionRef.current.attachments.map((a) => a.id)
       )
+      const removedAttachmentIds = removedAttachmentIdsRef.current
       const attachments = uploadResults
         .filter(
           (a) =>
-            currentAttachmentIds.has(a.originalId) ||
-            currentAttachmentIds.has(a.uploadedAttachment.id)
+            !removedAttachmentIds.has(a.originalId) &&
+            !removedAttachmentIds.has(a.uploadedAttachment.id) &&
+            (currentAttachmentIds.has(a.originalId) ||
+              currentAttachmentIds.has(a.uploadedAttachment.id))
         )
         .map((a) => a.uploadedAttachment)
 
@@ -208,6 +213,7 @@ export const StatusReplyBox: FC<Props> = ({
       const { status, attachments: storedAttachments } = response
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
+      removedAttachmentIdsRef.current.clear()
       setText('')
       setIsPosting(false)
     } catch {
@@ -219,15 +225,25 @@ export const StatusReplyBox: FC<Props> = ({
 
   const onRemoveAttachment = (attachmentIndex: number) => {
     const attachment = postExtension.attachments[attachmentIndex]
+    if (!attachment) return
+
+    removedAttachmentIdsRef.current.add(attachment.id)
+
     if (attachment.url.startsWith('blob:')) {
       URL.revokeObjectURL(attachment.url)
     }
-    dispatch(
-      setAttachments([
-        ...postExtension.attachments.slice(0, attachmentIndex),
-        ...postExtension.attachments.slice(attachmentIndex + 1)
-      ])
-    )
+
+    const nextAttachments = [
+      ...postExtension.attachments.slice(0, attachmentIndex),
+      ...postExtension.attachments.slice(attachmentIndex + 1)
+    ]
+
+    postExtensionRef.current = {
+      ...postExtensionRef.current,
+      attachments: nextAttachments
+    }
+
+    dispatch(setAttachments(nextAttachments))
   }
 
   const onQuickPost = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
