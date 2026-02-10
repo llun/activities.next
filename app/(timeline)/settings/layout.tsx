@@ -45,9 +45,9 @@ const Layout: FC<Props> = ({ children }) => {
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
             {tabs.map((tab) => (
-              <Link key={tab.url} href={tab.url}>
-                <DropdownMenuItem>{tab.name}</DropdownMenuItem>
-              </Link>
+              <DropdownMenuItem key={tab.url} asChild>
+                <Link href={tab.url}>{tab.name}</Link>
+              </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
