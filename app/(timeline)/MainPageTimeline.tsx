@@ -5,6 +5,7 @@ import { FC, useReducer, useRef, useState } from 'react'
 import { getTimeline } from '@/lib/client'
 import { PostBox } from '@/lib/components/post-box/post-box'
 import { Posts } from '@/lib/components/posts/posts'
+import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
 import {
   Tabs,
@@ -95,6 +96,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   return (
     <div className="space-y-6">
+      <ScrollToTopButton />
       <div>
         <h1 className="text-2xl font-semibold">Timeline</h1>
         <p className="text-sm text-muted-foreground">
