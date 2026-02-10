@@ -23,16 +23,14 @@ export const POST = traceApiRoute(
 
     // Delete all notifications in batches
     const batchSize = 1000
-    let hasMore = true
 
-    while (hasMore) {
+    while (true) {
       const notifications = await database.getNotifications({
         actorId: currentActor.id,
         limit: batchSize
       })
 
       if (notifications.length === 0) {
-        hasMore = false
         break
       }
 
@@ -45,7 +43,7 @@ export const POST = traceApiRoute(
 
       // If we got fewer than batchSize, we're done
       if (notifications.length < batchSize) {
-        hasMore = false
+        break
       }
     }
 

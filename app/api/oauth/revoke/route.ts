@@ -19,27 +19,34 @@ export const POST = traceApiRoute('revokeToken', async (req: NextRequest) => {
   if (!database) return apiErrorResponse(500)
 
   const contentType = req.headers.get('content-type') || ''
-  let token: string | null = null
-  let tokenTypeHint: string | null = null
+  const getFormValues = async () => {
+    const form = await req.formData()
+    return {
+      token: form.get('token') as string | null,
+      tokenTypeHint: form.get('token_type_hint') as string | null
+    }
+  }
+
+  let values: { token: string | null; tokenTypeHint: string | null }
 
   if (contentType.includes('application/x-www-form-urlencoded')) {
-    const form = await req.formData()
-    token = form.get('token') as string | null
-    tokenTypeHint = form.get('token_type_hint') as string | null
+    values = await getFormValues()
   } else if (contentType.includes('application/json')) {
     const body = await req.json()
-    token = body.token
-    tokenTypeHint = body.token_type_hint
+    values = {
+      token: body.token,
+      tokenTypeHint: body.token_type_hint
+    }
   } else {
     // Try form data as default
     try {
-      const form = await req.formData()
-      token = form.get('token') as string | null
-      tokenTypeHint = form.get('token_type_hint') as string | null
+      values = await getFormValues()
     } catch {
       return apiErrorResponse(400)
     }
   }
+
+  const { token, tokenTypeHint } = values
 
   if (!token) {
     return apiErrorResponse(400)
