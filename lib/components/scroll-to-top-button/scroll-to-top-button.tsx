@@ -19,6 +19,9 @@ export const ScrollToTopButton: FC = () => {
   }, [])
 
   useEffect(() => {
+    // Set initial visibility based on current scroll position
+    toggleVisibility()
+
     const handleScroll = () => {
       // Throttle scroll events to improve performance
       if (timeoutRef.current) {
@@ -58,6 +61,9 @@ export const ScrollToTopButton: FC = () => {
           : 'opacity-0 translate-y-10 pointer-events-none'
       )}
       aria-label="Scroll to top"
+      tabIndex={isVisible ? 0 : -1}
+      aria-hidden={!isVisible}
+      disabled={!isVisible}
     >
       <div className="p-3">
         <ArrowUp className="h-6 w-6" />
