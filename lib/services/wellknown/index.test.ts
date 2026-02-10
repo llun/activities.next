@@ -1,3 +1,5 @@
+import { Database } from '@/lib/database/types'
+
 import {
   getHostMetaXML,
   getNodeInfoLinks,
@@ -93,7 +95,7 @@ describe('#getWebFingerResponse', () => {
 
   it('returns null when resource format is invalid', async () => {
     const result = await getWebFingerResponse({
-      database: mockDatabase as any,
+      database: mockDatabase as unknown as Database,
       resource: 'invalidformat'
     })
 
@@ -104,7 +106,7 @@ describe('#getWebFingerResponse', () => {
     mockDatabase.getActorFromUsername.mockResolvedValue(null)
 
     const result = await getWebFingerResponse({
-      database: mockDatabase as any,
+      database: mockDatabase as unknown as Database,
       resource: 'acct:user@example.com'
     })
 
@@ -120,7 +122,7 @@ describe('#getWebFingerResponse', () => {
     })
 
     const result = await getWebFingerResponse({
-      database: mockDatabase as any,
+      database: mockDatabase as unknown as Database,
       resource: 'acct:test@example.com'
     })
 
@@ -136,7 +138,7 @@ describe('#getWebFingerResponse', () => {
     })
 
     const result = await getWebFingerResponse({
-      database: mockDatabase as any,
+      database: mockDatabase as unknown as Database,
       resource: 'acct:test@example.com'
     })
 
@@ -167,7 +169,7 @@ describe('#getWebFingerResponse', () => {
     })
 
     await getWebFingerResponse({
-      database: mockDatabase as any,
+      database: mockDatabase as unknown as Database,
       resource: 'acct:user@example.com'
     })
 
@@ -186,7 +188,7 @@ describe('#getWebFingerResponse', () => {
     })
 
     await getWebFingerResponse({
-      database: mockDatabase as any,
+      database: mockDatabase as unknown as Database,
       resource: 'user@example.com'
     })
 
