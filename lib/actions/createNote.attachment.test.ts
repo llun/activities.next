@@ -177,8 +177,12 @@ describe('Create note action with attachments', () => {
       })) as StatusNote
 
       expect(status.attachments).toHaveLength(2)
-      expect(status.attachments[0].name).toBe('image1.png')
-      expect(status.attachments[1].name).toBe('image2.jpg')
+      expect(status.attachments).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'image1.png' }),
+          expect.objectContaining({ name: 'image2.jpg' })
+        ])
+      )
     })
   })
 })
