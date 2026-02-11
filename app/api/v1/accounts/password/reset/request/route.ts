@@ -40,46 +40,74 @@ export const POST = traceApiRoute(
       const account = await database.getAccountFromEmail({ email })
 
       if (account) {
-        const passwordResetCode = crypto.randomBytes(32).toString('base64url')
-        const passwordResetCodeHash = hashPasswordResetCode(passwordResetCode)
-
-        if (config.email) {
-          try {
-            await sendMail({
-              from: config.email.serviceFromAddress,
-              to: [email],
-              subject: 'Reset your password',
-              content: {
-                text: `You requested a password reset. Open this link to continue: https://${config.host}/auth/reset-password?code=${passwordResetCode}`,
-                html: `
-                  <p>You requested a password reset.</p>
-                  <p>Open the link below to choose a new password:</p>
-                  <p><a href="https://${config.host}/auth/reset-password?code=${passwordResetCode}">Reset Password</a></p>
-                  <p>If you did not request this, you can safely ignore this email.</p>
-                  <p>This link expires in 24 hours.</p>
-                `
-              }
-            })
-          } catch (_error) {
-            logger.error({ email }, 'Failed to send password reset email')
-            return apiResponse({
-              req: request,
-              allowedMethods: CORS_HEADERS,
-              data: { success: true, message: SUCCESS_MESSAGE },
-              responseStatusCode: 200
-            })
-          }
-        } else {
+        if (!config.email) {
           logger.warn(
             { email },
             'Password reset requested but email service is not configured'
           )
+          return apiResponse({
+            req: request,
+            allowedMethods: CORS_HEADERS,
+            data: { success: true, message: SUCCESS_MESSAGE },
+            responseStatusCode: 200
+          })
         }
 
-        await database.requestPasswordReset({
+        const passwordResetCode = crypto.randomBytes(32).toString('base64url')
+        const passwordResetCodeHash = hashPasswordResetCode(passwordResetCode)
+        const previousPasswordResetCode = account.passwordResetCode ?? null
+        const previousPasswordResetCodeExpiresAt =
+          account.passwordResetCodeExpiresAt ?? null
+
+        const saved = await database.requestPasswordReset({
           email,
           passwordResetCode: passwordResetCodeHash
         })
+        if (!saved) {
+          logger.error(
+            { email },
+            'Password reset code persistence failed for existing account'
+          )
+          return apiResponse({
+            req: request,
+            allowedMethods: CORS_HEADERS,
+            data: { success: true, message: SUCCESS_MESSAGE },
+            responseStatusCode: 200
+          })
+        }
+
+        try {
+          await sendMail({
+            from: config.email.serviceFromAddress,
+            to: [email],
+            subject: 'Reset your password',
+            content: {
+              text: `You requested a password reset. Open this link to continue: https://${config.host}/auth/reset-password?code=${passwordResetCode}`,
+              html: `
+                <p>You requested a password reset.</p>
+                <p>Open the link below to choose a new password:</p>
+                <p><a href="https://${config.host}/auth/reset-password?code=${passwordResetCode}">Reset Password</a></p>
+                <p>If you did not request this, you can safely ignore this email.</p>
+                <p>This link expires in 24 hours.</p>
+              `
+            }
+          })
+        } catch (_error) {
+          logger.error({ email }, 'Failed to send password reset email')
+          await database.requestPasswordReset({
+            email,
+            passwordResetCode: previousPasswordResetCode,
+            ...(previousPasswordResetCodeExpiresAt !== null
+              ? { expiresAt: previousPasswordResetCodeExpiresAt }
+              : null)
+          })
+          return apiResponse({
+            req: request,
+            allowedMethods: CORS_HEADERS,
+            data: { success: true, message: SUCCESS_MESSAGE },
+            responseStatusCode: 200
+          })
+        }
       }
 
       return apiResponse({

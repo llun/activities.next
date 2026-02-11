@@ -236,6 +236,27 @@ describe('AccountDatabase', () => {
         expect(requested).toBeFalse()
       })
 
+      it('clears password reset code when null code is provided', async () => {
+        const { accountId, email } = await createTestAccount()
+
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: `reset-${crypto.randomUUID()}`
+        })
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: null,
+          expiresAt: null
+        })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({
+          id: accountId,
+          passwordResetCode: null,
+          passwordResetCodeExpiresAt: null
+        })
+      })
+
       it('invalidates previous password reset code when a new one is issued', async () => {
         const { accountId, email } = await createTestAccount()
         const firstCode = `reset-${crypto.randomUUID()}`

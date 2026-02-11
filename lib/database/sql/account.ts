@@ -514,13 +514,18 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     passwordResetCode,
     expiresAt
   }: RequestPasswordResetParams): Promise<boolean> {
-    const account = await database('accounts').where('email', email).first()
+    const account = await database<SQLAccount>('accounts')
+      .where('email', email)
+      .first()
     if (!account) return false
 
     const currentTime = new Date()
-    const expiresAtDate = expiresAt
-      ? new Date(expiresAt)
-      : new Date(currentTime.getTime() + 24 * 60 * 60 * 1000) // 24 hours
+    const expiresAtDate =
+      passwordResetCode === null
+        ? null
+        : expiresAt
+          ? new Date(expiresAt)
+          : new Date(currentTime.getTime() + 24 * 60 * 60 * 1000) // 24 hours
 
     await database('accounts').where('id', account.id).update({
       passwordResetCode,

@@ -232,8 +232,8 @@ export type VerifyEmailChangeParams = {
 }
 export type RequestPasswordResetParams = {
   email: string
-  passwordResetCode: string
-  expiresAt?: number
+  passwordResetCode: string | null
+  expiresAt?: number | null
 }
 export type ValidatePasswordResetCodeParams = {
   passwordResetCode: string
