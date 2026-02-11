@@ -202,6 +202,9 @@ describe('AccountDatabase', () => {
           passwordResetCode,
           passwordResetCodeExpiresAt: expect.toBeNumber()
         })
+        expect(
+          await database.validatePasswordResetCode({ passwordResetCode })
+        ).toBe(accountId)
 
         const resetResult = await database.resetPasswordWithCode({
           passwordResetCode,
@@ -273,10 +276,10 @@ describe('AccountDatabase', () => {
           expiresAt: Date.now() - 1_000
         })
 
-        const isValid = await database.validatePasswordResetCode({
+        const accountId = await database.validatePasswordResetCode({
           passwordResetCode: expiredCode
         })
-        expect(isValid).toBeFalse()
+        expect(accountId).toBeNull()
 
         const resetResult = await database.resetPasswordWithCode({
           passwordResetCode: expiredCode,

@@ -6,17 +6,7 @@ import { FC, useState } from 'react'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
-
-const parseResponseData = async (response: Response) => {
-  const text = await response.text()
-  if (!text) return {}
-
-  try {
-    return JSON.parse(text) as Record<string, unknown>
-  } catch {
-    return { error: text }
-  }
-}
+import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
 
 type Props = {
   initialCode?: string
@@ -62,7 +52,7 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
         body: JSON.stringify({ code, newPassword })
       })
 
-      const data = await parseResponseData(response)
+      const data = await parseFetchResponseData(response)
       const responseError =
         typeof data.error === 'string' ? data.error : 'Failed to reset password'
       const responseMessage =

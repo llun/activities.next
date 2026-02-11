@@ -239,6 +239,7 @@ export type ValidatePasswordResetCodeParams = {
   passwordResetCode: string
 }
 export type ResetPasswordWithCodeParams = {
+  accountId?: string
   passwordResetCode: string
   newPasswordHash: string
 }
@@ -294,7 +295,7 @@ export interface AccountDatabase {
   requestPasswordReset(params: RequestPasswordResetParams): Promise<boolean>
   validatePasswordResetCode(
     params: ValidatePasswordResetCodeParams
-  ): Promise<boolean>
+  ): Promise<string | null>
   resetPasswordWithCode(
     params: ResetPasswordWithCodeParams
   ): Promise<Account | null>

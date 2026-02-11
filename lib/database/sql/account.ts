@@ -533,29 +533,34 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
   async validatePasswordResetCode({
     passwordResetCode
-  }: ValidatePasswordResetCodeParams): Promise<boolean> {
+  }: ValidatePasswordResetCodeParams): Promise<string | null> {
     const now = new Date()
     const account = await database<SQLAccount>('accounts')
       .where('passwordResetCode', passwordResetCode)
       .andWhere('passwordResetCodeExpiresAt', '>=', now)
       .first('id')
 
-    return Boolean(account)
+    return account?.id ?? null
   },
 
   async resetPasswordWithCode({
+    accountId,
     passwordResetCode,
     newPasswordHash
   }: ResetPasswordWithCodeParams): Promise<Account | null> {
     const now = new Date()
-    const accountId = await database.transaction(async (trx) => {
-      const account = await trx<SQLAccount>('accounts')
-        .where('passwordResetCode', passwordResetCode)
-        .first('id')
-      if (!account) return null
+    const targetAccountId = accountId
+      ? accountId
+      : (
+          await database<SQLAccount>('accounts')
+            .where('passwordResetCode', passwordResetCode)
+            .first('id')
+        )?.id
+    if (!targetAccountId) return null
 
+    const updatedAccountId = await database.transaction(async (trx) => {
       const updatedCount = await trx('accounts')
-        .where('id', account.id)
+        .where('id', targetAccountId)
         .andWhere('passwordResetCode', passwordResetCode)
         .andWhere('passwordResetCodeExpiresAt', '>=', now)
         .update({
@@ -567,12 +572,12 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
       if (updatedCount === 0) return null
 
-      await trx('sessions').where('accountId', account.id).delete()
-      return account.id
+      await trx('sessions').where('accountId', targetAccountId).delete()
+      return targetAccountId
     })
 
-    if (!accountId) return null
-    return this.getAccountFromId({ id: accountId })
+    if (!updatedAccountId) return null
+    return this.getAccountFromId({ id: updatedAccountId })
   },
 
   async changePassword({

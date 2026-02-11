@@ -65,8 +65,8 @@ export const POST = traceApiRoute(
             return apiResponse({
               req: request,
               allowedMethods: CORS_HEADERS,
-              data: { error: 'Failed to send password reset email' },
-              responseStatusCode: 500
+              data: { success: true, message: SUCCESS_MESSAGE },
+              responseStatusCode: 200
             })
           }
         } else {

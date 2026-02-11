@@ -33,11 +33,11 @@ export const POST = traceApiRoute(
       const body = await request.json()
       const { code, newPassword } = ResetPasswordRequest.parse(body)
       const passwordResetCode = hashPasswordResetCode(code)
-      const isValidCode = await database.validatePasswordResetCode({
+      const accountId = await database.validatePasswordResetCode({
         passwordResetCode
       })
 
-      if (!isValidCode) {
+      if (!accountId) {
         return apiResponse({
           req: request,
           allowedMethods: CORS_HEADERS,
@@ -49,6 +49,7 @@ export const POST = traceApiRoute(
       const newPasswordHash = await bcrypt.hash(newPassword, 10)
 
       const account = await database.resetPasswordWithCode({
+        accountId,
         passwordResetCode,
         newPasswordHash
       })
