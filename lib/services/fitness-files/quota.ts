@@ -24,6 +24,8 @@ export async function checkFitnessQuotaAvailable(
     return { available: false, used: 0, limit: quotaLimit }
   }
 
+  // Note: Accessing database['knex'] to get Knex instance for counter operations
+  // This pattern is used throughout the codebase (see lib/services/medias/quota.ts)
   const knexInstance = database['knex'] ?? database
   const mediaUsageKey = CounterKey.mediaUsage(account.id)
   const fitnessUsageKey = CounterKey.fitnessUsage(account.id)

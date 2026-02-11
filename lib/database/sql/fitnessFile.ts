@@ -58,6 +58,11 @@ export interface FitnessFileDatabase {
   ): Promise<boolean>
 }
 
+// Helper function to normalize bytes from database which can be number, string, or bigint
+const normalizeBytes = (bytes: number | string | bigint): number => {
+  return Number(bytes)
+}
+
 const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   id: row.id,
   actorId: row.actorId,
@@ -66,7 +71,7 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   fileName: row.fileName,
   fileType: row.fileType,
   mimeType: row.mimeType,
-  bytes: Number(row.bytes),
+  bytes: normalizeBytes(row.bytes),
   description: row.description ?? undefined,
   hasMapData: row.hasMapData ?? false,
   mapImagePath: row.mapImagePath ?? undefined,
@@ -181,8 +186,7 @@ export const FitnessFileSQLDatabaseMixin = (
 
       // Update counters
       if (actor?.accountId) {
-        const bytes =
-          typeof file.bytes === 'bigint' ? Number(file.bytes) : file.bytes
+        const bytes = normalizeBytes(file.bytes)
         await decreaseCounterValue(
           trx,
           CounterKey.fitnessUsage(actor.accountId),

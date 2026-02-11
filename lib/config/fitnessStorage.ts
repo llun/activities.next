@@ -81,7 +81,7 @@ export const getFitnessStorageConfig = (): {
             type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
             bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET as string,
             region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION as string,
-            hostname: process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME || '',
+            hostname: process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME || undefined,
             prefix: 'fitness/',
             maxFileSize:
               (process.env.ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE &&
@@ -134,7 +134,7 @@ export const getFitnessStorageConfig = (): {
           type: process.env.ACTIVITIES_FITNESS_STORAGE_TYPE,
           bucket: process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET as string,
           region: process.env.ACTIVITIES_FITNESS_STORAGE_REGION as string,
-          hostname: process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME || '',
+          hostname: process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME || undefined,
           prefix: process.env.ACTIVITIES_FITNESS_STORAGE_PREFIX || 'fitness/',
           maxFileSize:
             (process.env.ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE &&
