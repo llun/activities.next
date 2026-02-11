@@ -100,7 +100,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         setIsLoadMoreVisible(entry.isIntersecting)
 
         // Automatically load more when the button comes into view
-        if (entry.isIntersecting && !isLoadingMoreStatuses) {
+        // The loadMoreStatuses callback has its own guard against duplicate loads
+        if (entry.isIntersecting) {
           loadMoreStatuses()
         }
       },
@@ -116,7 +117,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     return () => {
       observer.disconnect()
     }
-  }, [loadMoreStatuses, isLoadingMoreStatuses])
+  }, [loadMoreStatuses])
 
   const onTabChange = async (value: string) => {
     const tab = TIMELINES_TABS.find((t) => t.timeline === value)
