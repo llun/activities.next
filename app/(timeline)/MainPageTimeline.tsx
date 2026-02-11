@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, useReducer, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
 import { PostBox } from '@/lib/components/post-box/post-box'
@@ -51,7 +51,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
+  const [isLoadMoreVisible, setIsLoadMoreVisible] = useState<boolean>(false)
   const tabRequestId = useRef(0)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
 
   const onEdit = (status: EditableStatus) => {
     dispatchStatusAction(editAction(status))
@@ -69,6 +71,52 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       ...currentStatuses.slice(statusIndex + 1)
     ])
   }
+
+  const loadMoreStatuses = useCallback(async () => {
+    if (isLoadingMoreStatuses || currentStatuses.length === 0) return
+
+    setLoadingMoreStatuses(true)
+    try {
+      const statuses = await getTimeline({
+        timeline: currentTab.timeline,
+        maxStatusId: currentStatuses[currentStatuses.length - 1].id
+      })
+      setCurrentStatuses((prev) => [...prev, ...statuses])
+    } catch (_error) {
+      // Error loading more - user can retry by clicking the button
+    } finally {
+      setLoadingMoreStatuses(false)
+    }
+  }, [currentTab.timeline, currentStatuses, isLoadingMoreStatuses])
+
+  // Set up IntersectionObserver for automatic loading
+  useEffect(() => {
+    const loadMoreElement = loadMoreRef.current
+    if (!loadMoreElement) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries
+        setIsLoadMoreVisible(entry.isIntersecting)
+
+        // Automatically load more when the button comes into view
+        if (entry.isIntersecting && !isLoadingMoreStatuses) {
+          loadMoreStatuses()
+        }
+      },
+      {
+        root: null,
+        rootMargin: '0px',
+        threshold: 0.1
+      }
+    )
+
+    observer.observe(loadMoreElement)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [loadMoreStatuses, isLoadingMoreStatuses])
 
   const onTabChange = async (value: string) => {
     const tab = TIMELINES_TABS.find((t) => t.timeline === value)
@@ -96,7 +144,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   return (
     <div className="space-y-6">
-      <ScrollToTopButton />
+      <ScrollToTopButton isLoadMoreVisible={isLoadMoreVisible} />
       <div>
         <h1 className="text-2xl font-semibold">Timeline</h1>
         <p className="text-sm text-muted-foreground">
@@ -181,19 +229,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         </Tabs>
 
         {currentStatuses.length > 0 && (
-          <div className="p-4 text-center border-t">
+          <div ref={loadMoreRef} className="p-4 text-center border-t">
             <Button
               variant="outline"
               disabled={isLoadingMoreStatuses}
-              onClick={async () => {
-                setLoadingMoreStatuses(true)
-                const statuses = await getTimeline({
-                  timeline: currentTab.timeline,
-                  maxStatusId: currentStatuses[currentStatuses.length - 1].id
-                })
-                setCurrentStatuses([...currentStatuses, ...statuses])
-                setLoadingMoreStatuses(false)
-              }}
+              onClick={loadMoreStatuses}
             >
               {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
             </Button>

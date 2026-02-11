@@ -2,7 +2,13 @@
 
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
-export const ScrollToTopButton: FC = () => {
+interface ScrollToTopButtonProps {
+  isLoadMoreVisible?: boolean
+}
+
+export const ScrollToTopButton: FC<ScrollToTopButtonProps> = ({
+  isLoadMoreVisible = false
+}) => {
   const [isVisible, setIsVisible] = useState(false)
   const timeoutRef = useRef<number | null>(null)
 
@@ -48,7 +54,8 @@ export const ScrollToTopButton: FC = () => {
     })
   }
 
-  if (!isVisible) {
+  // Hide the button if load more is visible or if not scrolled enough
+  if (!isVisible || isLoadMoreVisible) {
     return null
   }
 
