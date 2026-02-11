@@ -32,10 +32,13 @@ export const POST = traceApiRoute('revokeToken', async (req: NextRequest) => {
   if (contentType.includes('application/x-www-form-urlencoded')) {
     values = await getFormValues()
   } else if (contentType.includes('application/json')) {
-    const body = await req.json()
+    const body = (await req.json()) as {
+      token?: string
+      token_type_hint?: string
+    }
     values = {
-      token: body.token,
-      tokenTypeHint: body.token_type_hint
+      token: body.token || null,
+      tokenTypeHint: body.token_type_hint || null
     }
   } else {
     // Try form data as default

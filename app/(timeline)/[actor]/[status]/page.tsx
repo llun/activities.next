@@ -126,15 +126,22 @@ const Page: FC<Props> = async ({ params }) => {
       ? status.originalStatus.url
       : status.url
 
-  const replies: Status[] =
+  let replies: Status[]
+
+  if (
     status.type === StatusType.enum.Note &&
     status.replies &&
     status.replies.length > 0
-      ? (status.replies as Status[])
-      : await database.getStatusReplies({
-          statusId,
-          url: statusUrl
-        })
+  ) {
+    // If replies are embedded (e.g. temporary status), use them
+    replies = status.replies as Status[]
+  } else {
+    // Otherwise fetch from database
+    replies = await database.getStatusReplies({
+      statusId,
+      url: statusUrl
+    })
+  }
 
   // Check if the status is publicly visible (public or unlisted)
   const isPublicOrUnlisted =
