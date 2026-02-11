@@ -179,6 +179,13 @@ describe('AccountDatabase', () => {
       it('creates and consumes password reset codes', async () => {
         const { accountId, email } = await createTestAccount()
         const passwordResetCode = `reset-${crypto.randomUUID()}`
+        const token = `session-${crypto.randomUUID()}`
+
+        await database.createAccountSession({
+          accountId,
+          token,
+          expireAt: Date.now() + 60_000
+        })
 
         const requested = await database.requestPasswordReset({
           email,
@@ -206,6 +213,10 @@ describe('AccountDatabase', () => {
           passwordResetCode: null,
           passwordResetCodeExpiresAt: null
         })
+        expect(await database.getAccountSession({ token })).toBeNull()
+        expect(
+          await database.getAccountAllSessions({ accountId })
+        ).toHaveLength(0)
 
         const reused = await database.resetPasswordWithCode({
           passwordResetCode,
@@ -220,6 +231,36 @@ describe('AccountDatabase', () => {
           passwordResetCode: `reset-${crypto.randomUUID()}`
         })
         expect(requested).toBeFalse()
+      })
+
+      it('changePassword clears reset code and invalidates sessions', async () => {
+        const { accountId, email } = await createTestAccount()
+        const token = `session-${crypto.randomUUID()}`
+        const passwordResetCode = `reset-${crypto.randomUUID()}`
+
+        await database.createAccountSession({
+          accountId,
+          token,
+          expireAt: Date.now() + 60_000
+        })
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode
+        })
+
+        await database.changePassword({
+          accountId,
+          newPasswordHash: 'updated_hash'
+        })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({
+          id: accountId,
+          passwordHash: 'updated_hash',
+          passwordResetCode: null,
+          passwordResetCodeExpiresAt: null
+        })
+        expect(await database.getAccountSession({ token })).toBeNull()
       })
     })
 

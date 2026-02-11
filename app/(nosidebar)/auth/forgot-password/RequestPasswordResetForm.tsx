@@ -6,6 +6,17 @@ import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 
+const parseResponseData = async (response: Response) => {
+  const text = await response.text()
+  if (!text) return {}
+
+  try {
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {
+    return { error: text }
+  }
+}
+
 export const RequestPasswordResetForm: FC = () => {
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
@@ -26,17 +37,21 @@ export const RequestPasswordResetForm: FC = () => {
         },
         body: JSON.stringify({ email })
       })
-
-      const data = await response.json()
+      const data = await parseResponseData(response)
+      const responseError =
+        typeof data.error === 'string'
+          ? data.error
+          : 'Failed to request password reset'
+      const responseMessage =
+        typeof data.message === 'string'
+          ? data.message
+          : 'If an account exists for that email, a password reset link has been sent.'
       if (!response.ok) {
-        setError(data.error || 'Failed to request password reset')
+        setError(responseError)
         return
       }
 
-      setMessage(
-        data.message ||
-          'If an account exists for that email, a password reset link has been sent.'
-      )
+      setMessage(responseMessage)
     } catch (_error) {
       setError('An unexpected error occurred. Please try again.')
     } finally {

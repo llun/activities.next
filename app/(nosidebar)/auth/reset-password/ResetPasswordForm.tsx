@@ -7,6 +7,17 @@ import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 
+const parseResponseData = async (response: Response) => {
+  const text = await response.text()
+  if (!text) return {}
+
+  try {
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {
+    return { error: text }
+  }
+}
+
 type Props = {
   initialCode?: string
 }
@@ -51,15 +62,21 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
         body: JSON.stringify({ code, newPassword })
       })
 
-      const data = await response.json()
+      const data = await parseResponseData(response)
+      const responseError =
+        typeof data.error === 'string' ? data.error : 'Failed to reset password'
+      const responseMessage =
+        typeof data.message === 'string'
+          ? data.message
+          : 'Password reset successfully'
 
       if (!response.ok) {
-        setError(data.error || 'Failed to reset password')
+        setError(responseError)
         return
       }
 
       setIsSuccess(true)
-      setMessage(data.message || 'Password reset successfully')
+      setMessage(responseMessage)
       setNewPassword('')
       setConfirmPassword('')
     } catch (_error) {
