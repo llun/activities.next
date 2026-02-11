@@ -1,10 +1,7 @@
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
-import {
-  DEFAULT_FITNESS_MAX_FILE_SIZE,
-  FitnessStorageConfig
-} from '@/lib/config/fitnessStorage'
+import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
 import { Actor } from '@/lib/types/domain/actor'
 
 import {

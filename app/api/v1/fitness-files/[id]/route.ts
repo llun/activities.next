@@ -1,18 +1,14 @@
 import { NextRequest } from 'next/server'
 
+import { getDatabase } from '@/lib/database'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { logger } from '@/lib/utils/logger'
 import { StatusCode, apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-import { getDatabase } from '@/lib/database'
-
 export const GET = traceApiRoute(
   'getFitnessFile',
-  async (
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-  ) => {
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const database = getDatabase()
     const { id } = await params
 

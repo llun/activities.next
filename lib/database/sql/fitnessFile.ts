@@ -7,10 +7,7 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import {
-  FitnessFile,
-  SQLFitnessFile
-} from '@/lib/types/database/fitnessFile'
+import { FitnessFile, SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 
 export interface CreateFitnessFileParams {
   actorId: string
@@ -44,7 +41,9 @@ export interface DeleteFitnessFileParams {
 }
 
 export interface FitnessFileDatabase {
-  createFitnessFile(params: CreateFitnessFileParams): Promise<FitnessFile | null>
+  createFitnessFile(
+    params: CreateFitnessFileParams
+  ): Promise<FitnessFile | null>
   getFitnessFile(params: GetFitnessFileParams): Promise<FitnessFile | null>
   getFitnessFilesByActor(
     params: GetFitnessFilesByActorParams

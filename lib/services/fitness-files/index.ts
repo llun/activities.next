@@ -3,8 +3,8 @@ import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 
-import { LocalFileFitnessStorage } from './localFile'
 import { S3FitnessStorage } from './S3StorageFile'
+import { LocalFileFitnessStorage } from './localFile'
 import { FitnessFileUploadSchema } from './types'
 
 export const saveFitnessFile = async (
@@ -36,7 +36,7 @@ export const saveFitnessFile = async (
 
 export const getFitnessFile = async (database: Database, fileId: string) => {
   const { fitnessStorage, host } = getConfig()
-  
+
   // Get file metadata from database
   const fileMetadata = await database.getFitnessFile({ id: fileId })
   if (!fileMetadata) return null
@@ -64,37 +64,38 @@ export const getFitnessFile = async (database: Database, fileId: string) => {
 
 export const deleteFitnessFile = async (database: Database, fileId: string) => {
   const { fitnessStorage, host } = getConfig()
-  
+
   // Get file metadata from database
   const fileMetadata = await database.getFitnessFile({ id: fileId })
   if (!fileMetadata) return false
 
-  let storageDeleted = false
   switch (fitnessStorage?.type) {
     case FitnessStorageType.LocalFile: {
-      storageDeleted = await LocalFileFitnessStorage.getStorage(
+      const storageDeleted = await LocalFileFitnessStorage.getStorage(
         fitnessStorage,
         host,
         database
       ).deleteFile(fileMetadata.path)
-      break
+
+      if (storageDeleted) {
+        await database.deleteFitnessFile({ id: fileId })
+      }
+      return storageDeleted
     }
     case FitnessStorageType.S3Storage:
     case FitnessStorageType.ObjectStorage: {
-      storageDeleted = await S3FitnessStorage.getStorage(
+      const storageDeleted = await S3FitnessStorage.getStorage(
         fitnessStorage,
         host,
         database
       ).deleteFile(fileMetadata.path)
-      break
+
+      if (storageDeleted) {
+        await database.deleteFitnessFile({ id: fileId })
+      }
+      return storageDeleted
     }
     default:
       return false
   }
-
-  if (storageDeleted) {
-    await database.deleteFitnessFile({ id: fileId })
-  }
-
-  return storageDeleted
 }

@@ -11,10 +11,7 @@ import { SMTPConfig } from '../services/email/smtp'
 import { logger } from '../utils/logger'
 import { AuthConfig, getAuthConfig } from './auth'
 import { getDatabaseConfig } from './database'
-import {
-  FitnessStorageConfig,
-  getFitnessStorageConfig
-} from './fitnessStorage'
+import { FitnessStorageConfig, getFitnessStorageConfig } from './fitnessStorage'
 import { InternalApiConfig, getInternalApiConfig } from './internalApi'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'

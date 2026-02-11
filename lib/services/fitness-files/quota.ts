@@ -11,7 +11,7 @@ export async function checkFitnessQuotaAvailable(
   requiredBytes: number
 ): Promise<{ available: boolean; used: number; limit: number }> {
   const config = getConfig()
-  
+
   // Use the same quota as media storage (shared quota)
   const quotaLimit =
     config.fitnessStorage?.quotaPerAccount ??
