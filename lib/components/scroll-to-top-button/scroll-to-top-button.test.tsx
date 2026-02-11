@@ -39,15 +39,56 @@ describe('ScrollToTopButton', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('should be visible when scroll position is greater than 300px', () => {
+  it('should not render button when load more is visible even if scrolled', () => {
     Object.defineProperty(window, 'scrollY', { value: 400 })
-    render(<ScrollToTopButton />)
+    render(<ScrollToTopButton isLoadMoreVisible={true} />)
+
+    expect(
+      screen.queryByRole('button', { name: 'Scroll to top' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('should be visible when scroll position is greater than 300px and load more is not visible', () => {
+    Object.defineProperty(window, 'scrollY', { value: 400 })
+    render(<ScrollToTopButton isLoadMoreVisible={false} />)
 
     const button = screen.getByRole('button', { name: 'Scroll to top' })
     expect(button).toHaveClass('bg-white')
     expect(button).toHaveClass('animate-in')
     expect(button).toHaveTextContent('Scroll to top')
     expect(button).not.toBeDisabled()
+  })
+
+  it('should hide button when load more becomes visible', async () => {
+    Object.defineProperty(window, 'scrollY', { value: 400 })
+    const { rerender } = render(<ScrollToTopButton isLoadMoreVisible={false} />)
+
+    expect(
+      screen.getByRole('button', { name: 'Scroll to top' })
+    ).toBeInTheDocument()
+
+    // Load more becomes visible
+    rerender(<ScrollToTopButton isLoadMoreVisible={true} />)
+
+    expect(
+      screen.queryByRole('button', { name: 'Scroll to top' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('should show button again when load more becomes hidden', async () => {
+    Object.defineProperty(window, 'scrollY', { value: 400 })
+    const { rerender } = render(<ScrollToTopButton isLoadMoreVisible={true} />)
+
+    expect(
+      screen.queryByRole('button', { name: 'Scroll to top' })
+    ).not.toBeInTheDocument()
+
+    // Load more becomes hidden
+    rerender(<ScrollToTopButton isLoadMoreVisible={false} />)
+
+    expect(
+      screen.getByRole('button', { name: 'Scroll to top' })
+    ).toBeInTheDocument()
   })
 
   it('should show button after scrolling past threshold', async () => {
