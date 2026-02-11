@@ -21,17 +21,47 @@ import {
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
   RequestEmailChangeParams,
+  RequestPasswordResetParams,
+  ResetPasswordWithCodeParams,
   SetDefaultActorParams,
   SetSessionActorParams,
   UnlinkAccountFromProviderParams,
   UpdateAccountSessionParams,
+  ValidatePasswordResetCodeParams,
   VerifyAccountParams,
   VerifyEmailChangeParams
 } from '@/lib/types/database/operations'
-import { ActorSettings } from '@/lib/types/database/rows'
+import { ActorSettings, SQLAccount } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
 import { Session } from '@/lib/types/domain/session'
+
+const toDomainAccount = (account: SQLAccount): Account =>
+  Account.parse({
+    ...account,
+    ...(account.verifiedAt
+      ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
+      : null),
+    ...(account.emailVerifiedAt
+      ? { emailVerifiedAt: getCompatibleTime(account.emailVerifiedAt) }
+      : null),
+    ...(account.emailChangeCodeExpiresAt
+      ? {
+          emailChangeCodeExpiresAt: getCompatibleTime(
+            account.emailChangeCodeExpiresAt
+          )
+        }
+      : null),
+    ...(account.passwordResetCodeExpiresAt
+      ? {
+          passwordResetCodeExpiresAt: getCompatibleTime(
+            account.passwordResetCodeExpiresAt
+          )
+        }
+      : null),
+    createdAt: getCompatibleTime(account.createdAt),
+    updatedAt: getCompatibleTime(account.updatedAt)
+  })
 
 export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async isAccountExists({ email }: IsAccountExistsParams) {
@@ -98,51 +128,21 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   },
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
-    const account = await database('accounts').where('id', id).first()
+    const account = await database<SQLAccount>('accounts')
+      .where('id', id)
+      .first()
     if (!account) return null
-    return {
-      ...account,
-      ...(account.verifiedAt
-        ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
-        : null),
-      ...(account.emailVerifiedAt
-        ? { emailVerifiedAt: getCompatibleTime(account.emailVerifiedAt) }
-        : null),
-      ...(account.emailChangeCodeExpiresAt
-        ? {
-            emailChangeCodeExpiresAt: getCompatibleTime(
-              account.emailChangeCodeExpiresAt
-            )
-          }
-        : null),
-      createdAt: getCompatibleTime(account.createdAt),
-      updatedAt: getCompatibleTime(account.updatedAt)
-    }
+    return toDomainAccount(account)
   },
 
   async getAccountFromEmail({
     email
   }: GetAccountFromEmailParams): Promise<Account | null> {
-    const account = await database('accounts').where('email', email).first()
+    const account = await database<SQLAccount>('accounts')
+      .where('email', email)
+      .first()
     if (!account) return null
-    return {
-      ...account,
-      ...(account.verifiedAt
-        ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
-        : null),
-      ...(account.emailVerifiedAt
-        ? { emailVerifiedAt: getCompatibleTime(account.emailVerifiedAt) }
-        : null),
-      ...(account.emailChangeCodeExpiresAt
-        ? {
-            emailChangeCodeExpiresAt: getCompatibleTime(
-              account.emailChangeCodeExpiresAt
-            )
-          }
-        : null),
-      createdAt: getCompatibleTime(account.createdAt),
-      updatedAt: getCompatibleTime(account.updatedAt)
-    }
+    return toDomainAccount(account)
   },
 
   async getAccountFromProviderId({
@@ -153,27 +153,10 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       .where('provider', provider)
       .where('providerId', accountId)
       .join('accounts', 'account_providers.accountId', '=', 'accounts.id')
-      .select<Account>('accounts.*')
+      .select<SQLAccount>('accounts.*')
       .first()
     if (!account) return null
-    return {
-      ...account,
-      ...(account.verifiedAt
-        ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
-        : null),
-      ...(account.emailVerifiedAt
-        ? { emailVerifiedAt: getCompatibleTime(account.emailVerifiedAt) }
-        : null),
-      ...(account.emailChangeCodeExpiresAt
-        ? {
-            emailChangeCodeExpiresAt: getCompatibleTime(
-              account.emailChangeCodeExpiresAt
-            )
-          }
-        : null),
-      createdAt: getCompatibleTime(account.createdAt),
-      updatedAt: getCompatibleTime(account.updatedAt)
-    }
+    return toDomainAccount(account)
   },
 
   async linkAccountWithProvider({
@@ -202,20 +185,13 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       createdAt: currentTime,
       updatedAt: currentTime
     })
-    return {
-      ...account,
-      ...(account.verifiedAt
-        ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
-        : null),
-      createdAt: getCompatibleTime(account.createdAt),
-      updatedAt: getCompatibleTime(account.updatedAt)
-    }
+    return toDomainAccount(account)
   },
 
   async verifyAccount({ verificationCode }: VerifyAccountParams) {
-    const account = await database('accounts')
+    const account = await database<SQLAccount>('accounts')
       .where('verificationCode', verificationCode)
-      .first<Account>()
+      .first()
     if (!account) return null
 
     const currentTime = new Date()
@@ -387,7 +363,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     const sqlActors = await database('actors').where('accountId', accountId)
     if (!sqlActors || sqlActors.length === 0) return []
 
-    const account = await database('accounts').where('id', accountId).first()
+    const account = await database<SQLAccount>('accounts')
+      .where('id', accountId)
+      .first()
     if (!account) return []
 
     const results: Actor[] = []
@@ -425,14 +403,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         sharedInboxUrl: settings.sharedInboxUrl,
         publicKey: sqlActor.publicKey,
         ...(sqlActor.privateKey ? { privateKey: sqlActor.privateKey } : null),
-        account: Account.parse({
-          ...account,
-          createdAt: getCompatibleTime(account.createdAt),
-          updatedAt: getCompatibleTime(account.updatedAt),
-          ...(account.verifiedAt
-            ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
-            : null)
-        }),
+        account: toDomainAccount(account),
         followingCount: counters[CounterKey.totalFollowing(sqlActor.id)] ?? 0,
         followersCount: counters[CounterKey.totalFollowers(sqlActor.id)] ?? 0,
         statusCount: counters[CounterKey.totalStatus(sqlActor.id)] ?? 0,
@@ -537,14 +508,96 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     return this.getAccountFromId({ id: account.id })
   },
 
+  // Multiple reset requests are allowed; the most recent code replaces prior ones.
+  async requestPasswordReset({
+    email,
+    passwordResetCode,
+    expiresAt
+  }: RequestPasswordResetParams): Promise<boolean> {
+    const account = await database<SQLAccount>('accounts')
+      .where('email', email)
+      .first()
+    if (!account) return false
+
+    const currentTime = new Date()
+    const expiresAtDate =
+      passwordResetCode === null
+        ? null
+        : expiresAt
+          ? new Date(expiresAt)
+          : new Date(currentTime.getTime() + 24 * 60 * 60 * 1000) // 24 hours
+
+    await database('accounts').where('id', account.id).update({
+      passwordResetCode,
+      passwordResetCodeExpiresAt: expiresAtDate,
+      updatedAt: currentTime
+    })
+
+    return true
+  },
+
+  async validatePasswordResetCode({
+    passwordResetCode
+  }: ValidatePasswordResetCodeParams): Promise<string | null> {
+    const now = new Date()
+    const account = await database<SQLAccount>('accounts')
+      .where('passwordResetCode', passwordResetCode)
+      .andWhere('passwordResetCodeExpiresAt', '>=', now)
+      .first('id')
+
+    return account?.id ?? null
+  },
+
+  async resetPasswordWithCode({
+    accountId,
+    passwordResetCode,
+    newPasswordHash
+  }: ResetPasswordWithCodeParams): Promise<Account | null> {
+    const now = new Date()
+    const targetAccountId = accountId
+      ? accountId
+      : (
+          await database<SQLAccount>('accounts')
+            .where('passwordResetCode', passwordResetCode)
+            .first('id')
+        )?.id
+    if (!targetAccountId) return null
+
+    const updatedAccountId = await database.transaction(async (trx) => {
+      const updatedCount = await trx('accounts')
+        .where('id', targetAccountId)
+        .andWhere('passwordResetCode', passwordResetCode)
+        .andWhere('passwordResetCodeExpiresAt', '>=', now)
+        .update({
+          passwordHash: newPasswordHash,
+          passwordResetCode: null,
+          passwordResetCodeExpiresAt: null,
+          updatedAt: now
+        })
+
+      if (updatedCount === 0) return null
+
+      await trx('sessions').where('accountId', targetAccountId).delete()
+      return targetAccountId
+    })
+
+    if (!updatedAccountId) return null
+    return this.getAccountFromId({ id: updatedAccountId })
+  },
+
   async changePassword({
     accountId,
     newPasswordHash
   }: ChangePasswordParams): Promise<void> {
     const currentTime = new Date()
-    await database('accounts').where('id', accountId).update({
-      passwordHash: newPasswordHash,
-      updatedAt: currentTime
+    await database.transaction(async (trx) => {
+      await trx('accounts').where('id', accountId).update({
+        passwordHash: newPasswordHash,
+        passwordResetCode: null,
+        passwordResetCodeExpiresAt: null,
+        updatedAt: currentTime
+      })
+      await trx('sessions').where('accountId', accountId).delete()
     })
   }
 })

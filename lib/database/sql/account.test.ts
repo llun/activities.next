@@ -175,6 +175,169 @@ describe('AccountDatabase', () => {
         })
         expect(invalid).toBeNull()
       })
+
+      it('creates and consumes password reset codes', async () => {
+        const { accountId, email } = await createTestAccount()
+        const passwordResetCode = `reset-${crypto.randomUUID()}`
+        const token = `session-${crypto.randomUUID()}`
+
+        await database.createAccountSession({
+          accountId,
+          token,
+          expireAt: Date.now() + 60_000
+        })
+
+        const requested = await database.requestPasswordReset({
+          email,
+          passwordResetCode
+        })
+
+        expect(requested).toBeTrue()
+
+        const accountWithResetCode = await database.getAccountFromId({
+          id: accountId
+        })
+        expect(accountWithResetCode).toMatchObject({
+          id: accountId,
+          passwordResetCode,
+          passwordResetCodeExpiresAt: expect.toBeNumber()
+        })
+        expect(
+          await database.validatePasswordResetCode({ passwordResetCode })
+        ).toBe(accountId)
+
+        const resetResult = await database.resetPasswordWithCode({
+          passwordResetCode,
+          newPasswordHash: 'new_password_hash'
+        })
+        expect(resetResult).toMatchObject({
+          id: accountId,
+          passwordHash: 'new_password_hash',
+          passwordResetCode: null,
+          passwordResetCodeExpiresAt: null
+        })
+        expect(await database.getAccountSession({ token })).toBeNull()
+        expect(
+          await database.getAccountAllSessions({ accountId })
+        ).toHaveLength(0)
+
+        const reused = await database.resetPasswordWithCode({
+          passwordResetCode,
+          newPasswordHash: 'another_password_hash'
+        })
+        expect(reused).toBeNull()
+      })
+
+      it('returns false when requesting password reset for unknown email', async () => {
+        const requested = await database.requestPasswordReset({
+          email: `missing-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+          passwordResetCode: `reset-${crypto.randomUUID()}`
+        })
+        expect(requested).toBeFalse()
+      })
+
+      it('clears password reset code when null code is provided', async () => {
+        const { accountId, email } = await createTestAccount()
+
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: `reset-${crypto.randomUUID()}`
+        })
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: null,
+          expiresAt: null
+        })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({
+          id: accountId,
+          passwordResetCode: null,
+          passwordResetCodeExpiresAt: null
+        })
+      })
+
+      it('invalidates previous password reset code when a new one is issued', async () => {
+        const { accountId, email } = await createTestAccount()
+        const firstCode = `reset-${crypto.randomUUID()}`
+        const secondCode = `reset-${crypto.randomUUID()}`
+
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: firstCode
+        })
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: secondCode
+        })
+
+        const firstAttempt = await database.resetPasswordWithCode({
+          passwordResetCode: firstCode,
+          newPasswordHash: 'hash_should_not_apply'
+        })
+        expect(firstAttempt).toBeNull()
+
+        const secondAttempt = await database.resetPasswordWithCode({
+          passwordResetCode: secondCode,
+          newPasswordHash: 'hash_should_apply'
+        })
+        expect(secondAttempt).toMatchObject({
+          id: accountId,
+          passwordHash: 'hash_should_apply'
+        })
+      })
+
+      it('rejects expired password reset codes', async () => {
+        const { email } = await createTestAccount()
+        const expiredCode = `reset-${crypto.randomUUID()}`
+
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: expiredCode,
+          expiresAt: Date.now() - 1_000
+        })
+
+        const accountId = await database.validatePasswordResetCode({
+          passwordResetCode: expiredCode
+        })
+        expect(accountId).toBeNull()
+
+        const resetResult = await database.resetPasswordWithCode({
+          passwordResetCode: expiredCode,
+          newPasswordHash: 'should_not_apply'
+        })
+        expect(resetResult).toBeNull()
+      })
+
+      it('changePassword clears reset code and invalidates sessions', async () => {
+        const { accountId, email } = await createTestAccount()
+        const token = `session-${crypto.randomUUID()}`
+        const passwordResetCode = `reset-${crypto.randomUUID()}`
+
+        await database.createAccountSession({
+          accountId,
+          token,
+          expireAt: Date.now() + 60_000
+        })
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode
+        })
+
+        await database.changePassword({
+          accountId,
+          newPasswordHash: 'updated_hash'
+        })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({
+          id: accountId,
+          passwordHash: 'updated_hash',
+          passwordResetCode: null,
+          passwordResetCodeExpiresAt: null
+        })
+        expect(await database.getAccountSession({ token })).toBeNull()
+      })
     })
 
     describe('account providers', () => {

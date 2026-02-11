@@ -44,6 +44,8 @@ export interface SQLAccount {
   email: string
   passwordHash?: string | null
   verificationCode?: string | null
+  passwordResetCode?: string | null
+  passwordResetCodeExpiresAt?: number | Date | null
   emailChangePending?: string | null
   emailChangeCode?: string | null
   emailChangeCodeExpiresAt?: number | Date | null
