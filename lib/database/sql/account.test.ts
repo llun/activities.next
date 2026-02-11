@@ -175,6 +175,52 @@ describe('AccountDatabase', () => {
         })
         expect(invalid).toBeNull()
       })
+
+      it('creates and consumes password reset codes', async () => {
+        const { accountId, email } = await createTestAccount()
+        const passwordResetCode = `reset-${crypto.randomUUID()}`
+
+        const requested = await database.requestPasswordReset({
+          email,
+          passwordResetCode
+        })
+
+        expect(requested).toBeTrue()
+
+        const accountWithResetCode = await database.getAccountFromId({
+          id: accountId
+        })
+        expect(accountWithResetCode).toMatchObject({
+          id: accountId,
+          passwordResetCode,
+          passwordResetCodeExpiresAt: expect.toBeNumber()
+        })
+
+        const resetResult = await database.resetPasswordWithCode({
+          passwordResetCode,
+          newPasswordHash: 'new_password_hash'
+        })
+        expect(resetResult).toMatchObject({
+          id: accountId,
+          passwordHash: 'new_password_hash',
+          passwordResetCode: null,
+          passwordResetCodeExpiresAt: null
+        })
+
+        const reused = await database.resetPasswordWithCode({
+          passwordResetCode,
+          newPasswordHash: 'another_password_hash'
+        })
+        expect(reused).toBeNull()
+      })
+
+      it('returns false when requesting password reset for unknown email', async () => {
+        const requested = await database.requestPasswordReset({
+          email: `missing-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+          passwordResetCode: `reset-${crypto.randomUUID()}`
+        })
+        expect(requested).toBeFalse()
+      })
     })
 
     describe('account providers', () => {

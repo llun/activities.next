@@ -230,6 +230,14 @@ export type VerifyEmailChangeParams = {
   accountId?: string
   emailChangeCode: string
 }
+export type RequestPasswordResetParams = {
+  email: string
+  passwordResetCode: string
+}
+export type ResetPasswordWithCodeParams = {
+  passwordResetCode: string
+  newPasswordHash: string
+}
 export type ChangePasswordParams = {
   accountId: string
   newPasswordHash: string
@@ -279,6 +287,10 @@ export interface AccountDatabase {
 
   requestEmailChange(params: RequestEmailChangeParams): Promise<void>
   verifyEmailChange(params: VerifyEmailChangeParams): Promise<Account | null>
+  requestPasswordReset(params: RequestPasswordResetParams): Promise<boolean>
+  resetPasswordWithCode(
+    params: ResetPasswordWithCodeParams
+  ): Promise<Account | null>
   changePassword(params: ChangePasswordParams): Promise<void>
 }
 

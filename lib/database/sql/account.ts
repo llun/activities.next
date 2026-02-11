@@ -21,6 +21,8 @@ import {
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
   RequestEmailChangeParams,
+  RequestPasswordResetParams,
+  ResetPasswordWithCodeParams,
   SetDefaultActorParams,
   SetSessionActorParams,
   UnlinkAccountFromProviderParams,
@@ -115,6 +117,13 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
             )
           }
         : null),
+      ...(account.passwordResetCodeExpiresAt
+        ? {
+            passwordResetCodeExpiresAt: getCompatibleTime(
+              account.passwordResetCodeExpiresAt
+            )
+          }
+        : null),
       createdAt: getCompatibleTime(account.createdAt),
       updatedAt: getCompatibleTime(account.updatedAt)
     }
@@ -137,6 +146,13 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         ? {
             emailChangeCodeExpiresAt: getCompatibleTime(
               account.emailChangeCodeExpiresAt
+            )
+          }
+        : null),
+      ...(account.passwordResetCodeExpiresAt
+        ? {
+            passwordResetCodeExpiresAt: getCompatibleTime(
+              account.passwordResetCodeExpiresAt
             )
           }
         : null),
@@ -168,6 +184,13 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         ? {
             emailChangeCodeExpiresAt: getCompatibleTime(
               account.emailChangeCodeExpiresAt
+            )
+          }
+        : null),
+      ...(account.passwordResetCodeExpiresAt
+        ? {
+            passwordResetCodeExpiresAt: getCompatibleTime(
+              account.passwordResetCodeExpiresAt
             )
           }
         : null),
@@ -431,6 +454,23 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
           updatedAt: getCompatibleTime(account.updatedAt),
           ...(account.verifiedAt
             ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
+            : null),
+          ...(account.emailVerifiedAt
+            ? { emailVerifiedAt: getCompatibleTime(account.emailVerifiedAt) }
+            : null),
+          ...(account.emailChangeCodeExpiresAt
+            ? {
+                emailChangeCodeExpiresAt: getCompatibleTime(
+                  account.emailChangeCodeExpiresAt
+                )
+              }
+            : null),
+          ...(account.passwordResetCodeExpiresAt
+            ? {
+                passwordResetCodeExpiresAt: getCompatibleTime(
+                  account.passwordResetCodeExpiresAt
+                )
+              }
             : null)
         }),
         followingCount: counters[CounterKey.totalFollowing(sqlActor.id)] ?? 0,
@@ -537,6 +577,55 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     return this.getAccountFromId({ id: account.id })
   },
 
+  // Multiple reset requests are allowed; the most recent code replaces prior ones.
+  async requestPasswordReset({
+    email,
+    passwordResetCode
+  }: RequestPasswordResetParams): Promise<boolean> {
+    const account = await database('accounts').where('email', email).first()
+    if (!account) return false
+
+    const currentTime = new Date()
+    const expiresAt = new Date(currentTime.getTime() + 24 * 60 * 60 * 1000) // 24 hours
+
+    await database('accounts').where('id', account.id).update({
+      passwordResetCode,
+      passwordResetCodeExpiresAt: expiresAt,
+      updatedAt: currentTime
+    })
+
+    return true
+  },
+
+  async resetPasswordWithCode({
+    passwordResetCode,
+    newPasswordHash
+  }: ResetPasswordWithCodeParams): Promise<Account | null> {
+    const account = await database('accounts')
+      .where('passwordResetCode', passwordResetCode)
+      .first()
+
+    if (!account) return null
+    if (account.passwordResetCode !== passwordResetCode) return null
+
+    const now = new Date()
+    if (
+      account.passwordResetCodeExpiresAt &&
+      now > new Date(account.passwordResetCodeExpiresAt)
+    ) {
+      return null
+    }
+
+    await database('accounts').where('id', account.id).update({
+      passwordHash: newPasswordHash,
+      passwordResetCode: null,
+      passwordResetCodeExpiresAt: null,
+      updatedAt: now
+    })
+
+    return this.getAccountFromId({ id: account.id })
+  },
+
   async changePassword({
     accountId,
     newPasswordHash
@@ -544,6 +633,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     const currentTime = new Date()
     await database('accounts').where('id', accountId).update({
       passwordHash: newPasswordHash,
+      passwordResetCode: null,
+      passwordResetCodeExpiresAt: null,
       updatedAt: currentTime
     })
   }
