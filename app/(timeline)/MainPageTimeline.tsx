@@ -54,6 +54,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const [isLoadMoreVisible, setIsLoadMoreVisible] = useState<boolean>(false)
   const tabRequestId = useRef(0)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  const isLoadingRef = useRef<boolean>(false)
 
   const onEdit = (status: EditableStatus) => {
     dispatchStatusAction(editAction(status))
@@ -73,8 +74,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   }
 
   const loadMoreStatuses = useCallback(async () => {
-    if (isLoadingMoreStatuses || currentStatuses.length === 0) return
+    if (isLoadingRef.current || currentStatuses.length === 0) return
 
+    isLoadingRef.current = true
     setLoadingMoreStatuses(true)
     try {
       const statuses = await getTimeline({
@@ -85,9 +87,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     } catch (_error) {
       // Error loading more - user can retry by clicking the button
     } finally {
+      isLoadingRef.current = false
       setLoadingMoreStatuses(false)
     }
-  }, [currentTab.timeline, currentStatuses, isLoadingMoreStatuses])
+  }, [currentTab.timeline, currentStatuses])
 
   // Set up IntersectionObserver for automatic loading
   useEffect(() => {
