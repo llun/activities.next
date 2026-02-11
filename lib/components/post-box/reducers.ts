@@ -15,6 +15,11 @@ interface StatusExtension {
     pollType: 'oneOf' | 'anyOf'
   }
   visibility: MastodonVisibility
+  fitnessFile?: {
+    file: File
+    uploading: boolean
+    uploadedId?: string
+  }
 }
 
 export const resetExtension = () => ({ type: 'resetExtension' as const })
@@ -85,6 +90,31 @@ export const setVisibility = (visibility: MastodonVisibility) => ({
 })
 type ActionSetVisibility = ReturnType<typeof setVisibility>
 
+export const setFitnessFile = (file: File) => ({
+  type: 'setFitnessFile' as const,
+  file
+})
+type ActionSetFitnessFile = ReturnType<typeof setFitnessFile>
+
+export const setFitnessFileUploading = (uploading: boolean) => ({
+  type: 'setFitnessFileUploading' as const,
+  uploading
+})
+type ActionSetFitnessFileUploading = ReturnType<
+  typeof setFitnessFileUploading
+>
+
+export const setFitnessFileUploaded = (uploadedId: string) => ({
+  type: 'setFitnessFileUploaded' as const,
+  uploadedId
+})
+type ActionSetFitnessFileUploaded = ReturnType<typeof setFitnessFileUploaded>
+
+export const removeFitnessFile = () => ({
+  type: 'removeFitnessFile' as const
+})
+type ActionRemoveFitnessFile = ReturnType<typeof removeFitnessFile>
+
 type Actions =
   | ActionReset
   | ActionSetAttachments
@@ -97,6 +127,10 @@ type Actions =
   | ActionUpdateAttachment
   | ActionRemoveAttachment
   | ActionSetVisibility
+  | ActionSetFitnessFile
+  | ActionSetFitnessFileUploading
+  | ActionSetFitnessFileUploaded
+  | ActionRemoveFitnessFile
 
 const key = () => Math.round(Math.random() * 1000)
 
@@ -238,6 +272,44 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       return {
         ...state,
         visibility: action.visibility
+      }
+    }
+    case 'setFitnessFile': {
+      return {
+        ...state,
+        fitnessFile: {
+          file: action.file,
+          uploading: false
+        },
+        // Auto-set visibility to private when fitness file is attached
+        visibility: 'private'
+      }
+    }
+    case 'setFitnessFileUploading': {
+      if (!state.fitnessFile) return state
+      return {
+        ...state,
+        fitnessFile: {
+          ...state.fitnessFile,
+          uploading: action.uploading
+        }
+      }
+    }
+    case 'setFitnessFileUploaded': {
+      if (!state.fitnessFile) return state
+      return {
+        ...state,
+        fitnessFile: {
+          ...state.fitnessFile,
+          uploading: false,
+          uploadedId: action.uploadedId
+        }
+      }
+    }
+    case 'removeFitnessFile': {
+      return {
+        ...state,
+        fitnessFile: undefined
       }
     }
     default:

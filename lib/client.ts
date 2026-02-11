@@ -588,3 +588,38 @@ export const getActorMedia = async ({
   if (response.status !== 200) return []
   return response.json()
 }
+
+export interface UploadFitnessFileResult {
+  id: string
+  type: 'fitness'
+  file_type: 'fit' | 'gpx' | 'tcx'
+  mime_type: string
+  url: string
+  fileName: string
+  size: number
+  description?: string
+  hasMapData?: boolean
+  mapImageUrl?: string
+}
+
+export const uploadFitnessFile = async (
+  file: File,
+  description?: string
+): Promise<UploadFitnessFileResult | null> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (description) {
+    formData.append('description', description)
+  }
+
+  const response = await fetch('/api/v1/fitness-files', {
+    method: 'POST',
+    body: formData
+  })
+
+  if (response.status !== 200) {
+    throw new Error('Failed to upload fitness file')
+  }
+
+  return response.json()
+}
