@@ -4,9 +4,19 @@ import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
 import { FitnessFileSchema } from '@/lib/services/fitness-files/types'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { StatusCode, apiErrorResponse, apiResponse } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = traceApiRoute(
   'uploadFitnessFile',
@@ -20,7 +30,7 @@ export const POST = traceApiRoute(
 
       if (!file || !(file instanceof File)) {
         logger.warn({ message: 'No file provided in fitness file upload' })
-        return apiErrorResponse(StatusCode.BadRequest)
+        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
       }
 
       // Validate file
@@ -28,9 +38,9 @@ export const POST = traceApiRoute(
       if (!validationResult.success) {
         logger.warn({
           message: 'Invalid fitness file',
-          errors: validationResult.error.errors
+          errors: validationResult.error.issues
         })
-        return apiErrorResponse(StatusCode.BadRequest)
+        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
       }
 
       // Save fitness file
@@ -41,10 +51,12 @@ export const POST = traceApiRoute(
 
       if (!result) {
         logger.error({ message: 'Failed to save fitness file' })
-        return apiErrorResponse(StatusCode.InternalServerError)
+        return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
       }
 
       return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
         data: result
       })
     } catch (error) {
@@ -55,10 +67,10 @@ export const POST = traceApiRoute(
       })
 
       if (err instanceof QuotaExceededError) {
-        return apiErrorResponse(StatusCode.PayloadTooLarge)
+        return apiErrorResponse(HTTP_STATUS.PAYLOAD_TOO_LARGE)
       }
 
-      return apiErrorResponse(StatusCode.InternalServerError)
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   })
 )

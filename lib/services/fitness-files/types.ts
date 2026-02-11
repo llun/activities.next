@@ -21,12 +21,27 @@ export const FitnessFileSchema = z
     return file.size <= maxSize
   }, FILE_SIZE_ERROR_MESSAGE)
   .refine((file) => {
-    // Check MIME type or file extension
-    const hasValidMimeType = ACCEPTED_FITNESS_FILE_TYPES.includes(file.type)
+    const lowerName = file.name.toLowerCase()
     const hasValidExtension = ACCEPTED_FITNESS_FILE_EXTENSIONS.some((ext) =>
-      file.name.toLowerCase().endsWith(ext)
+      lowerName.endsWith(ext)
     )
-    return hasValidMimeType || hasValidExtension
+
+    // Always require a known fitness file extension.
+    if (!hasValidExtension) {
+      return false
+    }
+
+    // Allow generic binary uploads only for .fit files.
+    if (file.type === 'application/octet-stream') {
+      return lowerName.endsWith('.fit')
+    }
+
+    // Some browsers omit file.type for uncommon uploads; rely on extension.
+    if (!file.type) {
+      return true
+    }
+
+    return ACCEPTED_FITNESS_FILE_TYPES.includes(file.type)
   }, FILE_TYPE_ERROR_MESSAGE)
 
 export type FitnessFileSchema = z.infer<typeof FitnessFileSchema>
@@ -97,6 +112,8 @@ export function getFitnessFileType(
   } else if (lowerName.endsWith('.tcx') || mimeType.includes('tcx')) {
     return 'tcx'
   }
-  // Default to fit if unclear
-  return 'fit'
+
+  throw new Error(
+    `Unable to determine fitness file type for ${fileName} (${mimeType})`
+  )
 }

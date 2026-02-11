@@ -617,8 +617,11 @@ export const uploadFitnessFile = async (
     body: formData
   })
 
-  if (response.status !== 200) {
-    throw new Error('Failed to upload fitness file')
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => response.statusText)
+    throw new Error(
+      `Failed to upload fitness file: ${response.status} ${errorText}`
+    )
   }
 
   return response.json()

@@ -63,6 +63,7 @@ export const UploadFitnessFileButton: FC<Props> = ({
         onClick={onOpenFile}
         disabled={disabled}
         title="Upload fitness activity file (.fit, .gpx, .tcx)"
+        aria-label="Upload fitness activity file"
       >
         <Activity className="size-4" />
       </Button>

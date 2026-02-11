@@ -100,9 +100,7 @@ export const setFitnessFileUploading = (uploading: boolean) => ({
   type: 'setFitnessFileUploading' as const,
   uploading
 })
-type ActionSetFitnessFileUploading = ReturnType<
-  typeof setFitnessFileUploading
->
+type ActionSetFitnessFileUploading = ReturnType<typeof setFitnessFileUploading>
 
 export const setFitnessFileUploaded = (uploadedId: string) => ({
   type: 'setFitnessFileUploaded' as const,

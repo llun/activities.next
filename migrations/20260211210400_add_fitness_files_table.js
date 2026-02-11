@@ -6,9 +6,17 @@ exports.up = function (knex) {
   return knex.schema.createTable('fitness_files', function (table) {
     table.string('id').primary()
     table.string('actorId').notNullable()
-    table.foreign('actorId').references('id').inTable('actors')
+    table
+      .foreign('actorId')
+      .references('id')
+      .inTable('actors')
+      .onDelete('CASCADE')
     table.string('statusId')
-    table.foreign('statusId').references('id').inTable('statuses').onDelete('SET NULL')
+    table
+      .foreign('statusId')
+      .references('id')
+      .inTable('statuses')
+      .onDelete('SET NULL')
 
     // File information
     table.string('path').notNullable()

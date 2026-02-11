@@ -4,6 +4,7 @@ import { Knex } from 'knex'
 import {
   CounterKey,
   decreaseCounterValue,
+  getCounterValue,
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
@@ -40,6 +41,10 @@ export interface DeleteFitnessFileParams {
   id: string
 }
 
+export interface GetFitnessStorageUsageForAccountParams {
+  accountId: string
+}
+
 export interface FitnessFileDatabase {
   createFitnessFile(
     params: CreateFitnessFileParams
@@ -51,6 +56,9 @@ export interface FitnessFileDatabase {
   getFitnessFileByStatus(
     params: GetFitnessFileByStatusParams
   ): Promise<FitnessFile | null>
+  getFitnessStorageUsageForAccount(
+    params: GetFitnessStorageUsageForAccountParams
+  ): Promise<number>
   deleteFitnessFile(params: DeleteFitnessFileParams): Promise<boolean>
   updateFitnessFileStatus(
     fitnessFileId: string,
@@ -162,6 +170,12 @@ export const FitnessFileSQLDatabaseMixin = (
 
     if (!row) return null
     return parseSQLFitnessFile(row)
+  },
+
+  async getFitnessStorageUsageForAccount({
+    accountId
+  }: GetFitnessStorageUsageForAccountParams): Promise<number> {
+    return getCounterValue(database, CounterKey.fitnessUsage(accountId))
   },
 
   async deleteFitnessFile({ id }: DeleteFitnessFileParams) {

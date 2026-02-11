@@ -11,6 +11,7 @@ The fitness file storage feature allows users to upload fitness activity files (
 ### 1. Core Storage Infrastructure
 
 #### Configuration (`lib/config/fitnessStorage.ts`)
+
 - `FitnessStorageConfig` - Configuration schema for fitness storage
 - Support for both local file storage and S3/Object storage
 - Falls back to media storage configuration if fitness-specific config is not provided
@@ -18,6 +19,7 @@ The fitness file storage feature allows users to upload fitness activity files (
 - Uses different prefix for S3 storage (`fitness/` by default)
 
 Environment variables:
+
 - `ACTIVITIES_FITNESS_STORAGE_TYPE` - Storage type (fs, object, s3)
 - `ACTIVITIES_FITNESS_STORAGE_PATH` - Local file system path
 - `ACTIVITIES_FITNESS_STORAGE_BUCKET` - S3 bucket name
@@ -28,11 +30,13 @@ Environment variables:
 - `ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT` - Per-account quota
 
 #### Storage Implementations
+
 - `LocalFileFitnessStorage` (`lib/services/fitness-files/localFile.ts`) - File system storage
 - `S3FitnessStorage` (`lib/services/fitness-files/S3StorageFile.ts`) - S3/Object storage
 - Both implement the `FitnessStorage` interface
 
 #### File Types Supported
+
 - `.fit` - Garmin FIT files
 - `.gpx` - GPS Exchange Format
 - `.tcx` - Training Center XML
@@ -40,7 +44,9 @@ Environment variables:
 ### 2. Database Schema
 
 #### Migration (`migrations/20260211210400_add_fitness_files_table.js`)
+
 Table: `fitness_files`
+
 - `id` - Primary key
 - `actorId` - Foreign key to actors table
 - `statusId` - Optional foreign key to statuses table
@@ -55,6 +61,7 @@ Table: `fitness_files`
 - `createdAt`, `updatedAt`, `deletedAt` - Timestamps
 
 #### Database Operations (`lib/database/sql/fitnessFile.ts`)
+
 - `createFitnessFile` - Create new fitness file record
 - `getFitnessFile` - Retrieve fitness file by ID
 - `getFitnessFilesByActor` - List fitness files for an actor
@@ -65,6 +72,7 @@ Table: `fitness_files`
 ### 3. Counter Integration
 
 Added to `lib/database/sql/utils/counter.ts`:
+
 - `fitnessUsage(accountId)` - Total bytes used for fitness files
 - `totalFitness(accountId)` - Total number of fitness files
 
@@ -73,7 +81,9 @@ These counters are automatically updated when fitness files are created or delet
 ### 4. API Endpoints
 
 #### Upload Endpoint
+
 `POST /api/v1/fitness-files`
+
 - Accepts multipart/form-data
 - Fields: `file` (required), `description` (optional)
 - Returns fitness file metadata including URL
@@ -81,7 +91,9 @@ These counters are automatically updated when fitness files are created or delet
 - Checks quota before upload
 
 #### Retrieval Endpoint
+
 `GET /api/v1/fitness-files/:id`
+
 - Returns the fitness file content
 - Supports both buffer response and redirect (for S3 with hostname)
 - Sets appropriate cache headers
@@ -89,6 +101,7 @@ These counters are automatically updated when fitness files are created or delet
 ## What Still Needs Implementation
 
 ### 1. GPS Data Processing
+
 - Parse .fit, .gpx, .tcx files to extract GPS coordinates
 - Extract activity metadata (distance, duration, elevation, etc.)
 - Suggested libraries:
@@ -97,12 +110,14 @@ These counters are automatically updated when fitness files are created or delet
   - `tcx-js` for .tcx files
 
 ### 2. Map Generation
+
 - Generate static map images from GPS coordinates
 - Use a map tile service (OpenStreetMap, Mapbox, etc.)
 - Save generated map as a media attachment
 - Store map image path in `fitness_files.mapImagePath`
 
 ### 3. PostBox Integration
+
 - Add fitness file upload button to PostBox component
 - Support single fitness file upload only
 - Auto-set status visibility to "Private" when fitness file is attached
@@ -110,6 +125,7 @@ These counters are automatically updated when fitness files are created or delet
 - Create the status with fitness file association
 
 ### 4. Status Display
+
 - Detect if status has an associated fitness file
 - Display map visualization on status page
 - Display route with elevation profile
@@ -117,11 +133,13 @@ These counters are automatically updated when fitness files are created or delet
 - Add interactive charts for data visualization
 
 ### 5. ActivityPub Integration
+
 - Include generated map image in ActivityPub Note
 - Ensure map image is first in attachments array
 - Add fitness activity metadata to Note properties
 
 ### 6. Testing
+
 - Unit tests for fitness storage implementations
 - Integration tests for API endpoints
 - Tests for PostBox fitness file upload

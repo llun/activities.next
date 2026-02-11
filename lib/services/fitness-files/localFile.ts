@@ -1,15 +1,19 @@
 import crypto from 'crypto'
+import { createWriteStream } from 'fs'
 import fs from 'fs/promises'
 import mime from 'mime-types'
 import path from 'path'
+import { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
+import type { ReadableStream as WebReadableStream } from 'stream/web'
 
 import { FitnessStorageFileConfig } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
-import { checkFitnessQuotaAvailable } from './quota'
 import { QuotaExceededError } from './errors'
+import { checkFitnessQuotaAvailable } from './quota'
 import {
   FitnessFileUploadSchema,
   FitnessStorage,
@@ -117,9 +121,11 @@ export class LocalFileFitnessStorage implements FitnessStorage {
     const fileName = `${randomPrefix}${ext}`
     const filePath = path.resolve(this._config.path, fileName)
 
-    // Save file
-    const buffer = Buffer.from(await file.arrayBuffer())
-    await fs.writeFile(filePath, buffer)
+    // Save file using a stream to avoid buffering large files in memory.
+    await pipeline(
+      Readable.fromWeb(file.stream() as WebReadableStream),
+      createWriteStream(filePath)
+    )
 
     // Create database record
     const storedFile = await this._database.createFitnessFile({

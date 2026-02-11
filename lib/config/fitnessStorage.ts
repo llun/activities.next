@@ -41,6 +41,22 @@ export type FitnessStorageConfig = z.infer<typeof FitnessStorageConfig>
 // Maximum file size is 50 MB for fitness files
 export const DEFAULT_FITNESS_MAX_FILE_SIZE = 52_428_800
 
+const parseIntegerEnv = (value: string | undefined): number | undefined => {
+  if (typeof value === 'undefined') return undefined
+  const parsed = Number.parseInt(value, 10)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
+const getFitnessMaxFileSize = (): number =>
+  parseIntegerEnv(process.env.ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE) ??
+  DEFAULT_FITNESS_MAX_FILE_SIZE
+
+const getFitnessQuotaPerAccount = (): number | undefined =>
+  parseIntegerEnv(process.env.ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT)
+
+const getMediaQuotaPerAccount = (): number | undefined =>
+  parseIntegerEnv(process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT)
+
 export const getFitnessStorageConfig = (): {
   fitnessStorage: FitnessStorageConfig
 } | null => {
@@ -58,20 +74,8 @@ export const getFitnessStorageConfig = (): {
             path: process.env.ACTIVITIES_MEDIA_STORAGE_PATH
               ? `${process.env.ACTIVITIES_MEDIA_STORAGE_PATH}/fitness`
               : 'uploads/fitness',
-            maxFileSize:
-              (process.env.ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE &&
-                parseInt(
-                  process.env.ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE,
-                  10
-                )) ||
-              DEFAULT_FITNESS_MAX_FILE_SIZE,
-            quotaPerAccount:
-              (process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT &&
-                parseInt(
-                  process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT,
-                  10
-                )) ||
-              undefined
+            maxFileSize: getFitnessMaxFileSize(),
+            quotaPerAccount: getMediaQuotaPerAccount()
           }
         }
       case FitnessStorageType.S3Storage:
@@ -81,22 +85,11 @@ export const getFitnessStorageConfig = (): {
             type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
             bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET as string,
             region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION as string,
-            hostname: process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME || undefined,
+            hostname:
+              process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME || undefined,
             prefix: 'fitness/',
-            maxFileSize:
-              (process.env.ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE &&
-                parseInt(
-                  process.env.ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE,
-                  10
-                )) ||
-              DEFAULT_FITNESS_MAX_FILE_SIZE,
-            quotaPerAccount:
-              (process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT &&
-                parseInt(
-                  process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT,
-                  10
-                )) ||
-              undefined
+            maxFileSize: getFitnessMaxFileSize(),
+            quotaPerAccount: getMediaQuotaPerAccount()
           }
         }
       }
@@ -111,20 +104,8 @@ export const getFitnessStorageConfig = (): {
         fitnessStorage: {
           type: process.env.ACTIVITIES_FITNESS_STORAGE_TYPE,
           path: process.env.ACTIVITIES_FITNESS_STORAGE_PATH as string,
-          maxFileSize:
-            (process.env.ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE &&
-              parseInt(
-                process.env.ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE,
-                10
-              )) ||
-            DEFAULT_FITNESS_MAX_FILE_SIZE,
-          quotaPerAccount:
-            (process.env.ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT &&
-              parseInt(
-                process.env.ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT,
-                10
-              )) ||
-            undefined
+          maxFileSize: getFitnessMaxFileSize(),
+          quotaPerAccount: getFitnessQuotaPerAccount()
         }
       }
     case FitnessStorageType.S3Storage:
@@ -134,22 +115,11 @@ export const getFitnessStorageConfig = (): {
           type: process.env.ACTIVITIES_FITNESS_STORAGE_TYPE,
           bucket: process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET as string,
           region: process.env.ACTIVITIES_FITNESS_STORAGE_REGION as string,
-          hostname: process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME || undefined,
+          hostname:
+            process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME || undefined,
           prefix: process.env.ACTIVITIES_FITNESS_STORAGE_PREFIX || 'fitness/',
-          maxFileSize:
-            (process.env.ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE &&
-              parseInt(
-                process.env.ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE,
-                10
-              )) ||
-            DEFAULT_FITNESS_MAX_FILE_SIZE,
-          quotaPerAccount:
-            (process.env.ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT &&
-              parseInt(
-                process.env.ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT,
-                10
-              )) ||
-            undefined
+          maxFileSize: getFitnessMaxFileSize(),
+          quotaPerAccount: getFitnessQuotaPerAccount()
         }
       }
     }

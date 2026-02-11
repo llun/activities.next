@@ -6,15 +6,16 @@ import {
 } from '@aws-sdk/client-s3'
 import crypto from 'crypto'
 import { format } from 'date-fns'
-import { IncomingMessage } from 'http'
+import { Readable } from 'stream'
+import type { ReadableStream as WebReadableStream } from 'stream/web'
 
 import { FitnessStorageS3Config } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
-import { checkFitnessQuotaAvailable } from './quota'
 import { QuotaExceededError } from './errors'
+import { checkFitnessQuotaAvailable } from './quota'
 import {
   FitnessFileUploadSchema,
   FitnessStorage,
@@ -75,7 +76,7 @@ export class S3FitnessStorage implements FitnessStorage {
     const message = object.Body
     return FitnessStorageGetFileOutput.parse({
       type: 'buffer',
-      contentType: (message as IncomingMessage).headers['content-type'],
+      contentType: object.ContentType ?? 'application/octet-stream',
       buffer: Buffer.from(await message.transformToByteArray())
     })
   }
@@ -132,12 +133,11 @@ export class S3FitnessStorage implements FitnessStorage {
     const fileName = `${timeDirectory}/${randomPrefix}${ext}`
     const key = prefix ? `${prefix}${fileName}` : fileName
 
-    // Upload to S3
-    const buffer = Buffer.from(await file.arrayBuffer())
+    // Upload to S3 using a stream to avoid buffering large files in memory.
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
-      Body: buffer,
+      Body: Readable.fromWeb(file.stream() as WebReadableStream),
       ContentType: file.type
     })
 

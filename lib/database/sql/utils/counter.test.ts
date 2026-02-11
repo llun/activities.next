@@ -72,6 +72,8 @@ describe('counter utils', () => {
       expect(CounterKey.totalReply('status')).toBe('total-reply:status')
       expect(CounterKey.mediaUsage('account')).toBe('media-usage:account')
       expect(CounterKey.totalMedia('account')).toBe('total-media:account')
+      expect(CounterKey.fitnessUsage('account')).toBe('fitness-usage:account')
+      expect(CounterKey.totalFitness('account')).toBe('total-fitness:account')
     })
   })
 

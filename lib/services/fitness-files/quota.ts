@@ -2,7 +2,6 @@ import { getConfig } from '@/lib/config'
 import { DEFAULT_QUOTA_PER_ACCOUNT } from '@/lib/services/medias/constants'
 import { Actor } from '@/lib/types/domain/actor'
 
-import { CounterKey, getCounterValue } from '../../database/sql/utils/counter'
 import { Database } from '../../database/types'
 
 export async function checkFitnessQuotaAvailable(
@@ -18,21 +17,15 @@ export async function checkFitnessQuotaAvailable(
     config.mediaStorage?.quotaPerAccount ??
     DEFAULT_QUOTA_PER_ACCOUNT
 
-  // Get both media and fitness usage
-  const account = await database.getAccountForActorId(actor.id)
-  if (!account) {
+  const actorData = await database.getActorFromId({ id: actor.id })
+  const accountId = actorData?.account?.id
+  if (!accountId) {
     return { available: false, used: 0, limit: quotaLimit }
   }
 
-  // Note: Accessing database['knex'] to get Knex instance for counter operations
-  // This pattern is used throughout the codebase (see lib/services/medias/quota.ts)
-  const knexInstance = database['knex'] ?? database
-  const mediaUsageKey = CounterKey.mediaUsage(account.id)
-  const fitnessUsageKey = CounterKey.fitnessUsage(account.id)
-
   const [mediaUsed, fitnessUsed] = await Promise.all([
-    getCounterValue(knexInstance, mediaUsageKey),
-    getCounterValue(knexInstance, fitnessUsageKey)
+    database.getStorageUsageForAccount({ accountId }),
+    database.getFitnessStorageUsageForAccount({ accountId })
   ])
 
   const totalUsed = mediaUsed + fitnessUsed

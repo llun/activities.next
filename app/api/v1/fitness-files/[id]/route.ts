@@ -1,30 +1,43 @@
 import { NextRequest } from 'next/server'
 
-import { getDatabase } from '@/lib/database'
 import { getFitnessFile } from '@/lib/services/fitness-files'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
-import { StatusCode, apiErrorResponse } from '@/lib/utils/response'
+import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+interface Params {
+  id: string
+}
 
 export const GET = traceApiRoute(
   'getFitnessFile',
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const database = getDatabase()
+  AuthenticatedGuard<Params>(async (_req: NextRequest, context) => {
+    const { database, currentActor, params } = context
     const { id } = await params
 
     try {
-      const result = await getFitnessFile(database, id)
+      const fileMetadata = await database.getFitnessFile({ id })
+      if (!fileMetadata || fileMetadata.actorId !== currentActor.id) {
+        logger.warn({
+          message: 'Fitness file not found or not authorized',
+          fileId: id,
+          actorId: currentActor.id
+        })
+        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      }
 
+      const result = await getFitnessFile(database, id)
       if (!result) {
         logger.warn({ message: 'Fitness file not found', fileId: id })
-        return apiErrorResponse(StatusCode.NotFound)
+        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
       }
 
       if (result.type === 'redirect') {
         return Response.redirect(result.redirectUrl, 302)
       }
 
-      return new Response(result.buffer, {
+      return new Response(result.buffer as BodyInit, {
         headers: {
           'Content-Type': result.contentType,
           'Cache-Control': 'public, max-age=31536000, immutable'
@@ -37,7 +50,7 @@ export const GET = traceApiRoute(
         fileId: id,
         error: err.message
       })
-      return apiErrorResponse(StatusCode.InternalServerError)
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
-  }
+  })
 )
