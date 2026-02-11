@@ -49,6 +49,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     {}
   )
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
+  const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
+    statuses.length > 0
+  )
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
   const [isLoadMoreVisible, setIsLoadMoreVisible] = useState<boolean>(false)
@@ -83,6 +86,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         timeline: currentTab.timeline,
         maxStatusId: currentStatuses[currentStatuses.length - 1].id
       })
+      if (statuses.length === 0) {
+        setHasMoreStatuses(false)
+        return
+      }
       setCurrentStatuses((prev) => [...prev, ...statuses])
     } catch (_error) {
       // Error loading more - user can retry by clicking the button
@@ -131,6 +138,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
     setCurrentTab(tab)
     setCurrentStatuses([])
+    setHasMoreStatuses(true)
     setLoadingMoreStatuses(true)
 
     try {
@@ -139,6 +147,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       })
       if (requestId !== tabRequestId.current) return
       setCurrentStatuses(statuses)
+      setHasMoreStatuses(statuses.length > 0)
     } finally {
       if (requestId === tabRequestId.current) {
         setLoadingMoreStatuses(false)
@@ -148,7 +157,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   return (
     <div className="space-y-6">
-      <ScrollToTopButton isLoadMoreVisible={isLoadMoreVisible} />
+      <ScrollToTopButton
+        isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
+      />
       <div>
         <h1 className="text-2xl font-semibold">Timeline</h1>
         <p className="text-sm text-muted-foreground">
@@ -232,7 +243,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           </TabsContent>
         </Tabs>
 
-        {currentStatuses.length > 0 && (
+        {hasMoreStatuses && currentStatuses.length > 0 && (
           <div ref={loadMoreRef} className="p-4 text-center border-t">
             <Button
               variant="outline"
