@@ -9,6 +9,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
 import { checkFitnessQuotaAvailable } from './quota'
+import { QuotaExceededError } from './errors'
 import {
   FitnessFileUploadSchema,
   FitnessStorage,
@@ -99,8 +100,10 @@ export class LocalFileFitnessStorage implements FitnessStorage {
       file.size
     )
     if (!quotaCheck.available) {
-      throw new Error(
-        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      throw new QuotaExceededError(
+        'Storage quota exceeded',
+        quotaCheck.used,
+        quotaCheck.limit
       )
     }
 

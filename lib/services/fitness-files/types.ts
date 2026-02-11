@@ -6,8 +6,7 @@ import { Actor } from '@/lib/types/domain/actor'
 
 import {
   ACCEPTED_FITNESS_FILE_EXTENSIONS,
-  ACCEPTED_FITNESS_FILE_TYPES,
-  MAX_FITNESS_FILE_SIZE
+  ACCEPTED_FITNESS_FILE_TYPES
 } from './constants'
 
 const FILE_TYPE_ERROR_MESSAGE = `Only ${ACCEPTED_FITNESS_FILE_TYPES.join(',')} are accepted`
@@ -18,9 +17,7 @@ export const FitnessFileSchema = z
   .refine((file) => {
     const config = getConfig()
     const maxSize =
-      config.fitnessStorage?.maxFileSize ??
-      DEFAULT_FITNESS_MAX_FILE_SIZE ??
-      MAX_FITNESS_FILE_SIZE
+      config.fitnessStorage?.maxFileSize ?? DEFAULT_FITNESS_MAX_FILE_SIZE
     return file.size <= maxSize
   }, FILE_SIZE_ERROR_MESSAGE)
   .refine((file) => {

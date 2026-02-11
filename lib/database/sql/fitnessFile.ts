@@ -66,7 +66,7 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   fileName: row.fileName,
   fileType: row.fileType,
   mimeType: row.mimeType,
-  bytes: typeof row.bytes === 'bigint' ? Number(row.bytes) : Number(row.bytes),
+  bytes: Number(row.bytes),
   description: row.description ?? undefined,
   hasMapData: row.hasMapData ?? false,
   mapImagePath: row.mapImagePath ?? undefined,

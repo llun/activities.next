@@ -282,7 +282,7 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
           uploading: false
         },
         // Auto-set visibility to private when fitness file is attached
-        visibility: 'private'
+        visibility: 'private' as MastodonVisibility
       }
     }
     case 'setFitnessFileUploading': {

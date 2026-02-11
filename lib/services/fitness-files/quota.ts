@@ -24,12 +24,13 @@ export async function checkFitnessQuotaAvailable(
     return { available: false, used: 0, limit: quotaLimit }
   }
 
+  const knexInstance = database['knex'] ?? database
   const mediaUsageKey = CounterKey.mediaUsage(account.id)
   const fitnessUsageKey = CounterKey.fitnessUsage(account.id)
 
   const [mediaUsed, fitnessUsed] = await Promise.all([
-    getCounterValue(database['knex'] ?? database, mediaUsageKey),
-    getCounterValue(database['knex'] ?? database, fitnessUsageKey)
+    getCounterValue(knexInstance, mediaUsageKey),
+    getCounterValue(knexInstance, fitnessUsageKey)
   ])
 
   const totalUsed = mediaUsed + fitnessUsed

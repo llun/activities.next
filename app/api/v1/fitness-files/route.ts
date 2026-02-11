@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { saveFitnessFile } from '@/lib/services/fitness-files'
+import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
 import { FitnessFileSchema } from '@/lib/services/fitness-files/types'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
@@ -53,7 +54,7 @@ export const POST = traceApiRoute(
         error: err.message
       })
 
-      if (err.message.includes('quota exceeded')) {
+      if (err instanceof QuotaExceededError) {
         return apiErrorResponse(StatusCode.PayloadTooLarge)
       }
 

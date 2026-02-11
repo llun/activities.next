@@ -8,7 +8,7 @@ exports.up = function (knex) {
     table.string('actorId').notNullable()
     table.foreign('actorId').references('id').inTable('actors')
     table.string('statusId')
-    table.foreign('statusId').references('id').inTable('statuses')
+    table.foreign('statusId').references('id').inTable('statuses').onDelete('SET NULL')
 
     // File information
     table.string('path').notNullable()
