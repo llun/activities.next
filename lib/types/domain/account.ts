@@ -5,6 +5,8 @@ export const Account = z.object({
   email: z.string(),
   passwordHash: z.string().nullish(),
   verificationCode: z.string().nullish(),
+  passwordResetCode: z.string().nullish(),
+  passwordResetCodeExpiresAt: z.number().nullish(),
   defaultActorId: z.string().nullish(),
   emailChangePending: z.string().nullish(),
   emailChangeCode: z.string().nullish(),

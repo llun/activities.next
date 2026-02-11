@@ -1,6 +1,7 @@
 'use client'
 
 import { ClientSafeProvider, getCsrfToken } from 'next-auth/react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
 
@@ -36,6 +37,14 @@ export const CredentialForm: FC<Props> = ({ provider }) => {
       <div className="space-y-2">
         <Label htmlFor="inputPassword">Password</Label>
         <Input name="password" type="password" id="inputPassword" />
+      </div>
+      <div className="text-right">
+        <Link
+          href="/auth/forgot-password"
+          className="text-sm text-primary hover:underline"
+        >
+          Forgot password?
+        </Link>
       </div>
 
       <Button type="submit" className="w-full">

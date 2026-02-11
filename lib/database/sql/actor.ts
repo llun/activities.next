@@ -366,6 +366,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
               emailChangeCodeExpiresAt: sqlAccount.emailChangeCodeExpiresAt
                 ? getCompatibleTime(sqlAccount.emailChangeCodeExpiresAt)
                 : null
+            },
+            ...{
+              passwordResetCodeExpiresAt: sqlAccount.passwordResetCodeExpiresAt
+                ? getCompatibleTime(sqlAccount.passwordResetCodeExpiresAt)
+                : null
             }
           })
         }
