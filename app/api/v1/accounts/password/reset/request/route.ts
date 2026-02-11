@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { sendMail } from '@/lib/services/email'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
@@ -35,39 +36,50 @@ export const POST = traceApiRoute(
     try {
       const body = await request.json()
       const { email } = PasswordResetRequest.parse(body)
-      const passwordResetCode = crypto.randomBytes(32).toString('base64url')
       const config = getConfig()
+      const account = await database.getAccountFromEmail({ email })
 
-      const shouldSendEmail = await database.requestPasswordReset({
-        email,
-        passwordResetCode
-      })
+      if (account) {
+        const passwordResetCode = crypto.randomBytes(32).toString('base64url')
+        const passwordResetCodeHash = hashPasswordResetCode(passwordResetCode)
 
-      if (shouldSendEmail && config.email) {
-        try {
-          await sendMail({
-            from: config.email.serviceFromAddress,
-            to: [email],
-            subject: 'Reset your password',
-            content: {
-              text: `You requested a password reset. Open this link to continue: https://${config.host}/auth/reset-password?code=${passwordResetCode}`,
-              html: `
-                <p>You requested a password reset.</p>
-                <p>Open the link below to choose a new password:</p>
-                <p><a href="https://${config.host}/auth/reset-password?code=${passwordResetCode}">Reset Password</a></p>
-                <p>If you did not request this, you can safely ignore this email.</p>
-                <p>This link expires in 24 hours.</p>
-              `
-            }
-          })
-        } catch (_error) {
-          logger.error({ email }, 'Fail to send password reset email')
+        if (config.email) {
+          try {
+            await sendMail({
+              from: config.email.serviceFromAddress,
+              to: [email],
+              subject: 'Reset your password',
+              content: {
+                text: `You requested a password reset. Open this link to continue: https://${config.host}/auth/reset-password?code=${passwordResetCode}`,
+                html: `
+                  <p>You requested a password reset.</p>
+                  <p>Open the link below to choose a new password:</p>
+                  <p><a href="https://${config.host}/auth/reset-password?code=${passwordResetCode}">Reset Password</a></p>
+                  <p>If you did not request this, you can safely ignore this email.</p>
+                  <p>This link expires in 24 hours.</p>
+                `
+              }
+            })
+          } catch (_error) {
+            logger.error({ email }, 'Failed to send password reset email')
+            return apiResponse({
+              req: request,
+              allowedMethods: CORS_HEADERS,
+              data: { error: 'Failed to send password reset email' },
+              responseStatusCode: 500
+            })
+          }
+        } else {
+          logger.warn(
+            { email },
+            'Password reset requested but email service is not configured'
+          )
         }
-      } else if (shouldSendEmail && !config.email) {
-        logger.warn(
-          { email },
-          'Password reset requested but email service is not configured'
-        )
+
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: passwordResetCodeHash
+        })
       }
 
       return apiResponse({

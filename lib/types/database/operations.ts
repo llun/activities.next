@@ -233,6 +233,10 @@ export type VerifyEmailChangeParams = {
 export type RequestPasswordResetParams = {
   email: string
   passwordResetCode: string
+  expiresAt?: number
+}
+export type ValidatePasswordResetCodeParams = {
+  passwordResetCode: string
 }
 export type ResetPasswordWithCodeParams = {
   passwordResetCode: string
@@ -288,6 +292,9 @@ export interface AccountDatabase {
   requestEmailChange(params: RequestEmailChangeParams): Promise<void>
   verifyEmailChange(params: VerifyEmailChangeParams): Promise<Account | null>
   requestPasswordReset(params: RequestPasswordResetParams): Promise<boolean>
+  validatePasswordResetCode(
+    params: ValidatePasswordResetCodeParams
+  ): Promise<boolean>
   resetPasswordWithCode(
     params: ResetPasswordWithCodeParams
   ): Promise<Account | null>

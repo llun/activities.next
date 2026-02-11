@@ -129,11 +129,9 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
       {message && <p className="text-sm text-muted-foreground">{message}</p>}
 
       {isSuccess ? (
-        <Link href="/auth/signin" className="block">
-          <Button type="button" className="w-full">
-            Continue to Sign In
-          </Button>
-        </Link>
+        <Button asChild type="button" className="w-full">
+          <Link href="/auth/signin">Continue to Sign In</Link>
+        </Button>
       ) : (
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? 'Resetting...' : 'Reset password'}

@@ -233,6 +233,58 @@ describe('AccountDatabase', () => {
         expect(requested).toBeFalse()
       })
 
+      it('invalidates previous password reset code when a new one is issued', async () => {
+        const { accountId, email } = await createTestAccount()
+        const firstCode = `reset-${crypto.randomUUID()}`
+        const secondCode = `reset-${crypto.randomUUID()}`
+
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: firstCode
+        })
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: secondCode
+        })
+
+        const firstAttempt = await database.resetPasswordWithCode({
+          passwordResetCode: firstCode,
+          newPasswordHash: 'hash_should_not_apply'
+        })
+        expect(firstAttempt).toBeNull()
+
+        const secondAttempt = await database.resetPasswordWithCode({
+          passwordResetCode: secondCode,
+          newPasswordHash: 'hash_should_apply'
+        })
+        expect(secondAttempt).toMatchObject({
+          id: accountId,
+          passwordHash: 'hash_should_apply'
+        })
+      })
+
+      it('rejects expired password reset codes', async () => {
+        const { email } = await createTestAccount()
+        const expiredCode = `reset-${crypto.randomUUID()}`
+
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: expiredCode,
+          expiresAt: Date.now() - 1_000
+        })
+
+        const isValid = await database.validatePasswordResetCode({
+          passwordResetCode: expiredCode
+        })
+        expect(isValid).toBeFalse()
+
+        const resetResult = await database.resetPasswordWithCode({
+          passwordResetCode: expiredCode,
+          newPasswordHash: 'should_not_apply'
+        })
+        expect(resetResult).toBeNull()
+      })
+
       it('changePassword clears reset code and invalidates sessions', async () => {
         const { accountId, email } = await createTestAccount()
         const token = `session-${crypto.randomUUID()}`

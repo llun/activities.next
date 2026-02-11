@@ -27,6 +27,7 @@ import {
   SetSessionActorParams,
   UnlinkAccountFromProviderParams,
   UpdateAccountSessionParams,
+  ValidatePasswordResetCodeParams,
   VerifyAccountParams,
   VerifyEmailChangeParams
 } from '@/lib/types/database/operations'
@@ -510,21 +511,36 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   // Multiple reset requests are allowed; the most recent code replaces prior ones.
   async requestPasswordReset({
     email,
-    passwordResetCode
+    passwordResetCode,
+    expiresAt
   }: RequestPasswordResetParams): Promise<boolean> {
     const account = await database('accounts').where('email', email).first()
     if (!account) return false
 
     const currentTime = new Date()
-    const expiresAt = new Date(currentTime.getTime() + 24 * 60 * 60 * 1000) // 24 hours
+    const expiresAtDate = expiresAt
+      ? new Date(expiresAt)
+      : new Date(currentTime.getTime() + 24 * 60 * 60 * 1000) // 24 hours
 
     await database('accounts').where('id', account.id).update({
       passwordResetCode,
-      passwordResetCodeExpiresAt: expiresAt,
+      passwordResetCodeExpiresAt: expiresAtDate,
       updatedAt: currentTime
     })
 
     return true
+  },
+
+  async validatePasswordResetCode({
+    passwordResetCode
+  }: ValidatePasswordResetCodeParams): Promise<boolean> {
+    const now = new Date()
+    const account = await database<SQLAccount>('accounts')
+      .where('passwordResetCode', passwordResetCode)
+      .andWhere('passwordResetCodeExpiresAt', '>=', now)
+      .first('id')
+
+    return Boolean(account)
   },
 
   async resetPasswordWithCode({

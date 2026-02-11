@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   apiErrorResponse,
@@ -31,10 +32,24 @@ export const POST = traceApiRoute(
     try {
       const body = await request.json()
       const { code, newPassword } = ResetPasswordRequest.parse(body)
+      const passwordResetCode = hashPasswordResetCode(code)
+      const isValidCode = await database.validatePasswordResetCode({
+        passwordResetCode
+      })
+
+      if (!isValidCode) {
+        return apiResponse({
+          req: request,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Invalid or expired reset code' },
+          responseStatusCode: 400
+        })
+      }
+
       const newPasswordHash = await bcrypt.hash(newPassword, 10)
 
       const account = await database.resetPasswordWithCode({
-        passwordResetCode: code,
+        passwordResetCode,
         newPasswordHash
       })
 
