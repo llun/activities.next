@@ -126,7 +126,7 @@ const Page: FC<Props> = async ({ params }) => {
       ? status.originalStatus.url
       : status.url
 
-  let replies: Status[] = []
+  let replies: Status[]
 
   if (
     status.type === StatusType.enum.Note &&
@@ -198,11 +198,9 @@ const Page: FC<Props> = async ({ params }) => {
       previouses.push(replyStatus)
       // This should be impossible
       if (replyStatus.type === StatusType.enum.Announce) {
-        replyStatus = null
         break
       }
       if (!replyStatus.reply) {
-        replyStatus = null
         break
       }
       replyStatus = await database.getStatus({
