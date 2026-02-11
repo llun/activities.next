@@ -11,6 +11,10 @@ import { SMTPConfig } from '../services/email/smtp'
 import { logger } from '../utils/logger'
 import { AuthConfig, getAuthConfig } from './auth'
 import { getDatabaseConfig } from './database'
+import {
+  FitnessStorageConfig,
+  getFitnessStorageConfig
+} from './fitnessStorage'
 import { InternalApiConfig, getInternalApiConfig } from './internalApi'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
@@ -31,6 +35,7 @@ const Config = z.object({
   auth: AuthConfig.optional(),
   email: z.union([SMTPConfig, LambdaConfig, ResendConfig]).optional(),
   mediaStorage: MediaStorageConfig.optional(),
+  fitnessStorage: FitnessStorageConfig.optional(),
   openTelemetry: OpenTelemetryConfig.optional(),
   internalApi: InternalApiConfig.optional(),
   request: RequestConfig.optional()
@@ -78,6 +83,7 @@ const getConfigFromEnvironment = () => {
       ...getAuthConfig(),
       ...getDatabaseConfig(),
       ...getMediaStorageConfig(),
+      ...getFitnessStorageConfig(),
       ...getOtelConfig(),
       ...getInternalApiConfig(),
       ...getRequestConfig(),
