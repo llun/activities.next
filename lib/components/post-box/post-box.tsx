@@ -164,14 +164,23 @@ export const PostBox: FC<Props> = ({
           const uploadedFitnessFile = await uploadFitnessFile(
             postExtension.fitnessFile.file
           )
-          if (!uploadedFitnessFile) throw new Error()
+          if (!uploadedFitnessFile) {
+            throw new Error(
+              `Fail to upload ${postExtension.fitnessFile.file.name}`
+            )
+          }
           fitnessFileId = uploadedFitnessFile.id
           dispatch(setFitnessFileUploaded(uploadedFitnessFile.id))
-        } catch {
+        } catch (error) {
           dispatch(setFitnessFileUploading(false))
-          throw new Error(
-            `Fail to upload ${postExtension.fitnessFile.file.name}`
-          )
+          const errorMessage =
+            error instanceof Error && error.message
+              ? error.message
+              : `Fail to upload ${postExtension.fitnessFile.file.name}`
+          setWarningMsg(errorMessage)
+          setIsPosting(false)
+          setAllowPost(true)
+          return
         }
       }
 

@@ -66,6 +66,7 @@ export function FitnessFileManagement({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [fileToDelete, setFileToDelete] = useState<FitnessFileItem | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     setFitnessFiles(initialFitnessFiles)
@@ -84,6 +85,7 @@ export function FitnessFileManagement({
 
   const handleDeleteClick = (fitnessFile: FitnessFileItem) => {
     setFileToDelete(fitnessFile)
+    setDeleteError(null)
     setDeleteDialogOpen(true)
   }
 
@@ -91,6 +93,7 @@ export function FitnessFileManagement({
     if (!fileToDelete) return
 
     setDeleting(true)
+    setDeleteError(null)
     try {
       const response = await fetch(
         `/api/v1/accounts/fitness-files/${fileToDelete.id}`,
@@ -99,16 +102,22 @@ export function FitnessFileManagement({
         }
       )
 
-      if (response.ok) {
-        setFitnessFiles(
-          fitnessFiles.filter((file) => file.id !== fileToDelete.id)
-        )
-        setCurrentUsed(Math.max(0, currentUsed - fileToDelete.bytes))
-        setDeleteDialogOpen(false)
-        setFileToDelete(null)
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => response.statusText)
+        setDeleteError(errorText || 'Failed to delete fitness file.')
+        return
       }
+
+      setFitnessFiles((prev) =>
+        prev.filter((file) => file.id !== fileToDelete.id)
+      )
+      setCurrentUsed((prev) => Math.max(0, prev - fileToDelete.bytes))
+      setDeleteDialogOpen(false)
+      setFileToDelete(null)
     } catch {
-      // Silently fail on network or API errors.
+      setDeleteError(
+        'Failed to delete fitness file. Please check your connection and try again.'
+      )
     } finally {
       setDeleting(false)
     }
@@ -314,10 +323,16 @@ export function FitnessFileManagement({
               </div>
             </div>
           )}
+          {deleteError ? (
+            <p className="text-sm text-destructive">{deleteError}</p>
+          ) : null}
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setDeleteDialogOpen(false)}
+              onClick={() => {
+                setDeleteDialogOpen(false)
+                setDeleteError(null)
+              }}
               disabled={deleting}
             >
               Cancel

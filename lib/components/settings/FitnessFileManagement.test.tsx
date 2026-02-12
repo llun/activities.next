@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { FitnessFileManagement } from './FitnessFileManagement'
 
@@ -13,6 +13,10 @@ jest.mock('next/navigation', () => ({
 }))
 
 describe('FitnessFileManagement', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
   describe('pagination state sync', () => {
     it('updates displayed files when fitnessFiles prop changes', async () => {
       const firstPageFiles = [
@@ -105,6 +109,54 @@ describe('FitnessFileManagement', () => {
         'href',
         '/@alice@example.com/https%3A%2F%2Fexample.com%2Fusers%2Falice%2Fstatuses%2F123'
       )
+    })
+  })
+
+  describe('delete error handling', () => {
+    it('shows an error message when deletion fails', async () => {
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: false,
+        text: async () => 'Delete failed',
+        statusText: 'Bad Request'
+      } as Response)
+
+      const files = [
+        {
+          id: 'fitness-4',
+          actorId: 'https://example.com/users/alice',
+          fileName: 'ride.fit',
+          fileType: 'fit' as const,
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024,
+          createdAt: Date.now(),
+          url: '/api/v1/fitness-files/fitness-4'
+        }
+      ]
+
+      render(
+        <FitnessFileManagement
+          used={1024}
+          limit={10485760}
+          fitnessFiles={files}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('Delete Fitness File')).toBeInTheDocument()
+      })
+
+      const deleteButtons = screen.getAllByRole('button', { name: /^Delete$/ })
+      fireEvent.click(deleteButtons[deleteButtons.length - 1])
+
+      await waitFor(() => {
+        expect(screen.getByText('Delete failed')).toBeInTheDocument()
+      })
+      expect(screen.getByText('ID: fitness-4')).toBeInTheDocument()
     })
   })
 })

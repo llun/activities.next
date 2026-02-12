@@ -17,12 +17,36 @@ export const GET = traceApiRoute(
     const { id } = await params
 
     try {
+      const accountId = currentActor.account?.id
+      if (!accountId) {
+        logger.warn({
+          message: 'Unauthorized fitness file request - no account',
+          actorId: currentActor.id,
+          fileId: id
+        })
+        return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
+      }
+
       const fileMetadata = await database.getFitnessFile({ id })
-      if (!fileMetadata || fileMetadata.actorId !== currentActor.id) {
+      if (!fileMetadata) {
+        logger.warn({
+          message: 'Fitness file not found',
+          fileId: id,
+          actorId: currentActor.id,
+          accountId
+        })
+        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      }
+
+      const fileActor = await database.getActorFromId({
+        id: fileMetadata.actorId
+      })
+      if (fileActor?.account?.id !== accountId) {
         logger.warn({
           message: 'Fitness file not found or not authorized',
           fileId: id,
-          actorId: currentActor.id
+          actorId: currentActor.id,
+          accountId
         })
         return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
       }
