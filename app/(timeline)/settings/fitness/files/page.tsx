@@ -36,7 +36,8 @@ const Page = async ({
   }
 
   const params = await Promise.resolve(searchParams)
-  const page = Math.max(1, Math.min(10000, parseInt(params.page || '1', 10)))
+  const rawPage = Number.parseInt(params.page || '1', 10)
+  const page = Number.isNaN(rawPage) ? 1 : Math.max(1, Math.min(10000, rawPage))
   const parsedLimit = parseInt(params.limit || '25', 10)
   const itemsPerPage = [25, 50, 100].includes(parsedLimit) ? parsedLimit : 25
 

@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { format } from 'date-fns'
 import { createWriteStream } from 'fs'
 import fs from 'fs/promises'
 import mime from 'mime-types'
@@ -121,15 +122,15 @@ export class LocalFileFitnessStorage implements FitnessStorage {
       )
     }
 
-    // Ensure upload directory exists
-    await fs.mkdir(this._config.path, { recursive: true })
-
     // Generate file path
     const fileType = getFitnessFileType(file.name, file.type)
     const ext = `.${fileType}`
+    const currentTime = Date.now()
     const randomPrefix = crypto.randomBytes(8).toString('hex')
-    const fileName = `${randomPrefix}${ext}`
+    const timeDirectory = format(currentTime, 'yyyy-MM-dd')
+    const fileName = `${timeDirectory}/${randomPrefix}${ext}`
     const filePath = path.resolve(this._config.path, fileName)
+    await fs.mkdir(path.dirname(filePath), { recursive: true })
 
     // Save file using a stream to avoid buffering large files in memory.
     await pipeline(

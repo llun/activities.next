@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
+import { deleteFitnessFile } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import {
   Card,
@@ -95,33 +96,7 @@ export function FitnessFileManagement({
     setDeleting(true)
     setDeleteError(null)
     try {
-      const response = await fetch(
-        `/api/v1/accounts/fitness-files/${fileToDelete.id}`,
-        {
-          method: 'DELETE'
-        }
-      )
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => response.statusText)
-        let errorMessage = 'Failed to delete fitness file.'
-        try {
-          const parsedError = JSON.parse(errorText) as {
-            status?: string
-            message?: string
-            error?: string
-          }
-          errorMessage =
-            parsedError.status ||
-            parsedError.message ||
-            parsedError.error ||
-            errorMessage
-        } catch {
-          errorMessage = errorText || errorMessage
-        }
-        setDeleteError(errorMessage)
-        return
-      }
+      await deleteFitnessFile(fileToDelete.id)
 
       setFitnessFiles((prev) =>
         prev.filter((file) => file.id !== fileToDelete.id)
@@ -131,9 +106,11 @@ export function FitnessFileManagement({
       setFileToDelete(null)
     } catch (error) {
       console.error('Error deleting fitness file:', error)
-      setDeleteError(
-        'Failed to delete fitness file. Please check your connection and try again.'
-      )
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete fitness file. Please check your connection and try again.'
+      setDeleteError(message)
     } finally {
       setDeleting(false)
     }

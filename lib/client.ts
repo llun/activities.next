@@ -609,6 +609,29 @@ export interface UploadFitnessFileResult {
   mapImageUrl?: string
 }
 
+const parseApiError = async (
+  response: Response,
+  fallbackMessage: string
+): Promise<string> => {
+  const errorText = await response.text().catch(() => response.statusText)
+  let errorDetails = errorText || response.statusText || fallbackMessage
+  try {
+    const parsedError = JSON.parse(errorText) as {
+      status?: string
+      message?: string
+      error?: string
+    }
+    errorDetails =
+      parsedError.status ||
+      parsedError.message ||
+      parsedError.error ||
+      errorDetails
+  } catch {
+    // Use raw text if error body is not JSON.
+  }
+  return errorDetails
+}
+
 export const uploadFitnessFile = async (
   file: File,
   description?: string
@@ -625,22 +648,10 @@ export const uploadFitnessFile = async (
   })
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => response.statusText)
-    let errorDetails = errorText || response.statusText
-    try {
-      const parsedError = JSON.parse(errorText) as {
-        status?: string
-        message?: string
-        error?: string
-      }
-      errorDetails =
-        parsedError.status ||
-        parsedError.message ||
-        parsedError.error ||
-        errorDetails
-    } catch {
-      // Use raw text if error body is not JSON.
-    }
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to upload fitness file.'
+    )
 
     throw new Error(
       `Failed to upload fitness file: ${response.status} ${errorDetails}`
@@ -648,4 +659,18 @@ export const uploadFitnessFile = async (
   }
 
   return response.json()
+}
+
+export const deleteFitnessFile = async (id: string): Promise<void> => {
+  const response = await fetch(`/api/v1/accounts/fitness-files/${id}`, {
+    method: 'DELETE'
+  })
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to delete fitness file.'
+    )
+    throw new Error(errorDetails)
+  }
 }
