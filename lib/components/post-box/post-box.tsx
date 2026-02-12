@@ -1,4 +1,4 @@
-import { BarChart3, Loader2 } from 'lucide-react'
+import { Activity, BarChart3, Loader2, X } from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -38,6 +38,7 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/types/domain/status'
+import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -47,6 +48,7 @@ import {
   DEFAULT_STATE,
   addAttachment,
   addPollChoice,
+  removeFitnessFile,
   removePollChoice,
   resetExtension,
   setAttachments,
@@ -342,6 +344,12 @@ export const PostBox: FC<Props> = ({
   }
 
   useEffect(() => {
+    if (!replyStatus) return
+    if (!postExtension.fitnessFile) return
+    dispatch(removeFitnessFile())
+  }, [replyStatus, postExtension.fitnessFile])
+
+  useEffect(() => {
     if (editStatus) {
       setText(editStatus.text)
       setAllowPost(false) // Initial state for edit is disabled until changed? Or should we check?
@@ -523,6 +531,29 @@ export const PostBox: FC<Props> = ({
         </div>
         {warningMsg ? (
           <div className="text-xs text-destructive mb-3">{warningMsg}</div>
+        ) : null}
+        {!replyStatus && postExtension.fitnessFile ? (
+          <div className="mb-3 flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <Activity className="size-4 text-muted-foreground" />
+              <span className="shrink-0 text-muted-foreground">Fitness:</span>
+              <span className="truncate font-medium">
+                {postExtension.fitnessFile.file.name}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {formatFileSize(postExtension.fitnessFile.file.size)}
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Remove selected fitness file"
+              onClick={() => dispatch(removeFitnessFile())}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
         ) : null}
         <div className="grid gap-4 grid-cols-8">
           {postExtension.attachments.map((item, index) => {
