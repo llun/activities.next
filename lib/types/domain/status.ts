@@ -12,7 +12,8 @@ import {
 import { ActorProfile } from '@/lib/types/domain/actor'
 import {
   Attachment,
-  getDocumentFromAttachment
+  getDocumentFromAttachment,
+  isFitnessAttachment
 } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import { Tag, getMentionFromTag } from '@/lib/types/domain/tag'
@@ -274,9 +275,9 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     cc: originalStatus.cc,
     inReplyTo: originalStatus.reply || null,
     content: originalStatus.text,
-    attachment: originalStatus.attachments.map((attachment) =>
-      getDocumentFromAttachment(attachment)
-    ),
+    attachment: originalStatus.attachments
+      .filter((attachment) => !isFitnessAttachment(attachment))
+      .map((attachment) => getDocumentFromAttachment(attachment)),
     tag: originalStatus.tags.map((tag) => getMentionFromTag(tag)),
     replies: {
       id: `${originalStatus.id}/replies`,

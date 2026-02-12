@@ -3,6 +3,17 @@ import { z } from 'zod'
 import { Document } from '@/lib/types/activitypub/objects'
 import * as Mastodon from '@/lib/types/mastodon'
 
+const FITNESS_FILE_EXTENSIONS = ['.fit', '.gpx', '.tcx']
+const FITNESS_MEDIA_TYPES = [
+  'application/vnd.ant.fit',
+  'application/fit',
+  'application/gpx+xml',
+  'application/tcx+xml',
+  'application/vnd.garmin.tcx+xml'
+]
+const FITNESS_MEDIA_TYPE_PATTERN = /(?:^|[./+-])(fit|gpx|tcx)(?:$|[./+-])/i
+const FITNESS_FILE_PATH_SEGMENT = '/api/v1/fitness-files/'
+
 export const UploadedAttachment = z.object({
   type: z.literal('upload'),
   id: z.string(),
@@ -39,6 +50,45 @@ export const Attachment = z.object({
 })
 
 export type Attachment = z.infer<typeof Attachment>
+
+const getPathnameFromUrl = (value: string) => {
+  try {
+    return new URL(value, 'https://local.invalid').pathname.toLowerCase()
+  } catch {
+    return value.toLowerCase().split('?')[0].split('#')[0]
+  }
+}
+
+const hasFitnessExtension = (value: string) => {
+  const lowerValue = value.toLowerCase()
+  const pathname = getPathnameFromUrl(value)
+
+  return FITNESS_FILE_EXTENSIONS.some(
+    (ext) => lowerValue.endsWith(ext) || pathname.endsWith(ext)
+  )
+}
+
+export const isFitnessAttachment = (
+  attachment: Pick<Attachment, 'mediaType' | 'url' | 'name'>
+) => {
+  const mediaType = attachment.mediaType.toLowerCase()
+  const pathname = getPathnameFromUrl(attachment.url)
+
+  if (
+    FITNESS_MEDIA_TYPES.includes(mediaType) ||
+    FITNESS_MEDIA_TYPE_PATTERN.test(mediaType)
+  ) {
+    return true
+  }
+
+  if (pathname.includes(FITNESS_FILE_PATH_SEGMENT)) {
+    return true
+  }
+
+  return (
+    hasFitnessExtension(attachment.url) || hasFitnessExtension(attachment.name)
+  )
+}
 
 export const getDocumentFromAttachment = (attachment: Attachment) =>
   Document.parse({
