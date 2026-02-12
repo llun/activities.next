@@ -141,6 +141,7 @@ interface CreateNoteFromUserInputParams {
   replyNoteId?: string
   currentActor: Actor
   attachments?: PostBoxAttachment[]
+  fitnessFileId?: string
   visibility?: MastodonVisibility
   database: Database
 }
@@ -149,10 +150,25 @@ export const createNoteFromUserInput = async ({
   replyNoteId,
   currentActor,
   attachments = [],
+  fitnessFileId,
   visibility,
   database
 }: CreateNoteFromUserInputParams) => {
   const span = getSpan('actions', 'createNoteFromUser', { text, replyNoteId })
+  const fitnessFile = fitnessFileId
+    ? await database.getFitnessFile({ id: fitnessFileId })
+    : null
+
+  if (
+    fitnessFileId &&
+    (!fitnessFile ||
+      fitnessFile.actorId !== currentActor.id ||
+      Boolean(fitnessFile.statusId))
+  ) {
+    span.end()
+    return null
+  }
+
   const replyStatus = replyNoteId
     ? await database.getStatus({ statusId: replyNoteId, withReplies: false })
     : null
@@ -219,6 +235,10 @@ export const createNoteFromUserInput = async ({
       })
     )
   ])
+
+  if (fitnessFile) {
+    await database.updateFitnessFileStatus(fitnessFile.id, statusId)
+  }
 
   // Create notifications for replies and mentions
   const notificationPromises = []

@@ -184,6 +184,58 @@ describe('Status', () => {
           href: 'https://llun.test/@test1'
         })
       })
+
+      it('does not include fitness file references in Note attachments', async () => {
+        const statusId = `${actor1?.id}/statuses/post-1`
+        const status = (await database.getStatus({
+          statusId
+        })) as StatusNote
+
+        const createdAt = Date.now()
+        const note = toActivityPubObject({
+          ...status,
+          attachments: [
+            {
+              id: 'image-attachment',
+              actorId: status.actorId,
+              statusId: status.id,
+              type: 'Document',
+              mediaType: 'image/png',
+              url: 'https://example.com/files/image.png',
+              width: 100,
+              height: 80,
+              name: 'image.png',
+              createdAt,
+              updatedAt: createdAt
+            },
+            {
+              id: 'fitness-attachment',
+              actorId: status.actorId,
+              statusId: status.id,
+              type: 'Document',
+              mediaType: 'application/gpx+xml',
+              url: '/api/v1/fitness-files/fitness-file-id',
+              width: 0,
+              height: 0,
+              name: 'activity.gpx',
+              createdAt,
+              updatedAt: createdAt
+            }
+          ]
+        })
+
+        const attachments = Array.isArray(note.attachment)
+          ? note.attachment
+          : []
+
+        expect(attachments).toHaveLength(1)
+        expect(attachments[0]).toEqual(
+          expect.objectContaining({
+            mediaType: 'image/png',
+            url: 'https://example.com/files/image.png'
+          })
+        )
+      })
     })
 
     describe('Announce', () => {

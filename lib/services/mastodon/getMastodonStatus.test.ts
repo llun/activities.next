@@ -120,6 +120,38 @@ describe('#getMastodonStatus', () => {
     expect(mastodonStatus?.content).toContain('This is Actor1 post')
   })
 
+  it('keeps mastodon content as post text when fitness file is attached', async () => {
+    const note = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/fitness-content-test`,
+      url: `${ACTOR1_ID}/statuses/fitness-content-test`,
+      actorId: ACTOR1_ID,
+      text: 'Only text should be federated',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: note.id,
+      path: 'fitness/fitness-content-test.fit',
+      fileName: 'fitness-content-test.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1024
+    })
+
+    const status = (await database.getStatus({
+      statusId: note.id,
+      withReplies: false
+    })) as Status
+
+    const mastodonStatus = await getMastodonStatus(database, status)
+
+    expect(mastodonStatus?.content).toContain('Only text should be federated')
+    expect(mastodonStatus?.content).not.toContain('/api/v1/fitness-files/')
+    expect(mastodonStatus?.content).not.toContain('Fitness file')
+  })
+
   it('returns mastodon status with attachments', async () => {
     const status = (await database.getStatus({
       statusId: `${ACTOR1_ID}/statuses/post-3`

@@ -1,7 +1,8 @@
 import { Attachment } from '@/lib/types/domain/attachment'
 import {
   getDocumentFromAttachment,
-  getMastodonAttachment
+  getMastodonAttachment,
+  isFitnessAttachment
 } from '@/lib/types/domain/attachment'
 
 describe('attachment', () => {
@@ -155,6 +156,64 @@ describe('attachment', () => {
 
       expect(result?.meta?.original?.aspect).toBeCloseTo(1920 / 1080)
       expect(result?.meta?.original?.size).toEqual('1920x1080')
+    })
+  })
+
+  describe('#isFitnessAttachment', () => {
+    it('returns true for fitness api references', () => {
+      const result = isFitnessAttachment({
+        mediaType: 'application/octet-stream',
+        url: '/api/v1/fitness-files/fitness-file-id',
+        name: 'workout.bin'
+      })
+
+      expect(result).toBe(true)
+    })
+
+    it('returns true for fit, gpx, and tcx mime types', () => {
+      expect(
+        isFitnessAttachment({
+          mediaType: 'application/vnd.ant.fit',
+          url: 'https://example.com/media/file.bin',
+          name: 'file.bin'
+        })
+      ).toBe(true)
+
+      expect(
+        isFitnessAttachment({
+          mediaType: 'application/gpx+xml',
+          url: 'https://example.com/media/file.bin',
+          name: 'file.bin'
+        })
+      ).toBe(true)
+
+      expect(
+        isFitnessAttachment({
+          mediaType: 'application/tcx+xml',
+          url: 'https://example.com/media/file.bin',
+          name: 'file.bin'
+        })
+      ).toBe(true)
+    })
+
+    it('returns true when file name has fitness extension', () => {
+      const result = isFitnessAttachment({
+        mediaType: 'application/octet-stream',
+        url: 'https://example.com/media/file.bin',
+        name: 'Morning-Run.GPX'
+      })
+
+      expect(result).toBe(true)
+    })
+
+    it('returns false for non-fitness attachment', () => {
+      const result = isFitnessAttachment({
+        mediaType: 'image/png',
+        url: 'https://example.com/media/image.png',
+        name: 'image.png'
+      })
+
+      expect(result).toBe(false)
     })
   })
 })

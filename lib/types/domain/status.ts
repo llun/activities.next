@@ -12,7 +12,8 @@ import {
 import { ActorProfile } from '@/lib/types/domain/actor'
 import {
   Attachment,
-  getDocumentFromAttachment
+  getDocumentFromAttachment,
+  isFitnessAttachment
 } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import { Tag, getMentionFromTag } from '@/lib/types/domain/tag'
@@ -20,6 +21,17 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const StatusType = z.enum(['Note', 'Announce', 'Poll'])
 export type StatusType = z.infer<typeof StatusType>
+
+export const StatusFitnessFile = z.object({
+  id: z.string(),
+  fileName: z.string(),
+  fileType: z.enum(['fit', 'gpx', 'tcx']),
+  mimeType: z.string(),
+  bytes: z.number(),
+  url: z.string(),
+  description: z.string().optional()
+})
+export type StatusFitnessFile = z.infer<typeof StatusFitnessFile>
 
 export const Edited = z.object({
   text: z.string(),
@@ -58,7 +70,8 @@ export const StatusNote = StatusBase.extend({
   totalLikes: z.number(),
 
   attachments: Attachment.array(),
-  tags: Tag.array()
+  tags: Tag.array(),
+  fitness: StatusFitnessFile.optional()
 })
 export type StatusNote = z.infer<typeof StatusNote>
 
@@ -262,9 +275,9 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     cc: originalStatus.cc,
     inReplyTo: originalStatus.reply || null,
     content: originalStatus.text,
-    attachment: originalStatus.attachments.map((attachment) =>
-      getDocumentFromAttachment(attachment)
-    ),
+    attachment: originalStatus.attachments
+      .filter((attachment) => !isFitnessAttachment(attachment))
+      .map((attachment) => getDocumentFromAttachment(attachment)),
     tag: originalStatus.tags.map((tag) => getMentionFromTag(tag)),
     replies: {
       id: `${originalStatus.id}/replies`,
