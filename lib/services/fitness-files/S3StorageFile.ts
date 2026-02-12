@@ -57,20 +57,35 @@ export class S3FitnessStorage implements FitnessStorage {
     const { bucket, prefix } = this._config
     const fullPath = prefix ? `${prefix}${filePath}` : filePath
 
-    const s3client = this._client
-    const command = new GetObjectCommand({
-      Bucket: bucket,
-      Key: fullPath
-    })
-    const object = await s3client.send(command)
-    if (!object.Body) return null
+    try {
+      const s3client = this._client
+      const command = new GetObjectCommand({
+        Bucket: bucket,
+        Key: fullPath
+      })
+      const object = await s3client.send(command)
+      if (!object.Body) return null
 
-    const message = object.Body
-    return FitnessStorageGetFileOutput.parse({
-      type: 'buffer',
-      contentType: object.ContentType ?? 'application/octet-stream',
-      buffer: Buffer.from(await message.transformToByteArray())
-    })
+      const message = object.Body
+      return FitnessStorageGetFileOutput.parse({
+        type: 'buffer',
+        contentType: object.ContentType ?? 'application/octet-stream',
+        buffer: Buffer.from(await message.transformToByteArray())
+      })
+    } catch (error) {
+      const nodeError = error as {
+        name?: string
+        $metadata?: { httpStatusCode?: number }
+      }
+      if (
+        nodeError.name === 'NoSuchKey' ||
+        nodeError.name === 'NotFound' ||
+        nodeError.$metadata?.httpStatusCode === 404
+      ) {
+        return null
+      }
+      throw error
+    }
   }
 
   async deleteFile(filePath: string): Promise<boolean> {

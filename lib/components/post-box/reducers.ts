@@ -275,6 +275,10 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
     case 'setFitnessFile': {
       return {
         ...state,
+        poll: {
+          ...state.poll,
+          showing: false
+        },
         fitnessFile: {
           file: action.file,
           uploading: false

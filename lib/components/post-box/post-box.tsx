@@ -127,6 +127,15 @@ export const PostBox: FC<Props> = ({
     setWarningMsg(null)
     const message = text
     try {
+      if (postExtension.poll.showing && postExtension.fitnessFile) {
+        setWarningMsg(
+          'You cannot create a poll while a fitness file is attached.'
+        )
+        setIsPosting(false)
+        setAllowPost(true)
+        return
+      }
+
       if (postExtension.poll.showing) {
         const poll = postExtension.poll
         await createPoll({
