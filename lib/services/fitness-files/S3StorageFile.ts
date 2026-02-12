@@ -20,7 +20,6 @@ import {
   FitnessFileUploadSchema,
   FitnessStorage,
   FitnessStorageGetFileOutput,
-  FitnessStorageGetRedirectOutput,
   FitnessStorageSaveFileOutput,
   getFitnessFileType
 } from './types'
@@ -55,15 +54,8 @@ export class S3FitnessStorage implements FitnessStorage {
   }
 
   async getFile(filePath: string) {
-    const { bucket, hostname, prefix } = this._config
+    const { bucket, prefix } = this._config
     const fullPath = prefix ? `${prefix}${filePath}` : filePath
-
-    if (hostname) {
-      return FitnessStorageGetRedirectOutput.parse({
-        type: 'redirect',
-        redirectUrl: `https://${hostname}/${fullPath}`
-      })
-    }
 
     const s3client = this._client
     const command = new GetObjectCommand({

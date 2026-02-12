@@ -1,3 +1,4 @@
+import path from 'path'
 import { z } from 'zod'
 
 import { matcher } from '@/lib/config/utils'
@@ -60,8 +61,8 @@ const getMediaQuotaPerAccount = (): number | undefined =>
 export const getFitnessStorageConfig = (): {
   fitnessStorage: FitnessStorageConfig
 } | null => {
-  const hasEnvironmentFitnessStorage = matcher('ACTIVITIES_FITNESS_STORAGE_')
-  if (!hasEnvironmentFitnessStorage) {
+  const fitnessStorageType = process.env.ACTIVITIES_FITNESS_STORAGE_TYPE
+  if (!fitnessStorageType) {
     // Fall back to media storage config with different path/prefix
     const hasEnvironmentMediaStorage = matcher('ACTIVITIES_MEDIA_STORAGE_')
     if (!hasEnvironmentMediaStorage) return null
@@ -71,9 +72,10 @@ export const getFitnessStorageConfig = (): {
         return {
           fitnessStorage: {
             type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
-            path: process.env.ACTIVITIES_MEDIA_STORAGE_PATH
-              ? `${process.env.ACTIVITIES_MEDIA_STORAGE_PATH}/fitness`
-              : 'uploads/fitness',
+            path: path.join(
+              process.env.ACTIVITIES_MEDIA_STORAGE_PATH || 'uploads',
+              'fitness'
+            ),
             maxFileSize: getFitnessMaxFileSize(),
             quotaPerAccount: getMediaQuotaPerAccount()
           }
@@ -98,11 +100,11 @@ export const getFitnessStorageConfig = (): {
     }
   }
 
-  switch (process.env.ACTIVITIES_FITNESS_STORAGE_TYPE) {
+  switch (fitnessStorageType) {
     case FitnessStorageType.LocalFile:
       return {
         fitnessStorage: {
-          type: process.env.ACTIVITIES_FITNESS_STORAGE_TYPE,
+          type: fitnessStorageType,
           path: process.env.ACTIVITIES_FITNESS_STORAGE_PATH as string,
           maxFileSize: getFitnessMaxFileSize(),
           quotaPerAccount: getFitnessQuotaPerAccount()
@@ -112,7 +114,7 @@ export const getFitnessStorageConfig = (): {
     case FitnessStorageType.ObjectStorage: {
       return {
         fitnessStorage: {
-          type: process.env.ACTIVITIES_FITNESS_STORAGE_TYPE,
+          type: fitnessStorageType,
           bucket: process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET as string,
           region: process.env.ACTIVITIES_FITNESS_STORAGE_REGION as string,
           hostname:

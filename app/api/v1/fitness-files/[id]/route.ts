@@ -27,7 +27,7 @@ export const GET = traceApiRoute(
         return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
       }
 
-      const result = await getFitnessFile(database, id)
+      const result = await getFitnessFile(database, id, fileMetadata)
       if (!result) {
         logger.warn({ message: 'Fitness file not found', fileId: id })
         return apiErrorResponse(HTTP_STATUS.NOT_FOUND)

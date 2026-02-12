@@ -1,6 +1,7 @@
 import { getConfig } from '@/lib/config'
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
+import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor } from '@/lib/types/domain/actor'
 
 import { S3FitnessStorage } from './S3StorageFile'
@@ -34,12 +35,17 @@ export const saveFitnessFile = async (
   }
 }
 
-export const getFitnessFile = async (database: Database, fileId: string) => {
+export const getFitnessFile = async (
+  database: Database,
+  fileId: string,
+  fileMetadata?: FitnessFile
+) => {
   const { fitnessStorage, host } = getConfig()
 
-  // Get file metadata from database
-  const fileMetadata = await database.getFitnessFile({ id: fileId })
-  if (!fileMetadata) return null
+  // Reuse metadata when already loaded by caller to avoid duplicate DB reads.
+  const targetFileMetadata =
+    fileMetadata ?? (await database.getFitnessFile({ id: fileId }))
+  if (!targetFileMetadata) return null
 
   switch (fitnessStorage?.type) {
     case FitnessStorageType.LocalFile: {
@@ -47,7 +53,7 @@ export const getFitnessFile = async (database: Database, fileId: string) => {
         fitnessStorage,
         host,
         database
-      ).getFile(fileMetadata.path)
+      ).getFile(targetFileMetadata.path)
     }
     case FitnessStorageType.S3Storage:
     case FitnessStorageType.ObjectStorage: {
@@ -55,7 +61,7 @@ export const getFitnessFile = async (database: Database, fileId: string) => {
         fitnessStorage,
         host,
         database
-      ).getFile(fileMetadata.path)
+      ).getFile(targetFileMetadata.path)
     }
     default:
       return null
