@@ -41,19 +41,34 @@ export const GET = traceApiRoute(
       const fileActor = await database.getActorFromId({
         id: fileMetadata.actorId
       })
-      if (fileActor?.account?.id !== accountId) {
-        logger.warn({
-          message: 'Fitness file not found or not authorized',
-          fileId: id,
-          actorId: currentActor.id,
-          accountId
-        })
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      const isOwnerAccount = fileActor?.account?.id === accountId
+      if (!isOwnerAccount) {
+        const linkedStatusId = fileMetadata.statusId
+        const status = linkedStatusId
+          ? await database.getStatus({
+              statusId: linkedStatusId,
+              currentActorId: currentActor.id,
+              withReplies: false
+            })
+          : null
+
+        if (!status) {
+          logger.warn({
+            message: 'Fitness file not found or not authorized',
+            fileId: id,
+            actorId: currentActor.id,
+            accountId
+          })
+          return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        }
       }
 
       const result = await getFitnessFile(database, id, fileMetadata)
       if (!result) {
-        logger.warn({ message: 'Fitness file not found', fileId: id })
+        logger.warn({
+          message: 'Fitness file not found',
+          fileId: id
+        })
         return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
       }
 
@@ -64,7 +79,7 @@ export const GET = traceApiRoute(
       return new Response(result.buffer as BodyInit, {
         headers: {
           'Content-Type': result.contentType,
-          'Cache-Control': 'public, max-age=31536000, immutable'
+          'Cache-Control': 'private, no-store'
         }
       })
     } catch (error) {

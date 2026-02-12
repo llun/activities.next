@@ -159,28 +159,32 @@ export const PostBox: FC<Props> = ({
 
       let fitnessFileId: string | undefined
       if (postExtension.fitnessFile) {
-        dispatch(setFitnessFileUploading(true))
-        try {
-          const uploadedFitnessFile = await uploadFitnessFile(
-            postExtension.fitnessFile.file
-          )
-          if (!uploadedFitnessFile) {
-            throw new Error(
-              `Fail to upload ${postExtension.fitnessFile.file.name}`
+        if (postExtension.fitnessFile.uploadedId) {
+          fitnessFileId = postExtension.fitnessFile.uploadedId
+        } else {
+          dispatch(setFitnessFileUploading(true))
+          try {
+            const uploadedFitnessFile = await uploadFitnessFile(
+              postExtension.fitnessFile.file
             )
+            if (!uploadedFitnessFile) {
+              throw new Error(
+                `Fail to upload ${postExtension.fitnessFile.file.name}`
+              )
+            }
+            fitnessFileId = uploadedFitnessFile.id
+            dispatch(setFitnessFileUploaded(uploadedFitnessFile.id))
+          } catch (error) {
+            dispatch(setFitnessFileUploading(false))
+            const errorMessage =
+              error instanceof Error && error.message
+                ? error.message
+                : `Fail to upload ${postExtension.fitnessFile.file.name}`
+            setWarningMsg(errorMessage)
+            setIsPosting(false)
+            setAllowPost(true)
+            return
           }
-          fitnessFileId = uploadedFitnessFile.id
-          dispatch(setFitnessFileUploaded(uploadedFitnessFile.id))
-        } catch (error) {
-          dispatch(setFitnessFileUploading(false))
-          const errorMessage =
-            error instanceof Error && error.message
-              ? error.message
-              : `Fail to upload ${postExtension.fitnessFile.file.name}`
-          setWarningMsg(errorMessage)
-          setIsPosting(false)
-          setAllowPost(true)
-          return
         }
       }
 
