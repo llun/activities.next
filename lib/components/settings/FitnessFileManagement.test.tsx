@@ -158,5 +158,48 @@ describe('FitnessFileManagement', () => {
       })
       expect(screen.getByText('ID: fitness-4')).toBeInTheDocument()
     })
+
+    it('parses API JSON errors into readable delete messages', async () => {
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: false,
+        text: async () => JSON.stringify({ status: 'Not Found' }),
+        statusText: 'Not Found'
+      } as Response)
+
+      const files = [
+        {
+          id: 'fitness-5',
+          actorId: 'https://example.com/users/alice',
+          fileName: 'race.gpx',
+          fileType: 'gpx' as const,
+          mimeType: 'application/gpx+xml',
+          bytes: 2048,
+          createdAt: Date.now(),
+          url: '/api/v1/fitness-files/fitness-5'
+        }
+      ]
+
+      render(
+        <FitnessFileManagement
+          used={2048}
+          limit={10485760}
+          fitnessFiles={files}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+      await waitFor(() => {
+        expect(screen.getByText('Delete Fitness File')).toBeInTheDocument()
+      })
+      const deleteButtons = screen.getAllByRole('button', { name: /^Delete$/ })
+      fireEvent.click(deleteButtons[deleteButtons.length - 1])
+
+      await waitFor(() => {
+        expect(screen.getByText('Not Found')).toBeInTheDocument()
+      })
+    })
   })
 })

@@ -104,7 +104,22 @@ export function FitnessFileManagement({
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => response.statusText)
-        setDeleteError(errorText || 'Failed to delete fitness file.')
+        let errorMessage = 'Failed to delete fitness file.'
+        try {
+          const parsedError = JSON.parse(errorText) as {
+            status?: string
+            message?: string
+            error?: string
+          }
+          errorMessage =
+            parsedError.status ||
+            parsedError.message ||
+            parsedError.error ||
+            errorMessage
+        } catch {
+          errorMessage = errorText || errorMessage
+        }
+        setDeleteError(errorMessage)
         return
       }
 
@@ -114,7 +129,8 @@ export function FitnessFileManagement({
       setCurrentUsed((prev) => Math.max(0, prev - fileToDelete.bytes))
       setDeleteDialogOpen(false)
       setFileToDelete(null)
-    } catch {
+    } catch (error) {
+      console.error('Error deleting fitness file:', error)
       setDeleteError(
         'Failed to delete fitness file. Please check your connection and try again.'
       )

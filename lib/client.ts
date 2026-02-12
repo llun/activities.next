@@ -626,8 +626,24 @@ export const uploadFitnessFile = async (
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => response.statusText)
+    let errorDetails = errorText || response.statusText
+    try {
+      const parsedError = JSON.parse(errorText) as {
+        status?: string
+        message?: string
+        error?: string
+      }
+      errorDetails =
+        parsedError.status ||
+        parsedError.message ||
+        parsedError.error ||
+        errorDetails
+    } catch {
+      // Use raw text if error body is not JSON.
+    }
+
     throw new Error(
-      `Failed to upload fitness file: ${response.status} ${errorText}`
+      `Failed to upload fitness file: ${response.status} ${errorDetails}`
     )
   }
 

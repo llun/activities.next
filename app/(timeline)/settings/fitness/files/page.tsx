@@ -14,10 +14,15 @@ export const metadata: Metadata = {
   title: 'Activities.next: Fitness Files'
 }
 
+type PageSearchParams = {
+  page?: string
+  limit?: string
+}
+
 const Page = async ({
   searchParams
 }: {
-  searchParams: Promise<{ page?: string; limit?: string }>
+  searchParams: PageSearchParams | Promise<PageSearchParams>
 }) => {
   const database = getDatabase()
   if (!database) {
@@ -30,7 +35,7 @@ const Page = async ({
     return redirect('/auth/signin')
   }
 
-  const params = await searchParams
+  const params = await Promise.resolve(searchParams)
   const page = Math.max(1, Math.min(10000, parseInt(params.page || '1', 10)))
   const parsedLimit = parseInt(params.limit || '25', 10)
   const itemsPerPage = [25, 50, 100].includes(parsedLimit) ? parsedLimit : 25
