@@ -1,7 +1,11 @@
+import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getDatabase } from '@/lib/database'
 import { getFitnessFile } from '@/lib/services/fitness-files'
-import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -12,28 +16,24 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getFitnessFile',
-  AuthenticatedGuard<Params>(async (_req: NextRequest, context) => {
-    const { database, currentActor, params } = context
-    const { id } = await params
+  async (_req: NextRequest, context: { params: Promise<Params> }) => {
+    const database = getDatabase()
+    if (!database) {
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    }
+
+    const { id } = await context.params
 
     try {
-      const accountId = currentActor.account?.id
-      if (!accountId) {
-        logger.warn({
-          message: 'Unauthorized fitness file request - no account',
-          actorId: currentActor.id,
-          fileId: id
-        })
-        return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
-      }
+      const session = await getServerSession(getAuthOptions())
+      const currentActor = await getActorFromSession(database, session)
+      const currentAccountId = currentActor?.account?.id
 
       const fileMetadata = await database.getFitnessFile({ id })
       if (!fileMetadata) {
         logger.warn({
           message: 'Fitness file not found',
-          fileId: id,
-          actorId: currentActor.id,
-          accountId
+          fileId: id
         })
         return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
       }
@@ -41,23 +41,38 @@ export const GET = traceApiRoute(
       const fileActor = await database.getActorFromId({
         id: fileMetadata.actorId
       })
-      const isOwnerAccount = fileActor?.account?.id === accountId
-      if (!isOwnerAccount) {
-        const linkedStatusId = fileMetadata.statusId
-        const status = linkedStatusId
-          ? await database.getStatus({
-              statusId: linkedStatusId,
-              currentActorId: currentActor.id,
-              withReplies: false
-            })
-          : null
+      const ownerAccountId = fileActor?.account?.id
+      const isOwnerAccount = Boolean(
+        currentAccountId && ownerAccountId === currentAccountId
+      )
+      let isPubliclyAccessible = false
 
-        if (!status) {
+      if (!isOwnerAccount) {
+        if (!fileMetadata.statusId) {
           logger.warn({
             message: 'Fitness file not found or not authorized',
             fileId: id,
-            actorId: currentActor.id,
-            accountId
+            actorId: currentActor?.id ?? null,
+            accountId: currentAccountId ?? null
+          })
+          return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        }
+
+        const status = await database.getStatus({
+          statusId: fileMetadata.statusId,
+          withReplies: false
+        })
+        const visibility = status ? getVisibility(status.to, status.cc) : null
+        isPubliclyAccessible =
+          visibility === 'public' || visibility === 'unlisted'
+
+        if (!status || !isPubliclyAccessible) {
+          logger.warn({
+            message: 'Fitness file not found or not authorized',
+            fileId: id,
+            actorId: currentActor?.id ?? null,
+            accountId: currentAccountId ?? null,
+            visibility
           })
           return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
         }
@@ -79,7 +94,9 @@ export const GET = traceApiRoute(
       return new Response(result.buffer as BodyInit, {
         headers: {
           'Content-Type': result.contentType,
-          'Cache-Control': 'private, no-store'
+          'Cache-Control': isPubliclyAccessible
+            ? 'public, max-age=31536000, immutable'
+            : 'private, no-store'
         }
       })
     } catch (error) {
@@ -91,5 +108,5 @@ export const GET = traceApiRoute(
       })
       return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
-  })
+  }
 )

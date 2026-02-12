@@ -614,28 +614,33 @@ const parseApiError = async (
   fallbackMessage: string
 ): Promise<string> => {
   const errorText = await response.text().catch(() => response.statusText)
-  let errorDetails = errorText || response.statusText || fallbackMessage
+
+  if (!errorText) {
+    return response.statusText || fallbackMessage
+  }
+
   try {
     const parsedError = JSON.parse(errorText) as {
       status?: string
       message?: string
       error?: string
     }
-    errorDetails =
+    return (
       parsedError.status ||
       parsedError.message ||
       parsedError.error ||
-      errorDetails
+      errorText
+    )
   } catch {
     // Use raw text if error body is not JSON.
+    return errorText
   }
-  return errorDetails
 }
 
 export const uploadFitnessFile = async (
   file: File,
   description?: string
-): Promise<UploadFitnessFileResult | null> => {
+): Promise<UploadFitnessFileResult> => {
   const formData = new FormData()
   formData.append('file', file)
   if (description) {

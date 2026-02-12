@@ -3,6 +3,7 @@ import {
   FC,
   FormEvent,
   KeyboardEvent,
+  useCallback,
   useEffect,
   useReducer,
   useRef,
@@ -99,6 +100,8 @@ export const PostBox: FC<Props> = ({
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const textRef = useRef(text)
+  const fitnessCleanupInFlightRef = useRef<string | null>(null)
 
   const [postExtension, dispatch] = useReducer(
     statusExtensionReducer,
@@ -109,6 +112,10 @@ export const PostBox: FC<Props> = ({
   useEffect(() => {
     postExtensionRef.current = postExtension
   }, [postExtension])
+
+  useEffect(() => {
+    textRef.current = text
+  }, [text])
 
   useEffect(() => {
     return () => {
@@ -177,11 +184,6 @@ export const PostBox: FC<Props> = ({
             const uploadedFitnessFile = await uploadFitnessFile(
               postExtension.fitnessFile.file
             )
-            if (!uploadedFitnessFile) {
-              throw new Error(
-                `Fail to upload ${postExtension.fitnessFile.file.name}`
-              )
-            }
             fitnessFileId = uploadedFitnessFile.id
             dispatch(setFitnessFileUploaded(uploadedFitnessFile.id))
           } catch (error) {
@@ -315,7 +317,7 @@ export const PostBox: FC<Props> = ({
     )
   }
 
-  const onRemoveFitnessFile = async () => {
+  const onRemoveFitnessFile = useCallback(async () => {
     const fitnessFile = postExtension.fitnessFile
     if (!fitnessFile) {
       return
@@ -323,23 +325,33 @@ export const PostBox: FC<Props> = ({
 
     if (!fitnessFile.uploadedId) {
       dispatch(removeFitnessFile())
-      setAllowPost(text.trim().length > 0)
+      setAllowPost(textRef.current.trim().length > 0)
       return
     }
+
+    if (fitnessCleanupInFlightRef.current === fitnessFile.uploadedId) {
+      return
+    }
+
+    fitnessCleanupInFlightRef.current = fitnessFile.uploadedId
 
     try {
       setWarningMsg(null)
       await deleteFitnessFile(fitnessFile.uploadedId)
       dispatch(removeFitnessFile())
-      setAllowPost(text.trim().length > 0)
+      setAllowPost(textRef.current.trim().length > 0)
     } catch (error) {
       const errorMessage =
         error instanceof Error && error.message
           ? error.message
           : 'Failed to delete uploaded fitness file'
       setWarningMsg(errorMessage)
+    } finally {
+      if (fitnessCleanupInFlightRef.current === fitnessFile.uploadedId) {
+        fitnessCleanupInFlightRef.current = null
+      }
     }
-  }
+  }, [postExtension.fitnessFile])
 
   const onQuickPost = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!(event.metaKey || event.ctrlKey)) return
@@ -417,9 +429,8 @@ export const PostBox: FC<Props> = ({
   useEffect(() => {
     if (!replyStatus) return
     if (!postExtension.fitnessFile) return
-    dispatch(removeFitnessFile())
-    setAllowPost(text.trim().length > 0)
-  }, [replyStatus, postExtension.fitnessFile, text])
+    void onRemoveFitnessFile()
+  }, [replyStatus, postExtension.fitnessFile, onRemoveFitnessFile])
 
   useEffect(() => {
     if (editStatus) {

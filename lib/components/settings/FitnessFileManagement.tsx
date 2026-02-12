@@ -105,7 +105,6 @@ export function FitnessFileManagement({
       setDeleteDialogOpen(false)
       setFileToDelete(null)
     } catch (error) {
-      console.error('Error deleting fitness file:', error)
       const message =
         error instanceof Error
           ? error.message
