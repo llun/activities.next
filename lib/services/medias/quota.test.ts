@@ -36,6 +36,14 @@ describe('Quota Service', () => {
       } as unknown as ReturnType<typeof getConfig>)
       expect(getQuotaLimit()).toBe(customQuota)
     })
+
+    it('prefers fitness quota when both are configured', () => {
+      mockGetConfig.mockReturnValue({
+        fitnessStorage: { quotaPerAccount: 1234 },
+        mediaStorage: { quotaPerAccount: 5678 }
+      } as unknown as ReturnType<typeof getConfig>)
+      expect(getQuotaLimit()).toBe(1234)
+    })
   })
 
   describe.each(table)('%s', (_, database) => {
@@ -129,6 +137,45 @@ describe('Quota Service', () => {
         const result = await checkQuotaAvailable(database, actor, 0)
 
         expect(result.used).toBe(1200) // 1000 + 200
+      })
+
+      it('includes fitness storage usage in shared quota checks', async () => {
+        const mediumQuota = 10_000
+        mockGetConfig.mockReturnValue({
+          mediaStorage: { quotaPerAccount: mediumQuota }
+        } as unknown as ReturnType<typeof getConfig>)
+
+        const actor = actors.primary
+        const actorData = await database.getActorFromId({ id: actor.id })
+        expect(actorData?.account?.id).toBeDefined()
+
+        const accountId = actorData!.account!.id
+        const [beforeMedia, beforeFitness] = await Promise.all([
+          database.getStorageUsageForAccount({ accountId }),
+          database.getFitnessStorageUsageForAccount({ accountId })
+        ])
+
+        await database.createMedia({
+          actorId: actor.id,
+          original: {
+            path: '/test/shared-quota-image.jpg',
+            bytes: 700,
+            mimeType: 'image/jpeg',
+            metaData: { width: 400, height: 300 }
+          }
+        })
+        await database.createFitnessFile({
+          actorId: actor.id,
+          path: 'fitness/shared-quota.fit',
+          fileName: 'shared-quota.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 300
+        })
+
+        const result = await checkQuotaAvailable(database, actor, 0)
+
+        expect(result.used).toBe(beforeMedia + beforeFitness + 1000)
       })
     })
   })

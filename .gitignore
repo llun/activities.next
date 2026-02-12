@@ -86,4 +86,4 @@ backups/
 .agent
 .claude
 .gemini
-CLAUDE.md
+AGENTS.override.md

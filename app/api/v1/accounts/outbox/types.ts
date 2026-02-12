@@ -10,6 +10,7 @@ export const CreateNoteRequest = z.object({
   message: z.string(),
   replyStatus: Status.optional(),
   attachments: PostBoxAttachment.array().optional(),
+  fitnessFileId: z.string().optional(),
   visibility: z
     .enum(['public', 'unlisted', 'private', 'direct'])
     .optional() as z.ZodOptional<z.ZodType<MastodonVisibility>>

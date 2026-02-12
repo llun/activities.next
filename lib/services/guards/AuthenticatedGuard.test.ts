@@ -96,7 +96,7 @@ describe('AuthenticatedGuard', () => {
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toContain('/signin')
+      expect(response.headers.get('location')).toContain('/auth/signin')
     })
 
     it('redirects to signin when session has no email', async () => {
@@ -109,7 +109,7 @@ describe('AuthenticatedGuard', () => {
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toContain('/signin')
+      expect(response.headers.get('location')).toContain('/auth/signin')
     })
 
     it('redirects to signin when email not found in database', async () => {
@@ -122,7 +122,7 @@ describe('AuthenticatedGuard', () => {
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toContain('/signin')
+      expect(response.headers.get('location')).toContain('/auth/signin')
     })
   })
 
@@ -139,7 +139,7 @@ describe('AuthenticatedGuard', () => {
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toContain('/signin')
+      expect(response.headers.get('location')).toContain('/auth/signin')
 
       mockDatabase = originalDb
     })

@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from 'date-fns'
 import _ from 'lodash'
-import { ExternalLink, Repeat2 } from 'lucide-react'
+import { Activity, ExternalLink, Repeat2 } from 'lucide-react'
 import { FC } from 'react'
 
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -53,6 +53,8 @@ export const Post: FC<PostProps> = (props) => {
     .thru((s) => processStatusText(host, s))
     .thru(cleanClassName)
     .value()
+  const fitnessFile =
+    actualStatus.type === StatusType.enum.Note ? actualStatus.fitness : null
 
   return (
     <div className="flex flex-col gap-1">
@@ -92,6 +94,27 @@ export const Post: FC<PostProps> = (props) => {
           <div className="mt-1 text-sm leading-relaxed break-words markdown-content">
             {processedAndCleanedText}
           </div>
+          {fitnessFile ? (
+            <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+              <Activity className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="shrink-0 font-medium text-muted-foreground">
+                Fitness
+              </span>
+              <a
+                href={fitnessFile.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => event.stopPropagation()}
+                className="truncate text-foreground underline-offset-2 hover:underline"
+                title={fitnessFile.fileName}
+              >
+                {fitnessFile.fileName}
+              </a>
+              <span className="shrink-0 text-muted-foreground uppercase">
+                {fitnessFile.fileType}
+              </span>
+            </div>
+          ) : null}
 
           <Poll
             status={actualStatus}

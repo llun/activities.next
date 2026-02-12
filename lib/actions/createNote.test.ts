@@ -239,6 +239,43 @@ How are you?
       })
     })
 
+    it('does not serialize fitness file attachments in note payload', async () => {
+      const status = (await createNoteFromUserInput({
+        text: 'Post with mixed attachments',
+        currentActor: actor1,
+        attachments: [
+          {
+            type: 'upload',
+            id: 'image-upload-id',
+            mediaType: 'image/png',
+            url: 'https://example.com/media/image.png',
+            width: 640,
+            height: 480,
+            name: 'image.png'
+          },
+          {
+            type: 'upload',
+            id: 'fitness-upload-id',
+            mediaType: 'application/tcx+xml',
+            url: '/api/v1/fitness-files/fitness-file-id',
+            width: 0,
+            height: 0,
+            name: 'training.tcx'
+          }
+        ],
+        database
+      })) as StatusNote
+
+      const note = getNoteFromStatus(status) as Note
+      const attachments = Array.isArray(note.attachment) ? note.attachment : []
+
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0]).toMatchObject({
+        mediaType: 'image/png',
+        url: 'https://example.com/media/image.png'
+      })
+    })
+
     describe('visibility support', () => {
       it('creates public status with correct recipients', async () => {
         const status = (await createNoteFromUserInput({

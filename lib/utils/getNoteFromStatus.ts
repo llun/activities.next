@@ -1,6 +1,9 @@
 import { getConfig } from '@/lib/config'
 import { Note } from '@/lib/types/activitypub'
-import { getDocumentFromAttachment } from '@/lib/types/domain/attachment'
+import {
+  getDocumentFromAttachment,
+  isFitnessAttachment
+} from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getMentionFromTag } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
@@ -23,9 +26,9 @@ export const getNoteFromStatus = (status: Status): Note | null => {
     cc: actualStatus.cc,
     inReplyTo: actualStatus.reply || null,
     content: convertMarkdownText(getConfig().host)(actualStatus.text),
-    attachment: actualStatus.attachments.map((attachment) =>
-      getDocumentFromAttachment(attachment)
-    ),
+    attachment: actualStatus.attachments
+      .filter((attachment) => !isFitnessAttachment(attachment))
+      .map((attachment) => getDocumentFromAttachment(attachment)),
     tag: actualStatus.tags.map((tag) => getMentionFromTag(tag)),
     replies: {
       id: `${actualStatus.id}/replies`,

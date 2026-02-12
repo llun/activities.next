@@ -17,15 +17,21 @@ export interface CreateNoteParams {
   message: string
   replyStatus?: Status
   attachments?: PostBoxAttachment[]
+  fitnessFileId?: string
   visibility?: MastodonVisibility
 }
 export const createNote = async ({
   message,
   replyStatus,
   attachments = [],
+  fitnessFileId,
   visibility
 }: CreateNoteParams) => {
-  if (message.trim().length === 0 && attachments.length === 0) {
+  if (
+    message.trim().length === 0 &&
+    attachments.length === 0 &&
+    !fitnessFileId
+  ) {
     throw new Error('Message or attachments must not be empty')
   }
 
@@ -39,6 +45,7 @@ export const createNote = async ({
       replyStatus,
       message,
       attachments,
+      fitnessFileId,
       visibility
     })
   })
@@ -587,4 +594,88 @@ export const getActorMedia = async ({
   })
   if (response.status !== 200) return []
   return response.json()
+}
+
+export interface UploadFitnessFileResult {
+  id: string
+  type: 'fitness'
+  file_type: 'fit' | 'gpx' | 'tcx'
+  mime_type: string
+  url: string
+  fileName: string
+  size: number
+  description?: string
+  hasMapData?: boolean
+  mapImageUrl?: string
+}
+
+const parseApiError = async (
+  response: Response,
+  fallbackMessage: string
+): Promise<string> => {
+  const errorText = await response.text().catch(() => response.statusText)
+
+  if (!errorText) {
+    return response.statusText || fallbackMessage
+  }
+
+  try {
+    const parsedError = JSON.parse(errorText) as {
+      status?: string
+      message?: string
+      error?: string
+    }
+    return (
+      parsedError.status ||
+      parsedError.message ||
+      parsedError.error ||
+      errorText
+    )
+  } catch {
+    // Use raw text if error body is not JSON.
+    return errorText
+  }
+}
+
+export const uploadFitnessFile = async (
+  file: File,
+  description?: string
+): Promise<UploadFitnessFileResult> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (description) {
+    formData.append('description', description)
+  }
+
+  const response = await fetch('/api/v1/fitness-files', {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to upload fitness file.'
+    )
+
+    throw new Error(
+      `Failed to upload fitness file: ${response.status} ${errorDetails}`
+    )
+  }
+
+  return response.json()
+}
+
+export const deleteFitnessFile = async (id: string): Promise<void> => {
+  const response = await fetch(`/api/v1/accounts/fitness-files/${id}`, {
+    method: 'DELETE'
+  })
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to delete fitness file.'
+    )
+    throw new Error(errorDetails)
+  }
 }

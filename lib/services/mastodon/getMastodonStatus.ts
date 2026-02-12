@@ -198,7 +198,6 @@ export const getMastodonStatus = async (
 
   // Sensitive is true if there's a spoiler_text/summary
   const sensitive = Boolean(status.summary && status.summary.length > 0)
-
   const mastodonStatus = {
     ...baseData,
     spoiler_text: status.summary ?? '',

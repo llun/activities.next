@@ -6,7 +6,11 @@ import { DEFAULT_QUOTA_PER_ACCOUNT } from './constants'
 
 export const getQuotaLimit = (): number => {
   const config = getConfig()
-  return config.mediaStorage?.quotaPerAccount ?? DEFAULT_QUOTA_PER_ACCOUNT
+  return (
+    config.fitnessStorage?.quotaPerAccount ??
+    config.mediaStorage?.quotaPerAccount ??
+    DEFAULT_QUOTA_PER_ACCOUNT
+  )
 }
 
 export const checkQuotaAvailable = async (
@@ -14,16 +18,25 @@ export const checkQuotaAvailable = async (
   actor: Actor,
   requiredBytes: number
 ): Promise<{ available: boolean; used: number; limit: number }> => {
+  const limit = getQuotaLimit()
+
   // Get the accountId from the actor
   const actorData = await database.getActorFromId({ id: actor.id })
-  if (!actorData?.account?.id) {
-    return { available: false, used: 0, limit: 0 }
+  const accountId = actorData?.account?.id
+  if (!accountId) {
+    return { available: false, used: 0, limit }
   }
 
-  const limit = getQuotaLimit()
-  const used = await database.getStorageUsageForAccount({
-    accountId: actorData.account.id
-  })
+  const [mediaUsed, fitnessUsed] = await Promise.all([
+    database.getStorageUsageForAccount({
+      accountId
+    }),
+    database.getFitnessStorageUsageForAccount({
+      accountId
+    })
+  ])
+
+  const used = mediaUsed + fitnessUsed
 
   const available = used + requiredBytes <= limit
   return { available, used, limit }

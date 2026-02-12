@@ -1,8 +1,9 @@
-import { BarChart3, Loader2 } from 'lucide-react'
+import { Activity, BarChart3, Loader2, X } from 'lucide-react'
 import {
   FC,
   FormEvent,
   KeyboardEvent,
+  useCallback,
   useEffect,
   useReducer,
   useRef,
@@ -15,8 +16,10 @@ import sanitizeHtml from 'sanitize-html'
 import {
   createNote,
   createPoll,
+  deleteFitnessFile,
   updateNote,
-  uploadAttachment
+  uploadAttachment,
+  uploadFitnessFile
 } from '@/lib/client'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
@@ -38,6 +41,7 @@ import {
   StatusNote,
   StatusType
 } from '@/lib/types/domain/status'
+import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { SANITIZED_OPTION } from '@/lib/utils/text/sanitizeText'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -47,9 +51,13 @@ import {
   DEFAULT_STATE,
   addAttachment,
   addPollChoice,
+  removeFitnessFile,
   removePollChoice,
   resetExtension,
   setAttachments,
+  setFitnessFile,
+  setFitnessFileUploaded,
+  setFitnessFileUploading,
   setPollDurationInSeconds,
   setPollType,
   setPollVisibility,
@@ -58,6 +66,7 @@ import {
   updateAttachment
 } from './reducers'
 import { ReplyPreview } from './reply-preview'
+import { UploadFitnessFileButton } from './upload-fitness-file-button'
 import { UploadMediaButton } from './upload-media-button'
 import { VisibilitySelector } from './visibility-selector'
 
@@ -91,6 +100,8 @@ export const PostBox: FC<Props> = ({
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const textRef = useRef(text)
+  const fitnessCleanupInFlightRef = useRef<string | null>(null)
 
   const [postExtension, dispatch] = useReducer(
     statusExtensionReducer,
@@ -101,6 +112,10 @@ export const PostBox: FC<Props> = ({
   useEffect(() => {
     postExtensionRef.current = postExtension
   }, [postExtension])
+
+  useEffect(() => {
+    textRef.current = text
+  }, [text])
 
   useEffect(() => {
     return () => {
@@ -120,6 +135,15 @@ export const PostBox: FC<Props> = ({
     setWarningMsg(null)
     const message = text
     try {
+      if (postExtension.poll.showing && postExtension.fitnessFile) {
+        setWarningMsg(
+          'You cannot create a poll while a fitness file is attached.'
+        )
+        setIsPosting(false)
+        setAllowPost(true)
+        return
+      }
+
       if (postExtension.poll.showing) {
         const poll = postExtension.poll
         await createPoll({
@@ -148,6 +172,32 @@ export const PostBox: FC<Props> = ({
         setText('')
         setIsPosting(false)
         return
+      }
+
+      let fitnessFileId: string | undefined
+      if (postExtension.fitnessFile) {
+        if (postExtension.fitnessFile.uploadedId) {
+          fitnessFileId = postExtension.fitnessFile.uploadedId
+        } else {
+          dispatch(setFitnessFileUploading(true))
+          try {
+            const uploadedFitnessFile = await uploadFitnessFile(
+              postExtension.fitnessFile.file
+            )
+            fitnessFileId = uploadedFitnessFile.id
+            dispatch(setFitnessFileUploaded(uploadedFitnessFile.id))
+          } catch (error) {
+            dispatch(setFitnessFileUploading(false))
+            const errorMessage =
+              error instanceof Error && error.message
+                ? error.message
+                : `Fail to upload ${postExtension.fitnessFile.file.name}`
+            setWarningMsg(errorMessage)
+            setIsPosting(false)
+            setAllowPost(true)
+            return
+          }
+        }
       }
 
       const uploadResults = await Promise.all(
@@ -232,6 +282,7 @@ export const PostBox: FC<Props> = ({
         message,
         replyStatus,
         attachments,
+        fitnessFileId,
         visibility: postExtension.visibility
       })
 
@@ -266,6 +317,42 @@ export const PostBox: FC<Props> = ({
     )
   }
 
+  const onRemoveFitnessFile = useCallback(async () => {
+    const fitnessFile = postExtension.fitnessFile
+    if (!fitnessFile) {
+      return
+    }
+
+    if (!fitnessFile.uploadedId) {
+      dispatch(removeFitnessFile())
+      setAllowPost(textRef.current.trim().length > 0)
+      return
+    }
+
+    if (fitnessCleanupInFlightRef.current === fitnessFile.uploadedId) {
+      return
+    }
+
+    fitnessCleanupInFlightRef.current = fitnessFile.uploadedId
+
+    try {
+      setWarningMsg(null)
+      await deleteFitnessFile(fitnessFile.uploadedId)
+      dispatch(removeFitnessFile())
+      setAllowPost(textRef.current.trim().length > 0)
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Failed to delete uploaded fitness file'
+      setWarningMsg(errorMessage)
+    } finally {
+      if (fitnessCleanupInFlightRef.current === fitnessFile.uploadedId) {
+        fitnessCleanupInFlightRef.current = null
+      }
+    }
+  }, [postExtension.fitnessFile])
+
   const onQuickPost = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!(event.metaKey || event.ctrlKey)) return
     if (event.code !== 'Enter') return
@@ -277,7 +364,7 @@ export const PostBox: FC<Props> = ({
   const onTextChange = (value: string) => {
     setText(value)
     if (value.trim().length === 0) {
-      setAllowPost(false)
+      setAllowPost(Boolean(postExtensionRef.current.fitnessFile))
       return
     }
     if (
@@ -338,6 +425,12 @@ export const PostBox: FC<Props> = ({
 
     return [message, message.length, message.length]
   }
+
+  useEffect(() => {
+    if (!replyStatus) return
+    if (!postExtension.fitnessFile) return
+    void onRemoveFitnessFile()
+  }, [replyStatus, postExtension.fitnessFile, onRemoveFitnessFile])
 
   useEffect(() => {
     if (editStatus) {
@@ -481,6 +574,17 @@ export const PostBox: FC<Props> = ({
             >
               <BarChart3 className="size-4" />
             </Button>
+            {!replyStatus ? (
+              <UploadFitnessFileButton
+                disabled={isPosting}
+                onFileSelected={(file) => {
+                  setWarningMsg(null)
+                  dispatch(setFitnessFile(file))
+                  setAllowPost(true)
+                }}
+                onError={(message) => setWarningMsg(message)}
+              />
+            ) : null}
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
@@ -511,6 +615,34 @@ export const PostBox: FC<Props> = ({
         </div>
         {warningMsg ? (
           <div className="text-xs text-destructive mb-3">{warningMsg}</div>
+        ) : null}
+        {!replyStatus && postExtension.fitnessFile ? (
+          <div className="mb-3 flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <Activity className="size-4 text-muted-foreground" />
+              <span className="shrink-0 text-muted-foreground">Fitness:</span>
+              <span className="truncate font-medium">
+                {postExtension.fitnessFile.file.name}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {formatFileSize(postExtension.fitnessFile.file.size)}
+              </span>
+              {postExtension.fitnessFile.uploading ? (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  Uploading...
+                </span>
+              ) : null}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Remove selected fitness file"
+              onClick={() => void onRemoveFitnessFile()}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
         ) : null}
         <div className="grid gap-4 grid-cols-8">
           {postExtension.attachments.map((item, index) => {
