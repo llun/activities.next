@@ -22,6 +22,13 @@ import {
   getFitnessFileType
 } from './types'
 
+// Fallback MIME types for fitness file extensions not recognised by mime-types.
+const FITNESS_MIME_TYPES: Record<string, string> = {
+  '.fit': 'application/vnd.ant.fit',
+  '.gpx': 'application/gpx+xml',
+  '.tcx': 'application/vnd.garmin.tcx+xml'
+}
+
 export class LocalFileFitnessStorage implements FitnessStorage {
   private static _instance: FitnessStorage
   private _config: FitnessStorageFileConfig
@@ -55,8 +62,11 @@ export class LocalFileFitnessStorage implements FitnessStorage {
 
   async getFile(filePath: string) {
     const fullPath = path.resolve(this._config.path, filePath)
-    const contentType = mime.contentType(path.extname(fullPath))
-    if (!contentType) return null
+    const ext = path.extname(fullPath).toLowerCase()
+    const contentType =
+      mime.contentType(ext) ||
+      FITNESS_MIME_TYPES[ext] ||
+      'application/octet-stream'
 
     try {
       return FitnessStorageGetFileOutput.parse({
