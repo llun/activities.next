@@ -37,6 +37,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@upstash/qstash": "^2.9.0",
     "bcrypt": "^6.0.0",
+    "better-auth": "^1.4.18",
     "better-sqlite3": "^12.6.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
