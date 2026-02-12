@@ -15,12 +15,12 @@ export const AuthenticatedGuard =
     const session = await getServerSession(getAuthOptions())
 
     if (!database || !session?.user?.email) {
-      return Response.redirect(getRedirectUrl(req, '/signin'), 307)
+      return Response.redirect(getRedirectUrl(req, '/auth/signin'), 307)
     }
 
     const currentActor = await getActorFromSession(database, session)
     if (!currentActor) {
-      return Response.redirect(getRedirectUrl(req, '/signin'), 307)
+      return Response.redirect(getRedirectUrl(req, '/auth/signin'), 307)
     }
 
     return handle(req, { currentActor, database, params: context.params })
