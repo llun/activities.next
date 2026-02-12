@@ -184,5 +184,57 @@ describe('Create note action with attachments', () => {
         ])
       )
     })
+
+    it('creates note with linked fitness file', async () => {
+      const storedFitnessFile = await database.createFitnessFile({
+        actorId: actor1.id,
+        path: `fitness/${Date.now()}-morning-run.fit`,
+        fileName: 'morning-run.fit',
+        fileType: 'fit',
+        mimeType: 'application/octet-stream',
+        bytes: 2048
+      })
+
+      const status = (await createNoteFromUserInput({
+        text: 'Morning run with FIT file',
+        currentActor: actor1,
+        fitnessFileId: storedFitnessFile!.id,
+        database
+      })) as StatusNote
+
+      expect(status.fitness).toMatchObject({
+        id: storedFitnessFile!.id,
+        fileName: 'morning-run.fit',
+        fileType: 'fit',
+        mimeType: 'application/octet-stream',
+        bytes: 2048,
+        url: `/api/v1/fitness-files/${storedFitnessFile!.id}`
+      })
+
+      const linkedFitnessFile = await database.getFitnessFile({
+        id: storedFitnessFile!.id
+      })
+      expect(linkedFitnessFile?.statusId).toBe(status.id)
+    })
+
+    it('does not create note when fitness file is owned by another actor', async () => {
+      const storedFitnessFile = await database.createFitnessFile({
+        actorId: actor2.id,
+        path: `fitness/${Date.now()}-not-owned.fit`,
+        fileName: 'not-owned.fit',
+        fileType: 'fit',
+        mimeType: 'application/octet-stream',
+        bytes: 1024
+      })
+
+      const status = await createNoteFromUserInput({
+        text: 'This should fail',
+        currentActor: actor1,
+        fitnessFileId: storedFitnessFile!.id,
+        database
+      })
+
+      expect(status).toBeNull()
+    })
   })
 })

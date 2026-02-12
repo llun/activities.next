@@ -21,6 +21,17 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 export const StatusType = z.enum(['Note', 'Announce', 'Poll'])
 export type StatusType = z.infer<typeof StatusType>
 
+export const StatusFitnessFile = z.object({
+  id: z.string(),
+  fileName: z.string(),
+  fileType: z.enum(['fit', 'gpx', 'tcx']),
+  mimeType: z.string(),
+  bytes: z.number(),
+  url: z.string(),
+  description: z.string().optional()
+})
+export type StatusFitnessFile = z.infer<typeof StatusFitnessFile>
+
 export const Edited = z.object({
   text: z.string(),
   summary: z.string().nullable().optional(),
@@ -58,7 +69,8 @@ export const StatusNote = StatusBase.extend({
   totalLikes: z.number(),
 
   attachments: Attachment.array(),
-  tags: Tag.array()
+  tags: Tag.array(),
+  fitness: StatusFitnessFile.optional()
 })
 export type StatusNote = z.infer<typeof StatusNote>
 

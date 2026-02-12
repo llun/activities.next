@@ -198,6 +198,10 @@ export const getMastodonStatus = async (
 
   // Sensitive is true if there's a spoiler_text/summary
   const sensitive = Boolean(status.summary && status.summary.length > 0)
+  const fitnessFileContent =
+    status.type === StatusType.enum.Note && status.fitness
+      ? `<p><a href="https://${host}/api/v1/fitness-files/${status.fitness.id}" target="_blank" rel="noopener noreferrer">Fitness file</a></p>`
+      : ''
 
   const mastodonStatus = {
     ...baseData,
@@ -217,7 +221,7 @@ export const getMastodonStatus = async (
     edited_at: status.updatedAt ? getISOTimeUTC(status.updatedAt) : null,
 
     reblogged: status.actorAnnounceStatusId !== null,
-    content: processStatusText(host, status),
+    content: `${processStatusText(host, status)}${fitnessFileContent}`,
 
     // Plain text source (for editing)
     text: status.text,

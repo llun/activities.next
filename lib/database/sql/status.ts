@@ -8,6 +8,7 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorDatabase } from '@/lib/types/database/operations'
 import { LikeDatabase } from '@/lib/types/database/operations'
 import { MediaDatabase } from '@/lib/types/database/operations'
@@ -843,7 +844,8 @@ export const StatusSQLDatabaseMixin = (
       totalLikes,
       isActorLikedStatusResult,
       actorAnnounceStatus,
-      edits
+      edits,
+      fitnessFile
     ] = await Promise.all([
       mediaDatabase.getAttachments({ statusId: data.id }),
       getTags({ statusId: data.id }),
@@ -867,7 +869,11 @@ export const StatusSQLDatabaseMixin = (
             actorId: currentActorId
           })
         : null,
-      database('status_history').where('statusId', data.id)
+      database('status_history').where('statusId', data.id),
+      database<SQLFitnessFile>('fitness_files')
+        .where('statusId', data.id)
+        .whereNull('deletedAt')
+        .first()
     ])
 
     const repliesNote = (
@@ -902,6 +908,21 @@ export const StatusSQLDatabaseMixin = (
       isLocalActor: Boolean(actor?.account),
       attachments,
       tags,
+      ...(fitnessFile
+        ? {
+            fitness: {
+              id: fitnessFile.id,
+              fileName: fitnessFile.fileName,
+              fileType: fitnessFile.fileType,
+              mimeType: fitnessFile.mimeType,
+              bytes: Number(fitnessFile.bytes),
+              url: `/api/v1/fitness-files/${fitnessFile.id}`,
+              ...(fitnessFile.description
+                ? { description: fitnessFile.description }
+                : null)
+            }
+          }
+        : null),
       createdAt: getCompatibleTime(data.createdAt),
       updatedAt: getCompatibleTime(data.updatedAt),
 

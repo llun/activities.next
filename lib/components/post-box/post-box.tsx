@@ -16,7 +16,8 @@ import {
   createNote,
   createPoll,
   updateNote,
-  uploadAttachment
+  uploadAttachment,
+  uploadFitnessFile
 } from '@/lib/client'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
@@ -53,6 +54,8 @@ import {
   resetExtension,
   setAttachments,
   setFitnessFile,
+  setFitnessFileUploaded,
+  setFitnessFileUploading,
   setPollDurationInSeconds,
   setPollType,
   setPollVisibility,
@@ -154,6 +157,24 @@ export const PostBox: FC<Props> = ({
         return
       }
 
+      let fitnessFileId: string | undefined
+      if (postExtension.fitnessFile) {
+        dispatch(setFitnessFileUploading(true))
+        try {
+          const uploadedFitnessFile = await uploadFitnessFile(
+            postExtension.fitnessFile.file
+          )
+          if (!uploadedFitnessFile) throw new Error()
+          fitnessFileId = uploadedFitnessFile.id
+          dispatch(setFitnessFileUploaded(uploadedFitnessFile.id))
+        } catch {
+          dispatch(setFitnessFileUploading(false))
+          throw new Error(
+            `Fail to upload ${postExtension.fitnessFile.file.name}`
+          )
+        }
+      }
+
       const uploadResults = await Promise.all(
         postExtension.attachments.map(async (attachment) => {
           if (!attachment.file)
@@ -236,6 +257,7 @@ export const PostBox: FC<Props> = ({
         message,
         replyStatus,
         attachments,
+        fitnessFileId,
         visibility: postExtension.visibility
       })
 
@@ -281,7 +303,7 @@ export const PostBox: FC<Props> = ({
   const onTextChange = (value: string) => {
     setText(value)
     if (value.trim().length === 0) {
-      setAllowPost(false)
+      setAllowPost(Boolean(postExtensionRef.current.fitnessFile))
       return
     }
     if (
@@ -347,7 +369,8 @@ export const PostBox: FC<Props> = ({
     if (!replyStatus) return
     if (!postExtension.fitnessFile) return
     dispatch(removeFitnessFile())
-  }, [replyStatus, postExtension.fitnessFile])
+    setAllowPost(text.trim().length > 0)
+  }, [replyStatus, postExtension.fitnessFile, text])
 
   useEffect(() => {
     if (editStatus) {
@@ -497,6 +520,7 @@ export const PostBox: FC<Props> = ({
                 onFileSelected={(file) => {
                   setWarningMsg(null)
                   dispatch(setFitnessFile(file))
+                  setAllowPost(true)
                 }}
                 onError={(message) => setWarningMsg(message)}
               />
@@ -543,13 +567,21 @@ export const PostBox: FC<Props> = ({
               <span className="shrink-0 text-xs text-muted-foreground">
                 {formatFileSize(postExtension.fitnessFile.file.size)}
               </span>
+              {postExtension.fitnessFile.uploading ? (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  Uploading...
+                </span>
+              ) : null}
             </div>
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
               aria-label="Remove selected fitness file"
-              onClick={() => dispatch(removeFitnessFile())}
+              onClick={() => {
+                dispatch(removeFitnessFile())
+                setAllowPost(text.trim().length > 0)
+              }}
             >
               <X className="size-4" />
             </Button>

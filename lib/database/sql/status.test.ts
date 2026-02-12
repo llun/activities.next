@@ -168,6 +168,39 @@ describe('StatusDatabase', () => {
         ])
       })
 
+      it('returns status with linked fitness file metadata', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-status`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'This post has a linked fitness file'
+        })
+
+        const fitnessFile = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-status.fit`,
+          fileName: 'status.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        expect(status.fitness).toMatchObject({
+          id: fitnessFile?.id,
+          fileName: 'status.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096,
+          url: `/api/v1/fitness-files/${fitnessFile?.id}`
+        })
+      })
+
       it('returns announce status', async () => {
         const status = await database.getStatus({
           statusId: statuses.replyAuthor.announceOwn

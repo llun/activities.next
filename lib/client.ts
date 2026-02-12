@@ -17,15 +17,21 @@ export interface CreateNoteParams {
   message: string
   replyStatus?: Status
   attachments?: PostBoxAttachment[]
+  fitnessFileId?: string
   visibility?: MastodonVisibility
 }
 export const createNote = async ({
   message,
   replyStatus,
   attachments = [],
+  fitnessFileId,
   visibility
 }: CreateNoteParams) => {
-  if (message.trim().length === 0 && attachments.length === 0) {
+  if (
+    message.trim().length === 0 &&
+    attachments.length === 0 &&
+    !fitnessFileId
+  ) {
     throw new Error('Message or attachments must not be empty')
   }
 
@@ -39,6 +45,7 @@ export const createNote = async ({
       replyStatus,
       message,
       attachments,
+      fitnessFileId,
       visibility
     })
   })
