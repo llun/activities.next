@@ -50,6 +50,7 @@ import {
   removePollChoice,
   resetExtension,
   setAttachments,
+  setFitnessFile,
   setPollDurationInSeconds,
   setPollType,
   setPollVisibility,
@@ -58,6 +59,7 @@ import {
   updateAttachment
 } from './reducers'
 import { ReplyPreview } from './reply-preview'
+import { UploadFitnessFileButton } from './upload-fitness-file-button'
 import { UploadMediaButton } from './upload-media-button'
 import { VisibilitySelector } from './visibility-selector'
 
@@ -481,6 +483,16 @@ export const PostBox: FC<Props> = ({
             >
               <BarChart3 className="size-4" />
             </Button>
+            {!replyStatus ? (
+              <UploadFitnessFileButton
+                disabled={isPosting}
+                onFileSelected={(file) => {
+                  setWarningMsg(null)
+                  dispatch(setFitnessFile(file))
+                }}
+                onError={(message) => setWarningMsg(message)}
+              />
+            ) : null}
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
