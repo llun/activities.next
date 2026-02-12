@@ -4,18 +4,22 @@ import { Actor } from '@/lib/types/domain/actor'
 
 import { Database } from '../../database/types'
 
+export const getFitnessQuotaLimit = (): number => {
+  const config = getConfig()
+  return (
+    config.fitnessStorage?.quotaPerAccount ??
+    config.mediaStorage?.quotaPerAccount ??
+    DEFAULT_QUOTA_PER_ACCOUNT
+  )
+}
+
 export async function checkFitnessQuotaAvailable(
   database: Database,
   actor: Actor,
   requiredBytes: number
 ): Promise<{ available: boolean; used: number; limit: number }> {
-  const config = getConfig()
-
   // Use the same quota as media storage (shared quota)
-  const quotaLimit =
-    config.fitnessStorage?.quotaPerAccount ??
-    config.mediaStorage?.quotaPerAccount ??
-    DEFAULT_QUOTA_PER_ACCOUNT
+  const quotaLimit = getFitnessQuotaLimit()
 
   const actorData = await database.getActorFromId({ id: actor.id })
   const accountId = actorData?.account?.id

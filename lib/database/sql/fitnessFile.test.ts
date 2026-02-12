@@ -95,6 +95,80 @@ describe('FitnessFileDatabase', () => {
       })
     })
 
+    describe('getFitnessFilesWithStatusForAccount', () => {
+      it('returns paginated fitness files scoped to account', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        expect(actor?.account?.id).toBeDefined()
+
+        const accountId = actor!.account!.id
+        const before = await database.getFitnessFilesWithStatusForAccount({
+          accountId,
+          limit: 100,
+          page: 1
+        })
+
+        const first = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          statusId: statuses.primary.post,
+          path: 'fitness/account-list-1.fit',
+          fileName: 'account-list-1.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+        const second = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/account-list-2.gpx',
+          fileName: 'account-list-2.gpx',
+          fileType: 'gpx',
+          mimeType: 'application/gpx+xml',
+          bytes: 2048
+        })
+        const otherAccount = await database.createFitnessFile({
+          actorId: actors.replyAuthor.id,
+          path: 'fitness/other-account.tcx',
+          fileName: 'other-account.tcx',
+          fileType: 'tcx',
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 4096
+        })
+
+        expect(first).toBeDefined()
+        expect(second).toBeDefined()
+        expect(otherAccount).toBeDefined()
+
+        const pageOne = await database.getFitnessFilesWithStatusForAccount({
+          accountId,
+          limit: 1,
+          page: 1
+        })
+        const pageTwo = await database.getFitnessFilesWithStatusForAccount({
+          accountId,
+          limit: 1,
+          page: 2
+        })
+        const allForAccount =
+          await database.getFitnessFilesWithStatusForAccount({
+            accountId,
+            limit: 100,
+            page: 1
+          })
+
+        expect(pageOne.total).toBe(before.total + 2)
+        expect(pageOne.items).toHaveLength(1)
+        expect(pageTwo.items).toHaveLength(1)
+        expect([pageOne.items[0]?.id, pageTwo.items[0]?.id].sort()).toEqual(
+          [first!.id, second!.id].sort()
+        )
+
+        const linked = allForAccount.items.find((item) => item.id === first!.id)
+        expect(linked?.statusId).toBe(statuses.primary.post)
+        expect(
+          allForAccount.items.some((item) => item.id === otherAccount!.id)
+        ).toBe(false)
+      })
+    })
+
     describe('deleteFitnessFile', () => {
       it('soft deletes a file and updates usage counters', async () => {
         const actor = await database.getActorFromId({ id: actors.extra.id })

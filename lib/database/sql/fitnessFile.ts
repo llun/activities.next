@@ -33,6 +33,18 @@ export interface GetFitnessFilesByActorParams {
   offset?: number
 }
 
+export interface GetFitnessFilesForAccountParams {
+  accountId: string
+  limit?: number
+  page?: number
+  maxCreatedAt?: number
+}
+
+export interface PaginatedFitnessFiles {
+  items: FitnessFile[]
+  total: number
+}
+
 export interface GetFitnessFileByStatusParams {
   statusId: string
 }
@@ -53,6 +65,9 @@ export interface FitnessFileDatabase {
   getFitnessFilesByActor(
     params: GetFitnessFilesByActorParams
   ): Promise<FitnessFile[]>
+  getFitnessFilesWithStatusForAccount(
+    params: GetFitnessFilesForAccountParams
+  ): Promise<PaginatedFitnessFiles>
   getFitnessFileByStatus(
     params: GetFitnessFileByStatusParams
   ): Promise<FitnessFile | null>
@@ -160,6 +175,44 @@ export const FitnessFileSQLDatabaseMixin = (
       .offset(offset)
 
     return rows.map(parseSQLFitnessFile)
+  },
+
+  async getFitnessFilesWithStatusForAccount({
+    accountId,
+    limit = 100,
+    page = 1,
+    maxCreatedAt
+  }: GetFitnessFilesForAccountParams): Promise<PaginatedFitnessFiles> {
+    // Get total count from counter table for performance.
+    const totalPromise = getCounterValue(
+      database,
+      CounterKey.totalFitness(accountId)
+    )
+
+    let itemsQuery = database<SQLFitnessFile>('fitness_files')
+      .join('actors', 'fitness_files.actorId', 'actors.id')
+      .where('actors.accountId', accountId)
+      .whereNull('fitness_files.deletedAt')
+      .select('fitness_files.*')
+      .orderBy('fitness_files.createdAt', 'desc')
+
+    if (maxCreatedAt) {
+      itemsQuery = itemsQuery.where(
+        'fitness_files.createdAt',
+        '<',
+        new Date(maxCreatedAt)
+      )
+    }
+
+    const offset = (page - 1) * limit
+    itemsQuery = itemsQuery.limit(limit).offset(offset)
+
+    const [total, rows] = await Promise.all([totalPromise, itemsQuery])
+
+    return {
+      items: rows.map(parseSQLFitnessFile),
+      total
+    }
   },
 
   async getFitnessFileByStatus({ statusId }: GetFitnessFileByStatusParams) {
