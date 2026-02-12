@@ -41,7 +41,10 @@ const Page = async ({
   const parsedLimit = parseInt(params.limit || '25', 10)
   const itemsPerPage = [25, 50, 100].includes(parsedLimit) ? parsedLimit : 25
 
-  const [used, result] = await Promise.all([
+  const [mediaUsed, fitnessUsed, result] = await Promise.all([
+    database.getStorageUsageForAccount({
+      accountId: actor.account.id
+    }),
     database.getFitnessStorageUsageForAccount({
       accountId: actor.account.id
     }),
@@ -53,6 +56,7 @@ const Page = async ({
   ])
 
   const limit = getFitnessQuotaLimit()
+  const used = mediaUsed + fitnessUsed
 
   return (
     <FitnessFileManagement

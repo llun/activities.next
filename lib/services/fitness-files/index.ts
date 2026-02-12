@@ -68,12 +68,16 @@ export const getFitnessFile = async (
   }
 }
 
-export const deleteFitnessFile = async (database: Database, fileId: string) => {
+export const deleteFitnessFile = async (
+  database: Database,
+  fileId: string,
+  fileMetadata?: FitnessFile
+) => {
   const { fitnessStorage, host } = getConfig()
 
-  // Get file metadata from database
-  const fileMetadata = await database.getFitnessFile({ id: fileId })
-  if (!fileMetadata) return false
+  const targetFileMetadata =
+    fileMetadata ?? (await database.getFitnessFile({ id: fileId }))
+  if (!targetFileMetadata) return false
 
   switch (fitnessStorage?.type) {
     case FitnessStorageType.LocalFile: {
@@ -81,7 +85,7 @@ export const deleteFitnessFile = async (database: Database, fileId: string) => {
         fitnessStorage,
         host,
         database
-      ).deleteFile(fileMetadata.path)
+      ).deleteFile(targetFileMetadata.path)
 
       if (storageDeleted) {
         await database.deleteFitnessFile({ id: fileId })
@@ -94,7 +98,7 @@ export const deleteFitnessFile = async (database: Database, fileId: string) => {
         fitnessStorage,
         host,
         database
-      ).deleteFile(fileMetadata.path)
+      ).deleteFile(targetFileMetadata.path)
 
       if (storageDeleted) {
         await database.deleteFitnessFile({ id: fileId })

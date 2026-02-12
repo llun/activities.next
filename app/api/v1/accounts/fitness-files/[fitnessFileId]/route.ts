@@ -62,7 +62,8 @@ export const DELETE = traceApiRoute(
 
       const deleted = await deleteFitnessFileFromStorage(
         database,
-        fitnessFileId
+        fitnessFileId,
+        fitnessFile
       )
       if (!deleted) {
         logger.error({

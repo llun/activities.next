@@ -15,6 +15,7 @@ import sanitizeHtml from 'sanitize-html'
 import {
   createNote,
   createPoll,
+  deleteFitnessFile,
   updateNote,
   uploadAttachment,
   uploadFitnessFile
@@ -314,6 +315,32 @@ export const PostBox: FC<Props> = ({
     )
   }
 
+  const onRemoveFitnessFile = async () => {
+    const fitnessFile = postExtension.fitnessFile
+    if (!fitnessFile) {
+      return
+    }
+
+    if (!fitnessFile.uploadedId) {
+      dispatch(removeFitnessFile())
+      setAllowPost(text.trim().length > 0)
+      return
+    }
+
+    try {
+      setWarningMsg(null)
+      await deleteFitnessFile(fitnessFile.uploadedId)
+      dispatch(removeFitnessFile())
+      setAllowPost(text.trim().length > 0)
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Failed to delete uploaded fitness file'
+      setWarningMsg(errorMessage)
+    }
+  }
+
   const onQuickPost = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!(event.metaKey || event.ctrlKey)) return
     if (event.code !== 'Enter') return
@@ -600,10 +627,7 @@ export const PostBox: FC<Props> = ({
               variant="ghost"
               size="icon-sm"
               aria-label="Remove selected fitness file"
-              onClick={() => {
-                dispatch(removeFitnessFile())
-                setAllowPost(text.trim().length > 0)
-              }}
+              onClick={() => void onRemoveFitnessFile()}
             >
               <X className="size-4" />
             </Button>
