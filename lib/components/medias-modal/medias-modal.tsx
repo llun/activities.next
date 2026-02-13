@@ -193,6 +193,9 @@ export const MediasModal: FC<Props> = ({
   const previousIndex = getWrappedIndex(currentIndex - 1)
   const nextIndex = getWrappedIndex(currentIndex + 1)
   const shouldShowNavigation = medias.length > 1
+  const visibleIndices = [previousIndex, currentIndex, nextIndex]
+  const hasDuplicateVisibleIndices =
+    new Set(visibleIndices).size !== visibleIndices.length
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-black/90">
@@ -263,27 +266,22 @@ export const MediasModal: FC<Props> = ({
               }}
               onTransitionEnd={handleTrackTransitionEnd}
             >
-              <div className="flex h-full w-full shrink-0 items-center justify-center">
-                <Media
-                  showVideoControl
-                  className="max-h-[80vh] max-w-full object-contain"
-                  attachment={medias[previousIndex]}
-                />
-              </div>
-              <div className="flex h-full w-full shrink-0 items-center justify-center">
-                <Media
-                  showVideoControl
-                  className="max-h-[80vh] max-w-full object-contain"
-                  attachment={medias[currentIndex]}
-                />
-              </div>
-              <div className="flex h-full w-full shrink-0 items-center justify-center">
-                <Media
-                  showVideoControl
-                  className="max-h-[80vh] max-w-full object-contain"
-                  attachment={medias[nextIndex]}
-                />
-              </div>
+              {visibleIndices.map((index, panelIndex) => (
+                <div
+                  key={
+                    hasDuplicateVisibleIndices
+                      ? `${medias[index].id}-${panelIndex}`
+                      : medias[index].id
+                  }
+                  className="flex h-full w-full shrink-0 items-center justify-center"
+                >
+                  <Media
+                    showVideoControl
+                    className="max-h-[80vh] max-w-full object-contain"
+                    attachment={medias[index]}
+                  />
+                </div>
+              ))}
             </div>
           </div>
         </div>
