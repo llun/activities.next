@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { Media } from '@/lib/components/posts/media'
@@ -20,6 +20,9 @@ export const MediasModal: FC<Props> = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(0)
   const [mounted, setMounted] = useState(false)
+  const touchStartX = useRef<number>(0)
+  const touchEndX = useRef<number>(0)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -68,6 +71,34 @@ export const MediasModal: FC<Props> = ({
     }
   }, [medias])
 
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX
+  }, [])
+
+  const handleTouchEnd = useCallback(() => {
+    if (!medias || medias.length <= 1) return
+
+    const swipeDistance = touchStartX.current - touchEndX.current
+    const minSwipeDistance = 50 // Minimum distance for a swipe to be recognized
+
+    if (Math.abs(swipeDistance) > minSwipeDistance) {
+      if (swipeDistance > 0) {
+        // Swiped left, go to next
+        handleNext()
+      } else {
+        // Swiped right, go to previous
+        handlePrevious()
+      }
+    }
+
+    touchStartX.current = 0
+    touchEndX.current = 0
+  }, [medias, handleNext, handlePrevious])
+
   if (!mounted || !medias) return null
 
   return createPortal(
@@ -88,7 +119,13 @@ export const MediasModal: FC<Props> = ({
       </div>
 
       {/* Main content */}
-      <div className="relative flex flex-1 items-center justify-center px-4 md:px-16">
+      <div
+        ref={contentRef}
+        className="relative flex flex-1 items-center justify-center px-4 md:px-16"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {medias.length > 1 && (
           <>
             <Button
@@ -98,7 +135,7 @@ export const MediasModal: FC<Props> = ({
                 e.stopPropagation()
                 handlePrevious()
               }}
-              className="absolute left-2 h-12 w-12 text-white hover:bg-white/20 md:left-4"
+              className="absolute left-2 z-10 h-12 w-12 text-white hover:bg-white/20 md:left-4"
             >
               <ChevronLeft className="h-8 w-8" />
             </Button>
@@ -109,7 +146,7 @@ export const MediasModal: FC<Props> = ({
                 e.stopPropagation()
                 handleNext()
               }}
-              className="absolute right-2 h-12 w-12 text-white hover:bg-white/20 md:right-4"
+              className="absolute right-2 z-10 h-12 w-12 text-white hover:bg-white/20 md:right-4"
             >
               <ChevronRight className="h-8 w-8" />
             </Button>
