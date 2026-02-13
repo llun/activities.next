@@ -7,6 +7,8 @@ import { Button } from '@/lib/components/ui/button'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { cn } from '@/lib/utils'
 
+const MIN_SWIPE_DISTANCE = 50 // Minimum distance in pixels for a swipe to be recognized
+
 interface Props {
   medias: Attachment[] | null
   initialSelection: number
@@ -90,9 +92,8 @@ export const MediasModal: FC<Props> = ({
     }
 
     const swipeDistance = touchStartX.current - touchEndX.current
-    const minSwipeDistance = 50 // Minimum distance for a swipe to be recognized
 
-    if (Math.abs(swipeDistance) > minSwipeDistance) {
+    if (Math.abs(swipeDistance) > MIN_SWIPE_DISTANCE) {
       if (swipeDistance > 0) {
         // Swiped left, go to next
         handleNext()
