@@ -8,6 +8,8 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { cn } from '@/lib/utils'
 
 const MIN_SWIPE_DISTANCE = 50 // Minimum distance in pixels for a swipe to be recognized
+const INTERACTIVE_SWIPE_IGNORE_SELECTOR =
+  'button, a, input, textarea, select, label, [role="button"], video, audio'
 
 interface Props {
   medias: Attachment[] | null
@@ -21,9 +23,16 @@ export const MediasModal: FC<Props> = ({
   onClosed
 }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(0)
+  const [dragOffsetX, setDragOffsetX] = useState(0)
+  const [isSwipeAnimating, setIsSwipeAnimating] = useState(false)
+  const [pendingSwipeDirection, setPendingSwipeDirection] = useState<
+    -1 | 0 | 1
+  >(0)
   const [mounted, setMounted] = useState(false)
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
+  const isSwipeGesture = useRef(false)
+  const swipeTrackRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -32,22 +41,34 @@ export const MediasModal: FC<Props> = ({
 
   useEffect(() => {
     setCurrentIndex(initialSelection)
+    setDragOffsetX(0)
+    setIsSwipeAnimating(false)
+    setPendingSwipeDirection(0)
   }, [initialSelection])
 
   const handleClose = useCallback(() => {
     setCurrentIndex(0)
+    setDragOffsetX(0)
+    setIsSwipeAnimating(false)
+    setPendingSwipeDirection(0)
     onClosed()
   }, [onClosed])
 
+  const getWrappedIndex = useCallback(
+    (index: number) => {
+      if (!medias || medias.length === 0) return 0
+      return (index + medias.length) % medias.length
+    },
+    [medias]
+  )
+
   const handlePrevious = useCallback(() => {
-    if (!medias) return
-    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : medias.length - 1))
-  }, [medias])
+    setCurrentIndex((prev) => getWrappedIndex(prev - 1))
+  }, [getWrappedIndex])
 
   const handleNext = useCallback(() => {
-    if (!medias) return
-    setCurrentIndex((prev) => (prev < medias.length - 1 ? prev + 1 : 0))
-  }, [medias])
+    setCurrentIndex((prev) => getWrappedIndex(prev + 1))
+  }, [getWrappedIndex])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -72,49 +93,113 @@ export const MediasModal: FC<Props> = ({
     }
   }, [medias])
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX
-    touchEndX.current = null // Reset end position
+  const resetSwipeTracking = useCallback(() => {
+    touchStartX.current = null
+    touchEndX.current = null
+    isSwipeGesture.current = false
   }, [])
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX
-  }, [])
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (!medias || medias.length <= 1 || e.touches.length !== 1) {
+        return
+      }
 
-  const handleTouchEnd = useCallback(() => {
-    if (!medias || medias.length <= 1) return
+      const target = e.target as HTMLElement | null
+      if (target?.closest(INTERACTIVE_SWIPE_IGNORE_SELECTOR)) {
+        resetSwipeTracking()
+        return
+      }
 
-    // Only process if there was actual movement
-    if (touchStartX.current === null || touchEndX.current === null) {
-      touchStartX.current = null
+      isSwipeGesture.current = true
+      setIsSwipeAnimating(false)
+      setPendingSwipeDirection(0)
+
+      touchStartX.current = e.touches[0].clientX
       touchEndX.current = null
+    },
+    [medias, resetSwipeTracking]
+  )
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isSwipeGesture.current || touchStartX.current === null) {
       return
     }
 
-    const swipeDistance = touchStartX.current - touchEndX.current
+    touchEndX.current = e.touches[0].clientX
+    setDragOffsetX(touchEndX.current - touchStartX.current)
+  }, [])
 
-    if (Math.abs(swipeDistance) > MIN_SWIPE_DISTANCE) {
-      if (swipeDistance > 0) {
-        // Swiped left, go to next
-        handleNext()
-      } else {
-        // Swiped right, go to previous
-        handlePrevious()
-      }
+  const handleTouchEnd = useCallback(() => {
+    if (!medias || medias.length <= 1 || !isSwipeGesture.current) {
+      resetSwipeTracking()
+      return
     }
 
-    touchStartX.current = null
-    touchEndX.current = null
-  }, [medias, handleNext, handlePrevious])
+    const startX = touchStartX.current
+    const endX = touchEndX.current
+
+    if (startX === null || endX === null) {
+      setIsSwipeAnimating(false)
+      setDragOffsetX(0)
+      resetSwipeTracking()
+      return
+    }
+
+    const swipeDistance = endX - startX
+    const isValidSwipe = Math.abs(swipeDistance) > MIN_SWIPE_DISTANCE
+
+    setIsSwipeAnimating(true)
+
+    if (isValidSwipe) {
+      const direction: -1 | 1 = swipeDistance < 0 ? 1 : -1
+      const trackWidth = swipeTrackRef.current?.clientWidth ?? window.innerWidth
+
+      setPendingSwipeDirection(direction)
+      setDragOffsetX(direction === 1 ? -trackWidth : trackWidth)
+    } else {
+      setPendingSwipeDirection(0)
+      setDragOffsetX(0)
+    }
+
+    resetSwipeTracking()
+  }, [medias, resetSwipeTracking])
+
+  const handleTouchCancel = useCallback(() => {
+    setIsSwipeAnimating(false)
+    setPendingSwipeDirection(0)
+    setDragOffsetX(0)
+    resetSwipeTracking()
+  }, [resetSwipeTracking])
+
+  const handleTrackTransitionEnd = useCallback(() => {
+    if (!isSwipeAnimating) {
+      return
+    }
+
+    if (pendingSwipeDirection !== 0) {
+      setCurrentIndex((prev) => getWrappedIndex(prev + pendingSwipeDirection))
+      setPendingSwipeDirection(0)
+      setIsSwipeAnimating(false)
+      setDragOffsetX(0)
+      return
+    }
+
+    setIsSwipeAnimating(false)
+  }, [getWrappedIndex, isSwipeAnimating, pendingSwipeDirection])
 
   if (!mounted || !medias) return null
+
+  const previousIndex = getWrappedIndex(currentIndex - 1)
+  const nextIndex = getWrappedIndex(currentIndex + 1)
+  const shouldShowNavigation = medias.length > 1
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-black/90">
       {/* Header */}
       <div className="flex items-center justify-between p-4">
         <span className="text-sm text-white">
-          {medias.length > 1 && `${currentIndex + 1} / ${medias.length}`}
+          {shouldShowNavigation && `${currentIndex + 1} / ${medias.length}`}
         </span>
         <Button
           variant="ghost"
@@ -127,13 +212,8 @@ export const MediasModal: FC<Props> = ({
       </div>
 
       {/* Main content */}
-      <div
-        className="relative flex flex-1 items-center justify-center px-4 md:px-16"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        {medias.length > 1 && (
+      <div className="relative flex flex-1 items-center justify-center px-4 md:px-16">
+        {shouldShowNavigation && (
           <>
             <Button
               variant="ghost"
@@ -162,23 +242,55 @@ export const MediasModal: FC<Props> = ({
 
         <div
           className="relative flex h-full w-full max-w-[90vw] items-center justify-center"
-          onClick={handleClose} // Click outside/on container closes? Robin didn't specify but standard lightbox behavior.
+          onClick={handleClose}
         >
           <div
-            className="flex h-full w-full items-center justify-center"
+            ref={swipeTrackRef}
+            className="relative flex h-full w-full items-center justify-center overflow-hidden"
             onClick={(e) => e.stopPropagation()}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchCancel}
           >
-            <Media
-              showVideoControl
-              className="max-h-[80vh] max-w-full object-contain"
-              attachment={medias[currentIndex]}
-            />
+            <div
+              className="flex h-full w-[300%]"
+              style={{
+                transform: `translateX(calc(-100% + ${dragOffsetX}px))`,
+                transition: isSwipeAnimating
+                  ? 'transform 220ms ease-out'
+                  : 'none'
+              }}
+              onTransitionEnd={handleTrackTransitionEnd}
+            >
+              <div className="flex h-full w-full shrink-0 items-center justify-center">
+                <Media
+                  showVideoControl
+                  className="max-h-[80vh] max-w-full object-contain"
+                  attachment={medias[previousIndex]}
+                />
+              </div>
+              <div className="flex h-full w-full shrink-0 items-center justify-center">
+                <Media
+                  showVideoControl
+                  className="max-h-[80vh] max-w-full object-contain"
+                  attachment={medias[currentIndex]}
+                />
+              </div>
+              <div className="flex h-full w-full shrink-0 items-center justify-center">
+                <Media
+                  showVideoControl
+                  className="max-h-[80vh] max-w-full object-contain"
+                  attachment={medias[nextIndex]}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Thumbnails */}
-      {medias.length > 1 && (
+      {shouldShowNavigation && (
         <div className="flex justify-center gap-2 overflow-x-auto px-4 pb-4 pt-2">
           {medias.map((media, index) => (
             <button
