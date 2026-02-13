@@ -20,8 +20,8 @@ export const MediasModal: FC<Props> = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(0)
   const [mounted, setMounted] = useState(false)
-  const touchStartX = useRef<number>(0)
-  const touchEndX = useRef<number>(0)
+  const touchStartX = useRef<number | null>(null)
+  const touchEndX = useRef<number | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -72,6 +72,7 @@ export const MediasModal: FC<Props> = ({
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX
+    touchEndX.current = null // Reset end position
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
@@ -82,8 +83,9 @@ export const MediasModal: FC<Props> = ({
     if (!medias || medias.length <= 1) return
 
     // Only process if there was actual movement
-    if (touchEndX.current === 0) {
-      touchStartX.current = 0
+    if (touchStartX.current === null || touchEndX.current === null) {
+      touchStartX.current = null
+      touchEndX.current = null
       return
     }
 
@@ -100,8 +102,8 @@ export const MediasModal: FC<Props> = ({
       }
     }
 
-    touchStartX.current = 0
-    touchEndX.current = 0
+    touchStartX.current = null
+    touchEndX.current = null
   }, [medias, handleNext, handlePrevious])
 
   if (!mounted || !medias) return null
