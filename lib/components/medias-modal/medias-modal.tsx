@@ -81,6 +81,12 @@ export const MediasModal: FC<Props> = ({
   const handleTouchEnd = useCallback(() => {
     if (!medias || medias.length <= 1) return
 
+    // Only process if there was actual movement
+    if (touchEndX.current === 0) {
+      touchStartX.current = 0
+      return
+    }
+
     const swipeDistance = touchStartX.current - touchEndX.current
     const minSwipeDistance = 50 // Minimum distance for a swipe to be recognized
 
