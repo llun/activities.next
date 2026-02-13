@@ -22,7 +22,6 @@ export const MediasModal: FC<Props> = ({
   const [mounted, setMounted] = useState(false)
   const touchStartX = useRef<number>(0)
   const touchEndX = useRef<number>(0)
-  const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -120,7 +119,6 @@ export const MediasModal: FC<Props> = ({
 
       {/* Main content */}
       <div
-        ref={contentRef}
         className="relative flex flex-1 items-center justify-center px-4 md:px-16"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
