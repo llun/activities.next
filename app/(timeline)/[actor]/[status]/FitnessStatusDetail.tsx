@@ -209,24 +209,31 @@ const ChartPanel: FC<{
   const width = 760
   const height = 120
   const path = useMemo(() => buildChartPath(values, width, height), [values])
+  const minScale = minLabel ? `${minLabel} ${unit}` : `-- ${unit}`
+  const maxScale = maxLabel ? `${maxLabel} ${unit}` : `-- ${unit}`
 
   return (
     <div className="rounded-lg border bg-white/80 p-4">
       <div className="mb-2 flex items-end justify-between">
         <h4 className="text-sm font-semibold text-slate-800">{title}</h4>
         <p className="text-xs text-slate-500">
-          {minLabel ? `Min ${minLabel}` : '--'} /{' '}
-          {maxLabel ? `Max ${maxLabel}` : '--'}
-          <span className="ml-1">{unit}</span>
+          Scale {minScale} - {maxScale}
         </p>
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-32 w-full">
-        <path
-          d={path}
-          fill="none"
-          className={cn('stroke-[2.5]', colorClassName ?? 'stroke-sky-500')}
-        />
-      </svg>
+      <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
+        <div className="flex h-32 flex-col justify-between text-[11px] text-slate-500">
+          <span>{maxScale}</span>
+          <span>{minScale}</span>
+        </div>
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-32 w-full">
+          <path
+            d={path}
+            fill="none"
+            className={cn('stroke-[2.5]', colorClassName ?? 'stroke-sky-500')}
+          />
+        </svg>
+      </div>
+      <p className="mt-2 text-[11px] text-slate-500">Sample index</p>
     </div>
   )
 }
@@ -328,16 +335,18 @@ const MetricCard: FC<{ label: string; value: string; highlight?: boolean }> = ({
   highlight = false
 }) => {
   return (
-    <div className="rounded-sm px-4 py-3">
+    <div className="min-w-0 rounded-sm px-4 py-3">
       <p
         className={cn(
-          'text-4xl font-semibold tracking-tight text-slate-900',
+          'break-words text-[clamp(1.75rem,4vw,2.25rem)] font-semibold leading-tight tracking-tight text-slate-900',
           highlight && 'text-orange-600'
         )}
       >
         {value}
       </p>
-      <p className="mt-1 text-sm font-medium text-slate-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-medium text-slate-500">
+        {label}
+      </p>
     </div>
   )
 }
@@ -445,6 +454,21 @@ export const FitnessStatusDetail: FC<Props> = ({
       histogram
     }
   }, [elevationGainMeters, intensity, speedKmh, status.id, weightedAvgPower])
+  const elevationMin = Math.min(...seededSeries.elevation)
+  const elevationMax = Math.max(...seededSeries.elevation)
+  const powerMin = Math.min(...seededSeries.power)
+  const powerMax = Math.max(...seededSeries.power)
+  const histogramMinutes = useMemo(() => {
+    const totalMinutes = Math.max(1, durationSeconds / 60)
+    const totalWeight = Math.max(
+      1,
+      seededSeries.histogram.reduce((sum, value) => sum + value, 0)
+    )
+
+    return seededSeries.histogram.map(
+      (value) => (value / totalWeight) * totalMinutes
+    )
+  }, [durationSeconds, seededSeries.histogram])
 
   const zoneDistribution = useMemo(() => {
     const total = Math.max(1, durationSeconds)
@@ -565,16 +589,37 @@ export const FitnessStatusDetail: FC<Props> = ({
               }}
             />
             <div className="rounded-lg border bg-white p-4">
-              <h3 className="mb-2 text-sm font-semibold text-slate-800">
-                Elevation profile
-              </h3>
-              <svg viewBox="0 0 760 220" className="h-56 w-full">
-                <path
-                  d={buildChartPath(seededSeries.elevation, 760, 220)}
-                  className="stroke-slate-400 stroke-[2]"
-                  fill="none"
-                />
-              </svg>
+              <div className="mb-2 flex items-end justify-between">
+                <h3 className="text-sm font-semibold text-slate-800">
+                  Elevation profile
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Scale {elevationMin.toFixed(0)} m - {elevationMax.toFixed(0)}{' '}
+                  m
+                </p>
+              </div>
+              <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
+                <div className="flex h-56 flex-col justify-between text-[11px] text-slate-500">
+                  <span>{elevationMax.toFixed(0)} m</span>
+                  <span>{elevationMin.toFixed(0)} m</span>
+                </div>
+                <svg viewBox="0 0 760 220" className="h-56 w-full">
+                  <path
+                    d={buildChartPath(
+                      seededSeries.elevation,
+                      760,
+                      220,
+                      elevationMin,
+                      elevationMax
+                    )}
+                    className="stroke-slate-400 stroke-[2]"
+                    fill="none"
+                  />
+                </svg>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500">
+                Distance sample index
+              </p>
             </div>
           </div>
 
@@ -591,8 +636,8 @@ export const FitnessStatusDetail: FC<Props> = ({
             unit="w"
             values={seededSeries.power}
             colorClassName="stroke-violet-500"
-            minLabel={Math.min(...seededSeries.power).toFixed(0)}
-            maxLabel={Math.max(...seededSeries.power).toFixed(0)}
+            minLabel={powerMin.toFixed(0)}
+            maxLabel={powerMax.toFixed(0)}
           />
           <ChartPanel
             title="Heart rate"
@@ -693,13 +738,34 @@ export const FitnessStatusDetail: FC<Props> = ({
         <div className="space-y-4 p-6">
           <h3 className="text-5xl font-semibold text-slate-900">Power Curve</h3>
           <div className="rounded-sm border border-slate-300 bg-white p-4">
-            <svg viewBox="0 0 760 260" className="h-64 w-full">
-              <path
-                d={buildChartPath(seededSeries.power, 760, 260)}
-                className="stroke-violet-600 stroke-[3]"
-                fill="none"
-              />
-            </svg>
+            <div className="mb-2 flex items-end justify-between">
+              <p className="text-sm font-medium text-slate-700">
+                Power (watts)
+              </p>
+              <p className="text-xs text-slate-500">
+                Scale {powerMin.toFixed(0)} w - {powerMax.toFixed(0)} w
+              </p>
+            </div>
+            <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
+              <div className="flex h-64 flex-col justify-between text-[11px] text-slate-500">
+                <span>{powerMax.toFixed(0)} w</span>
+                <span>{powerMin.toFixed(0)} w</span>
+              </div>
+              <svg viewBox="0 0 760 260" className="h-64 w-full">
+                <path
+                  d={buildChartPath(
+                    seededSeries.power,
+                    760,
+                    260,
+                    powerMin,
+                    powerMax
+                  )}
+                  className="stroke-violet-600 stroke-[3]"
+                  fill="none"
+                />
+              </svg>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">Time sample index</p>
           </div>
         </div>
       )
@@ -754,7 +820,7 @@ export const FitnessStatusDetail: FC<Props> = ({
       const histogramHeight = 340
       const barWidth = 34
       const barGap = 4
-      const maxValue = Math.max(...seededSeries.histogram, 1)
+      const maxValue = Math.max(...histogramMinutes, 1)
 
       return (
         <div className="space-y-4 p-6">
@@ -762,25 +828,48 @@ export const FitnessStatusDetail: FC<Props> = ({
             25W Power Distribution
           </h3>
           <div className="rounded-sm border border-slate-300 bg-white p-4">
-            <svg viewBox="0 0 760 380" className="h-[380px] w-full">
-              {seededSeries.histogram.map((value, index) => {
-                const x = 14 + index * (barWidth + barGap)
-                const barHeight = (value / maxValue) * histogramHeight
-                const y = 355 - barHeight
+            <div className="mb-2 flex items-end justify-between">
+              <p className="text-sm font-medium text-slate-700">
+                Time spent per 25 W bucket
+              </p>
+              <p className="text-xs text-slate-500">
+                Scale 0.0 min - {maxValue.toFixed(1)} min
+              </p>
+            </div>
+            <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
+              <div className="flex h-[380px] flex-col justify-between text-[11px] text-slate-500">
+                <span>{maxValue.toFixed(1)} min</span>
+                <span>0.0 min</span>
+              </div>
+              <div>
+                <svg viewBox="0 0 760 380" className="h-[380px] w-full">
+                  {histogramMinutes.map((value, index) => {
+                    const x = 14 + index * (barWidth + barGap)
+                    const barHeight = (value / maxValue) * histogramHeight
+                    const y = 355 - barHeight
 
-                return (
-                  <rect
-                    key={`bar-${index}`}
-                    x={x}
-                    y={y}
-                    width={barWidth}
-                    height={barHeight}
-                    fill={index > 7 ? '#9f4a8f' : '#c69cbf'}
-                    opacity={0.9}
-                  />
-                )
-              })}
-            </svg>
+                    return (
+                      <rect
+                        key={`bar-${index}`}
+                        x={x}
+                        y={y}
+                        width={barWidth}
+                        height={barHeight}
+                        fill={index > 7 ? '#9f4a8f' : '#c69cbf'}
+                        opacity={0.9}
+                      />
+                    )
+                  })}
+                </svg>
+                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                  <span>0 W</span>
+                  <span>{(histogramMinutes.length - 1) * 25} W</span>
+                </div>
+              </div>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">
+              Time in each 25 W power bin (minutes)
+            </p>
           </div>
         </div>
       )
@@ -870,7 +959,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 type="button"
                 onClick={() => setActiveSection(item.id)}
                 className={cn(
-                  'inline-block whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground',
+                  'inline-block cursor-pointer whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground',
                   activeSection === item.id
                     ? 'border-b-2 border-primary text-primary'
                     : 'border-b-2 border-transparent text-muted-foreground'
@@ -890,7 +979,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   type="button"
                   onClick={() => setActiveSection(item.id)}
                   className={cn(
-                    'inline-block whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground',
+                    'inline-block cursor-pointer whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground',
                     activeSection === item.id
                       ? 'border-b-2 border-primary text-primary'
                       : 'border-b-2 border-transparent text-muted-foreground'
@@ -907,11 +996,11 @@ export const FitnessStatusDetail: FC<Props> = ({
       <section className="bg-[#f4f4f6]">
         <div className="border-b border-slate-300 bg-[#f7f7f8] px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-sm bg-orange-100 text-orange-600">
                 <Bike className="size-5" />
               </span>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-900 md:text-4xl">
+              <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight text-slate-900 md:text-4xl">
                 {actorName} - {activityLabel}
               </h1>
             </div>
@@ -939,7 +1028,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-y-1 border-b border-slate-300 bg-[#f0f1f3] px-2 py-2 md:grid-cols-4 xl:grid-cols-8">
+        <div className="grid grid-cols-2 gap-y-1 border-b border-slate-300 bg-[#f0f1f3] px-2 py-2 lg:grid-cols-4 2xl:grid-cols-8">
           <MetricCard label="Distance" value={formatDistance(distanceMeters)} />
           <MetricCard
             label="Moving Time"
