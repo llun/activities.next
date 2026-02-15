@@ -46,7 +46,6 @@ export const StatusBox: FC<Props> = ({
       <>
         <FitnessStatusDetail
           host={host}
-          currentTime={currentTime}
           currentActor={currentActor}
           status={actualStatus as StatusNote}
           onShowAttachment={(allMedias, index) => {

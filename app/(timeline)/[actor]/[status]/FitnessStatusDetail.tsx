@@ -13,7 +13,6 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   host: string
-  currentTime: Date
   currentActor?: ActorProfile | null
   status: StatusNote
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
@@ -22,7 +21,6 @@ interface Props {
 type SectionKey =
   | 'overview'
   | 'analysis'
-  | 'relative-effort'
   | 'heart-rate'
   | 'power-curve'
   | 'zone-distribution'
@@ -39,7 +37,6 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'analysis', label: 'Analysis' },
-  { id: 'relative-effort', label: 'Relative Effort', group: 'subscription' },
   { id: 'heart-rate', label: 'Heart Rate', group: 'subscription' },
   { id: 'power-curve', label: 'Power Curve', group: 'subscription' },
   {
@@ -194,6 +191,20 @@ const buildChartPath = (
     .join(' ')
 }
 
+const buildXAxisLabels = (
+  sampleCount: number,
+  durationSeconds: number,
+  tickCount = 6
+) => {
+  const labels: string[] = []
+  for (let i = 0; i < tickCount; i++) {
+    const ratio = i / (tickCount - 1)
+    const seconds = Math.round(ratio * durationSeconds)
+    labels.push(formatDuration(seconds))
+  }
+  return labels
+}
+
 const ChartPanel: FC<{
   title: string
   unit: string
@@ -201,12 +212,26 @@ const ChartPanel: FC<{
   values: number[]
   minLabel?: string
   maxLabel?: string
-}> = ({ title, unit, values, colorClassName, minLabel, maxLabel }) => {
+  durationSeconds?: number
+}> = ({
+  title,
+  unit,
+  values,
+  colorClassName,
+  minLabel,
+  maxLabel,
+  durationSeconds
+}) => {
   const width = 760
   const height = GRAPH_VIEW_HEIGHT
   const path = useMemo(() => buildChartPath(values, width, height), [values])
   const minScale = minLabel ? `${minLabel} ${unit}` : `-- ${unit}`
   const maxScale = maxLabel ? `${maxLabel} ${unit}` : `-- ${unit}`
+  const xLabels = useMemo(
+    () =>
+      durationSeconds ? buildXAxisLabels(values.length, durationSeconds) : null,
+    [durationSeconds, values.length]
+  )
 
   return (
     <div className="rounded-lg border bg-white/80 p-4">
@@ -216,7 +241,7 @@ const ChartPanel: FC<{
           Scale {minScale} - {maxScale}
         </p>
       </div>
-      <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
+      <div className="grid grid-cols-[auto_1fr] items-stretch gap-2">
         <div
           className={cn(
             'flex flex-col justify-between text-[11px] text-slate-500',
@@ -226,18 +251,27 @@ const ChartPanel: FC<{
           <span>{maxScale}</span>
           <span>{minScale}</span>
         </div>
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
-        >
-          <path
-            d={path}
-            fill="none"
-            className={cn('stroke-[2.5]', colorClassName ?? 'stroke-sky-500')}
-          />
-        </svg>
+        <div>
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            preserveAspectRatio="none"
+            className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+          >
+            <path
+              d={path}
+              fill="none"
+              className={cn('stroke-[2.5]', colorClassName ?? 'stroke-sky-500')}
+            />
+          </svg>
+          {xLabels && (
+            <div className="mt-2 flex justify-between text-[11px] text-slate-500">
+              {xLabels.map((label, i) => (
+                <span key={i}>{label}</span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-      <p className="mt-2 text-[11px] text-slate-500">Sample index</p>
     </div>
   )
 }
@@ -357,8 +391,7 @@ const MetricCard: FC<{ label: string; value: string; highlight?: boolean }> = ({
 
 export const FitnessStatusDetail: FC<Props> = ({
   status,
-  onShowAttachment,
-  currentTime
+  onShowAttachment
 }) => {
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
 
@@ -604,7 +637,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   m
                 </p>
               </div>
-              <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
+              <div className="grid grid-cols-[auto_1fr] items-stretch gap-2">
                 <div
                   className={cn(
                     'flex flex-col justify-between text-[11px] text-slate-500',
@@ -614,26 +647,34 @@ export const FitnessStatusDetail: FC<Props> = ({
                   <span>{elevationMax.toFixed(0)} m</span>
                   <span>{elevationMin.toFixed(0)} m</span>
                 </div>
-                <svg
-                  viewBox={`0 0 760 ${elevationChartHeight}`}
-                  className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
-                >
-                  <path
-                    d={buildChartPath(
-                      seededSeries.elevation,
-                      760,
-                      elevationChartHeight,
-                      elevationMin,
-                      elevationMax
-                    )}
-                    className="stroke-slate-400 stroke-[2]"
-                    fill="none"
-                  />
-                </svg>
+                <div>
+                  <svg
+                    viewBox={`0 0 760 ${elevationChartHeight}`}
+                    preserveAspectRatio="none"
+                    className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+                  >
+                    <path
+                      d={buildChartPath(
+                        seededSeries.elevation,
+                        760,
+                        elevationChartHeight,
+                        elevationMin,
+                        elevationMax
+                      )}
+                      className="stroke-slate-400 stroke-[2]"
+                      fill="none"
+                    />
+                  </svg>
+                  <div className="mt-2 flex justify-between text-[11px] text-slate-500">
+                    {buildXAxisLabels(
+                      seededSeries.elevation.length,
+                      durationSeconds
+                    ).map((label, i) => (
+                      <span key={i}>{label}</span>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <p className="mt-2 text-[11px] text-slate-500">
-                Distance sample index
-              </p>
             </div>
           </div>
 
@@ -644,6 +685,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             colorClassName="stroke-sky-500"
             minLabel={Math.min(...seededSeries.speed).toFixed(1)}
             maxLabel={Math.max(...seededSeries.speed).toFixed(1)}
+            durationSeconds={durationSeconds}
           />
           <ChartPanel
             title="Power"
@@ -652,6 +694,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             colorClassName="stroke-violet-500"
             minLabel={powerMin.toFixed(0)}
             maxLabel={powerMax.toFixed(0)}
+            durationSeconds={durationSeconds}
           />
           <ChartPanel
             title="Heart rate"
@@ -660,44 +703,8 @@ export const FitnessStatusDetail: FC<Props> = ({
             colorClassName="stroke-rose-500"
             minLabel={Math.min(...seededSeries.heartRate).toFixed(0)}
             maxLabel={Math.max(...seededSeries.heartRate).toFixed(0)}
+            durationSeconds={durationSeconds}
           />
-        </div>
-      )
-    }
-
-    if (activeSection === 'relative-effort') {
-      const weeklyEffort = relativeEffort + Math.round(relativeEffort * 0.9)
-
-      return (
-        <div className="grid gap-0 border-t bg-white lg:grid-cols-2">
-          <div className="border-r p-6">
-            <h3 className="text-4xl font-semibold text-slate-900">
-              Relative Effort
-            </h3>
-            <p className="mt-3 text-8xl font-bold leading-none text-violet-400">
-              {relativeEffort}
-            </p>
-            <p className="mt-4 text-lg text-slate-700">
-              Great job managing your effort.
-            </p>
-          </div>
-
-          <div className="p-6">
-            <h3 className="text-4xl font-semibold text-slate-900">
-              Weekly Effort
-            </h3>
-            <p className="mt-3 text-sm text-slate-500">
-              {formatUtcDate(new Date(currentTime).getTime(), 'MMM d, yyyy')}{' '}
-              snapshot
-            </p>
-            <p className="mt-4 text-6xl font-semibold text-violet-400">
-              {weeklyEffort}
-            </p>
-            <p className="mt-2 text-lg text-slate-800">Below weekly range</p>
-            <p className="mt-2 text-sm text-slate-500">
-              Recovery-focused weeks can help maintain consistency.
-            </p>
-          </div>
         </div>
       )
     }
@@ -762,7 +769,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 Scale {powerMin.toFixed(0)} w - {powerMax.toFixed(0)} w
               </p>
             </div>
-            <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
+            <div className="grid grid-cols-[auto_1fr] items-stretch gap-2">
               <div
                 className={cn(
                   'flex flex-col justify-between text-[11px] text-slate-500',
@@ -772,24 +779,34 @@ export const FitnessStatusDetail: FC<Props> = ({
                 <span>{powerMax.toFixed(0)} w</span>
                 <span>{powerMin.toFixed(0)} w</span>
               </div>
-              <svg
-                viewBox={`0 0 760 ${powerCurveChartHeight}`}
-                className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
-              >
-                <path
-                  d={buildChartPath(
-                    seededSeries.power,
-                    760,
-                    powerCurveChartHeight,
-                    powerMin,
-                    powerMax
-                  )}
-                  className="stroke-violet-600 stroke-[3]"
-                  fill="none"
-                />
-              </svg>
+              <div>
+                <svg
+                  viewBox={`0 0 760 ${powerCurveChartHeight}`}
+                  preserveAspectRatio="none"
+                  className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+                >
+                  <path
+                    d={buildChartPath(
+                      seededSeries.power,
+                      760,
+                      powerCurveChartHeight,
+                      powerMin,
+                      powerMax
+                    )}
+                    className="stroke-violet-600 stroke-[3]"
+                    fill="none"
+                  />
+                </svg>
+                <div className="mt-2 flex justify-between text-[11px] text-slate-500">
+                  {buildXAxisLabels(
+                    seededSeries.power.length,
+                    durationSeconds
+                  ).map((label, i) => (
+                    <span key={i}>{label}</span>
+                  ))}
+                </div>
+              </div>
             </div>
-            <p className="mt-2 text-[11px] text-slate-500">Time sample index</p>
           </div>
         </div>
       )
@@ -844,8 +861,10 @@ export const FitnessStatusDetail: FC<Props> = ({
       const histogramViewHeight = GRAPH_VIEW_HEIGHT
       const histogramTopPadding = 16
       const histogramHeight = histogramViewHeight - histogramTopPadding
-      const barWidth = 34
-      const barGap = 4
+      const barCount = histogramMinutes.length
+      const barGap = 2
+      const totalGaps = (barCount - 1) * barGap
+      const barWidth = (760 - totalGaps) / barCount
       const maxValue = Math.max(...histogramMinutes, 1)
 
       return (
@@ -862,7 +881,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 Scale 0.0 min - {maxValue.toFixed(1)} min
               </p>
             </div>
-            <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
+            <div className="grid grid-cols-[auto_1fr] items-stretch gap-2">
               <div
                 className={cn(
                   'flex flex-col justify-between text-[11px] text-slate-500',
@@ -875,10 +894,11 @@ export const FitnessStatusDetail: FC<Props> = ({
               <div>
                 <svg
                   viewBox={`0 0 760 ${histogramViewHeight}`}
+                  preserveAspectRatio="none"
                   className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
                 >
                   {histogramMinutes.map((value, index) => {
-                    const x = 14 + index * (barWidth + barGap)
+                    const x = index * (barWidth + barGap)
                     const barHeight = (value / maxValue) * histogramHeight
                     const y = histogramViewHeight - barHeight
 
@@ -895,9 +915,12 @@ export const FitnessStatusDetail: FC<Props> = ({
                     )
                   })}
                 </svg>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>0 W</span>
-                  <span>{(histogramMinutes.length - 1) * 25} W</span>
+                <div className="mt-2 flex justify-between text-[11px] text-slate-500">
+                  {histogramMinutes.map((_, index) => (
+                    <span key={`label-${index}`} className="text-center">
+                      {index * 25}
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>
