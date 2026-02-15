@@ -361,6 +361,10 @@ export const FitnessStatusDetail: FC<Props> = ({
   const actorName = status.actor?.name || status.actor?.username || 'Athlete'
   const fitness = status.fitness
   const activityLabel = getActivityLabel(fitness?.activityType)
+  const statusTitle = status.text.trim() || `${activityLabel} workout`
+  const statusDescription =
+    fitness?.description ||
+    'Strava-inspired activity view generated from your uploaded file.'
   const activityDate = formatUtcDate(
     status.createdAt,
     'p \u2022 EEEE, MMMM d, yyyy'
@@ -542,14 +546,10 @@ export const FitnessStatusDetail: FC<Props> = ({
             />
 
             <div className="rounded-sm border border-slate-300 bg-white p-5">
-              <p className="text-sm text-slate-500">{activityDate}</p>
-              <h2 className="mt-1 text-4xl font-semibold tracking-tight text-slate-900">
-                {status.text.trim() || `${activityLabel} workout`}
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                {fitness?.description ||
-                  'Strava-inspired activity view generated from your uploaded file.'}
-              </p>
+              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
+                Overview
+              </h3>
+              <p className="mt-2 text-sm text-slate-600">{statusDescription}</p>
               <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
                 Flyby and other-athlete sections are intentionally hidden on
                 this page.
@@ -936,7 +936,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   {formatUtcDate(status.createdAt, 'M/d/yy')}
                 </td>
                 <td className="px-4 py-3 font-medium text-slate-900">
-                  {status.text.trim() || `${activityLabel} workout`}
+                  {statusTitle}
                 </td>
                 <td className="px-4 py-3">{speedKmh.toFixed(1)} km/h</td>
                 <td className="px-4 py-3">{formatDuration(durationSeconds)}</td>
@@ -996,13 +996,19 @@ export const FitnessStatusDetail: FC<Props> = ({
       <section className="bg-[#f4f4f6]">
         <div className="border-b border-slate-300 bg-[#f7f7f8] px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-sm bg-orange-100 text-orange-600">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-orange-100 text-orange-600">
                 <Bike className="size-5" />
               </span>
-              <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight text-slate-900 md:text-4xl">
-                {actorName} - {activityLabel}
-              </h1>
+              <div className="min-w-0">
+                <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight text-slate-900 md:text-4xl">
+                  {actorName} - {activityLabel}
+                </h1>
+                <p className="mt-1 text-sm text-slate-500">{activityDate}</p>
+                <h2 className="mt-2 min-w-0 break-words text-xl font-semibold tracking-tight text-slate-900 md:text-3xl">
+                  {statusTitle}
+                </h2>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 text-slate-500">
