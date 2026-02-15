@@ -8,7 +8,11 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { FitnessFile, SQLFitnessFile } from '@/lib/types/database/fitnessFile'
+import {
+  FitnessFile,
+  FitnessProcessingStatus,
+  SQLFitnessFile
+} from '@/lib/types/database/fitnessFile'
 
 export interface CreateFitnessFileParams {
   actorId: string
@@ -21,6 +25,16 @@ export interface CreateFitnessFileParams {
   description?: string
   hasMapData?: boolean
   mapImagePath?: string
+}
+
+export interface UpdateFitnessFileActivityData {
+  totalDistanceMeters?: number | null
+  totalDurationSeconds?: number | null
+  elevationGainMeters?: number | null
+  activityType?: string | null
+  activityStartTime?: Date | null
+  hasMapData?: boolean | null
+  mapImagePath?: string | null
 }
 
 export interface GetFitnessFileParams {
@@ -79,11 +93,34 @@ export interface FitnessFileDatabase {
     fitnessFileId: string,
     statusId: string
   ): Promise<boolean>
+  updateFitnessFileProcessingStatus(
+    fitnessFileId: string,
+    processingStatus: FitnessProcessingStatus
+  ): Promise<boolean>
+  updateFitnessFileActivityData(
+    fitnessFileId: string,
+    data: UpdateFitnessFileActivityData
+  ): Promise<boolean>
 }
 
 // Helper function to normalize bytes from database which can be number, string, or bigint
 const normalizeBytes = (bytes: number | string | bigint): number => {
   return Number(bytes)
+}
+
+const normalizeOptionalNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  return undefined
 }
 
 const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
@@ -96,8 +133,16 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   mimeType: row.mimeType,
   bytes: normalizeBytes(row.bytes),
   description: row.description ?? undefined,
-  hasMapData: row.hasMapData ?? false,
+  hasMapData: Boolean(row.hasMapData),
   mapImagePath: row.mapImagePath ?? undefined,
+  processingStatus: row.processingStatus ?? 'pending',
+  totalDistanceMeters: normalizeOptionalNumber(row.totalDistanceMeters),
+  totalDurationSeconds: normalizeOptionalNumber(row.totalDurationSeconds),
+  elevationGainMeters: normalizeOptionalNumber(row.elevationGainMeters),
+  activityType: row.activityType ?? undefined,
+  activityStartTime: row.activityStartTime
+    ? getCompatibleTime(row.activityStartTime)
+    : undefined,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
@@ -128,6 +173,12 @@ export const FitnessFileSQLDatabaseMixin = (
         description: params.description ?? null,
         hasMapData: params.hasMapData ?? false,
         mapImagePath: params.mapImagePath ?? null,
+        processingStatus: 'pending',
+        totalDistanceMeters: null,
+        totalDurationSeconds: null,
+        elevationGainMeters: null,
+        activityType: null,
+        activityStartTime: null,
         createdAt: currentTime,
         updatedAt: currentTime
       }
@@ -277,6 +328,66 @@ export const FitnessFileSQLDatabaseMixin = (
         statusId,
         updatedAt: new Date()
       })
+
+    return result > 0
+  },
+
+  async updateFitnessFileProcessingStatus(
+    fitnessFileId: string,
+    processingStatus: FitnessProcessingStatus
+  ) {
+    const result = await database('fitness_files')
+      .where('id', fitnessFileId)
+      .update({
+        processingStatus,
+        updatedAt: new Date()
+      })
+
+    return result > 0
+  },
+
+  async updateFitnessFileActivityData(
+    fitnessFileId: string,
+    data: UpdateFitnessFileActivityData
+  ) {
+    const updateData: Record<string, unknown> = {
+      updatedAt: new Date()
+    }
+
+    if ('totalDistanceMeters' in data) {
+      updateData.totalDistanceMeters =
+        typeof data.totalDistanceMeters === 'number'
+          ? data.totalDistanceMeters
+          : null
+    }
+    if ('totalDurationSeconds' in data) {
+      updateData.totalDurationSeconds =
+        typeof data.totalDurationSeconds === 'number'
+          ? data.totalDurationSeconds
+          : null
+    }
+    if ('elevationGainMeters' in data) {
+      updateData.elevationGainMeters =
+        typeof data.elevationGainMeters === 'number'
+          ? data.elevationGainMeters
+          : null
+    }
+    if ('activityType' in data) {
+      updateData.activityType = data.activityType ?? null
+    }
+    if ('activityStartTime' in data) {
+      updateData.activityStartTime = data.activityStartTime ?? null
+    }
+    if ('hasMapData' in data) {
+      updateData.hasMapData = data.hasMapData ?? false
+    }
+    if ('mapImagePath' in data) {
+      updateData.mapImagePath = data.mapImagePath ?? null
+    }
+
+    const result = await database('fitness_files')
+      .where('id', fitnessFileId)
+      .update(updateData)
 
     return result > 0
   }

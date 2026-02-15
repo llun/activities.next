@@ -94,9 +94,11 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     width,
     height,
     name = '',
-    mediaId
+    mediaId,
+    createdAt
   }: CreateAttachmentParams): Promise<Attachment> {
-    const currentTime = new Date()
+    const currentTime =
+      typeof createdAt === 'number' ? new Date(createdAt) : new Date()
     const data = Attachment.parse({
       id: crypto.randomUUID(),
       actorId,
@@ -120,10 +122,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   },
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
-    const data = await database<Attachment>('attachments').where(
-      'statusId',
-      statusId
-    )
+    const data = await database<Attachment>('attachments')
+      .where('statusId', statusId)
+      .orderBy('createdAt', 'asc')
+      .orderBy('id', 'asc')
     return data
       .map((item) => {
         if (!item.actorId) return null

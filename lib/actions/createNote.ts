@@ -1,7 +1,10 @@
 import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'
-import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  PROCESS_FITNESS_FILE_JOB_NAME,
+  SEND_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
@@ -286,14 +289,28 @@ export const createNoteFromUserInput = async ({
     return null
   }
 
-  await getQueue().publish({
-    id: getHashFromString(status.id),
-    name: SEND_NOTE_JOB_NAME,
-    data: {
-      actorId: currentActor.id,
-      statusId: status.id
-    }
-  })
+  if (fitnessFile) {
+    await database.updateFitnessFileProcessingStatus(fitnessFile.id, 'pending')
+
+    await getQueue().publish({
+      id: getHashFromString(status.id),
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: {
+        actorId: currentActor.id,
+        statusId: status.id,
+        fitnessFileId: fitnessFile.id
+      }
+    })
+  } else {
+    await getQueue().publish({
+      id: getHashFromString(status.id),
+      name: SEND_NOTE_JOB_NAME,
+      data: {
+        actorId: currentActor.id,
+        statusId: status.id
+      }
+    })
+  }
 
   span.end()
   return status

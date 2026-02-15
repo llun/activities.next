@@ -917,6 +917,20 @@ export const StatusSQLDatabaseMixin = (
               mimeType: fitnessFile.mimeType,
               bytes: Number(fitnessFile.bytes),
               url: `/api/v1/fitness-files/${fitnessFile.id}`,
+              processingStatus: fitnessFile.processingStatus ?? 'pending',
+              ...(typeof fitnessFile.totalDistanceMeters === 'number'
+                ? { totalDistanceMeters: fitnessFile.totalDistanceMeters }
+                : null),
+              ...(typeof fitnessFile.totalDurationSeconds === 'number'
+                ? { totalDurationSeconds: fitnessFile.totalDurationSeconds }
+                : null),
+              ...(typeof fitnessFile.elevationGainMeters === 'number'
+                ? { elevationGainMeters: fitnessFile.elevationGainMeters }
+                : null),
+              ...(fitnessFile.activityType
+                ? { activityType: fitnessFile.activityType }
+                : null),
+              hasMapData: Boolean(fitnessFile.hasMapData),
               ...(fitnessFile.description
                 ? { description: fitnessFile.description }
                 : null)

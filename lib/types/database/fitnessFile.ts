@@ -1,3 +1,9 @@
+export type FitnessProcessingStatus =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+
 // SQL row type for fitness_files table
 export interface SQLFitnessFile {
   id: string
@@ -17,6 +23,12 @@ export interface SQLFitnessFile {
   // Map data flags
   hasMapData?: boolean | null
   mapImagePath?: string | null
+  processingStatus?: FitnessProcessingStatus | null
+  totalDistanceMeters?: number | null
+  totalDurationSeconds?: number | null
+  elevationGainMeters?: number | null
+  activityType?: string | null
+  activityStartTime?: number | Date | string | null
 
   // Timestamps
   createdAt: number | Date
@@ -39,6 +51,12 @@ export interface FitnessFile {
   description?: string
   hasMapData?: boolean
   mapImagePath?: string
+  processingStatus?: FitnessProcessingStatus
+  totalDistanceMeters?: number
+  totalDurationSeconds?: number
+  elevationGainMeters?: number
+  activityType?: string
+  activityStartTime?: number
 
   createdAt: number
   updatedAt: number

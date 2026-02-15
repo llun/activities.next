@@ -11,7 +11,8 @@ export enum FitnessStorageType {
 
 export const BaseFitnessStorageConfig = z.object({
   maxFileSize: z.number().nullish(),
-  quotaPerAccount: z.number().nullish()
+  quotaPerAccount: z.number().nullish(),
+  mapboxAccessToken: z.string().nullish()
 })
 export type BaseFitnessStorageConfig = z.infer<typeof BaseFitnessStorageConfig>
 
@@ -58,6 +59,13 @@ const getFitnessQuotaPerAccount = (): number | undefined =>
 const getMediaQuotaPerAccount = (): number | undefined =>
   parseIntegerEnv(process.env.ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT)
 
+const getMapboxAccessToken = (): string | undefined => {
+  const token = process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN
+  if (!token) return undefined
+  const trimmed = token.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
 export const getFitnessStorageConfig = (): {
   fitnessStorage: FitnessStorageConfig
 } | null => {
@@ -77,7 +85,8 @@ export const getFitnessStorageConfig = (): {
               'fitness'
             ),
             maxFileSize: getFitnessMaxFileSize(),
-            quotaPerAccount: getMediaQuotaPerAccount()
+            quotaPerAccount: getMediaQuotaPerAccount(),
+            mapboxAccessToken: getMapboxAccessToken()
           }
         }
       case FitnessStorageType.S3Storage:
@@ -91,7 +100,8 @@ export const getFitnessStorageConfig = (): {
               process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME || undefined,
             prefix: 'fitness/',
             maxFileSize: getFitnessMaxFileSize(),
-            quotaPerAccount: getMediaQuotaPerAccount()
+            quotaPerAccount: getMediaQuotaPerAccount(),
+            mapboxAccessToken: getMapboxAccessToken()
           }
         }
       }
@@ -107,7 +117,8 @@ export const getFitnessStorageConfig = (): {
           type: fitnessStorageType,
           path: process.env.ACTIVITIES_FITNESS_STORAGE_PATH as string,
           maxFileSize: getFitnessMaxFileSize(),
-          quotaPerAccount: getFitnessQuotaPerAccount()
+          quotaPerAccount: getFitnessQuotaPerAccount(),
+          mapboxAccessToken: getMapboxAccessToken()
         }
       }
     case FitnessStorageType.S3Storage:
@@ -121,7 +132,8 @@ export const getFitnessStorageConfig = (): {
             process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME || undefined,
           prefix: process.env.ACTIVITIES_FITNESS_STORAGE_PREFIX || 'fitness/',
           maxFileSize: getFitnessMaxFileSize(),
-          quotaPerAccount: getFitnessQuotaPerAccount()
+          quotaPerAccount: getFitnessQuotaPerAccount(),
+          mapboxAccessToken: getMapboxAccessToken()
         }
       }
     }
