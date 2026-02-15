@@ -163,6 +163,9 @@ const createSeededGenerator = (seedText: string) => {
   }
 }
 
+const GRAPH_VIEW_HEIGHT = 250
+const GRAPH_HEIGHT_CLASSNAME = 'h-[190px] lg:h-[250px]'
+
 const buildChartPath = (
   values: number[],
   width: number,
@@ -200,7 +203,7 @@ const ChartPanel: FC<{
   maxLabel?: string
 }> = ({ title, unit, values, colorClassName, minLabel, maxLabel }) => {
   const width = 760
-  const height = 120
+  const height = GRAPH_VIEW_HEIGHT
   const path = useMemo(() => buildChartPath(values, width, height), [values])
   const minScale = minLabel ? `${minLabel} ${unit}` : `-- ${unit}`
   const maxScale = maxLabel ? `${maxLabel} ${unit}` : `-- ${unit}`
@@ -214,11 +217,19 @@ const ChartPanel: FC<{
         </p>
       </div>
       <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
-        <div className="flex h-32 flex-col justify-between text-[11px] text-slate-500">
+        <div
+          className={cn(
+            'flex flex-col justify-between text-[11px] text-slate-500',
+            GRAPH_HEIGHT_CLASSNAME
+          )}
+        >
           <span>{maxScale}</span>
           <span>{minScale}</span>
         </div>
-        <svg viewBox={`0 0 ${width} ${height}`} className="h-32 w-full">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+        >
           <path
             d={path}
             fill="none"
@@ -569,6 +580,8 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
 
     if (activeSection === 'analysis') {
+      const elevationChartHeight = GRAPH_VIEW_HEIGHT
+
       return (
         <div className="space-y-4 p-6">
           <div className="grid gap-4 xl:grid-cols-[1.25fr,1fr]">
@@ -592,16 +605,24 @@ export const FitnessStatusDetail: FC<Props> = ({
                 </p>
               </div>
               <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
-                <div className="flex h-56 flex-col justify-between text-[11px] text-slate-500">
+                <div
+                  className={cn(
+                    'flex flex-col justify-between text-[11px] text-slate-500',
+                    GRAPH_HEIGHT_CLASSNAME
+                  )}
+                >
                   <span>{elevationMax.toFixed(0)} m</span>
                   <span>{elevationMin.toFixed(0)} m</span>
                 </div>
-                <svg viewBox="0 0 760 220" className="h-56 w-full">
+                <svg
+                  viewBox={`0 0 760 ${elevationChartHeight}`}
+                  className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+                >
                   <path
                     d={buildChartPath(
                       seededSeries.elevation,
                       760,
-                      220,
+                      elevationChartHeight,
                       elevationMin,
                       elevationMax
                     )}
@@ -727,6 +748,8 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
 
     if (activeSection === 'power-curve') {
+      const powerCurveChartHeight = GRAPH_VIEW_HEIGHT
+
       return (
         <div className="space-y-4 p-6">
           <h3 className="text-5xl font-semibold text-slate-900">Power Curve</h3>
@@ -740,16 +763,24 @@ export const FitnessStatusDetail: FC<Props> = ({
               </p>
             </div>
             <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
-              <div className="flex h-64 flex-col justify-between text-[11px] text-slate-500">
+              <div
+                className={cn(
+                  'flex flex-col justify-between text-[11px] text-slate-500',
+                  GRAPH_HEIGHT_CLASSNAME
+                )}
+              >
                 <span>{powerMax.toFixed(0)} w</span>
                 <span>{powerMin.toFixed(0)} w</span>
               </div>
-              <svg viewBox="0 0 760 260" className="h-64 w-full">
+              <svg
+                viewBox={`0 0 760 ${powerCurveChartHeight}`}
+                className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+              >
                 <path
                   d={buildChartPath(
                     seededSeries.power,
                     760,
-                    260,
+                    powerCurveChartHeight,
                     powerMin,
                     powerMax
                   )}
@@ -810,7 +841,9 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
 
     if (activeSection === '25w-distribution') {
-      const histogramHeight = 340
+      const histogramViewHeight = GRAPH_VIEW_HEIGHT
+      const histogramTopPadding = 16
+      const histogramHeight = histogramViewHeight - histogramTopPadding
       const barWidth = 34
       const barGap = 4
       const maxValue = Math.max(...histogramMinutes, 1)
@@ -830,16 +863,24 @@ export const FitnessStatusDetail: FC<Props> = ({
               </p>
             </div>
             <div className="grid grid-cols-[auto,1fr] items-stretch gap-2">
-              <div className="flex h-[380px] flex-col justify-between text-[11px] text-slate-500">
+              <div
+                className={cn(
+                  'flex flex-col justify-between text-[11px] text-slate-500',
+                  GRAPH_HEIGHT_CLASSNAME
+                )}
+              >
                 <span>{maxValue.toFixed(1)} min</span>
                 <span>0.0 min</span>
               </div>
               <div>
-                <svg viewBox="0 0 760 380" className="h-[380px] w-full">
+                <svg
+                  viewBox={`0 0 760 ${histogramViewHeight}`}
+                  className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+                >
                   {histogramMinutes.map((value, index) => {
                     const x = 14 + index * (barWidth + barGap)
                     const barHeight = (value / maxValue) * histogramHeight
-                    const y = 355 - barHeight
+                    const y = histogramViewHeight - barHeight
 
                     return (
                       <rect
