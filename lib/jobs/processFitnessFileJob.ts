@@ -9,6 +9,7 @@ import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import { saveMedia } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
 import { StatusType } from '@/lib/types/domain/status'
+import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -97,20 +98,6 @@ const buildActivitySummary = (data: FitnessActivityData): string => {
   return base
 }
 
-const extractMediaPathFromUrl = (url: string): string => {
-  const marker = '/api/v1/files/'
-  const markerIndex = url.indexOf(marker)
-  if (markerIndex >= 0) {
-    return decodeURIComponent(url.slice(markerIndex + marker.length))
-  }
-
-  try {
-    return new URL(url).pathname.replace(/^\/+/, '')
-  } catch {
-    return url.replace(/^\/+/, '')
-  }
-}
-
 const getFitnessFileBuffer = async (
   database: Database,
   fitnessFileId: string
@@ -180,37 +167,57 @@ export const processFitnessFileJob = createJobHandle(
       })
 
       if (activityData.coordinates.length >= 2) {
-        const mapImageBuffer = await generateMapImage({
-          coordinates: activityData.coordinates
-        })
-
-        if (mapImageBuffer) {
-          const mapImageBytes = new Uint8Array(mapImageBuffer)
-          const storedMap = await saveMedia(database, actor, {
-            file: new File([mapImageBytes], `${fitnessFileId}-route-map.png`, {
-              type: 'image/png'
-            }),
-            description: `${fitnessFile.fileName} route map`
+        try {
+          const mapImageBuffer = await generateMapImage({
+            coordinates: activityData.coordinates
           })
 
-          if (!storedMap) {
-            throw new Error('Failed to store generated map image')
-          }
+          if (mapImageBuffer) {
+            const mapImageBytes = new Uint8Array(mapImageBuffer)
+            const storedMap = await saveMedia(database, actor, {
+              file: new File(
+                [mapImageBytes],
+                `${fitnessFileId}-route-map.png`,
+                {
+                  type: 'image/png'
+                }
+              ),
+              description: `${fitnessFile.fileName} route map`
+            })
 
-          await database.createAttachment({
+            if (!storedMap) {
+              logger.warn({
+                message: 'Failed to store generated route map image',
+                actorId,
+                statusId,
+                fitnessFileId
+              })
+            } else {
+              await database.createAttachment({
+                actorId,
+                statusId,
+                mediaType: storedMap.mime_type,
+                url: storedMap.url,
+                width: storedMap.meta.original.width,
+                height: storedMap.meta.original.height,
+                name: 'Activity route map',
+                mediaId: storedMap.id
+              })
+
+              await database.updateFitnessFileActivityData(fitnessFileId, {
+                hasMapData: true,
+                mapImagePath: getAttachmentMediaPath(storedMap.url)
+              })
+            }
+          }
+        } catch (error) {
+          const nodeError = error as Error
+          logger.warn({
+            message: 'Map generation failed; continuing without route map',
             actorId,
             statusId,
-            mediaType: storedMap.mime_type,
-            url: storedMap.url,
-            width: storedMap.meta.original.width,
-            height: storedMap.meta.original.height,
-            name: 'Activity route map',
-            mediaId: storedMap.id
-          })
-
-          await database.updateFitnessFileActivityData(fitnessFileId, {
-            hasMapData: true,
-            mapImagePath: extractMediaPathFromUrl(storedMap.url)
+            fitnessFileId,
+            error: nodeError.message
           })
         }
       }

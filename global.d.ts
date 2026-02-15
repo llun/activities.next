@@ -31,7 +31,7 @@ declare module 'fit-file-parser' {
     constructor(options?: Record<string, unknown>)
     parse(
       buffer: ArrayBufferLike | Buffer<ArrayBufferLike>,
-      callback: (error: Error | null, data?: FitData) => void
+      callback: (error: string | null, data?: FitData) => void
     ): void
   }
 }

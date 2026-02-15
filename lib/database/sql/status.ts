@@ -48,6 +48,7 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
+import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
@@ -76,25 +77,6 @@ export const StatusSQLDatabaseMixin = (
       }
     }
     return content
-  }
-
-  const getAttachmentMediaPath = (url: string): string => {
-    const marker = '/api/v1/files/'
-    const markerIndex = url.indexOf(marker)
-    if (markerIndex >= 0) {
-      return decodeURIComponent(url.slice(markerIndex + marker.length)).replace(
-        /^\/+/,
-        ''
-      )
-    }
-
-    try {
-      return decodeURIComponent(
-        new URL(url, 'https://local.invalid').pathname
-      ).replace(/^\/+/, '')
-    } catch {
-      return decodeURIComponent(url).replace(/^\/+/, '')
-    }
   }
 
   const sortAttachmentsForFitnessMap = <T extends { id: string; url: string }>(

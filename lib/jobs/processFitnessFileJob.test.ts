@@ -248,6 +248,40 @@ describe('processFitnessFileJob', () => {
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
   })
 
+  it('continues federation when map generation fails', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: 'Map can fail'
+    })
+
+    mockGenerateMapImage.mockRejectedValue(new Error('map rendering failed'))
+
+    await processFitnessFileJob(database, {
+      id: 'job-id-3',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+
+    const updatedFitnessFile = await database.getFitnessFile({
+      id: fitnessFileId
+    })
+    expect(updatedFitnessFile).toMatchObject({
+      processingStatus: 'completed',
+      hasMapData: false
+    })
+    expect(updatedFitnessFile?.mapImagePath).toBeUndefined()
+
+    expect(mockSaveMedia).not.toHaveBeenCalled()
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    expect(getQueue().publish).toHaveBeenCalledWith({
+      id: getHashFromString(`${statusId}:send-note`),
+      name: SEND_NOTE_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        statusId
+      }
+    })
+  })
+
   it('marks processing as failed and skips federation when parsing fails', async () => {
     const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
       text: 'Will fail'
@@ -256,7 +290,7 @@ describe('processFitnessFileJob', () => {
     mockParseFitnessFile.mockRejectedValue(new Error('parse failure'))
 
     await processFitnessFileJob(database, {
-      id: 'job-id-3',
+      id: 'job-id-4',
       name: PROCESS_FITNESS_FILE_JOB_NAME,
       data: { actorId: actor.id, statusId, fitnessFileId }
     })

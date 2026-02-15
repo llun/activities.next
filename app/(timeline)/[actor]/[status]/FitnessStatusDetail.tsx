@@ -10,6 +10,11 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { StatusNote } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
+import {
+  formatFitnessDistance,
+  formatFitnessDuration,
+  getFitnessPaceOrSpeed
+} from '@/lib/utils/fitness'
 
 interface Props {
   host: string
@@ -49,89 +54,14 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'matched-activities', label: 'Matched Activities' }
 ]
 
-const formatDistance = (distanceMeters?: number) => {
-  if (typeof distanceMeters !== 'number' || distanceMeters <= 0) {
-    return '0.00 km'
-  }
+const formatDistance = (distanceMeters?: number) =>
+  formatFitnessDistance(distanceMeters, { fallback: '0.00 km' }) ?? '0.00 km'
 
-  const distanceKm = distanceMeters / 1000
-  if (distanceKm >= 10) {
-    return `${distanceKm.toFixed(1)} km`
-  }
-
-  return `${distanceKm.toFixed(2)} km`
-}
-
-const formatDuration = (durationSeconds?: number) => {
-  if (typeof durationSeconds !== 'number' || durationSeconds <= 0) {
-    return '0:00'
-  }
-
-  const totalSeconds = Math.max(0, Math.round(durationSeconds))
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds
-      .toString()
-      .padStart(2, '0')}`
-  }
-
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
+const formatDuration = (durationSeconds?: number) =>
+  formatFitnessDuration(durationSeconds, { fallback: '0:00' }) ?? '0:00'
 
 const formatUtcDate = (timestamp: number, pattern: string) => {
   return format(new UTCDate(timestamp), pattern)
-}
-
-const getPaceOrSpeed = ({
-  distanceMeters,
-  durationSeconds,
-  activityType
-}: {
-  distanceMeters?: number
-  durationSeconds?: number
-  activityType?: string
-}) => {
-  if (
-    typeof distanceMeters !== 'number' ||
-    typeof durationSeconds !== 'number' ||
-    distanceMeters <= 0 ||
-    durationSeconds <= 0
-  ) {
-    return null
-  }
-
-  const distanceKm = distanceMeters / 1000
-  if (distanceKm <= 0) return null
-
-  const normalizedType = activityType?.toLowerCase() ?? ''
-  const usesPace =
-    normalizedType.includes('run') ||
-    normalizedType.includes('walk') ||
-    normalizedType.includes('hike') ||
-    normalizedType.includes('swim')
-
-  if (usesPace) {
-    const paceSeconds = durationSeconds / distanceKm
-    const paceMinutes = Math.floor(paceSeconds / 60)
-    const paceRemainderSeconds = Math.round(paceSeconds % 60)
-
-    return {
-      label: 'Pace',
-      value: `${paceMinutes}:${paceRemainderSeconds
-        .toString()
-        .padStart(2, '0')} / km`
-    }
-  }
-
-  const speedKmh = distanceKm / (durationSeconds / 3600)
-  return {
-    label: 'Avg speed',
-    value: `${speedKmh.toFixed(1)} km/h`,
-    speedKmh
-  }
 }
 
 const getActivityLabel = (activityType?: string) => {
@@ -308,14 +238,20 @@ const ActivityMapPanel: FC<{
       <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border border-slate-300 bg-white/95 shadow-sm">
         <button
           type="button"
-          className="flex h-8 w-8 items-center justify-center text-slate-700"
+          disabled
+          aria-disabled="true"
+          title="Zoom controls are not available yet"
+          className="flex h-8 w-8 items-center justify-center text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
         >
           <Plus className="size-4" />
         </button>
         <div className="h-px bg-slate-300" />
         <button
           type="button"
-          className="flex h-8 w-8 items-center justify-center text-slate-700"
+          disabled
+          aria-disabled="true"
+          title="Zoom controls are not available yet"
+          className="flex h-8 w-8 items-center justify-center text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
         >
           <span className="text-base leading-none">-</span>
         </button>
@@ -407,7 +343,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     'p \u2022 EEEE, MMMM d, yyyy'
   )
 
-  const paceOrSpeed = getPaceOrSpeed({
+  const paceOrSpeed = getFitnessPaceOrSpeed({
     distanceMeters: fitness?.totalDistanceMeters,
     durationSeconds: fitness?.totalDurationSeconds,
     activityType: fitness?.activityType

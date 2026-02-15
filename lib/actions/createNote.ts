@@ -290,8 +290,6 @@ export const createNoteFromUserInput = async ({
   }
 
   if (fitnessFile) {
-    await database.updateFitnessFileProcessingStatus(fitnessFile.id, 'pending')
-
     await getQueue().publish({
       id: getHashFromString(status.id),
       name: PROCESS_FITNESS_FILE_JOB_NAME,

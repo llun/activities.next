@@ -339,7 +339,7 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
   const fitContent = Uint8Array.from(buffer).buffer
 
   const parsed = await new Promise<FitData>((resolve, reject) => {
-    parser.parse(fitContent, (error: string | undefined, data?: unknown) => {
+    parser.parse(fitContent, (error: string | null, data?: unknown) => {
       if (error) {
         reject(new Error(error))
         return

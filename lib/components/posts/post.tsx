@@ -5,6 +5,12 @@ import { FC } from 'react'
 
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
+import {
+  formatFitnessDistance,
+  formatFitnessDuration,
+  formatFitnessElevation,
+  getFitnessPaceOrSpeed
+} from '@/lib/utils/fitness'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import {
   getActualStatus,
@@ -31,95 +37,6 @@ export interface PostProps {
 
 interface BoostStatusProps {
   status: Status
-}
-
-const formatDistance = (distanceMeters?: number) => {
-  if (typeof distanceMeters !== 'number' || distanceMeters <= 0) {
-    return null
-  }
-
-  const distanceKm = distanceMeters / 1000
-
-  if (distanceKm >= 10) {
-    return `${distanceKm.toFixed(1)} km`
-  }
-
-  return `${distanceKm.toFixed(2)} km`
-}
-
-const formatDuration = (durationSeconds?: number) => {
-  if (typeof durationSeconds !== 'number' || durationSeconds <= 0) {
-    return null
-  }
-
-  const totalSeconds = Math.round(durationSeconds)
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds
-      .toString()
-      .padStart(2, '0')}`
-  }
-
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
-
-const formatElevation = (elevationGainMeters?: number) => {
-  if (typeof elevationGainMeters !== 'number' || elevationGainMeters <= 0) {
-    return null
-  }
-
-  return `${Math.round(elevationGainMeters)} m`
-}
-
-const getPaceOrSpeed = ({
-  distanceMeters,
-  durationSeconds,
-  activityType
-}: {
-  distanceMeters?: number
-  durationSeconds?: number
-  activityType?: string
-}) => {
-  if (
-    typeof distanceMeters !== 'number' ||
-    typeof durationSeconds !== 'number' ||
-    distanceMeters <= 0 ||
-    durationSeconds <= 0
-  ) {
-    return null
-  }
-
-  const distanceKm = distanceMeters / 1000
-  if (distanceKm <= 0) return null
-
-  const normalizedType = activityType?.toLowerCase() ?? ''
-  const usesPace =
-    normalizedType.includes('run') ||
-    normalizedType.includes('walk') ||
-    normalizedType.includes('hike') ||
-    normalizedType.includes('swim')
-
-  if (usesPace) {
-    const paceSeconds = durationSeconds / distanceKm
-    const paceMinutes = Math.floor(paceSeconds / 60)
-    const paceRemainderSeconds = Math.round(paceSeconds % 60)
-
-    return {
-      label: 'Pace',
-      value: `${paceMinutes}:${paceRemainderSeconds
-        .toString()
-        .padStart(2, '0')} / km`
-    }
-  }
-
-  const speedKmh = distanceKm / (durationSeconds / 3600)
-  return {
-    label: 'Avg speed',
-    value: `${speedKmh.toFixed(1)} km/h`
-  }
 }
 
 export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
@@ -151,10 +68,16 @@ export const Post: FC<PostProps> = (props) => {
     fitnessProcessingStatus === 'processing'
   const isFitnessFailed = fitnessProcessingStatus === 'failed'
   const isFitnessCompleted = fitnessProcessingStatus === 'completed'
-  const fitnessDistance = formatDistance(fitnessFile?.totalDistanceMeters)
-  const fitnessDuration = formatDuration(fitnessFile?.totalDurationSeconds)
-  const fitnessElevation = formatElevation(fitnessFile?.elevationGainMeters)
-  const fitnessPaceOrSpeed = getPaceOrSpeed({
+  const fitnessDistance = formatFitnessDistance(
+    fitnessFile?.totalDistanceMeters
+  )
+  const fitnessDuration = formatFitnessDuration(
+    fitnessFile?.totalDurationSeconds
+  )
+  const fitnessElevation = formatFitnessElevation(
+    fitnessFile?.elevationGainMeters
+  )
+  const fitnessPaceOrSpeed = getFitnessPaceOrSpeed({
     distanceMeters: fitnessFile?.totalDistanceMeters,
     durationSeconds: fitnessFile?.totalDurationSeconds,
     activityType: fitnessFile?.activityType
