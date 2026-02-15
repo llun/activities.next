@@ -210,9 +210,35 @@ const Page: FC<Props> = async ({ params }) => {
     }
   }
 
+  const statusForLayout =
+    status.type === StatusType.enum.Announce ? status.originalStatus : status
+  const isFitnessDashboard =
+    statusForLayout.type === StatusType.enum.Note &&
+    statusForLayout.fitness?.processingStatus === 'completed'
+
+  if (isFitnessDashboard) {
+    return (
+      <div className="fitness-breakout">
+        <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+          <Header isFitnessDashboard />
+
+          <div className="border-b bg-background">
+            <StatusBox
+              host={host}
+              currentTime={currentTime}
+              currentActor={currentActorProfile}
+              status={cleanJson(status)}
+              variant="detail"
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-      <Header />
+      <Header isFitnessDashboard={false} />
 
       {previouses.reverse().map((item) => (
         <div

@@ -1,10 +1,16 @@
 import { formatDistanceToNow } from 'date-fns'
 import _ from 'lodash'
-import { Activity, ExternalLink, Repeat2 } from 'lucide-react'
+import { Activity, ExternalLink, LoaderCircle, Repeat2 } from 'lucide-react'
 import { FC } from 'react'
 
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
+import {
+  formatFitnessDistance,
+  formatFitnessDuration,
+  formatFitnessElevation,
+  getFitnessPaceOrSpeed
+} from '@/lib/utils/fitness'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import {
   getActualStatus,
@@ -32,6 +38,7 @@ export interface PostProps {
 interface BoostStatusProps {
   status: Status
 }
+
 export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   if (status.type !== StatusType.enum.Announce) return null
   return (
@@ -55,6 +62,26 @@ export const Post: FC<PostProps> = (props) => {
     .value()
   const fitnessFile =
     actualStatus.type === StatusType.enum.Note ? actualStatus.fitness : null
+  const fitnessProcessingStatus = fitnessFile?.processingStatus ?? 'completed'
+  const isFitnessProcessing =
+    fitnessProcessingStatus === 'pending' ||
+    fitnessProcessingStatus === 'processing'
+  const isFitnessFailed = fitnessProcessingStatus === 'failed'
+  const isFitnessCompleted = fitnessProcessingStatus === 'completed'
+  const fitnessDistance = formatFitnessDistance(
+    fitnessFile?.totalDistanceMeters
+  )
+  const fitnessDuration = formatFitnessDuration(
+    fitnessFile?.totalDurationSeconds
+  )
+  const fitnessElevation = formatFitnessElevation(
+    fitnessFile?.elevationGainMeters
+  )
+  const fitnessPaceOrSpeed = getFitnessPaceOrSpeed({
+    distanceMeters: fitnessFile?.totalDistanceMeters,
+    durationSeconds: fitnessFile?.totalDurationSeconds,
+    activityType: fitnessFile?.activityType
+  })
 
   return (
     <div className="flex flex-col gap-1">
@@ -95,24 +122,77 @@ export const Post: FC<PostProps> = (props) => {
             {processedAndCleanedText}
           </div>
           {fitnessFile ? (
-            <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
-              <Activity className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="shrink-0 font-medium text-muted-foreground">
-                Fitness
-              </span>
-              <a
-                href={fitnessFile.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(event) => event.stopPropagation()}
-                className="truncate text-foreground underline-offset-2 hover:underline"
-                title={fitnessFile.fileName}
-              >
-                {fitnessFile.fileName}
-              </a>
-              <span className="shrink-0 text-muted-foreground uppercase">
-                {fitnessFile.fileType}
-              </span>
+            <div className="mt-2 max-w-full rounded-md border bg-muted/30 px-3 py-2 text-xs">
+              <div className="flex max-w-full items-center gap-2">
+                <Activity className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="shrink-0 font-medium text-muted-foreground">
+                  Fitness
+                </span>
+                <a
+                  href={fitnessFile.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                  className="truncate text-foreground underline-offset-2 hover:underline"
+                  title={fitnessFile.fileName}
+                >
+                  {fitnessFile.fileName}
+                </a>
+                <span className="shrink-0 text-muted-foreground uppercase">
+                  {fitnessFile.fileType}
+                </span>
+              </div>
+
+              {isFitnessProcessing ? (
+                <div className="mt-2 inline-flex items-center gap-2 text-muted-foreground">
+                  <LoaderCircle className="size-3.5 animate-spin" />
+                  <span>Processing fitness activity...</span>
+                </div>
+              ) : null}
+
+              {isFitnessFailed ? (
+                <div className="mt-2 text-destructive">
+                  Processing failed. The original activity file is still
+                  available.
+                </div>
+              ) : null}
+
+              {isFitnessCompleted ? (
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
+                  {fitnessDistance ? (
+                    <span>
+                      Distance:{' '}
+                      <strong className="text-foreground">
+                        {fitnessDistance}
+                      </strong>
+                    </span>
+                  ) : null}
+                  {fitnessDuration ? (
+                    <span>
+                      Duration:{' '}
+                      <strong className="text-foreground">
+                        {fitnessDuration}
+                      </strong>
+                    </span>
+                  ) : null}
+                  {fitnessPaceOrSpeed ? (
+                    <span>
+                      {fitnessPaceOrSpeed.label}:{' '}
+                      <strong className="text-foreground">
+                        {fitnessPaceOrSpeed.value}
+                      </strong>
+                    </span>
+                  ) : null}
+                  {fitnessElevation ? (
+                    <span>
+                      Elevation:{' '}
+                      <strong className="text-foreground">
+                        {fitnessElevation}
+                      </strong>
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
 

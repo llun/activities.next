@@ -47,7 +47,9 @@ describe('FitnessFileDatabase', () => {
           fileType: 'fit',
           mimeType: 'application/vnd.ant.fit',
           bytes: 2048,
-          description: 'Morning run'
+          description: 'Morning run',
+          processingStatus: 'pending',
+          hasMapData: false
         })
 
         const actorFiles = await database.getFitnessFilesByActor({
@@ -92,6 +94,55 @@ describe('FitnessFileDatabase', () => {
           statusId: statuses.replyAuthor.mentionReplyToPrimary
         })
         expect(newStatusFile?.id).toBe(created?.id)
+      })
+    })
+
+    describe('updateFitnessFileProcessingStatus/updateFitnessFileActivityData', () => {
+      it('updates processing status and parsed activity data', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/processing.fit',
+          fileName: 'processing.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+
+        expect(created).toBeDefined()
+        expect(created?.processingStatus).toBe('pending')
+
+        const processingUpdated =
+          await database.updateFitnessFileProcessingStatus(
+            created!.id,
+            'processing'
+          )
+        expect(processingUpdated).toBe(true)
+
+        const metadataUpdated = await database.updateFitnessFileActivityData(
+          created!.id,
+          {
+            totalDistanceMeters: 5_000,
+            totalDurationSeconds: 1_500,
+            elevationGainMeters: 120,
+            activityType: 'running',
+            activityStartTime: new Date('2026-01-01T00:00:00.000Z'),
+            hasMapData: true,
+            mapImagePath: 'medias/route-map.png'
+          }
+        )
+        expect(metadataUpdated).toBe(true)
+
+        const fetched = await database.getFitnessFile({ id: created!.id })
+        expect(fetched).toMatchObject({
+          processingStatus: 'processing',
+          totalDistanceMeters: 5_000,
+          totalDurationSeconds: 1_500,
+          elevationGainMeters: 120,
+          activityType: 'running',
+          hasMapData: true,
+          mapImagePath: 'medias/route-map.png'
+        })
+        expect(fetched?.activityStartTime).toBeDefined()
       })
     })
 
