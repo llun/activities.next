@@ -61,6 +61,7 @@ describe('FitnessStorage config', () => {
       process.env.ACTIVITIES_MEDIA_STORAGE_PATH = '/media/uploads'
       process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 'fs'
       process.env.ACTIVITIES_FITNESS_STORAGE_PATH = '/fitness/uploads'
+      process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN = ' mapbox-token '
 
       const config = getFitnessStorageConfig()
 
@@ -68,6 +69,7 @@ describe('FitnessStorage config', () => {
       expect((config?.fitnessStorage as { path: string }).path).toBe(
         '/fitness/uploads'
       )
+      expect(config?.fitnessStorage.mapboxAccessToken).toBe('mapbox-token')
     })
 
     it('returns null for unknown fitness storage type', () => {

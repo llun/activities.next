@@ -6,7 +6,11 @@ import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 
-export const Header: FC = () => {
+interface Props {
+  isFitnessDashboard?: boolean
+}
+
+export const Header: FC<Props> = ({ isFitnessDashboard = false }) => {
   const router = useRouter()
 
   return (
@@ -20,8 +24,14 @@ export const Header: FC = () => {
         <ArrowLeft className="h-4 w-4" />
       </Button>
       <div>
-        <h1 className="text-lg font-semibold">Post</h1>
-        <p className="text-xs text-muted-foreground">Conversation thread</p>
+        <h1 className="text-lg font-semibold">
+          {isFitnessDashboard ? 'Activity' : 'Post'}
+        </h1>
+        <p className="text-xs text-muted-foreground">
+          {isFitnessDashboard
+            ? 'Strava-inspired activity detail'
+            : 'Conversation thread'}
+        </p>
       </div>
     </div>
   )

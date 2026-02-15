@@ -48,6 +48,7 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
+import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
@@ -76,6 +77,33 @@ export const StatusSQLDatabaseMixin = (
       }
     }
     return content
+  }
+
+  const sortAttachmentsForFitnessMap = <T extends { id: string; url: string }>(
+    attachments: T[],
+    mapImagePath?: string | null
+  ): T[] => {
+    if (!mapImagePath) return attachments
+
+    const normalizedMapImagePath = decodeURIComponent(mapImagePath).replace(
+      /^\/+/,
+      ''
+    )
+    const mapAttachment = attachments.find((attachment) => {
+      const attachmentPath = getAttachmentMediaPath(attachment.url)
+      return (
+        attachmentPath === normalizedMapImagePath ||
+        attachmentPath.endsWith(normalizedMapImagePath)
+      )
+    })
+
+    if (!mapAttachment) return attachments
+
+    return [...attachments].sort((a, b) => {
+      if (a.id === mapAttachment.id) return -1
+      if (b.id === mapAttachment.id) return 1
+      return 0
+    })
   }
 
   const getOriginalStatusIdFromAnnounceContent = (
@@ -888,6 +916,10 @@ export const StatusSQLDatabaseMixin = (
           : null
       )
       .filter((item): item is StatusNote => Boolean(item))
+    const orderedAttachments = sortAttachmentsForFitnessMap(
+      attachments,
+      fitnessFile?.mapImagePath
+    )
 
     const content = getCompatibleJSON(data.content)
     const base = {
@@ -906,7 +938,7 @@ export const StatusSQLDatabaseMixin = (
       isActorLiked: isActorLikedStatusResult,
       actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
       isLocalActor: Boolean(actor?.account),
-      attachments,
+      attachments: orderedAttachments,
       tags,
       ...(fitnessFile
         ? {
@@ -917,6 +949,20 @@ export const StatusSQLDatabaseMixin = (
               mimeType: fitnessFile.mimeType,
               bytes: Number(fitnessFile.bytes),
               url: `/api/v1/fitness-files/${fitnessFile.id}`,
+              processingStatus: fitnessFile.processingStatus ?? 'pending',
+              ...(typeof fitnessFile.totalDistanceMeters === 'number'
+                ? { totalDistanceMeters: fitnessFile.totalDistanceMeters }
+                : null),
+              ...(typeof fitnessFile.totalDurationSeconds === 'number'
+                ? { totalDurationSeconds: fitnessFile.totalDurationSeconds }
+                : null),
+              ...(typeof fitnessFile.elevationGainMeters === 'number'
+                ? { elevationGainMeters: fitnessFile.elevationGainMeters }
+                : null),
+              ...(fitnessFile.activityType
+                ? { activityType: fitnessFile.activityType }
+                : null),
+              hasMapData: Boolean(fitnessFile.hasMapData),
               ...(fitnessFile.description
                 ? { description: fitnessFile.description }
                 : null)

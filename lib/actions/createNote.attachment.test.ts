@@ -2,7 +2,10 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  PROCESS_FITNESS_FILE_JOB_NAME,
+  SEND_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -215,6 +218,17 @@ describe('Create note action with attachments', () => {
         id: storedFitnessFile!.id
       })
       expect(linkedFitnessFile?.statusId).toBe(status.id)
+      expect(linkedFitnessFile?.processingStatus).toBe('pending')
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: getHashFromString(status.id),
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId: status.id,
+          fitnessFileId: storedFitnessFile!.id
+        }
+      })
     })
 
     it('does not create note when fitness file is owned by another actor', async () => {

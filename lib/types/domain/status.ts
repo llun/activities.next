@@ -29,7 +29,15 @@ export const StatusFitnessFile = z.object({
   mimeType: z.string(),
   bytes: z.number(),
   url: z.string(),
-  description: z.string().optional()
+  description: z.string().optional(),
+  processingStatus: z
+    .enum(['pending', 'processing', 'completed', 'failed'])
+    .optional(),
+  totalDistanceMeters: z.number().optional(),
+  totalDurationSeconds: z.number().optional(),
+  elevationGainMeters: z.number().optional(),
+  activityType: z.string().optional(),
+  hasMapData: z.boolean().optional()
 })
 export type StatusFitnessFile = z.infer<typeof StatusFitnessFile>
 
