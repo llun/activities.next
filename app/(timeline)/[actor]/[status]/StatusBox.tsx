@@ -7,10 +7,11 @@ import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Post } from '@/lib/components/posts/post'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
+import { FitnessStatusDetail } from './FitnessStatusDetail'
 import { StatusLikes } from './StatusLikes'
 
 interface Props {
@@ -35,6 +36,31 @@ export const StatusBox: FC<Props> = ({
   } | null>(null)
   const actualStatus =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
+  const shouldRenderFitnessDetail =
+    variant === 'detail' &&
+    actualStatus.type === StatusType.enum.Note &&
+    actualStatus.fitness?.processingStatus === 'completed'
+
+  if (shouldRenderFitnessDetail) {
+    return (
+      <>
+        <FitnessStatusDetail
+          host={host}
+          currentTime={currentTime}
+          currentActor={currentActor}
+          status={actualStatus as StatusNote}
+          onShowAttachment={(allMedias, index) => {
+            setModalMedias({ medias: allMedias, initialSelection: index })
+          }}
+        />
+        <MediasModal
+          medias={modalMedias?.medias ?? null}
+          initialSelection={modalMedias?.initialSelection ?? 0}
+          onClosed={() => setModalMedias(null)}
+        />
+      </>
+    )
+  }
 
   return (
     <>
