@@ -59,6 +59,8 @@ export const createNoteJob = createJobHandle(
     const text = getContent(note)
     const summary = getSummary(note)
 
+    const publishedAt = new Date(note.published).getTime()
+
     const [, status] = await Promise.all([
       recordActorIfNeeded({ actorId: note.attributedTo, database }),
       database.createNote({
@@ -82,7 +84,7 @@ export const createNoteJob = createJobHandle(
             ),
 
         reply: getReply(note.inReplyTo) || '',
-        createdAt: new Date(note.published).getTime()
+        createdAt: publishedAt
       })
     ])
 
@@ -90,7 +92,7 @@ export const createNoteJob = createJobHandle(
 
     await Promise.all([
       addStatusToTimelines(database, status),
-      ...attachments.map(async (attachment) => {
+      ...attachments.map(async (attachment, index) => {
         if (attachment.type !== 'Document') return
         return database.createAttachment({
           actorId: note.attributedTo,
@@ -99,7 +101,8 @@ export const createNoteJob = createJobHandle(
           height: attachment.height,
           width: attachment.width,
           name: attachment.name || '',
-          url: attachment.url
+          url: attachment.url,
+          createdAt: publishedAt + index
         })
       }),
       ...tags.map((item) => {

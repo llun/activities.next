@@ -354,23 +354,17 @@ export const FitnessFileSQLDatabaseMixin = (
       updatedAt: new Date()
     }
 
-    if ('totalDistanceMeters' in data) {
-      updateData.totalDistanceMeters =
-        typeof data.totalDistanceMeters === 'number'
-          ? data.totalDistanceMeters
-          : null
-    }
-    if ('totalDurationSeconds' in data) {
-      updateData.totalDurationSeconds =
-        typeof data.totalDurationSeconds === 'number'
-          ? data.totalDurationSeconds
-          : null
-    }
-    if ('elevationGainMeters' in data) {
-      updateData.elevationGainMeters =
-        typeof data.elevationGainMeters === 'number'
-          ? data.elevationGainMeters
-          : null
+    const numberFields: Array<
+      keyof Pick<
+        UpdateFitnessFileActivityData,
+        'totalDistanceMeters' | 'totalDurationSeconds' | 'elevationGainMeters'
+      >
+    > = ['totalDistanceMeters', 'totalDurationSeconds', 'elevationGainMeters']
+
+    for (const field of numberFields) {
+      if (!(field in data)) continue
+      const value = data[field]
+      updateData[field] = typeof value === 'number' ? value : null
     }
     if ('activityType' in data) {
       updateData.activityType = data.activityType ?? null

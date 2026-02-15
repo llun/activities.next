@@ -78,6 +78,52 @@ export const StatusSQLDatabaseMixin = (
     return content
   }
 
+  const getAttachmentMediaPath = (url: string): string => {
+    const marker = '/api/v1/files/'
+    const markerIndex = url.indexOf(marker)
+    if (markerIndex >= 0) {
+      return decodeURIComponent(url.slice(markerIndex + marker.length)).replace(
+        /^\/+/,
+        ''
+      )
+    }
+
+    try {
+      return decodeURIComponent(
+        new URL(url, 'https://local.invalid').pathname
+      ).replace(/^\/+/, '')
+    } catch {
+      return decodeURIComponent(url).replace(/^\/+/, '')
+    }
+  }
+
+  const sortAttachmentsForFitnessMap = <T extends { id: string; url: string }>(
+    attachments: T[],
+    mapImagePath?: string | null
+  ): T[] => {
+    if (!mapImagePath) return attachments
+
+    const normalizedMapImagePath = decodeURIComponent(mapImagePath).replace(
+      /^\/+/,
+      ''
+    )
+    const mapAttachment = attachments.find((attachment) => {
+      const attachmentPath = getAttachmentMediaPath(attachment.url)
+      return (
+        attachmentPath === normalizedMapImagePath ||
+        attachmentPath.endsWith(normalizedMapImagePath)
+      )
+    })
+
+    if (!mapAttachment) return attachments
+
+    return [...attachments].sort((a, b) => {
+      if (a.id === mapAttachment.id) return -1
+      if (b.id === mapAttachment.id) return 1
+      return 0
+    })
+  }
+
   const getOriginalStatusIdFromAnnounceContent = (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     content: any
@@ -888,6 +934,10 @@ export const StatusSQLDatabaseMixin = (
           : null
       )
       .filter((item): item is StatusNote => Boolean(item))
+    const orderedAttachments = sortAttachmentsForFitnessMap(
+      attachments,
+      fitnessFile?.mapImagePath
+    )
 
     const content = getCompatibleJSON(data.content)
     const base = {
@@ -906,7 +956,7 @@ export const StatusSQLDatabaseMixin = (
       isActorLiked: isActorLikedStatusResult,
       actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
       isLocalActor: Boolean(actor?.account),
-      attachments,
+      attachments: orderedAttachments,
       tags,
       ...(fitnessFile
         ? {

@@ -99,24 +99,15 @@ const buildActivitySummary = (data: FitnessActivityData): string => {
 
 const extractMediaPathFromUrl = (url: string): string => {
   const marker = '/api/v1/files/'
+  const markerIndex = url.indexOf(marker)
+  if (markerIndex >= 0) {
+    return decodeURIComponent(url.slice(markerIndex + marker.length))
+  }
 
   try {
-    const parsedUrl = new URL(url)
-    const markerIndex = parsedUrl.pathname.indexOf(marker)
-    if (markerIndex >= 0) {
-      return decodeURIComponent(
-        parsedUrl.pathname.slice(markerIndex + marker.length)
-      )
-    }
-
-    return parsedUrl.pathname.replace(/^\/+/, '')
+    return new URL(url).pathname.replace(/^\/+/, '')
   } catch {
-    const markerIndex = url.indexOf(marker)
-    if (markerIndex >= 0) {
-      return decodeURIComponent(url.slice(markerIndex + marker.length))
-    }
-
-    return url
+    return url.replace(/^\/+/, '')
   }
 }
 
@@ -194,8 +185,9 @@ export const processFitnessFileJob = createJobHandle(
         })
 
         if (mapImageBuffer) {
+          const mapImageBytes = new Uint8Array(mapImageBuffer)
           const storedMap = await saveMedia(database, actor, {
-            file: new File([mapImageBuffer], `${fitnessFileId}-route-map.png`, {
+            file: new File([mapImageBytes], `${fitnessFileId}-route-map.png`, {
               type: 'image/png'
             }),
             description: `${fitnessFile.fileName} route map`
@@ -205,14 +197,6 @@ export const processFitnessFileJob = createJobHandle(
             throw new Error('Failed to store generated map image')
           }
 
-          const attachments = await database.getAttachments({ statusId })
-          const earliestCreatedAt =
-            attachments.length > 0
-              ? Math.min(
-                  ...attachments.map((attachment) => attachment.createdAt)
-                )
-              : undefined
-
           await database.createAttachment({
             actorId,
             statusId,
@@ -221,10 +205,7 @@ export const processFitnessFileJob = createJobHandle(
             width: storedMap.meta.original.width,
             height: storedMap.meta.original.height,
             name: 'Activity route map',
-            mediaId: storedMap.id,
-            ...(typeof earliestCreatedAt === 'number'
-              ? { createdAt: earliestCreatedAt - 1 }
-              : null)
+            mediaId: storedMap.id
           })
 
           await database.updateFitnessFileActivityData(fitnessFileId, {
@@ -251,7 +232,7 @@ export const processFitnessFileJob = createJobHandle(
       )
 
       await getQueue().publish({
-        id: getHashFromString(statusId),
+        id: getHashFromString(`${statusId}:send-note`),
         name: SEND_NOTE_JOB_NAME,
         data: {
           actorId,

@@ -11,6 +11,10 @@ exports.up = async function (knex) {
     table.string('activityType')
     table.timestamp('activityStartTime', { useTz: true })
   })
+
+  // Existing rows were created before async processing existed; treat them as
+  // already finalized so they do not remain indefinitely pending.
+  await knex('fitness_files').update({ processingStatus: 'completed' })
 }
 
 /**

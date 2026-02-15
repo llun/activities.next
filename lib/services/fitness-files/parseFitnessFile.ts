@@ -1,5 +1,7 @@
 import { XMLParser } from 'fast-xml-parser'
 import FitParser from 'fit-file-parser'
+import type { FitData } from 'fit-file-parser'
+import { z } from 'zod'
 
 export interface FitnessCoordinate {
   lat: number
@@ -33,6 +35,104 @@ const XML_OPTIONS = {
 }
 
 const EARTH_RADIUS_METERS = 6_371_000
+
+const NumberLikeSchema = z.union([z.number(), z.string()])
+const DateLikeSchema = z.union([z.number(), z.string(), z.date()])
+
+const GpxPointSchema = z
+  .object({
+    lat: NumberLikeSchema.optional(),
+    lon: NumberLikeSchema.optional(),
+    ele: NumberLikeSchema.optional(),
+    time: DateLikeSchema.optional()
+  })
+  .passthrough()
+
+const GpxSegmentSchema = z
+  .object({
+    trkpt: z.union([GpxPointSchema, z.array(GpxPointSchema)]).optional()
+  })
+  .passthrough()
+
+const GpxTrackSchema = z
+  .object({
+    type: z.string().optional(),
+    trkseg: z.union([GpxSegmentSchema, z.array(GpxSegmentSchema)]).optional()
+  })
+  .passthrough()
+
+const GpxSchema = z
+  .object({
+    gpx: z
+      .object({
+        metadata: z
+          .object({
+            time: DateLikeSchema.optional()
+          })
+          .passthrough()
+          .optional(),
+        trk: z.union([GpxTrackSchema, z.array(GpxTrackSchema)]).optional()
+      })
+      .passthrough()
+      .optional()
+  })
+  .passthrough()
+
+const TcxTrackPointSchema = z
+  .object({
+    Time: DateLikeSchema.optional(),
+    AltitudeMeters: NumberLikeSchema.optional(),
+    Position: z
+      .object({
+        LatitudeDegrees: NumberLikeSchema.optional(),
+        LongitudeDegrees: NumberLikeSchema.optional()
+      })
+      .passthrough()
+      .optional()
+  })
+  .passthrough()
+
+const TcxTrackSchema = z
+  .object({
+    Trackpoint: z
+      .union([TcxTrackPointSchema, z.array(TcxTrackPointSchema)])
+      .optional()
+  })
+  .passthrough()
+
+const TcxLapSchema = z
+  .object({
+    TotalTimeSeconds: NumberLikeSchema.optional(),
+    DistanceMeters: NumberLikeSchema.optional(),
+    Track: z.union([TcxTrackSchema, z.array(TcxTrackSchema)]).optional()
+  })
+  .passthrough()
+
+const TcxActivitySchema = z
+  .object({
+    Sport: z.string().optional(),
+    Id: DateLikeSchema.optional(),
+    Lap: z.union([TcxLapSchema, z.array(TcxLapSchema)]).optional()
+  })
+  .passthrough()
+
+const TcxSchema = z
+  .object({
+    TrainingCenterDatabase: z
+      .object({
+        Activities: z
+          .object({
+            Activity: z
+              .union([TcxActivitySchema, z.array(TcxActivitySchema)])
+              .optional()
+          })
+          .passthrough()
+          .optional()
+      })
+      .passthrough()
+      .optional()
+  })
+  .passthrough()
 
 const asArray = <T>(value: T | T[] | undefined | null): T[] => {
   if (!value) return []
@@ -236,30 +336,26 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
     mode: 'list'
   })
 
-  const parsed = await new Promise<Record<string, unknown>>(
-    (resolve, reject) => {
-      parser.parse(buffer, (error: Error | null, data: unknown) => {
-        if (error) {
-          reject(error)
-          return
-        }
+  const fitContent = Uint8Array.from(buffer).buffer
 
-        if (!data || typeof data !== 'object') {
-          reject(new Error('Invalid FIT file payload'))
-          return
-        }
+  const parsed = await new Promise<FitData>((resolve, reject) => {
+    parser.parse(fitContent, (error: string | undefined, data?: unknown) => {
+      if (error) {
+        reject(new Error(error))
+        return
+      }
 
-        resolve(data as Record<string, unknown>)
-      })
-    }
-  )
+      if (!data || typeof data !== 'object') {
+        reject(new Error('Invalid FIT file payload'))
+        return
+      }
 
-  const sessions = asArray(
-    parsed.sessions as Record<string, unknown> | Record<string, unknown>[]
-  )
-  const records = asArray(
-    parsed.records as Record<string, unknown> | Record<string, unknown>[]
-  )
+      resolve(data as FitData)
+    })
+  })
+
+  const sessions = asArray(parsed.sessions)
+  const records = asArray(parsed.records)
   const primarySession = sessions[0]
 
   const points = records
@@ -278,7 +374,7 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
         timestamp: toDate(record.timestamp)
       }
     })
-    .filter((point): point is FitnessTrackPoint => Boolean(point))
+    .filter((point): point is NonNullable<typeof point> => point !== null)
 
   const recordDistanceSamples = records
     .map((record) => toNumber(record.distance))
@@ -309,82 +405,15 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
 
 const parseGpx = (buffer: Buffer): FitnessActivityData => {
   const xmlParser = new XMLParser(XML_OPTIONS)
-  const gpx = xmlParser.parse(buffer.toString('utf-8')) as {
-    gpx?: {
-      metadata?: { time?: string }
-      trk?:
-        | {
-            type?: string
-            trkseg?:
-              | {
-                  trkpt?:
-                    | {
-                        lat?: number | string
-                        lon?: number | string
-                        ele?: number | string
-                        time?: string
-                      }
-                    | Array<{
-                        lat?: number | string
-                        lon?: number | string
-                        ele?: number | string
-                        time?: string
-                      }>
-                }
-              | Array<{
-                  trkpt?:
-                    | {
-                        lat?: number | string
-                        lon?: number | string
-                        ele?: number | string
-                        time?: string
-                      }
-                    | Array<{
-                        lat?: number | string
-                        lon?: number | string
-                        ele?: number | string
-                        time?: string
-                      }>
-                }>
-          }
-        | Array<{
-            type?: string
-            trkseg?:
-              | {
-                  trkpt?:
-                    | {
-                        lat?: number | string
-                        lon?: number | string
-                        ele?: number | string
-                        time?: string
-                      }
-                    | Array<{
-                        lat?: number | string
-                        lon?: number | string
-                        ele?: number | string
-                        time?: string
-                      }>
-                }
-              | Array<{
-                  trkpt?:
-                    | {
-                        lat?: number | string
-                        lon?: number | string
-                        ele?: number | string
-                        time?: string
-                      }
-                    | Array<{
-                        lat?: number | string
-                        lon?: number | string
-                        ele?: number | string
-                        time?: string
-                      }>
-                }>
-          }>
-    }
+  const parsedResult = GpxSchema.safeParse(
+    xmlParser.parse(buffer.toString('utf-8'))
+  )
+
+  if (!parsedResult.success) {
+    throw new Error('Invalid GPX file structure')
   }
 
-  const tracks = asArray(gpx.gpx?.trk)
+  const tracks = asArray(parsedResult.data.gpx?.trk)
   const points = tracks
     .flatMap((track) => asArray(track.trkseg))
     .flatMap((segment) => asArray(segment.trkpt))
@@ -402,208 +431,28 @@ const parseGpx = (buffer: Buffer): FitnessActivityData => {
         timestamp: toDate(point.time)
       }
     })
-    .filter((point): point is FitnessTrackPoint => Boolean(point))
+    .filter((point): point is NonNullable<typeof point> => point !== null)
 
   return toActivityData({
     points,
     activityType: tracks.find((track) => track.type)?.type,
-    startTime: toDate(gpx.gpx?.metadata?.time)
+    startTime: toDate(parsedResult.data.gpx?.metadata?.time)
   })
 }
 
 const parseTcx = (buffer: Buffer): FitnessActivityData => {
   const xmlParser = new XMLParser(XML_OPTIONS)
-  const tcx = xmlParser.parse(buffer.toString('utf-8')) as {
-    TrainingCenterDatabase?: {
-      Activities?: {
-        Activity?:
-          | {
-              Sport?: string
-              Id?: string
-              Lap?:
-                | {
-                    TotalTimeSeconds?: number | string
-                    DistanceMeters?: number | string
-                    Track?:
-                      | {
-                          Trackpoint?:
-                            | {
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }
-                            | Array<{
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }>
-                        }
-                      | Array<{
-                          Trackpoint?:
-                            | {
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }
-                            | Array<{
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }>
-                        }>
-                  }
-                | Array<{
-                    TotalTimeSeconds?: number | string
-                    DistanceMeters?: number | string
-                    Track?:
-                      | {
-                          Trackpoint?:
-                            | {
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }
-                            | Array<{
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }>
-                        }
-                      | Array<{
-                          Trackpoint?:
-                            | {
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }
-                            | Array<{
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }>
-                        }>
-                  }>
-            }
-          | Array<{
-              Sport?: string
-              Id?: string
-              Lap?:
-                | {
-                    TotalTimeSeconds?: number | string
-                    DistanceMeters?: number | string
-                    Track?:
-                      | {
-                          Trackpoint?:
-                            | {
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }
-                            | Array<{
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }>
-                        }
-                      | Array<{
-                          Trackpoint?:
-                            | {
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }
-                            | Array<{
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }>
-                        }>
-                  }
-                | Array<{
-                    TotalTimeSeconds?: number | string
-                    DistanceMeters?: number | string
-                    Track?:
-                      | {
-                          Trackpoint?:
-                            | {
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }
-                            | Array<{
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }>
-                        }
-                      | Array<{
-                          Trackpoint?:
-                            | {
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }
-                            | Array<{
-                                Time?: string
-                                AltitudeMeters?: number | string
-                                Position?: {
-                                  LatitudeDegrees?: number | string
-                                  LongitudeDegrees?: number | string
-                                }
-                              }>
-                        }>
-                  }>
-            }>
-      }
-    }
+  const parsedResult = TcxSchema.safeParse(
+    xmlParser.parse(buffer.toString('utf-8'))
+  )
+
+  if (!parsedResult.success) {
+    throw new Error('Invalid TCX file structure')
   }
 
-  const activities = asArray(tcx.TrainingCenterDatabase?.Activities?.Activity)
+  const activities = asArray(
+    parsedResult.data.TrainingCenterDatabase?.Activities?.Activity
+  )
   const activity = activities[0]
   const laps = asArray(activity?.Lap)
 
@@ -624,7 +473,7 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
         timestamp: toDate(point.Time)
       }
     })
-    .filter((point): point is FitnessTrackPoint => Boolean(point))
+    .filter((point): point is NonNullable<typeof point> => point !== null)
 
   const lapDurationSeconds = laps.reduce(
     (sum, lap) => sum + (toNumber(lap.TotalTimeSeconds) ?? 0),

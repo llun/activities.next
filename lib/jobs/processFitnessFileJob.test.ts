@@ -206,7 +206,7 @@ describe('processFitnessFileJob', () => {
 
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
     expect(getQueue().publish).toHaveBeenCalledWith({
-      id: getHashFromString(statusId),
+      id: getHashFromString(`${statusId}:send-note`),
       name: SEND_NOTE_JOB_NAME,
       data: {
         actorId: actor.id,
