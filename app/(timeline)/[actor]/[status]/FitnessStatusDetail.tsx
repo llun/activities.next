@@ -861,48 +861,48 @@ export const FitnessStatusDetail: FC<Props> = ({
   }
 
   return (
-    <div className="grid lg:grid-cols-[220px,1fr]">
-      <aside className="border-r border-slate-300 bg-slate-50">
-        <nav className="p-3">
+    <div>
+      <nav className="overflow-x-auto border-b border-border bg-[#f7f7f8]">
+        <ul className="flex min-w-max">
           {NAV_ITEMS.filter((item) => !item.group).map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setActiveSection(item.id)}
-              className={cn(
-                'mb-1 flex w-full items-center rounded-sm px-3 py-3 text-left text-2xl font-medium text-slate-800',
-                activeSection === item.id
-                  ? 'bg-white ring-1 ring-slate-300'
-                  : 'hover:bg-slate-100'
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-
-          <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Subscription
-          </p>
-
-          {NAV_ITEMS.filter((item) => item.group === 'subscription').map(
-            (item) => (
+            <li key={item.id}>
               <button
-                key={item.id}
                 type="button"
                 onClick={() => setActiveSection(item.id)}
                 className={cn(
-                  'mb-1 flex w-full items-center rounded-sm px-3 py-3 text-left text-xl font-medium text-slate-700',
+                  'inline-block whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground',
                   activeSection === item.id
-                    ? 'bg-white ring-1 ring-slate-300'
-                    : 'hover:bg-slate-100'
+                    ? 'border-b-2 border-primary text-primary'
+                    : 'border-b-2 border-transparent text-muted-foreground'
                 )}
               >
                 {item.label}
               </button>
+            </li>
+          ))}
+          <li className="flex items-center px-2">
+            <span className="h-4 w-px bg-border" />
+          </li>
+          {NAV_ITEMS.filter((item) => item.group === 'subscription').map(
+            (item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => setActiveSection(item.id)}
+                  className={cn(
+                    'inline-block whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground',
+                    activeSection === item.id
+                      ? 'border-b-2 border-primary text-primary'
+                      : 'border-b-2 border-transparent text-muted-foreground'
+                  )}
+                >
+                  {item.label}
+                </button>
+              </li>
             )
           )}
-        </nav>
-      </aside>
+        </ul>
+      </nav>
 
       <section className="bg-[#f4f4f6]">
         <div className="border-b border-slate-300 bg-[#f7f7f8] px-6 py-4">
@@ -911,7 +911,7 @@ export const FitnessStatusDetail: FC<Props> = ({
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-sm bg-orange-100 text-orange-600">
                 <Bike className="size-5" />
               </span>
-              <h1 className="text-4xl font-semibold tracking-tight text-slate-900">
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-900 md:text-4xl">
                 {actorName} - {activityLabel}
               </h1>
             </div>

@@ -216,24 +216,43 @@ const Page: FC<Props> = async ({ params }) => {
     statusForLayout.type === StatusType.enum.Note &&
     statusForLayout.fitness?.processingStatus === 'completed'
 
-  return (
-    <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-      <Header isFitnessDashboard={isFitnessDashboard} />
+  if (isFitnessDashboard) {
+    return (
+      <div className="fitness-breakout">
+        <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+          <Header isFitnessDashboard />
 
-      {!isFitnessDashboard &&
-        previouses.reverse().map((item) => (
-          <div
-            key={item.id}
-            className="border-b border-l-4 border-l-primary/20 bg-muted/30"
-          >
+          <div className="border-b bg-background">
             <StatusBox
               host={host}
               currentTime={currentTime}
               currentActor={currentActorProfile}
-              status={cleanJson(item)}
+              status={cleanJson(status)}
+              variant="detail"
             />
           </div>
-        ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+      <Header isFitnessDashboard={false} />
+
+      {previouses.reverse().map((item) => (
+        <div
+          key={item.id}
+          className="border-b border-l-4 border-l-primary/20 bg-muted/30"
+        >
+          <StatusBox
+            host={host}
+            currentTime={currentTime}
+            currentActor={currentActorProfile}
+            status={cleanJson(item)}
+          />
+        </div>
+      ))}
 
       <div className="border-b bg-background">
         <StatusBox
@@ -245,30 +264,29 @@ const Page: FC<Props> = async ({ params }) => {
         />
       </div>
 
-      {!isFitnessDashboard &&
-        (replies.length > 0 ? (
-          <div>
-            <div className="border-b px-5 py-3">
-              <h2 className="font-semibold">Replies ({replies.length})</h2>
-            </div>
+      {replies.length > 0 ? (
+        <div>
+          <div className="border-b px-5 py-3">
+            <h2 className="font-semibold">Replies ({replies.length})</h2>
+          </div>
 
-            <div className="divide-y">
-              {replies.map((reply) => (
-                <StatusBox
-                  key={reply.id}
-                  host={host}
-                  currentTime={currentTime}
-                  currentActor={currentActorProfile}
-                  status={cleanJson(reply)}
-                />
-              ))}
-            </div>
+          <div className="divide-y">
+            {replies.map((reply) => (
+              <StatusBox
+                key={reply.id}
+                host={host}
+                currentTime={currentTime}
+                currentActor={currentActorProfile}
+                status={cleanJson(reply)}
+              />
+            ))}
           </div>
-        ) : (
-          <div className="p-8 text-center text-muted-foreground">
-            No replies yet
-          </div>
-        ))}
+        </div>
+      ) : (
+        <div className="p-8 text-center text-muted-foreground">
+          No replies yet
+        </div>
+      )}
     </div>
   )
 }
