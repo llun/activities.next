@@ -2,14 +2,7 @@
 
 import { UTCDate } from '@date-fns/utc'
 import { format } from 'date-fns'
-import {
-  BarChart3,
-  Bike,
-  HeartPulse,
-  Play,
-  Plus,
-  TrendingUp
-} from 'lucide-react'
+import { Bike, Play, Plus } from 'lucide-react'
 import { FC, useMemo, useState } from 'react'
 
 import { Media } from '@/lib/components/posts/media'
@@ -1009,27 +1002,6 @@ export const FitnessStatusDetail: FC<Props> = ({
                   {statusTitle}
                 </h2>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2 text-slate-500">
-              <button
-                type="button"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-slate-300 bg-white"
-              >
-                <HeartPulse className="size-4" />
-              </button>
-              <button
-                type="button"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-slate-300 bg-white"
-              >
-                <TrendingUp className="size-4" />
-              </button>
-              <button
-                type="button"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-slate-300 bg-white"
-              >
-                <BarChart3 className="size-4" />
-              </button>
             </div>
           </div>
         </div>
