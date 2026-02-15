@@ -339,19 +339,22 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
   const fitContent = Uint8Array.from(buffer).buffer
 
   const parsed = await new Promise<FitData>((resolve, reject) => {
-    parser.parse(fitContent, (error: string | null, data?: unknown) => {
-      if (error) {
-        reject(new Error(error))
-        return
-      }
+    parser.parse(
+      fitContent,
+      (error: string | null | undefined, data?: unknown) => {
+        if (error) {
+          reject(new Error(error))
+          return
+        }
 
-      if (!data || typeof data !== 'object') {
-        reject(new Error('Invalid FIT file payload'))
-        return
-      }
+        if (!data || typeof data !== 'object') {
+          reject(new Error('Invalid FIT file payload'))
+          return
+        }
 
-      resolve(data as FitData)
-    })
+        resolve(data as FitData)
+      }
+    )
   })
 
   const sessions = asArray(parsed.sessions)
