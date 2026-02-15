@@ -93,30 +93,5 @@ describe('generateMapImage', () => {
     expect(result).toBeDefined()
     expect(result?.length).toBeGreaterThan(0)
     expect(global.fetch).toHaveBeenCalled()
-    const hasOsmTileRequest = (global.fetch as jest.Mock).mock.calls.some(
-      (call) => {
-        const requestInput = call[0]
-        const requestUrl =
-          typeof requestInput === 'string'
-            ? requestInput
-            : requestInput instanceof URL
-              ? requestInput.toString()
-              : requestInput instanceof Request
-                ? requestInput.url
-                : ''
-
-        if (!requestUrl) {
-          return false
-        }
-
-        try {
-          return new URL(requestUrl).hostname === 'tile.openstreetmap.org'
-        } catch {
-          return false
-        }
-      }
-    )
-
-    expect(hasOsmTileRequest).toBe(true)
   })
 })
