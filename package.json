@@ -99,7 +99,7 @@
     "@types/react-modal": "^3.16.3",
     "@types/sanitize-html": "^2.16.0",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
-    "@typescript-eslint/parser": "^8.55.0",
+    "@typescript-eslint/parser": "^8.56.0",
     "dotenv-flow": "^4.1.0",
     "eslint": "^10.0.0",
     "eslint-config-next": "^16.1.6",
