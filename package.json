@@ -92,7 +92,7 @@
     "@types/lodash": "^4.17.23",
     "@types/mime-types": "^3.0.1",
     "@types/node": "^25.2.3",
-    "@types/nodemailer": "^7.0.9",
+    "@types/nodemailer": "^7.0.10",
     "@types/pg": "^8.16.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
