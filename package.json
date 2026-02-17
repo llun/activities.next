@@ -52,7 +52,7 @@
     "knex": "^3.1.0",
     "lodash": "^4.17.23",
     "lucide-react": "^0.574.0",
-    "marked": "^17.0.2",
+    "marked": "^17.0.3",
     "mime-types": "^3.0.2",
     "next": "^16.1.6",
     "next-auth": "^4.24.13",
