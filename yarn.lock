@@ -5708,7 +5708,7 @@ __metadata:
     jsonwebtoken: "npm:^9.0.3"
     knex: "npm:^3.1.0"
     lodash: "npm:^4.17.23"
-    lucide-react: "npm:^0.563.0"
+    lucide-react: "npm:^0.574.0"
     marked: "npm:^17.0.2"
     mime-types: "npm:^3.0.2"
     next: "npm:^16.1.6"
@@ -10136,12 +10136,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:^0.563.0":
-  version: 0.563.0
-  resolution: "lucide-react@npm:0.563.0"
+"lucide-react@npm:^0.574.0":
+  version: 0.574.0
+  resolution: "lucide-react@npm:0.574.0"
   peerDependencies:
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  checksum: 10c0/4a2027be255755d64ce18040062426dec07a5da920c000d9cd330e383fa10716a584c927dc03e91daccc6e05f6f486d4f49d1bd009e5f7763aa6fcf704806554
+  checksum: 10c0/bfb9ed34520657faae130a00247dd35516ab77bf00eb1b2c6995bcbb6919de8edde3546f29c85b5cc6bd1c0f5dd7ea9147c7777f0d7e75208aee19997eb0f752
   languageName: node
   linkType: hard
 
