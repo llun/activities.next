@@ -5709,7 +5709,7 @@ __metadata:
     knex: "npm:^3.1.0"
     lodash: "npm:^4.17.23"
     lucide-react: "npm:^0.574.0"
-    marked: "npm:^17.0.2"
+    marked: "npm:^17.0.3"
     mime-types: "npm:^3.0.2"
     next: "npm:^16.1.6"
     next-auth: "npm:^4.24.13"
@@ -10200,12 +10200,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"marked@npm:^17.0.2":
-  version: 17.0.2
-  resolution: "marked@npm:17.0.2"
+"marked@npm:^17.0.3":
+  version: 17.0.3
+  resolution: "marked@npm:17.0.3"
   bin:
     marked: bin/marked.js
-  checksum: 10c0/3efce3898f79042a30540e9a8635072a0f4b41b2ebce757eaad029a7437c2eeb2b45e27c3a3ef81ac91ebcbde7f2c8043f5e3dccac41cb22170c2d7e9a5e21bd
+  checksum: 10c0/3970f96ce3b1a7fd5bba82a6c7e4dffec9f7e0f238633e57139e8aa8fe637bccb1c1b61f2b3ed21b1afdbd4e076326f29e449d147203a0bdb9394e21e9a6a722
   languageName: node
   linkType: hard
 
