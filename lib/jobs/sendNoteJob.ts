@@ -10,9 +10,8 @@ import { StatusType } from '@/lib/types/domain/status'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
+import { getMentions } from '@/lib/utils/text/getMentions'
 import { getTracer } from '@/lib/utils/trace'
-
-import { getMentions } from '../utils/text/getMentions'
 
 export const JobData = z.object({
   actorId: z.string(),

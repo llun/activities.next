@@ -2,7 +2,8 @@ import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { NextApiResponse } from 'next'
 import { NextRequest } from 'next/server'
 
-import { SERVICE_NAME } from '../constants'
+import { SERVICE_NAME } from '@/lib/constants'
+
 import { HttpMethod, getCORSHeaders } from './getCORSHeaders'
 
 export const ERROR_500 = { status: 'Internal Server Error' }

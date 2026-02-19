@@ -14,7 +14,7 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 enableFetchMocks()
 
-jest.mock('../services/queue', () => ({
+jest.mock('@/lib/services/queue', () => ({
   getQueue: jest.fn().mockReturnValue({
     publish: jest.fn().mockResolvedValue(undefined)
   })

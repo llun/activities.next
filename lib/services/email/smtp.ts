@@ -3,7 +3,8 @@ import nodemailer from 'nodemailer'
 import SMTPTransport from 'nodemailer/lib/smtp-transport'
 import { z } from 'zod'
 
-import { getConfig } from '../../config'
+import { getConfig } from '@/lib/config'
+
 import { BaseEmailSettings, Email, Message } from './types'
 
 export const TYPE_SMTP = 'smtp'

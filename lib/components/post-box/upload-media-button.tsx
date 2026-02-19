@@ -2,16 +2,15 @@ import { ImagePlus } from 'lucide-react'
 import { FC, SyntheticEvent, useRef } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
-import { PostBoxAttachment } from '@/lib/types/domain/attachment'
-import { logger } from '@/lib/utils/logger'
-import { resizeImage } from '@/lib/utils/resizeImage'
-
 import {
   ACCEPTED_FILE_TYPES,
   MAX_ATTACHMENTS,
   MAX_HEIGHT,
   MAX_WIDTH
-} from '../../services/medias/constants'
+} from '@/lib/services/medias/constants'
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { logger } from '@/lib/utils/logger'
+import { resizeImage } from '@/lib/utils/resizeImage'
 
 const MEDIA_TYPE = 'upload'
 

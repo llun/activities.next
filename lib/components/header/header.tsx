@@ -6,9 +6,9 @@ import { signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { Logo } from '../layout/logo'
-import { NotificationBadge } from '../notification-badge/NotificationBadge'
-import { Button } from '../ui/button'
+import { Logo } from '@/lib/components/layout/logo'
+import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
+import { Button } from '@/lib/components/ui/button'
 
 interface Props {
   session?: Session | null

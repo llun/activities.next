@@ -3,8 +3,8 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
 } from '@/lib/utils/activitystream'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
-import { getISOTimeUTC } from '../utils/getISOTimeUTC'
 import { MockMastodonActivityPubNote } from './note'
 
 type OutboxItem = {

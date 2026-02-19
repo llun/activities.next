@@ -7,8 +7,8 @@ import {
   follow,
   getFollowStatus,
   unfollow
-} from '../../client'
-import { Button } from '../ui/button'
+} from '@/lib/client'
+import { Button } from '@/lib/components/ui/button'
 
 export interface FollowActionProps {
   targetActorId: string

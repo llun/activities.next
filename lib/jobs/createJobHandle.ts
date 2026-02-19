@@ -1,5 +1,5 @@
-import { JobHandle } from '../services/queue/type'
-import { getTracer } from '../utils/trace'
+import { JobHandle } from '@/lib/services/queue/type'
+import { getTracer } from '@/lib/utils/trace'
 
 export const createJobHandle = (
   jobName: string,

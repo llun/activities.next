@@ -3,13 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
+import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { EditableStatus, Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
-import { MediasModal } from '../medias-modal/medias-modal'
 import { Post } from './post'
 import { StatusReplyBox } from './status-reply-box'
 

@@ -1,7 +1,7 @@
 import { Announce, Tombstone } from '@/lib/types/activitypub'
+import { normalizeActivityPubAnnounce } from '@/lib/utils/activitypub'
+import { getTracer } from '@/lib/utils/trace'
 
-import { normalizeActivityPubAnnounce } from '../utils/activitypub'
-import { getTracer } from '../utils/trace'
 import { createJobHandle } from './createJobHandle'
 import { DELETE_OBJECT_JOB_NAME } from './names'
 

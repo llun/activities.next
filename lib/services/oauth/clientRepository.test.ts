@@ -1,9 +1,9 @@
 import { GrantIdentifier } from '@jmondi/oauth2-server'
 
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { seedDatabase } from '@/lib/stub/database'
 import { Scope } from '@/lib/types/database/operations'
 
-import { getTestSQLDatabase } from '../../database/testUtils'
-import { seedDatabase } from '../../stub/database'
 import { ClientRepository } from './clientRepository'
 
 describe('ClientRepository', () => {

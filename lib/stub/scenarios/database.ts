@@ -1,14 +1,14 @@
-import { ACTOR1_ID, seedActor1 } from '../seed/actor1'
-import { ACTOR2_ID, seedActor2 } from '../seed/actor2'
-import { ACTOR3_ID, seedActor3 } from '../seed/actor3'
-import { ACTOR4_ID, seedActor4 } from '../seed/actor4'
-import { ACTOR5_ID, seedActor5 } from '../seed/actor5'
-import { ACTOR6_ID, seedActor6 } from '../seed/actor6'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID, seedActor3 } from '@/lib/stub/seed/actor3'
+import { ACTOR4_ID, seedActor4 } from '@/lib/stub/seed/actor4'
+import { ACTOR5_ID, seedActor5 } from '@/lib/stub/seed/actor5'
+import { ACTOR6_ID, seedActor6 } from '@/lib/stub/seed/actor6'
 import {
   EXTERNAL_ACTOR1,
   EXTERNAL_ACTOR1_FOLLOWERS,
   EXTERNAL_ACTOR1_INBOX
-} from '../seed/external1'
+} from '@/lib/stub/seed/external1'
 
 export const DatabaseSeed = {
   actors: {

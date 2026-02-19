@@ -2,7 +2,8 @@ import memoize from 'lodash/memoize'
 import { Resend } from 'resend'
 import { z } from 'zod'
 
-import { getConfig } from '../../config'
+import { getConfig } from '@/lib/config'
+
 import { getAddressFromEmail } from './smtp'
 import { BaseEmailSettings, Message } from './types'
 

@@ -5,7 +5,7 @@ import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { MockUndoFollowRequest } from '@/lib/stub/undoRequest'
 
-jest.mock('../activities')
+jest.mock('@/lib/activities')
 
 describe('#undoFollowRequest', () => {
   const database = getTestSQLDatabase()

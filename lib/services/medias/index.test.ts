@@ -16,8 +16,8 @@ jest.mock('fs', () => ({
 }))
 
 jest.mock('@aws-sdk/client-s3')
-jest.mock('../../config')
-jest.mock('../../utils/logger', () => ({
+jest.mock('@/lib/config')
+jest.mock('@/lib/utils/logger', () => ({
   logger: {
     error: jest.fn(),
     warn: jest.fn(),
@@ -26,8 +26,8 @@ jest.mock('../../utils/logger', () => ({
   }
 }))
 
-jest.mock('./localFile')
-jest.mock('./S3StorageFile')
+jest.mock('@/lib/services/medias/localFile')
+jest.mock('@/lib/services/medias/S3StorageFile')
 
 const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
 const mockUnlink = fs.unlink as jest.MockedFunction<typeof fs.unlink>

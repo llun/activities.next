@@ -1,8 +1,7 @@
 import { getConfig } from '@/lib/config'
+import { Database } from '@/lib/database/types'
 import { DEFAULT_QUOTA_PER_ACCOUNT } from '@/lib/services/medias/constants'
 import { Actor } from '@/lib/types/domain/actor'
-
-import { Database } from '../../database/types'
 
 export const getFitnessQuotaLimit = (): number => {
   const config = getConfig()

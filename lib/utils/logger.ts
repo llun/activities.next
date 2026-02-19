@@ -1,6 +1,6 @@
 import pino, { Level } from 'pino'
 
-import { VERSION } from '../constants'
+import { VERSION } from '@/lib/constants'
 
 const levelToSeverity: Record<string, string> = {
   trace: 'DEBUG',

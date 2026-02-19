@@ -17,43 +17,43 @@ jest.mock('knex', () => ({
   default: jest.fn()
 }))
 
-jest.mock('./account', () => ({
+jest.mock('@/lib/database/sql/account', () => ({
   AccountSQLDatabaseMixin: jest.fn()
 }))
 
-jest.mock('./actor', () => ({
+jest.mock('@/lib/database/sql/actor', () => ({
   ActorSQLDatabaseMixin: jest.fn()
 }))
 
-jest.mock('./fitnessSettings', () => ({
+jest.mock('@/lib/database/sql/fitnessSettings', () => ({
   FitnessSettingsSQLDatabaseMixin: jest.fn()
 }))
 
-jest.mock('./follow', () => ({
+jest.mock('@/lib/database/sql/follow', () => ({
   FollowerSQLDatabaseMixin: jest.fn()
 }))
 
-jest.mock('./like', () => ({
+jest.mock('@/lib/database/sql/like', () => ({
   LikeSQLDatabaseMixin: jest.fn()
 }))
 
-jest.mock('./media', () => ({
+jest.mock('@/lib/database/sql/media', () => ({
   MediaSQLDatabaseMixin: jest.fn()
 }))
 
-jest.mock('./notification', () => ({
+jest.mock('@/lib/database/sql/notification', () => ({
   NotificationSQLDatabaseMixin: jest.fn()
 }))
 
-jest.mock('./oauth', () => ({
+jest.mock('@/lib/database/sql/oauth', () => ({
   OAuthSQLDatabaseMixin: jest.fn()
 }))
 
-jest.mock('./status', () => ({
+jest.mock('@/lib/database/sql/status', () => ({
   StatusSQLDatabaseMixin: jest.fn()
 }))
 
-jest.mock('./timeline', () => ({
+jest.mock('@/lib/database/sql/timeline', () => ({
   TimelineSQLDatabaseMixin: jest.fn()
 }))
 

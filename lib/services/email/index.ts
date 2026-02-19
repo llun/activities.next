@@ -1,4 +1,5 @@
-import { getConfig } from '../../config'
+import { getConfig } from '@/lib/config'
+
 import { TYPE_LAMBDA, sendLambdaMail } from './lambda'
 import { TYPE_RESEND, sendResendMail } from './resend'
 import { TYPE_SMTP, sendSMTPMail } from './smtp'

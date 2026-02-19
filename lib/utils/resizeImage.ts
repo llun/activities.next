@@ -1,4 +1,4 @@
-import { ACCEPTED_IMAGE_TYPES } from '../services/medias/constants'
+import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
 
 export async function resizeImage(
   file: File,

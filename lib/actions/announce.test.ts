@@ -12,17 +12,17 @@ import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
-jest.mock('../services/queue', () => ({
+jest.mock('@/lib/services/queue', () => ({
   getQueue: jest.fn().mockReturnValue({
     publish: jest.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('../services/timelines', () => ({
+jest.mock('@/lib/services/timelines', () => ({
   addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
 }))
 
-jest.mock('../services/email', () => ({
+jest.mock('@/lib/services/email', () => ({
   sendMail: jest.fn()
 }))
 

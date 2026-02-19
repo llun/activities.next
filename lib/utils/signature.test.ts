@@ -2,7 +2,7 @@ import { Actor } from '@/lib/types/domain/actor'
 
 import { generateKeyPair, parse, signedHeaders, verify } from './signature'
 
-jest.mock('../config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: () => ({
     secretPhase: 'secret'
   })

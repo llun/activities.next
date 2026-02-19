@@ -20,13 +20,13 @@ import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 enableFetchMocks()
 
-jest.mock('../services/queue', () => ({
+jest.mock('@/lib/services/queue', () => ({
   getQueue: jest.fn().mockReturnValue({
     publish: jest.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('../services/timelines', () => ({
+jest.mock('@/lib/services/timelines', () => ({
   addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
 }))
 
