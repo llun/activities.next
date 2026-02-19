@@ -11,7 +11,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
 
-jest.mock('../services/timelines', () => ({
+jest.mock('@/lib/services/timelines', () => ({
   addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
 }))
 

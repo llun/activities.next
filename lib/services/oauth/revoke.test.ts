@@ -10,7 +10,7 @@ jest.mock('jsonwebtoken', () => ({
 }))
 
 // Mock config
-jest.mock('../../config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({ secretPhase: 'test-secret' })
 }))
 

@@ -9,7 +9,7 @@ import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { DEFAULT_QUOTA_PER_ACCOUNT } from './constants'
 import { checkQuotaAvailable, getQuotaLimit } from './quota'
 
-jest.mock('../../config')
+jest.mock('@/lib/config')
 
 const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
 

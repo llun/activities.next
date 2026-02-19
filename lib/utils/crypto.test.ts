@@ -1,7 +1,7 @@
 import { decrypt, encrypt, generateAlphanumeric } from './crypto'
 
 // Mock getConfig to return a test secret
-jest.mock('../config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({
     secretPhase: 'test-secret-phase-for-encryption',
     host: 'test.example.com',

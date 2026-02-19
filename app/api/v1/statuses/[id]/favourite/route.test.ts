@@ -7,7 +7,7 @@ import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
-jest.mock('../../../../../../lib/config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({ host: 'llun.test' })
 }))
 

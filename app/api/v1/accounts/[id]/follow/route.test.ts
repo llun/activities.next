@@ -7,7 +7,7 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 import { getRelationship } from '../../../../../../lib/services/accounts/relationship'
 
-jest.mock('../../../../../../lib/config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({ host: 'llun.test' })
 }))
 

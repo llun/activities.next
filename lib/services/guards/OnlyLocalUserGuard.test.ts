@@ -7,7 +7,7 @@ import { OnlyLocalUserGuard } from './OnlyLocalUserGuard'
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('../../database', () => ({
+jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 

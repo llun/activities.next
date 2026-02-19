@@ -15,7 +15,7 @@ jest.mock('next-auth', () => ({
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('../../database', () => ({
+jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
@@ -37,7 +37,7 @@ jest.mock('next/headers', () => ({
 }))
 
 // Mock config
-jest.mock('../../config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: () => ({
     allowEmails: []
   })

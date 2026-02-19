@@ -3,7 +3,7 @@ import { Client } from '@upstash/qstash'
 import { QStashQueue } from './qstash'
 
 jest.mock('@upstash/qstash')
-jest.mock('../../utils/trace', () => ({
+jest.mock('@/lib/utils/trace', () => ({
   getTracer: () => ({
     startActiveSpan: jest.fn((name, callback) =>
       callback({

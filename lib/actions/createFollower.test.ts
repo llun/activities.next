@@ -8,8 +8,8 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
-jest.mock('../activities')
-jest.mock('../activities/getActorPerson')
+jest.mock('@/lib/activities')
+jest.mock('@/lib/activities/getActorPerson')
 
 describe('#createFollower', () => {
   const database = getTestSQLDatabase()

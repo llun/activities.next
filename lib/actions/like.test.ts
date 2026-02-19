@@ -14,7 +14,7 @@ import {
 
 enableFetchMocks()
 
-jest.mock('../services/email', () => ({
+jest.mock('@/lib/services/email', () => ({
   sendMail: jest.fn()
 }))
 
