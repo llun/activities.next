@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-const nextJest = require('next/jest')
+import nextJest from 'next/jest.js'
 
 // Fix EventEmitter memory leak warning in test setup
 // Set a reasonable higher limit instead of unlimited (0)
@@ -57,5 +56,4 @@ const customJestConfig = {
   verbose: true
 }
 
-/** @type {import('ts-jest').JestConfigWithTsJest} */
-module.exports = createJestConfig(customJestConfig)
+export default createJestConfig(customJestConfig)
