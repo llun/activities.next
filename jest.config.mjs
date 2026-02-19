@@ -28,6 +28,9 @@ const customJestConfig = {
   transformIgnorePatterns: ['node_modules/(?!(marked|uuid)/)'],
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
+    '^@/app/(.*)$': '<rootDir>/app/$1',
+    '^@/lib/(.*)$': '<rootDir>/lib/$1',
+    '^@/pages/(.*)$': '<rootDir>/pages/$1',
     '^@/(.*)$': '<rootDir>/$1',
     '^marked$': '<rootDir>/node_modules/marked/lib/marked.umd.js'
   },

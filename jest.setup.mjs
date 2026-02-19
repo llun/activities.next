@@ -51,9 +51,9 @@ jest.mock('got', () => {
   }
 })
 
-jest.mock('./lib/config', () => {
-  const host = jest.requireActual('./lib/stub/const').TEST_DOMAIN
-  const secretPhase = jest.requireActual('./lib/stub/actor').MOCK_SECRET_PHASES
+jest.mock('@/lib/config', () => {
+  const host = jest.requireActual('@/lib/stub/const').TEST_DOMAIN
+  const secretPhase = jest.requireActual('@/lib/stub/actor').MOCK_SECRET_PHASES
   return {
     getConfig: jest.fn().mockReturnValue({
       serviceName: 'activities.next',
