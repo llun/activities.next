@@ -1,6 +1,7 @@
-import { getTestSQLDatabase } from '../../database/testUtils'
-import { seedDatabase } from '../../stub/database'
-import { ACTOR1_ID } from '../../stub/seed/actor1'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { seedDatabase } from '@/lib/stub/database'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+
 import { UserRepository } from './userRepository'
 
 describe('UserRepository', () => {

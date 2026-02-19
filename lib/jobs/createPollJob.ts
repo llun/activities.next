@@ -1,14 +1,14 @@
+import { recordActorIfNeeded } from '@/lib/actions/utils'
 import {
   getContent,
   getReply,
   getSummary,
   getTags
 } from '@/lib/activities/note'
+import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/types/activitypub'
+import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 
-import { recordActorIfNeeded } from '../actions/utils'
-import { addStatusToTimelines } from '../services/timelines'
-import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_JOB_NAME } from './names'
 

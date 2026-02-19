@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -9,7 +10,6 @@ import { getActorProfile } from '@/lib/types/domain/actor'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { getAuthOptions } from '../api/auth/[...nextauth]/authOptions'
 import { MainPageTimeline } from './MainPageTimeline'
 
 export const dynamic = 'force-dynamic'

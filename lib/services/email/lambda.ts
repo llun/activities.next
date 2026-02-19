@@ -6,7 +6,8 @@ import {
 import { fromUtf8 } from '@aws-sdk/util-utf8-node'
 import { z } from 'zod'
 
-import { getConfig } from '../../config'
+import { getConfig } from '@/lib/config'
+
 import { BaseEmailSettings, Message } from './types'
 
 export const TYPE_LAMBDA = 'lambda'

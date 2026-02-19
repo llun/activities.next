@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 
-import { getTestSQLDatabase } from '../../database/testUtils'
-import { seedDatabase } from '../../stub/database'
-import { seedActor1 } from '../../stub/seed/actor1'
 import { AuthenticatedGuard } from './AuthenticatedGuard'
 
 // Mock next-auth session

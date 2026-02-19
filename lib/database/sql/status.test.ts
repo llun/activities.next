@@ -1,3 +1,8 @@
+import {
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
+import { Database } from '@/lib/database/types'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
@@ -8,9 +13,6 @@ import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { TagType } from '@/lib/types/domain/tag'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-
-import { databaseBeforeAll, getTestDatabaseTable } from '../testUtils'
-import { Database } from '../types'
 
 describe('StatusDatabase', () => {
   const { actors, statuses } = DatabaseSeed

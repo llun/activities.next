@@ -1,6 +1,8 @@
+import {
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
 import { NotificationType } from '@/lib/types/database/operations'
-
-import { databaseBeforeAll, getTestDatabaseTable } from '../testUtils'
 
 describe('Notification Database', () => {
   const table = getTestDatabaseTable()

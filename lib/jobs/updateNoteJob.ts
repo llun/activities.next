@@ -9,8 +9,8 @@ import {
   VideoContent
 } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
+import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 
-import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { UPDATE_NOTE_JOB_NAME } from './names'
 

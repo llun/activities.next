@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '../../../../lib/database/testUtils'
-import { seedDatabase } from '../../../../lib/stub/database'
-import { seedActor1 } from '../../../../lib/stub/seed/actor1'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+
 import { POST } from './route'
 
 const mockGetServerSession = jest.fn()

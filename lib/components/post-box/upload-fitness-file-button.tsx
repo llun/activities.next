@@ -2,8 +2,7 @@ import { Activity } from 'lucide-react'
 import { FC, SyntheticEvent, useRef } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
-
-import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '../../services/fitness-files/constants'
+import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '@/lib/services/fitness-files/constants'
 
 interface Props {
   disabled?: boolean

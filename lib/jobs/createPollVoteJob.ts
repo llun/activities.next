@@ -1,8 +1,8 @@
+import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { ENTITY_TYPE_NOTE, Note } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
+import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 
-import { recordActorIfNeeded } from '../actions/utils'
-import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_VOTE_JOB_NAME } from './names'
 

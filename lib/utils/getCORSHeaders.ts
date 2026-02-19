@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { headerHost } from '../services/guards/headerHost'
+import { headerHost } from '@/lib/services/guards/headerHost'
 
 export const HttpMethod = z.enum([
   'GET',

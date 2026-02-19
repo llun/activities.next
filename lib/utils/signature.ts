@@ -4,11 +4,10 @@ import { generate } from 'peggy'
 import util from 'util'
 
 import { getConfig } from '@/lib/config'
+import { FORWARDED_HOST } from '@/lib/constants'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
 import { Actor } from '@/lib/types/domain/actor'
 import { getSpan } from '@/lib/utils/trace'
-
-import { FORWARDED_HOST } from '../constants'
 
 export const SIGNATURE_GRAMMAR = `
 pairs = (","? pair:pair { return pair })+

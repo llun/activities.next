@@ -1,12 +1,12 @@
 import jwt from 'jsonwebtoken'
 import { NextRequest, NextResponse } from 'next/server'
 
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { MOCK_SECRET_PHASES } from '@/lib/stub/actor'
+import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Scope } from '@/lib/types/database/operations'
 
-import { getTestSQLDatabase } from '../../database/testUtils'
-import { MOCK_SECRET_PHASES } from '../../stub/actor'
-import { seedDatabase } from '../../stub/database'
-import { seedActor1 } from '../../stub/seed/actor1'
 import { OAuthGuard, getTokenFromHeader } from './OAuthGuard'
 
 // Mock next-auth session
