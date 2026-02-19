@@ -62,7 +62,7 @@
 
 ## Testing Guidelines
 
-- Jest is configured via `jest.config.js` with SWC transforms.
+- Jest is configured via `jest.config.mjs` with SWC transforms.
 - Prefer unit tests near `lib/` and route tests near `app/`.
 - All tests run in parallel using isolated SQLite in-memory databases.
 
