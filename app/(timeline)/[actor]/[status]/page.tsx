@@ -218,19 +218,17 @@ const Page: FC<Props> = async ({ params }) => {
 
   if (isFitnessDashboard) {
     return (
-      <div className="fitness-breakout">
-        <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-          <Header isFitnessDashboard />
+      <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+        <Header isFitnessDashboard />
 
-          <div className="border-b bg-background">
-            <StatusBox
-              host={host}
-              currentTime={currentTime}
-              currentActor={currentActorProfile}
-              status={cleanJson(status)}
-              variant="detail"
-            />
-          </div>
+        <div className="border-b bg-background">
+          <StatusBox
+            host={host}
+            currentTime={currentTime}
+            currentActor={currentActorProfile}
+            status={cleanJson(status)}
+            variant="detail"
+          />
         </div>
       </div>
     )
