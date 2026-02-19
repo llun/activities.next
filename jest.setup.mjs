@@ -1,6 +1,8 @@
 /* eslint-disable no-undef */
-const { TextDecoder, TextEncoder } = require('util')
-require('jest-fetch-mock').enableMocks()
+import fetchMock from 'jest-fetch-mock'
+import { TextDecoder, TextEncoder } from 'node:util'
+
+fetchMock.enableMocks()
 
 // changes default behavior of fetchMock to use the real 'fetch' implementation and not mock responses
 fetchMock.dontMock()
