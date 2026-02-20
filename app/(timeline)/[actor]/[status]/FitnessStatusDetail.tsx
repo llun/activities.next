@@ -2,7 +2,6 @@
 
 import { UTCDate } from '@date-fns/utc'
 import { format } from 'date-fns'
-import { FeatureCollection, LineString } from 'geojson'
 import { Bike, Play, Plus } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -53,8 +52,33 @@ interface FitnessRouteDataResponse {
   totalDurationSeconds: number
 }
 
+interface MapPointGeometry {
+  type: 'Point'
+  coordinates: [number, number]
+}
+
+interface MapLineStringGeometry {
+  type: 'LineString'
+  coordinates: [number, number][]
+}
+
+interface MapFeature<TGeometry> {
+  type: 'Feature'
+  properties: Record<string, never>
+  geometry: TGeometry
+}
+
+interface MapFeatureCollection<TGeometry> {
+  type: 'FeatureCollection'
+  features: Array<MapFeature<TGeometry>>
+}
+
+type MapGeoJSONFeatureCollection =
+  | MapFeatureCollection<MapPointGeometry>
+  | MapFeatureCollection<MapLineStringGeometry>
+
 interface MapboxGeoJSONSource {
-  setData: (data: FeatureCollection) => void
+  setData: (data: MapGeoJSONFeatureCollection) => void
 }
 
 interface MapboxLngLatBounds {
@@ -430,7 +454,7 @@ const ActivityMapPanel: FC<{
     !mapLoadError
 
   const routeFeatureCollection = useMemo(
-    (): FeatureCollection<LineString> => ({
+    (): MapFeatureCollection<MapLineStringGeometry> => ({
       type: 'FeatureCollection',
       features: [
         {
