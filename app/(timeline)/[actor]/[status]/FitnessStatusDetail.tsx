@@ -66,10 +66,13 @@ interface MapboxMap {
   addLayer: (layer: Record<string, unknown>) => void
   once: (event: 'load', listener: () => void) => void
   getSource: (id: string) => unknown
+  getZoom: () => number
   fitBounds: (
     bounds: MapboxLngLatBounds,
     options: { padding: number; maxZoom: number; duration: number }
   ) => void
+  setMinZoom: (zoom: number) => void
+  setMaxBounds: (bounds: MapboxLngLatBounds) => void
   zoomIn: (options?: { duration?: number }) => void
   zoomOut: (options?: { duration?: number }) => void
   remove: () => void
@@ -243,6 +246,36 @@ const getChartYPosition = (
 ) => {
   const range = Math.max(1, maxValue - minValue)
   return height - ((value - minValue) / range) * height
+}
+
+const clampLongitude = (value: number) => {
+  return clampNumber(value, -180, 180)
+}
+
+const clampLatitude = (value: number) => {
+  return clampNumber(value, -85, 85)
+}
+
+const getRouteBoundsCoordinates = (samples: FitnessRouteSample[]) => {
+  const initial = samples[0]
+  let west = initial.lng
+  let east = initial.lng
+  let south = initial.lat
+  let north = initial.lat
+
+  for (let index = 1; index < samples.length; index += 1) {
+    west = Math.min(west, samples[index].lng)
+    east = Math.max(east, samples[index].lng)
+    south = Math.min(south, samples[index].lat)
+    north = Math.max(north, samples[index].lat)
+  }
+
+  return {
+    west,
+    east,
+    south,
+    north
+  }
 }
 
 const buildChartPath = (
@@ -477,19 +510,45 @@ const ActivityMapPanel: FC<{
           }
         })
 
-        const bounds = routeSamples.reduce(
-          (accumulator, sample) => accumulator.extend([sample.lng, sample.lat]),
-          new mapbox.LngLatBounds(
-            [routeSamples[0].lng, routeSamples[0].lat],
-            [routeSamples[0].lng, routeSamples[0].lat]
-          )
+        const routeBoundsCoordinates = getRouteBoundsCoordinates(routeSamples)
+        const routeBounds = new mapbox.LngLatBounds(
+          [routeBoundsCoordinates.west, routeBoundsCoordinates.south],
+          [routeBoundsCoordinates.east, routeBoundsCoordinates.north]
         )
 
-        map.fitBounds(bounds, {
+        map.fitBounds(routeBounds, {
           padding: compact ? 28 : 40,
           maxZoom: 16,
           duration: 0
         })
+
+        // Keep full route visible as the widest zoom-out level.
+        map.setMinZoom(map.getZoom())
+
+        const lngSpan = Math.max(
+          routeBoundsCoordinates.east - routeBoundsCoordinates.west,
+          0.005
+        )
+        const latSpan = Math.max(
+          routeBoundsCoordinates.north - routeBoundsCoordinates.south,
+          0.005
+        )
+        const lngPadding = Math.max(lngSpan * 0.2, 0.002)
+        const latPadding = Math.max(latSpan * 0.2, 0.002)
+
+        // Limit panning to the route vicinity.
+        map.setMaxBounds(
+          new mapbox.LngLatBounds(
+            [
+              clampLongitude(routeBoundsCoordinates.west - lngPadding),
+              clampLatitude(routeBoundsCoordinates.south - latPadding)
+            ],
+            [
+              clampLongitude(routeBoundsCoordinates.east + lngPadding),
+              clampLatitude(routeBoundsCoordinates.north + latPadding)
+            ]
+          )
+        )
       })
     }
 
