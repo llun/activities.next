@@ -2,8 +2,9 @@
 
 import { UTCDate } from '@date-fns/utc'
 import { format } from 'date-fns'
+import { FeatureCollection, LineString } from 'geojson'
 import { Bike, Play, Plus } from 'lucide-react'
-import { FC, useMemo, useState } from 'react'
+import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Media } from '@/lib/components/posts/media'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -18,6 +19,7 @@ import {
 
 interface Props {
   host: string
+  mapboxAccessToken?: string
   currentActor?: ActorProfile | null
   status: StatusNote
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
@@ -37,6 +39,53 @@ interface NavItem {
   id: SectionKey
   label: string
   group?: 'subscription'
+}
+
+interface FitnessRouteSample {
+  lat: number
+  lng: number
+  elapsedSeconds: number
+  timestamp?: number
+}
+
+interface FitnessRouteDataResponse {
+  samples: FitnessRouteSample[]
+  totalDurationSeconds: number
+}
+
+interface MapboxGeoJSONSource {
+  setData: (data: FeatureCollection) => void
+}
+
+interface MapboxLngLatBounds {
+  extend: (lngLat: [number, number]) => MapboxLngLatBounds
+}
+
+interface MapboxMap {
+  addSource: (id: string, source: Record<string, unknown>) => void
+  addLayer: (layer: Record<string, unknown>) => void
+  once: (event: 'load', listener: () => void) => void
+  getSource: (id: string) => unknown
+  fitBounds: (
+    bounds: MapboxLngLatBounds,
+    options: { padding: number; maxZoom: number; duration: number }
+  ) => void
+  zoomIn: (options?: { duration?: number }) => void
+  zoomOut: (options?: { duration?: number }) => void
+  remove: () => void
+}
+
+interface MapboxModule {
+  accessToken: string
+  Map: new (options: {
+    container: HTMLElement
+    style: string
+    attributionControl: boolean
+  }) => MapboxMap
+  LngLatBounds: new (
+    sw: [number, number],
+    ne: [number, number]
+  ) => MapboxLngLatBounds
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -92,6 +141,109 @@ const createSeededGenerator = (seedText: string) => {
 
 const GRAPH_VIEW_HEIGHT = 250
 const GRAPH_HEIGHT_CLASSNAME = 'h-[190px] lg:h-[250px]'
+const MAP_ROUTE_SOURCE_ID = 'activity-route'
+const MAP_ACTIVE_POINT_SOURCE_ID = 'activity-active-point'
+const MAPBOX_JS_SRC = 'https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.js'
+const MAPBOX_CSS_HREF =
+  'https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css'
+
+let mapboxModulePromise: Promise<MapboxModule> | null = null
+
+const loadMapboxModule = async (): Promise<MapboxModule> => {
+  if (typeof window === 'undefined') {
+    throw new Error('Mapbox can only be loaded in a browser')
+  }
+
+  const globalWindow = window as Window & { mapboxgl?: MapboxModule }
+
+  if (globalWindow.mapboxgl) {
+    return globalWindow.mapboxgl
+  }
+
+  if (!mapboxModulePromise) {
+    mapboxModulePromise = new Promise<MapboxModule>((resolve, reject) => {
+      const onLoaded = () => {
+        if (globalWindow.mapboxgl) {
+          resolve(globalWindow.mapboxgl)
+          return
+        }
+        reject(new Error('Mapbox global was not initialized'))
+      }
+
+      if (!document.querySelector('[data-mapbox-gl-css="true"]')) {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = MAPBOX_CSS_HREF
+        link.setAttribute('data-mapbox-gl-css', 'true')
+        document.head.appendChild(link)
+      }
+
+      const existingScript = document.querySelector<HTMLScriptElement>(
+        '[data-mapbox-gl-script="true"]'
+      )
+
+      if (existingScript) {
+        existingScript.addEventListener('load', onLoaded, { once: true })
+        existingScript.addEventListener(
+          'error',
+          () => reject(new Error('Failed to load Mapbox script')),
+          { once: true }
+        )
+        return
+      }
+
+      const script = document.createElement('script')
+      script.src = MAPBOX_JS_SRC
+      script.async = true
+      script.setAttribute('data-mapbox-gl-script', 'true')
+      script.addEventListener('load', onLoaded, { once: true })
+      script.addEventListener(
+        'error',
+        () => reject(new Error('Failed to load Mapbox script')),
+        { once: true }
+      )
+
+      document.head.appendChild(script)
+    })
+  }
+
+  return mapboxModulePromise
+}
+
+const clampNumber = (value: number, min: number, max: number) => {
+  return Math.max(min, Math.min(max, value))
+}
+
+const findRouteSampleForElapsed = (
+  samples: FitnessRouteSample[],
+  elapsedSeconds: number
+): FitnessRouteSample | null => {
+  if (samples.length === 0) return null
+  if (!Number.isFinite(elapsedSeconds)) return null
+
+  let closestSample = samples[0]
+  let smallestDelta = Math.abs(samples[0].elapsedSeconds - elapsedSeconds)
+
+  for (let index = 1; index < samples.length; index += 1) {
+    const delta = Math.abs(samples[index].elapsedSeconds - elapsedSeconds)
+    if (delta < smallestDelta) {
+      closestSample = samples[index]
+      smallestDelta = delta
+    }
+  }
+
+  return closestSample
+}
+
+const getChartYPosition = (
+  value: number,
+  height: number,
+  minValue: number,
+  maxValue: number
+) => {
+  const range = Math.max(1, maxValue - minValue)
+  return height - ((value - minValue) / range) * height
+}
 
 const buildChartPath = (
   values: number[],
@@ -208,9 +360,188 @@ const ChartPanel: FC<{
 
 const ActivityMapPanel: FC<{
   mapAttachment?: Attachment
+  routeSamples: FitnessRouteSample[]
+  highlightedElapsedSeconds?: number | null
+  mapboxAccessToken?: string
+  routeDataError?: string | null
+  isRouteDataLoading?: boolean
   onOpenMap?: () => void
   compact?: boolean
-}> = ({ mapAttachment, onOpenMap, compact = false }) => {
+}> = ({
+  mapAttachment,
+  routeSamples,
+  highlightedElapsedSeconds = null,
+  mapboxAccessToken,
+  routeDataError = null,
+  isRouteDataLoading = false,
+  onOpenMap,
+  compact = false
+}) => {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null)
+  const mapRef = useRef<MapboxMap | null>(null)
+
+  const shouldRenderInteractiveMap =
+    Boolean(mapboxAccessToken) && routeSamples.length >= 2 && !routeDataError
+
+  const routeFeatureCollection = useMemo(
+    (): FeatureCollection<LineString> => ({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: routeSamples.map((sample) => [sample.lng, sample.lat])
+          }
+        }
+      ]
+    }),
+    [routeSamples]
+  )
+
+  const activeSample = useMemo(() => {
+    if (!shouldRenderInteractiveMap) return null
+    if (typeof highlightedElapsedSeconds !== 'number') return null
+    return findRouteSampleForElapsed(routeSamples, highlightedElapsedSeconds)
+  }, [highlightedElapsedSeconds, routeSamples, shouldRenderInteractiveMap])
+
+  useEffect(() => {
+    if (!shouldRenderInteractiveMap || !mapContainerRef.current) {
+      mapRef.current?.remove()
+      mapRef.current = null
+      return
+    }
+
+    let cancelled = false
+
+    const initializeMap = async () => {
+      const mapbox = await loadMapboxModule()
+      if (cancelled || !mapContainerRef.current) return
+
+      mapbox.accessToken = mapboxAccessToken ?? ''
+
+      const map = new mapbox.Map({
+        container: mapContainerRef.current,
+        style: 'mapbox://styles/mapbox/outdoors-v12',
+        attributionControl: false
+      })
+
+      mapRef.current = map
+
+      map.once('load', () => {
+        if (cancelled || !mapRef.current) return
+
+        map.addSource(MAP_ROUTE_SOURCE_ID, {
+          type: 'geojson',
+          data: routeFeatureCollection
+        })
+
+        map.addLayer({
+          id: 'activity-route-line',
+          type: 'line',
+          source: MAP_ROUTE_SOURCE_ID,
+          paint: {
+            'line-color': '#f97316',
+            'line-width': 4,
+            'line-opacity': 0.9
+          }
+        })
+
+        map.addSource(MAP_ACTIVE_POINT_SOURCE_ID, {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: []
+          }
+        })
+
+        map.addLayer({
+          id: 'activity-active-point-ring',
+          type: 'circle',
+          source: MAP_ACTIVE_POINT_SOURCE_ID,
+          paint: {
+            'circle-radius': 8,
+            'circle-color': '#ffffff',
+            'circle-opacity': 0.95
+          }
+        })
+
+        map.addLayer({
+          id: 'activity-active-point-core',
+          type: 'circle',
+          source: MAP_ACTIVE_POINT_SOURCE_ID,
+          paint: {
+            'circle-radius': 4.5,
+            'circle-color': '#1d4ed8'
+          }
+        })
+
+        const bounds = routeSamples.reduce(
+          (accumulator, sample) => accumulator.extend([sample.lng, sample.lat]),
+          new mapbox.LngLatBounds(
+            [routeSamples[0].lng, routeSamples[0].lat],
+            [routeSamples[0].lng, routeSamples[0].lat]
+          )
+        )
+
+        map.fitBounds(bounds, {
+          padding: compact ? 28 : 40,
+          maxZoom: 16,
+          duration: 0
+        })
+      })
+    }
+
+    void initializeMap()
+
+    return () => {
+      cancelled = true
+      mapRef.current?.remove()
+      mapRef.current = null
+    }
+  }, [
+    compact,
+    mapboxAccessToken,
+    routeFeatureCollection,
+    routeSamples,
+    shouldRenderInteractiveMap
+  ])
+
+  useEffect(() => {
+    if (!shouldRenderInteractiveMap) return
+
+    const map = mapRef.current
+    if (!map) return
+
+    const source = map.getSource(MAP_ACTIVE_POINT_SOURCE_ID) as
+      | MapboxGeoJSONSource
+      | undefined
+    if (!source) return
+
+    if (!activeSample) {
+      source.setData({
+        type: 'FeatureCollection',
+        features: []
+      })
+      return
+    }
+
+    source.setData({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Point',
+            coordinates: [activeSample.lng, activeSample.lat]
+          }
+        }
+      ]
+    })
+  }, [activeSample, shouldRenderInteractiveMap])
+
   return (
     <div
       className={cn(
@@ -218,7 +549,9 @@ const ActivityMapPanel: FC<{
         compact ? 'h-56 rounded-lg' : 'h-80 rounded-none'
       )}
     >
-      {mapAttachment ? (
+      {shouldRenderInteractiveMap ? (
+        <div ref={mapContainerRef} className="h-full w-full" />
+      ) : mapAttachment ? (
         <button
           type="button"
           onClick={onOpenMap}
@@ -235,39 +568,59 @@ const ActivityMapPanel: FC<{
         </div>
       )}
 
-      <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border border-slate-300 bg-white/95 shadow-sm">
+      {shouldRenderInteractiveMap ? (
+        <>
+          <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border border-slate-300 bg-white/95 shadow-sm">
+            <button
+              type="button"
+              onClick={() => {
+                mapRef.current?.zoomIn({ duration: 250 })
+              }}
+              className="flex h-8 w-8 items-center justify-center text-slate-700 hover:bg-slate-100"
+              aria-label="Zoom in map"
+            >
+              <Plus className="size-4" />
+            </button>
+            <div className="h-px bg-slate-300" />
+            <button
+              type="button"
+              onClick={() => {
+                mapRef.current?.zoomOut({ duration: 250 })
+              }}
+              className="flex h-8 w-8 items-center justify-center text-slate-700 hover:bg-slate-100"
+              aria-label="Zoom out map"
+            >
+              <span className="text-base leading-none">-</span>
+            </button>
+          </div>
+          <div className="absolute right-3 top-3 rounded-md border border-slate-300 bg-white/95 px-3 py-2 text-xs font-medium text-slate-700 shadow-sm">
+            Mapbox
+          </div>
+        </>
+      ) : onOpenMap && mapAttachment ? (
         <button
           type="button"
-          disabled
-          aria-disabled="true"
-          title="Zoom controls are not available yet"
-          className="flex h-8 w-8 items-center justify-center text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
+          onClick={onOpenMap}
+          className="absolute bottom-3 right-3 inline-flex h-11 w-11 items-center justify-center rounded-md bg-orange-600 text-white shadow"
+          aria-label="Open route map image"
         >
-          <Plus className="size-4" />
+          <Play className="size-5" />
         </button>
-        <div className="h-px bg-slate-300" />
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          title="Zoom controls are not available yet"
-          className="flex h-8 w-8 items-center justify-center text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
-        >
-          <span className="text-base leading-none">-</span>
-        </button>
-      </div>
+      ) : null}
 
-      <div className="absolute right-3 top-3 rounded-md border border-slate-300 bg-white/95 px-3 py-2 text-xs font-medium text-slate-700 shadow-sm">
-        Standard Map
-      </div>
+      {!shouldRenderInteractiveMap &&
+      isRouteDataLoading &&
+      mapboxAccessToken ? (
+        <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md border border-slate-300 bg-white/95 px-3 py-1 text-xs text-slate-700 shadow-sm">
+          Loading interactive route...
+        </div>
+      ) : null}
 
-      <button
-        type="button"
-        onClick={onOpenMap}
-        className="absolute bottom-3 right-3 inline-flex h-11 w-11 items-center justify-center rounded-md bg-orange-600 text-white shadow"
-      >
-        <Play className="size-5" />
-      </button>
+      {!shouldRenderInteractiveMap && routeDataError ? (
+        <div className="absolute left-3 right-3 top-3 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm">
+          {routeDataError}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -326,13 +679,21 @@ const MetricCard: FC<{ label: string; value: string; highlight?: boolean }> = ({
 }
 
 export const FitnessStatusDetail: FC<Props> = ({
+  mapboxAccessToken,
   status,
   onShowAttachment
 }) => {
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
+  const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
+  const [routeDataError, setRouteDataError] = useState<string | null>(null)
+  const [isRouteDataLoading, setIsRouteDataLoading] = useState(false)
+  const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
+    number | null
+  >(null)
 
   const actorName = status.actor?.name || status.actor?.username || 'Athlete'
   const fitness = status.fitness
+  const shouldLoadInteractiveMap = Boolean(mapboxAccessToken && fitness?.id)
   const activityLabel = getActivityLabel(fitness?.activityType)
   const statusTitle = status.text.trim() || `${activityLabel} workout`
   const statusDescription =
@@ -365,6 +726,68 @@ export const FitnessStatusDetail: FC<Props> = ({
   const mediaWithoutMap = status.attachments.filter(
     (_, index) => index !== mapAttachmentIndex
   )
+
+  useEffect(() => {
+    if (!shouldLoadInteractiveMap || !fitness?.id) {
+      setRouteSamples([])
+      setRouteDataError(null)
+      setIsRouteDataLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    const loadRouteSamples = async () => {
+      try {
+        setIsRouteDataLoading(true)
+        setRouteDataError(null)
+
+        const response = await fetch(
+          `/api/v1/fitness-files/${fitness.id}/route-data`,
+          {
+            method: 'GET',
+            headers: {
+              Accept: 'application/json'
+            }
+          }
+        )
+
+        if (!response.ok) {
+          throw new Error(`Route data request failed (${response.status})`)
+        }
+
+        const data = (await response.json()) as FitnessRouteDataResponse
+
+        if (cancelled) return
+
+        if (!Array.isArray(data.samples)) {
+          throw new Error('Route data response is invalid')
+        }
+
+        setRouteSamples(data.samples)
+      } catch (_error) {
+        if (cancelled) return
+        setRouteSamples([])
+        setRouteDataError('Interactive map unavailable. Using static preview.')
+      } finally {
+        if (!cancelled) {
+          setIsRouteDataLoading(false)
+        }
+      }
+    }
+
+    void loadRouteSamples()
+
+    return () => {
+      cancelled = true
+    }
+  }, [fitness?.id, shouldLoadInteractiveMap])
+
+  useEffect(() => {
+    if (activeSection !== 'analysis') {
+      setHighlightedElapsedSeconds(null)
+    }
+  }, [activeSection])
 
   const distanceMeters = fitness?.totalDistanceMeters ?? 0
   const durationSeconds = fitness?.totalDurationSeconds ?? 0
@@ -435,6 +858,42 @@ export const FitnessStatusDetail: FC<Props> = ({
   const elevationMax = Math.max(...seededSeries.elevation)
   const powerMin = Math.min(...seededSeries.power)
   const powerMax = Math.max(...seededSeries.power)
+  const elevationSampleCount = seededSeries.elevation.length
+  const highlightedElevationIndex =
+    typeof highlightedElapsedSeconds === 'number' &&
+    durationSeconds > 0 &&
+    elevationSampleCount > 0
+      ? clampNumber(
+          Math.round(
+            (highlightedElapsedSeconds / durationSeconds) *
+              (elevationSampleCount - 1)
+          ),
+          0,
+          elevationSampleCount - 1
+        )
+      : null
+  const highlightedElevationValue =
+    typeof highlightedElevationIndex === 'number'
+      ? seededSeries.elevation[highlightedElevationIndex]
+      : null
+  const highlightedElevationX =
+    typeof highlightedElevationIndex === 'number'
+      ? (highlightedElevationIndex / Math.max(1, elevationSampleCount - 1)) *
+        760
+      : null
+  const highlightedElevationY =
+    typeof highlightedElevationValue === 'number'
+      ? getChartYPosition(
+          highlightedElevationValue,
+          GRAPH_VIEW_HEIGHT,
+          elevationMin,
+          elevationMax
+        )
+      : null
+  const highlightedElapsedLabel =
+    typeof highlightedElapsedSeconds === 'number'
+      ? formatDuration(Math.round(highlightedElapsedSeconds))
+      : null
   const histogramMinutes = useMemo(() => {
     const totalMinutes = Math.max(1, durationSeconds / 60)
     const totalWeight = Math.max(
@@ -511,6 +970,10 @@ export const FitnessStatusDetail: FC<Props> = ({
           <div className="grid gap-6">
             <ActivityMapPanel
               mapAttachment={mapAttachment}
+              routeSamples={routeSamples}
+              mapboxAccessToken={mapboxAccessToken}
+              routeDataError={routeDataError}
+              isRouteDataLoading={isRouteDataLoading}
               onOpenMap={() => {
                 if (mapAttachmentIndex >= 0) {
                   onShowAttachment(status.attachments, mapAttachmentIndex)
@@ -556,6 +1019,11 @@ export const FitnessStatusDetail: FC<Props> = ({
           <div className="grid gap-4">
             <ActivityMapPanel
               mapAttachment={mapAttachment}
+              routeSamples={routeSamples}
+              highlightedElapsedSeconds={highlightedElapsedSeconds}
+              mapboxAccessToken={mapboxAccessToken}
+              routeDataError={routeDataError}
+              isRouteDataLoading={isRouteDataLoading}
               compact
               onOpenMap={() => {
                 if (mapAttachmentIndex >= 0) {
@@ -587,7 +1055,23 @@ export const FitnessStatusDetail: FC<Props> = ({
                   <svg
                     viewBox={`0 0 760 ${elevationChartHeight}`}
                     preserveAspectRatio="none"
-                    className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+                    className={cn(
+                      'w-full cursor-crosshair',
+                      GRAPH_HEIGHT_CLASSNAME
+                    )}
+                    onMouseMove={(event) => {
+                      const bounds = event.currentTarget.getBoundingClientRect()
+                      const ratio = clampNumber(
+                        (event.clientX - bounds.left) /
+                          Math.max(bounds.width, 1),
+                        0,
+                        1
+                      )
+                      setHighlightedElapsedSeconds(ratio * durationSeconds)
+                    }}
+                    onMouseLeave={() => {
+                      setHighlightedElapsedSeconds(null)
+                    }}
                   >
                     <path
                       d={buildChartPath(
@@ -600,6 +1084,24 @@ export const FitnessStatusDetail: FC<Props> = ({
                       className="stroke-slate-400 stroke-[2]"
                       fill="none"
                     />
+                    {typeof highlightedElevationX === 'number' &&
+                    typeof highlightedElevationY === 'number' ? (
+                      <>
+                        <line
+                          x1={highlightedElevationX}
+                          y1={0}
+                          x2={highlightedElevationX}
+                          y2={elevationChartHeight}
+                          className="stroke-sky-500 stroke-[1.5] opacity-60"
+                        />
+                        <circle
+                          cx={highlightedElevationX}
+                          cy={highlightedElevationY}
+                          r={4.5}
+                          className="fill-sky-500 stroke-white stroke-[2]"
+                        />
+                      </>
+                    ) : null}
                   </svg>
                   <div className="mt-2 flex justify-between text-[11px] text-slate-500">
                     {buildXAxisLabels(
@@ -609,6 +1111,11 @@ export const FitnessStatusDetail: FC<Props> = ({
                       <span key={i}>{label}</span>
                     ))}
                   </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    {highlightedElapsedLabel
+                      ? `Selected time: ${highlightedElapsedLabel}`
+                      : 'Hover the chart to follow that time point on the map.'}
+                  </p>
                 </div>
               </div>
             </div>

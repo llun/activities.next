@@ -8,13 +8,14 @@ export interface FitnessCoordinate {
   lng: number
 }
 
-interface FitnessTrackPoint extends FitnessCoordinate {
+export interface FitnessTrackPoint extends FitnessCoordinate {
   altitudeMeters?: number
   timestamp?: Date
 }
 
 export interface FitnessActivityData {
   coordinates: FitnessCoordinate[]
+  trackPoints: FitnessTrackPoint[]
   totalDistanceMeters: number
   totalDurationSeconds: number
   elevationGainMeters?: number
@@ -291,6 +292,7 @@ const toActivityData = ({
   startTime?: Date
 }): FitnessActivityData => {
   const coordinates = points.map(({ lat, lng }) => ({ lat, lng }))
+  const trackPoints = points.map((point) => ({ ...point }))
 
   const distance =
     typeof totalDistanceMeters === 'number' && totalDistanceMeters > 0
@@ -314,6 +316,7 @@ const toActivityData = ({
 
   return {
     coordinates,
+    trackPoints,
     totalDistanceMeters: distance,
     totalDurationSeconds: duration,
     ...(typeof elevationGainMeters === 'number' && elevationGainMeters > 0
