@@ -34,6 +34,9 @@ type SectionKey =
   | 'best-efforts'
   | 'matched-activities'
 
+type AnalysisGraphKey = 'elevation' | 'speed' | 'power' | 'heart-rate'
+type AnalysisGraphFilter = 'all' | AnalysisGraphKey
+
 interface NavItem {
   id: SectionKey
   label: string
@@ -128,6 +131,17 @@ const NAV_ITEMS: NavItem[] = [
   { id: '25w-distribution', label: '25 W Distribution', group: 'subscription' },
   { id: 'best-efforts', label: 'Best Efforts' },
   { id: 'matched-activities', label: 'Matched Activities' }
+]
+
+const ANALYSIS_GRAPH_OPTIONS: Array<{
+  id: AnalysisGraphFilter
+  label: string
+}> = [
+  { id: 'all', label: 'All graphs' },
+  { id: 'elevation', label: 'Elevation' },
+  { id: 'speed', label: 'Speed' },
+  { id: 'power', label: 'Power' },
+  { id: 'heart-rate', label: 'Heart rate' }
 ]
 
 const formatDistance = (distanceMeters?: number) =>
@@ -361,6 +375,9 @@ const ChartPanel: FC<{
   minLabel?: string
   maxLabel?: string
   durationSeconds?: number
+  highlightedElapsedSeconds?: number | null
+  onHighlightElapsedSeconds?: (elapsedSeconds: number | null) => void
+  showHoverMessage?: boolean
 }> = ({
   title,
   unit,
@@ -368,7 +385,10 @@ const ChartPanel: FC<{
   colorClassName,
   minLabel,
   maxLabel,
-  durationSeconds
+  durationSeconds,
+  highlightedElapsedSeconds = null,
+  onHighlightElapsedSeconds,
+  showHoverMessage = false
 }) => {
   const width = 760
   const height = GRAPH_VIEW_HEIGHT
@@ -380,6 +400,43 @@ const ChartPanel: FC<{
       durationSeconds ? buildXAxisLabels(values.length, durationSeconds) : null,
     [durationSeconds, values.length]
   )
+  const minValue = useMemo(() => {
+    if (values.length === 0) return 0
+    return Math.min(...values)
+  }, [values])
+  const maxValue = useMemo(() => {
+    if (values.length === 0) return 0
+    return Math.max(...values)
+  }, [values])
+  const canHoverMapPoint =
+    typeof onHighlightElapsedSeconds === 'function' &&
+    typeof durationSeconds === 'number' &&
+    durationSeconds > 0 &&
+    values.length > 0
+  const highlightedIndex =
+    canHoverMapPoint && typeof highlightedElapsedSeconds === 'number'
+      ? clampNumber(
+          Math.round(
+            (highlightedElapsedSeconds / durationSeconds) * (values.length - 1)
+          ),
+          0,
+          values.length - 1
+        )
+      : null
+  const highlightedValue =
+    typeof highlightedIndex === 'number' ? values[highlightedIndex] : null
+  const highlightedX =
+    typeof highlightedIndex === 'number'
+      ? (highlightedIndex / Math.max(1, values.length - 1)) * width
+      : null
+  const highlightedY =
+    typeof highlightedValue === 'number'
+      ? getChartYPosition(highlightedValue, height, minValue, maxValue)
+      : null
+  const highlightedElapsedLabel =
+    typeof highlightedElapsedSeconds === 'number'
+      ? formatDuration(Math.round(highlightedElapsedSeconds))
+      : null
 
   return (
     <div className="rounded-lg border bg-white/80 p-4">
@@ -403,13 +460,49 @@ const ChartPanel: FC<{
           <svg
             viewBox={`0 0 ${width} ${height}`}
             preserveAspectRatio="none"
-            className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+            className={cn(
+              'w-full',
+              GRAPH_HEIGHT_CLASSNAME,
+              canHoverMapPoint && 'cursor-crosshair'
+            )}
+            onMouseMove={(event) => {
+              if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
+              const bounds = event.currentTarget.getBoundingClientRect()
+              const ratio = clampNumber(
+                (event.clientX - bounds.left) / Math.max(bounds.width, 1),
+                0,
+                1
+              )
+              onHighlightElapsedSeconds(ratio * durationSeconds)
+            }}
+            onMouseLeave={() => {
+              if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
+              onHighlightElapsedSeconds(null)
+            }}
           >
             <path
               d={path}
               fill="none"
               className={cn('stroke-[2.5]', colorClassName ?? 'stroke-sky-500')}
             />
+            {typeof highlightedX === 'number' &&
+            typeof highlightedY === 'number' ? (
+              <>
+                <line
+                  x1={highlightedX}
+                  y1={0}
+                  x2={highlightedX}
+                  y2={height}
+                  className="stroke-sky-500 stroke-[1.5] opacity-60"
+                />
+                <circle
+                  cx={highlightedX}
+                  cy={highlightedY}
+                  r={4.5}
+                  className="fill-sky-500 stroke-white stroke-[2]"
+                />
+              </>
+            ) : null}
           </svg>
           {xLabels && (
             <div className="mt-2 flex justify-between text-[11px] text-slate-500">
@@ -418,6 +511,13 @@ const ChartPanel: FC<{
               ))}
             </div>
           )}
+          {showHoverMessage ? (
+            <p className="mt-2 text-xs text-slate-500">
+              {highlightedElapsedLabel
+                ? `Selected time: ${highlightedElapsedLabel}`
+                : 'Hover the chart to follow that time point on the map.'}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>
@@ -794,6 +894,8 @@ export const FitnessStatusDetail: FC<Props> = ({
   const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
     number | null
   >(null)
+  const [analysisGraphFilter, setAnalysisGraphFilter] =
+    useState<AnalysisGraphFilter>('all')
 
   const actorName = status.actor?.name || status.actor?.username || 'Athlete'
   const fitness = status.fitness
@@ -960,40 +1062,12 @@ export const FitnessStatusDetail: FC<Props> = ({
   }, [elevationGainMeters, intensity, speedKmh, status.id, weightedAvgPower])
   const elevationMin = Math.min(...seededSeries.elevation)
   const elevationMax = Math.max(...seededSeries.elevation)
+  const speedMin = Math.min(...seededSeries.speed)
+  const speedMax = Math.max(...seededSeries.speed)
   const powerMin = Math.min(...seededSeries.power)
   const powerMax = Math.max(...seededSeries.power)
-  const elevationSampleCount = seededSeries.elevation.length
-  const highlightedElevationIndex =
-    typeof highlightedElapsedSeconds === 'number' &&
-    durationSeconds > 0 &&
-    elevationSampleCount > 0
-      ? clampNumber(
-          Math.round(
-            (highlightedElapsedSeconds / durationSeconds) *
-              (elevationSampleCount - 1)
-          ),
-          0,
-          elevationSampleCount - 1
-        )
-      : null
-  const highlightedElevationValue =
-    typeof highlightedElevationIndex === 'number'
-      ? seededSeries.elevation[highlightedElevationIndex]
-      : null
-  const highlightedElevationX =
-    typeof highlightedElevationIndex === 'number'
-      ? (highlightedElevationIndex / Math.max(1, elevationSampleCount - 1)) *
-        760
-      : null
-  const highlightedElevationY =
-    typeof highlightedElevationValue === 'number'
-      ? getChartYPosition(
-          highlightedElevationValue,
-          GRAPH_VIEW_HEIGHT,
-          elevationMin,
-          elevationMax
-        )
-      : null
+  const heartRateMin = Math.min(...seededSeries.heartRate)
+  const heartRateMax = Math.max(...seededSeries.heartRate)
   const highlightedElapsedLabel =
     typeof highlightedElapsedSeconds === 'number'
       ? formatDuration(Math.round(highlightedElapsedSeconds))
@@ -1116,142 +1190,112 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
 
     if (activeSection === 'analysis') {
-      const elevationChartHeight = GRAPH_VIEW_HEIGHT
+      const showAllGraphs = analysisGraphFilter === 'all'
 
       return (
         <div className="space-y-4 p-6">
-          <div className="grid gap-4">
-            <ActivityMapPanel
-              mapAttachment={mapAttachment}
-              routeSamples={routeSamples}
-              highlightedElapsedSeconds={highlightedElapsedSeconds}
-              mapboxAccessToken={mapboxAccessToken}
-              routeDataError={routeDataError}
-              isRouteDataLoading={isRouteDataLoading}
-              compact
-              onOpenMap={() => {
-                if (mapAttachmentIndex >= 0) {
-                  onShowAttachment(status.attachments, mapAttachmentIndex)
-                }
-              }}
-            />
-            <div className="rounded-lg border bg-white p-4">
-              <div className="mb-2 flex items-end justify-between">
-                <h3 className="text-sm font-semibold text-slate-800">
-                  Elevation profile
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Scale {elevationMin.toFixed(0)} m - {elevationMax.toFixed(0)}{' '}
-                  m
-                </p>
-              </div>
-              <div className="grid grid-cols-[auto_1fr] items-stretch gap-2">
-                <div
+          <div className="rounded-lg border bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Graph display
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {ANALYSIS_GRAPH_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setAnalysisGraphFilter(option.id)}
                   className={cn(
-                    'flex flex-col justify-between text-[11px] text-slate-500',
-                    GRAPH_HEIGHT_CLASSNAME
+                    'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                    analysisGraphFilter === option.id
+                      ? 'border-orange-500 bg-orange-50 text-orange-700'
+                      : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
                   )}
                 >
-                  <span>{elevationMax.toFixed(0)} m</span>
-                  <span>{elevationMin.toFixed(0)} m</span>
-                </div>
-                <div>
-                  <svg
-                    viewBox={`0 0 760 ${elevationChartHeight}`}
-                    preserveAspectRatio="none"
-                    className={cn(
-                      'w-full cursor-crosshair',
-                      GRAPH_HEIGHT_CLASSNAME
-                    )}
-                    onMouseMove={(event) => {
-                      const bounds = event.currentTarget.getBoundingClientRect()
-                      const ratio = clampNumber(
-                        (event.clientX - bounds.left) /
-                          Math.max(bounds.width, 1),
-                        0,
-                        1
-                      )
-                      setHighlightedElapsedSeconds(ratio * durationSeconds)
-                    }}
-                    onMouseLeave={() => {
-                      setHighlightedElapsedSeconds(null)
-                    }}
-                  >
-                    <path
-                      d={buildChartPath(
-                        seededSeries.elevation,
-                        760,
-                        elevationChartHeight,
-                        elevationMin,
-                        elevationMax
-                      )}
-                      className="stroke-slate-400 stroke-[2]"
-                      fill="none"
-                    />
-                    {typeof highlightedElevationX === 'number' &&
-                    typeof highlightedElevationY === 'number' ? (
-                      <>
-                        <line
-                          x1={highlightedElevationX}
-                          y1={0}
-                          x2={highlightedElevationX}
-                          y2={elevationChartHeight}
-                          className="stroke-sky-500 stroke-[1.5] opacity-60"
-                        />
-                        <circle
-                          cx={highlightedElevationX}
-                          cy={highlightedElevationY}
-                          r={4.5}
-                          className="fill-sky-500 stroke-white stroke-[2]"
-                        />
-                      </>
-                    ) : null}
-                  </svg>
-                  <div className="mt-2 flex justify-between text-[11px] text-slate-500">
-                    {buildXAxisLabels(
-                      seededSeries.elevation.length,
-                      durationSeconds
-                    ).map((label, i) => (
-                      <span key={i}>{label}</span>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500">
-                    {highlightedElapsedLabel
-                      ? `Selected time: ${highlightedElapsedLabel}`
-                      : 'Hover the chart to follow that time point on the map.'}
-                  </p>
-                </div>
-              </div>
+                  {option.label}
+                </button>
+              ))}
             </div>
+            <p className="mt-2 text-xs text-slate-500">
+              {highlightedElapsedLabel
+                ? `Selected time: ${highlightedElapsedLabel}`
+                : 'Hover any graph below to follow that time point on the map.'}
+            </p>
           </div>
 
-          <ChartPanel
-            title="Speed"
-            unit="km/h"
-            values={seededSeries.speed}
-            colorClassName="stroke-sky-500"
-            minLabel={Math.min(...seededSeries.speed).toFixed(1)}
-            maxLabel={Math.max(...seededSeries.speed).toFixed(1)}
-            durationSeconds={durationSeconds}
+          <ActivityMapPanel
+            mapAttachment={mapAttachment}
+            routeSamples={routeSamples}
+            highlightedElapsedSeconds={highlightedElapsedSeconds}
+            mapboxAccessToken={mapboxAccessToken}
+            routeDataError={routeDataError}
+            isRouteDataLoading={isRouteDataLoading}
+            compact
+            onOpenMap={() => {
+              if (mapAttachmentIndex >= 0) {
+                onShowAttachment(status.attachments, mapAttachmentIndex)
+              }
+            }}
           />
-          <ChartPanel
-            title="Power"
-            unit="w"
-            values={seededSeries.power}
-            colorClassName="stroke-violet-500"
-            minLabel={powerMin.toFixed(0)}
-            maxLabel={powerMax.toFixed(0)}
-            durationSeconds={durationSeconds}
-          />
-          <ChartPanel
-            title="Heart rate"
-            unit="bpm"
-            values={seededSeries.heartRate}
-            colorClassName="stroke-rose-500"
-            minLabel={Math.min(...seededSeries.heartRate).toFixed(0)}
-            maxLabel={Math.max(...seededSeries.heartRate).toFixed(0)}
-            durationSeconds={durationSeconds}
-          />
+
+          {showAllGraphs || analysisGraphFilter === 'elevation' ? (
+            <ChartPanel
+              title="Elevation profile"
+              unit="m"
+              values={seededSeries.elevation}
+              colorClassName="stroke-slate-400"
+              minLabel={elevationMin.toFixed(0)}
+              maxLabel={elevationMax.toFixed(0)}
+              durationSeconds={durationSeconds}
+              highlightedElapsedSeconds={highlightedElapsedSeconds}
+              onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+              showHoverMessage={!showAllGraphs}
+            />
+          ) : null}
+
+          {showAllGraphs || analysisGraphFilter === 'speed' ? (
+            <ChartPanel
+              title="Speed"
+              unit="km/h"
+              values={seededSeries.speed}
+              colorClassName="stroke-sky-500"
+              minLabel={speedMin.toFixed(1)}
+              maxLabel={speedMax.toFixed(1)}
+              durationSeconds={durationSeconds}
+              highlightedElapsedSeconds={highlightedElapsedSeconds}
+              onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+              showHoverMessage={!showAllGraphs}
+            />
+          ) : null}
+
+          {showAllGraphs || analysisGraphFilter === 'power' ? (
+            <ChartPanel
+              title="Power"
+              unit="w"
+              values={seededSeries.power}
+              colorClassName="stroke-violet-500"
+              minLabel={powerMin.toFixed(0)}
+              maxLabel={powerMax.toFixed(0)}
+              durationSeconds={durationSeconds}
+              highlightedElapsedSeconds={highlightedElapsedSeconds}
+              onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+              showHoverMessage={!showAllGraphs}
+            />
+          ) : null}
+
+          {showAllGraphs || analysisGraphFilter === 'heart-rate' ? (
+            <ChartPanel
+              title="Heart rate"
+              unit="bpm"
+              values={seededSeries.heartRate}
+              colorClassName="stroke-rose-500"
+              minLabel={heartRateMin.toFixed(0)}
+              maxLabel={heartRateMax.toFixed(0)}
+              durationSeconds={durationSeconds}
+              highlightedElapsedSeconds={highlightedElapsedSeconds}
+              onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+              showHoverMessage={!showAllGraphs}
+            />
+          ) : null}
         </div>
       )
     }
