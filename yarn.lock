@@ -138,9 +138,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-lambda@npm:^3.993.0":
-  version: 3.993.0
-  resolution: "@aws-sdk/client-lambda@npm:3.993.0"
+"@aws-sdk/client-lambda@npm:^3.994.0":
+  version: 3.994.0
+  resolution: "@aws-sdk/client-lambda@npm:3.994.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:5.2.0"
     "@aws-crypto/sha256-js": "npm:5.2.0"
@@ -152,7 +152,7 @@ __metadata:
     "@aws-sdk/middleware-user-agent": "npm:^3.972.11"
     "@aws-sdk/region-config-resolver": "npm:^3.972.3"
     "@aws-sdk/types": "npm:^3.973.1"
-    "@aws-sdk/util-endpoints": "npm:3.993.0"
+    "@aws-sdk/util-endpoints": "npm:3.994.0"
     "@aws-sdk/util-user-agent-browser": "npm:^3.972.3"
     "@aws-sdk/util-user-agent-node": "npm:^3.972.9"
     "@smithy/config-resolver": "npm:^4.4.6"
@@ -186,13 +186,13 @@ __metadata:
     "@smithy/util-utf8": "npm:^4.2.0"
     "@smithy/util-waiter": "npm:^4.2.8"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/8dbc27a2a878130631239c84673c9da0b22bb6d920a325fcd8bee4de65b3a636268f16dcde8a2126b9752f11f05a10ed417ab164fc3294821b8106284b21bb71
+  checksum: 10c0/56c8d7680253a651658c54c1cad5c53b4400aeb75f1554c4531d18be39abe1c1072a5c64a5baa1b9ffb7669a712f4d1884338e66a0c3095a43b3c40d9eebeff6
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-s3@npm:3.993.0, @aws-sdk/client-s3@npm:^3.993.0":
-  version: 3.993.0
-  resolution: "@aws-sdk/client-s3@npm:3.993.0"
+"@aws-sdk/client-s3@npm:3.994.0, @aws-sdk/client-s3@npm:^3.994.0":
+  version: 3.994.0
+  resolution: "@aws-sdk/client-s3@npm:3.994.0"
   dependencies:
     "@aws-crypto/sha1-browser": "npm:5.2.0"
     "@aws-crypto/sha256-browser": "npm:5.2.0"
@@ -210,9 +210,9 @@ __metadata:
     "@aws-sdk/middleware-ssec": "npm:^3.972.3"
     "@aws-sdk/middleware-user-agent": "npm:^3.972.11"
     "@aws-sdk/region-config-resolver": "npm:^3.972.3"
-    "@aws-sdk/signature-v4-multi-region": "npm:3.993.0"
+    "@aws-sdk/signature-v4-multi-region": "npm:3.994.0"
     "@aws-sdk/types": "npm:^3.973.1"
-    "@aws-sdk/util-endpoints": "npm:3.993.0"
+    "@aws-sdk/util-endpoints": "npm:3.994.0"
     "@aws-sdk/util-user-agent-browser": "npm:^3.972.3"
     "@aws-sdk/util-user-agent-node": "npm:^3.972.9"
     "@smithy/config-resolver": "npm:^4.4.6"
@@ -249,7 +249,7 @@ __metadata:
     "@smithy/util-utf8": "npm:^4.2.0"
     "@smithy/util-waiter": "npm:^4.2.8"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/ea1d0c84b8f53920da31f5415c50903d8f0e2979a3c5aac774c485f9458015eecc23d33bbd3f4cf2d07874bc0f4e39582ac3d0ae640848df6eda3b03e1e6bee5
+  checksum: 10c0/b38f5fc4f7669661913f58a0eb25471644a58f036bdf68e6378cdbc6e310fcd607eceae569cae7dea91fb539dcff13c73e7d559fb13a795259ebf1cfc4a4025c
   languageName: node
   linkType: hard
 
@@ -676,11 +676,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/s3-presigned-post@npm:^3.993.0":
-  version: 3.993.0
-  resolution: "@aws-sdk/s3-presigned-post@npm:3.993.0"
+"@aws-sdk/s3-presigned-post@npm:^3.994.0":
+  version: 3.994.0
+  resolution: "@aws-sdk/s3-presigned-post@npm:3.994.0"
   dependencies:
-    "@aws-sdk/client-s3": "npm:3.993.0"
+    "@aws-sdk/client-s3": "npm:3.994.0"
     "@aws-sdk/types": "npm:^3.973.1"
     "@aws-sdk/util-format-url": "npm:^3.972.3"
     "@smithy/middleware-endpoint": "npm:^4.4.16"
@@ -689,13 +689,13 @@ __metadata:
     "@smithy/util-hex-encoding": "npm:^4.2.0"
     "@smithy/util-utf8": "npm:^4.2.0"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/5b7ada6b922091a440a361e6bf5dd6ee5c5cefd7bf525f8d770855495f0dc47e5c6282547dfaa0b75d9b23ffd77c247e9a9f102a616a0e7f3853e1f1d94f18da
+  checksum: 10c0/af648f8c0c7a84850aa989a09d3fff96c5d81777300b6aaede06616b1976a4c8e15318d75a5003af847993a7abe9f6a3168101f4bda5695d789df2e23e4576cb
   languageName: node
   linkType: hard
 
-"@aws-sdk/signature-v4-multi-region@npm:3.993.0":
-  version: 3.993.0
-  resolution: "@aws-sdk/signature-v4-multi-region@npm:3.993.0"
+"@aws-sdk/signature-v4-multi-region@npm:3.994.0":
+  version: 3.994.0
+  resolution: "@aws-sdk/signature-v4-multi-region@npm:3.994.0"
   dependencies:
     "@aws-sdk/middleware-sdk-s3": "npm:^3.972.11"
     "@aws-sdk/types": "npm:^3.973.1"
@@ -703,7 +703,7 @@ __metadata:
     "@smithy/signature-v4": "npm:^5.3.8"
     "@smithy/types": "npm:^4.12.0"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/5bfcdbfe9946968fc253c643606df64139cff2070d5312952ed659c418c2617d1c659c33ec2380a4eda94b8a06664f8fff33e7f50f0edc1447c04a676be726e2
+  checksum: 10c0/b49ea6f3de3ff710f9b3dc74ce1dfaf6b372050dbef8377cf8303658b23504c4156f9cbbe3095322a76f786a60867888e0392b513c98f6a3099a4423d20a71bb
   languageName: node
   linkType: hard
 
@@ -761,6 +761,19 @@ __metadata:
     "@smithy/util-endpoints": "npm:^3.2.8"
     tslib: "npm:^2.6.2"
   checksum: 10c0/b6186a1adc42f6947b5d070698cabcd2e69abb133f186ea90b0c97534582cccb42f2eabe38bc2158cbc2189b409a1c4bd6ad9516f56ba61d4efcd1e0c1b9c575
+  languageName: node
+  linkType: hard
+
+"@aws-sdk/util-endpoints@npm:3.994.0":
+  version: 3.994.0
+  resolution: "@aws-sdk/util-endpoints@npm:3.994.0"
+  dependencies:
+    "@aws-sdk/types": "npm:^3.973.1"
+    "@smithy/types": "npm:^4.12.0"
+    "@smithy/url-parser": "npm:^4.2.8"
+    "@smithy/util-endpoints": "npm:^3.2.8"
+    tslib: "npm:^2.6.2"
+  checksum: 10c0/3a316e085d255dceefd7369f2d7f85e740fd16f6f64f4ae0d20f698f471e1f370e4669d001ab85230830541e9e074f18e499f182e4e062f5ac8fa152f27dc7af
   languageName: node
   linkType: hard
 
@@ -5017,9 +5030,9 @@ __metadata:
   resolution: "activities.next@workspace:."
   dependencies:
     "@auth/core": "npm:^0.41.1"
-    "@aws-sdk/client-lambda": "npm:^3.993.0"
-    "@aws-sdk/client-s3": "npm:^3.993.0"
-    "@aws-sdk/s3-presigned-post": "npm:^3.993.0"
+    "@aws-sdk/client-lambda": "npm:^3.994.0"
+    "@aws-sdk/client-s3": "npm:^3.994.0"
+    "@aws-sdk/s3-presigned-post": "npm:^3.994.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@date-fns/utc": "npm:^2.1.1"
     "@eslint/eslintrc": "npm:^3.3.3"
@@ -5082,10 +5095,10 @@ __metadata:
     eslint-plugin-n: "npm:^17.24.0"
     eslint-plugin-promise: "npm:^7.2.1"
     eslint-plugin-unused-imports: "npm:^4.4.1"
-    fast-xml-parser: "npm:^5.3.6"
+    fast-xml-parser: "npm:^5.3.7"
     fit-file-parser: "npm:^2.3.3"
     fluent-ffmpeg: "npm:^2.1.3"
-    framer-motion: "npm:^12.34.2"
+    framer-motion: "npm:^12.34.3"
     globals: "npm:^17.3.0"
     got: "npm:^14.6.6"
     html-react-parser: "npm:^5.2.17"
@@ -7173,7 +7186,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fast-xml-parser@npm:5.3.6, fast-xml-parser@npm:^5.3.6":
+"fast-xml-parser@npm:5.3.6":
   version: 5.3.6
   resolution: "fast-xml-parser@npm:5.3.6"
   dependencies:
@@ -7181,6 +7194,17 @@ __metadata:
   bin:
     fxparser: src/cli/cli.js
   checksum: 10c0/0150cc0566f327a76115de8b11628d717fb179010ed9bb77c52e579a7e6055a0f92f42f83678a6f1ec5b74411faec09713cb1f9b94bc687068ad86884a9199fa
+  languageName: node
+  linkType: hard
+
+"fast-xml-parser@npm:^5.3.7":
+  version: 5.3.7
+  resolution: "fast-xml-parser@npm:5.3.7"
+  dependencies:
+    strnum: "npm:^2.1.2"
+  bin:
+    fxparser: src/cli/cli.js
+  checksum: 10c0/2452b8d4557f6958507ccb9694dad094fb56342385774ee900e0ae1e193027a6590dd5c4ce9e5485af64fb18c2299b64d5423c82dba5f5a698950d36d02a864d
   languageName: node
   linkType: hard
 
@@ -7321,11 +7345,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"framer-motion@npm:^12.34.2":
-  version: 12.34.2
-  resolution: "framer-motion@npm:12.34.2"
+"framer-motion@npm:^12.34.3":
+  version: 12.34.3
+  resolution: "framer-motion@npm:12.34.3"
   dependencies:
-    motion-dom: "npm:^12.34.2"
+    motion-dom: "npm:^12.34.3"
     motion-utils: "npm:^12.29.2"
     tslib: "npm:^2.4.0"
   peerDependencies:
@@ -7339,7 +7363,7 @@ __metadata:
       optional: true
     react-dom:
       optional: true
-  checksum: 10c0/1af7caabe56275e82fc1abc73e6172cb0f0b8eb71fa4315353d8f39097dc2b76036eb77002897d73d8c577f226e3d9abf4cb1b3e51a6634f8664dc3ca82f6ddf
+  checksum: 10c0/e36d8d2b33200c6d8ad8af6508090276674dcd239da8026ab19ec4f739b8943197c7b1777f28f96c7149f65ccd35efb5905cbdfdaf6e75017bcd7cc4eb69328b
   languageName: node
   linkType: hard
 
@@ -10152,12 +10176,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"motion-dom@npm:^12.34.2":
-  version: 12.34.2
-  resolution: "motion-dom@npm:12.34.2"
+"motion-dom@npm:^12.34.3":
+  version: 12.34.3
+  resolution: "motion-dom@npm:12.34.3"
   dependencies:
     motion-utils: "npm:^12.29.2"
-  checksum: 10c0/a0c84838888695beb276de92a45a1f12000c3cff6999e7fcd08ecdc88f9493a4e63d220387d486fef1cf45b9fbf96cd0bae973188c3610c6f4250e0cdfa707dc
+  checksum: 10c0/9a336be96dbb24a2ea3cafe401043553bc326274d118b86d6414e505cd394f26c071cd420d2e71c2cf19e76abc89bfdac4a7c5c1b3842eca56b11d6b8687dfdc
   languageName: node
   linkType: hard
 
