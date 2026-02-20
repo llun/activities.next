@@ -16,6 +16,7 @@ import { StatusLikes } from './StatusLikes'
 
 interface Props {
   host: string
+  mapboxAccessToken?: string
   currentTime: Date
   currentActor?: ActorProfile | null
   status: Status
@@ -24,6 +25,7 @@ interface Props {
 
 export const StatusBox: FC<Props> = ({
   host,
+  mapboxAccessToken,
   currentTime,
   currentActor,
   status,
@@ -46,6 +48,7 @@ export const StatusBox: FC<Props> = ({
       <>
         <FitnessStatusDetail
           host={host}
+          mapboxAccessToken={mapboxAccessToken}
           currentActor={currentActor}
           status={actualStatus as StatusNote}
           onShowAttachment={(allMedias, index) => {

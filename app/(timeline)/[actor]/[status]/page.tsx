@@ -36,7 +36,8 @@ export const generateMetadata = async ({
 }
 
 const Page: FC<Props> = async ({ params }) => {
-  const { host } = getConfig()
+  const { host, fitnessStorage } = getConfig()
+  const mapboxAccessToken = fitnessStorage?.mapboxAccessToken?.trim()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
@@ -224,6 +225,7 @@ const Page: FC<Props> = async ({ params }) => {
         <div className="border-b bg-background">
           <StatusBox
             host={host}
+            mapboxAccessToken={mapboxAccessToken}
             currentTime={currentTime}
             currentActor={currentActorProfile}
             status={cleanJson(status)}
@@ -245,6 +247,7 @@ const Page: FC<Props> = async ({ params }) => {
         >
           <StatusBox
             host={host}
+            mapboxAccessToken={mapboxAccessToken}
             currentTime={currentTime}
             currentActor={currentActorProfile}
             status={cleanJson(item)}
@@ -255,6 +258,7 @@ const Page: FC<Props> = async ({ params }) => {
       <div className="border-b bg-background">
         <StatusBox
           host={host}
+          mapboxAccessToken={mapboxAccessToken}
           currentTime={currentTime}
           currentActor={currentActorProfile}
           status={cleanJson(status)}
@@ -273,6 +277,7 @@ const Page: FC<Props> = async ({ params }) => {
               <StatusBox
                 key={reply.id}
                 host={host}
+                mapboxAccessToken={mapboxAccessToken}
                 currentTime={currentTime}
                 currentActor={currentActorProfile}
                 status={cleanJson(reply)}
