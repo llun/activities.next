@@ -7,6 +7,8 @@ import {
   ACTOR1_ID,
   seedActor1
 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { GET } from './route'
@@ -178,6 +180,47 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     expect(response.status).toBe(404)
     expect(mockGetFitnessFile).not.toHaveBeenCalled()
     expect(mockParseFitnessFile).not.toHaveBeenCalled()
+  })
+
+  it('allows accepted followers to access private follower-only route data', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+
+    await database.createFollow({
+      actorId: ACTOR2_ID,
+      targetActorId: ACTOR1_ID,
+      inbox: `${ACTOR2_ID}/inbox`,
+      sharedInbox: 'https://llun.test/inbox',
+      status: FollowStatus.enum.Accepted
+    })
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/follower-route-data`,
+      url: `${ACTOR1_ID}/statuses/follower-route-data`,
+      actorId: ACTOR1_ID,
+      text: 'Follower route data',
+      to: [ACTOR1_FOLLOWER_URL],
+      cc: []
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/follower-route-data.fit',
+      fileName: 'follower-route-data.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(mockParseFitnessFile).toHaveBeenCalled()
   })
 
   it('allows owner access to unlinked uploaded file route data', async () => {

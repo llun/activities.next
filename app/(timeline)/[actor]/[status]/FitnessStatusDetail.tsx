@@ -224,18 +224,27 @@ const findRouteSampleForElapsed = (
   if (samples.length === 0) return null
   if (!Number.isFinite(elapsedSeconds)) return null
 
-  let closestSample = samples[0]
-  let smallestDelta = Math.abs(samples[0].elapsedSeconds - elapsedSeconds)
+  let low = 0
+  let high = samples.length - 1
 
-  for (let index = 1; index < samples.length; index += 1) {
-    const delta = Math.abs(samples[index].elapsedSeconds - elapsedSeconds)
-    if (delta < smallestDelta) {
-      closestSample = samples[index]
-      smallestDelta = delta
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    if (samples[mid].elapsedSeconds < elapsedSeconds) {
+      low = mid + 1
+    } else {
+      high = mid
     }
   }
 
-  return closestSample
+  if (low <= 0) return samples[0]
+
+  const candidate = samples[low]
+  const previousCandidate = samples[low - 1]
+
+  return Math.abs(previousCandidate.elapsedSeconds - elapsedSeconds) <
+    Math.abs(candidate.elapsedSeconds - elapsedSeconds)
+    ? previousCandidate
+    : candidate
 }
 
 const getChartYPosition = (
@@ -412,9 +421,13 @@ const ActivityMapPanel: FC<{
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
+  const [mapLoadError, setMapLoadError] = useState<string | null>(null)
 
   const shouldRenderInteractiveMap =
-    Boolean(mapboxAccessToken) && routeSamples.length >= 2 && !routeDataError
+    Boolean(mapboxAccessToken) &&
+    routeSamples.length >= 2 &&
+    !routeDataError &&
+    !mapLoadError
 
   const routeFeatureCollection = useMemo(
     (): FeatureCollection<LineString> => ({
@@ -449,107 +462,115 @@ const ActivityMapPanel: FC<{
     let cancelled = false
 
     const initializeMap = async () => {
-      const mapbox = await loadMapboxModule()
-      if (cancelled || !mapContainerRef.current) return
+      try {
+        const mapbox = await loadMapboxModule()
+        if (cancelled || !mapContainerRef.current) return
 
-      mapbox.accessToken = mapboxAccessToken ?? ''
+        setMapLoadError(null)
+        mapbox.accessToken = mapboxAccessToken ?? ''
 
-      const map = new mapbox.Map({
-        container: mapContainerRef.current,
-        style: 'mapbox://styles/mapbox/outdoors-v12',
-        attributionControl: false
-      })
-
-      mapRef.current = map
-
-      map.once('load', () => {
-        if (cancelled || !mapRef.current) return
-
-        map.addSource(MAP_ROUTE_SOURCE_ID, {
-          type: 'geojson',
-          data: routeFeatureCollection
+        const map = new mapbox.Map({
+          container: mapContainerRef.current,
+          style: 'mapbox://styles/mapbox/outdoors-v12',
+          attributionControl: false
         })
 
-        map.addLayer({
-          id: 'activity-route-line',
-          type: 'line',
-          source: MAP_ROUTE_SOURCE_ID,
-          paint: {
-            'line-color': '#f97316',
-            'line-width': 4,
-            'line-opacity': 0.9
-          }
-        })
+        mapRef.current = map
 
-        map.addSource(MAP_ACTIVE_POINT_SOURCE_ID, {
-          type: 'geojson',
-          data: {
-            type: 'FeatureCollection',
-            features: []
-          }
-        })
+        map.once('load', () => {
+          if (cancelled || !mapRef.current) return
 
-        map.addLayer({
-          id: 'activity-active-point-ring',
-          type: 'circle',
-          source: MAP_ACTIVE_POINT_SOURCE_ID,
-          paint: {
-            'circle-radius': 8,
-            'circle-color': '#ffffff',
-            'circle-opacity': 0.95
-          }
-        })
+          map.addSource(MAP_ROUTE_SOURCE_ID, {
+            type: 'geojson',
+            data: routeFeatureCollection
+          })
 
-        map.addLayer({
-          id: 'activity-active-point-core',
-          type: 'circle',
-          source: MAP_ACTIVE_POINT_SOURCE_ID,
-          paint: {
-            'circle-radius': 4.5,
-            'circle-color': '#1d4ed8'
-          }
-        })
+          map.addLayer({
+            id: 'activity-route-line',
+            type: 'line',
+            source: MAP_ROUTE_SOURCE_ID,
+            paint: {
+              'line-color': '#f97316',
+              'line-width': 4,
+              'line-opacity': 0.9
+            }
+          })
 
-        const routeBoundsCoordinates = getRouteBoundsCoordinates(routeSamples)
-        const routeBounds = new mapbox.LngLatBounds(
-          [routeBoundsCoordinates.west, routeBoundsCoordinates.south],
-          [routeBoundsCoordinates.east, routeBoundsCoordinates.north]
-        )
+          map.addSource(MAP_ACTIVE_POINT_SOURCE_ID, {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: []
+            }
+          })
 
-        map.fitBounds(routeBounds, {
-          padding: compact ? 28 : 40,
-          maxZoom: 16,
-          duration: 0
-        })
+          map.addLayer({
+            id: 'activity-active-point-ring',
+            type: 'circle',
+            source: MAP_ACTIVE_POINT_SOURCE_ID,
+            paint: {
+              'circle-radius': 8,
+              'circle-color': '#ffffff',
+              'circle-opacity': 0.95
+            }
+          })
 
-        // Keep full route visible as the widest zoom-out level.
-        map.setMinZoom(map.getZoom())
+          map.addLayer({
+            id: 'activity-active-point-core',
+            type: 'circle',
+            source: MAP_ACTIVE_POINT_SOURCE_ID,
+            paint: {
+              'circle-radius': 4.5,
+              'circle-color': '#1d4ed8'
+            }
+          })
 
-        const lngSpan = Math.max(
-          routeBoundsCoordinates.east - routeBoundsCoordinates.west,
-          0.005
-        )
-        const latSpan = Math.max(
-          routeBoundsCoordinates.north - routeBoundsCoordinates.south,
-          0.005
-        )
-        const lngPadding = Math.max(lngSpan * 0.2, 0.002)
-        const latPadding = Math.max(latSpan * 0.2, 0.002)
-
-        // Limit panning to the route vicinity.
-        map.setMaxBounds(
-          new mapbox.LngLatBounds(
-            [
-              clampLongitude(routeBoundsCoordinates.west - lngPadding),
-              clampLatitude(routeBoundsCoordinates.south - latPadding)
-            ],
-            [
-              clampLongitude(routeBoundsCoordinates.east + lngPadding),
-              clampLatitude(routeBoundsCoordinates.north + latPadding)
-            ]
+          const routeBoundsCoordinates = getRouteBoundsCoordinates(routeSamples)
+          const routeBounds = new mapbox.LngLatBounds(
+            [routeBoundsCoordinates.west, routeBoundsCoordinates.south],
+            [routeBoundsCoordinates.east, routeBoundsCoordinates.north]
           )
-        )
-      })
+
+          map.fitBounds(routeBounds, {
+            padding: compact ? 28 : 40,
+            maxZoom: 16,
+            duration: 0
+          })
+
+          // Keep full route visible as the widest zoom-out level.
+          map.setMinZoom(map.getZoom())
+
+          const lngSpan = Math.max(
+            routeBoundsCoordinates.east - routeBoundsCoordinates.west,
+            0.005
+          )
+          const latSpan = Math.max(
+            routeBoundsCoordinates.north - routeBoundsCoordinates.south,
+            0.005
+          )
+          const lngPadding = Math.max(lngSpan * 0.2, 0.002)
+          const latPadding = Math.max(latSpan * 0.2, 0.002)
+
+          // Limit panning to the route vicinity.
+          map.setMaxBounds(
+            new mapbox.LngLatBounds(
+              [
+                clampLongitude(routeBoundsCoordinates.west - lngPadding),
+                clampLatitude(routeBoundsCoordinates.south - latPadding)
+              ],
+              [
+                clampLongitude(routeBoundsCoordinates.east + lngPadding),
+                clampLatitude(routeBoundsCoordinates.north + latPadding)
+              ]
+            )
+          )
+        })
+      } catch (_error) {
+        if (cancelled) return
+        mapRef.current?.remove()
+        mapRef.current = null
+        setMapLoadError('Interactive map unavailable. Using static preview.')
+      }
     }
 
     void initializeMap()
@@ -675,9 +696,9 @@ const ActivityMapPanel: FC<{
         </div>
       ) : null}
 
-      {!shouldRenderInteractiveMap && routeDataError ? (
+      {!shouldRenderInteractiveMap && (routeDataError || mapLoadError) ? (
         <div className="absolute left-3 right-3 top-3 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm">
-          {routeDataError}
+          {routeDataError || mapLoadError}
         </div>
       ) : null}
     </div>

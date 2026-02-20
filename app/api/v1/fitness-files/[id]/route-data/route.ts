@@ -10,6 +10,7 @@ import {
   parseFitnessFile
 } from '@/lib/services/fitness-files/parseFitnessFile'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getVisibility } from '@/lib/utils/getVisibility'
@@ -35,6 +36,31 @@ interface FitnessRouteSample {
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const MAX_ROUTE_SAMPLE_POINTS = 1_500
+
+const getFetchResponseErrorDetail = async (
+  response: Response
+): Promise<string> => {
+  const responseText = await response.text().catch(() => '')
+  if (!responseText) {
+    return response.statusText || 'Unknown fetch error'
+  }
+
+  try {
+    const parsedError = JSON.parse(responseText) as {
+      message?: string
+      error?: string
+      status?: string
+    }
+    return (
+      parsedError.message ||
+      parsedError.error ||
+      parsedError.status ||
+      responseText
+    )
+  } catch {
+    return responseText
+  }
+}
 
 const downsampleTrackPoints = (
   points: FitnessTrackPoint[],
@@ -102,8 +128,9 @@ const getFitnessFileBuffer = async (
 
   const response = await fetch(result.redirectUrl)
   if (!response.ok) {
+    const detail = await getFetchResponseErrorDetail(response)
     throw new Error(
-      `Failed to download fitness file from redirect URL (${response.status})`
+      `Failed to download fitness file from redirect URL (${response.status}): ${detail}`
     )
   }
 
@@ -164,7 +191,31 @@ export const GET = traceApiRoute(
         isPubliclyAccessible =
           visibility === 'public' || visibility === 'unlisted'
 
-        if (!status || !isPubliclyAccessible) {
+        let hasAccess = isPubliclyAccessible
+
+        if (status && !hasAccess) {
+          if (currentActor?.id === status.actorId) {
+            hasAccess = true
+          } else {
+            const hasFollowersUrl = [...status.to, ...status.cc].some((item) =>
+              item.endsWith('/followers')
+            )
+
+            if (hasFollowersUrl && currentActor) {
+              const follow = await database.getAcceptedOrRequestedFollow({
+                actorId: currentActor.id,
+                targetActorId: status.actorId
+              })
+              hasAccess = follow?.status === FollowStatus.enum.Accepted
+            } else if (currentActor) {
+              hasAccess =
+                status.to.includes(currentActor.id) ||
+                status.cc.includes(currentActor.id)
+            }
+          }
+        }
+
+        if (!status || !hasAccess) {
           logger.warn({
             message: 'Fitness file not found or not authorized',
             fileId: id,
