@@ -14,7 +14,7 @@ import { urlToId } from '@/lib/utils/urlToId'
 import { getMastodonStatus } from './getMastodonStatus'
 
 // prettier-ignore
-jest.mock('../../config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({ host: 'test.llun.dev' })
 }))
 

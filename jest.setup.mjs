@@ -1,6 +1,8 @@
 /* eslint-disable no-undef */
-const { TextDecoder, TextEncoder } = require('util')
-require('jest-fetch-mock').enableMocks()
+import fetchMock from 'jest-fetch-mock'
+import { TextDecoder, TextEncoder } from 'node:util'
+
+fetchMock.enableMocks()
 
 // changes default behavior of fetchMock to use the real 'fetch' implementation and not mock responses
 fetchMock.dontMock()
@@ -49,9 +51,9 @@ jest.mock('got', () => {
   }
 })
 
-jest.mock('./lib/config', () => {
-  const host = jest.requireActual('./lib/stub/const').TEST_DOMAIN
-  const secretPhase = jest.requireActual('./lib/stub/actor').MOCK_SECRET_PHASES
+jest.mock('@/lib/config', () => {
+  const host = jest.requireActual('@/lib/stub/const').TEST_DOMAIN
+  const secretPhase = jest.requireActual('@/lib/stub/actor').MOCK_SECRET_PHASES
   return {
     getConfig: jest.fn().mockReturnValue({
       serviceName: 'activities.next',

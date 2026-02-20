@@ -1,4 +1,5 @@
-import { JobHandle } from '../services/queue/type'
+import { JobHandle } from '@/lib/services/queue/type'
+
 import { createAnnounceJob } from './createAnnounceJob'
 import { createNoteJob } from './createNoteJob'
 import { createPollJob } from './createPollJob'

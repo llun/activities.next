@@ -1,10 +1,9 @@
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
-} from '../utils/activitystream'
+} from '@/lib/utils/activitystream'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 interface Params {
   actorId: string

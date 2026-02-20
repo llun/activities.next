@@ -1,8 +1,8 @@
 import { FC } from 'react'
 
+import { PostProps } from '@/lib/components/posts/post'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
-import { PostProps } from '../post'
 import { DeleteButton } from './delete-button'
 import { EditButton } from './edit-button'
 import { EditHistoryButton } from './edit-history-button'

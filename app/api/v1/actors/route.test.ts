@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '../../../../lib/database/testUtils'
-import { seedDatabase } from '../../../../lib/stub/database'
-import { seedActor1 } from '../../../../lib/stub/seed/actor1'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+
 import { POST } from './route'
 
 const mockGetServerSession = jest.fn()
@@ -10,17 +11,17 @@ jest.mock('next-auth', () => ({
   getServerSession: (...args: unknown[]) => mockGetServerSession(...args)
 }))
 
-jest.mock('../../auth/[...nextauth]/authOptions', () => ({
+jest.mock('@/app/api/auth/[...nextauth]/authOptions', () => ({
   getAuthOptions: jest.fn(() => ({}))
 }))
 
 const mockGetConfig = jest.fn()
-jest.mock('../../../../lib/config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('../../../../lib/database', () => ({
+jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 

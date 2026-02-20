@@ -12,8 +12,8 @@ import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { UploadMediaButton } from './upload-media-button'
 
-jest.mock('../../utils/resizeImage')
-jest.mock('../../utils/logger', () => ({
+jest.mock('@/lib/utils/resizeImage')
+jest.mock('@/lib/utils/logger', () => ({
   logger: {
     error: jest.fn(),
     warn: jest.fn(),

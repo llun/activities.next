@@ -7,7 +7,7 @@ import {
   getWebFingerResponse
 } from './index'
 
-jest.mock('../../config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({ host: 'test.example.com' })
 }))
 

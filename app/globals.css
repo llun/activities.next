@@ -136,9 +136,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   html {
     @apply h-full;
   }
+
   body {
     @apply min-h-screen bg-background text-foreground font-sans antialiased;
     background-image:
@@ -155,6 +157,7 @@
     background-attachment: fixed;
     background-repeat: no-repeat;
   }
+
   .dark body {
     background-image:
       radial-gradient(
@@ -244,26 +247,4 @@
 .markdown-content pre code {
   background-color: transparent;
   padding: 0;
-}
-
-/* Fitness status page breakout - expands beyond the max-w-2xl parent */
-.fitness-breakout {
-  width: calc(100vw - var(--sidebar-width, 72px) - 2rem);
-  max-width: 80rem;
-  position: relative;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-@media (min-width: 1280px) {
-  .fitness-breakout {
-    --sidebar-width: 280px;
-  }
-}
-
-@media (max-width: 767px) {
-  .fitness-breakout {
-    --sidebar-width: 0px;
-    width: calc(100vw - 2rem);
-  }
 }

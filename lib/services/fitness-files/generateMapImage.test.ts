@@ -4,7 +4,7 @@ import { getConfig } from '@/lib/config'
 
 import { generateMapImage } from './generateMapImage'
 
-jest.mock('../../config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: jest.fn()
 }))
 

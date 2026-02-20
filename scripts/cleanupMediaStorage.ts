@@ -15,8 +15,8 @@ import fs from 'fs/promises'
 import knex from 'knex'
 import path from 'path'
 
-import { getConfig } from '../lib/config'
-import { MediaStorageType } from '../lib/config/mediaStorage'
+import { getConfig } from '@/lib/config'
+import { MediaStorageType } from '@/lib/config/mediaStorage'
 
 async function getAllMediaPathsFromDatabase(
   basePath?: string

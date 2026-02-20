@@ -5,14 +5,13 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
+import { FollowList } from '@/app/(timeline)/[actor]/FollowList'
+import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/ui/button'
 import { getDatabase } from '@/lib/database'
 import { Actor, ActorProfile } from '@/lib/types/domain/actor'
 import { Follow } from '@/lib/types/domain/follow'
-
-import { FollowList } from '../FollowList'
-import { getProfileData } from '../getProfileData'
 
 interface Props {
   params: Promise<{ actor: string }>

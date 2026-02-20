@@ -1,7 +1,8 @@
 // This schema is base on https://docs.joinmastodon.org/entities/Poll/
 import { z } from 'zod'
 
-import { CustomEmoji } from '../customEmoji'
+import { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
+
 import { Option } from './option'
 
 export const Poll = z.object({

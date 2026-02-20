@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
-import { QStashConfig } from '../services/queue/qstash'
+import { QStashConfig } from '@/lib/services/queue/qstash'
+
 import { matcher } from './utils'
 
 export const QueueConfig = QStashConfig

@@ -21,6 +21,9 @@
 
 - TypeScript + React with 2-space indentation.
 - Prettier enforces no semicolons, single quotes, and import sorting (`.prettierrc.yml`).
+- Use absolute imports (for example `@/lib/...`) for anything outside the current directory.
+- Relative imports are allowed only for files in the same directory (for example `./helper`), and `../` imports are not allowed.
+- Apply the same import-path rule to `jest.mock(...)` module paths.
 - ESLint (Next + TypeScript) runs via `yarn lint`; unused vars should be prefixed with `_`.
 - Tests are co-located with code and named `*.test.ts`/`*.test.tsx`.
 
@@ -62,7 +65,7 @@
 
 ## Testing Guidelines
 
-- Jest is configured via `jest.config.js` with SWC transforms.
+- Jest is configured via `jest.config.mjs` with SWC transforms.
 - Prefer unit tests near `lib/` and route tests near `app/`.
 - All tests run in parallel using isolated SQLite in-memory databases.
 

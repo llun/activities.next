@@ -1,7 +1,8 @@
 // This schema is base on https://docs.joinmastodon.org/entities/Account/#source
 import { z } from 'zod'
 
-import { Visibility } from '../visibility'
+import { Visibility } from '@/lib/types/mastodon/visibility'
+
 import { Field } from './field'
 
 export const Source = z.object({

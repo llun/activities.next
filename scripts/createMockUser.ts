@@ -5,9 +5,9 @@
 import * as bcrypt from 'bcrypt'
 import crypto from 'crypto'
 
-import { getConfig } from '../lib/config'
-import { getDatabase } from '../lib/database'
-import { generateKeyPair } from '../lib/utils/signature'
+import { getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
+import { generateKeyPair } from '@/lib/utils/signature'
 
 const BCRYPT_ROUND = 10
 const SESSION_MAX_AGE_DAYS = 30

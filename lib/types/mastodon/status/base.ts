@@ -1,13 +1,14 @@
 // This schema is base on https://docs.joinmastodon.org/entities/Status/
 import { z } from 'zod'
 
-import { Account } from '../account'
-import { CustomEmoji } from '../customEmoji'
-import { FilterResult } from '../filterResult'
-import { MediaAttachment } from '../mediaAttachment/index'
-import { Poll } from '../poll/index'
-import { PreviewCard } from '../previewCard'
-import { Visibility } from '../visibility'
+import { Account } from '@/lib/types/mastodon/account'
+import { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
+import { FilterResult } from '@/lib/types/mastodon/filterResult'
+import { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment/index'
+import { Poll } from '@/lib/types/mastodon/poll/index'
+import { PreviewCard } from '@/lib/types/mastodon/previewCard'
+import { Visibility } from '@/lib/types/mastodon/visibility'
+
 import { Application } from './application'
 import { Mention } from './mention'
 import { Tag } from './tag'

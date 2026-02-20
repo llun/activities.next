@@ -17,13 +17,13 @@ import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
-jest.mock('../services/queue', () => ({
+jest.mock('@/lib/services/queue', () => ({
   getQueue: jest.fn().mockReturnValue({
     publish: jest.fn().mockResolvedValue(undefined)
   })
 }))
 
-jest.mock('../services/fitness-files', () => {
+jest.mock('@/lib/services/fitness-files', () => {
   const actual = jest.requireActual('../services/fitness-files')
   return {
     ...actual,
@@ -31,15 +31,15 @@ jest.mock('../services/fitness-files', () => {
   }
 })
 
-jest.mock('../services/fitness-files/parseFitnessFile', () => ({
+jest.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
   parseFitnessFile: jest.fn()
 }))
 
-jest.mock('../services/fitness-files/generateMapImage', () => ({
+jest.mock('@/lib/services/fitness-files/generateMapImage', () => ({
   generateMapImage: jest.fn()
 }))
 
-jest.mock('../services/medias', () => ({
+jest.mock('@/lib/services/medias', () => ({
   saveMedia: jest.fn()
 }))
 

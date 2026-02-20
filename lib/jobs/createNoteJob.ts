@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { recordActorIfNeeded } from '@/lib/actions/utils'
 import {
   BaseNote,
   getAttachments,
@@ -8,6 +9,7 @@ import {
   getSummary,
   getTags
 } from '@/lib/activities/note'
+import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   ArticleContent,
   ImageContent,
@@ -16,10 +18,8 @@ import {
   VideoContent
 } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
+import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 
-import { recordActorIfNeeded } from '../actions/utils'
-import { addStatusToTimelines } from '../services/timelines'
-import { normalizeActivityPubContent } from '../utils/activitypub'
 import { createJobHandle } from './createJobHandle'
 import { CREATE_NOTE_JOB_NAME } from './names'
 

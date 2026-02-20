@@ -508,7 +508,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     if (activeSection === 'overview') {
       return (
         <div className="space-y-6 p-6">
-          <div className="grid gap-6 xl:grid-cols-[2fr,1.2fr]">
+          <div className="grid gap-6">
             <ActivityMapPanel
               mapAttachment={mapAttachment}
               onOpenMap={() => {
@@ -553,7 +553,7 @@ export const FitnessStatusDetail: FC<Props> = ({
 
       return (
         <div className="space-y-4 p-6">
-          <div className="grid gap-4 xl:grid-cols-[1.25fr,1fr]">
+          <div className="grid gap-4">
             <ActivityMapPanel
               mapAttachment={mapAttachment}
               compact
@@ -1006,7 +1006,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-y-1 border-b border-slate-300 bg-[#f0f1f3] px-2 py-2 lg:grid-cols-4 2xl:grid-cols-8">
+        <div className="grid grid-cols-2 gap-y-1 border-b border-slate-300 bg-[#f0f1f3] px-2 py-2 md:grid-cols-4">
           <MetricCard label="Distance" value={formatDistance(distanceMeters)} />
           <MetricCard
             label="Moving Time"

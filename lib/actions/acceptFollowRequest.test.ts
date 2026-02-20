@@ -18,7 +18,7 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 
 enableFetchMocks()
 
-jest.mock('../services/email', () => ({
+jest.mock('@/lib/services/email', () => ({
   sendMail: jest.fn()
 }))
 

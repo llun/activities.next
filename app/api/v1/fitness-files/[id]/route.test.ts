@@ -16,11 +16,11 @@ jest.mock('next-auth', () => ({
   getServerSession: (...args: unknown[]) => mockGetServerSession(...args)
 }))
 
-jest.mock('../../../auth/[...nextauth]/authOptions', () => ({
+jest.mock('@/app/api/auth/[...nextauth]/authOptions', () => ({
   getAuthOptions: jest.fn(() => ({}))
 }))
 
-jest.mock('../../../../../lib/config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
     allowEmails: []
@@ -28,12 +28,12 @@ jest.mock('../../../../../lib/config', () => ({
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-jest.mock('../../../../../lib/database', () => ({
+jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
 const mockGetFitnessFile = jest.fn()
-jest.mock('../../../../../lib/services/fitness-files', () => ({
+jest.mock('@/lib/services/fitness-files', () => ({
   getFitnessFile: (...args: unknown[]) => mockGetFitnessFile(...args)
 }))
 

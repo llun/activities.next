@@ -300,7 +300,7 @@ activities.next/
 - `tsconfig.json` - TypeScript configuration
 - `eslint.config.mjs` - ESLint rules
 - `.prettierrc.yml` - Code formatting rules
-- `jest.config.js` - Test configuration
+- `jest.config.mjs` - Test configuration
 - `next.config.ts` - Next.js configuration
 - `knexfile.js` - Database migration configuration
 

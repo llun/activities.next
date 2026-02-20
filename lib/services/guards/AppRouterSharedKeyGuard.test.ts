@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { ACTIVITIES_SHARED_KEY } from '../../constants'
+import { ACTIVITIES_SHARED_KEY } from '@/lib/constants'
+
 import { AppRouterSharedKeyGuard } from './AppRouterSharedKeyGuard'
 
 const mockGetConfig = jest.fn()
-jest.mock('../../config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
 }))
 

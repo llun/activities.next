@@ -3,9 +3,8 @@
 import { formatDistance, formatRelative } from 'date-fns'
 import { FC } from 'react'
 
+import { DeleteSessionButton } from '@/app/(timeline)/settings/sessions/DeleteSessionButton'
 import { Session } from '@/lib/types/domain/session'
-
-import { DeleteSessionButton } from '../../../app/(timeline)/settings/sessions/DeleteSessionButton'
 
 interface SessionsListProps {
   sessions: Session[]

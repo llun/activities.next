@@ -11,13 +11,13 @@ import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 import { getProfileData } from './getProfileData'
 
-// Mock dependencies - use relative paths for jest.mock()
-jest.mock('../../../lib/activities/getActorFollowers')
-jest.mock('../../../lib/activities/getActorFollowing')
-jest.mock('../../../lib/activities/getActorPerson')
-jest.mock('../../../lib/activities/getActorPosts')
-jest.mock('../../../lib/activities/getWebfingerSelf')
-jest.mock('../../../lib/utils/getPersonFromActor')
+// Mock dependencies via Jest module name mapper aliases
+jest.mock('@/lib/activities/getActorFollowers')
+jest.mock('@/lib/activities/getActorFollowing')
+jest.mock('@/lib/activities/getActorPerson')
+jest.mock('@/lib/activities/getActorPosts')
+jest.mock('@/lib/activities/getWebfingerSelf')
+jest.mock('@/lib/utils/getPersonFromActor')
 
 describe('getProfileData', () => {
   const mockDatabase = {

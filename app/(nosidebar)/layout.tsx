@@ -1,6 +1,6 @@
 import { FC, ReactNode } from 'react'
 
-import { Modal } from '../Modal'
+import { Modal } from '@/app/Modal'
 
 interface LayoutProps {
   children: ReactNode

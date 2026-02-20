@@ -2,13 +2,13 @@ import { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
+import { LogoutButton } from '@/app/(timeline)/settings/LogoutButton'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { LogoutButton } from '../LogoutButton'
 import { ChangeEmailForm } from './ChangeEmailForm'
 import { ChangePasswordForm } from './ChangePasswordForm'
 

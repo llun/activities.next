@@ -19,6 +19,7 @@ const eslintConfig = [
       'migrations/**',
       'plans/**',
       'scripts/**',
+      '*.config.mjs',
       '*.config.js',
       '*.config.ts',
       'wallaby.js',

@@ -10,11 +10,11 @@ jest.mock('next-auth', () => ({
   getServerSession: (...args: unknown[]) => mockGetServerSession(...args)
 }))
 
-jest.mock('../../../../auth/[...nextauth]/authOptions', () => ({
+jest.mock('@/app/api/auth/[...nextauth]/authOptions', () => ({
   getAuthOptions: jest.fn(() => ({}))
 }))
 
-jest.mock('../../../../../../lib/config', () => ({
+jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({
     host: 'llun.test',
     secretPhase: 'test-secret-for-encryption',
@@ -34,7 +34,7 @@ type MockDatabase = Pick<
 >
 
 let mockDatabase: MockDatabase | null = null
-jest.mock('../../../../../../lib/database', () => ({
+jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
@@ -46,7 +46,7 @@ jest.mock('next/headers', () => ({
 
 const mockGetSubscription = jest.fn()
 const mockDeleteSubscription = jest.fn()
-jest.mock('../../../../../../lib/services/strava/webhookSubscription', () => ({
+jest.mock('@/lib/services/strava/webhookSubscription', () => ({
   getSubscription: (...args: unknown[]) => mockGetSubscription(...args),
   deleteSubscription: (...args: unknown[]) => mockDeleteSubscription(...args),
   createSubscription: jest.fn(),
