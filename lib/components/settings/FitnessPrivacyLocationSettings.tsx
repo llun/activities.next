@@ -1,5 +1,6 @@
 'use client'
 
+import { ChevronDown } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
@@ -85,6 +86,10 @@ const MAPBOX_JS_SRC = 'https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.js'
 const MAPBOX_CSS_HREF =
   'https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css'
 const MAPBOX_MARKER_SOURCE_ID = 'fitness-privacy-home-marker'
+const DEFAULT_MAP_CENTER: [number, number] = [5.2913, 52.1326]
+const DEFAULT_MAP_ZOOM = 6
+const CURRENT_LOCATION_ZOOM = 13
+const HOME_MARKER_ZOOM = 13
 
 let mapboxModulePromise: Promise<MapboxModule> | null = null
 
@@ -195,6 +200,50 @@ const formatCoordinate = (value: number | null): string => {
   return value.toFixed(6)
 }
 
+const getBrowserCurrentLocation = async (): Promise<[number, number] | null> => {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return null
+  }
+
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve([position.coords.longitude, position.coords.latitude])
+      },
+      () => resolve(null),
+      {
+        enableHighAccuracy: false,
+        timeout: 4000,
+        maximumAge: 300000
+      }
+    )
+  })
+}
+
+const getInitialMapView = async (
+  marker: [number, number] | null
+): Promise<{ center: [number, number]; zoom: number }> => {
+  if (marker) {
+    return {
+      center: marker,
+      zoom: HOME_MARKER_ZOOM
+    }
+  }
+
+  const currentLocation = await getBrowserCurrentLocation()
+  if (currentLocation) {
+    return {
+      center: currentLocation,
+      zoom: CURRENT_LOCATION_ZOOM
+    }
+  }
+
+  return {
+    center: DEFAULT_MAP_CENTER,
+    zoom: DEFAULT_MAP_ZOOM
+  }
+}
+
 export const FitnessPrivacyLocationSettings: FC<Props> = ({
   mapboxAccessToken
 }) => {
@@ -295,15 +344,14 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
         mapbox.accessToken = mapboxAccessToken
 
-        const initialCenter = markerCoordinates ?? [0, 0]
-        const initialZoom = markerCoordinates ? 13 : 1.5
+        const initialView = await getInitialMapView(markerCoordinates)
 
         const map = new mapbox.Map({
           container: mapContainerRef.current,
           style: 'mapbox://styles/mapbox/outdoors-v12',
           attributionControl: false,
-          center: initialCenter,
-          zoom: initialZoom
+          center: initialView.center,
+          zoom: initialView.zoom
         })
 
         mapRef.current = map
@@ -387,7 +435,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     if (markerCoordinates) {
       map.flyTo({
         center: markerCoordinates,
-        zoom: 13,
+        zoom: HOME_MARKER_ZOOM,
         duration: 500
       })
     }
@@ -564,23 +612,26 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
         <div className="space-y-2">
           <Label htmlFor="privacyHideRadiusMeters">Hide Radius</Label>
-          <select
-            id="privacyHideRadiusMeters"
-            value={String(radiusMeters)}
-            onChange={(event) => {
-              setRadiusMeters(
-                sanitizePrivacyRadiusMeters(Number(event.target.value))
-              )
-            }}
-            disabled={isLoading || isSaving}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            {FITNESS_PRIVACY_RADIUS_OPTIONS.map((radius) => (
-              <option key={radius} value={radius}>
-                {radius}m
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="privacyHideRadiusMeters"
+              value={String(radiusMeters)}
+              onChange={(event) => {
+                setRadiusMeters(
+                  sanitizePrivacyRadiusMeters(Number(event.target.value))
+                )
+              }}
+              disabled={isLoading || isSaving}
+              className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {FITNESS_PRIVACY_RADIUS_OPTIONS.map((radius) => (
+                <option key={radius} value={radius}>
+                  {radius}m
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
           <p className="text-xs text-muted-foreground">
             Any GPS points inside this radius are hidden for other viewers.
           </p>
