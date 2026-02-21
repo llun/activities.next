@@ -1038,7 +1038,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     [fitnessFiles, selectedFitnessFileId]
   )
   const shouldLoadInteractiveMap = Boolean(mapboxAccessToken && fitness?.id)
-  const activityLabel = getActivityLabel(fitness?.activityType)
+  const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
   const statusTitle = status.text.trim() || `${activityLabel} workout`
   const statusDescription =
     fitness?.description ||
@@ -1049,9 +1049,9 @@ export const FitnessStatusDetail: FC<Props> = ({
   )
 
   const paceOrSpeed = getFitnessPaceOrSpeed({
-    distanceMeters: fitness?.totalDistanceMeters,
-    durationSeconds: fitness?.totalDurationSeconds,
-    activityType: fitness?.activityType
+    distanceMeters: fitness?.totalDistanceMeters ?? undefined,
+    durationSeconds: fitness?.totalDurationSeconds ?? undefined,
+    activityType: fitness?.activityType ?? undefined
   })
 
   const mapAttachmentIndex = useMemo(() => {
