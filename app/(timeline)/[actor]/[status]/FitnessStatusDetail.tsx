@@ -255,6 +255,49 @@ const findRouteSampleForElapsed = (
     : candidate
 }
 
+const normalizeRouteSample = (
+  sample: FitnessRouteSample
+): FitnessRouteSample => {
+  return {
+    ...sample,
+    isHiddenByPrivacy: Boolean(sample.isHiddenByPrivacy)
+  }
+}
+
+const normalizeRouteSegments = ({
+  samples,
+  segments
+}: {
+  samples: FitnessRouteSample[]
+  segments?: FitnessRouteSegment[]
+}): FitnessRouteSegment[] => {
+  if (Array.isArray(segments)) {
+    const normalizedSegments = segments
+      .map((segment) => ({
+        isHiddenByPrivacy: Boolean(segment.isHiddenByPrivacy),
+        samples: Array.isArray(segment.samples)
+          ? segment.samples.map((sample) => normalizeRouteSample(sample))
+          : []
+      }))
+      .filter((segment) => segment.samples.length > 0)
+
+    if (normalizedSegments.length > 0) {
+      return normalizedSegments
+    }
+  }
+
+  if (samples.length >= 2) {
+    return [
+      {
+        isHiddenByPrivacy: false,
+        samples
+      }
+    ]
+  }
+
+  return []
+}
+
 const getChartYPosition = (
   value: number,
   height: number,
@@ -531,21 +574,9 @@ const ActivityMapPanel: FC<{
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
-  const normalizedRouteSegments = useMemo<FitnessRouteSegment[]>(() => {
-    if (routeSegments.length > 0) {
-      return routeSegments
-    }
-
-    if (routeSamples.length >= 2) {
-      return [{ isHiddenByPrivacy: false, samples: routeSamples }]
-    }
-
-    return []
-  }, [routeSamples, routeSegments])
   const drawableRouteSegments = useMemo(
-    () =>
-      normalizedRouteSegments.filter((segment) => segment.samples.length >= 2),
-    [normalizedRouteSegments]
+    () => routeSegments.filter((segment) => segment.samples.length >= 2),
+    [routeSegments]
   )
   const routeSamplesForBounds = useMemo(
     () => drawableRouteSegments.flatMap((segment) => segment.samples),
@@ -1127,30 +1158,13 @@ export const FitnessStatusDetail: FC<Props> = ({
           throw new Error('Route data response is invalid')
         }
 
-        const normalizedSamples = data.samples.map((sample) => ({
-          ...sample,
-          isHiddenByPrivacy: Boolean(sample.isHiddenByPrivacy)
-        }))
-        const normalizedSegments = Array.isArray(data.segments)
-          ? data.segments
-              .map((segment) => ({
-                isHiddenByPrivacy: Boolean(segment.isHiddenByPrivacy),
-                samples: Array.isArray(segment.samples)
-                  ? segment.samples.map((sample) => ({
-                      ...sample,
-                      isHiddenByPrivacy: Boolean(sample.isHiddenByPrivacy)
-                    }))
-                  : []
-              }))
-              .filter((segment) => segment.samples.length > 0)
-          : normalizedSamples.length >= 2
-            ? [
-                {
-                  isHiddenByPrivacy: false,
-                  samples: normalizedSamples
-                }
-              ]
-            : []
+        const normalizedSamples = data.samples.map((sample) =>
+          normalizeRouteSample(sample)
+        )
+        const normalizedSegments = normalizeRouteSegments({
+          samples: normalizedSamples,
+          segments: data.segments
+        })
 
         setRouteSamples(normalizedSamples)
         setRouteSegments(normalizedSegments)

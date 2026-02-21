@@ -16,13 +16,52 @@ export const loadMapboxModule = async <T>(): Promise<T> => {
 
   if (!mapboxModulePromise) {
     mapboxModulePromise = new Promise<unknown>((resolve, reject) => {
-      const onLoaded = () => {
-        if (globalWindow.mapboxgl) {
-          resolve(globalWindow.mapboxgl)
+      let settled = false
+
+      const resolveOnce = (value: unknown) => {
+        if (settled) {
           return
         }
 
-        reject(new Error('Mapbox global was not initialized'))
+        settled = true
+        resolve(value)
+      }
+
+      const rejectOnce = (error: Error) => {
+        if (settled) {
+          return
+        }
+
+        settled = true
+        reject(error)
+      }
+
+      const resolveIfLoaded = () => {
+        if (!globalWindow.mapboxgl) {
+          return false
+        }
+
+        resolveOnce(globalWindow.mapboxgl)
+        return true
+      }
+
+      const waitForMapboxGlobal = (timeoutMs = 5000) => {
+        const startedAt = Date.now()
+
+        const poll = () => {
+          if (resolveIfLoaded()) {
+            return
+          }
+
+          if (Date.now() - startedAt >= timeoutMs) {
+            rejectOnce(new Error('Mapbox global was not initialized'))
+            return
+          }
+
+          window.setTimeout(poll, 50)
+        }
+
+        poll()
       }
 
       if (!document.querySelector('[data-mapbox-gl-css="true"]')) {
@@ -38,17 +77,26 @@ export const loadMapboxModule = async <T>(): Promise<T> => {
       )
 
       if (existingScript) {
-        if (globalWindow.mapboxgl) {
-          resolve(globalWindow.mapboxgl)
+        if (resolveIfLoaded()) {
           return
         }
 
-        existingScript.addEventListener('load', onLoaded, { once: true })
         existingScript.addEventListener(
-          'error',
-          () => reject(new Error('Failed to load Mapbox script')),
+          'load',
+          () => {
+            if (!resolveIfLoaded()) {
+              waitForMapboxGlobal()
+            }
+          },
           { once: true }
         )
+        existingScript.addEventListener(
+          'error',
+          () => rejectOnce(new Error('Failed to load Mapbox script')),
+          { once: true }
+        )
+
+        waitForMapboxGlobal()
         return
       }
 
@@ -56,10 +104,18 @@ export const loadMapboxModule = async <T>(): Promise<T> => {
       script.src = MAPBOX_JS_SRC
       script.async = true
       script.setAttribute('data-mapbox-gl-script', 'true')
-      script.addEventListener('load', onLoaded, { once: true })
+      script.addEventListener(
+        'load',
+        () => {
+          if (!resolveIfLoaded()) {
+            waitForMapboxGlobal()
+          }
+        },
+        { once: true }
+      )
       script.addEventListener(
         'error',
-        () => reject(new Error('Failed to load Mapbox script')),
+        () => rejectOnce(new Error('Failed to load Mapbox script')),
         { once: true }
       )
 
