@@ -241,7 +241,11 @@ const allocateSegmentTargets = (
       continue
     }
 
-    const minimumTarget = Math.min(length, minimumPoints)
+    const minimumTarget = minimumPoints
+    if (length < minimumTarget) {
+      continue
+    }
+
     if (remainingPoints < minimumTarget) {
       continue
     }

@@ -279,7 +279,10 @@ export const GET = traceApiRoute(
       })
       const sampledSegments = downsamplePrivacySegments(
         routeSegments,
-        MAX_ROUTE_SAMPLE_POINTS
+        MAX_ROUTE_SAMPLE_POINTS,
+        {
+          minimumPointsPerSegment: 2
+        }
       )
       const responseSamples = flattenPrivacySegments(sampledSegments)
       const responseSegments = toResponseSegments(sampledSegments)

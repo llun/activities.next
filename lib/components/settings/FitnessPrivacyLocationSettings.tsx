@@ -185,6 +185,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
+  const markerCoordinatesRef = useRef<[number, number] | null>(null)
 
   const [latitudeInput, setLatitudeInput] = useState('')
   const [longitudeInput, setLongitudeInput] = useState('')
@@ -211,6 +212,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
     return [longitude, latitude]
   }, [latitudeInput, longitudeInput])
+  markerCoordinatesRef.current = markerCoordinates
 
   useEffect(() => {
     let cancelled = false
@@ -280,7 +282,9 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
         mapbox.accessToken = mapboxAccessToken
 
-        const initialView = await getInitialMapView(markerCoordinates)
+        const initialView = await getInitialMapView(
+          markerCoordinatesRef.current
+        )
 
         const map = new mapbox.Map({
           container: mapContainerRef.current,
@@ -299,7 +303,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
           map.addSource(MAPBOX_MARKER_SOURCE_ID, {
             type: 'geojson',
-            data: toMarkerFeatureCollection(markerCoordinates)
+            data: toMarkerFeatureCollection(markerCoordinatesRef.current)
           })
 
           map.addLayer({
@@ -324,6 +328,15 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
               'circle-opacity': 0.2
             }
           })
+
+          const markerCoordinatesAtLoad = markerCoordinatesRef.current
+          if (markerCoordinatesAtLoad) {
+            map.flyTo({
+              center: markerCoordinatesAtLoad,
+              zoom: HOME_MARKER_ZOOM,
+              duration: 0
+            })
+          }
         })
 
         map.on('click', ({ lngLat }) => {
