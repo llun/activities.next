@@ -33,6 +33,7 @@ const JobData = z.object({
 })
 
 const ACTOR_NOT_FOUND_IMPORT_ERROR = 'Actor not found for fitness import'
+const MISSING_FITNESS_FILE_IMPORT_ERROR = 'Fitness file missing during import'
 
 type ParsedImportFileSource = 'target' | 'overlap'
 
@@ -246,11 +247,20 @@ export const importFitnessFilesJob = createJobHandle(
 
       if (!fitnessFile) {
         logger.warn({
-          message: 'Fitness file missing during import',
+          message: MISSING_FITNESS_FILE_IMPORT_ERROR,
           fitnessFileId,
           actorId,
           batchId
         })
+
+        if (isTargetFile) {
+          await markImportFileFailed(
+            database,
+            fitnessFileId,
+            MISSING_FITNESS_FILE_IMPORT_ERROR
+          )
+        }
+
         continue
       }
 

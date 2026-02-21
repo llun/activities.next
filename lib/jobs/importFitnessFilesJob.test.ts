@@ -421,6 +421,60 @@ describe('importFitnessFilesJob', () => {
     expect(getQueue().publish).not.toHaveBeenCalled()
   })
 
+  it('marks missing target file ids as failed', async () => {
+    const file = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/import-existing.fit',
+      fileName: 'import-existing.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-missing-file-id'
+    })
+
+    expect(file).toBeDefined()
+
+    const missingFileId = 'fitness-file-missing-id'
+    const importStatusSpy = jest.spyOn(
+      database,
+      'updateFitnessFileImportStatus'
+    )
+    const processingStatusSpy = jest.spyOn(
+      database,
+      'updateFitnessFileProcessingStatus'
+    )
+
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 2_000,
+      totalDurationSeconds: 900,
+      startTime: new Date('2026-01-07T00:00:00.000Z')
+    })
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-missing-file-id',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-missing-file-id',
+        fitnessFileIds: [missingFileId, file!.id],
+        visibility: 'public'
+      }
+    })
+
+    expect(importStatusSpy).toHaveBeenCalledWith(
+      missingFileId,
+      'failed',
+      'Fitness file missing during import'
+    )
+    expect(processingStatusSpy).toHaveBeenCalledWith(missingFileId, 'failed')
+
+    const updated = await database.getFitnessFile({ id: file!.id })
+    expect(updated?.importStatus).toBe('completed')
+    expect(updated?.statusId).toBeDefined()
+  })
+
   it('marks parse failures and still processes valid files', async () => {
     const failedFile = await database.createFitnessFile({
       actorId: actor.id,
