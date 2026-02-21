@@ -259,12 +259,25 @@ export const importFitnessFilesJob = createJobHandle(
         primaryFile.startTimeMs ?? primaryFile.fitnessFile.createdAt
 
       try {
-        const status = await createLocalOnlyFitnessStatus({
-          actor,
-          createdAt,
-          visibility,
-          database
-        })
+        const existingStatusId =
+          orderedGroup.find((item) => item.fitnessFile.statusId)?.fitnessFile
+            .statusId ?? null
+
+        const existingStatus = existingStatusId
+          ? await database.getStatus({
+              statusId: existingStatusId,
+              withReplies: false
+            })
+          : null
+
+        const status =
+          existingStatus ??
+          (await createLocalOnlyFitnessStatus({
+            actor,
+            createdAt,
+            visibility,
+            database
+          }))
 
         await Promise.all(
           orderedGroup.map(async (item) => {

@@ -148,6 +148,101 @@ describe('importFitnessFilesJob', () => {
     })
   })
 
+  it('reuses existing status when import job is retried', async () => {
+    const firstFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/retry-overlap-a.fit',
+      fileName: 'retry-overlap-a.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-retry-idempotent'
+    })
+    const secondFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/retry-overlap-b.fit',
+      fileName: 'retry-overlap-b.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-retry-idempotent'
+    })
+
+    expect(firstFile).toBeDefined()
+    expect(secondFile).toBeDefined()
+
+    const firstActivity: FitnessActivityData = {
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 5_000,
+      totalDurationSeconds: 1_000,
+      startTime: new Date('2026-01-03T00:00:00.000Z')
+    }
+    const secondActivity: FitnessActivityData = {
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 4_500,
+      totalDurationSeconds: 1_000,
+      startTime: new Date('2026-01-03T00:03:20.000Z')
+    }
+
+    mockParseFitnessFile
+      .mockResolvedValueOnce(firstActivity)
+      .mockResolvedValueOnce(secondActivity)
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-retry-1',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-retry-idempotent',
+        fitnessFileIds: [firstFile!.id, secondFile!.id],
+        visibility: 'public'
+      }
+    })
+
+    const afterFirstRun = await database.getFitnessFile({ id: firstFile!.id })
+    const statusId = afterFirstRun?.statusId
+    expect(statusId).toBeDefined()
+
+    const publishMock = getQueue().publish as jest.Mock
+    publishMock.mockClear()
+
+    mockParseFitnessFile
+      .mockResolvedValueOnce(firstActivity)
+      .mockResolvedValueOnce(secondActivity)
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-retry-2',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-retry-idempotent',
+        fitnessFileIds: [firstFile!.id, secondFile!.id],
+        visibility: 'public'
+      }
+    })
+
+    const firstAfterRetry = await database.getFitnessFile({ id: firstFile!.id })
+    const secondAfterRetry = await database.getFitnessFile({
+      id: secondFile!.id
+    })
+
+    expect(firstAfterRetry?.statusId).toBe(statusId)
+    expect(secondAfterRetry?.statusId).toBe(statusId)
+    expect(publishMock).toHaveBeenCalledTimes(1)
+    expect(publishMock).toHaveBeenCalledWith({
+      id: expect.any(String),
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        statusId,
+        fitnessFileId: firstFile!.id,
+        publishSendNote: false
+      }
+    })
+  })
+
   it('marks parse failures and still processes valid files', async () => {
     const failedFile = await database.createFitnessFile({
       actorId: actor.id,
