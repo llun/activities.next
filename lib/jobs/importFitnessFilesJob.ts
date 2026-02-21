@@ -186,9 +186,13 @@ export const importFitnessFilesJob = createJobHandle(
     }
 
     const parsedFiles: ParsedImportFile[] = []
+    const fitnessFiles = await database.getFitnessFilesByIds({ fitnessFileIds })
+    const fitnessFileById = new Map(
+      fitnessFiles.map((fitnessFile) => [fitnessFile.id, fitnessFile])
+    )
 
     for (const fitnessFileId of fitnessFileIds) {
-      const fitnessFile = await database.getFitnessFile({ id: fitnessFileId })
+      const fitnessFile = fitnessFileById.get(fitnessFileId)
       if (!fitnessFile) {
         logger.warn({
           message: 'Fitness file missing during import',
@@ -283,24 +287,11 @@ export const importFitnessFilesJob = createJobHandle(
           createdStatusId = status.id
         }
 
-        await Promise.all(
-          orderedGroup.map(async (item) => {
-            const isPrimary = item.fitnessFile.id === primaryFile.fitnessFile.id
-
-            await Promise.all([
-              database.updateFitnessFileStatus(item.fitnessFile.id, status.id),
-              database.updateFitnessFilePrimary(item.fitnessFile.id, isPrimary),
-              database.updateFitnessFileImportStatus(
-                item.fitnessFile.id,
-                'completed'
-              ),
-              database.updateFitnessFileProcessingStatus(
-                item.fitnessFile.id,
-                isPrimary ? 'pending' : 'completed'
-              )
-            ])
-          })
-        )
+        await database.assignFitnessFilesToImportedStatus({
+          fitnessFileIds: orderedGroup.map((item) => item.fitnessFile.id),
+          primaryFitnessFileId: primaryFile.fitnessFile.id,
+          statusId: status.id
+        })
 
         await getQueue().publish({
           id: getHashFromString(

@@ -118,7 +118,10 @@ describe('FitnessFileDatabase', () => {
         expect(second).toBeDefined()
 
         await database.updateFitnessFileStatus(first!.id, statuses.primary.post)
-        await database.updateFitnessFileStatus(second!.id, statuses.primary.post)
+        await database.updateFitnessFileStatus(
+          second!.id,
+          statuses.primary.post
+        )
         await database.updateFitnessFilePrimary(first!.id, false)
         await database.updateFitnessFilePrimary(second!.id, true)
         await database.updateFitnessFileActivityData(second!.id, {
@@ -248,10 +251,113 @@ describe('FitnessFileDatabase', () => {
           importedTwo!.id
         ])
 
-        const failedFile = await database.getFitnessFile({ id: importedTwo!.id })
+        const failedFile = await database.getFitnessFile({
+          id: importedTwo!.id
+        })
         expect(failedFile?.importStatus).toBe('failed')
         expect(failedFile?.importError).toBe('parse failed')
         expect(failedFile?.isPrimary).toBe(false)
+      })
+
+      it('gets files by ids in request order', async () => {
+        const first = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/by-ids-a.fit',
+          fileName: 'by-ids-a.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1_000,
+          importBatchId: 'batch-order'
+        })
+        const second = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/by-ids-b.fit',
+          fileName: 'by-ids-b.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1_000,
+          importBatchId: 'batch-order'
+        })
+        const third = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/by-ids-c.fit',
+          fileName: 'by-ids-c.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1_000,
+          importBatchId: 'batch-order'
+        })
+
+        const files = await database.getFitnessFilesByIds({
+          fitnessFileIds: [third!.id, 'missing-id', first!.id, second!.id]
+        })
+
+        expect(files.map((item) => item.id)).toEqual([
+          third!.id,
+          first!.id,
+          second!.id
+        ])
+      })
+
+      it('updates batch import state and grouped status assignment', async () => {
+        const primary = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/group-primary.fit',
+          fileName: 'group-primary.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1_000,
+          importBatchId: 'batch-group'
+        })
+        const secondary = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/group-secondary.fit',
+          fileName: 'group-secondary.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1_000,
+          importBatchId: 'batch-group'
+        })
+
+        const importUpdated = await database.updateFitnessFilesImportStatus({
+          fitnessFileIds: [primary!.id, secondary!.id],
+          importStatus: 'failed',
+          importError: 'temporary failure'
+        })
+        expect(importUpdated).toBe(2)
+
+        const processingUpdated =
+          await database.updateFitnessFilesProcessingStatus({
+            fitnessFileIds: [primary!.id, secondary!.id],
+            processingStatus: 'processing'
+          })
+        expect(processingUpdated).toBe(2)
+
+        const assigned = await database.assignFitnessFilesToImportedStatus({
+          fitnessFileIds: [primary!.id, secondary!.id],
+          primaryFitnessFileId: secondary!.id,
+          statusId: statuses.primary.post
+        })
+        expect(assigned).toBe(2)
+
+        const updatedPrimary = await database.getFitnessFile({
+          id: primary!.id
+        })
+        const updatedSecondary = await database.getFitnessFile({
+          id: secondary!.id
+        })
+
+        expect(updatedPrimary?.statusId).toBe(statuses.primary.post)
+        expect(updatedPrimary?.isPrimary).toBe(false)
+        expect(updatedPrimary?.importStatus).toBe('completed')
+        expect(updatedPrimary?.importError).toBeUndefined()
+        expect(updatedPrimary?.processingStatus).toBe('completed')
+
+        expect(updatedSecondary?.statusId).toBe(statuses.primary.post)
+        expect(updatedSecondary?.isPrimary).toBe(true)
+        expect(updatedSecondary?.importStatus).toBe('completed')
+        expect(updatedSecondary?.importError).toBeUndefined()
+        expect(updatedSecondary?.processingStatus).toBe('pending')
       })
     })
 

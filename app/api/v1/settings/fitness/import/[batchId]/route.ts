@@ -38,7 +38,11 @@ const getBatchFileState = (file: FitnessFile): BatchFileState => {
     return 'failed'
   }
 
-  if (importStatus === 'pending' || processingStatus === 'pending') {
+  if (
+    importStatus === 'pending' ||
+    processingStatus === 'pending' ||
+    processingStatus === 'processing'
+  ) {
     return 'pending'
   }
 
@@ -178,14 +182,18 @@ export const POST = traceApiRoute(
       })
     }
 
-    await Promise.all(
-      retriableFiles.map(async ({ file }) => {
-        await Promise.all([
-          database.updateFitnessFileImportStatus(file.id, 'pending'),
-          database.updateFitnessFileProcessingStatus(file.id, 'pending')
-        ])
+    const retriableFileIds = retriableFiles.map(({ file }) => file.id)
+
+    await Promise.all([
+      database.updateFitnessFilesImportStatus({
+        fitnessFileIds: retriableFileIds,
+        importStatus: 'pending'
+      }),
+      database.updateFitnessFilesProcessingStatus({
+        fitnessFileIds: retriableFileIds,
+        processingStatus: 'pending'
       })
-    )
+    ])
 
     try {
       await getQueue().publish({
