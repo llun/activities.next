@@ -983,6 +983,20 @@ export const FitnessStatusDetail: FC<Props> = ({
           }
         )
         if (!response.ok) {
+          const responseText = await response.text()
+          let responseBody: unknown = responseText
+          if (responseText) {
+            try {
+              responseBody = JSON.parse(responseText)
+            } catch {
+              // Keep the raw response text when JSON parsing fails.
+            }
+          }
+          console.error('Failed to load fitness files', {
+            status: response.status,
+            statusText: response.statusText,
+            response: responseBody
+          })
           return
         }
 
@@ -1018,8 +1032,9 @@ export const FitnessStatusDetail: FC<Props> = ({
           }
           return ordered.find((item) => item.isPrimary)?.id ?? ordered[0].id
         })
-      } catch {
+      } catch (error) {
         // Keep the status payload fallback if the list endpoint is unavailable.
+        console.error('Failed to load fitness files', error)
       }
     }
 
