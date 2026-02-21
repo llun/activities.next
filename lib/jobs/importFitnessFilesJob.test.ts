@@ -1,0 +1,203 @@
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
+import {
+  IMPORT_FITNESS_FILES_JOB_NAME,
+  PROCESS_FITNESS_FILE_JOB_NAME
+} from '@/lib/jobs/names'
+import { getFitnessFile } from '@/lib/services/fitness-files'
+import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
+import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
+import { getQueue } from '@/lib/services/queue'
+import { seedDatabase } from '@/lib/stub/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { Actor } from '@/lib/types/domain/actor'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+
+jest.mock('@/lib/services/queue', () => ({
+  getQueue: jest.fn().mockReturnValue({
+    publish: jest.fn().mockResolvedValue(undefined)
+  })
+}))
+
+jest.mock('@/lib/services/fitness-files', () => {
+  const actual = jest.requireActual('../services/fitness-files')
+  return {
+    ...actual,
+    getFitnessFile: jest.fn()
+  }
+})
+
+jest.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
+  parseFitnessFile: jest.fn()
+}))
+
+const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
+  typeof getFitnessFile
+>
+const mockParseFitnessFile = parseFitnessFile as jest.MockedFunction<
+  typeof parseFitnessFile
+>
+
+describe('importFitnessFilesJob', () => {
+  const database = getTestSQLDatabase()
+  let actor: Actor
+
+  beforeAll(async () => {
+    await database.migrate()
+    await seedDatabase(database)
+    actor = (await database.getActorFromUsername({
+      username: seedActor1.username,
+      domain: seedActor1.domain
+    })) as Actor
+  })
+
+  afterAll(async () => {
+    await database.destroy()
+  })
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+
+    mockGetFitnessFile.mockResolvedValue({
+      type: 'buffer',
+      buffer: Buffer.from('fitness-file-bytes'),
+      contentType: 'application/vnd.ant.fit'
+    })
+  })
+
+  it('creates local-only merged status, marks primary, and queues processing', async () => {
+    const firstFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/import-overlap-a.fit',
+      fileName: 'import-overlap-a.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-overlap'
+    })
+    const secondFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/import-overlap-b.fit',
+      fileName: 'import-overlap-b.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-overlap'
+    })
+
+    expect(firstFile).toBeDefined()
+    expect(secondFile).toBeDefined()
+
+    const firstActivity: FitnessActivityData = {
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 5_000,
+      totalDurationSeconds: 1_000,
+      startTime: new Date('2026-01-01T00:00:00.000Z')
+    }
+    const secondActivity: FitnessActivityData = {
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 4_500,
+      totalDurationSeconds: 1_000,
+      startTime: new Date('2026-01-01T00:03:20.000Z')
+    }
+
+    mockParseFitnessFile
+      .mockResolvedValueOnce(firstActivity)
+      .mockResolvedValueOnce(secondActivity)
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-1',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-overlap',
+        fitnessFileIds: [firstFile!.id, secondFile!.id],
+        visibility: 'public'
+      }
+    })
+
+    const updatedFirst = await database.getFitnessFile({ id: firstFile!.id })
+    const updatedSecond = await database.getFitnessFile({ id: secondFile!.id })
+
+    expect(updatedFirst?.statusId).toBeDefined()
+    expect(updatedSecond?.statusId).toBe(updatedFirst?.statusId)
+    expect(updatedFirst?.isPrimary).toBe(true)
+    expect(updatedSecond?.isPrimary).toBe(false)
+    expect(updatedFirst?.importStatus).toBe('completed')
+    expect(updatedSecond?.importStatus).toBe('completed')
+    expect(updatedSecond?.processingStatus).toBe('completed')
+
+    const status = await database.getStatus({
+      statusId: updatedFirst!.statusId!,
+      withReplies: false
+    })
+    expect(status?.to).toContain(ACTIVITY_STREAM_PUBLIC)
+
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    expect(getQueue().publish).toHaveBeenCalledWith({
+      id: expect.any(String),
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        statusId: updatedFirst!.statusId,
+        fitnessFileId: firstFile!.id,
+        publishSendNote: false
+      }
+    })
+  })
+
+  it('marks parse failures and still processes valid files', async () => {
+    const failedFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/import-fail.fit',
+      fileName: 'import-fail.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-fail'
+    })
+    const successFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/import-success.fit',
+      fileName: 'import-success.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-fail'
+    })
+
+    mockParseFitnessFile
+      .mockRejectedValueOnce(new Error('invalid fit file'))
+      .mockResolvedValueOnce({
+        coordinates: [],
+        trackPoints: [],
+        totalDistanceMeters: 2_000,
+        totalDurationSeconds: 900,
+        startTime: new Date('2026-01-02T00:00:00.000Z')
+      })
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-2',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-fail',
+        fitnessFileIds: [failedFile!.id, successFile!.id],
+        visibility: 'public'
+      }
+    })
+
+    const failed = await database.getFitnessFile({ id: failedFile!.id })
+    const success = await database.getFitnessFile({ id: successFile!.id })
+
+    expect(failed?.importStatus).toBe('failed')
+    expect(failed?.importError).toContain('invalid fit file')
+    expect(failed?.statusId).toBeUndefined()
+
+    expect(success?.importStatus).toBe('completed')
+    expect(success?.statusId).toBeDefined()
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+  })
+})

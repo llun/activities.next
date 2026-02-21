@@ -19,7 +19,8 @@ import { PROCESS_FITNESS_FILE_JOB_NAME } from './names'
 const JobData = z.object({
   actorId: z.string(),
   statusId: z.string(),
-  fitnessFileId: z.string()
+  fitnessFileId: z.string(),
+  publishSendNote: z.boolean().optional().default(true)
 })
 
 const ACTIVITY_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -124,7 +125,9 @@ const getFitnessFileBuffer = async (
 export const processFitnessFileJob = createJobHandle(
   PROCESS_FITNESS_FILE_JOB_NAME,
   async (database, message) => {
-    const { actorId, statusId, fitnessFileId } = JobData.parse(message.data)
+    const { actorId, statusId, fitnessFileId, publishSendNote } = JobData.parse(
+      message.data
+    )
 
     await database.updateFitnessFileProcessingStatus(
       fitnessFileId,
@@ -238,14 +241,16 @@ export const processFitnessFileJob = createJobHandle(
         'completed'
       )
 
-      await getQueue().publish({
-        id: getHashFromString(`${statusId}:send-note`),
-        name: SEND_NOTE_JOB_NAME,
-        data: {
-          actorId,
-          statusId
-        }
-      })
+      if (publishSendNote) {
+        await getQueue().publish({
+          id: getHashFromString(`${statusId}:send-note`),
+          name: SEND_NOTE_JOB_NAME,
+          data: {
+            actorId,
+            statusId
+          }
+        })
+      }
     } catch (error) {
       const nodeError = error as Error
       logger.error({
