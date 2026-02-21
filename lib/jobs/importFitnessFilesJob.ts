@@ -9,7 +9,6 @@ import { Database } from '@/lib/database/types'
 import { groupFitnessActivitiesByOverlap } from '@/lib/jobs/fitnessImportOverlap'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
-import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -29,13 +28,17 @@ const JobData = z.object({
   actorId: z.string(),
   batchId: z.string(),
   fitnessFileIds: z.array(z.string()).min(1),
+  overlapFitnessFileIds: z.array(z.string()).default([]),
   visibility: Visibility.default('public')
 })
 
+type ParsedImportFileSource = 'target' | 'overlap'
+
 interface ParsedImportFile {
   fitnessFile: FitnessFile
-  activityData: FitnessActivityData
+  totalDurationSeconds: number
   startTimeMs?: number
+  source: ParsedImportFileSource
 }
 
 const getFitnessFileBuffer = async (
@@ -78,18 +81,40 @@ const sortFilesByActivityStart = (files: ParsedImportFile[]) => {
   })
 }
 
+const buildParsedFileFromStoredActivity = ({
+  fitnessFile,
+  source
+}: {
+  fitnessFile: FitnessFile
+  source: ParsedImportFileSource
+}): ParsedImportFile | null => {
+  if (
+    typeof fitnessFile.totalDurationSeconds !== 'number' ||
+    fitnessFile.totalDurationSeconds <= 0
+  ) {
+    return null
+  }
+
+  return {
+    fitnessFile,
+    totalDurationSeconds: fitnessFile.totalDurationSeconds,
+    source,
+    ...(typeof fitnessFile.activityStartTime === 'number'
+      ? { startTimeMs: fitnessFile.activityStartTime }
+      : null)
+  }
+}
+
 const groupFilesByOverlap = (
   files: ParsedImportFile[]
 ): ParsedImportFile[][] => {
   const withTimestamps = files.filter(
     (item) =>
-      typeof item.startTimeMs === 'number' &&
-      item.activityData.totalDurationSeconds > 0
+      typeof item.startTimeMs === 'number' && item.totalDurationSeconds > 0
   )
   const withoutTimestamps = files.filter(
     (item) =>
-      typeof item.startTimeMs !== 'number' ||
-      item.activityData.totalDurationSeconds <= 0
+      typeof item.startTimeMs !== 'number' || item.totalDurationSeconds <= 0
   )
 
   const fileById = new Map(
@@ -99,7 +124,7 @@ const groupFilesByOverlap = (
     withTimestamps.map((item) => ({
       id: item.fitnessFile.id,
       startTimeMs: item.startTimeMs as number,
-      durationSeconds: item.activityData.totalDurationSeconds
+      durationSeconds: item.totalDurationSeconds
     })),
     0.8
   )
@@ -170,9 +195,13 @@ const createLocalOnlyFitnessStatus = async ({
 export const importFitnessFilesJob = createJobHandle(
   IMPORT_FITNESS_FILES_JOB_NAME,
   async (database, message) => {
-    const { actorId, batchId, fitnessFileIds, visibility } = JobData.parse(
-      message.data
-    )
+    const {
+      actorId,
+      batchId,
+      fitnessFileIds,
+      overlapFitnessFileIds,
+      visibility
+    } = JobData.parse(message.data)
 
     const actor = await database.getActorFromId({ id: actorId })
     if (!actor) {
@@ -186,13 +215,21 @@ export const importFitnessFilesJob = createJobHandle(
     }
 
     const parsedFiles: ParsedImportFile[] = []
-    const fitnessFiles = await database.getFitnessFilesByIds({ fitnessFileIds })
+    const targetFitnessFileIdSet = new Set(fitnessFileIds)
+    const allFitnessFileIds = Array.from(
+      new Set([...fitnessFileIds, ...overlapFitnessFileIds])
+    )
+    const fitnessFiles = await database.getFitnessFilesByIds({
+      fitnessFileIds: allFitnessFileIds
+    })
     const fitnessFileById = new Map(
       fitnessFiles.map((fitnessFile) => [fitnessFile.id, fitnessFile])
     )
 
-    for (const fitnessFileId of fitnessFileIds) {
+    for (const fitnessFileId of allFitnessFileIds) {
       const fitnessFile = fitnessFileById.get(fitnessFileId)
+      const isTargetFile = targetFitnessFileIdSet.has(fitnessFileId)
+
       if (!fitnessFile) {
         logger.warn({
           message: 'Fitness file missing during import',
@@ -204,11 +241,26 @@ export const importFitnessFilesJob = createJobHandle(
       }
 
       if (fitnessFile.actorId !== actorId) {
-        await markImportFileFailed(
-          database,
-          fitnessFile.id,
-          'Fitness file does not belong to actor'
-        )
+        if (isTargetFile) {
+          await markImportFileFailed(
+            database,
+            fitnessFile.id,
+            'Fitness file does not belong to actor'
+          )
+        }
+        continue
+      }
+
+      if (!isTargetFile) {
+        const parsedFromStoredActivity = buildParsedFileFromStoredActivity({
+          fitnessFile,
+          source: 'overlap'
+        })
+
+        if (parsedFromStoredActivity) {
+          parsedFiles.push(parsedFromStoredActivity)
+        }
+
         continue
       }
 
@@ -231,7 +283,8 @@ export const importFitnessFilesJob = createJobHandle(
 
         parsedFiles.push({
           fitnessFile,
-          activityData,
+          totalDurationSeconds: activityData.totalDurationSeconds,
+          source: 'target',
           ...(activityData.startTime
             ? { startTimeMs: activityData.startTime.getTime() }
             : null)
@@ -250,7 +303,7 @@ export const importFitnessFilesJob = createJobHandle(
       }
     }
 
-    if (parsedFiles.length === 0) {
+    if (!parsedFiles.some((item) => item.source === 'target')) {
       return
     }
 
@@ -258,9 +311,20 @@ export const importFitnessFilesJob = createJobHandle(
 
     for (const group of groups) {
       const orderedGroup = sortFilesByActivityStart(group)
-      const primaryFile = orderedGroup[0]
+      const orderedTargetGroup = sortFilesByActivityStart(
+        group.filter((item) => item.source === 'target')
+      )
+
+      if (orderedTargetGroup.length === 0) {
+        continue
+      }
+
+      const targetFitnessFileIds = orderedTargetGroup.map(
+        (item) => item.fitnessFile.id
+      )
+      const primaryTargetFile = orderedTargetGroup[0]
       const createdAt =
-        primaryFile.startTimeMs ?? primaryFile.fitnessFile.createdAt
+        primaryTargetFile.startTimeMs ?? primaryTargetFile.fitnessFile.createdAt
       let createdStatusId: string | null = null
 
       try {
@@ -275,6 +339,14 @@ export const importFitnessFilesJob = createJobHandle(
             })
           : null
 
+        const existingPrimaryFileId =
+          existingStatus &&
+          orderedGroup.find(
+            (item) =>
+              item.fitnessFile.statusId === existingStatus.id &&
+              item.fitnessFile.isPrimary
+          )?.fitnessFile.id
+
         const status =
           existingStatus ??
           (await createLocalOnlyFitnessStatus({
@@ -287,36 +359,41 @@ export const importFitnessFilesJob = createJobHandle(
           createdStatusId = status.id
         }
 
+        const primaryFitnessFileId =
+          existingPrimaryFileId ?? primaryTargetFile.fitnessFile.id
+
         await database.assignFitnessFilesToImportedStatus({
-          fitnessFileIds: orderedGroup.map((item) => item.fitnessFile.id),
-          primaryFitnessFileId: primaryFile.fitnessFile.id,
+          fitnessFileIds: targetFitnessFileIds,
+          primaryFitnessFileId,
           statusId: status.id
         })
 
-        await getQueue().publish({
-          id: getHashFromString(
-            `${status.id}:${primaryFile.fitnessFile.id}:process-fitness`
-          ),
-          name: PROCESS_FITNESS_FILE_JOB_NAME,
-          data: {
-            actorId,
-            statusId: status.id,
-            fitnessFileId: primaryFile.fitnessFile.id,
-            publishSendNote: false
-          }
-        })
+        if (targetFitnessFileIds.includes(primaryFitnessFileId)) {
+          await getQueue().publish({
+            id: getHashFromString(
+              `${status.id}:${primaryFitnessFileId}:process-fitness`
+            ),
+            name: PROCESS_FITNESS_FILE_JOB_NAME,
+            data: {
+              actorId,
+              statusId: status.id,
+              fitnessFileId: primaryFitnessFileId,
+              publishSendNote: false
+            }
+          })
+        }
       } catch (error) {
         const nodeError = error as Error
         logger.error({
           message: 'Failed to create local status for imported fitness files',
           actorId,
           batchId,
-          fitnessFileIds: orderedGroup.map((item) => item.fitnessFile.id),
+          fitnessFileIds: targetFitnessFileIds,
           error: nodeError.message
         })
 
         await Promise.all(
-          orderedGroup.map((item) =>
+          orderedTargetGroup.map((item) =>
             markImportFileFailed(
               database,
               item.fitnessFile.id,

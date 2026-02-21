@@ -243,6 +243,100 @@ describe('importFitnessFilesJob', () => {
     })
   })
 
+  it('uses overlap context to attach retried files to an existing status', async () => {
+    const existingFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/overlap-context-existing.fit',
+      fileName: 'overlap-context-existing.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-overlap-context'
+    })
+    const retriedFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/overlap-context-retried.fit',
+      fileName: 'overlap-context-retried.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-overlap-context'
+    })
+
+    expect(existingFile).toBeDefined()
+    expect(retriedFile).toBeDefined()
+
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 5_000,
+      totalDurationSeconds: 1_000,
+      startTime: new Date('2026-01-06T00:00:00.000Z')
+    })
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-overlap-context-initial',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-overlap-context',
+        fitnessFileIds: [existingFile!.id],
+        visibility: 'public'
+      }
+    })
+
+    const existingAfterInitialImport = await database.getFitnessFile({
+      id: existingFile!.id
+    })
+    const existingStatusId = existingAfterInitialImport?.statusId
+    expect(existingStatusId).toBeDefined()
+
+    await database.updateFitnessFileProcessingStatus(
+      existingFile!.id,
+      'completed'
+    )
+
+    const publishMock = getQueue().publish as jest.Mock
+    publishMock.mockClear()
+
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 4_000,
+      totalDurationSeconds: 900,
+      startTime: new Date('2026-01-06T00:03:00.000Z')
+    })
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-overlap-context-retry',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-overlap-context',
+        fitnessFileIds: [retriedFile!.id],
+        overlapFitnessFileIds: [existingFile!.id],
+        visibility: 'public'
+      }
+    })
+
+    const existingAfterRetry = await database.getFitnessFile({
+      id: existingFile!.id
+    })
+    const retriedAfterRetry = await database.getFitnessFile({
+      id: retriedFile!.id
+    })
+
+    expect(existingAfterRetry?.statusId).toBe(existingStatusId)
+    expect(existingAfterRetry?.isPrimary).toBe(true)
+    expect(existingAfterRetry?.processingStatus).toBe('completed')
+
+    expect(retriedAfterRetry?.statusId).toBe(existingStatusId)
+    expect(retriedAfterRetry?.isPrimary).toBe(false)
+    expect(retriedAfterRetry?.importStatus).toBe('completed')
+    expect(retriedAfterRetry?.processingStatus).toBe('completed')
+    expect(publishMock).not.toHaveBeenCalled()
+  })
+
   it('deletes newly created status when import publish fails', async () => {
     const file = await database.createFitnessFile({
       actorId: actor.id,

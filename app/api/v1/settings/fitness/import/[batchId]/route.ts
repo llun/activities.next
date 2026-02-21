@@ -183,6 +183,12 @@ export const POST = traceApiRoute(
     }
 
     const retriableFileIds = retriableFiles.map(({ file }) => file.id)
+    const overlapFitnessFileIds = files
+      .filter(
+        (item) =>
+          getBatchFileState(item) === 'completed' && Boolean(item.statusId)
+      )
+      .map((item) => item.id)
 
     await Promise.all([
       database.updateFitnessFilesImportStatus({
@@ -204,7 +210,8 @@ export const POST = traceApiRoute(
         data: {
           actorId: currentActor.id,
           batchId,
-          fitnessFileIds: retriableFiles.map(({ file }) => file.id),
+          fitnessFileIds: retriableFileIds,
+          overlapFitnessFileIds,
           visibility: visibilityParsed.data
         }
       })

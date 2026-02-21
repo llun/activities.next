@@ -339,6 +339,63 @@ describe('fitness import batch route', () => {
         actorId: 'https://llun.test/users/llun',
         batchId: 'batch-1',
         fitnessFileIds: ['file-1'],
+        overlapFitnessFileIds: [],
+        visibility: 'private'
+      }
+    })
+  })
+
+  it('includes completed files as overlap context during retry', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-failed',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'failed.fit',
+        fileType: 'fit',
+        path: 'fitness/failed.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'failed',
+        processingStatus: 'failed',
+        createdAt: 1,
+        updatedAt: 1
+      },
+      {
+        id: 'file-completed',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'completed.fit',
+        fileType: 'fit',
+        path: 'fitness/completed.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'completed',
+        processingStatus: 'completed',
+        statusId: 'https://llun.test/users/llun/statuses/existing',
+        createdAt: 2,
+        updatedAt: 2
+      }
+    ])
+
+    const request = {
+      headers: new Headers(),
+      json: async () => ({ visibility: 'private' })
+    } as unknown as Parameters<typeof POST>[0]
+
+    const response = await POST(request, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const json = (await response.json()) as { retried: number }
+
+    expect(response.status).toBe(200)
+    expect(json.retried).toBe(1)
+    expect(getQueue().publish).toHaveBeenCalledWith({
+      id: expect.any(String),
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: 'https://llun.test/users/llun',
+        batchId: 'batch-1',
+        fitnessFileIds: ['file-failed'],
+        overlapFitnessFileIds: ['file-completed'],
         visibility: 'private'
       }
     })
@@ -388,6 +445,7 @@ describe('fitness import batch route', () => {
         actorId: 'https://llun.test/users/llun',
         batchId: 'batch-1',
         fitnessFileIds: ['file-1'],
+        overlapFitnessFileIds: [],
         visibility: 'private'
       }
     })
