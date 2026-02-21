@@ -10,6 +10,11 @@ import {
   startFitnessImport
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
+import {
+  getFitnessImportFileError,
+  getFitnessImportFileIcon,
+  getFitnessImportFileState
+} from '@/lib/components/settings/fitnessImportStatus'
 import { Button } from '@/lib/components/ui/button'
 import {
   Card,
@@ -226,6 +231,8 @@ export function FitnessImport() {
 
             <div className="space-y-2">
               {batchResult.files.map((file) => {
+                const fileState = getFitnessImportFileState(file)
+                const fileError = getFitnessImportFileError(file)
                 const statusLink = file.statusId
                   ? getStatusLink(file.actorId, file.statusId)
                   : null
@@ -236,13 +243,7 @@ export function FitnessImport() {
                     className="flex flex-col gap-1 rounded border px-3 py-2 text-sm"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <span>
-                        {file.importStatus === 'completed'
-                          ? '✅'
-                          : file.importStatus === 'failed'
-                            ? '❌'
-                            : '⏳'}
-                      </span>
+                      <span>{getFitnessImportFileIcon(fileState)}</span>
                       <span className="font-medium">{file.fileName}</span>
                       <span className="text-xs uppercase text-muted-foreground">
                         {file.fileType}
@@ -261,10 +262,8 @@ export function FitnessImport() {
                         </Link>
                       )}
                     </div>
-                    {file.importError && (
-                      <p className="text-xs text-destructive">
-                        {file.importError}
-                      </p>
+                    {fileError && (
+                      <p className="text-xs text-destructive">{fileError}</p>
                     )}
                   </div>
                 )
