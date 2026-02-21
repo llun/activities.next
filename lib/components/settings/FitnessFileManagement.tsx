@@ -118,11 +118,11 @@ export function FitnessFileManagement({
   const percentUsed = limit > 0 ? Math.min((currentUsed / limit) * 100, 100) : 0
 
   const handleItemsPerPageChange = (value: number) => {
-    router.push(`/settings/fitness/files?limit=${value}&page=1`)
+    router.push(`/settings/fitness/general?limit=${value}&page=1`)
   }
 
   const goToPage = (page: number) => {
-    router.push(`/settings/fitness/files?limit=${itemsPerPage}&page=${page}`)
+    router.push(`/settings/fitness/general?limit=${itemsPerPage}&page=${page}`)
   }
 
   const totalPages = Math.ceil(totalItems / itemsPerPage)

@@ -49,7 +49,9 @@ describe('FitnessSettings database operations', () => {
       'multi-delete',
       'oauth-flow',
       'webhook',
-      'webhook-deleted'
+      'webhook-deleted',
+      'privacy',
+      'privacy-update'
     ]
 
     for (const suffix of suffixes) {
@@ -185,6 +187,21 @@ describe('FitnessSettings database operations', () => {
       expect(garmin.serviceType).toBe('garmin')
       expect(strava.id).not.toBe(garmin.id)
     })
+
+    it('stores privacy location fields for general fitness settings', async () => {
+      const settings = await database.createFitnessSettings({
+        actorId: `${testActorId}-privacy`,
+        serviceType: 'general',
+        privacyHomeLatitude: 13.7563,
+        privacyHomeLongitude: 100.5018,
+        privacyHideRadiusMeters: 20
+      })
+
+      expect(settings.serviceType).toBe('general')
+      expect(settings.privacyHomeLatitude).toBe(13.7563)
+      expect(settings.privacyHomeLongitude).toBe(100.5018)
+      expect(settings.privacyHideRadiusMeters).toBe(20)
+    })
   })
 
   describe('updateFitnessSettings', () => {
@@ -301,6 +318,35 @@ describe('FitnessSettings database operations', () => {
       expect(updated?.webhookToken).toBe('new-webhook')
       expect(updated?.clientId).toBe('12345')
       expect(updated?.clientSecret).toBe('secret')
+    })
+
+    it('updates and clears privacy location fields', async () => {
+      const created = await database.createFitnessSettings({
+        actorId: `${testActorId}-privacy-update`,
+        serviceType: 'general'
+      })
+
+      const updated = await database.updateFitnessSettings({
+        id: created.id,
+        privacyHomeLatitude: 40.7128,
+        privacyHomeLongitude: -74.006,
+        privacyHideRadiusMeters: 50
+      })
+
+      expect(updated?.privacyHomeLatitude).toBe(40.7128)
+      expect(updated?.privacyHomeLongitude).toBe(-74.006)
+      expect(updated?.privacyHideRadiusMeters).toBe(50)
+
+      const cleared = await database.updateFitnessSettings({
+        id: created.id,
+        privacyHomeLatitude: null,
+        privacyHomeLongitude: null,
+        privacyHideRadiusMeters: 0
+      })
+
+      expect(cleared?.privacyHomeLatitude).toBeUndefined()
+      expect(cleared?.privacyHomeLongitude).toBeUndefined()
+      expect(cleared?.privacyHideRadiusMeters).toBe(0)
     })
   })
 

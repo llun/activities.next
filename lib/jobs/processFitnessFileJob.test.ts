@@ -126,6 +126,10 @@ describe('processFitnessFileJob', () => {
         { lat: 37.78, lng: -122.42 },
         { lat: 37.79, lng: -122.41 }
       ],
+      trackPoints: [
+        { lat: 37.78, lng: -122.42 },
+        { lat: 37.79, lng: -122.41 }
+      ],
       totalDistanceMeters: 5_200,
       totalDurationSeconds: 1_695,
       elevationGainMeters: 130,
@@ -222,6 +226,7 @@ describe('processFitnessFileJob', () => {
 
     mockParseFitnessFile.mockResolvedValue({
       coordinates: [],
+      trackPoints: [],
       totalDistanceMeters: 0,
       totalDurationSeconds: 2_400,
       activityType: 'strength'
@@ -279,6 +284,58 @@ describe('processFitnessFileJob', () => {
         actorId: actor.id,
         statusId
       }
+    })
+  })
+
+  it('filters out home-radius points before generating route map images', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: 'Privacy filtered route'
+    })
+
+    await database.createFitnessSettings({
+      actorId: actor.id,
+      serviceType: 'general',
+      privacyHomeLatitude: 37.78,
+      privacyHomeLongitude: -122.42,
+      privacyHideRadiusMeters: 50
+    })
+
+    mockParseFitnessFile.mockResolvedValue({
+      coordinates: [
+        { lat: 37.78, lng: -122.42 },
+        { lat: 37.7802, lng: -122.4202 },
+        { lat: 37.79, lng: -122.41 },
+        { lat: 37.7902, lng: -122.4098 }
+      ],
+      trackPoints: [
+        { lat: 37.78, lng: -122.42 },
+        { lat: 37.7802, lng: -122.4202 },
+        { lat: 37.79, lng: -122.41 },
+        { lat: 37.7902, lng: -122.4098 }
+      ],
+      totalDistanceMeters: 5_200,
+      totalDurationSeconds: 1_695,
+      elevationGainMeters: 130,
+      activityType: 'running'
+    })
+
+    await processFitnessFileJob(database, {
+      id: 'job-id-privacy-filter',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+
+    expect(mockGenerateMapImage).toHaveBeenCalledWith({
+      coordinates: [
+        { lat: 37.79, lng: -122.41 },
+        { lat: 37.7902, lng: -122.4098 }
+      ],
+      routeSegments: [
+        [
+          { lat: 37.79, lng: -122.41 },
+          { lat: 37.7902, lng: -122.4098 }
+        ]
+      ]
     })
   })
 
