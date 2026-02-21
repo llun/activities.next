@@ -55,6 +55,27 @@ interface FitnessRouteDataResponse {
   totalDurationSeconds: number
 }
 
+interface StatusFitnessFileItem {
+  id: string
+  actorId: string
+  fileName: string
+  fileType: 'fit' | 'gpx' | 'tcx'
+  statusId: string | null
+  isPrimary: boolean
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  totalDistanceMeters: number | null
+  totalDurationSeconds: number | null
+  elevationGainMeters: number | null
+  activityType: string | null
+  activityStartTime: number | null
+  hasMapData: boolean
+  description: string | null
+}
+
+interface FitnessFilesByStatusResponse {
+  files: StatusFitnessFileItem[]
+}
+
 interface MapPointGeometry {
   type: 'Point'
   coordinates: [number, number]
@@ -910,10 +931,129 @@ export const FitnessStatusDetail: FC<Props> = ({
   const [analysisGraphFilter, setAnalysisGraphFilter] =
     useState<AnalysisGraphFilter>('all')
 
+  const defaultFitnessFiles = useMemo<StatusFitnessFileItem[]>(() => {
+    if (!status.fitness) {
+      return []
+    }
+
+    return [
+      {
+        id: status.fitness.id,
+        actorId: status.actorId,
+        fileName: status.fitness.fileName,
+        fileType: status.fitness.fileType,
+        statusId: status.id,
+        isPrimary: true,
+        processingStatus: status.fitness.processingStatus ?? 'pending',
+        totalDistanceMeters: status.fitness.totalDistanceMeters ?? null,
+        totalDurationSeconds: status.fitness.totalDurationSeconds ?? null,
+        elevationGainMeters: status.fitness.elevationGainMeters ?? null,
+        activityType: status.fitness.activityType ?? null,
+        activityStartTime: status.createdAt,
+        hasMapData: status.fitness.hasMapData ?? false,
+        description: status.fitness.description ?? null
+      }
+    ]
+  }, [
+    status.actorId,
+    status.createdAt,
+    status.id,
+    status.fitness?.id,
+    status.fitness?.fileName,
+    status.fitness?.fileType,
+    status.fitness?.processingStatus,
+    status.fitness?.totalDistanceMeters,
+    status.fitness?.totalDurationSeconds,
+    status.fitness?.elevationGainMeters,
+    status.fitness?.activityType,
+    status.fitness?.hasMapData,
+    status.fitness?.description
+  ])
+  const [fitnessFiles, setFitnessFiles] =
+    useState<StatusFitnessFileItem[]>(defaultFitnessFiles)
+  const [selectedFitnessFileId, setSelectedFitnessFileId] = useState<
+    string | null
+  >(defaultFitnessFiles[0]?.id ?? null)
+
+  useEffect(() => {
+    setFitnessFiles(defaultFitnessFiles)
+    setSelectedFitnessFileId(defaultFitnessFiles[0]?.id ?? null)
+  }, [defaultFitnessFiles])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadFitnessFiles = async () => {
+      try {
+        const response = await fetch(
+          `/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(
+            status.id
+          )}`,
+          {
+            method: 'GET',
+            headers: {
+              Accept: 'application/json'
+            }
+          }
+        )
+        if (!response.ok) {
+          // Keep the status payload fallback if the list endpoint is unavailable.
+          return
+        }
+
+        const data = (await response.json()) as FitnessFilesByStatusResponse
+        if (
+          cancelled ||
+          !Array.isArray(data.files) ||
+          data.files.length === 0
+        ) {
+          return
+        }
+
+        const ordered = [...data.files].sort((first, second) => {
+          const firstStart = first.activityStartTime ?? Number.MAX_SAFE_INTEGER
+          const secondStart =
+            second.activityStartTime ?? Number.MAX_SAFE_INTEGER
+
+          if (firstStart !== secondStart) {
+            return firstStart - secondStart
+          }
+
+          if (first.fileName !== second.fileName) {
+            return first.fileName.localeCompare(second.fileName)
+          }
+
+          return first.id.localeCompare(second.id)
+        })
+
+        setFitnessFiles(ordered)
+        setSelectedFitnessFileId((current) => {
+          if (current && ordered.some((item) => item.id === current)) {
+            return current
+          }
+          return ordered.find((item) => item.isPrimary)?.id ?? ordered[0].id
+        })
+      } catch {
+        // Keep the status payload fallback if the list endpoint is unavailable.
+      }
+    }
+
+    void loadFitnessFiles()
+
+    return () => {
+      cancelled = true
+    }
+  }, [status.id])
+
   const actorName = status.actor?.name || status.actor?.username || 'Athlete'
-  const fitness = status.fitness
+  const fitness = useMemo(
+    () =>
+      fitnessFiles.find((item) => item.id === selectedFitnessFileId) ??
+      fitnessFiles[0],
+    [fitnessFiles, selectedFitnessFileId]
+  )
   const shouldLoadInteractiveMap = Boolean(mapboxAccessToken && fitness?.id)
-  const activityLabel = getActivityLabel(fitness?.activityType)
+  const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
   const statusTitle = status.text.trim() || `${activityLabel} workout`
   const statusDescription =
     fitness?.description ||
@@ -924,9 +1064,9 @@ export const FitnessStatusDetail: FC<Props> = ({
   )
 
   const paceOrSpeed = getFitnessPaceOrSpeed({
-    distanceMeters: fitness?.totalDistanceMeters,
-    durationSeconds: fitness?.totalDurationSeconds,
-    activityType: fitness?.activityType
+    distanceMeters: fitness?.totalDistanceMeters ?? undefined,
+    durationSeconds: fitness?.totalDurationSeconds ?? undefined,
+    activityType: fitness?.activityType ?? undefined
   })
 
   const mapAttachmentIndex = useMemo(() => {
@@ -1678,6 +1818,28 @@ export const FitnessStatusDetail: FC<Props> = ({
                 <h2 className="mt-2 min-w-0 break-words text-xl font-semibold tracking-tight text-slate-900 md:text-3xl">
                   {statusTitle}
                 </h2>
+                {fitnessFiles.length > 1 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Activity File
+                    </span>
+                    {fitnessFiles.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setSelectedFitnessFileId(item.id)}
+                        className={cn(
+                          'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                          selectedFitnessFileId === item.id
+                            ? 'border-orange-500 bg-orange-50 text-orange-700'
+                            : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
+                        )}
+                      >
+                        {item.fileName}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
