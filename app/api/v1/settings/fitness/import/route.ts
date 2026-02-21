@@ -2,7 +2,10 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
-import { saveFitnessFile } from '@/lib/services/fitness-files'
+import {
+  deleteFitnessFile,
+  saveFitnessFile
+} from '@/lib/services/fitness-files'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
 import { FitnessFileSchema } from '@/lib/services/fitness-files/types'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
@@ -27,6 +30,9 @@ export const POST = traceApiRoute(
   'importFitnessFiles',
   AuthenticatedGuard(async (req: NextRequest, context) => {
     const { database, currentActor } = context
+    let batchId: string | null = null
+    let batchQueued = false
+    const uploadedFileIds: string[] = []
 
     try {
       const formData = await req.formData()
@@ -62,27 +68,17 @@ export const POST = traceApiRoute(
         return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
       }
 
-      const batchId = crypto.randomUUID()
-      const uploadedFiles = await Promise.all(
-        files.map((file) =>
-          saveFitnessFile(database, currentActor, {
-            file,
-            importBatchId: batchId
-          })
-        )
-      )
-
-      if (uploadedFiles.some((item) => !item)) {
-        logger.error({
-          message: 'Failed to save one or more fitness files for import',
-          actorId: currentActor.id
+      batchId = crypto.randomUUID()
+      for (const file of files) {
+        const uploadedFile = await saveFitnessFile(database, currentActor, {
+          file,
+          importBatchId: batchId
         })
-        return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        if (!uploadedFile) {
+          throw new Error('Failed to save one or more fitness files for import')
+        }
+        uploadedFileIds.push(uploadedFile.id)
       }
-
-      const fitnessFileIds = uploadedFiles
-        .filter((item): item is NonNullable<typeof item> => Boolean(item))
-        .map((item) => item.id)
 
       await getQueue().publish({
         id: getHashFromString(`${currentActor.id}:fitness-import:${batchId}`),
@@ -90,23 +86,44 @@ export const POST = traceApiRoute(
         data: {
           actorId: currentActor.id,
           batchId,
-          fitnessFileIds,
+          fitnessFileIds: uploadedFileIds,
           visibility: visibilityParsed.data
         }
       })
+      batchQueued = true
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: {
           batchId,
-          fileCount: fitnessFileIds.length
+          fileCount: uploadedFileIds.length
         }
       })
     } catch (error) {
+      if (!batchQueued && uploadedFileIds.length > 0) {
+        await Promise.all(
+          uploadedFileIds.map(async (fileId) => {
+            const deleted = await deleteFitnessFile(database, fileId).catch(
+              () => false
+            )
+            if (!deleted) {
+              logger.error({
+                message: 'Failed to rollback imported fitness file',
+                actorId: currentActor.id,
+                batchId,
+                fileId
+              })
+            }
+          })
+        )
+      }
+
       const nodeError = error as Error
       logger.error({
         message: 'Error importing fitness files',
+        actorId: currentActor.id,
+        batchId,
         error: nodeError.message
       })
 

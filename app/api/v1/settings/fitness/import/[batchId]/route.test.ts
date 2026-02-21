@@ -127,6 +127,66 @@ describe('fitness import batch route', () => {
     })
   })
 
+  it('keeps batch status pending while any files are still pending', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'first.fit',
+        fileType: 'fit',
+        path: 'fitness/first.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'pending',
+        processingStatus: 'pending',
+        isPrimary: true,
+        createdAt: 1,
+        updatedAt: 1
+      },
+      {
+        id: 'file-2',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'second.fit',
+        fileType: 'fit',
+        path: 'fitness/second.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'failed',
+        importError: 'parse failed',
+        processingStatus: 'failed',
+        isPrimary: false,
+        createdAt: 2,
+        updatedAt: 2
+      }
+    ])
+
+    const request = {
+      headers: new Headers()
+    } as unknown as Parameters<typeof GET>[0]
+
+    const response = await GET(request, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const json = (await response.json()) as {
+      status: string
+      summary: {
+        total: number
+        completed: number
+        failed: number
+        pending: number
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(json.status).toBe('pending')
+    expect(json.summary).toEqual({
+      total: 2,
+      completed: 0,
+      failed: 1,
+      pending: 1
+    })
+  })
+
   it('retries failed files and requeues import job', async () => {
     db.getFitnessFilesByBatchId.mockResolvedValue([
       {

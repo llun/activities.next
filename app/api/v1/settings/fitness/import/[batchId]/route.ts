@@ -37,12 +37,12 @@ const summarizeBatch = (files: FitnessFile[]) => {
   const failed = files.filter((item) => item.importStatus === 'failed').length
 
   let status: BatchStatus = 'completed'
-  if (failed > 0 && completed > 0) {
+  if (pending > 0) {
+    status = 'pending'
+  } else if (failed > 0 && completed > 0) {
     status = 'partially_failed'
   } else if (failed > 0 && completed === 0) {
     status = 'failed'
-  } else if (pending > 0) {
-    status = 'pending'
   }
 
   return {

@@ -1,5 +1,8 @@
 import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
-import { saveFitnessFile } from '@/lib/services/fitness-files'
+import {
+  deleteFitnessFile,
+  saveFitnessFile
+} from '@/lib/services/fitness-files'
 import { getQueue } from '@/lib/services/queue'
 
 import { POST } from './route'
@@ -36,7 +39,8 @@ jest.mock('@/lib/utils/getActorFromSession', () => ({
 }))
 
 jest.mock('@/lib/services/fitness-files', () => ({
-  saveFitnessFile: jest.fn()
+  saveFitnessFile: jest.fn(),
+  deleteFitnessFile: jest.fn().mockResolvedValue(true)
 }))
 
 jest.mock('@/lib/services/queue', () => ({
@@ -53,6 +57,9 @@ jest.mock('next/headers', () => ({
 
 const mockSaveFitnessFile = saveFitnessFile as jest.MockedFunction<
   typeof saveFitnessFile
+>
+const mockDeleteFitnessFile = deleteFitnessFile as jest.MockedFunction<
+  typeof deleteFitnessFile
 >
 
 describe('POST /api/v1/settings/fitness/import', () => {
@@ -72,6 +79,7 @@ describe('POST /api/v1/settings/fitness/import', () => {
       fileName: 'workout.fit',
       size: 1024
     })
+    mockDeleteFitnessFile.mockResolvedValue(true)
   })
 
   it('uploads files, creates import batch, and enqueues import job', async () => {
@@ -130,6 +138,50 @@ describe('POST /api/v1/settings/fitness/import', () => {
     const response = await POST(request, { params: Promise.resolve({}) })
     expect(response.status).toBe(400)
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('rolls back persisted files when a later upload fails', async () => {
+    mockSaveFitnessFile
+      .mockResolvedValueOnce({
+        id: 'fitness-file-id-1',
+        type: 'fitness',
+        file_type: 'fit',
+        mime_type: 'application/vnd.ant.fit',
+        url: 'https://llun.test/api/v1/fitness-files/fitness-file-id-1',
+        fileName: 'workout-1.fit',
+        size: 1024
+      })
+      .mockRejectedValueOnce(new Error('disk full'))
+
+    const formData = new FormData()
+    formData.append(
+      'files',
+      new File([Buffer.from('fit-data-1')], 'workout-1.fit', {
+        type: 'application/vnd.ant.fit'
+      })
+    )
+    formData.append(
+      'files',
+      new File([Buffer.from('fit-data-2')], 'workout-2.fit', {
+        type: 'application/vnd.ant.fit'
+      })
+    )
+    formData.append('visibility', 'public')
+
+    const request = {
+      headers: new Headers(),
+      formData: async () => formData
+    } as unknown as Parameters<typeof POST>[0]
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(500)
+    expect(mockSaveFitnessFile).toHaveBeenCalledTimes(2)
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      expect.any(Object),
+      'fitness-file-id-1'
+    )
     expect(getQueue().publish).not.toHaveBeenCalled()
   })
 })
