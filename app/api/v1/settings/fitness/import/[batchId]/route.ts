@@ -98,6 +98,7 @@ export const GET = traceApiRoute(
         },
         files: files.map((item) => ({
           id: item.id,
+          actorId: item.actorId,
           fileName: item.fileName,
           fileType: item.fileType,
           statusId: item.statusId ?? null,

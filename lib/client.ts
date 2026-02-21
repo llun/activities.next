@@ -609,6 +609,36 @@ export interface UploadFitnessFileResult {
   mapImageUrl?: string
 }
 
+export interface FitnessImportBatchFile {
+  id: string
+  actorId: string
+  fileName: string
+  fileType: 'fit' | 'gpx' | 'tcx'
+  statusId: string | null
+  isPrimary: boolean
+  importStatus: 'pending' | 'completed' | 'failed'
+  importError: string | null
+  activityStartTime: number | null
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+}
+
+export interface FitnessImportBatchResult {
+  batchId: string
+  status: 'pending' | 'completed' | 'failed' | 'partially_failed'
+  summary: {
+    total: number
+    pending: number
+    completed: number
+    failed: number
+  }
+  files: FitnessImportBatchFile[]
+}
+
+export interface StartFitnessImportResult {
+  batchId: string
+  fileCount: number
+}
+
 const parseApiError = async (
   response: Response,
   fallbackMessage: string
@@ -661,6 +691,84 @@ export const uploadFitnessFile = async (
     throw new Error(
       `Failed to upload fitness file: ${response.status} ${errorDetails}`
     )
+  }
+
+  return response.json()
+}
+
+export const startFitnessImport = async (
+  files: File[],
+  visibility: MastodonVisibility
+): Promise<StartFitnessImportResult> => {
+  const formData = new FormData()
+  files.forEach((file) => {
+    formData.append('files', file)
+  })
+  formData.append('visibility', visibility)
+
+  const response = await fetch('/api/v1/settings/fitness/import', {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to import fitness files.'
+    )
+    throw new Error(
+      `Failed to import fitness files: ${response.status} ${errorDetails}`
+    )
+  }
+
+  return response.json()
+}
+
+export const getFitnessImportBatch = async (
+  batchId: string
+): Promise<FitnessImportBatchResult> => {
+  const response = await fetch(
+    `/api/v1/settings/fitness/import/${encodeURIComponent(batchId)}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    }
+  )
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to fetch fitness import batch.'
+    )
+    throw new Error(errorDetails)
+  }
+
+  return response.json()
+}
+
+export const retryFitnessImportBatch = async (
+  batchId: string,
+  visibility: MastodonVisibility
+): Promise<{ batchId: string; retried: number }> => {
+  const response = await fetch(
+    `/api/v1/settings/fitness/import/${encodeURIComponent(batchId)}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ visibility })
+    }
+  )
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to retry fitness import.'
+    )
+    throw new Error(errorDetails)
   }
 
   return response.json()

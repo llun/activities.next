@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { FitnessFileManagement } from '@/lib/components/settings/FitnessFileManagement'
+import { FitnessImport } from '@/lib/components/settings/FitnessImport'
 import { getDatabase } from '@/lib/database'
 import { getFitnessQuotaLimit } from '@/lib/services/fitness-files/quota'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -59,25 +60,28 @@ const Page = async ({
   const used = mediaUsed + fitnessUsed
 
   return (
-    <FitnessFileManagement
-      used={used}
-      limit={limit}
-      fitnessFiles={result.items.map((fitnessFile) => ({
-        id: fitnessFile.id,
-        actorId: fitnessFile.actorId,
-        fileName: fitnessFile.fileName,
-        fileType: fitnessFile.fileType,
-        mimeType: fitnessFile.mimeType,
-        bytes: fitnessFile.bytes,
-        description: fitnessFile.description,
-        createdAt: fitnessFile.createdAt,
-        url: `/api/v1/fitness-files/${fitnessFile.id}`,
-        statusId: fitnessFile.statusId ?? undefined
-      }))}
-      currentPage={page}
-      itemsPerPage={itemsPerPage}
-      totalItems={result.total}
-    />
+    <div className="space-y-6">
+      <FitnessImport />
+      <FitnessFileManagement
+        used={used}
+        limit={limit}
+        fitnessFiles={result.items.map((fitnessFile) => ({
+          id: fitnessFile.id,
+          actorId: fitnessFile.actorId,
+          fileName: fitnessFile.fileName,
+          fileType: fitnessFile.fileType,
+          mimeType: fitnessFile.mimeType,
+          bytes: fitnessFile.bytes,
+          description: fitnessFile.description,
+          createdAt: fitnessFile.createdAt,
+          url: `/api/v1/fitness-files/${fitnessFile.id}`,
+          statusId: fitnessFile.statusId ?? undefined
+        }))}
+        currentPage={page}
+        itemsPerPage={itemsPerPage}
+        totalItems={result.total}
+      />
+    </div>
   )
 }
 
