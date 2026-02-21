@@ -42,8 +42,9 @@ describe('FitnessPrivacyLocationSettings', () => {
   })
 
   it('persists clear action by posting null coordinates and zero radius', async () => {
-    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(
-      async (input, init) => {
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockImplementation(async (input, init) => {
         const method = init?.method ?? 'GET'
 
         if (method === 'GET') {
@@ -74,8 +75,7 @@ describe('FitnessPrivacyLocationSettings', () => {
         }
 
         throw new Error('Unexpected fetch call')
-      }
-    )
+      })
 
     render(<FitnessPrivacyLocationSettings />)
 

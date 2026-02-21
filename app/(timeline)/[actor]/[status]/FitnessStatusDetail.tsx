@@ -15,6 +15,7 @@ import {
   formatFitnessDuration,
   getFitnessPaceOrSpeed
 } from '@/lib/utils/fitness'
+import { loadMapboxModule } from '@/lib/utils/mapbox'
 
 interface Props {
   host: string
@@ -219,72 +220,6 @@ const GRAPH_VIEW_HEIGHT = 250
 const GRAPH_HEIGHT_CLASSNAME = 'h-[190px] lg:h-[250px]'
 const MAP_ROUTE_SOURCE_ID = 'activity-route'
 const MAP_ACTIVE_POINT_SOURCE_ID = 'activity-active-point'
-const MAPBOX_JS_SRC = 'https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.js'
-const MAPBOX_CSS_HREF =
-  'https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css'
-
-let mapboxModulePromise: Promise<MapboxModule> | null = null
-
-const loadMapboxModule = async (): Promise<MapboxModule> => {
-  if (typeof window === 'undefined') {
-    throw new Error('Mapbox can only be loaded in a browser')
-  }
-
-  const globalWindow = window as Window & { mapboxgl?: MapboxModule }
-
-  if (globalWindow.mapboxgl) {
-    return globalWindow.mapboxgl
-  }
-
-  if (!mapboxModulePromise) {
-    mapboxModulePromise = new Promise<MapboxModule>((resolve, reject) => {
-      const onLoaded = () => {
-        if (globalWindow.mapboxgl) {
-          resolve(globalWindow.mapboxgl)
-          return
-        }
-        reject(new Error('Mapbox global was not initialized'))
-      }
-
-      if (!document.querySelector('[data-mapbox-gl-css="true"]')) {
-        const link = document.createElement('link')
-        link.rel = 'stylesheet'
-        link.href = MAPBOX_CSS_HREF
-        link.setAttribute('data-mapbox-gl-css', 'true')
-        document.head.appendChild(link)
-      }
-
-      const existingScript = document.querySelector<HTMLScriptElement>(
-        '[data-mapbox-gl-script="true"]'
-      )
-
-      if (existingScript) {
-        existingScript.addEventListener('load', onLoaded, { once: true })
-        existingScript.addEventListener(
-          'error',
-          () => reject(new Error('Failed to load Mapbox script')),
-          { once: true }
-        )
-        return
-      }
-
-      const script = document.createElement('script')
-      script.src = MAPBOX_JS_SRC
-      script.async = true
-      script.setAttribute('data-mapbox-gl-script', 'true')
-      script.addEventListener('load', onLoaded, { once: true })
-      script.addEventListener(
-        'error',
-        () => reject(new Error('Failed to load Mapbox script')),
-        { once: true }
-      )
-
-      document.head.appendChild(script)
-    })
-  }
-
-  return mapboxModulePromise
-}
 
 const clampNumber = (value: number, min: number, max: number) => {
   return Math.max(min, Math.min(max, value))
@@ -661,7 +596,7 @@ const ActivityMapPanel: FC<{
 
     const initializeMap = async () => {
       try {
-        const mapbox = await loadMapboxModule()
+        const mapbox = await loadMapboxModule<MapboxModule>()
         if (cancelled || !mapContainerRef.current) return
 
         setMapLoadError(null)

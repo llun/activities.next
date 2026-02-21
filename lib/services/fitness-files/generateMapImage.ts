@@ -1,6 +1,8 @@
 import sharp from 'sharp'
 
 import { getConfig } from '@/lib/config'
+import { downsamplePrivacySegments } from '@/lib/services/fitness-files/privacy'
+import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
 import { logger } from '@/lib/utils/logger'
 
 import { FitnessCoordinate } from './parseFitnessFile'
@@ -87,76 +89,30 @@ const calculateBounds = (coordinates: FitnessCoordinate[]) => {
   }
 }
 
-const downsampleCoordinates = (
-  coordinates: FitnessCoordinate[],
-  maxPoints: number
-): FitnessCoordinate[] => {
-  if (coordinates.length <= maxPoints) return coordinates
-
-  const step = coordinates.length / maxPoints
-  const sampled: FitnessCoordinate[] = []
-
-  for (let index = 0; index < maxPoints; index += 1) {
-    sampled.push(coordinates[Math.floor(index * step)])
-  }
-
-  const lastCoordinate = coordinates[coordinates.length - 1]
-  if (sampled[sampled.length - 1] !== lastCoordinate) {
-    sampled.push(lastCoordinate)
-  }
-
-  return sampled
-}
-
 const downsampleRouteSegments = (
   routeSegments: FitnessCoordinate[][],
   maxPoints = 500
 ): FitnessCoordinate[][] => {
-  const totalPoints = routeSegments.reduce(
-    (sum, segment) => sum + segment.length,
-    0
-  )
+  const privacySegments: Array<
+    PrivacySegment<FitnessCoordinate & { isHiddenByPrivacy: boolean }>
+  > = routeSegments.map((segment) => ({
+    isHiddenByPrivacy: false,
+    points: segment.map((coordinate) => ({
+      ...coordinate,
+      isHiddenByPrivacy: false
+    }))
+  }))
 
-  if (totalPoints <= maxPoints) {
-    return routeSegments
-  }
-
-  const minimumPoints = routeSegments.map((segment) =>
-    Math.min(segment.length, segment.length > 1 ? 2 : 1)
-  )
-  const minimumTotal = minimumPoints.reduce((sum, value) => sum + value, 0)
-
-  const targets = routeSegments.map((segment) =>
-    Math.min(segment.length, minimumTotal <= maxPoints ? 2 : 1)
-  )
-
-  let allocated = targets.reduce((sum, value) => sum + value, 0)
-
-  while (allocated < maxPoints) {
-    let progressed = false
-
-    for (let index = 0; index < routeSegments.length; index += 1) {
-      if (allocated >= maxPoints) {
-        break
-      }
-
-      if (targets[index] >= routeSegments[index].length) {
-        continue
-      }
-
-      targets[index] += 1
-      allocated += 1
-      progressed = true
-    }
-
-    if (!progressed) {
-      break
-    }
-  }
-
-  return routeSegments.map((segment, index) =>
-    downsampleCoordinates(segment, targets[index])
-  )
+  return downsamplePrivacySegments(privacySegments, maxPoints, {
+    minimumPointsPerSegment: 2
+  })
+    .map((segment) =>
+      segment.points.map((coordinate) => ({
+        lat: coordinate.lat,
+        lng: coordinate.lng
+      }))
+    )
+    .filter((segment) => segment.length >= 2)
 }
 
 const buildMapboxUrl = ({

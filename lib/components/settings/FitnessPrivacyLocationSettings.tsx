@@ -18,6 +18,7 @@ import {
   FitnessPrivacyRadiusMeters,
   sanitizePrivacyRadiusMeters
 } from '@/lib/services/fitness-files/privacy'
+import { loadMapboxModule } from '@/lib/utils/mapbox'
 
 interface Props {
   mapboxAccessToken?: string
@@ -82,78 +83,11 @@ interface MapboxModule {
   }) => MapboxMap
 }
 
-const MAPBOX_JS_SRC = 'https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.js'
-const MAPBOX_CSS_HREF =
-  'https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css'
 const MAPBOX_MARKER_SOURCE_ID = 'fitness-privacy-home-marker'
 const DEFAULT_MAP_CENTER: [number, number] = [5.2913, 52.1326]
 const DEFAULT_MAP_ZOOM = 6
 const CURRENT_LOCATION_ZOOM = 13
 const HOME_MARKER_ZOOM = 13
-
-let mapboxModulePromise: Promise<MapboxModule> | null = null
-
-const loadMapboxModule = async (): Promise<MapboxModule> => {
-  if (typeof window === 'undefined') {
-    throw new Error('Mapbox can only be loaded in a browser')
-  }
-
-  const globalWindow = window as Window & { mapboxgl?: MapboxModule }
-
-  if (globalWindow.mapboxgl) {
-    return globalWindow.mapboxgl
-  }
-
-  if (!mapboxModulePromise) {
-    mapboxModulePromise = new Promise<MapboxModule>((resolve, reject) => {
-      const onLoaded = () => {
-        if (globalWindow.mapboxgl) {
-          resolve(globalWindow.mapboxgl)
-          return
-        }
-
-        reject(new Error('Mapbox global was not initialized'))
-      }
-
-      if (!document.querySelector('[data-mapbox-gl-css="true"]')) {
-        const link = document.createElement('link')
-        link.rel = 'stylesheet'
-        link.href = MAPBOX_CSS_HREF
-        link.setAttribute('data-mapbox-gl-css', 'true')
-        document.head.appendChild(link)
-      }
-
-      const existingScript = document.querySelector<HTMLScriptElement>(
-        '[data-mapbox-gl-script="true"]'
-      )
-
-      if (existingScript) {
-        existingScript.addEventListener('load', onLoaded, { once: true })
-        existingScript.addEventListener(
-          'error',
-          () => reject(new Error('Failed to load Mapbox script')),
-          { once: true }
-        )
-        return
-      }
-
-      const script = document.createElement('script')
-      script.src = MAPBOX_JS_SRC
-      script.async = true
-      script.setAttribute('data-mapbox-gl-script', 'true')
-      script.addEventListener('load', onLoaded, { once: true })
-      script.addEventListener(
-        'error',
-        () => reject(new Error('Failed to load Mapbox script')),
-        { once: true }
-      )
-
-      document.head.appendChild(script)
-    })
-  }
-
-  return mapboxModulePromise
-}
 
 const parseCoordinateInput = (value: string): number | null => {
   if (value.trim().length === 0) {
@@ -200,7 +134,9 @@ const formatCoordinate = (value: number | null): string => {
   return value.toFixed(6)
 }
 
-const getBrowserCurrentLocation = async (): Promise<[number, number] | null> => {
+const getBrowserCurrentLocation = async (): Promise<
+  [number, number] | null
+> => {
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
     return null
   }
@@ -337,7 +273,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
     const initializeMap = async () => {
       try {
-        const mapbox = await loadMapboxModule()
+        const mapbox = await loadMapboxModule<MapboxModule>()
         if (cancelled || !mapContainerRef.current) {
           return
         }

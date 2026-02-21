@@ -188,6 +188,10 @@ export const buildPrivacySegments = <T extends { isHiddenByPrivacy: boolean }>(
 }
 
 const downsamplePoints = <T>(points: T[], maxPoints: number): T[] => {
+  if (maxPoints <= 0) {
+    return []
+  }
+
   if (points.length <= maxPoints) {
     return points
   }
@@ -202,11 +206,88 @@ const downsamplePoints = <T>(points: T[], maxPoints: number): T[] => {
   return sampled
 }
 
+const allocateSegmentTargets = (
+  segmentLengths: number[],
+  maxPoints: number,
+  minimumPointsPerSegment: number
+): number[] => {
+  const targets = segmentLengths.map(() => 0)
+
+  if (maxPoints <= 0 || segmentLengths.length === 0) {
+    return targets
+  }
+
+  const minimumPoints = Math.max(1, Math.floor(minimumPointsPerSegment))
+  let remainingPoints = maxPoints
+
+  const prioritizedIndices = segmentLengths
+    .map((length, index) => ({ length, index }))
+    .sort((first, second) => {
+      if (second.length !== first.length) {
+        return second.length - first.length
+      }
+
+      return first.index - second.index
+    })
+    .map((entry) => entry.index)
+
+  for (const index of prioritizedIndices) {
+    if (remainingPoints <= 0) {
+      break
+    }
+
+    const length = segmentLengths[index]
+    if (length <= 0) {
+      continue
+    }
+
+    const minimumTarget = Math.min(length, minimumPoints)
+    if (remainingPoints < minimumTarget) {
+      continue
+    }
+
+    targets[index] = minimumTarget
+    remainingPoints -= minimumTarget
+  }
+
+  while (remainingPoints > 0) {
+    let progressed = false
+
+    for (const index of prioritizedIndices) {
+      if (remainingPoints <= 0) {
+        break
+      }
+
+      const length = segmentLengths[index]
+      if (length <= 0 || targets[index] >= length) {
+        continue
+      }
+
+      if (minimumPoints > 1 && targets[index] === 0) {
+        continue
+      }
+
+      targets[index] += 1
+      remainingPoints -= 1
+      progressed = true
+    }
+
+    if (!progressed) {
+      break
+    }
+  }
+
+  return targets
+}
+
 export const downsamplePrivacySegments = <
   T extends { isHiddenByPrivacy: boolean }
 >(
   segments: Array<PrivacySegment<T>>,
-  maxPoints: number
+  maxPoints: number,
+  options?: {
+    minimumPointsPerSegment?: number
+  }
 ): Array<PrivacySegment<T>> => {
   if (maxPoints <= 0 || segments.length === 0) {
     return []
@@ -220,47 +301,26 @@ export const downsamplePrivacySegments = <
     return segments
   }
 
-  const minimumTargets = segments.map((segment) =>
-    segment.points.length > 1 ? 2 : 1
+  const minimumPointsPerSegment = options?.minimumPointsPerSegment ?? 1
+  const targets = allocateSegmentTargets(
+    segments.map((segment) => segment.points.length),
+    maxPoints,
+    minimumPointsPerSegment
   )
 
-  const minimumTotal = minimumTargets.reduce((sum, value) => sum + value, 0)
-
-  const targets = segments.map((segment) =>
-    Math.min(
-      segment.points.length,
-      minimumTotal <= maxPoints ? (segment.points.length > 1 ? 2 : 1) : 1
-    )
-  )
-
-  let allocated = targets.reduce((sum, value) => sum + value, 0)
-
-  while (allocated < maxPoints) {
-    let progressed = false
-
-    for (let index = 0; index < segments.length; index += 1) {
-      if (allocated >= maxPoints) {
-        break
-      }
-
-      if (targets[index] >= segments[index].points.length) {
-        continue
-      }
-
-      targets[index] += 1
-      allocated += 1
-      progressed = true
+  return segments.flatMap((segment, index) => {
+    const sampledPoints = downsamplePoints(segment.points, targets[index])
+    if (sampledPoints.length === 0) {
+      return []
     }
 
-    if (!progressed) {
-      break
-    }
-  }
-
-  return segments.map((segment, index) => ({
-    isHiddenByPrivacy: segment.isHiddenByPrivacy,
-    points: downsamplePoints(segment.points, targets[index])
-  }))
+    return [
+      {
+        isHiddenByPrivacy: segment.isHiddenByPrivacy,
+        points: sampledPoints
+      }
+    ]
+  })
 }
 
 export const flattenPrivacySegments = <T>(
