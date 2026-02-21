@@ -257,6 +257,7 @@ export const importFitnessFilesJob = createJobHandle(
       const primaryFile = orderedGroup[0]
       const createdAt =
         primaryFile.startTimeMs ?? primaryFile.fitnessFile.createdAt
+      let createdStatusId: string | null = null
 
       try {
         const existingStatusId =
@@ -278,6 +279,9 @@ export const importFitnessFilesJob = createJobHandle(
             visibility,
             database
           }))
+        if (!existingStatus) {
+          createdStatusId = status.id
+        }
 
         await Promise.all(
           orderedGroup.map(async (item) => {
@@ -329,6 +333,21 @@ export const importFitnessFilesJob = createJobHandle(
             )
           )
         )
+
+        if (createdStatusId) {
+          try {
+            await database.deleteStatus({ statusId: createdStatusId })
+          } catch (cleanupError) {
+            const nodeCleanupError = cleanupError as Error
+            logger.error({
+              message: 'Failed to cleanup local status after import failure',
+              actorId,
+              batchId,
+              statusId: createdStatusId,
+              error: nodeCleanupError.message
+            })
+          }
+        }
       }
     }
   }

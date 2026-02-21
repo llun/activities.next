@@ -243,6 +243,59 @@ describe('importFitnessFilesJob', () => {
     })
   })
 
+  it('deletes newly created status when import publish fails', async () => {
+    const file = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/import-publish-fail.fit',
+      fileName: 'import-publish-fail.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-publish-fail'
+    })
+
+    expect(file).toBeDefined()
+
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 3_000,
+      totalDurationSeconds: 1_200,
+      startTime: new Date('2026-01-04T00:00:00.000Z')
+    })
+
+    const publishMock = getQueue().publish as jest.Mock
+    publishMock.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-publish-fail',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-publish-fail',
+        fitnessFileIds: [file!.id],
+        visibility: 'public'
+      }
+    })
+
+    const publishedJob = publishMock.mock.calls[0]?.[0] as
+      | { data: { statusId: string } }
+      | undefined
+    const createdStatusId = publishedJob?.data.statusId
+    expect(createdStatusId).toBeDefined()
+
+    const updated = await database.getFitnessFile({ id: file!.id })
+    expect(updated?.statusId).toBeUndefined()
+    expect(updated?.importStatus).toBe('failed')
+    expect(updated?.processingStatus).toBe('failed')
+
+    const status = await database.getStatus({
+      statusId: createdStatusId!,
+      withReplies: false
+    })
+    expect(status).toBeNull()
+  })
+
   it('marks parse failures and still processes valid files', async () => {
     const failedFile = await database.createFitnessFile({
       actorId: actor.id,
