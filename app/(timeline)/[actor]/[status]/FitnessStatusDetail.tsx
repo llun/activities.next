@@ -954,7 +954,21 @@ export const FitnessStatusDetail: FC<Props> = ({
         description: status.fitness.description ?? null
       }
     ]
-  }, [status.actorId, status.createdAt, status.fitness, status.id])
+  }, [
+    status.actorId,
+    status.createdAt,
+    status.id,
+    status.fitness?.id,
+    status.fitness?.fileName,
+    status.fitness?.fileType,
+    status.fitness?.processingStatus,
+    status.fitness?.totalDistanceMeters,
+    status.fitness?.totalDurationSeconds,
+    status.fitness?.elevationGainMeters,
+    status.fitness?.activityType,
+    status.fitness?.hasMapData,
+    status.fitness?.description
+  ])
   const [fitnessFiles, setFitnessFiles] =
     useState<StatusFitnessFileItem[]>(defaultFitnessFiles)
   const [selectedFitnessFileId, setSelectedFitnessFileId] = useState<
