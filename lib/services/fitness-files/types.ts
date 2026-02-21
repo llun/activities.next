@@ -48,7 +48,8 @@ export type FitnessFileSchema = z.infer<typeof FitnessFileSchema>
 
 export const FitnessFileUploadSchema = z.object({
   file: FitnessFileSchema,
-  description: z.string().optional()
+  description: z.string().optional(),
+  importBatchId: z.string().optional()
 })
 export type FitnessFileUploadSchema = z.infer<typeof FitnessFileUploadSchema>
 

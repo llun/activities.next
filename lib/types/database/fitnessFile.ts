@@ -4,6 +4,8 @@ export type FitnessProcessingStatus =
   | 'completed'
   | 'failed'
 
+export type FitnessImportStatus = 'pending' | 'completed' | 'failed'
+
 // SQL row type for fitness_files table
 export interface SQLFitnessFile {
   id: string
@@ -24,6 +26,10 @@ export interface SQLFitnessFile {
   hasMapData?: boolean | null
   mapImagePath?: string | null
   processingStatus?: FitnessProcessingStatus | null
+  isPrimary?: boolean | null
+  importBatchId?: string | null
+  importStatus?: FitnessImportStatus | null
+  importError?: string | null
   totalDistanceMeters?: number | null
   totalDurationSeconds?: number | null
   elevationGainMeters?: number | null
@@ -52,6 +58,10 @@ export interface FitnessFile {
   hasMapData?: boolean
   mapImagePath?: string
   processingStatus?: FitnessProcessingStatus
+  isPrimary?: boolean
+  importBatchId?: string
+  importStatus?: FitnessImportStatus
+  importError?: string
   totalDistanceMeters?: number
   totalDurationSeconds?: number
   elevationGainMeters?: number

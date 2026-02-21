@@ -301,4 +301,27 @@ describe('processFitnessFileJob', () => {
     expect(updatedFitnessFile?.processingStatus).toBe('failed')
     expect(getQueue().publish).not.toHaveBeenCalled()
   })
+
+  it('skips federation publish when publishSendNote is false', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: ''
+    })
+
+    await processFitnessFileJob(database, {
+      id: 'job-id-5',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        statusId,
+        fitnessFileId,
+        publishSendNote: false
+      }
+    })
+
+    const updatedFitnessFile = await database.getFitnessFile({
+      id: fitnessFileId
+    })
+    expect(updatedFitnessFile?.processingStatus).toBe('completed')
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
 })

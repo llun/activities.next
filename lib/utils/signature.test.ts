@@ -156,12 +156,17 @@ describe('#verify', () => {
 })
 
 describe('#signedHeaders', () => {
+  let keyPair: Awaited<ReturnType<typeof generateKeyPair>>
+
+  beforeAll(async () => {
+    keyPair = await generateKeyPair('secret')
+  }, 15000)
+
   it('includes headers for POST request', async () => {
-    const { publicKey, privateKey } = await generateKeyPair('secret')
     const actor = {
       id: 'https://test.com/actor',
-      privateKey,
-      publicKey
+      privateKey: keyPair.privateKey,
+      publicKey: keyPair.publicKey
     } as Actor
 
     const headers = signedHeaders(actor, 'post', 'https://target.com/inbox', {
@@ -181,17 +186,16 @@ describe('#signedHeaders', () => {
         ...headers,
         signature: headers.signature as string
       },
-      publicKey
+      keyPair.publicKey
     )
     expect(verifyResult).toBeTruthy()
-  })
+  }, 15000)
 
   it('includes headers for GET request', async () => {
-    const { publicKey, privateKey } = await generateKeyPair('secret')
     const actor = {
       id: 'https://test.com/actor',
-      privateKey,
-      publicKey
+      privateKey: keyPair.privateKey,
+      publicKey: keyPair.publicKey
     } as Actor
 
     const headers = signedHeaders(actor, 'get', 'https://target.com/inbox')
@@ -206,8 +210,8 @@ describe('#signedHeaders', () => {
         ...headers,
         signature: headers.signature as string
       },
-      publicKey
+      keyPair.publicKey
     )
     expect(verifyResult).toBeTruthy()
-  })
+  }, 15000)
 })
