@@ -77,6 +77,8 @@
 - Include screenshots or clips for UI changes.- **Before committing**, always run:
   1. `yarn run prettier --write .` to format all files.
   2. `yarn lint` to ensure no linting errors—**must be green before commit**.
+  3. `yarn build` to ensure no build errors—**must be green before commit**.
+  4. `yarn test` to ensure no test errors—**must be green before commit**.
 
 ## Security & Configuration Tips
 
