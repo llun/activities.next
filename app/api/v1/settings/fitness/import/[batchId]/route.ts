@@ -163,18 +163,45 @@ export const POST = traceApiRoute(
       })
     )
 
-    await getQueue().publish({
-      id: getHashFromString(
-        `${currentActor.id}:fitness-import-retry:${batchId}`
-      ),
-      name: IMPORT_FITNESS_FILES_JOB_NAME,
-      data: {
+    try {
+      await getQueue().publish({
+        id: getHashFromString(
+          `${currentActor.id}:fitness-import-retry:${batchId}`
+        ),
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: currentActor.id,
+          batchId,
+          fitnessFileIds: failedFiles.map((item) => item.id),
+          visibility: visibilityParsed.data
+        }
+      })
+    } catch (error) {
+      const nodeError = error as Error
+
+      await Promise.all(
+        failedFiles.map(async (item) => {
+          await Promise.all([
+            database.updateFitnessFileImportStatus(
+              item.id,
+              'failed',
+              item.importError ?? nodeError.message
+            ),
+            database.updateFitnessFileProcessingStatus(item.id, 'failed')
+          ])
+        })
+      )
+
+      logger.error({
+        message: 'Failed to queue retry for fitness imports',
         actorId: currentActor.id,
         batchId,
-        fitnessFileIds: failedFiles.map((item) => item.id),
-        visibility: visibilityParsed.data
-      }
-    })
+        retried: failedFiles.length,
+        error: nodeError.message
+      })
+
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    }
 
     logger.info({
       message: 'Queued retry for failed fitness imports',
