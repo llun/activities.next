@@ -48,10 +48,17 @@ interface FitnessRouteSample {
   lng: number
   elapsedSeconds: number
   timestamp?: number
+  isHiddenByPrivacy?: boolean
+}
+
+interface FitnessRouteSegment {
+  isHiddenByPrivacy: boolean
+  samples: FitnessRouteSample[]
 }
 
 interface FitnessRouteDataResponse {
   samples: FitnessRouteSample[]
+  segments?: FitnessRouteSegment[]
   totalDurationSeconds: number
 }
 
@@ -86,20 +93,27 @@ interface MapLineStringGeometry {
   coordinates: [number, number][]
 }
 
-interface MapFeature<TGeometry> {
+interface RouteLineProperties {
+  isHiddenByPrivacy: boolean
+}
+
+interface MapFeature<TGeometry, TProperties = Record<string, unknown>> {
   type: 'Feature'
-  properties: Record<string, never>
+  properties: TProperties
   geometry: TGeometry
 }
 
-interface MapFeatureCollection<TGeometry> {
+interface MapFeatureCollection<
+  TGeometry,
+  TProperties = Record<string, unknown>
+> {
   type: 'FeatureCollection'
-  features: Array<MapFeature<TGeometry>>
+  features: Array<MapFeature<TGeometry, TProperties>>
 }
 
 type MapGeoJSONFeatureCollection =
   | MapFeatureCollection<MapPointGeometry>
-  | MapFeatureCollection<MapLineStringGeometry>
+  | MapFeatureCollection<MapLineStringGeometry, RouteLineProperties>
 
 interface MapboxGeoJSONSource {
   setData: (data: MapGeoJSONFeatureCollection) => void
@@ -561,6 +575,7 @@ const ChartPanel: FC<{
 const ActivityMapPanel: FC<{
   mapAttachment?: Attachment
   routeSamples: FitnessRouteSample[]
+  routeSegments: FitnessRouteSegment[]
   highlightedElapsedSeconds?: number | null
   mapboxAccessToken?: string
   routeDataError?: string | null
@@ -570,6 +585,7 @@ const ActivityMapPanel: FC<{
 }> = ({
   mapAttachment,
   routeSamples,
+  routeSegments,
   highlightedElapsedSeconds = null,
   mapboxAccessToken,
   routeDataError = null,
@@ -580,28 +596,52 @@ const ActivityMapPanel: FC<{
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
+  const normalizedRouteSegments = useMemo<FitnessRouteSegment[]>(() => {
+    if (routeSegments.length > 0) {
+      return routeSegments
+    }
+
+    if (routeSamples.length >= 2) {
+      return [{ isHiddenByPrivacy: false, samples: routeSamples }]
+    }
+
+    return []
+  }, [routeSamples, routeSegments])
+  const drawableRouteSegments = useMemo(
+    () =>
+      normalizedRouteSegments.filter((segment) => segment.samples.length >= 2),
+    [normalizedRouteSegments]
+  )
+  const routeSamplesForBounds = useMemo(
+    () => drawableRouteSegments.flatMap((segment) => segment.samples),
+    [drawableRouteSegments]
+  )
+  const hasHiddenPrivacySegments = useMemo(
+    () => drawableRouteSegments.some((segment) => segment.isHiddenByPrivacy),
+    [drawableRouteSegments]
+  )
 
   const shouldRenderInteractiveMap =
     Boolean(mapboxAccessToken) &&
-    routeSamples.length >= 2 &&
+    drawableRouteSegments.length > 0 &&
     !routeDataError &&
     !mapLoadError
 
   const routeFeatureCollection = useMemo(
-    (): MapFeatureCollection<MapLineStringGeometry> => ({
+    (): MapFeatureCollection<MapLineStringGeometry, RouteLineProperties> => ({
       type: 'FeatureCollection',
-      features: [
-        {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates: routeSamples.map((sample) => [sample.lng, sample.lat])
-          }
+      features: drawableRouteSegments.map((segment) => ({
+        type: 'Feature',
+        properties: {
+          isHiddenByPrivacy: segment.isHiddenByPrivacy
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: segment.samples.map((sample) => [sample.lng, sample.lat])
         }
-      ]
+      }))
     }),
-    [routeSamples]
+    [drawableRouteSegments]
   )
 
   const activeSample = useMemo(() => {
@@ -644,13 +684,26 @@ const ActivityMapPanel: FC<{
           })
 
           map.addLayer({
-            id: 'activity-route-line',
+            id: 'activity-route-line-visible',
             type: 'line',
             source: MAP_ROUTE_SOURCE_ID,
+            filter: ['==', ['get', 'isHiddenByPrivacy'], false],
             paint: {
               'line-color': '#f97316',
               'line-width': 4,
               'line-opacity': 0.9
+            }
+          })
+
+          map.addLayer({
+            id: 'activity-route-line-hidden',
+            type: 'line',
+            source: MAP_ROUTE_SOURCE_ID,
+            filter: ['==', ['get', 'isHiddenByPrivacy'], true],
+            paint: {
+              'line-color': '#16a34a',
+              'line-width': 4,
+              'line-opacity': 0.95
             }
           })
 
@@ -679,11 +732,18 @@ const ActivityMapPanel: FC<{
             source: MAP_ACTIVE_POINT_SOURCE_ID,
             paint: {
               'circle-radius': 4.5,
-              'circle-color': '#1d4ed8'
+              'circle-color': [
+                'case',
+                ['==', ['get', 'isHiddenByPrivacy'], true],
+                '#16a34a',
+                '#1d4ed8'
+              ]
             }
           })
 
-          const routeBoundsCoordinates = getRouteBoundsCoordinates(routeSamples)
+          const routeBoundsCoordinates = getRouteBoundsCoordinates(
+            routeSamplesForBounds
+          )
           const routeBounds = new mapbox.LngLatBounds(
             [routeBoundsCoordinates.west, routeBoundsCoordinates.south],
             [routeBoundsCoordinates.east, routeBoundsCoordinates.north]
@@ -742,7 +802,7 @@ const ActivityMapPanel: FC<{
     compact,
     mapboxAccessToken,
     routeFeatureCollection,
-    routeSamples,
+    routeSamplesForBounds,
     shouldRenderInteractiveMap
   ])
 
@@ -770,7 +830,9 @@ const ActivityMapPanel: FC<{
       features: [
         {
           type: 'Feature',
-          properties: {},
+          properties: {
+            isHiddenByPrivacy: Boolean(activeSample.isHiddenByPrivacy)
+          },
           geometry: {
             type: 'Point',
             coordinates: [activeSample.lng, activeSample.lat]
@@ -834,6 +896,11 @@ const ActivityMapPanel: FC<{
           <div className="absolute right-3 top-3 rounded-md border border-slate-300 bg-white/95 px-3 py-2 text-xs font-medium text-slate-700 shadow-sm">
             Mapbox
           </div>
+          {hasHiddenPrivacySegments ? (
+            <div className="absolute bottom-3 left-3 rounded-md border border-green-300 bg-white/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm">
+              Green segments are hidden from other viewers
+            </div>
+          ) : null}
         </>
       ) : onOpenMap && mapAttachment ? (
         <button
@@ -923,6 +990,7 @@ export const FitnessStatusDetail: FC<Props> = ({
 }) => {
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
   const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
+  const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
   const [routeDataError, setRouteDataError] = useState<string | null>(null)
   const [isRouteDataLoading, setIsRouteDataLoading] = useState(false)
   const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
@@ -1089,6 +1157,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   useEffect(() => {
     if (!shouldLoadInteractiveMap || !fitness?.id) {
       setRouteSamples([])
+      setRouteSegments([])
       setRouteDataError(null)
       setIsRouteDataLoading(false)
       return
@@ -1123,10 +1192,37 @@ export const FitnessStatusDetail: FC<Props> = ({
           throw new Error('Route data response is invalid')
         }
 
-        setRouteSamples(data.samples)
+        const normalizedSamples = data.samples.map((sample) => ({
+          ...sample,
+          isHiddenByPrivacy: Boolean(sample.isHiddenByPrivacy)
+        }))
+        const normalizedSegments = Array.isArray(data.segments)
+          ? data.segments
+              .map((segment) => ({
+                isHiddenByPrivacy: Boolean(segment.isHiddenByPrivacy),
+                samples: Array.isArray(segment.samples)
+                  ? segment.samples.map((sample) => ({
+                      ...sample,
+                      isHiddenByPrivacy: Boolean(sample.isHiddenByPrivacy)
+                    }))
+                  : []
+              }))
+              .filter((segment) => segment.samples.length > 0)
+          : normalizedSamples.length >= 2
+            ? [
+                {
+                  isHiddenByPrivacy: false,
+                  samples: normalizedSamples
+                }
+              ]
+            : []
+
+        setRouteSamples(normalizedSamples)
+        setRouteSegments(normalizedSegments)
       } catch (_error) {
         if (cancelled) return
         setRouteSamples([])
+        setRouteSegments([])
         setRouteDataError('Interactive map unavailable. Using static preview.')
       } finally {
         if (!cancelled) {
@@ -1310,6 +1406,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             <ActivityMapPanel
               mapAttachment={mapAttachment}
               routeSamples={routeSamples}
+              routeSegments={routeSegments}
               mapboxAccessToken={mapboxAccessToken}
               routeDataError={routeDataError}
               isRouteDataLoading={isRouteDataLoading}
@@ -1387,6 +1484,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           <ActivityMapPanel
             mapAttachment={mapAttachment}
             routeSamples={routeSamples}
+            routeSegments={routeSegments}
             highlightedElapsedSeconds={highlightedElapsedSeconds}
             mapboxAccessToken={mapboxAccessToken}
             routeDataError={routeDataError}

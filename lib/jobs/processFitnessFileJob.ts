@@ -6,6 +6,11 @@ import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
+import {
+  annotatePointsWithPrivacy,
+  buildPrivacySegments,
+  getFitnessPrivacyLocation
+} from '@/lib/services/fitness-files/privacy'
 import { saveMedia } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
 import { StatusType } from '@/lib/types/domain/status'
@@ -169,10 +174,39 @@ export const processFitnessFileJob = createJobHandle(
         mapImagePath: null
       })
 
-      if (activityData.coordinates.length >= 2) {
+      const privacySettings = await database.getFitnessSettings({
+        actorId,
+        serviceType: 'general'
+      })
+      const privacyLocation = getFitnessPrivacyLocation({
+        privacyHomeLatitude: privacySettings?.privacyHomeLatitude,
+        privacyHomeLongitude: privacySettings?.privacyHomeLongitude,
+        privacyHideRadiusMeters: privacySettings?.privacyHideRadiusMeters
+      })
+      const privacyAwareCoordinates = annotatePointsWithPrivacy(
+        activityData.coordinates,
+        privacyLocation
+      )
+      const visibleSegments = buildPrivacySegments(privacyAwareCoordinates, {
+        includeHidden: false,
+        includeVisible: true
+      })
+        .map((segment) =>
+          segment.points.map(
+            ({ isHiddenByPrivacy: _isHiddenByPrivacy, ...coordinate }) => ({
+              ...coordinate
+            })
+          )
+        )
+        .filter((segment) => segment.length >= 2)
+
+      const filteredCoordinates = visibleSegments.flat()
+
+      if (filteredCoordinates.length >= 2) {
         try {
           const mapImageBuffer = await generateMapImage({
-            coordinates: activityData.coordinates
+            coordinates: filteredCoordinates,
+            routeSegments: visibleSegments
           })
 
           if (mapImageBuffer) {

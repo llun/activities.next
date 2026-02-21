@@ -22,7 +22,7 @@ const Layout: FC<Props> = ({ children }) => {
   const pathname = usePathname()
 
   const tabs = [
-    { name: 'Files', url: '/settings/fitness/files' },
+    { name: 'General', url: '/settings/fitness/general' },
     { name: 'Strava', url: '/settings/fitness/strava' }
   ]
 
