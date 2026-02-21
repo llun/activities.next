@@ -303,6 +303,25 @@ const clampLatitude = (value: number) => {
   return clampNumber(value, -85, 85)
 }
 
+const getSeriesMinMax = (values: number[]) => {
+  if (values.length === 0) {
+    return { minValue: 0, maxValue: 0 }
+  }
+
+  let minValue = values[0]
+  let maxValue = values[0]
+
+  for (let index = 1; index < values.length; index += 1) {
+    if (values[index] < minValue) {
+      minValue = values[index]
+    } else if (values[index] > maxValue) {
+      maxValue = values[index]
+    }
+  }
+
+  return { minValue, maxValue }
+}
+
 const getRouteBoundsCoordinates = (samples: FitnessRouteSample[]) => {
   const initial = samples[0]
   let west = initial.lng
@@ -334,14 +353,9 @@ const buildChartPath = (
 ) => {
   if (values.length === 0) return ''
 
-  const min =
-    typeof minValue === 'number'
-      ? minValue
-      : Math.min(...values, Number.POSITIVE_INFINITY)
-  const max =
-    typeof maxValue === 'number'
-      ? maxValue
-      : Math.max(...values, Number.NEGATIVE_INFINITY)
+  const defaultMinMax = getSeriesMinMax(values)
+  const min = typeof minValue === 'number' ? minValue : defaultMinMax.minValue
+  const max = typeof maxValue === 'number' ? maxValue : defaultMinMax.maxValue
   const range = Math.max(1, max - min)
 
   return values
@@ -392,7 +406,14 @@ const ChartPanel: FC<{
 }) => {
   const width = 760
   const height = GRAPH_VIEW_HEIGHT
-  const path = useMemo(() => buildChartPath(values, width, height), [values])
+  const { minValue, maxValue } = useMemo(
+    () => getSeriesMinMax(values),
+    [values]
+  )
+  const path = useMemo(
+    () => buildChartPath(values, width, height, minValue, maxValue),
+    [maxValue, minValue, values]
+  )
   const minScale = minLabel ? `${minLabel} ${unit}` : `-- ${unit}`
   const maxScale = maxLabel ? `${maxLabel} ${unit}` : `-- ${unit}`
   const xLabels = useMemo(
@@ -400,14 +421,6 @@ const ChartPanel: FC<{
       durationSeconds ? buildXAxisLabels(values.length, durationSeconds) : null,
     [durationSeconds, values.length]
   )
-  const minValue = useMemo(() => {
-    if (values.length === 0) return 0
-    return Math.min(...values)
-  }, [values])
-  const maxValue = useMemo(() => {
-    if (values.length === 0) return 0
-    return Math.max(...values)
-  }, [values])
   const canHoverMapPoint =
     typeof onHighlightElapsedSeconds === 'function' &&
     typeof durationSeconds === 'number' &&
@@ -1060,14 +1073,22 @@ export const FitnessStatusDetail: FC<Props> = ({
       histogram
     }
   }, [elevationGainMeters, intensity, speedKmh, status.id, weightedAvgPower])
-  const elevationMin = Math.min(...seededSeries.elevation)
-  const elevationMax = Math.max(...seededSeries.elevation)
-  const speedMin = Math.min(...seededSeries.speed)
-  const speedMax = Math.max(...seededSeries.speed)
-  const powerMin = Math.min(...seededSeries.power)
-  const powerMax = Math.max(...seededSeries.power)
-  const heartRateMin = Math.min(...seededSeries.heartRate)
-  const heartRateMax = Math.max(...seededSeries.heartRate)
+  const { minValue: elevationMin, maxValue: elevationMax } = useMemo(
+    () => getSeriesMinMax(seededSeries.elevation),
+    [seededSeries.elevation]
+  )
+  const { minValue: speedMin, maxValue: speedMax } = useMemo(
+    () => getSeriesMinMax(seededSeries.speed),
+    [seededSeries.speed]
+  )
+  const { minValue: powerMin, maxValue: powerMax } = useMemo(
+    () => getSeriesMinMax(seededSeries.power),
+    [seededSeries.power]
+  )
+  const { minValue: heartRateMin, maxValue: heartRateMax } = useMemo(
+    () => getSeriesMinMax(seededSeries.heartRate),
+    [seededSeries.heartRate]
+  )
   const highlightedElapsedLabel =
     typeof highlightedElapsedSeconds === 'number'
       ? formatDuration(Math.round(highlightedElapsedSeconds))
@@ -1203,6 +1224,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 <button
                   key={option.id}
                   type="button"
+                  aria-pressed={analysisGraphFilter === option.id}
                   onClick={() => setAnalysisGraphFilter(option.id)}
                   className={cn(
                     'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
