@@ -187,6 +187,65 @@ describe('fitness import batch route', () => {
     })
   })
 
+  it('keeps batch status pending while processing is still pending', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'first.fit',
+        fileType: 'fit',
+        path: 'fitness/first.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'completed',
+        processingStatus: 'pending',
+        isPrimary: true,
+        createdAt: 1,
+        updatedAt: 1
+      },
+      {
+        id: 'file-2',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'second.fit',
+        fileType: 'fit',
+        path: 'fitness/second.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'completed',
+        processingStatus: 'completed',
+        isPrimary: false,
+        createdAt: 2,
+        updatedAt: 2
+      }
+    ])
+
+    const request = {
+      headers: new Headers()
+    } as unknown as Parameters<typeof GET>[0]
+
+    const response = await GET(request, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const json = (await response.json()) as {
+      status: string
+      summary: {
+        total: number
+        completed: number
+        failed: number
+        pending: number
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(json.status).toBe('pending')
+    expect(json.summary).toEqual({
+      total: 2,
+      completed: 1,
+      failed: 0,
+      pending: 1
+    })
+  })
+
   it('retries failed files and requeues import job', async () => {
     db.getFitnessFilesByBatchId.mockResolvedValue([
       {
@@ -198,6 +257,55 @@ describe('fitness import batch route', () => {
         mimeType: 'application/vnd.ant.fit',
         bytes: 1024,
         importStatus: 'failed',
+        processingStatus: 'failed',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    const request = {
+      headers: new Headers(),
+      json: async () => ({ visibility: 'private' })
+    } as unknown as Parameters<typeof POST>[0]
+
+    const response = await POST(request, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const json = (await response.json()) as { retried: number }
+
+    expect(response.status).toBe(200)
+    expect(json.retried).toBe(1)
+    expect(db.updateFitnessFileImportStatus).toHaveBeenCalledWith(
+      'file-1',
+      'pending'
+    )
+    expect(db.updateFitnessFileProcessingStatus).toHaveBeenCalledWith(
+      'file-1',
+      'pending'
+    )
+    expect(getQueue().publish).toHaveBeenCalledWith({
+      id: expect.any(String),
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: 'https://llun.test/users/llun',
+        batchId: 'batch-1',
+        fitnessFileIds: ['file-1'],
+        visibility: 'private'
+      }
+    })
+  })
+
+  it('retries files with failed processing status', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'process-failed.fit',
+        fileType: 'fit',
+        path: 'fitness/process-failed.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'completed',
         processingStatus: 'failed',
         createdAt: 1,
         updatedAt: 1
@@ -276,6 +384,58 @@ describe('fitness import batch route', () => {
       'file-1',
       'failed',
       'parse failed'
+    )
+    expect(db.updateFitnessFileProcessingStatus).toHaveBeenNthCalledWith(
+      1,
+      'file-1',
+      'pending'
+    )
+    expect(db.updateFitnessFileProcessingStatus).toHaveBeenNthCalledWith(
+      2,
+      'file-1',
+      'failed'
+    )
+  })
+
+  it('restores processing-failed state when retry queue publish fails', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'process-failed.fit',
+        fileType: 'fit',
+        path: 'fitness/process-failed.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'completed',
+        processingStatus: 'failed',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    getQueue().publish.mockRejectedValueOnce(new Error('queue down'))
+
+    const request = {
+      headers: new Headers(),
+      json: async () => ({ visibility: 'private' })
+    } as unknown as Parameters<typeof POST>[0]
+
+    const response = await POST(request, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+
+    expect(response.status).toBe(500)
+    expect(db.updateFitnessFileImportStatus).toHaveBeenNthCalledWith(
+      1,
+      'file-1',
+      'pending'
+    )
+    expect(db.updateFitnessFileImportStatus).toHaveBeenNthCalledWith(
+      2,
+      'file-1',
+      'completed',
+      undefined
     )
     expect(db.updateFitnessFileProcessingStatus).toHaveBeenNthCalledWith(
       1,

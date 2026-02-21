@@ -28,13 +28,29 @@ const Visibility = z.enum(['public', 'unlisted', 'private', 'direct'])
 
 type BatchStatus = 'pending' | 'completed' | 'failed' | 'partially_failed'
 
+type BatchFileState = 'pending' | 'completed' | 'failed'
+
+const getBatchFileState = (file: FitnessFile): BatchFileState => {
+  const importStatus = file.importStatus ?? 'pending'
+  const processingStatus = file.processingStatus ?? 'pending'
+
+  if (importStatus === 'failed' || processingStatus === 'failed') {
+    return 'failed'
+  }
+
+  if (importStatus === 'pending' || processingStatus === 'pending') {
+    return 'pending'
+  }
+
+  return 'completed'
+}
+
 const summarizeBatch = (files: FitnessFile[]) => {
   const total = files.length
-  const pending = files.filter((item) => item.importStatus === 'pending').length
-  const completed = files.filter(
-    (item) => item.importStatus === 'completed'
-  ).length
-  const failed = files.filter((item) => item.importStatus === 'failed').length
+  const fileStates = files.map(getBatchFileState)
+  const pending = fileStates.filter((state) => state === 'pending').length
+  const completed = fileStates.filter((state) => state === 'completed').length
+  const failed = fileStates.filter((state) => state === 'failed').length
 
   let status: BatchStatus = 'completed'
   if (pending > 0) {
@@ -142,8 +158,16 @@ export const POST = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
     }
 
-    const failedFiles = files.filter((item) => item.importStatus === 'failed')
-    if (failedFiles.length === 0) {
+    const retriableFiles = files
+      .filter((item) => getBatchFileState(item) === 'failed')
+      .map((item) => ({
+        file: item,
+        importStatus: item.importStatus ?? 'pending',
+        importError: item.importError ?? null,
+        processingStatus: item.processingStatus ?? 'pending'
+      }))
+
+    if (retriableFiles.length === 0) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -155,10 +179,10 @@ export const POST = traceApiRoute(
     }
 
     await Promise.all(
-      failedFiles.map(async (item) => {
+      retriableFiles.map(async ({ file }) => {
         await Promise.all([
-          database.updateFitnessFileImportStatus(item.id, 'pending'),
-          database.updateFitnessFileProcessingStatus(item.id, 'pending')
+          database.updateFitnessFileImportStatus(file.id, 'pending'),
+          database.updateFitnessFileProcessingStatus(file.id, 'pending')
         ])
       })
     )
@@ -172,7 +196,7 @@ export const POST = traceApiRoute(
         data: {
           actorId: currentActor.id,
           batchId,
-          fitnessFileIds: failedFiles.map((item) => item.id),
+          fitnessFileIds: retriableFiles.map(({ file }) => file.id),
           visibility: visibilityParsed.data
         }
       })
@@ -180,14 +204,17 @@ export const POST = traceApiRoute(
       const nodeError = error as Error
 
       await Promise.all(
-        failedFiles.map(async (item) => {
+        retriableFiles.map(async (item) => {
           await Promise.all([
             database.updateFitnessFileImportStatus(
-              item.id,
-              'failed',
-              item.importError ?? nodeError.message
+              item.file.id,
+              item.importStatus,
+              item.importError ?? undefined
             ),
-            database.updateFitnessFileProcessingStatus(item.id, 'failed')
+            database.updateFitnessFileProcessingStatus(
+              item.file.id,
+              item.processingStatus
+            )
           ])
         })
       )
@@ -196,7 +223,7 @@ export const POST = traceApiRoute(
         message: 'Failed to queue retry for fitness imports',
         actorId: currentActor.id,
         batchId,
-        retried: failedFiles.length,
+        retried: retriableFiles.length,
         error: nodeError.message
       })
 
@@ -207,7 +234,7 @@ export const POST = traceApiRoute(
       message: 'Queued retry for failed fitness imports',
       actorId: currentActor.id,
       batchId,
-      retried: failedFiles.length
+      retried: retriableFiles.length
     })
 
     return apiResponse({
@@ -215,7 +242,7 @@ export const POST = traceApiRoute(
       allowedMethods: CORS_HEADERS,
       data: {
         batchId,
-        retried: failedFiles.length
+        retried: retriableFiles.length
       }
     })
   })
