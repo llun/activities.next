@@ -95,6 +95,53 @@ describe('FitnessFileDatabase', () => {
         })
         expect(newStatusFile?.id).toBe(created?.id)
       })
+
+      it('returns primary file and full ordered status files', async () => {
+        const first = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/status-multi-1.fit',
+          fileName: 'status-multi-1.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+        const second = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/status-multi-2.fit',
+          fileName: 'status-multi-2.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+
+        expect(first).toBeDefined()
+        expect(second).toBeDefined()
+
+        await database.updateFitnessFileStatus(first!.id, statuses.primary.post)
+        await database.updateFitnessFileStatus(second!.id, statuses.primary.post)
+        await database.updateFitnessFilePrimary(first!.id, false)
+        await database.updateFitnessFilePrimary(second!.id, true)
+        await database.updateFitnessFileActivityData(second!.id, {
+          activityStartTime: new Date('2026-01-01T00:00:00.000Z')
+        })
+        await database.updateFitnessFileActivityData(first!.id, {
+          activityStartTime: new Date('2026-01-02T00:00:00.000Z')
+        })
+
+        const primary = await database.getFitnessFileByStatus({
+          statusId: statuses.primary.post
+        })
+        expect(primary?.id).toBe(second!.id)
+
+        const files = await database.getFitnessFilesByStatus({
+          statusId: statuses.primary.post
+        })
+        const ids = files
+          .filter((file) => file.id === first!.id || file.id === second!.id)
+          .map((item) => item.id)
+
+        expect(ids).toEqual([second!.id, first!.id])
+      })
     })
 
     describe('updateFitnessFileProcessingStatus/updateFitnessFileActivityData', () => {
@@ -143,6 +190,68 @@ describe('FitnessFileDatabase', () => {
           mapImagePath: 'medias/route-map.png'
         })
         expect(fetched?.activityStartTime).toBeDefined()
+      })
+    })
+
+    describe('import fields', () => {
+      it('creates import metadata, updates import status, and lists by batch', async () => {
+        const importedOne = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/import-a.fit',
+          fileName: 'import-a.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1_000,
+          importBatchId: 'batch-1'
+        })
+        const importedTwo = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/import-b.gpx',
+          fileName: 'import-b.gpx',
+          fileType: 'gpx',
+          mimeType: 'application/gpx+xml',
+          bytes: 2_000,
+          importBatchId: 'batch-1'
+        })
+        const normalUpload = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/import-c.tcx',
+          fileName: 'import-c.tcx',
+          fileType: 'tcx',
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 3_000
+        })
+
+        expect(importedOne?.importStatus).toBe('pending')
+        expect(importedOne?.isPrimary).toBe(true)
+        expect(normalUpload?.importStatus).toBeUndefined()
+
+        const failedUpdated = await database.updateFitnessFileImportStatus(
+          importedTwo!.id,
+          'failed',
+          'parse failed'
+        )
+        expect(failedUpdated).toBe(true)
+
+        const primaryUpdated = await database.updateFitnessFilePrimary(
+          importedTwo!.id,
+          false
+        )
+        expect(primaryUpdated).toBe(true)
+
+        const batchFiles = await database.getFitnessFilesByBatchId({
+          batchId: 'batch-1'
+        })
+        expect(batchFiles).toHaveLength(2)
+        expect(batchFiles.map((item) => item.id)).toEqual([
+          importedOne!.id,
+          importedTwo!.id
+        ])
+
+        const failedFile = await database.getFitnessFile({ id: importedTwo!.id })
+        expect(failedFile?.importStatus).toBe('failed')
+        expect(failedFile?.importError).toBe('parse failed')
+        expect(failedFile?.isPrimary).toBe(false)
       })
     })
 

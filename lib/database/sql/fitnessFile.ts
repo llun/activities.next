@@ -10,6 +10,7 @@ import {
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   FitnessFile,
+  FitnessImportStatus,
   FitnessProcessingStatus,
   SQLFitnessFile
 } from '@/lib/types/database/fitnessFile'
@@ -25,6 +26,7 @@ export interface CreateFitnessFileParams {
   description?: string
   hasMapData?: boolean
   mapImagePath?: string
+  importBatchId?: string
 }
 
 export interface UpdateFitnessFileActivityData {
@@ -63,6 +65,10 @@ export interface GetFitnessFileByStatusParams {
   statusId: string
 }
 
+export interface GetFitnessFilesByBatchIdParams {
+  batchId: string
+}
+
 export interface DeleteFitnessFileParams {
   id: string
 }
@@ -85,6 +91,12 @@ export interface FitnessFileDatabase {
   getFitnessFileByStatus(
     params: GetFitnessFileByStatusParams
   ): Promise<FitnessFile | null>
+  getFitnessFilesByBatchId(
+    params: GetFitnessFilesByBatchIdParams
+  ): Promise<FitnessFile[]>
+  getFitnessFilesByStatus(
+    params: GetFitnessFileByStatusParams
+  ): Promise<FitnessFile[]>
   getFitnessStorageUsageForAccount(
     params: GetFitnessStorageUsageForAccountParams
   ): Promise<number>
@@ -96,6 +108,15 @@ export interface FitnessFileDatabase {
   updateFitnessFileProcessingStatus(
     fitnessFileId: string,
     processingStatus: FitnessProcessingStatus
+  ): Promise<boolean>
+  updateFitnessFileImportStatus(
+    fitnessFileId: string,
+    importStatus: FitnessImportStatus,
+    importError?: string
+  ): Promise<boolean>
+  updateFitnessFilePrimary(
+    fitnessFileId: string,
+    isPrimary: boolean
   ): Promise<boolean>
   updateFitnessFileActivityData(
     fitnessFileId: string,
@@ -136,6 +157,13 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   hasMapData: Boolean(row.hasMapData),
   mapImagePath: row.mapImagePath ?? undefined,
   processingStatus: row.processingStatus ?? 'pending',
+  isPrimary:
+    row.isPrimary === null || row.isPrimary === undefined
+      ? true
+      : Boolean(row.isPrimary),
+  importBatchId: row.importBatchId ?? undefined,
+  importStatus: row.importStatus ?? undefined,
+  importError: row.importError ?? undefined,
   totalDistanceMeters: normalizeOptionalNumber(row.totalDistanceMeters),
   totalDurationSeconds: normalizeOptionalNumber(row.totalDurationSeconds),
   elevationGainMeters: normalizeOptionalNumber(row.elevationGainMeters),
@@ -173,6 +201,10 @@ export const FitnessFileSQLDatabaseMixin = (
         description: params.description ?? null,
         hasMapData: params.hasMapData ?? false,
         mapImagePath: params.mapImagePath ?? null,
+        isPrimary: true,
+        importBatchId: params.importBatchId ?? null,
+        importStatus: params.importBatchId ? 'pending' : null,
+        importError: null,
         processingStatus: 'pending',
         totalDistanceMeters: null,
         totalDurationSeconds: null,
@@ -270,10 +302,33 @@ export const FitnessFileSQLDatabaseMixin = (
     const row = await database<SQLFitnessFile>('fitness_files')
       .where('statusId', statusId)
       .whereNull('deletedAt')
+      .orderBy('isPrimary', 'desc')
+      .orderBy('activityStartTime', 'asc')
+      .orderBy('createdAt', 'asc')
       .first()
 
     if (!row) return null
     return parseSQLFitnessFile(row)
+  },
+
+  async getFitnessFilesByBatchId({ batchId }: GetFitnessFilesByBatchIdParams) {
+    const rows = await database<SQLFitnessFile>('fitness_files')
+      .where('importBatchId', batchId)
+      .whereNull('deletedAt')
+      .orderBy('createdAt', 'asc')
+
+    return rows.map(parseSQLFitnessFile)
+  },
+
+  async getFitnessFilesByStatus({ statusId }: GetFitnessFileByStatusParams) {
+    const rows = await database<SQLFitnessFile>('fitness_files')
+      .where('statusId', statusId)
+      .whereNull('deletedAt')
+      .orderBy('isPrimary', 'desc')
+      .orderBy('activityStartTime', 'asc')
+      .orderBy('createdAt', 'asc')
+
+    return rows.map(parseSQLFitnessFile)
   },
 
   async getFitnessStorageUsageForAccount({
@@ -340,6 +395,33 @@ export const FitnessFileSQLDatabaseMixin = (
       .where('id', fitnessFileId)
       .update({
         processingStatus,
+        updatedAt: new Date()
+      })
+
+    return result > 0
+  },
+
+  async updateFitnessFileImportStatus(
+    fitnessFileId: string,
+    importStatus: FitnessImportStatus,
+    importError?: string
+  ) {
+    const result = await database('fitness_files')
+      .where('id', fitnessFileId)
+      .update({
+        importStatus,
+        importError: importError ?? null,
+        updatedAt: new Date()
+      })
+
+    return result > 0
+  },
+
+  async updateFitnessFilePrimary(fitnessFileId: string, isPrimary: boolean) {
+    const result = await database('fitness_files')
+      .where('id', fitnessFileId)
+      .update({
+        isPrimary,
         updatedAt: new Date()
       })
 
