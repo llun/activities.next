@@ -390,6 +390,37 @@ describe('importFitnessFilesJob', () => {
     expect(status).toBeNull()
   })
 
+  it('marks files as failed when actor is missing', async () => {
+    const file = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/import-missing-actor.fit',
+      fileName: 'import-missing-actor.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-missing-actor'
+    })
+
+    expect(file).toBeDefined()
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-missing-actor',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: `${actor.id}-missing`,
+        batchId: 'batch-missing-actor',
+        fitnessFileIds: [file!.id],
+        visibility: 'public'
+      }
+    })
+
+    const updated = await database.getFitnessFile({ id: file!.id })
+    expect(updated?.importStatus).toBe('failed')
+    expect(updated?.processingStatus).toBe('failed')
+    expect(updated?.importError).toBe('Actor not found for fitness import')
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
   it('marks parse failures and still processes valid files', async () => {
     const failedFile = await database.createFitnessFile({
       actorId: actor.id,

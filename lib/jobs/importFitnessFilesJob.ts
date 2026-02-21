@@ -32,6 +32,8 @@ const JobData = z.object({
   visibility: Visibility.default('public')
 })
 
+const ACTOR_NOT_FOUND_IMPORT_ERROR = 'Actor not found for fitness import'
+
 type ParsedImportFileSource = 'target' | 'overlap'
 
 interface ParsedImportFile {
@@ -206,10 +208,22 @@ export const importFitnessFilesJob = createJobHandle(
     const actor = await database.getActorFromId({ id: actorId })
     if (!actor) {
       logger.error({
-        message: 'Actor not found for fitness import',
+        message: ACTOR_NOT_FOUND_IMPORT_ERROR,
         actorId,
         batchId
       })
+
+      await Promise.all([
+        database.updateFitnessFilesImportStatus({
+          fitnessFileIds,
+          importStatus: 'failed',
+          importError: ACTOR_NOT_FOUND_IMPORT_ERROR
+        }),
+        database.updateFitnessFilesProcessingStatus({
+          fitnessFileIds,
+          processingStatus: 'failed'
+        })
+      ])
 
       return
     }
