@@ -41,13 +41,14 @@ export const POST = traceApiRoute(
           continue
         }
 
-        if (file.processingStatus === 'processing') {
+        const processingStatus = file.processingStatus ?? 'pending'
+        if (processingStatus !== 'completed' && processingStatus !== 'failed') {
           continue
         }
 
         queuedFiles.push({
           id: file.id,
-          processingStatus: file.processingStatus ?? 'pending'
+          processingStatus
         })
       }
 

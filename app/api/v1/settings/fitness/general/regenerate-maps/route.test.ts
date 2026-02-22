@@ -130,6 +130,19 @@ describe('POST /api/v1/settings/fitness/general/regenerate-maps', () => {
           createdAt: Date.now(),
           updatedAt: Date.now(),
           processingStatus: 'completed'
+        },
+        {
+          id: 'fitness-4',
+          actorId: ACTOR1_ID,
+          statusId: `${ACTOR1_ID}/statuses/4`,
+          fileName: 'four.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024,
+          path: 'fitness/four.fit',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          processingStatus: 'pending'
         }
       ])
       .mockResolvedValueOnce([])
