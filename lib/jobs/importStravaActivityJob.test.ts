@@ -173,13 +173,46 @@ describe('importStravaActivityJob', () => {
         data: expect.objectContaining({
           actorId: 'actor-1',
           fitnessFileIds: ['new-file'],
-          overlapFitnessFileIds: ['overlap-file']
+          overlapFitnessFileIds: ['overlap-file'],
+          visibility: 'public'
         })
       })
     )
     expect(database.updateNote).toHaveBeenCalledWith(
       expect.objectContaining({
         statusId: 'status-1'
+      })
+    )
+  })
+
+  it('maps Strava only_me visibility to direct import visibility', async () => {
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 124,
+      name: 'Private Session',
+      distance: 2_500,
+      elapsed_time: 800,
+      total_elevation_gain: 20,
+      start_date: '2026-01-01T00:30:00.000Z',
+      sport_type: 'Run',
+      visibility: 'only_me'
+    })
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-3',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '124'
+      }
+    })
+
+    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: expect.objectContaining({
+          visibility: 'direct'
+        })
       })
     )
   })

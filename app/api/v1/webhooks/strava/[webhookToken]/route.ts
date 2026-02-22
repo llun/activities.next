@@ -150,16 +150,7 @@ export const POST = traceApiRoute(
         })
       }
 
-      if (body.object_type !== 'activity') {
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { success: true, ignored: true },
-          responseStatusCode: 200
-        })
-      }
-
-      if (body.aspect_type !== 'create') {
+      if (body.object_type !== 'activity' || body.aspect_type !== 'create') {
         return apiResponse({
           req,
           allowedMethods: [],

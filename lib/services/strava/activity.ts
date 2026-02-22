@@ -279,10 +279,11 @@ export const mapStravaVisibilityToMastodon = (
     case 'everyone':
       return 'public'
     case 'followers_only':
-    case 'only_me':
       return 'private'
+    case 'only_me':
+      return 'direct'
     default:
-      return 'public'
+      return 'private'
   }
 }
 

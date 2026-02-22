@@ -62,10 +62,23 @@ const getOverlapContextFitnessFileIds = ({
   >
 }) => {
   const sameActorFiles = files.filter(
-    (file) =>
+    (
+      file
+    ): file is Pick<
+      FitnessFile,
+      | 'id'
+      | 'actorId'
+      | 'statusId'
+      | 'activityStartTime'
+      | 'totalDurationSeconds'
+    > & {
+      statusId: string
+      activityStartTime: number
+      totalDurationSeconds: number
+    } =>
       file.actorId === actorId &&
       file.id !== fitnessFileId &&
-      Boolean(file.statusId) &&
+      typeof file.statusId === 'string' &&
       typeof file.activityStartTime === 'number' &&
       typeof file.totalDurationSeconds === 'number' &&
       file.totalDurationSeconds > 0
@@ -87,7 +100,7 @@ const getOverlapContextFitnessFileIds = ({
 
   return sameActorFiles
     .filter((file) => {
-      const existingStartTime = file.activityStartTime as number
+      const existingStartTime = file.activityStartTime
       return (
         Math.abs(existingStartTime - activityStartTime) <= shortPeriodWindowMs
       )
