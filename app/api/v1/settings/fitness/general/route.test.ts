@@ -333,6 +333,80 @@ describe('Fitness General Settings API', () => {
       )
     })
 
+    it('prioritizes privacyLocations when list and legacy fields are both sent', async () => {
+      mockDb.createFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyLocations: [
+          {
+            latitude: 13.7563,
+            longitude: 100.5018,
+            hideRadiusMeters: 20
+          },
+          {
+            latitude: 35.6764,
+            longitude: 139.65,
+            hideRadiusMeters: 10
+          }
+        ],
+        privacyHomeLatitude: 13.7563,
+        privacyHomeLongitude: 100.5018,
+        privacyHideRadiusMeters: 20,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyLocations: [
+              {
+                latitude: 13.7563,
+                longitude: 100.5018,
+                hideRadiusMeters: 20
+              },
+              {
+                latitude: 35.6764,
+                longitude: 139.65,
+                hideRadiusMeters: 10
+              }
+            ],
+            privacyHomeLatitude: 1,
+            privacyHomeLongitude: 2,
+            privacyHideRadiusMeters: 5
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockDb.createFitnessSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR1_ID,
+          serviceType: 'general',
+          privacyLocations: [
+            {
+              latitude: 13.7563,
+              longitude: 100.5018,
+              hideRadiusMeters: 20
+            },
+            {
+              latitude: 35.6764,
+              longitude: 139.65,
+              hideRadiusMeters: 10
+            }
+          ],
+          privacyHomeLatitude: 13.7563,
+          privacyHomeLongitude: 100.5018,
+          privacyHideRadiusMeters: 20
+        })
+      )
+    })
+
     it('rejects request when only one coordinate is provided', async () => {
       const request = new NextRequest(
         'http://llun.test/api/v1/settings/fitness/general',

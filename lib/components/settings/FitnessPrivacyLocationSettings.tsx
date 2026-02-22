@@ -608,6 +608,9 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
       const next = current.filter((_, currentIndex) => currentIndex !== index)
       return next
     })
+    setLatitudeInput('')
+    setLongitudeInput('')
+    setDraftRadiusMeters(DEFAULT_DRAFT_RADIUS)
 
     setMessage('Privacy location removed from list. Save settings to apply.')
   }

@@ -120,7 +120,9 @@ export const sanitizePrivacyLocationSettings = (
       continue
     }
 
-    const key = `${location.latitude}:${location.longitude}:${location.hideRadiusMeters}`
+    const dedupeLatitude = location.latitude.toFixed(6)
+    const dedupeLongitude = location.longitude.toFixed(6)
+    const key = `${dedupeLatitude}:${dedupeLongitude}:${location.hideRadiusMeters}`
     if (seenKeys.has(key)) {
       continue
     }
@@ -186,6 +188,8 @@ export const getFitnessPrivacyLocations = (
 export const getFitnessPrivacyLocation = (
   settings: PrivacySettingsInput | null | undefined
 ): FitnessPrivacyLocation | null => {
+  // Legacy compatibility helper for code paths still expecting a single value.
+  // New multi-location logic should use `getFitnessPrivacyLocations`.
   return getFitnessPrivacyLocations(settings)[0] ?? null
 }
 

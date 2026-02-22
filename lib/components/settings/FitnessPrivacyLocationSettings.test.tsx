@@ -206,6 +206,84 @@ describe('FitnessPrivacyLocationSettings', () => {
     })
   })
 
+  it('does not re-add a removed location when saving', async () => {
+    const postBodies: Array<{
+      privacyLocations: Array<{
+        latitude: number
+        longitude: number
+        hideRadiusMeters: number
+      }>
+    }> = []
+
+    jest.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const method = init?.method ?? 'GET'
+
+      if (
+        typeof input === 'string' &&
+        input === '/api/v1/settings/fitness/general' &&
+        method === 'GET'
+      ) {
+        return {
+          ok: true,
+          json: async () => ({
+            privacyLocations: [
+              {
+                latitude: 13.7563,
+                longitude: 100.5018,
+                hideRadiusMeters: 20
+              }
+            ]
+          })
+        } as Response
+      }
+
+      if (
+        typeof input === 'string' &&
+        input === '/api/v1/settings/fitness/general' &&
+        method === 'POST'
+      ) {
+        const requestBody = JSON.parse(String(init?.body)) as {
+          privacyLocations: Array<{
+            latitude: number
+            longitude: number
+            hideRadiusMeters: number
+          }>
+        }
+        postBodies.push(requestBody)
+
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            privacyLocations: requestBody.privacyLocations
+          })
+        } as Response
+      }
+
+      throw new Error('Unexpected fetch call')
+    })
+
+    render(<FitnessPrivacyLocationSettings />)
+
+    await screen.findByText('13.756300, 100.501800')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save privacy locations' })
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Fitness privacy location settings saved.')
+      ).toBeInTheDocument()
+    })
+
+    expect(postBodies.length).toBeGreaterThan(0)
+    expect(postBodies[postBodies.length - 1]).toEqual({
+      privacyLocations: []
+    })
+  })
+
   it('queues manual regeneration for old status map images', async () => {
     const fetchMock = jest
       .spyOn(global, 'fetch')

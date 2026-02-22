@@ -87,7 +87,7 @@ const parseStoredPrivacyLocations = (
     const sanitized = sanitizePrivacyLocationSettings(parsedValue)
     return sanitized
   } catch {
-    return undefined
+    return []
   }
 }
 
@@ -123,6 +123,9 @@ export const FitnessSettingsSQLDatabaseMixin = (
 
     const id = crypto.randomUUID()
     const currentTime = new Date()
+    const sanitizedPrivacyLocations = sanitizePrivacyLocationSettings(
+      privacyLocations ?? []
+    )
 
     const row: Partial<SQLFitnessSettings> = {
       id,
@@ -136,9 +139,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
       oauthState,
       oauthStateExpiry: oauthStateExpiry ? new Date(oauthStateExpiry) : null,
-      ...(privacyLocations
-        ? { privacyLocations: JSON.stringify(privacyLocations) }
-        : null),
+      privacyLocations: JSON.stringify(sanitizedPrivacyLocations),
       privacyHomeLatitude,
       privacyHomeLongitude,
       privacyHideRadiusMeters,
@@ -160,7 +161,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       tokenExpiresAt,
       oauthState,
       oauthStateExpiry,
-      ...(privacyLocations ? { privacyLocations } : null),
+      privacyLocations: sanitizedPrivacyLocations,
       privacyHomeLatitude,
       privacyHomeLongitude,
       privacyHideRadiusMeters,
@@ -187,6 +188,10 @@ export const FitnessSettingsSQLDatabaseMixin = (
     const updateData: Partial<SQLFitnessSettings> = {
       updatedAt: new Date()
     }
+    const sanitizedPrivacyLocations =
+      privacyLocations === undefined
+        ? undefined
+        : sanitizePrivacyLocationSettings(privacyLocations ?? [])
 
     if (clientId !== undefined) updateData.clientId = clientId || null
     if (clientSecret !== undefined)
@@ -206,8 +211,9 @@ export const FitnessSettingsSQLDatabaseMixin = (
       updateData.oauthStateExpiry = oauthStateExpiry
         ? new Date(oauthStateExpiry)
         : null
-    if (privacyLocations !== undefined)
-      updateData.privacyLocations = JSON.stringify(privacyLocations ?? [])
+    if (sanitizedPrivacyLocations !== undefined) {
+      updateData.privacyLocations = JSON.stringify(sanitizedPrivacyLocations)
+    }
     if (privacyHomeLatitude !== undefined)
       updateData.privacyHomeLatitude = privacyHomeLatitude
     if (privacyHomeLongitude !== undefined)

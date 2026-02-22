@@ -53,10 +53,23 @@ const FitnessGeneralSettingsListRequest = z.object({
     .max(25)
 })
 
-const FitnessGeneralSettingsRequest = z.union([
-  FitnessGeneralSettingsLegacyRequest,
-  FitnessGeneralSettingsListRequest
-])
+type FitnessGeneralSettingsRequest =
+  | z.infer<typeof FitnessGeneralSettingsLegacyRequest>
+  | z.infer<typeof FitnessGeneralSettingsListRequest>
+
+const parseFitnessGeneralSettingsRequest = (
+  body: unknown
+): FitnessGeneralSettingsRequest => {
+  if (
+    body &&
+    typeof body === 'object' &&
+    Object.prototype.hasOwnProperty.call(body, 'privacyLocations')
+  ) {
+    return FitnessGeneralSettingsListRequest.parse(body)
+  }
+
+  return FitnessGeneralSettingsLegacyRequest.parse(body)
+}
 
 interface FitnessGeneralSettingsResponse {
   success?: boolean
@@ -101,7 +114,7 @@ const toPrivacyLocationsResponse = (
 }
 
 const toSettingsPayload = (
-  parsed: z.infer<typeof FitnessGeneralSettingsRequest>
+  parsed: FitnessGeneralSettingsRequest
 ):
   | {
       error: string
@@ -196,7 +209,7 @@ export const POST = traceApiRoute(
 
     try {
       const body = await req.json()
-      const parsed = FitnessGeneralSettingsRequest.parse(body)
+      const parsed = parseFitnessGeneralSettingsRequest(body)
       const normalized = toSettingsPayload(parsed)
       if ('error' in normalized) {
         return apiResponse({
