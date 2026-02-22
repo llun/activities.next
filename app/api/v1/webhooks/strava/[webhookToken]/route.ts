@@ -1,11 +1,23 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { IMPORT_STRAVA_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 type Params = { webhookToken: string }
+
+const StravaWebhookEventSchema = z.object({
+  object_type: z.string(),
+  object_id: z.union([z.string(), z.number()]),
+  aspect_type: z.string(),
+  owner_id: z.number().optional(),
+  event_time: z.number().optional()
+})
 
 export const GET = traceApiRoute(
   'stravaWebhookVerification',
@@ -86,7 +98,24 @@ export const POST = traceApiRoute(
     const { webhookToken } = await context.params
 
     try {
-      const body = await req.json()
+      const bodyRaw = await req.json()
+      const parsedBody = StravaWebhookEventSchema.safeParse(bodyRaw)
+
+      if (!parsedBody.success) {
+        logger.warn({
+          message: 'Invalid Strava webhook payload',
+          webhookToken,
+          error: parsedBody.error.issues
+        })
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Invalid webhook payload' },
+          responseStatusCode: 400
+        })
+      }
+
+      const body = parsedBody.data
 
       logger.info({
         message: 'Strava webhook event received',
@@ -121,10 +150,33 @@ export const POST = traceApiRoute(
         })
       }
 
+      if (body.object_type !== 'activity' || body.aspect_type !== 'create') {
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { success: true, ignored: true },
+          responseStatusCode: 200
+        })
+      }
+
+      const stravaActivityId = String(body.object_id)
+
+      await getQueue().publish({
+        id: getHashFromString(
+          `${fitnessSettings.actorId}:strava-activity:${stravaActivityId}:import`
+        ),
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: fitnessSettings.actorId,
+          stravaActivityId
+        }
+      })
+
       logger.info({
-        message: 'Strava activity event',
+        message: 'Queued Strava activity import from webhook',
         actorId: fitnessSettings.actorId,
-        event: body
+        stravaActivityId,
+        eventType: body.aspect_type
       })
 
       return apiResponse({
