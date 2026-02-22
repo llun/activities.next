@@ -16,6 +16,7 @@ import { Label } from '@/lib/components/ui/label'
 import {
   FITNESS_PRIVACY_RADIUS_OPTIONS,
   FitnessPrivacyRadiusMeters,
+  sanitizePrivacyLocationSettings,
   sanitizePrivacyRadiusMeters
 } from '@/lib/services/fitness-files/privacy'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
@@ -24,12 +25,23 @@ interface Props {
   mapboxAccessToken?: string
 }
 
+interface PrivacyLocationInput {
+  latitude: number
+  longitude: number
+  hideRadiusMeters: FitnessPrivacyRadiusMeters
+}
+
 interface FitnessGeneralSettingsResponse {
   success?: boolean
   error?: string
-  privacyHomeLatitude: number | null
-  privacyHomeLongitude: number | null
-  privacyHideRadiusMeters: number
+  privacyLocations?: Array<{
+    latitude: number
+    longitude: number
+    hideRadiusMeters: number
+  }>
+  privacyHomeLatitude?: number | null
+  privacyHomeLongitude?: number | null
+  privacyHideRadiusMeters?: number
 }
 
 interface RegenerateMapsResponse {
@@ -94,6 +106,10 @@ const DEFAULT_MAP_CENTER: [number, number] = [5.2913, 52.1326]
 const DEFAULT_MAP_ZOOM = 6
 const CURRENT_LOCATION_ZOOM = 13
 const HOME_MARKER_ZOOM = 13
+const NON_ZERO_RADIUS_OPTIONS = FITNESS_PRIVACY_RADIUS_OPTIONS.filter(
+  (radius) => radius > 0
+) as FitnessPrivacyRadiusMeters[]
+const DEFAULT_DRAFT_RADIUS = NON_ZERO_RADIUS_OPTIONS[0] ?? 5
 
 const parseCoordinateInput = (value: string): number | null => {
   if (value.trim().length === 0) {
@@ -138,6 +154,43 @@ const formatCoordinate = (value: number | null): string => {
   }
 
   return value.toFixed(6)
+}
+
+const toResponsePrivacyLocations = (
+  data: FitnessGeneralSettingsResponse
+): PrivacyLocationInput[] => {
+  const locations = sanitizePrivacyLocationSettings(data.privacyLocations)
+
+  if (locations.length > 0) {
+    return locations
+  }
+
+  const latitude = data.privacyHomeLatitude
+  const longitude = data.privacyHomeLongitude
+  const hideRadiusMeters = sanitizePrivacyRadiusMeters(
+    data.privacyHideRadiusMeters
+  )
+
+  if (
+    typeof latitude === 'number' &&
+    typeof longitude === 'number' &&
+    hideRadiusMeters > 0
+  ) {
+    return [
+      {
+        latitude,
+        longitude,
+        hideRadiusMeters
+      }
+    ]
+  }
+
+  return []
+}
+
+const sanitizeDraftRadius = (value: unknown): FitnessPrivacyRadiusMeters => {
+  const radius = sanitizePrivacyRadiusMeters(value)
+  return radius > 0 ? radius : DEFAULT_DRAFT_RADIUS
 }
 
 const getBrowserCurrentLocation = async (): Promise<
@@ -190,8 +243,11 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
   const [latitudeInput, setLatitudeInput] = useState('')
   const [longitudeInput, setLongitudeInput] = useState('')
-  const [radiusMeters, setRadiusMeters] =
-    useState<FitnessPrivacyRadiusMeters>(0)
+  const [draftRadiusMeters, setDraftRadiusMeters] =
+    useState<FitnessPrivacyRadiusMeters>(DEFAULT_DRAFT_RADIUS)
+  const [privacyLocations, setPrivacyLocations] = useState<
+    PrivacyLocationInput[]
+  >([])
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -259,10 +315,14 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
           return
         }
 
-        setLatitudeInput(formatCoordinate(data.privacyHomeLatitude))
-        setLongitudeInput(formatCoordinate(data.privacyHomeLongitude))
-        setRadiusMeters(
-          sanitizePrivacyRadiusMeters(data.privacyHideRadiusMeters)
+        const locations = toResponsePrivacyLocations(data)
+        const firstLocation = locations[0]
+
+        setPrivacyLocations(locations)
+        setLatitudeInput(formatCoordinate(firstLocation?.latitude ?? null))
+        setLongitudeInput(formatCoordinate(firstLocation?.longitude ?? null))
+        setDraftRadiusMeters(
+          sanitizeDraftRadius(firstLocation?.hideRadiusMeters)
         )
       } catch {
         if (cancelled) {
@@ -406,41 +466,75 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     }
   }, [flyToMarker, markerCoordinates])
 
-  const validateSettings = (): string | null => {
+  const buildDraftLocation = (): {
+    location: PrivacyLocationInput | null
+    error: string | null
+  } => {
     const hasLatitude = latitudeInput.trim().length > 0
     const hasLongitude = longitudeInput.trim().length > 0
 
+    if (!hasLatitude && !hasLongitude) {
+      return {
+        location: null,
+        error: null
+      }
+    }
+
     if (hasLatitude !== hasLongitude) {
-      return 'Latitude and longitude must be provided together.'
+      return {
+        location: null,
+        error: 'Latitude and longitude must be provided together.'
+      }
     }
 
     const latitude = parseCoordinateInput(latitudeInput)
     const longitude = parseCoordinateInput(longitudeInput)
 
-    if (latitude !== null && !isLatitudeValid(latitude)) {
-      return 'Latitude must be between -90 and 90.'
+    if (latitude === null || !isLatitudeValid(latitude)) {
+      return {
+        location: null,
+        error: 'Latitude must be between -90 and 90.'
+      }
     }
 
-    if (longitude !== null && !isLongitudeValid(longitude)) {
-      return 'Longitude must be between -180 and 180.'
+    if (longitude === null || !isLongitudeValid(longitude)) {
+      return {
+        location: null,
+        error: 'Longitude must be between -180 and 180.'
+      }
     }
 
-    if (radiusMeters > 0 && (latitude === null || longitude === null)) {
-      return 'Set a home location before using privacy radius greater than 0.'
+    if (draftRadiusMeters <= 0) {
+      return {
+        location: null,
+        error: 'Hide radius must be greater than 0.'
+      }
     }
 
-    return null
+    return {
+      location: {
+        latitude,
+        longitude,
+        hideRadiusMeters: draftRadiusMeters
+      },
+      error: null
+    }
   }
 
-  const saveSettings = async ({
-    latitude,
-    longitude,
-    radius
-  }: {
-    latitude: number | null
-    longitude: number | null
-    radius: FitnessPrivacyRadiusMeters
-  }): Promise<boolean> => {
+  const hasSamePrivacyLocation = (
+    left: PrivacyLocationInput,
+    right: PrivacyLocationInput
+  ) => {
+    return (
+      left.latitude === right.latitude &&
+      left.longitude === right.longitude &&
+      left.hideRadiusMeters === right.hideRadiusMeters
+    )
+  }
+
+  const saveSettings = async (
+    locations: PrivacyLocationInput[]
+  ): Promise<boolean> => {
     try {
       setIsSaving(true)
 
@@ -450,9 +544,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          privacyHomeLatitude: latitude,
-          privacyHomeLongitude: longitude,
-          privacyHideRadiusMeters: radius
+          privacyLocations: locations
         })
       })
 
@@ -465,9 +557,13 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
         return false
       }
 
-      setLatitudeInput(formatCoordinate(data.privacyHomeLatitude))
-      setLongitudeInput(formatCoordinate(data.privacyHomeLongitude))
-      setRadiusMeters(sanitizePrivacyRadiusMeters(data.privacyHideRadiusMeters))
+      const savedLocations = toResponsePrivacyLocations(data)
+      const firstLocation = savedLocations[0]
+
+      setPrivacyLocations(savedLocations)
+      setLatitudeInput(formatCoordinate(firstLocation?.latitude ?? null))
+      setLongitudeInput(formatCoordinate(firstLocation?.longitude ?? null))
+      setDraftRadiusMeters(sanitizeDraftRadius(firstLocation?.hideRadiusMeters))
       return true
     } catch {
       setError('Failed to save fitness privacy location settings')
@@ -477,23 +573,64 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     }
   }
 
+  const handleAddLocation = () => {
+    setError(null)
+    setMessage(null)
+
+    const { location, error: locationError } = buildDraftLocation()
+
+    if (locationError) {
+      setError(locationError)
+      return
+    }
+
+    if (!location) {
+      setError('Set latitude and longitude before adding a privacy location.')
+      return
+    }
+
+    if (
+      privacyLocations.some((item) => hasSamePrivacyLocation(item, location))
+    ) {
+      setMessage('This privacy location is already in the list.')
+      return
+    }
+
+    setPrivacyLocations((current) => [...current, location])
+    setMessage('Privacy location added to list. Save settings to apply.')
+  }
+
+  const handleRemoveLocation = (index: number) => {
+    setError(null)
+    setMessage(null)
+
+    setPrivacyLocations((current) => {
+      const next = current.filter((_, currentIndex) => currentIndex !== index)
+      return next
+    })
+
+    setMessage('Privacy location removed from list. Save settings to apply.')
+  }
+
   const handleSave = async () => {
     setError(null)
     setMessage(null)
 
-    const validationError = validateSettings()
-    if (validationError) {
-      setError(validationError)
+    const { location, error: locationError } = buildDraftLocation()
+    if (locationError) {
+      setError(locationError)
       return
     }
 
-    const latitude = parseCoordinateInput(latitudeInput)
-    const longitude = parseCoordinateInput(longitudeInput)
-    const saved = await saveSettings({
-      latitude,
-      longitude,
-      radius: radiusMeters
-    })
+    const locationsToSave = [...privacyLocations]
+    if (
+      location &&
+      !locationsToSave.some((item) => hasSamePrivacyLocation(item, location))
+    ) {
+      locationsToSave.push(location)
+    }
+
+    const saved = await saveSettings(locationsToSave)
 
     if (saved) {
       setMessage('Fitness privacy location settings saved.')
@@ -504,13 +641,13 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     setError(null)
     setMessage(null)
 
-    const saved = await saveSettings({
-      latitude: null,
-      longitude: null,
-      radius: 0
-    })
+    const saved = await saveSettings([])
 
     if (saved) {
+      setPrivacyLocations([])
+      setLatitudeInput('')
+      setLongitudeInput('')
+      setDraftRadiusMeters(DEFAULT_DRAFT_RADIUS)
       setMessage('Fitness privacy location settings cleared.')
     }
   }
@@ -559,14 +696,14 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
       <CardHeader>
         <CardTitle>Privacy Location</CardTitle>
         <CardDescription>
-          Hide GPS points near your home location from shared maps and generated
-          route images.
+          Hide GPS points near your saved privacy locations from shared maps and
+          generated route images.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {mapboxAccessToken ? (
           <div className="space-y-2">
-            <Label>Home Marker</Label>
+            <Label>Location Marker</Label>
             <div className="relative h-64 overflow-hidden rounded-md border">
               <div ref={mapContainerRef} className="h-full w-full" />
               {mapLoadError ? (
@@ -576,7 +713,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
               ) : null}
             </div>
             <p className="text-xs text-muted-foreground">
-              Click the map to set your home marker.
+              Click the map to set coordinates for a location you want to add.
             </p>
           </div>
         ) : (
@@ -629,16 +766,16 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
           <div className="relative">
             <select
               id="privacyHideRadiusMeters"
-              value={String(radiusMeters)}
+              value={String(draftRadiusMeters)}
               onChange={(event) => {
-                setRadiusMeters(
-                  sanitizePrivacyRadiusMeters(Number(event.target.value))
+                setDraftRadiusMeters(
+                  sanitizeDraftRadius(Number(event.target.value))
                 )
               }}
               disabled={isLoading || isSaving}
               className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {FITNESS_PRIVACY_RADIUS_OPTIONS.map((radius) => (
+              {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
                 <option key={radius} value={radius}>
                   {radius}m
                 </option>
@@ -651,6 +788,52 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
           </p>
         </div>
 
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={handleAddLocation}
+            disabled={isLoading || isSaving || isRegeneratingMaps}
+          >
+            Add location to list
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Saved Privacy Locations</Label>
+          {privacyLocations.length > 0 ? (
+            <div className="space-y-2">
+              {privacyLocations.map((location, index) => (
+                <div
+                  key={`${location.latitude}-${location.longitude}-${location.hideRadiusMeters}-${index}`}
+                  className="flex items-center justify-between rounded-md border px-3 py-2"
+                >
+                  <div className="pr-3">
+                    <p className="text-sm font-medium">
+                      {location.latitude.toFixed(6)},{' '}
+                      {location.longitude.toFixed(6)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Hide radius: {location.hideRadiusMeters}m
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRemoveLocation(index)}
+                    disabled={isLoading || isSaving || isRegeneratingMaps}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No privacy locations added yet.
+            </p>
+          )}
+        </div>
+
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {message ? <p className="text-sm text-green-600">{message}</p> : null}
 
@@ -659,14 +842,14 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
             onClick={handleSave}
             disabled={isLoading || isSaving || isRegeneratingMaps}
           >
-            {isSaving ? 'Saving...' : 'Save privacy location'}
+            {isSaving ? 'Saving...' : 'Save privacy locations'}
           </Button>
           <Button
             variant="outline"
             onClick={handleClear}
             disabled={isLoading || isSaving || isRegeneratingMaps}
           >
-            Clear
+            Clear all
           </Button>
           <Button
             variant="outline"

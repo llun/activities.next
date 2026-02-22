@@ -7,7 +7,7 @@ import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import {
-  getFitnessPrivacyLocation,
+  getFitnessPrivacyLocations,
   getVisibleSegments
 } from '@/lib/services/fitness-files/privacy'
 import { saveMedia } from '@/lib/services/medias'
@@ -177,11 +177,7 @@ export const processFitnessFileJob = createJobHandle(
         actorId,
         serviceType: 'general'
       })
-      const privacyLocation = getFitnessPrivacyLocation({
-        privacyHomeLatitude: privacySettings?.privacyHomeLatitude,
-        privacyHomeLongitude: privacySettings?.privacyHomeLongitude,
-        privacyHideRadiusMeters: privacySettings?.privacyHideRadiusMeters
-      })
+      const privacyLocation = getFitnessPrivacyLocations(privacySettings)
       const visibleSegments = getVisibleSegments(
         activityData.coordinates,
         privacyLocation
