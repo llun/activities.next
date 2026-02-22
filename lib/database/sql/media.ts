@@ -185,7 +185,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
               : String(item.mediaId)
         } satisfies AttachmentWithMedia
       })
-      .filter((item): item is AttachmentWithMedia => Boolean(item))
+      .filter((item): item is NonNullable<typeof item> => item !== null)
   },
 
   async getAttachmentsForActor({
