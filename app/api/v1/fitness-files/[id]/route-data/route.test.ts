@@ -177,7 +177,7 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Cache-Control')).toBe('public, max-age=300')
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
 
     const payload = (await response.json()) as {
       samples: Array<{ elapsedSeconds: number; isHiddenByPrivacy: boolean }>

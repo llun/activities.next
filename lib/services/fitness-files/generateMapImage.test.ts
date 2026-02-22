@@ -151,7 +151,7 @@ describe('generateMapImage', () => {
             return sum + segment.length
           }, 0)
 
-    expect(totalPoints).toBeLessThanOrEqual(500)
+    expect(totalPoints).toBeLessThanOrEqual(250)
     if (parsedGeoJson.geometry.type === 'MultiLineString') {
       expect(
         parsedGeoJson.geometry.coordinates.every((segment) => {

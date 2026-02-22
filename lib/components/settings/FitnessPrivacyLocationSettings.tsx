@@ -1,7 +1,7 @@
 'use client'
 
 import { ChevronDown } from 'lucide-react'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -30,6 +30,12 @@ interface FitnessGeneralSettingsResponse {
   privacyHomeLatitude: number | null
   privacyHomeLongitude: number | null
   privacyHideRadiusMeters: number
+}
+
+interface RegenerateMapsResponse {
+  success?: boolean
+  error?: string
+  queuedCount?: number
 }
 
 interface MapPointGeometry {
@@ -189,6 +195,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isRegeneratingMaps, setIsRegeneratingMaps] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
@@ -208,6 +215,24 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     return [longitude, latitude]
   }, [latitudeInput, longitudeInput])
   markerCoordinatesRef.current = markerCoordinates
+
+  const flyToMarker = useCallback(() => {
+    const map = mapRef.current
+    if (!map) {
+      return
+    }
+
+    const nextMarkerCoordinates = markerCoordinatesRef.current
+    if (!nextMarkerCoordinates) {
+      return
+    }
+
+    map.flyTo({
+      center: nextMarkerCoordinates,
+      zoom: HOME_MARKER_ZOOM,
+      duration: 500
+    })
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -366,14 +391,20 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
     source.setData(toMarkerFeatureCollection(markerCoordinates))
 
-    if (markerCoordinates && !isHydratingSettingsRef.current) {
-      map.flyTo({
-        center: markerCoordinates,
-        zoom: HOME_MARKER_ZOOM,
-        duration: 500
-      })
+    const activeElementId =
+      typeof document !== 'undefined' ? document.activeElement?.id : undefined
+    const isCoordinateInputFocused =
+      activeElementId === 'privacyHomeLatitude' ||
+      activeElementId === 'privacyHomeLongitude'
+
+    if (
+      markerCoordinates &&
+      !isHydratingSettingsRef.current &&
+      !isCoordinateInputFocused
+    ) {
+      flyToMarker()
     }
-  }, [markerCoordinates])
+  }, [flyToMarker, markerCoordinates])
 
   const validateSettings = (): string | null => {
     const hasLatitude = latitudeInput.trim().length > 0
@@ -484,6 +515,45 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     }
   }
 
+  const handleRegenerateOldStatusMaps = async () => {
+    setError(null)
+    setMessage(null)
+    setIsRegeneratingMaps(true)
+
+    try {
+      const response = await fetch(
+        '/api/v1/settings/fitness/general/regenerate-maps',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      const data = (await response.json()) as RegenerateMapsResponse
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to queue map regeneration job.')
+        return
+      }
+
+      const queuedCount =
+        typeof data.queuedCount === 'number' ? data.queuedCount : 0
+      if (queuedCount === 0) {
+        setMessage('No old statuses are pending map regeneration.')
+      } else {
+        setMessage(
+          `Queued map regeneration for ${queuedCount} old status${queuedCount > 1 ? 'es' : ''}.`
+        )
+      }
+    } catch {
+      setError('Failed to queue map regeneration job.')
+    } finally {
+      setIsRegeneratingMaps(false)
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -526,6 +596,11 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
               placeholder="e.g. 37.774900"
               value={latitudeInput}
               onChange={(event) => setLatitudeInput(event.target.value)}
+              onBlur={() => {
+                if (!isHydratingSettingsRef.current) {
+                  flyToMarker()
+                }
+              }}
               disabled={isLoading || isSaving}
             />
           </div>
@@ -539,6 +614,11 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
               placeholder="e.g. -122.419400"
               value={longitudeInput}
               onChange={(event) => setLongitudeInput(event.target.value)}
+              onBlur={() => {
+                if (!isHydratingSettingsRef.current) {
+                  flyToMarker()
+                }
+              }}
               disabled={isLoading || isSaving}
             />
           </div>
@@ -575,15 +655,27 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
         {message ? <p className="text-sm text-green-600">{message}</p> : null}
 
         <div className="flex flex-wrap gap-2">
-          <Button onClick={handleSave} disabled={isLoading || isSaving}>
+          <Button
+            onClick={handleSave}
+            disabled={isLoading || isSaving || isRegeneratingMaps}
+          >
             {isSaving ? 'Saving...' : 'Save privacy location'}
           </Button>
           <Button
             variant="outline"
             onClick={handleClear}
-            disabled={isLoading || isSaving}
+            disabled={isLoading || isSaving || isRegeneratingMaps}
           >
             Clear
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleRegenerateOldStatusMaps}
+            disabled={isLoading || isSaving || isRegeneratingMaps}
+          >
+            {isRegeneratingMaps
+              ? 'Queueing regeneration...'
+              : 'Regenerate maps for old statuses'}
           </Button>
         </div>
       </CardContent>

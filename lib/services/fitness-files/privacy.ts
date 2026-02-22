@@ -109,7 +109,8 @@ export const getDistanceMeters = (
     Math.sin(dLat / 2) ** 2 +
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
 
-  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(haversine))
+  const clampedHaversine = Math.max(0, Math.min(1, haversine))
+  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(clampedHaversine))
 }
 
 export const isPointHiddenByPrivacy = (

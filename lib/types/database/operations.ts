@@ -643,6 +643,12 @@ export type CreateAttachmentParams = {
 export type GetAttachmentsParams = {
   statusId: string
 }
+export type AttachmentWithMedia = Attachment & {
+  mediaId?: string | null
+}
+export type GetAttachmentsWithMediaParams = {
+  statusId: string
+}
 export type GetAttachmentsForActorParams = {
   actorId: string
   limit?: number
@@ -660,6 +666,9 @@ export type GetStorageUsageForAccountParams = {
 export type DeleteMediaParams = {
   mediaId: string
 }
+export type DeleteAttachmentsByIdsParams = {
+  attachmentIds: string[]
+}
 export type GetMediaByIdParams = {
   mediaId: string
   accountId: string
@@ -670,6 +679,9 @@ export interface MediaDatabase {
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
+  getAttachmentsWithMedia(
+    params: GetAttachmentsWithMediaParams
+  ): Promise<AttachmentWithMedia[]>
   getAttachmentsForActor(
     params: GetAttachmentsForActorParams
   ): Promise<Attachment[]>
@@ -680,6 +692,7 @@ export interface MediaDatabase {
   getStorageUsageForAccount(
     params: GetStorageUsageForAccountParams
   ): Promise<number>
+  deleteAttachmentsByIds(params: DeleteAttachmentsByIdsParams): Promise<number>
   deleteMedia(params: DeleteMediaParams): Promise<boolean>
 }
 

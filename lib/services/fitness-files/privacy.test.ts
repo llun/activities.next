@@ -1,4 +1,4 @@
-import { downsamplePrivacySegments } from './privacy'
+import { downsamplePrivacySegments, getDistanceMeters } from './privacy'
 
 interface SamplePoint {
   lat: number
@@ -47,5 +47,17 @@ describe('downsamplePrivacySegments', () => {
     expect(totalPoints).toBeLessThanOrEqual(5)
     expect(sampled.length).toBeLessThanOrEqual(2)
     expect(sampled.every((segment) => segment.points.length >= 2)).toBe(true)
+  })
+})
+
+describe('getDistanceMeters', () => {
+  it('returns finite distance for near-antipodal points', () => {
+    const distance = getDistanceMeters(
+      { lat: 0, lng: 0 },
+      { lat: 0.0000001, lng: 180 }
+    )
+
+    expect(Number.isFinite(distance)).toBe(true)
+    expect(distance).toBeGreaterThan(0)
   })
 })

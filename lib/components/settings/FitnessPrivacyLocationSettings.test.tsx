@@ -102,4 +102,69 @@ describe('FitnessPrivacyLocationSettings', () => {
       privacyHideRadiusMeters: 0
     })
   })
+
+  it('queues manual regeneration for old status map images', async () => {
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockImplementation(async (input, init) => {
+        const method = init?.method ?? 'GET'
+
+        if (
+          typeof input === 'string' &&
+          input === '/api/v1/settings/fitness/general' &&
+          method === 'GET'
+        ) {
+          return {
+            ok: true,
+            json: async () => ({
+              privacyHomeLatitude: null,
+              privacyHomeLongitude: null,
+              privacyHideRadiusMeters: 0
+            })
+          } as Response
+        }
+
+        if (
+          typeof input === 'string' &&
+          input === '/api/v1/settings/fitness/general/regenerate-maps' &&
+          method === 'POST'
+        ) {
+          return {
+            ok: true,
+            json: async () => ({
+              success: true,
+              queuedCount: 3
+            })
+          } as Response
+        }
+
+        throw new Error('Unexpected fetch call')
+      })
+
+    render(<FitnessPrivacyLocationSettings />)
+
+    const regenerateButton = await screen.findByRole('button', {
+      name: 'Regenerate maps for old statuses'
+    })
+    await waitFor(() => {
+      expect(regenerateButton).not.toBeDisabled()
+    })
+
+    fireEvent.click(regenerateButton)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Queued map regeneration for 3 old statuses.')
+      ).toBeInTheDocument()
+    })
+
+    expect(
+      fetchMock.mock.calls.some(([input, init]) => {
+        return (
+          input === '/api/v1/settings/fitness/general/regenerate-maps' &&
+          (init?.method ?? 'GET') === 'POST'
+        )
+      })
+    ).toBe(true)
+  })
 })

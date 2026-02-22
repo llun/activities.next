@@ -91,7 +91,7 @@ const calculateBounds = (coordinates: FitnessCoordinate[]) => {
 
 const downsampleRouteSegments = (
   routeSegments: FitnessCoordinate[][],
-  maxPoints = 500
+  maxPoints = 250
 ): FitnessCoordinate[][] => {
   const privacySegments: Array<
     PrivacySegment<FitnessCoordinate & { isHiddenByPrivacy: boolean }>
@@ -127,6 +127,9 @@ const buildMapboxUrl = ({
   accessToken: string
 }) => {
   const sampledSegments = downsampleRouteSegments(routeSegments)
+  if (sampledSegments.length === 0) {
+    throw new Error('No route segments remain after downsampling')
+  }
 
   const geometry =
     sampledSegments.length > 1

@@ -18,6 +18,7 @@ import {
   FETCH_REMOTE_STATUS_JOB_NAME,
   IMPORT_FITNESS_FILES_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME,
+  REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_ANNOUNCE_JOB_NAME,
   SEND_NOTE_JOB_NAME,
   SEND_UNDO_ANNOUNCE_JOB_NAME,
@@ -26,6 +27,7 @@ import {
   UPDATE_POLL_JOB_NAME
 } from './names'
 import { processFitnessFileJob } from './processFitnessFileJob'
+import { regenerateFitnessMapsJob } from './regenerateFitnessMapsJob'
 import { sendAnnounceJob } from './sendAnnounceJob'
 import { sendNoteJob } from './sendNoteJob'
 import { sendUndoAnnounceJob } from './sendUndoAnnounceJob'
@@ -47,6 +49,7 @@ export const JOBS: Record<string, JobHandle> = {
   [DELETE_ACTOR_JOB_NAME]: deleteActorJob,
   [SEND_ANNOUNCE_JOB_NAME]: sendAnnounceJob,
   [PROCESS_FITNESS_FILE_JOB_NAME]: processFitnessFileJob,
+  [REGENERATE_FITNESS_MAPS_JOB_NAME]: regenerateFitnessMapsJob,
   [IMPORT_FITNESS_FILES_JOB_NAME]: importFitnessFilesJob,
   [SEND_NOTE_JOB_NAME]: sendNoteJob,
   [SEND_UPDATE_NOTE_JOB_NAME]: sendUpdateNoteJob,
