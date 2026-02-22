@@ -19,6 +19,7 @@ import {
   isSupportedStravaPhotoMimeType,
   mapStravaVisibilityToMastodon
 } from '@/lib/services/strava/activity'
+import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -49,13 +50,16 @@ const getOverlapContextFitnessFileIds = ({
   fitnessFileId: string
   activityStartTime?: number
   activityDurationSeconds: number
-  files: Array<{
-    id: string
-    actorId: string
-    statusId?: string
-    activityStartTime?: number
-    totalDurationSeconds?: number
-  }>
+  files: Array<
+    Pick<
+      FitnessFile,
+      | 'id'
+      | 'actorId'
+      | 'statusId'
+      | 'activityStartTime'
+      | 'totalDurationSeconds'
+    >
+  >
 }) => {
   const sameActorFiles = files.filter(
     (file) =>
