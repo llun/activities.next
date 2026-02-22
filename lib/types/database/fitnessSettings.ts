@@ -20,6 +20,11 @@ export interface SQLFitnessSettings {
   oauthState?: string | null
   oauthStateExpiry?: number | Date | null
 
+  // Privacy location settings
+  privacyHomeLatitude?: number | null
+  privacyHomeLongitude?: number | null
+  privacyHideRadiusMeters?: number | null
+
   // Timestamps
   createdAt: number | Date
   updatedAt: number | Date
@@ -43,6 +48,11 @@ export interface FitnessSettings {
 
   oauthState?: string
   oauthStateExpiry?: number
+
+  // Privacy location settings
+  privacyHomeLatitude?: number
+  privacyHomeLongitude?: number
+  privacyHideRadiusMeters?: number
 
   createdAt: number
   updatedAt: number

@@ -8,11 +8,14 @@ import {
   parseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import {
+  AttachmentWithMedia,
   CreateAttachmentParams,
   CreateMediaParams,
+  DeleteAttachmentsByIdsParams,
   DeleteMediaParams,
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
+  GetAttachmentsWithMediaParams,
   GetMediaByIdParams,
   GetMediasForAccountParams,
   GetStorageUsageForAccountParams,
@@ -138,6 +141,51 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         })
       })
       .filter((item): item is Attachment => Boolean(item))
+  },
+
+  async getAttachmentsWithMedia({
+    statusId
+  }: GetAttachmentsWithMediaParams): Promise<AttachmentWithMedia[]> {
+    const data = await database('attachments')
+      .where('statusId', statusId)
+      .orderBy('createdAt', 'asc')
+      .orderBy('id', 'asc')
+      .select(
+        'id',
+        'actorId',
+        'statusId',
+        'type',
+        'mediaType',
+        'url',
+        'width',
+        'height',
+        'name',
+        'createdAt',
+        'updatedAt',
+        'mediaId'
+      )
+
+    return data
+      .map((item) => {
+        if (!item.actorId) return null
+
+        const attachment = Attachment.parse({
+          ...item,
+          width: item.width ?? undefined,
+          height: item.height ?? undefined,
+          createdAt: getCompatibleTime(item.createdAt),
+          updatedAt: getCompatibleTime(item.updatedAt)
+        })
+
+        return {
+          ...attachment,
+          mediaId:
+            item.mediaId === null || item.mediaId === undefined
+              ? null
+              : String(item.mediaId)
+        } satisfies AttachmentWithMedia
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
   },
 
   async getAttachmentsForActor({
@@ -301,6 +349,16 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     accountId
   }: GetStorageUsageForAccountParams): Promise<number> {
     return getCounterValue(database, CounterKey.mediaUsage(accountId))
+  },
+
+  async deleteAttachmentsByIds({
+    attachmentIds
+  }: DeleteAttachmentsByIdsParams): Promise<number> {
+    if (attachmentIds.length === 0) {
+      return 0
+    }
+
+    return database('attachments').whereIn('id', attachmentIds).delete()
   },
 
   async deleteMedia({ mediaId }: DeleteMediaParams): Promise<boolean> {

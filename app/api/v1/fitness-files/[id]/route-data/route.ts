@@ -9,6 +9,13 @@ import {
   FitnessTrackPoint,
   parseFitnessFile
 } from '@/lib/services/fitness-files/parseFitnessFile'
+import {
+  annotatePointsWithPrivacy,
+  buildPrivacySegments,
+  downsamplePrivacySegments,
+  flattenPrivacySegments,
+  getFitnessPrivacyLocation
+} from '@/lib/services/fitness-files/privacy'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -32,6 +39,12 @@ interface FitnessRouteSample {
   lng: number
   elapsedSeconds: number
   timestamp?: number
+  isHiddenByPrivacy: boolean
+}
+
+interface FitnessRouteSegment {
+  isHiddenByPrivacy: boolean
+  samples: FitnessRouteSample[]
 }
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -62,44 +75,26 @@ const getFetchResponseErrorDetail = async (
   }
 }
 
-const downsampleTrackPoints = (
-  points: FitnessTrackPoint[],
-  maxPoints: number
-): FitnessTrackPoint[] => {
-  if (points.length <= maxPoints) return points
-
-  const sampled: FitnessTrackPoint[] = []
-  const step = (points.length - 1) / (maxPoints - 1)
-
-  for (let index = 0; index < maxPoints; index += 1) {
-    sampled.push(points[Math.round(index * step)])
-  }
-
-  return sampled
-}
-
 const toRouteSamples = (
   points: FitnessTrackPoint[],
   totalDurationSeconds: number
 ): FitnessRouteSample[] => {
   if (points.length === 0) return []
 
-  const sampledPoints = downsampleTrackPoints(points, MAX_ROUTE_SAMPLE_POINTS)
-  const firstTimestamp = sampledPoints[0].timestamp?.getTime()
-  const lastTimestamp =
-    sampledPoints[sampledPoints.length - 1].timestamp?.getTime()
+  const firstTimestamp = points[0].timestamp?.getTime()
+  const lastTimestamp = points[points.length - 1].timestamp?.getTime()
   const hasTimestampRange =
     typeof firstTimestamp === 'number' &&
     typeof lastTimestamp === 'number' &&
     lastTimestamp > firstTimestamp
 
-  return sampledPoints.map((point, index) => {
+  return points.map((point, index) => {
     let elapsedSeconds = 0
 
     if (hasTimestampRange && point.timestamp) {
       elapsedSeconds = (point.timestamp.getTime() - firstTimestamp) / 1000
-    } else if (sampledPoints.length > 1) {
-      const ratio = index / (sampledPoints.length - 1)
+    } else if (points.length > 1) {
+      const ratio = index / (points.length - 1)
       elapsedSeconds = ratio * Math.max(0, totalDurationSeconds)
     }
 
@@ -107,9 +102,25 @@ const toRouteSamples = (
       lat: point.lat,
       lng: point.lng,
       elapsedSeconds: Number(elapsedSeconds.toFixed(3)),
+      isHiddenByPrivacy: false,
       ...(point.timestamp ? { timestamp: point.timestamp.getTime() } : null)
     }
   })
+}
+
+const toResponseSegments = (
+  segments: Array<{ isHiddenByPrivacy: boolean; points: FitnessRouteSample[] }>
+): FitnessRouteSegment[] => {
+  return segments.map((segment) => ({
+    isHiddenByPrivacy: segment.isHiddenByPrivacy,
+    samples: segment.points.map((point) => ({
+      lat: point.lat,
+      lng: point.lng,
+      elapsedSeconds: point.elapsedSeconds,
+      isHiddenByPrivacy: point.isHiddenByPrivacy,
+      ...(point.timestamp ? { timestamp: point.timestamp } : null)
+    }))
+  }))
 }
 
 const getFitnessFileBuffer = async (
@@ -248,20 +259,46 @@ export const GET = traceApiRoute(
         activityData.trackPoints,
         activityData.totalDurationSeconds
       )
+      const privacySettings = await database.getFitnessSettings({
+        actorId: fileMetadata.actorId,
+        serviceType: 'general'
+      })
+      const privacyLocation = getFitnessPrivacyLocation({
+        privacyHomeLatitude: privacySettings?.privacyHomeLatitude,
+        privacyHomeLongitude: privacySettings?.privacyHomeLongitude,
+        privacyHideRadiusMeters: privacySettings?.privacyHideRadiusMeters
+      })
+
+      const privacyAwareSamples = annotatePointsWithPrivacy(
+        routeSamples,
+        privacyLocation
+      )
+      const routeSegments = buildPrivacySegments(privacyAwareSamples, {
+        includeHidden: isOwnerAccount,
+        includeVisible: true
+      })
+      const sampledSegments = downsamplePrivacySegments(
+        routeSegments,
+        MAX_ROUTE_SAMPLE_POINTS,
+        {
+          minimumPointsPerSegment: 2
+        }
+      )
+      const responseSamples = flattenPrivacySegments(sampledSegments)
+      const responseSegments = toResponseSegments(sampledSegments)
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: {
-          samples: routeSamples,
+          samples: responseSamples,
+          segments: responseSegments,
           totalDurationSeconds: activityData.totalDurationSeconds
         },
         additionalHeaders: [
           [
             'Cache-Control',
-            isPubliclyAccessible
-              ? 'public, max-age=31536000, immutable'
-              : 'private, no-store'
+            isPubliclyAccessible ? 'no-store' : 'private, no-store'
           ]
         ]
       })
