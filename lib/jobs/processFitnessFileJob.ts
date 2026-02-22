@@ -164,31 +164,25 @@ export const processFitnessFileJob = createJobHandle(
         buffer: fitnessBuffer
       })
 
-      const privacySettings = await database.getFitnessSettings({
-        actorId,
-        serviceType: 'general'
-      })
-      const privacySnapshot = {
-        privacyHomeLatitude: privacySettings?.privacyHomeLatitude ?? null,
-        privacyHomeLongitude: privacySettings?.privacyHomeLongitude ?? null,
-        privacyHideRadiusMeters:
-          privacySettings?.privacyHideRadiusMeters ?? null
-      }
-
       await database.updateFitnessFileActivityData(fitnessFileId, {
         totalDistanceMeters: activityData.totalDistanceMeters,
         totalDurationSeconds: activityData.totalDurationSeconds,
         elevationGainMeters: activityData.elevationGainMeters,
         activityType: activityData.activityType,
         activityStartTime: activityData.startTime ?? null,
-        privacyHomeLatitude: privacySnapshot.privacyHomeLatitude,
-        privacyHomeLongitude: privacySnapshot.privacyHomeLongitude,
-        privacyHideRadiusMeters: privacySnapshot.privacyHideRadiusMeters,
         hasMapData: false,
         mapImagePath: null
       })
 
-      const privacyLocation = getFitnessPrivacyLocation(privacySnapshot)
+      const privacySettings = await database.getFitnessSettings({
+        actorId,
+        serviceType: 'general'
+      })
+      const privacyLocation = getFitnessPrivacyLocation({
+        privacyHomeLatitude: privacySettings?.privacyHomeLatitude,
+        privacyHomeLongitude: privacySettings?.privacyHomeLongitude,
+        privacyHideRadiusMeters: privacySettings?.privacyHideRadiusMeters
+      })
       const privacyAwareCoordinates = annotatePointsWithPrivacy(
         activityData.coordinates,
         privacyLocation

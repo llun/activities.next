@@ -193,9 +193,6 @@ describe('processFitnessFileJob', () => {
       hasMapData: true,
       mapImagePath: 'medias/route-map.webp'
     })
-    expect(updatedFitnessFile?.privacyHomeLatitude).toBeUndefined()
-    expect(updatedFitnessFile?.privacyHomeLongitude).toBeUndefined()
-    expect(updatedFitnessFile?.privacyHideRadiusMeters).toBeUndefined()
 
     const status = await database.getStatus({ statusId, withReplies: false })
     expect(status?.type).toBe(StatusType.enum.Note)
@@ -327,13 +324,6 @@ describe('processFitnessFileJob', () => {
       name: PROCESS_FITNESS_FILE_JOB_NAME,
       data: { actorId: actor.id, statusId, fitnessFileId }
     })
-
-    const updatedFitnessFile = await database.getFitnessFile({
-      id: fitnessFileId
-    })
-    expect(updatedFitnessFile?.privacyHomeLatitude).toBe(37.78)
-    expect(updatedFitnessFile?.privacyHomeLongitude).toBe(-122.42)
-    expect(updatedFitnessFile?.privacyHideRadiusMeters).toBe(50)
 
     expect(mockGenerateMapImage).toHaveBeenCalledWith({
       coordinates: [

@@ -100,8 +100,25 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
       }
     )
 
-  const savePrivacyLocation = async (fitnessFileId: string) => {
-    await database.updateFitnessFileActivityData(fitnessFileId, {
+  const savePrivacyLocation = async () => {
+    const existing = await database.getFitnessSettings({
+      actorId: ACTOR1_ID,
+      serviceType: 'general'
+    })
+
+    if (existing) {
+      await database.updateFitnessSettings({
+        id: existing.id,
+        privacyHomeLatitude: 37.77,
+        privacyHomeLongitude: -122.42,
+        privacyHideRadiusMeters: 50
+      })
+      return
+    }
+
+    await database.createFitnessSettings({
+      actorId: ACTOR1_ID,
+      serviceType: 'general',
       privacyHomeLatitude: 37.77,
       privacyHomeLongitude: -122.42,
       privacyHideRadiusMeters: 50
@@ -135,9 +152,7 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Cache-Control')).toBe(
-      'public, max-age=31536000, immutable'
-    )
+    expect(response.headers.get('Cache-Control')).toBe('public, max-age=300')
 
     const payload = (await response.json()) as {
       samples: Array<{ elapsedSeconds: number; isHiddenByPrivacy: boolean }>
@@ -243,6 +258,8 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
       user: { email: seedActor2.email }
     })
 
+    await savePrivacyLocation()
+
     mockParseFitnessFile.mockResolvedValue({
       coordinates: [
         { lat: 37.77, lng: -122.42 },
@@ -300,7 +317,6 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
       mimeType: 'application/vnd.ant.fit',
       bytes: 1_024
     })
-    await savePrivacyLocation(fitnessFile!.id)
 
     const response = await GET(createRequest(), {
       params: Promise.resolve({ id: fitnessFile!.id })
@@ -324,6 +340,8 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+
+    await savePrivacyLocation()
 
     mockParseFitnessFile.mockResolvedValue({
       coordinates: [
@@ -372,7 +390,6 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
       mimeType: 'application/vnd.ant.fit',
       bytes: 2_048
     })
-    await savePrivacyLocation(fitnessFile!.id)
 
     const response = await GET(createRequest(), {
       params: Promise.resolve({ id: fitnessFile!.id })
@@ -391,124 +408,6 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     expect(payload.segments[0].isHiddenByPrivacy).toBe(true)
     expect(payload.segments[1].isHiddenByPrivacy).toBe(false)
     expect(payload.segments[2].isHiddenByPrivacy).toBe(true)
-  })
-
-  it('uses file privacy snapshot and ignores later settings updates', async () => {
-    mockGetServerSession.mockResolvedValue({
-      user: { email: seedActor2.email }
-    })
-
-    mockParseFitnessFile.mockResolvedValue({
-      coordinates: [
-        { lat: 37.77, lng: -122.42 },
-        { lat: 37.7702, lng: -122.4202 },
-        { lat: 37.78, lng: -122.41 },
-        { lat: 37.7802, lng: -122.4098 },
-        { lat: 37.7701, lng: -122.4201 }
-      ],
-      trackPoints: [
-        {
-          lat: 37.77,
-          lng: -122.42,
-          timestamp: new Date('2026-01-01T10:00:00.000Z')
-        },
-        {
-          lat: 37.7702,
-          lng: -122.4202,
-          timestamp: new Date('2026-01-01T10:01:00.000Z')
-        },
-        {
-          lat: 37.78,
-          lng: -122.41,
-          timestamp: new Date('2026-01-01T10:02:00.000Z')
-        },
-        {
-          lat: 37.7802,
-          lng: -122.4098,
-          timestamp: new Date('2026-01-01T10:03:00.000Z')
-        },
-        {
-          lat: 37.7701,
-          lng: -122.4201,
-          timestamp: new Date('2026-01-01T10:04:00.000Z')
-        }
-      ],
-      totalDistanceMeters: 2_000,
-      totalDurationSeconds: 240
-    })
-
-    const status = await database.createNote({
-      id: `${ACTOR1_ID}/statuses/public-route-data-immutable-privacy`,
-      url: `${ACTOR1_ID}/statuses/public-route-data-immutable-privacy`,
-      actorId: ACTOR1_ID,
-      text: 'Public route with immutable privacy snapshot',
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [ACTOR1_FOLLOWER_URL]
-    })
-
-    const fitnessFile = await database.createFitnessFile({
-      actorId: ACTOR1_ID,
-      statusId: status.id,
-      path: 'fitness/public-route-data-immutable-privacy.fit',
-      fileName: 'public-route-data-immutable-privacy.fit',
-      fileType: 'fit',
-      mimeType: 'application/vnd.ant.fit',
-      bytes: 1_024
-    })
-
-    await savePrivacyLocation(fitnessFile!.id)
-
-    const initialResponse = await GET(createRequest(), {
-      params: Promise.resolve({ id: fitnessFile!.id })
-    })
-    const initialPayload = (await initialResponse.json()) as {
-      samples: Array<{ isHiddenByPrivacy: boolean }>
-      segments: Array<{ isHiddenByPrivacy: boolean; samples: unknown[] }>
-    }
-
-    expect(initialResponse.status).toBe(200)
-    expect(initialPayload.samples).toHaveLength(2)
-    expect(
-      initialPayload.samples.every((sample) => !sample.isHiddenByPrivacy)
-    ).toBe(true)
-
-    const existing = await database.getFitnessSettings({
-      actorId: ACTOR1_ID,
-      serviceType: 'general'
-    })
-    if (existing) {
-      await database.updateFitnessSettings({
-        id: existing.id,
-        privacyHomeLatitude: null,
-        privacyHomeLongitude: null,
-        privacyHideRadiusMeters: 0
-      })
-    } else {
-      await database.createFitnessSettings({
-        actorId: ACTOR1_ID,
-        serviceType: 'general',
-        privacyHomeLatitude: null,
-        privacyHomeLongitude: null,
-        privacyHideRadiusMeters: 0
-      })
-    }
-
-    const updatedResponse = await GET(createRequest(), {
-      params: Promise.resolve({ id: fitnessFile!.id })
-    })
-    const updatedPayload = (await updatedResponse.json()) as {
-      samples: Array<{ isHiddenByPrivacy: boolean }>
-      segments: Array<{ isHiddenByPrivacy: boolean; samples: unknown[] }>
-    }
-
-    expect(updatedResponse.status).toBe(200)
-    expect(updatedPayload.samples).toHaveLength(2)
-    expect(
-      updatedPayload.samples.every((sample) => !sample.isHiddenByPrivacy)
-    ).toBe(true)
-    expect(updatedPayload.segments).toHaveLength(1)
-    expect(updatedPayload.segments[0].isHiddenByPrivacy).toBe(false)
-    expect(updatedPayload.segments[0].samples).toHaveLength(2)
   })
 
   it('allows owner access to unlinked uploaded file route data', async () => {
