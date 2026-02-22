@@ -106,6 +106,10 @@ const DEFAULT_MAP_CENTER: [number, number] = [5.2913, 52.1326]
 const DEFAULT_MAP_ZOOM = 6
 const CURRENT_LOCATION_ZOOM = 13
 const HOME_MARKER_ZOOM = 13
+const CURRENT_LOCATION_TIMEOUT_MS = 10000
+const CURRENT_LOCATION_MAX_AGE_MS = 0
+const FALLBACK_LOCATION_TIMEOUT_MS = 15000
+const FALLBACK_LOCATION_MAX_AGE_MS = 3600000
 const NON_ZERO_RADIUS_OPTIONS = FITNESS_PRIVACY_RADIUS_OPTIONS.filter(
   (radius) => radius > 0
 ) as FitnessPrivacyRadiusMeters[]
@@ -195,33 +199,113 @@ const sanitizeDraftRadius = (value: unknown): FitnessPrivacyRadiusMeters => {
   return radius > 0 ? radius : DEFAULT_DRAFT_RADIUS
 }
 
-const getBrowserCurrentLocation = async (): Promise<
-  [number, number] | null
-> => {
+interface BrowserCurrentLocationError {
+  code: number | 'unavailable'
+  message: string
+}
+
+interface BrowserCurrentLocationResult {
+  coordinates: [number, number] | null
+  error?: BrowserCurrentLocationError
+}
+
+interface BrowserCurrentLocationOptions {
+  enableHighAccuracy?: boolean
+  timeout?: number
+  maximumAge?: number
+}
+
+const requestBrowserCurrentLocation = (
+  options: BrowserCurrentLocationOptions
+): Promise<BrowserCurrentLocationResult> => {
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
-    return null
+    return Promise.resolve({
+      coordinates: null,
+      error: {
+        code: 'unavailable',
+        message: 'Geolocation API is not available in this browser.'
+      }
+    })
   }
 
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        resolve([position.coords.longitude, position.coords.latitude])
+        resolve({
+          coordinates: [position.coords.longitude, position.coords.latitude]
+        })
       },
-      () => resolve(null),
-      {
-        enableHighAccuracy: false,
-        timeout: 4000,
-        maximumAge: 300000
-      }
+      (error) => {
+        resolve({
+          coordinates: null,
+          error: {
+            code: error.code,
+            message: error.message
+          }
+        })
+      },
+      options
     )
   })
 }
+
+const getCurrentLocationErrorMessage = (
+  error?: BrowserCurrentLocationError
+): string => {
+  if (!error) {
+    return 'Unable to detect your current browser location. Please allow location access and try again.'
+  }
+
+  if (error.code === 1) {
+    return 'Location permission is denied. Please allow location access in your browser/site settings and try again.'
+  }
+
+  if (error.code === 2) {
+    const providerMessage =
+      error.message && error.message.length > 0 ? ` (${error.message})` : ''
+    return `Location provider is unavailable in this browser process.${providerMessage} Check OS location services for this app/browser and try again.`
+  }
+
+  if (error.code === 3) {
+    return 'Location request timed out. Please try again or move to an area with better location signal.'
+  }
+
+  if (error.code === 'unavailable') {
+    return 'Geolocation is unavailable in this browser context.'
+  }
+
+  return error.message || 'Unable to detect your current browser location.'
+}
+
+const getBrowserCurrentLocation =
+  async (): Promise<BrowserCurrentLocationResult> => {
+    const primaryAttempt = await requestBrowserCurrentLocation({
+      enableHighAccuracy: true,
+      timeout: CURRENT_LOCATION_TIMEOUT_MS,
+      maximumAge: CURRENT_LOCATION_MAX_AGE_MS
+    })
+    if (primaryAttempt.coordinates) {
+      return primaryAttempt
+    }
+
+    const fallbackAttempt = await requestBrowserCurrentLocation({
+      enableHighAccuracy: false,
+      timeout: FALLBACK_LOCATION_TIMEOUT_MS,
+      maximumAge: FALLBACK_LOCATION_MAX_AGE_MS
+    })
+
+    if (fallbackAttempt.coordinates) {
+      return fallbackAttempt
+    }
+
+    return fallbackAttempt.error ? fallbackAttempt : primaryAttempt
+  }
 
 const getInitialMapView = async (): Promise<{
   center: [number, number]
   zoom: number
 }> => {
-  const currentLocation = await getBrowserCurrentLocation()
+  const currentLocation = (await getBrowserCurrentLocation()).coordinates
   if (currentLocation) {
     return {
       center: currentLocation,
@@ -254,6 +338,9 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isRegeneratingMaps, setIsRegeneratingMaps] = useState(false)
+  const [isLocatingCurrentPosition, setIsLocatingCurrentPosition] =
+    useState(false)
+  const [isMapReady, setIsMapReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
@@ -291,6 +378,44 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
       duration: 500
     })
   }, [])
+
+  const syncWithCurrentLocation = useCallback(
+    async ({
+      showSuccessMessage,
+      showFailureMessage
+    }: {
+      showSuccessMessage?: boolean
+      showFailureMessage?: boolean
+    } = {}): Promise<boolean> => {
+      const { coordinates: currentLocation, error: locationError } =
+        await getBrowserCurrentLocation()
+      if (!currentLocation) {
+        if (showFailureMessage) {
+          setError(getCurrentLocationErrorMessage(locationError))
+        }
+        return false
+      }
+
+      const [longitude, latitude] = currentLocation
+      setLatitudeInput(latitude.toFixed(6))
+      setLongitudeInput(longitude.toFixed(6))
+
+      const map = mapRef.current
+      if (map) {
+        map.flyTo({
+          center: currentLocation,
+          zoom: CURRENT_LOCATION_ZOOM,
+          duration: 500
+        })
+      }
+
+      if (showSuccessMessage) {
+        setMessage('Location updated from your browser.')
+      }
+      return true
+    },
+    []
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -348,9 +473,34 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
   }, [])
 
   useEffect(() => {
+    if (!mapboxAccessToken || !isMapReady || isLoading) {
+      return
+    }
+
+    if (
+      privacyLocations.length > 0 ||
+      latitudeInput.trim().length > 0 ||
+      longitudeInput.trim().length > 0
+    ) {
+      return
+    }
+
+    void syncWithCurrentLocation()
+  }, [
+    isLoading,
+    isMapReady,
+    latitudeInput,
+    longitudeInput,
+    mapboxAccessToken,
+    privacyLocations.length,
+    syncWithCurrentLocation
+  ])
+
+  useEffect(() => {
     if (!mapboxAccessToken || !mapContainerRef.current) {
       mapRef.current?.remove()
       mapRef.current = null
+      setIsMapReady(false)
       return
     }
 
@@ -376,6 +526,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
         })
 
         mapRef.current = map
+        setIsMapReady(false)
 
         map.once('load', () => {
           if (cancelled || !mapRef.current) {
@@ -409,6 +560,17 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
               'circle-opacity': 0.2
             }
           })
+
+          const initialMarkerCoordinates = markerCoordinatesRef.current
+          if (initialMarkerCoordinates) {
+            map.flyTo({
+              center: initialMarkerCoordinates,
+              zoom: HOME_MARKER_ZOOM,
+              duration: 0
+            })
+          }
+
+          setIsMapReady(true)
         })
 
         map.on('click', ({ lngLat }) => {
@@ -434,6 +596,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
       cancelled = true
       mapRef.current?.remove()
       mapRef.current = null
+      setIsMapReady(false)
     }
   }, [mapboxAccessToken])
 
@@ -602,6 +765,21 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     setMessage('Privacy location added to list. Save settings to apply.')
   }
 
+  const handleUseCurrentLocation = async () => {
+    setError(null)
+    setMessage(null)
+    setIsLocatingCurrentPosition(true)
+
+    try {
+      await syncWithCurrentLocation({
+        showSuccessMessage: true,
+        showFailureMessage: true
+      })
+    } finally {
+      setIsLocatingCurrentPosition(false)
+    }
+  }
+
   const handleRemoveLocation = (index: number) => {
     setError(null)
     setMessage(null)
@@ -654,6 +832,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
       setLongitudeInput('')
       setDraftRadiusMeters(DEFAULT_DRAFT_RADIUS)
       setMessage('Fitness privacy location settings cleared.')
+      void syncWithCurrentLocation()
     }
   }
 
@@ -796,8 +975,25 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
+            onClick={handleUseCurrentLocation}
+            disabled={
+              isLoading ||
+              isSaving ||
+              isRegeneratingMaps ||
+              isLocatingCurrentPosition
+            }
+          >
+            {isLocatingCurrentPosition ? 'Locating...' : 'Use current location'}
+          </Button>
+          <Button
+            variant="outline"
             onClick={handleAddLocation}
-            disabled={isLoading || isSaving || isRegeneratingMaps}
+            disabled={
+              isLoading ||
+              isSaving ||
+              isRegeneratingMaps ||
+              isLocatingCurrentPosition
+            }
           >
             Add location to list
           </Button>
@@ -845,21 +1041,36 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
         <div className="flex flex-wrap gap-2">
           <Button
             onClick={handleSave}
-            disabled={isLoading || isSaving || isRegeneratingMaps}
+            disabled={
+              isLoading ||
+              isSaving ||
+              isRegeneratingMaps ||
+              isLocatingCurrentPosition
+            }
           >
             {isSaving ? 'Saving...' : 'Save privacy locations'}
           </Button>
           <Button
             variant="outline"
             onClick={handleClear}
-            disabled={isLoading || isSaving || isRegeneratingMaps}
+            disabled={
+              isLoading ||
+              isSaving ||
+              isRegeneratingMaps ||
+              isLocatingCurrentPosition
+            }
           >
             Clear all
           </Button>
           <Button
             variant="outline"
             onClick={handleRegenerateOldStatusMaps}
-            disabled={isLoading || isSaving || isRegeneratingMaps}
+            disabled={
+              isLoading ||
+              isSaving ||
+              isRegeneratingMaps ||
+              isLocatingCurrentPosition
+            }
           >
             {isRegeneratingMaps
               ? 'Queueing regeneration...'

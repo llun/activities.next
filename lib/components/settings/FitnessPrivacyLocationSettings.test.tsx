@@ -7,8 +7,18 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { FitnessPrivacyLocationSettings } from './FitnessPrivacyLocationSettings'
 
 describe('FitnessPrivacyLocationSettings', () => {
+  interface BrowserCurrentLocationOptions {
+    maximumAge?: number
+  }
+
+  const originalGeolocation = global.navigator.geolocation
+
   afterEach(() => {
     jest.restoreAllMocks()
+    Object.defineProperty(global.navigator, 'geolocation', {
+      configurable: true,
+      value: originalGeolocation
+    })
   })
 
   it('shows manual coordinate mode when mapbox token is missing', async () => {
@@ -144,6 +154,105 @@ describe('FitnessPrivacyLocationSettings', () => {
     })
   })
 
+  it('fills coordinates from browser current location', async () => {
+    const getCurrentPosition = jest.fn(
+      (success: (position: GeolocationPosition) => void) => {
+        success({
+          coords: {
+            latitude: 52.010044,
+            longitude: 5.678277
+          }
+        } as GeolocationPosition)
+      }
+    )
+    Object.defineProperty(global.navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition
+      }
+    })
+
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        privacyLocations: []
+      })
+    } as Response)
+
+    render(<FitnessPrivacyLocationSettings />)
+
+    const useCurrentLocationButton = await screen.findByRole('button', {
+      name: 'Use current location'
+    })
+    await waitFor(() => {
+      expect(useCurrentLocationButton).not.toBeDisabled()
+    })
+    fireEvent.click(useCurrentLocationButton)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('52.010044')).toBeInTheDocument()
+      expect(screen.getByDisplayValue('5.678277')).toBeInTheDocument()
+      expect(
+        screen.getByText('Location updated from your browser.')
+      ).toBeInTheDocument()
+    })
+    expect(getCurrentPosition).toHaveBeenCalled()
+  })
+
+  it('retries with fallback geolocation options when first lookup fails', async () => {
+    const getCurrentPosition = jest.fn(
+      (
+        success: (position: GeolocationPosition) => void,
+        error?: (error: GeolocationPositionError) => void,
+        options?: BrowserCurrentLocationOptions
+      ) => {
+        if (options?.maximumAge === 0) {
+          error?.({
+            code: 3,
+            message: 'Timeout'
+          } as GeolocationPositionError)
+          return
+        }
+
+        success({
+          coords: {
+            latitude: 46.044945,
+            longitude: 14.506012
+          }
+        } as GeolocationPosition)
+      }
+    )
+    Object.defineProperty(global.navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition
+      }
+    })
+
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        privacyLocations: []
+      })
+    } as Response)
+
+    render(<FitnessPrivacyLocationSettings />)
+
+    const useCurrentLocationButton = await screen.findByRole('button', {
+      name: 'Use current location'
+    })
+    await waitFor(() => {
+      expect(useCurrentLocationButton).not.toBeDisabled()
+    })
+    fireEvent.click(useCurrentLocationButton)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('46.044945')).toBeInTheDocument()
+      expect(screen.getByDisplayValue('14.506012')).toBeInTheDocument()
+    })
+    expect(getCurrentPosition).toHaveBeenCalledTimes(2)
+  })
+
   it('persists clear all by posting an empty privacy locations list', async () => {
     const fetchMock = jest
       .spyOn(global, 'fetch')
@@ -204,6 +313,76 @@ describe('FitnessPrivacyLocationSettings', () => {
     expect(postBodies[postBodies.length - 1]).toEqual({
       privacyLocations: []
     })
+  })
+
+  it('updates coordinates from browser location after clearing all', async () => {
+    const getCurrentPosition = jest.fn(
+      (success: (position: GeolocationPosition) => void) => {
+        success({
+          coords: {
+            latitude: 46.044945,
+            longitude: 14.506012
+          }
+        } as GeolocationPosition)
+      }
+    )
+    Object.defineProperty(global.navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition
+      }
+    })
+
+    jest.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const method = init?.method ?? 'GET'
+
+      if (
+        typeof input === 'string' &&
+        input === '/api/v1/settings/fitness/general' &&
+        method === 'GET'
+      ) {
+        return {
+          ok: true,
+          json: async () => ({
+            privacyLocations: [
+              {
+                latitude: 13.7563,
+                longitude: 100.5018,
+                hideRadiusMeters: 20
+              }
+            ]
+          })
+        } as Response
+      }
+
+      if (
+        typeof input === 'string' &&
+        input === '/api/v1/settings/fitness/general' &&
+        method === 'POST'
+      ) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            privacyLocations: []
+          })
+        } as Response
+      }
+
+      throw new Error('Unexpected fetch call')
+    })
+
+    render(<FitnessPrivacyLocationSettings />)
+
+    await screen.findByText('13.756300, 100.501800')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('46.044945')).toBeInTheDocument()
+      expect(screen.getByDisplayValue('14.506012')).toBeInTheDocument()
+    })
+    expect(getCurrentPosition).toHaveBeenCalled()
   })
 
   it('does not re-add a removed location when saving', async () => {
