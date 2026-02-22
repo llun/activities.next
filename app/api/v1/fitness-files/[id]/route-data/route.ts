@@ -298,9 +298,7 @@ export const GET = traceApiRoute(
         additionalHeaders: [
           [
             'Cache-Control',
-            isPubliclyAccessible
-              ? 'public, max-age=31536000, immutable'
-              : 'private, no-store'
+            isPubliclyAccessible ? 'public, max-age=300' : 'private, no-store'
           ]
         ]
       })

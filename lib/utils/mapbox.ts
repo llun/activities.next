@@ -1,6 +1,7 @@
 const MAPBOX_JS_SRC = 'https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.js'
 const MAPBOX_CSS_HREF =
   'https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css'
+const MAPBOX_LOAD_TIMEOUT_MS = 15000
 
 let mapboxModulePromise: Promise<unknown> | null = null
 
@@ -15,7 +16,7 @@ export const loadMapboxModule = async <T>(): Promise<T> => {
   }
 
   if (!mapboxModulePromise) {
-    mapboxModulePromise = new Promise<unknown>((resolve, reject) => {
+    const loadPromise = new Promise<unknown>((resolve, reject) => {
       let settled = false
 
       const resolveOnce = (value: unknown) => {
@@ -45,7 +46,7 @@ export const loadMapboxModule = async <T>(): Promise<T> => {
         return true
       }
 
-      const waitForMapboxGlobal = (timeoutMs = 5000) => {
+      const waitForMapboxGlobal = (timeoutMs = MAPBOX_LOAD_TIMEOUT_MS) => {
         const startedAt = Date.now()
 
         const poll = () => {
@@ -120,6 +121,11 @@ export const loadMapboxModule = async <T>(): Promise<T> => {
       )
 
       document.head.appendChild(script)
+    })
+
+    mapboxModulePromise = loadPromise.catch((error) => {
+      mapboxModulePromise = null
+      throw error
     })
   }
 

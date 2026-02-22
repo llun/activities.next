@@ -4,8 +4,8 @@
  */
 exports.up = async function (knex) {
   await knex.schema.alterTable('fitness_settings', function (table) {
-    table.float('privacyHomeLatitude')
-    table.float('privacyHomeLongitude')
+    table.double('privacyHomeLatitude')
+    table.double('privacyHomeLongitude')
     table.integer('privacyHideRadiusMeters')
   })
 }
