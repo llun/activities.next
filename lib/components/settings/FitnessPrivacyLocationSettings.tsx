@@ -156,16 +156,10 @@ const getBrowserCurrentLocation = async (): Promise<
   })
 }
 
-const getInitialMapView = async (
-  marker: [number, number] | null
-): Promise<{ center: [number, number]; zoom: number }> => {
-  if (marker) {
-    return {
-      center: marker,
-      zoom: HOME_MARKER_ZOOM
-    }
-  }
-
+const getInitialMapView = async (): Promise<{
+  center: [number, number]
+  zoom: number
+}> => {
   const currentLocation = await getBrowserCurrentLocation()
   if (currentLocation) {
     return {
@@ -186,6 +180,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const markerCoordinatesRef = useRef<[number, number] | null>(null)
+  const isHydratingSettingsRef = useRef(true)
 
   const [latitudeInput, setLatitudeInput] = useState('')
   const [longitudeInput, setLongitudeInput] = useState('')
@@ -251,6 +246,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
         setError('Failed to load fitness privacy settings')
       } finally {
+        isHydratingSettingsRef.current = false
         if (!cancelled) {
           setIsLoading(false)
         }
@@ -282,9 +278,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
         mapbox.accessToken = mapboxAccessToken
 
-        const initialView = await getInitialMapView(
-          markerCoordinatesRef.current
-        )
+        const initialView = await getInitialMapView()
 
         const map = new mapbox.Map({
           container: mapContainerRef.current,
@@ -328,15 +322,6 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
               'circle-opacity': 0.2
             }
           })
-
-          const markerCoordinatesAtLoad = markerCoordinatesRef.current
-          if (markerCoordinatesAtLoad) {
-            map.flyTo({
-              center: markerCoordinatesAtLoad,
-              zoom: HOME_MARKER_ZOOM,
-              duration: 0
-            })
-          }
         })
 
         map.on('click', ({ lngLat }) => {
@@ -381,7 +366,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
     source.setData(toMarkerFeatureCollection(markerCoordinates))
 
-    if (markerCoordinates) {
+    if (markerCoordinates && !isHydratingSettingsRef.current) {
       map.flyTo({
         center: markerCoordinates,
         zoom: HOME_MARKER_ZOOM,
