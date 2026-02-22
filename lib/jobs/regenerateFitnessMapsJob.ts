@@ -157,7 +157,18 @@ export const regenerateFitnessMapsJob = createJobHandle(
 
         const oldMapAttachments = (
           await database.getAttachmentsWithMedia({ statusId })
-        ).filter((attachment) => attachment.name === 'Activity route map')
+        ).filter((attachment) => {
+          if (attachment.name !== 'Activity route map') {
+            return false
+          }
+
+          if (!fitnessFile.mapImagePath) {
+            return false
+          }
+
+          const attachmentPath = getAttachmentMediaPath(attachment.url)
+          return attachmentPath === fitnessFile.mapImagePath
+        })
         const oldAttachmentIds = oldMapAttachments.map((item) => item.id)
         const oldMediaIds = [
           ...new Set(

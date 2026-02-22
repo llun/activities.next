@@ -177,6 +177,74 @@ describe('regenerateFitnessMapsJob', () => {
     }
   }
 
+  const setupStatusWithMultipleOldMaps = async () => {
+    const postId = `multi-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const statusId = `${actor.id}/statuses/${postId}`
+
+    await database.createNote({
+      id: statusId,
+      url: `https://${actor.domain}/${actor.username}/${postId}`,
+      actorId: actor.id,
+      text: 'Old route maps',
+      summary: null,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [`${actor.id}/followers`],
+      reply: ''
+    })
+
+    const entries: Array<{
+      fitnessFileId: string
+      oldMediaId: string
+    }> = []
+
+    for (const index of [1, 2]) {
+      const oldMedia = await database.createMedia({
+        actorId: actor.id,
+        original: {
+          path: `medias/old-route-map-${postId}-${index}.webp`,
+          bytes: 1400,
+          mimeType: 'image/webp',
+          metaData: { width: 800, height: 600 }
+        }
+      })
+      expect(oldMedia).toBeDefined()
+
+      await database.createAttachment({
+        actorId: actor.id,
+        statusId,
+        mediaType: 'image/webp',
+        url: `https://llun.test/api/v1/files/${oldMedia!.original.path}`,
+        width: 800,
+        height: 600,
+        name: 'Activity route map',
+        mediaId: oldMedia!.id
+      })
+
+      const fitnessFile = await database.createFitnessFile({
+        actorId: actor.id,
+        statusId,
+        path: `fitness/${postId}-${index}.fit`,
+        fileName: `${postId}-${index}.fit`,
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 2_048
+      })
+      expect(fitnessFile).toBeDefined()
+
+      await database.updateFitnessFileActivityData(fitnessFile!.id, {
+        hasMapData: true,
+        mapImagePath: oldMedia!.original.path
+      })
+
+      entries.push({
+        fitnessFileId: fitnessFile!.id,
+        oldMediaId: String(oldMedia!.id)
+      })
+    }
+
+    return { statusId, entries }
+  }
+
   it('replaces old maps and publishes an update note job', async () => {
     const { statusId, fitnessFileId, oldMediaId } =
       await setupStatusWithOldMap()
@@ -262,6 +330,83 @@ describe('regenerateFitnessMapsJob', () => {
     expect(getQueue().publish).not.toHaveBeenCalledWith(
       expect.objectContaining({
         name: SEND_UPDATE_NOTE_JOB_NAME
+      })
+    )
+  })
+
+  it('keeps regenerated maps for other fitness files on the same status', async () => {
+    const { statusId, entries } = await setupStatusWithMultipleOldMaps()
+
+    mockSaveMedia
+      .mockResolvedValueOnce({
+        id: 'new-map-media-id-1',
+        type: 'image',
+        mime_type: 'image/webp',
+        url: 'https://llun.test/api/v1/files/medias/new-route-map-1.webp',
+        preview_url: null,
+        text_url: null,
+        remote_url: null,
+        meta: {
+          original: {
+            width: 800,
+            height: 600,
+            size: '800x600',
+            aspect: 1.3333333333
+          }
+        },
+        description: 'Route map 1'
+      })
+      .mockResolvedValueOnce({
+        id: 'new-map-media-id-2',
+        type: 'image',
+        mime_type: 'image/webp',
+        url: 'https://llun.test/api/v1/files/medias/new-route-map-2.webp',
+        preview_url: null,
+        text_url: null,
+        remote_url: null,
+        meta: {
+          original: {
+            width: 800,
+            height: 600,
+            size: '800x600',
+            aspect: 1.3333333333
+          }
+        },
+        description: 'Route map 2'
+      })
+
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-multi-status',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        fitnessFileIds: entries.map((entry) => entry.fitnessFileId)
+      }
+    })
+
+    const refreshedStatus = await database.getStatus({
+      statusId,
+      withReplies: false
+    })
+    const mapAttachments = refreshedStatus?.attachments.filter((attachment) => {
+      return attachment.name === 'Activity route map'
+    })
+
+    expect(mapAttachments).toHaveLength(2)
+    expect(mapAttachments?.map((item) => item.url)).toEqual(
+      expect.arrayContaining([
+        'https://llun.test/api/v1/files/medias/new-route-map-1.webp',
+        'https://llun.test/api/v1/files/medias/new-route-map-2.webp'
+      ])
+    )
+
+    await Promise.all(
+      entries.map(async (entry) => {
+        const oldMedia = await database.getMediaByIdForAccount({
+          mediaId: entry.oldMediaId,
+          accountId: actor.account!.id
+        })
+        expect(oldMedia).toBeNull()
       })
     )
   })
