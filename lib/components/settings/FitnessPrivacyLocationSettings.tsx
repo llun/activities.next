@@ -109,7 +109,9 @@ const HOME_MARKER_ZOOM = 13
 const NON_ZERO_RADIUS_OPTIONS = FITNESS_PRIVACY_RADIUS_OPTIONS.filter(
   (radius) => radius > 0
 ) as FitnessPrivacyRadiusMeters[]
-const DEFAULT_DRAFT_RADIUS = NON_ZERO_RADIUS_OPTIONS[0] ?? 5
+const DEFAULT_DRAFT_RADIUS = sanitizePrivacyRadiusMeters(
+  NON_ZERO_RADIUS_OPTIONS[0] ?? 0
+)
 
 const parseCoordinateInput = (value: string): number | null => {
   if (value.trim().length === 0) {
