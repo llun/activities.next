@@ -176,6 +176,9 @@ describe('FitnessFileDatabase', () => {
             elevationGainMeters: 120,
             activityType: 'running',
             activityStartTime: new Date('2026-01-01T00:00:00.000Z'),
+            privacyHomeLatitude: 37.7749,
+            privacyHomeLongitude: -122.4194,
+            privacyHideRadiusMeters: 20,
             hasMapData: true,
             mapImagePath: 'medias/route-map.png'
           }
@@ -189,6 +192,9 @@ describe('FitnessFileDatabase', () => {
           totalDurationSeconds: 1_500,
           elevationGainMeters: 120,
           activityType: 'running',
+          privacyHomeLatitude: 37.7749,
+          privacyHomeLongitude: -122.4194,
+          privacyHideRadiusMeters: 20,
           hasMapData: true,
           mapImagePath: 'medias/route-map.png'
         })

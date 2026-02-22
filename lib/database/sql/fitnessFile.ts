@@ -35,6 +35,9 @@ export interface UpdateFitnessFileActivityData {
   elevationGainMeters?: number | null
   activityType?: string | null
   activityStartTime?: Date | null
+  privacyHomeLatitude?: number | null
+  privacyHomeLongitude?: number | null
+  privacyHideRadiusMeters?: number | null
   hasMapData?: boolean | null
   mapImagePath?: string | null
 }
@@ -192,6 +195,9 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   activityStartTime: row.activityStartTime
     ? getCompatibleTime(row.activityStartTime)
     : undefined,
+  privacyHomeLatitude: normalizeOptionalNumber(row.privacyHomeLatitude),
+  privacyHomeLongitude: normalizeOptionalNumber(row.privacyHomeLongitude),
+  privacyHideRadiusMeters: normalizeOptionalNumber(row.privacyHideRadiusMeters),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
@@ -232,6 +238,9 @@ export const FitnessFileSQLDatabaseMixin = (
         elevationGainMeters: null,
         activityType: null,
         activityStartTime: null,
+        privacyHomeLatitude: null,
+        privacyHomeLongitude: null,
+        privacyHideRadiusMeters: null,
         createdAt: currentTime,
         updatedAt: currentTime
       }
@@ -555,9 +564,21 @@ export const FitnessFileSQLDatabaseMixin = (
     const numberFields: Array<
       keyof Pick<
         UpdateFitnessFileActivityData,
-        'totalDistanceMeters' | 'totalDurationSeconds' | 'elevationGainMeters'
+        | 'totalDistanceMeters'
+        | 'totalDurationSeconds'
+        | 'elevationGainMeters'
+        | 'privacyHomeLatitude'
+        | 'privacyHomeLongitude'
+        | 'privacyHideRadiusMeters'
       >
-    > = ['totalDistanceMeters', 'totalDurationSeconds', 'elevationGainMeters']
+    > = [
+      'totalDistanceMeters',
+      'totalDurationSeconds',
+      'elevationGainMeters',
+      'privacyHomeLatitude',
+      'privacyHomeLongitude',
+      'privacyHideRadiusMeters'
+    ]
 
     for (const field of numberFields) {
       if (!(field in data)) continue

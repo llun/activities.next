@@ -35,6 +35,9 @@ export interface SQLFitnessFile {
   elevationGainMeters?: number | null
   activityType?: string | null
   activityStartTime?: number | Date | string | null
+  privacyHomeLatitude?: number | null
+  privacyHomeLongitude?: number | null
+  privacyHideRadiusMeters?: number | null
 
   // Timestamps
   createdAt: number | Date
@@ -67,6 +70,9 @@ export interface FitnessFile {
   elevationGainMeters?: number
   activityType?: string
   activityStartTime?: number
+  privacyHomeLatitude?: number
+  privacyHomeLongitude?: number
+  privacyHideRadiusMeters?: number
 
   createdAt: number
   updatedAt: number

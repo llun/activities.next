@@ -259,14 +259,10 @@ export const GET = traceApiRoute(
         activityData.trackPoints,
         activityData.totalDurationSeconds
       )
-      const privacySettings = await database.getFitnessSettings({
-        actorId: fileMetadata.actorId,
-        serviceType: 'general'
-      })
       const privacyLocation = getFitnessPrivacyLocation({
-        privacyHomeLatitude: privacySettings?.privacyHomeLatitude,
-        privacyHomeLongitude: privacySettings?.privacyHomeLongitude,
-        privacyHideRadiusMeters: privacySettings?.privacyHideRadiusMeters
+        privacyHomeLatitude: fileMetadata.privacyHomeLatitude,
+        privacyHomeLongitude: fileMetadata.privacyHomeLongitude,
+        privacyHideRadiusMeters: fileMetadata.privacyHideRadiusMeters
       })
 
       const privacyAwareSamples = annotatePointsWithPrivacy(
@@ -298,7 +294,9 @@ export const GET = traceApiRoute(
         additionalHeaders: [
           [
             'Cache-Control',
-            isPubliclyAccessible ? 'public, max-age=300' : 'private, no-store'
+            isPubliclyAccessible
+              ? 'public, max-age=31536000, immutable'
+              : 'private, no-store'
           ]
         ]
       })
