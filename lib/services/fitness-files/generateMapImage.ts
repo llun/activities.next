@@ -1,12 +1,15 @@
 import sharp from 'sharp'
 
 import { getConfig } from '@/lib/config'
+import { downsamplePrivacySegments } from '@/lib/services/fitness-files/privacy'
+import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
 import { logger } from '@/lib/utils/logger'
 
 import { FitnessCoordinate } from './parseFitnessFile'
 
 export interface GenerateMapImageParams {
   coordinates: FitnessCoordinate[]
+  routeSegments?: FitnessCoordinate[][]
   width?: number
   height?: number
 }
@@ -40,6 +43,31 @@ const project = (coordinate: FitnessCoordinate, zoom: number) => {
   return { x, y }
 }
 
+const flattenRouteSegments = (routeSegments: FitnessCoordinate[][]) => {
+  return routeSegments.flat()
+}
+
+const normalizeRouteSegments = ({
+  coordinates,
+  routeSegments
+}: {
+  coordinates: FitnessCoordinate[]
+  routeSegments?: FitnessCoordinate[][]
+}): FitnessCoordinate[][] => {
+  if (Array.isArray(routeSegments)) {
+    const validSegments = routeSegments.filter((segment) => segment.length >= 2)
+    if (validSegments.length > 0) {
+      return validSegments
+    }
+  }
+
+  if (coordinates.length >= 2) {
+    return [coordinates]
+  }
+
+  return []
+}
+
 const calculateBounds = (coordinates: FitnessCoordinate[]) => {
   let minLat = Number.POSITIVE_INFINITY
   let maxLat = Number.NEGATIVE_INFINITY
@@ -61,39 +89,64 @@ const calculateBounds = (coordinates: FitnessCoordinate[]) => {
   }
 }
 
-const downsampleCoordinates = (
-  coordinates: FitnessCoordinate[],
-  maxPoints = 500
-): FitnessCoordinate[] => {
-  if (coordinates.length <= maxPoints) return coordinates
+const downsampleRouteSegments = (
+  routeSegments: FitnessCoordinate[][],
+  maxPoints = 250
+): FitnessCoordinate[][] => {
+  const privacySegments: Array<
+    PrivacySegment<FitnessCoordinate & { isHiddenByPrivacy: boolean }>
+  > = routeSegments.map((segment) => ({
+    isHiddenByPrivacy: false,
+    points: segment.map((coordinate) => ({
+      ...coordinate,
+      isHiddenByPrivacy: false
+    }))
+  }))
 
-  const step = coordinates.length / maxPoints
-  const sampled: FitnessCoordinate[] = []
-
-  for (let index = 0; index < maxPoints; index += 1) {
-    sampled.push(coordinates[Math.floor(index * step)])
-  }
-
-  const lastCoordinate = coordinates[coordinates.length - 1]
-  if (sampled[sampled.length - 1] !== lastCoordinate) {
-    sampled.push(lastCoordinate)
-  }
-
-  return sampled
+  return downsamplePrivacySegments(privacySegments, maxPoints, {
+    minimumPointsPerSegment: 2
+  })
+    .map((segment) =>
+      segment.points.map((coordinate) => ({
+        lat: coordinate.lat,
+        lng: coordinate.lng
+      }))
+    )
+    .filter((segment) => segment.length >= 2)
 }
 
 const buildMapboxUrl = ({
-  coordinates,
+  routeSegments,
   width,
   height,
   accessToken
 }: {
-  coordinates: FitnessCoordinate[]
+  routeSegments: FitnessCoordinate[][]
   width: number
   height: number
   accessToken: string
 }) => {
-  const sampledCoordinates = downsampleCoordinates(coordinates)
+  const sampledSegments = downsampleRouteSegments(routeSegments)
+  if (sampledSegments.length === 0) {
+    throw new Error('No route segments remain after downsampling')
+  }
+
+  const geometry =
+    sampledSegments.length > 1
+      ? {
+          type: 'MultiLineString',
+          coordinates: sampledSegments.map((segment) =>
+            segment.map((coordinate) => [coordinate.lng, coordinate.lat])
+          )
+        }
+      : {
+          type: 'LineString',
+          coordinates: sampledSegments[0].map((coordinate) => [
+            coordinate.lng,
+            coordinate.lat
+          ])
+        }
+
   const geoJson = {
     type: 'Feature',
     properties: {
@@ -101,13 +154,7 @@ const buildMapboxUrl = ({
       'stroke-width': 4,
       'stroke-opacity': 0.9
     },
-    geometry: {
-      type: 'LineString',
-      coordinates: sampledCoordinates.map((coordinate) => [
-        coordinate.lng,
-        coordinate.lat
-      ])
-    }
+    geometry
   }
 
   const encodedGeoJson = encodeURIComponent(JSON.stringify(geoJson))
@@ -191,10 +238,12 @@ const fetchOsmTile = async (
 
 const renderOsmMap = async ({
   coordinates,
+  routeSegments,
   width,
   height
 }: {
   coordinates: FitnessCoordinate[]
+  routeSegments: FitnessCoordinate[][]
   width: number
   height: number
 }): Promise<Buffer> => {
@@ -239,21 +288,34 @@ const renderOsmMap = async ({
     )
   )
 
-  const screenPoints = projected.map((point) => ({
-    x: point.x - topLeftX,
-    y: point.y - topLeftY
-  }))
+  const projectedSegments = routeSegments.map((segment) =>
+    segment.map((coordinate) => {
+      const point = project(coordinate, zoom)
+      return {
+        x: point.x - topLeftX,
+        y: point.y - topLeftY
+      }
+    })
+  )
 
-  const polyline = screenPoints
-    .map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`)
-    .join(' ')
+  const polylines = projectedSegments
+    .map((segment) => {
+      const points = segment
+        .map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`)
+        .join(' ')
+      return `<polyline points="${points}" fill="none" stroke="#ff3b30" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`
+    })
+    .join('')
 
-  const start = screenPoints[0]
-  const end = screenPoints[screenPoints.length - 1]
+  const start = projectedSegments[0][0]
+  const end =
+    projectedSegments[projectedSegments.length - 1][
+      projectedSegments[projectedSegments.length - 1].length - 1
+    ]
 
   const overlay = Buffer.from(
     `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">` +
-      `<polyline points="${polyline}" fill="none" stroke="#ff3b30" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>` +
+      polylines +
       `<circle cx="${start.x.toFixed(2)}" cy="${start.y.toFixed(2)}" r="5" fill="#16a34a" stroke="#ffffff" stroke-width="2"/>` +
       `<circle cx="${end.x.toFixed(2)}" cy="${end.y.toFixed(2)}" r="5" fill="#dc2626" stroke="#ffffff" stroke-width="2"/>` +
       `</svg>`
@@ -274,14 +336,25 @@ const renderOsmMap = async ({
 
 export const generateMapImage = async ({
   coordinates,
+  routeSegments,
   width = DEFAULT_WIDTH,
   height = DEFAULT_HEIGHT
 }: GenerateMapImageParams): Promise<Buffer | null> => {
-  if (coordinates.length < 2) {
+  const normalizedRouteSegments = normalizeRouteSegments({
+    coordinates,
+    routeSegments
+  })
+
+  if (normalizedRouteSegments.length === 0) {
     return null
   }
 
-  const bounds = calculateBounds(coordinates)
+  const routeCoordinates = flattenRouteSegments(normalizedRouteSegments)
+  if (routeCoordinates.length < 2) {
+    return null
+  }
+
+  const bounds = calculateBounds(routeCoordinates)
 
   if (
     !Number.isFinite(bounds.minLat) ||
@@ -299,7 +372,7 @@ export const generateMapImage = async ({
     try {
       const response = await fetch(
         buildMapboxUrl({
-          coordinates,
+          routeSegments: normalizedRouteSegments,
           width,
           height,
           accessToken: mapboxAccessToken
@@ -320,5 +393,10 @@ export const generateMapImage = async ({
     }
   }
 
-  return renderOsmMap({ coordinates, width, height })
+  return renderOsmMap({
+    coordinates: routeCoordinates,
+    routeSegments: normalizedRouteSegments,
+    width,
+    height
+  })
 }

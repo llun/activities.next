@@ -6,6 +6,10 @@ import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
+import {
+  getFitnessPrivacyLocation,
+  getVisibleSegments
+} from '@/lib/services/fitness-files/privacy'
 import { saveMedia } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
 import { StatusType } from '@/lib/types/domain/status'
@@ -169,10 +173,27 @@ export const processFitnessFileJob = createJobHandle(
         mapImagePath: null
       })
 
-      if (activityData.coordinates.length >= 2) {
+      const privacySettings = await database.getFitnessSettings({
+        actorId,
+        serviceType: 'general'
+      })
+      const privacyLocation = getFitnessPrivacyLocation({
+        privacyHomeLatitude: privacySettings?.privacyHomeLatitude,
+        privacyHomeLongitude: privacySettings?.privacyHomeLongitude,
+        privacyHideRadiusMeters: privacySettings?.privacyHideRadiusMeters
+      })
+      const visibleSegments = getVisibleSegments(
+        activityData.coordinates,
+        privacyLocation
+      )
+
+      const filteredCoordinates = visibleSegments.flat()
+
+      if (filteredCoordinates.length >= 2) {
         try {
           const mapImageBuffer = await generateMapImage({
-            coordinates: activityData.coordinates
+            coordinates: filteredCoordinates,
+            routeSegments: visibleSegments
           })
 
           if (mapImageBuffer) {

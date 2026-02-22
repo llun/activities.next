@@ -18,6 +18,9 @@ export interface CreateFitnessSettingsParams {
   tokenExpiresAt?: number
   oauthState?: string
   oauthStateExpiry?: number
+  privacyHomeLatitude?: number
+  privacyHomeLongitude?: number
+  privacyHideRadiusMeters?: number
 }
 
 export interface UpdateFitnessSettingsParams {
@@ -30,6 +33,9 @@ export interface UpdateFitnessSettingsParams {
   tokenExpiresAt?: number | null
   oauthState?: string | null
   oauthStateExpiry?: number | null
+  privacyHomeLatitude?: number | null
+  privacyHomeLongitude?: number | null
+  privacyHideRadiusMeters?: number | null
 }
 
 export interface GetFitnessSettingsParams {
@@ -76,7 +82,10 @@ export const FitnessSettingsSQLDatabaseMixin = (
     refreshToken,
     tokenExpiresAt,
     oauthState,
-    oauthStateExpiry
+    oauthStateExpiry,
+    privacyHomeLatitude,
+    privacyHomeLongitude,
+    privacyHideRadiusMeters
   }: CreateFitnessSettingsParams): Promise<FitnessSettings> {
     const existing = await database('fitness_settings')
       .where({ actorId, serviceType })
@@ -104,6 +113,9 @@ export const FitnessSettingsSQLDatabaseMixin = (
       tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
       oauthState,
       oauthStateExpiry: oauthStateExpiry ? new Date(oauthStateExpiry) : null,
+      privacyHomeLatitude,
+      privacyHomeLongitude,
+      privacyHideRadiusMeters,
       createdAt: currentTime,
       updatedAt: currentTime
     }
@@ -122,6 +134,9 @@ export const FitnessSettingsSQLDatabaseMixin = (
       tokenExpiresAt,
       oauthState,
       oauthStateExpiry,
+      privacyHomeLatitude,
+      privacyHomeLongitude,
+      privacyHideRadiusMeters,
       createdAt: getCompatibleTime(currentTime),
       updatedAt: getCompatibleTime(currentTime)
     }
@@ -136,7 +151,10 @@ export const FitnessSettingsSQLDatabaseMixin = (
     refreshToken,
     tokenExpiresAt,
     oauthState,
-    oauthStateExpiry
+    oauthStateExpiry,
+    privacyHomeLatitude,
+    privacyHomeLongitude,
+    privacyHideRadiusMeters
   }: UpdateFitnessSettingsParams): Promise<FitnessSettings | null> {
     const updateData: Partial<SQLFitnessSettings> = {
       updatedAt: new Date()
@@ -160,6 +178,12 @@ export const FitnessSettingsSQLDatabaseMixin = (
       updateData.oauthStateExpiry = oauthStateExpiry
         ? new Date(oauthStateExpiry)
         : null
+    if (privacyHomeLatitude !== undefined)
+      updateData.privacyHomeLatitude = privacyHomeLatitude
+    if (privacyHomeLongitude !== undefined)
+      updateData.privacyHomeLongitude = privacyHomeLongitude
+    if (privacyHideRadiusMeters !== undefined)
+      updateData.privacyHideRadiusMeters = privacyHideRadiusMeters
 
     await database('fitness_settings').where({ id }).update(updateData)
 
@@ -186,6 +210,9 @@ export const FitnessSettingsSQLDatabaseMixin = (
       oauthStateExpiry: row.oauthStateExpiry
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
+      privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
+      privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
+      privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
       createdAt: getCompatibleTime(row.createdAt),
       updatedAt: getCompatibleTime(row.updatedAt),
       deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
@@ -219,6 +246,9 @@ export const FitnessSettingsSQLDatabaseMixin = (
       oauthStateExpiry: row.oauthStateExpiry
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
+      privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
+      privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
+      privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
       createdAt: getCompatibleTime(row.createdAt),
       updatedAt: getCompatibleTime(row.updatedAt),
       deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
@@ -252,6 +282,9 @@ export const FitnessSettingsSQLDatabaseMixin = (
       oauthStateExpiry: row.oauthStateExpiry
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
+      privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
+      privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
+      privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
       createdAt: getCompatibleTime(row.createdAt),
       updatedAt: getCompatibleTime(row.updatedAt),
       deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
