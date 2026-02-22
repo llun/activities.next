@@ -1,6 +1,7 @@
 import { REGENERATE_FITNESS_MAPS_JOB_NAME } from '@/lib/jobs/names'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'
+import type { FitnessProcessingStatus } from '@/lib/types/database/fitnessFile'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -22,7 +23,10 @@ export const POST = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
     }
 
-    const fitnessFiles = []
+    const queuedFiles: Array<{
+      id: string
+      processingStatus: FitnessProcessingStatus
+    }> = []
     let offset = 0
 
     while (true) {
@@ -32,21 +36,27 @@ export const POST = traceApiRoute(
         offset
       })
 
-      fitnessFiles.push(...page)
+      for (const file of page) {
+        if (!file.statusId) {
+          continue
+        }
+
+        if (file.processingStatus === 'processing') {
+          continue
+        }
+
+        queuedFiles.push({
+          id: file.id,
+          processingStatus: file.processingStatus ?? 'pending'
+        })
+      }
+
       if (page.length < FITNESS_FILE_PAGE_SIZE) {
         break
       }
 
       offset += FITNESS_FILE_PAGE_SIZE
     }
-
-    const queuedFiles = fitnessFiles.filter((file) => {
-      if (!file.statusId) {
-        return false
-      }
-
-      return file.processingStatus !== 'processing'
-    })
 
     if (queuedFiles.length === 0) {
       return apiResponse({
@@ -58,10 +68,6 @@ export const POST = traceApiRoute(
         }
       })
     }
-
-    const previousProcessingStatusById = new Map(
-      queuedFiles.map((file) => [file.id, file.processingStatus ?? 'pending'])
-    )
 
     await database.updateFitnessFilesProcessingStatus({
       fitnessFileIds: queuedFiles.map((file) => file.id),
@@ -84,7 +90,7 @@ export const POST = traceApiRoute(
         queuedFiles.map(async (file) => {
           await database.updateFitnessFileProcessingStatus(
             file.id,
-            previousProcessingStatusById.get(file.id) ?? 'pending'
+            file.processingStatus
           )
         })
       )

@@ -1,4 +1,8 @@
-import { downsamplePrivacySegments, getDistanceMeters } from './privacy'
+import {
+  downsamplePrivacySegments,
+  getDistanceMeters,
+  getVisibleSegments
+} from './privacy'
 
 interface SamplePoint {
   lat: number
@@ -59,5 +63,35 @@ describe('getDistanceMeters', () => {
 
     expect(Number.isFinite(distance)).toBe(true)
     expect(distance).toBeGreaterThan(0)
+  })
+})
+
+describe('getVisibleSegments', () => {
+  it('returns only visible segments with at least two points', () => {
+    const points = [
+      { lat: 52, lng: 5 },
+      { lat: 52.00001, lng: 5.00001 },
+      { lat: 52.0002, lng: 5.0002 },
+      { lat: 52.0003, lng: 5.0003 },
+      { lat: 52, lng: 5 },
+      { lat: 52.0002, lng: 5.0002 },
+      { lat: 52.0003, lng: 5.0003 }
+    ]
+
+    const segments = getVisibleSegments(points, {
+      lat: 52,
+      lng: 5,
+      radiusMeters: 5
+    })
+
+    expect(segments).toHaveLength(2)
+    expect(segments[0]).toHaveLength(2)
+    expect(segments[1]).toHaveLength(2)
+    expect(segments.flat()).toEqual([
+      { lat: 52.0002, lng: 5.0002 },
+      { lat: 52.0003, lng: 5.0003 },
+      { lat: 52.0002, lng: 5.0002 },
+      { lat: 52.0003, lng: 5.0003 }
+    ])
   })
 })

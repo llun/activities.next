@@ -9,9 +9,8 @@ import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import {
-  annotatePointsWithPrivacy,
-  buildPrivacySegments,
-  getFitnessPrivacyLocation
+  getFitnessPrivacyLocation,
+  getVisibleSegments
 } from '@/lib/services/fitness-files/privacy'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
@@ -177,22 +176,10 @@ export const regenerateFitnessMapsJob = createJobHandle(
           buffer: fitnessBuffer
         })
 
-        const privacyAwareCoordinates = annotatePointsWithPrivacy(
+        const visibleSegments = getVisibleSegments(
           activityData.coordinates,
           privacyLocation
         )
-        const visibleSegments = buildPrivacySegments(privacyAwareCoordinates, {
-          includeHidden: false,
-          includeVisible: true
-        })
-          .map((segment) =>
-            segment.points.map(
-              ({ isHiddenByPrivacy: _isHiddenByPrivacy, ...coordinate }) => ({
-                ...coordinate
-              })
-            )
-          )
-          .filter((segment) => segment.length >= 2)
         const filteredCoordinates = visibleSegments.flat()
 
         let changedMapAttachment = false

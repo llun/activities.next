@@ -333,3 +333,20 @@ export const flattenPrivacySegments = <T>(
 ): T[] => {
   return segments.flatMap((segment) => segment.points)
 }
+
+export const getVisibleSegments = <T extends Coordinate>(
+  points: T[],
+  privacyLocation: FitnessPrivacyLocation | null
+): T[][] => {
+  const privacyAwarePoints = points.map((point) => ({
+    point,
+    isHiddenByPrivacy: isPointHiddenByPrivacy(point, privacyLocation)
+  }))
+
+  return buildPrivacySegments(privacyAwarePoints, {
+    includeHidden: false,
+    includeVisible: true
+  })
+    .map((segment) => segment.points.map((entry) => entry.point))
+    .filter((segment) => segment.length >= 2)
+}
