@@ -14,7 +14,7 @@ import {
   buildPrivacySegments,
   downsamplePrivacySegments,
   flattenPrivacySegments,
-  getFitnessPrivacyLocation
+  getFitnessPrivacyLocations
 } from '@/lib/services/fitness-files/privacy'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -263,11 +263,7 @@ export const GET = traceApiRoute(
         actorId: fileMetadata.actorId,
         serviceType: 'general'
       })
-      const privacyLocation = getFitnessPrivacyLocation({
-        privacyHomeLatitude: privacySettings?.privacyHomeLatitude,
-        privacyHomeLongitude: privacySettings?.privacyHomeLongitude,
-        privacyHideRadiusMeters: privacySettings?.privacyHideRadiusMeters
-      })
+      const privacyLocation = getFitnessPrivacyLocations(privacySettings)
 
       const privacyAwareSamples = annotatePointsWithPrivacy(
         routeSamples,

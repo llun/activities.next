@@ -1,7 +1,10 @@
 import { Knex } from 'knex'
 
+import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { sanitizePrivacyLocationSettings } from '@/lib/services/fitness-files/privacy'
 import {
+  FitnessPrivacyLocationSettingsEntry,
   FitnessSettings,
   SQLFitnessSettings
 } from '@/lib/types/database/fitnessSettings'
@@ -18,6 +21,7 @@ export interface CreateFitnessSettingsParams {
   tokenExpiresAt?: number
   oauthState?: string
   oauthStateExpiry?: number
+  privacyLocations?: FitnessPrivacyLocationSettingsEntry[]
   privacyHomeLatitude?: number
   privacyHomeLongitude?: number
   privacyHideRadiusMeters?: number
@@ -33,6 +37,7 @@ export interface UpdateFitnessSettingsParams {
   tokenExpiresAt?: number | null
   oauthState?: string | null
   oauthStateExpiry?: number | null
+  privacyLocations?: FitnessPrivacyLocationSettingsEntry[] | null
   privacyHomeLatitude?: number | null
   privacyHomeLongitude?: number | null
   privacyHideRadiusMeters?: number | null
@@ -69,6 +74,23 @@ export interface FitnessSettingsDatabase {
   deleteFitnessSettings: (params: DeleteFitnessSettingsParams) => Promise<void>
 }
 
+const parseStoredPrivacyLocations = (
+  value: SQLFitnessSettings['privacyLocations']
+): FitnessPrivacyLocationSettingsEntry[] | undefined => {
+  if (value === null || value === undefined) {
+    return undefined
+  }
+
+  try {
+    const parsedValue =
+      typeof value === 'string' ? getCompatibleJSON<unknown>(value) : value
+    const sanitized = sanitizePrivacyLocationSettings(parsedValue)
+    return sanitized
+  } catch {
+    return []
+  }
+}
+
 export const FitnessSettingsSQLDatabaseMixin = (
   database: Knex
 ): FitnessSettingsDatabase => ({
@@ -83,6 +105,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
     tokenExpiresAt,
     oauthState,
     oauthStateExpiry,
+    privacyLocations,
     privacyHomeLatitude,
     privacyHomeLongitude,
     privacyHideRadiusMeters
@@ -100,6 +123,9 @@ export const FitnessSettingsSQLDatabaseMixin = (
 
     const id = crypto.randomUUID()
     const currentTime = new Date()
+    const sanitizedPrivacyLocations = sanitizePrivacyLocationSettings(
+      privacyLocations ?? []
+    )
 
     const row: Partial<SQLFitnessSettings> = {
       id,
@@ -113,6 +139,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
       oauthState,
       oauthStateExpiry: oauthStateExpiry ? new Date(oauthStateExpiry) : null,
+      privacyLocations: JSON.stringify(sanitizedPrivacyLocations),
       privacyHomeLatitude,
       privacyHomeLongitude,
       privacyHideRadiusMeters,
@@ -134,6 +161,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       tokenExpiresAt,
       oauthState,
       oauthStateExpiry,
+      privacyLocations: sanitizedPrivacyLocations,
       privacyHomeLatitude,
       privacyHomeLongitude,
       privacyHideRadiusMeters,
@@ -152,6 +180,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
     tokenExpiresAt,
     oauthState,
     oauthStateExpiry,
+    privacyLocations,
     privacyHomeLatitude,
     privacyHomeLongitude,
     privacyHideRadiusMeters
@@ -159,6 +188,10 @@ export const FitnessSettingsSQLDatabaseMixin = (
     const updateData: Partial<SQLFitnessSettings> = {
       updatedAt: new Date()
     }
+    const sanitizedPrivacyLocations =
+      privacyLocations === undefined
+        ? undefined
+        : sanitizePrivacyLocationSettings(privacyLocations ?? [])
 
     if (clientId !== undefined) updateData.clientId = clientId || null
     if (clientSecret !== undefined)
@@ -178,6 +211,9 @@ export const FitnessSettingsSQLDatabaseMixin = (
       updateData.oauthStateExpiry = oauthStateExpiry
         ? new Date(oauthStateExpiry)
         : null
+    if (sanitizedPrivacyLocations !== undefined) {
+      updateData.privacyLocations = JSON.stringify(sanitizedPrivacyLocations)
+    }
     if (privacyHomeLatitude !== undefined)
       updateData.privacyHomeLatitude = privacyHomeLatitude
     if (privacyHomeLongitude !== undefined)
@@ -210,6 +246,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       oauthStateExpiry: row.oauthStateExpiry
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
+      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
       privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
@@ -246,6 +283,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       oauthStateExpiry: row.oauthStateExpiry
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
+      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
       privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
@@ -282,6 +320,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       oauthStateExpiry: row.oauthStateExpiry
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
+      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
       privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,

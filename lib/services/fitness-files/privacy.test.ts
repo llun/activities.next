@@ -1,6 +1,7 @@
 import {
   downsamplePrivacySegments,
   getDistanceMeters,
+  getFitnessPrivacyLocations,
   getVisibleSegments
 } from './privacy'
 
@@ -92,6 +93,76 @@ describe('getVisibleSegments', () => {
       { lat: 52.0003, lng: 5.0003 },
       { lat: 52.0002, lng: 5.0002 },
       { lat: 52.0003, lng: 5.0003 }
+    ])
+  })
+
+  it('hides points that match any configured privacy location', () => {
+    const points = [
+      { lat: 52, lng: 5 },
+      { lat: 52.00001, lng: 5.00001 },
+      { lat: 52.5, lng: 5.5 },
+      { lat: 52.50001, lng: 5.50001 },
+      { lat: 53, lng: 6 },
+      { lat: 53.00001, lng: 6.00001 }
+    ]
+
+    const segments = getVisibleSegments(points, [
+      { lat: 52, lng: 5, radiusMeters: 5 },
+      { lat: 52.5, lng: 5.5, radiusMeters: 5 }
+    ])
+
+    expect(segments).toHaveLength(1)
+    expect(segments[0]).toEqual([
+      { lat: 53, lng: 6 },
+      { lat: 53.00001, lng: 6.00001 }
+    ])
+  })
+})
+
+describe('getFitnessPrivacyLocations', () => {
+  it('returns normalized locations from the privacy locations list', () => {
+    const locations = getFitnessPrivacyLocations({
+      privacyLocations: [
+        {
+          latitude: 37.7749,
+          longitude: -122.4194,
+          hideRadiusMeters: 20
+        },
+        {
+          latitude: 34.0522,
+          longitude: -118.2437,
+          hideRadiusMeters: 10
+        }
+      ]
+    })
+
+    expect(locations).toEqual([
+      {
+        lat: 37.7749,
+        lng: -122.4194,
+        radiusMeters: 20
+      },
+      {
+        lat: 34.0522,
+        lng: -118.2437,
+        radiusMeters: 10
+      }
+    ])
+  })
+
+  it('falls back to legacy single-location fields when list is missing', () => {
+    const locations = getFitnessPrivacyLocations({
+      privacyHomeLatitude: 40.7128,
+      privacyHomeLongitude: -74.006,
+      privacyHideRadiusMeters: 50
+    })
+
+    expect(locations).toEqual([
+      {
+        lat: 40.7128,
+        lng: -74.006,
+        radiusMeters: 50
+      }
     ])
   })
 })

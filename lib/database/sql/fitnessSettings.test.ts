@@ -192,12 +192,26 @@ describe('FitnessSettings database operations', () => {
       const settings = await database.createFitnessSettings({
         actorId: `${testActorId}-privacy`,
         serviceType: 'general',
+        privacyLocations: [
+          {
+            latitude: 13.7563,
+            longitude: 100.5018,
+            hideRadiusMeters: 20
+          }
+        ],
         privacyHomeLatitude: 13.7563,
         privacyHomeLongitude: 100.5018,
         privacyHideRadiusMeters: 20
       })
 
       expect(settings.serviceType).toBe('general')
+      expect(settings.privacyLocations).toEqual([
+        {
+          latitude: 13.7563,
+          longitude: 100.5018,
+          hideRadiusMeters: 20
+        }
+      ])
       expect(settings.privacyHomeLatitude).toBe(13.7563)
       expect(settings.privacyHomeLongitude).toBe(100.5018)
       expect(settings.privacyHideRadiusMeters).toBe(20)
@@ -328,22 +342,48 @@ describe('FitnessSettings database operations', () => {
 
       const updated = await database.updateFitnessSettings({
         id: created.id,
+        privacyLocations: [
+          {
+            latitude: 40.7128,
+            longitude: -74.006,
+            hideRadiusMeters: 50
+          },
+          {
+            latitude: 35.6764,
+            longitude: 139.65,
+            hideRadiusMeters: 10
+          }
+        ],
         privacyHomeLatitude: 40.7128,
         privacyHomeLongitude: -74.006,
         privacyHideRadiusMeters: 50
       })
 
+      expect(updated?.privacyLocations).toEqual([
+        {
+          latitude: 40.7128,
+          longitude: -74.006,
+          hideRadiusMeters: 50
+        },
+        {
+          latitude: 35.6764,
+          longitude: 139.65,
+          hideRadiusMeters: 10
+        }
+      ])
       expect(updated?.privacyHomeLatitude).toBe(40.7128)
       expect(updated?.privacyHomeLongitude).toBe(-74.006)
       expect(updated?.privacyHideRadiusMeters).toBe(50)
 
       const cleared = await database.updateFitnessSettings({
         id: created.id,
+        privacyLocations: [],
         privacyHomeLatitude: null,
         privacyHomeLongitude: null,
         privacyHideRadiusMeters: 0
       })
 
+      expect(cleared?.privacyLocations).toEqual([])
       expect(cleared?.privacyHomeLatitude).toBeUndefined()
       expect(cleared?.privacyHomeLongitude).toBeUndefined()
       expect(cleared?.privacyHideRadiusMeters).toBe(0)

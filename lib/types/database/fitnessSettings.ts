@@ -1,3 +1,9 @@
+export interface FitnessPrivacyLocationSettingsEntry {
+  latitude: number
+  longitude: number
+  hideRadiusMeters: number
+}
+
 // SQL row type for fitness_settings table
 export interface SQLFitnessSettings {
   id: string
@@ -21,6 +27,7 @@ export interface SQLFitnessSettings {
   oauthStateExpiry?: number | Date | null
 
   // Privacy location settings
+  privacyLocations?: FitnessPrivacyLocationSettingsEntry[] | string | null
   privacyHomeLatitude?: number | null
   privacyHomeLongitude?: number | null
   privacyHideRadiusMeters?: number | null
@@ -50,6 +57,7 @@ export interface FitnessSettings {
   oauthStateExpiry?: number
 
   // Privacy location settings
+  privacyLocations?: FitnessPrivacyLocationSettingsEntry[]
   privacyHomeLatitude?: number
   privacyHomeLongitude?: number
   privacyHideRadiusMeters?: number
