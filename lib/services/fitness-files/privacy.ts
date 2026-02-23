@@ -12,6 +12,13 @@ interface PrivacySettingsInput {
   privacyHomeLatitude?: number | null
   privacyHomeLongitude?: number | null
   privacyHideRadiusMeters?: number | null
+  privacyLocations?: unknown
+}
+
+export interface FitnessPrivacyLocationSetting {
+  latitude: number
+  longitude: number
+  hideRadiusMeters: FitnessPrivacyRadiusMeters
 }
 
 export interface FitnessPrivacyLocation {
@@ -67,7 +74,67 @@ const sanitizeLongitude = (value: unknown): number | null => {
   return value
 }
 
-export const getFitnessPrivacyLocation = (
+const sanitizePrivacyLocationSetting = (
+  value: unknown
+): FitnessPrivacyLocationSetting | null => {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const location = value as {
+    latitude?: unknown
+    longitude?: unknown
+    hideRadiusMeters?: unknown
+  }
+
+  const latitude = sanitizeLatitude(location.latitude)
+  const longitude = sanitizeLongitude(location.longitude)
+  const hideRadiusMeters = sanitizePrivacyRadiusMeters(
+    location.hideRadiusMeters
+  )
+
+  if (latitude === null || longitude === null || hideRadiusMeters <= 0) {
+    return null
+  }
+
+  return {
+    latitude,
+    longitude,
+    hideRadiusMeters
+  }
+}
+
+export const sanitizePrivacyLocationSettings = (
+  value: unknown
+): FitnessPrivacyLocationSetting[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const seenKeys = new Set<string>()
+  const locations: FitnessPrivacyLocationSetting[] = []
+
+  for (const item of value) {
+    const location = sanitizePrivacyLocationSetting(item)
+    if (!location) {
+      continue
+    }
+
+    const dedupeLatitude = location.latitude.toFixed(6)
+    const dedupeLongitude = location.longitude.toFixed(6)
+    const key = `${dedupeLatitude}:${dedupeLongitude}:${location.hideRadiusMeters}`
+    if (seenKeys.has(key)) {
+      continue
+    }
+
+    seenKeys.add(key)
+    locations.push(location)
+  }
+
+  return locations
+}
+
+const getLegacyFitnessPrivacyLocation = (
   settings: PrivacySettingsInput | null | undefined
 ): FitnessPrivacyLocation | null => {
   if (!settings) {
@@ -94,6 +161,36 @@ export const getFitnessPrivacyLocation = (
     lng,
     radiusMeters
   }
+}
+
+export const getFitnessPrivacyLocations = (
+  settings: PrivacySettingsInput | null | undefined
+): FitnessPrivacyLocation[] => {
+  if (!settings) {
+    return []
+  }
+
+  const privacyLocations = sanitizePrivacyLocationSettings(
+    settings.privacyLocations
+  )
+  if (privacyLocations.length > 0) {
+    return privacyLocations.map((location) => ({
+      lat: location.latitude,
+      lng: location.longitude,
+      radiusMeters: location.hideRadiusMeters
+    }))
+  }
+
+  const legacyLocation = getLegacyFitnessPrivacyLocation(settings)
+  return legacyLocation ? [legacyLocation] : []
+}
+
+export const getFitnessPrivacyLocation = (
+  settings: PrivacySettingsInput | null | undefined
+): FitnessPrivacyLocation | null => {
+  // Legacy compatibility helper for code paths still expecting a single value.
+  // New multi-location logic should use `getFitnessPrivacyLocations`.
+  return getFitnessPrivacyLocations(settings)[0] ?? null
 }
 
 export const getDistanceMeters = (
@@ -125,13 +222,46 @@ export const isPointHiddenByPrivacy = (
   return distance <= privacyLocation.radiusMeters
 }
 
+const normalizePrivacyLocations = (
+  privacyLocation:
+    | FitnessPrivacyLocation
+    | FitnessPrivacyLocation[]
+    | null
+    | undefined
+): FitnessPrivacyLocation[] => {
+  if (!privacyLocation) {
+    return []
+  }
+
+  return Array.isArray(privacyLocation) ? privacyLocation : [privacyLocation]
+}
+
+export const isPointHiddenByPrivacyLocations = (
+  point: Coordinate,
+  privacyLocations: FitnessPrivacyLocation[] | null | undefined
+): boolean => {
+  if (!privacyLocations || privacyLocations.length === 0) {
+    return false
+  }
+
+  return privacyLocations.some((privacyLocation) => {
+    return isPointHiddenByPrivacy(point, privacyLocation)
+  })
+}
+
 export const annotatePointsWithPrivacy = <T extends Coordinate>(
   points: T[],
-  privacyLocation: FitnessPrivacyLocation | null
+  privacyLocation:
+    | FitnessPrivacyLocation
+    | FitnessPrivacyLocation[]
+    | null
+    | undefined
 ): Array<T & { isHiddenByPrivacy: boolean }> => {
+  const privacyLocations = normalizePrivacyLocations(privacyLocation)
+
   return points.map((point) => ({
     ...point,
-    isHiddenByPrivacy: isPointHiddenByPrivacy(point, privacyLocation)
+    isHiddenByPrivacy: isPointHiddenByPrivacyLocations(point, privacyLocations)
   }))
 }
 
@@ -336,11 +466,17 @@ export const flattenPrivacySegments = <T>(
 
 export const getVisibleSegments = <T extends Coordinate>(
   points: T[],
-  privacyLocation: FitnessPrivacyLocation | null
+  privacyLocation:
+    | FitnessPrivacyLocation
+    | FitnessPrivacyLocation[]
+    | null
+    | undefined
 ): T[][] => {
+  const privacyLocations = normalizePrivacyLocations(privacyLocation)
+
   const privacyAwarePoints = points.map((point) => ({
     point,
-    isHiddenByPrivacy: isPointHiddenByPrivacy(point, privacyLocation)
+    isHiddenByPrivacy: isPointHiddenByPrivacyLocations(point, privacyLocations)
   }))
 
   return buildPrivacySegments(privacyAwarePoints, {

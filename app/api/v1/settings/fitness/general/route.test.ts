@@ -69,6 +69,7 @@ describe('Fitness General Settings API', () => {
       id: 'general-settings-id',
       actorId: ACTOR1_ID,
       serviceType: 'general',
+      privacyLocations: [],
       privacyHideRadiusMeters: 0,
       createdAt: Date.now(),
       updatedAt: Date.now()
@@ -77,6 +78,7 @@ describe('Fitness General Settings API', () => {
       id: 'general-settings-id',
       actorId: ACTOR1_ID,
       serviceType: 'general',
+      privacyLocations: [],
       privacyHideRadiusMeters: 0,
       createdAt: Date.now(),
       updatedAt: Date.now()
@@ -105,6 +107,7 @@ describe('Fitness General Settings API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(200)
+      expect(data.privacyLocations).toEqual([])
       expect(data.privacyHomeLatitude).toBeNull()
       expect(data.privacyHomeLongitude).toBeNull()
       expect(data.privacyHideRadiusMeters).toBe(0)
@@ -115,6 +118,13 @@ describe('Fitness General Settings API', () => {
         id: 'general-settings-id',
         actorId: ACTOR1_ID,
         serviceType: 'general',
+        privacyLocations: [
+          {
+            latitude: 13.7563,
+            longitude: 100.5018,
+            hideRadiusMeters: 20
+          }
+        ],
         privacyHomeLatitude: 13.7563,
         privacyHomeLongitude: 100.5018,
         privacyHideRadiusMeters: 20,
@@ -133,6 +143,13 @@ describe('Fitness General Settings API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(200)
+      expect(data.privacyLocations).toEqual([
+        {
+          latitude: 13.7563,
+          longitude: 100.5018,
+          hideRadiusMeters: 20
+        }
+      ])
       expect(data.privacyHomeLatitude).toBe(13.7563)
       expect(data.privacyHomeLongitude).toBe(100.5018)
       expect(data.privacyHideRadiusMeters).toBe(20)
@@ -173,9 +190,219 @@ describe('Fitness General Settings API', () => {
         expect.objectContaining({
           actorId: ACTOR1_ID,
           serviceType: 'general',
+          privacyLocations: [
+            {
+              latitude: 13.7563,
+              longitude: 100.5018,
+              hideRadiusMeters: 10
+            }
+          ],
           privacyHomeLatitude: 13.7563,
           privacyHomeLongitude: 100.5018,
           privacyHideRadiusMeters: 10
+        })
+      )
+    })
+
+    it('saves multiple privacy locations using the list payload', async () => {
+      mockDb.createFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyLocations: [
+          {
+            latitude: 13.7563,
+            longitude: 100.5018,
+            hideRadiusMeters: 20
+          },
+          {
+            latitude: 35.6764,
+            longitude: 139.65,
+            hideRadiusMeters: 10
+          }
+        ],
+        privacyHomeLatitude: 13.7563,
+        privacyHomeLongitude: 100.5018,
+        privacyHideRadiusMeters: 20,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyLocations: [
+              {
+                latitude: 13.7563,
+                longitude: 100.5018,
+                hideRadiusMeters: 20
+              },
+              {
+                latitude: 35.6764,
+                longitude: 139.65,
+                hideRadiusMeters: 10
+              }
+            ]
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.privacyLocations).toHaveLength(2)
+      expect(mockDb.createFitnessSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR1_ID,
+          serviceType: 'general',
+          privacyLocations: [
+            {
+              latitude: 13.7563,
+              longitude: 100.5018,
+              hideRadiusMeters: 20
+            },
+            {
+              latitude: 35.6764,
+              longitude: 139.65,
+              hideRadiusMeters: 10
+            }
+          ],
+          privacyHomeLatitude: 13.7563,
+          privacyHomeLongitude: 100.5018,
+          privacyHideRadiusMeters: 20
+        })
+      )
+    })
+
+    it('clears all privacy locations with an empty list payload', async () => {
+      mockDb.getFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyLocations: [
+          {
+            latitude: 13.7563,
+            longitude: 100.5018,
+            hideRadiusMeters: 20
+          }
+        ],
+        privacyHomeLatitude: 13.7563,
+        privacyHomeLongitude: 100.5018,
+        privacyHideRadiusMeters: 20,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+      mockDb.updateFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyLocations: [],
+        privacyHideRadiusMeters: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyLocations: []
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.privacyLocations).toEqual([])
+      expect(mockDb.updateFitnessSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'general-settings-id',
+          privacyLocations: [],
+          privacyHomeLatitude: null,
+          privacyHomeLongitude: null,
+          privacyHideRadiusMeters: 0
+        })
+      )
+    })
+
+    it('prioritizes privacyLocations when list and legacy fields are both sent', async () => {
+      mockDb.createFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyLocations: [
+          {
+            latitude: 13.7563,
+            longitude: 100.5018,
+            hideRadiusMeters: 20
+          },
+          {
+            latitude: 35.6764,
+            longitude: 139.65,
+            hideRadiusMeters: 10
+          }
+        ],
+        privacyHomeLatitude: 13.7563,
+        privacyHomeLongitude: 100.5018,
+        privacyHideRadiusMeters: 20,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/general',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            privacyLocations: [
+              {
+                latitude: 13.7563,
+                longitude: 100.5018,
+                hideRadiusMeters: 20
+              },
+              {
+                latitude: 35.6764,
+                longitude: 139.65,
+                hideRadiusMeters: 10
+              }
+            ],
+            privacyHomeLatitude: 1,
+            privacyHomeLongitude: 2,
+            privacyHideRadiusMeters: 5
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockDb.createFitnessSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR1_ID,
+          serviceType: 'general',
+          privacyLocations: [
+            {
+              latitude: 13.7563,
+              longitude: 100.5018,
+              hideRadiusMeters: 20
+            },
+            {
+              latitude: 35.6764,
+              longitude: 139.65,
+              hideRadiusMeters: 10
+            }
+          ],
+          privacyHomeLatitude: 13.7563,
+          privacyHomeLongitude: 100.5018,
+          privacyHideRadiusMeters: 20
         })
       )
     })
