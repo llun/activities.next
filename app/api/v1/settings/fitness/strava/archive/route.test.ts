@@ -112,6 +112,9 @@ describe('POST /api/v1/settings/fitness/strava/archive', () => {
     expect(data.archiveId).toBeDefined()
     expect(data.batchId).toBe(`strava-archive:${data.archiveId}`)
     expect(mockSaveFitnessFile).toHaveBeenCalledTimes(1)
+    const saveCallInput = mockSaveFitnessFile.mock.calls[0]?.[2]
+    expect(saveCallInput?.file.name).toBe('export_1.fit')
+    expect(saveCallInput?.file.type).toBe('application/zip')
     expect(mockSaveFitnessFile).toHaveBeenCalledWith(
       expect.any(Object),
       expect.objectContaining({ id: 'https://llun.test/users/llun' }),

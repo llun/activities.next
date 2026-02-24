@@ -139,6 +139,15 @@ export const StravaSettingsForm: FC = () => {
 
     let isActive = true
     let notReadyCount = 0
+    let timeoutId: number | null = null
+
+    const scheduleNextPoll = () => {
+      if (!isActive) return
+
+      timeoutId = window.setTimeout(() => {
+        void pollArchiveImportBatch()
+      }, 2_000)
+    }
 
     const pollArchiveImportBatch = async () => {
       try {
@@ -153,6 +162,7 @@ export const StravaSettingsForm: FC = () => {
               ? 'Strava archive import completed.'
               : 'Strava archive import finished with partial failures.'
           )
+          return
         }
       } catch (pollError) {
         if (!isActive) return
@@ -164,22 +174,25 @@ export const StravaSettingsForm: FC = () => {
 
         if (/(404|not found|not_found)/i.test(message) && notReadyCount < 90) {
           notReadyCount += 1
+          scheduleNextPoll()
           return
         }
 
         setArchiveError(message)
         setIsArchivePolling(false)
+        return
       }
+
+      scheduleNextPoll()
     }
 
     void pollArchiveImportBatch()
-    const intervalId = window.setInterval(() => {
-      void pollArchiveImportBatch()
-    }, 2_000)
 
     return () => {
       isActive = false
-      window.clearInterval(intervalId)
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+      }
     }
   }, [archiveBatchId, isArchivePolling])
 

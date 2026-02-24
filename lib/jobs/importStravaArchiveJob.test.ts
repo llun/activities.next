@@ -1,5 +1,4 @@
 import { Database } from '@/lib/database/types'
-import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import { importStravaArchiveJob } from '@/lib/jobs/importStravaArchiveJob'
 import {
   IMPORT_FITNESS_FILES_JOB_NAME,
@@ -15,6 +14,8 @@ import {
   toStravaArchiveFitnessFilePayload
 } from '@/lib/services/strava/archiveReader'
 
+const mockQueuePublish = jest.fn()
+
 jest.mock('@/lib/config', () => ({
   getConfig: jest.fn().mockReturnValue({
     fitnessStorage: {
@@ -29,8 +30,10 @@ jest.mock('@/lib/services/fitness-files', () => ({
   deleteFitnessFile: jest.fn()
 }))
 
-jest.mock('@/lib/jobs/importFitnessFilesJob', () => ({
-  importFitnessFilesJob: jest.fn()
+jest.mock('@/lib/services/queue', () => ({
+  getQueue: jest.fn(() => ({
+    publish: mockQueuePublish
+  }))
 }))
 
 jest.mock('@/lib/services/medias/index', () => ({
@@ -51,9 +54,6 @@ const mockSaveFitnessFile = saveFitnessFile as jest.MockedFunction<
 const mockDeleteFitnessFile = deleteFitnessFile as jest.MockedFunction<
   typeof deleteFitnessFile
 >
-const mockImportFitnessFilesJob = importFitnessFilesJob as jest.MockedFunction<
-  typeof importFitnessFilesJob
->
 const mockSaveMedia = saveMedia as jest.MockedFunction<typeof saveMedia>
 
 const mockArchiveReaderOpen = StravaArchiveReader.open as jest.MockedFunction<
@@ -68,6 +68,7 @@ type MockDatabase = Pick<
   Database,
   | 'getActorFromId'
   | 'getFitnessFile'
+  | 'getFitnessFilesByIds'
   | 'getAttachments'
   | 'createAttachment'
   | 'updateFitnessFileProcessingStatus'
@@ -78,6 +79,7 @@ describe('importStravaArchiveJob', () => {
   const database: jest.Mocked<MockDatabase> = {
     getActorFromId: jest.fn(),
     getFitnessFile: jest.fn(),
+    getFitnessFilesByIds: jest.fn(),
     getAttachments: jest.fn(),
     createAttachment: jest.fn(),
     updateFitnessFileProcessingStatus: jest.fn(),
@@ -110,10 +112,19 @@ describe('importStravaArchiveJob', () => {
 
       return null
     })
+    database.getFitnessFilesByIds.mockResolvedValue([
+      {
+        id: 'activity-file-1',
+        actorId: 'actor-1',
+        statusId: 'status-1',
+        importStatus: 'completed'
+      } as never
+    ])
     database.getAttachments.mockResolvedValue([])
     database.createAttachment.mockResolvedValue({} as never)
     database.updateFitnessFileProcessingStatus.mockResolvedValue(true)
     database.updateFitnessFileImportStatus.mockResolvedValue(true)
+    mockQueuePublish.mockResolvedValue(undefined)
 
     mockSaveFitnessFile.mockResolvedValue({
       id: 'activity-file-1',
@@ -124,7 +135,6 @@ describe('importStravaArchiveJob', () => {
       fileName: 'activity.fit',
       size: 16
     })
-    mockImportFitnessFilesJob.mockResolvedValue(undefined)
     mockSaveMedia.mockResolvedValue({
       id: 'media-1',
       type: 'image',
@@ -183,10 +193,10 @@ describe('importStravaArchiveJob', () => {
     })
 
     expect(mockSaveFitnessFile).toHaveBeenCalledTimes(1)
-    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
-      database,
+    expect(mockQueuePublish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: IMPORT_FITNESS_FILES_JOB_NAME,
+        id: expect.any(String),
         data: expect.objectContaining({
           actorId: 'actor-1',
           batchId: 'strava-archive:archive-1',

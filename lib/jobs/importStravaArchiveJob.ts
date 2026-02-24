@@ -10,7 +10,6 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
 import {
   deleteFitnessFile,
@@ -18,6 +17,7 @@ import {
 } from '@/lib/services/fitness-files'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
+import { getQueue } from '@/lib/services/queue'
 import {
   StravaArchiveActivity,
   StravaArchiveReader,
@@ -42,6 +42,8 @@ const JobData = z.object({
 })
 
 const ATTACHMENT_FILE_NAME_LIMIT = 150
+const FITNESS_IMPORT_WAIT_INTERVAL_MS = 1_000
+const FITNESS_IMPORT_WAIT_TIMEOUT_MS = 120_000
 
 const truncateAttachmentName = (fileName: string): string => {
   if (fileName.length <= ATTACHMENT_FILE_NAME_LIMIT) {
@@ -163,6 +165,70 @@ const resolveArchivePath = async (
       await fs.unlink(temporaryArchivePath).catch(() => undefined)
     }
   }
+}
+
+const sleep = async (ms: number) => {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+const waitForImportedFitnessFiles = async ({
+  database,
+  fitnessFileIds,
+  timeoutMs = FITNESS_IMPORT_WAIT_TIMEOUT_MS,
+  intervalMs = FITNESS_IMPORT_WAIT_INTERVAL_MS
+}: {
+  database: Database
+  fitnessFileIds: string[]
+  timeoutMs?: number
+  intervalMs?: number
+}) => {
+  const completedFiles = new Map<
+    string,
+    {
+      statusId?: string | null
+      importStatus?: 'pending' | 'completed' | 'failed'
+      importError?: string
+    }
+  >()
+  const deadline = Date.now() + timeoutMs
+
+  while (Date.now() <= deadline) {
+    const files = await database.getFitnessFilesByIds({
+      fitnessFileIds
+    })
+
+    completedFiles.clear()
+    for (const file of files) {
+      completedFiles.set(file.id, {
+        statusId: file.statusId,
+        importStatus: file.importStatus,
+        importError: file.importError
+      })
+    }
+
+    const unresolvedCount = fitnessFileIds.filter((fitnessFileId) => {
+      const fitnessFile = completedFiles.get(fitnessFileId)
+      if (!fitnessFile) {
+        return true
+      }
+
+      if (fitnessFile.statusId) {
+        return false
+      }
+
+      return fitnessFile.importStatus !== 'failed'
+    }).length
+
+    if (unresolvedCount === 0) {
+      return completedFiles
+    }
+
+    await sleep(intervalMs)
+  }
+
+  return completedFiles
 }
 
 const attachActivityMediaToStatus = async ({
@@ -299,6 +365,7 @@ export const importStravaArchiveJob = createJobHandle(
     let cleanupArchivePath = async () => {}
     let firstFailureMessage: string | null = null
     let importedActivities = 0
+    let pendingActivities = 0
     let failedActivities = 0
 
     try {
@@ -311,6 +378,10 @@ export const importStravaArchiveJob = createJobHandle(
       archiveReader = await StravaArchiveReader.open(archiveFilePath)
       const archiveActivities = await archiveReader.getActivities()
       const totalActivities = archiveActivities.length
+      const savedArchiveActivities: Array<{
+        activity: StravaArchiveActivity
+        fitnessFileId: string
+      }> = []
 
       for (const archiveActivity of archiveActivities) {
         try {
@@ -343,38 +414,10 @@ export const importStravaArchiveJob = createJobHandle(
             throw new Error('Failed to save imported fitness file from archive')
           }
 
-          await importFitnessFilesJob(database, {
-            id: getHashFromString(
-              `${actorId}:strava-archive:${archiveId}:${savedFitnessFile.id}`
-            ),
-            name: IMPORT_FITNESS_FILES_JOB_NAME,
-            data: {
-              actorId,
-              batchId,
-              fitnessFileIds: [savedFitnessFile.id],
-              overlapFitnessFileIds: [],
-              visibility
-            }
-          })
-
-          const importedFitnessFile = await database.getFitnessFile({
-            id: savedFitnessFile.id
-          })
-          if (!importedFitnessFile?.statusId) {
-            throw new Error('Imported archive fitness file has no status')
-          }
-
-          await attachActivityMediaToStatus({
-            database,
-            actor,
-            actorId,
-            statusId: importedFitnessFile.statusId,
+          savedArchiveActivities.push({
             activity: archiveActivity,
-            archiveReader,
-            archiveId
+            fitnessFileId: savedFitnessFile.id
           })
-
-          importedActivities += 1
         } catch (error) {
           const nodeError = error as Error
           failedActivities += 1
@@ -392,10 +435,81 @@ export const importStravaArchiveJob = createJobHandle(
         }
       }
 
-      const summary =
-        failedActivities > 0
-          ? `Imported ${importedActivities}/${totalActivities} activities, failed ${failedActivities}`
-          : `Imported ${importedActivities}/${totalActivities} activities`
+      if (savedArchiveActivities.length > 0) {
+        await getQueue().publish({
+          id: getHashFromString(
+            `${actorId}:strava-archive:${archiveId}:import-fitness-files`
+          ),
+          name: IMPORT_FITNESS_FILES_JOB_NAME,
+          data: {
+            actorId,
+            batchId,
+            fitnessFileIds: savedArchiveActivities.map(
+              ({ fitnessFileId }) => fitnessFileId
+            ),
+            overlapFitnessFileIds: [],
+            visibility
+          }
+        })
+
+        const importedFitnessFiles = await waitForImportedFitnessFiles({
+          database,
+          fitnessFileIds: savedArchiveActivities.map(
+            ({ fitnessFileId }) => fitnessFileId
+          )
+        })
+
+        for (const {
+          activity: archiveActivity,
+          fitnessFileId
+        } of savedArchiveActivities) {
+          const importedFitnessFile = importedFitnessFiles.get(fitnessFileId)
+
+          if (!importedFitnessFile?.statusId) {
+            if (importedFitnessFile?.importStatus === 'failed') {
+              failedActivities += 1
+              if (!firstFailureMessage) {
+                firstFailureMessage =
+                  importedFitnessFile.importError ||
+                  'Imported archive fitness file failed during processing'
+              }
+            } else {
+              pendingActivities += 1
+            }
+
+            logger.warn({
+              message:
+                'Imported Strava archive fitness file has no status after import wait',
+              actorId,
+              archiveId,
+              activityId: archiveActivity.activityId,
+              fitnessFileId,
+              importStatus: importedFitnessFile?.importStatus
+            })
+            continue
+          }
+
+          await attachActivityMediaToStatus({
+            database,
+            actor,
+            actorId,
+            statusId: importedFitnessFile.statusId,
+            activity: archiveActivity,
+            archiveReader,
+            archiveId
+          })
+          importedActivities += 1
+        }
+      }
+
+      const summaryParts = [`Imported ${importedActivities}/${totalActivities}`]
+      if (pendingActivities > 0) {
+        summaryParts.push(`${pendingActivities} pending`)
+      }
+      if (failedActivities > 0) {
+        summaryParts.push(`${failedActivities} failed`)
+      }
+      const summary = summaryParts.join(', ')
 
       await Promise.all([
         database.updateFitnessFileImportStatus(

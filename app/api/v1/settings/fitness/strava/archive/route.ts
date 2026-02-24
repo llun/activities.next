@@ -47,6 +47,13 @@ const isZipArchiveFile = (file: File): boolean => {
   return ACCEPTED_ZIP_MIME_TYPES.includes(file.type.toLowerCase())
 }
 
+const toArchiveStorageFile = (archiveFile: File): File => {
+  const baseName = archiveFile.name.replace(/\.zip$/i, '')
+  return new File([archiveFile], `${baseName}.fit`, {
+    type: archiveFile.type || 'application/zip'
+  })
+}
+
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = traceApiRoute(
@@ -99,10 +106,8 @@ export const POST = traceApiRoute(
       const sourceBatchId = getStravaArchiveSourceBatchId(archiveId)
       const batchId = getStravaArchiveImportBatchId(archiveId)
 
-      // Store archive file in fitness storage so it counts toward quota usage.
-      const archiveStorageFile = new File([archiveRaw], archiveRaw.name, {
-        type: 'application/vnd.ant.fit'
-      })
+      // Keep the original archive MIME type while storing in fitness storage.
+      const archiveStorageFile = toArchiveStorageFile(archiveRaw)
 
       const storedArchive = await saveFitnessFile(database, targetActor, {
         file: archiveStorageFile,
