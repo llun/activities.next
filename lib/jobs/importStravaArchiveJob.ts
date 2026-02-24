@@ -400,8 +400,7 @@ export const importStravaArchiveJob = createJobHandle(
 
       archiveReader = await StravaArchiveReader.open(archiveFilePath)
       let mediaActivities = pendingMediaActivities ?? []
-      const isMediaRetryPass =
-        Boolean(pendingMediaActivities) && pendingMediaActivities.length > 0
+      const isMediaRetryPass = (pendingMediaActivities?.length ?? 0) > 0
 
       if (!pendingMediaActivities || pendingMediaActivities.length === 0) {
         const archiveActivities = await archiveReader.getActivities()
