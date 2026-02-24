@@ -5,6 +5,7 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MOCK_SECRET_PHASES } from '@/lib/stub/actor'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { Actor } from '@/lib/types/domain/actor'
 import { Scope } from '@/lib/types/database/operations'
 
 import { OAuthGuard, getTokenFromHeader } from './OAuthGuard'
@@ -19,6 +20,32 @@ jest.mock('next-auth', () => ({
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
+}))
+
+// Mock cookies from next/headers — controls which actor the cookie selects
+const mockCookieValue: { value?: string } = {}
+jest.mock('next/headers', () => ({
+  cookies: jest.fn().mockImplementation(() =>
+    Promise.resolve({
+      get: (name: string) => {
+        if (name === 'activities.actor-id') {
+          return mockCookieValue.value
+            ? { value: mockCookieValue.value }
+            : undefined
+        }
+        return undefined
+      }
+    })
+  )
+}))
+
+// Mock config — secretPhase must match MOCK_SECRET_PHASES used to sign JWTs in tests
+jest.mock('@/lib/config', () => ({
+  getConfig: () => ({
+    allowEmails: [],
+    host: 'llun.test',
+    secretPhase: 'secret phases'
+  })
 }))
 
 describe('#getTokenFromHeader', () => {
@@ -65,6 +92,7 @@ describe('#OAuthGuard', () => {
 
   beforeEach(() => {
     mockGetServerSession.mockReset()
+    mockCookieValue.value = undefined
   })
 
   const createRequest = (headers: Record<string, string> = {}) => {
@@ -102,6 +130,87 @@ describe('#OAuthGuard', () => {
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(401)
+    })
+
+    test('resolves primary actor when no actor-id cookie is set', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      mockCookieValue.value = undefined
+
+      let capturedActor: Actor | undefined
+      const handler = jest.fn().mockImplementation((_req, context) => {
+        capturedActor = context.currentActor
+        return NextResponse.json({ success: true }, { status: 200 })
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], handler)
+      const req = createRequest()
+      await guard(req, { params: Promise.resolve({}) })
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      expect(capturedActor?.id).toBe(primaryActor?.id)
+    })
+
+    test('resolves sub-actor when actor-id cookie is set to sub-actor', async () => {
+      // Create a sub-actor for actor1's account
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      if (!primaryActor) throw new Error('Primary actor not found')
+
+      const subActorId = await database.createActorForAccount({
+        accountId: primaryActor.account!.id,
+        username: 'oauth-subactor',
+        domain: 'llun.test',
+        publicKey: 'subactor-public-key',
+        privateKey: 'subactor-private-key'
+      })
+
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      mockCookieValue.value = subActorId
+
+      let capturedActor: Actor | undefined
+      const handler = jest.fn().mockImplementation((_req, context) => {
+        capturedActor = context.currentActor
+        return NextResponse.json({ success: true }, { status: 200 })
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], handler)
+      const req = createRequest()
+      await guard(req, { params: Promise.resolve({}) })
+
+      expect(handler).toHaveBeenCalled()
+      // Must resolve the sub-actor chosen via cookie, not the login (primary) actor
+      expect(capturedActor?.id).toBe(subActorId)
+      expect(capturedActor?.username).toBe('oauth-subactor')
+    })
+
+    test('falls back to primary actor when cookie contains invalid actor id', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      mockCookieValue.value = 'invalid-actor-id-that-does-not-exist'
+
+      let capturedActor: Actor | undefined
+      const handler = jest.fn().mockImplementation((_req, context) => {
+        capturedActor = context.currentActor
+        return NextResponse.json({ success: true }, { status: 200 })
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], handler)
+      const req = createRequest()
+      await guard(req, { params: Promise.resolve({}) })
+
+      expect(handler).toHaveBeenCalled()
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      expect(capturedActor?.id).toBe(primaryActor?.id)
     })
   })
 
