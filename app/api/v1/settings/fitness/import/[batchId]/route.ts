@@ -74,11 +74,47 @@ const summarizeBatch = (files: FitnessFile[]) => {
   }
 }
 
-const isBatchOwnedByActor = (
-  files: FitnessFile[],
+const getSingleBatchActorId = (files: FitnessFile[]): string | null => {
+  const actorIds = Array.from(new Set(files.map((item) => item.actorId)))
+  if (actorIds.length !== 1) {
+    return null
+  }
+  return actorIds[0] ?? null
+}
+
+const isBatchOwnedByCurrentAccount = async ({
+  files,
+  currentActorId,
+  currentAccountId,
+  database
+}: {
+  files: FitnessFile[]
   currentActorId: string
-): boolean => {
-  return files.every((item) => item.actorId === currentActorId)
+  currentAccountId?: string
+  database: {
+    getActorsForAccount: (params: {
+      accountId: string
+    }) => Promise<Array<{ id: string }>>
+  }
+}): Promise<boolean> => {
+  const batchActorId = getSingleBatchActorId(files)
+  if (!batchActorId) {
+    return false
+  }
+
+  if (batchActorId === currentActorId) {
+    return true
+  }
+
+  if (!currentAccountId) {
+    return false
+  }
+
+  const accountActors = await database.getActorsForAccount({
+    accountId: currentAccountId
+  })
+
+  return accountActors.some((actor) => actor.id === batchActorId)
 }
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -98,7 +134,13 @@ export const GET = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
     }
 
-    if (!isBatchOwnedByActor(files, currentActor.id)) {
+    const hasAccess = await isBatchOwnedByCurrentAccount({
+      files,
+      currentActorId: currentActor.id,
+      currentAccountId: currentActor.account?.id,
+      database
+    })
+    if (!hasAccess) {
       return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
     }
 
@@ -148,7 +190,18 @@ export const POST = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
     }
 
-    if (!isBatchOwnedByActor(files, currentActor.id)) {
+    const batchActorId = getSingleBatchActorId(files)
+    if (!batchActorId) {
+      return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+    }
+
+    const hasAccess = await isBatchOwnedByCurrentAccount({
+      files,
+      currentActorId: currentActor.id,
+      currentAccountId: currentActor.account?.id,
+      database
+    })
+    if (!hasAccess) {
       return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
     }
 
@@ -204,11 +257,11 @@ export const POST = traceApiRoute(
     try {
       await getQueue().publish({
         id: getHashFromString(
-          `${currentActor.id}:fitness-import-retry:${batchId}`
+          `${batchActorId}:fitness-import-retry:${batchId}`
         ),
         name: IMPORT_FITNESS_FILES_JOB_NAME,
         data: {
-          actorId: currentActor.id,
+          actorId: batchActorId,
           batchId,
           fitnessFileIds: retriableFileIds,
           overlapFitnessFileIds,
@@ -236,7 +289,7 @@ export const POST = traceApiRoute(
 
       logger.error({
         message: 'Failed to queue retry for fitness imports',
-        actorId: currentActor.id,
+        actorId: batchActorId,
         batchId,
         retried: retriableFiles.length,
         error: nodeError.message
@@ -247,7 +300,7 @@ export const POST = traceApiRoute(
 
     logger.info({
       message: 'Queued retry for failed fitness imports',
-      actorId: currentActor.id,
+      actorId: batchActorId,
       batchId,
       retried: retriableFiles.length
     })

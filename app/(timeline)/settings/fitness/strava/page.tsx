@@ -22,7 +22,8 @@ const StravaPage: FC = () => {
           >
             Strava API settings
           </a>
-          .
+          . You can also import historical activities from a Strava export
+          archive.
         </p>
       </div>
 

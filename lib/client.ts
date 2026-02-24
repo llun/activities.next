@@ -639,6 +639,11 @@ export interface StartFitnessImportResult {
   fileCount: number
 }
 
+export interface StartStravaArchiveImportResult {
+  archiveId: string
+  batchId: string
+}
+
 const parseApiError = async (
   response: Response,
   fallbackMessage: string
@@ -718,6 +723,36 @@ export const startFitnessImport = async (
     )
     throw new Error(
       `Failed to import fitness files: ${response.status} ${errorDetails}`
+    )
+  }
+
+  return response.json()
+}
+
+export const startStravaArchiveImport = async (
+  archive: File,
+  visibility: MastodonVisibility,
+  actorId?: string
+): Promise<StartStravaArchiveImportResult> => {
+  const formData = new FormData()
+  formData.append('archive', archive)
+  formData.append('visibility', visibility)
+  if (actorId) {
+    formData.append('actorId', actorId)
+  }
+
+  const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to import Strava archive.'
+    )
+    throw new Error(
+      `Failed to import Strava archive: ${response.status} ${errorDetails}`
     )
   }
 

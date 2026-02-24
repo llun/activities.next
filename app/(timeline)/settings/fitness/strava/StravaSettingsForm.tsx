@@ -1,7 +1,14 @@
 'use client'
 
+import Link from 'next/link'
 import { FC, useEffect, useState } from 'react'
 
+import {
+  FitnessImportBatchResult,
+  getFitnessImportBatch,
+  startStravaArchiveImport
+} from '@/lib/client'
+import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -13,6 +20,14 @@ import {
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
+import { MastodonVisibility } from '@/lib/utils/getVisibility'
+
+interface AccountActor {
+  id: string
+  username: string
+  domain: string
+  name?: string | null
+}
 
 export const StravaSettingsForm: FC = () => {
   const [clientId, setClientId] = useState('')
@@ -24,6 +39,18 @@ export const StravaSettingsForm: FC = () => {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [showUnlinkDialog, setShowUnlinkDialog] = useState(false)
+  const [archiveFile, setArchiveFile] = useState<File | null>(null)
+  const [archiveVisibility, setArchiveVisibility] =
+    useState<MastodonVisibility>('private')
+  const [archiveBatchId, setArchiveBatchId] = useState<string | null>(null)
+  const [archiveBatchResult, setArchiveBatchResult] =
+    useState<FitnessImportBatchResult | null>(null)
+  const [isArchiveImporting, setIsArchiveImporting] = useState(false)
+  const [isArchivePolling, setIsArchivePolling] = useState(false)
+  const [archiveMessage, setArchiveMessage] = useState('')
+  const [archiveError, setArchiveError] = useState('')
+  const [archiveActors, setArchiveActors] = useState<AccountActor[]>([])
+  const [archiveActorId, setArchiveActorId] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -41,11 +68,33 @@ export const StravaSettingsForm: FC = () => {
           setClientSecret('••••••••')
           setWebhookUrl(data.webhookUrl || '')
         }
+        if (typeof data.actorId === 'string' && data.actorId.length > 0) {
+          setArchiveActorId(data.actorId)
+        }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           return
         }
         setError('Failed to load settings')
+      }
+    }
+
+    const fetchActors = async () => {
+      try {
+        const response = await fetch('/api/v1/actors', {
+          signal: controller.signal
+        })
+        if (!response.ok) {
+          throw new Error('Failed to fetch actors')
+        }
+
+        const actorsData = (await response.json()) as AccountActor[]
+        setArchiveActors(actorsData)
+        setArchiveActorId((previous) => previous || actorsData[0]?.id || '')
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return
+        }
       }
     }
 
@@ -77,12 +126,62 @@ export const StravaSettingsForm: FC = () => {
     }
 
     fetchSettings()
+    fetchActors()
     checkUrlParams()
 
     return () => {
       controller.abort()
     }
   }, [])
+
+  useEffect(() => {
+    if (!archiveBatchId || !isArchivePolling) return
+
+    let isActive = true
+    let notReadyCount = 0
+
+    const pollArchiveImportBatch = async () => {
+      try {
+        const result = await getFitnessImportBatch(archiveBatchId)
+        if (!isActive) return
+
+        setArchiveBatchResult(result)
+        if (result.status !== 'pending') {
+          setIsArchivePolling(false)
+          setArchiveMessage(
+            result.status === 'completed'
+              ? 'Strava archive import completed.'
+              : 'Strava archive import finished with partial failures.'
+          )
+        }
+      } catch (pollError) {
+        if (!isActive) return
+
+        const message =
+          pollError instanceof Error
+            ? pollError.message
+            : 'Failed to load Strava archive import progress'
+
+        if (/(404|not found|not_found)/i.test(message) && notReadyCount < 90) {
+          notReadyCount += 1
+          return
+        }
+
+        setArchiveError(message)
+        setIsArchivePolling(false)
+      }
+    }
+
+    void pollArchiveImportBatch()
+    const intervalId = window.setInterval(() => {
+      void pollArchiveImportBatch()
+    }, 2_000)
+
+    return () => {
+      isActive = false
+      window.clearInterval(intervalId)
+    }
+  }, [archiveBatchId, isArchivePolling])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -151,9 +250,62 @@ export const StravaSettingsForm: FC = () => {
     }
   }
 
+  const handleArchiveFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.currentTarget.files?.[0] ?? null
+    if (!file) {
+      setArchiveFile(null)
+      return
+    }
+
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      setArchiveError('Please select a valid Strava export ZIP archive.')
+      setArchiveFile(null)
+      event.currentTarget.value = ''
+      return
+    }
+
+    setArchiveError('')
+    setArchiveFile(file)
+  }
+
+  const handleStartArchiveImport = async () => {
+    if (!archiveFile || isArchiveImporting) {
+      return
+    }
+
+    setArchiveError('')
+    setArchiveMessage('')
+    setArchiveBatchResult(null)
+    setIsArchiveImporting(true)
+
+    try {
+      const result = await startStravaArchiveImport(
+        archiveFile,
+        archiveVisibility,
+        archiveActorId || undefined
+      )
+      setArchiveBatchId(result.batchId)
+      setArchiveMessage(
+        'Strava archive uploaded. Import started in the background.'
+      )
+      setArchiveFile(null)
+      setIsArchivePolling(true)
+    } catch (archiveImportError) {
+      const message =
+        archiveImportError instanceof Error
+          ? archiveImportError.message
+          : 'Failed to import Strava archive'
+      setArchiveError(message)
+    } finally {
+      setIsArchiveImporting(false)
+    }
+  }
+
   return (
     <>
-      <form onSubmit={handleSave} className="space-y-4">
+      <form onSubmit={handleSave} className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="clientId">Client ID</Label>
           <Input
@@ -244,6 +396,106 @@ export const StravaSettingsForm: FC = () => {
           >
             Unlink
           </Button>
+        </div>
+
+        <div className="space-y-4 rounded-md border p-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold">Import Strava Archive</h3>
+            <p className="text-xs text-muted-foreground">
+              Upload your Strava export <code>.zip</code>. This imports
+              activities and attached media into local statuses.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            {archiveActors.length > 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="archiveActorSelect">Import Actor</Label>
+                <select
+                  id="archiveActorSelect"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={archiveActorId}
+                  onChange={(event) => setArchiveActorId(event.target.value)}
+                  disabled={isArchiveImporting}
+                >
+                  {archiveActors.map((actor) => (
+                    <option key={actor.id} value={actor.id}>
+                      @{actor.username}@{actor.domain}
+                      {actor.name ? ` (${actor.name})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Imported archive statuses will be created on this actor.
+                </p>
+              </div>
+            )}
+
+            <Label htmlFor="archiveFile">Archive File</Label>
+            <Input
+              id="archiveFile"
+              type="file"
+              accept=".zip,application/zip,application/x-zip-compressed"
+              onChange={handleArchiveFileChange}
+              disabled={isArchiveImporting}
+            />
+            {archiveFile && (
+              <p className="text-xs text-muted-foreground">
+                {archiveFile.name}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Visibility:</span>
+            <VisibilitySelector
+              visibility={archiveVisibility}
+              onVisibilityChange={setArchiveVisibility}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              onClick={handleStartArchiveImport}
+              disabled={!archiveFile || isArchiveImporting}
+            >
+              {isArchiveImporting ? 'Importing…' : 'Import archive'}
+            </Button>
+            {archiveBatchId && (
+              <span className="text-xs text-muted-foreground">
+                Batch: {archiveBatchId}
+              </span>
+            )}
+          </div>
+
+          {archiveBatchResult && (
+            <div className="rounded-md border p-3 text-xs text-muted-foreground">
+              <p>
+                Status:{' '}
+                <span className="font-medium">{archiveBatchResult.status}</span>
+              </p>
+              <p>
+                Completed {archiveBatchResult.summary.completed}/
+                {archiveBatchResult.summary.total} • Failed{' '}
+                {archiveBatchResult.summary.failed}
+              </p>
+              <p>
+                View details in{' '}
+                <Link href="/settings/fitness/general" className="underline">
+                  Fitness settings
+                </Link>
+                .
+              </p>
+            </div>
+          )}
+
+          {archiveError && (
+            <p className="text-sm text-destructive">{archiveError}</p>
+          )}
+          {archiveMessage && (
+            <p className="text-sm text-green-600">{archiveMessage}</p>
+          )}
         </div>
       </form>
 

@@ -530,10 +530,8 @@ export const FitnessFileSQLDatabaseMixin = (
         statusId,
         importStatus: 'completed',
         importError: null,
-        isPrimary: database.raw('CASE WHEN id = ? THEN ? ELSE ? END', [
-          primaryFitnessFileId,
-          true,
-          false
+        isPrimary: database.raw('CASE WHEN id = ? THEN TRUE ELSE FALSE END', [
+          primaryFitnessFileId
         ]),
         processingStatus: database.raw('CASE WHEN id = ? THEN ? ELSE ? END', [
           primaryFitnessFileId,

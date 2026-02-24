@@ -31,7 +31,7 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: [],
-        data: { configured: false },
+        data: { configured: false, actorId: currentActor.id },
         responseStatusCode: 200
       })
     }
@@ -45,6 +45,7 @@ export const GET = traceApiRoute(
       allowedMethods: [],
       data: {
         configured: true,
+        actorId: currentActor.id,
         clientId: fitnessSettings.clientId,
         connected: !!fitnessSettings.accessToken,
         webhookUrl
