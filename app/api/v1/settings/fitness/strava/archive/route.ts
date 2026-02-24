@@ -48,6 +48,9 @@ const isZipArchiveFile = (file: File): boolean => {
 }
 
 const toArchiveStorageFile = (archiveFile: File): File => {
+  // Fitness storage currently supports only fit/gpx/tcx extensions.
+  // Keep the original ZIP MIME type and use a compatible extension until
+  // storage supports a dedicated archive file type.
   const baseName = archiveFile.name.replace(/\.zip$/i, '')
   return new File([archiveFile], `${baseName}.fit`, {
     type: archiveFile.type || 'application/zip'

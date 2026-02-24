@@ -240,4 +240,86 @@ describe('importStravaArchiveJob', () => {
       })
     )
   })
+
+  it('cleans up archive source file when actor no longer exists', async () => {
+    database.getActorFromId.mockResolvedValueOnce(null as never)
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-3',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'archive-file-1',
+      expect.objectContaining({
+        id: 'archive-file-1'
+      })
+    )
+  })
+
+  it('requeues media attachment pass when imported statuses are still pending', async () => {
+    const dateNowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0)
+      .mockReturnValue(121_000)
+
+    database.getFitnessFilesByIds.mockResolvedValueOnce([
+      {
+        id: 'activity-file-1',
+        actorId: 'actor-1',
+        statusId: null,
+        importStatus: 'pending'
+      } as never
+    ])
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-4',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+    dateNowSpy.mockRestore()
+
+    expect(mockQueuePublish).toHaveBeenCalledTimes(2)
+    expect(mockQueuePublish).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+        data: expect.objectContaining({
+          actorId: 'actor-1',
+          archiveId: 'archive-1',
+          archiveFitnessFileId: 'archive-file-1',
+          mediaAttachmentRetry: 1,
+          pendingMediaActivities: [
+            expect.objectContaining({
+              fitnessFileId: 'activity-file-1',
+              activityId: 'activity-1',
+              mediaPaths: ['media/photo-1.jpg']
+            })
+          ]
+        })
+      })
+    )
+    expect(database.updateFitnessFileImportStatus).toHaveBeenCalledWith(
+      'archive-file-1',
+      'pending',
+      expect.stringContaining('Waiting for imported statuses')
+    )
+    expect(mockDeleteFitnessFile).not.toHaveBeenCalled()
+    expect(mockSaveMedia).not.toHaveBeenCalled()
+  })
 })
