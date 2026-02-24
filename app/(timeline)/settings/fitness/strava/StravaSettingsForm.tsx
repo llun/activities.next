@@ -22,13 +22,6 @@ import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
-interface AccountActor {
-  id: string
-  username: string
-  domain: string
-  name?: string | null
-}
-
 export const StravaSettingsForm: FC = () => {
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
@@ -49,8 +42,7 @@ export const StravaSettingsForm: FC = () => {
   const [isArchivePolling, setIsArchivePolling] = useState(false)
   const [archiveMessage, setArchiveMessage] = useState('')
   const [archiveError, setArchiveError] = useState('')
-  const [archiveActors, setArchiveActors] = useState<AccountActor[]>([])
-  const [archiveActorId, setArchiveActorId] = useState('')
+  const [archiveActorHandle, setArchiveActorHandle] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -68,33 +60,17 @@ export const StravaSettingsForm: FC = () => {
           setClientSecret('••••••••')
           setWebhookUrl(data.webhookUrl || '')
         }
-        if (typeof data.actorId === 'string' && data.actorId.length > 0) {
-          setArchiveActorId(data.actorId)
+        if (
+          typeof data.actorHandle === 'string' &&
+          data.actorHandle.length > 0
+        ) {
+          setArchiveActorHandle(data.actorHandle)
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           return
         }
         setError('Failed to load settings')
-      }
-    }
-
-    const fetchActors = async () => {
-      try {
-        const response = await fetch('/api/v1/actors', {
-          signal: controller.signal
-        })
-        if (!response.ok) {
-          throw new Error('Failed to fetch actors')
-        }
-
-        const actorsData = (await response.json()) as AccountActor[]
-        setArchiveActors(actorsData)
-        setArchiveActorId((previous) => previous || actorsData[0]?.id || '')
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          return
-        }
       }
     }
 
@@ -126,7 +102,6 @@ export const StravaSettingsForm: FC = () => {
     }
 
     fetchSettings()
-    fetchActors()
     checkUrlParams()
 
     return () => {
@@ -296,8 +271,7 @@ export const StravaSettingsForm: FC = () => {
     try {
       const result = await startStravaArchiveImport(
         archiveFile,
-        archiveVisibility,
-        archiveActorId || undefined
+        archiveVisibility
       )
       setArchiveBatchId(result.batchId)
       setArchiveMessage(
@@ -421,28 +395,10 @@ export const StravaSettingsForm: FC = () => {
           </div>
 
           <div className="space-y-2">
-            {archiveActors.length > 1 && (
-              <div className="space-y-2">
-                <Label htmlFor="archiveActorSelect">Import Actor</Label>
-                <select
-                  id="archiveActorSelect"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={archiveActorId}
-                  onChange={(event) => setArchiveActorId(event.target.value)}
-                  disabled={isArchiveImporting}
-                >
-                  {archiveActors.map((actor) => (
-                    <option key={actor.id} value={actor.id}>
-                      @{actor.username}@{actor.domain}
-                      {actor.name ? ` (${actor.name})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  Imported archive statuses will be created on this actor.
-                </p>
-              </div>
-            )}
+            <p className="text-xs text-muted-foreground">
+              Archive import always applies to{' '}
+              {archiveActorHandle || 'your current actor'}.
+            </p>
 
             <Label htmlFor="archiveFile">Archive File</Label>
             <Input

@@ -21,6 +21,7 @@ export const GET = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
     const config = getConfig()
+    const actorHandle = `@${currentActor.username}@${currentActor.domain}`
 
     const fitnessSettings = await database.getFitnessSettings({
       actorId: currentActor.id,
@@ -31,7 +32,11 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: [],
-        data: { configured: false, actorId: currentActor.id },
+        data: {
+          configured: false,
+          actorId: currentActor.id,
+          actorHandle
+        },
         responseStatusCode: 200
       })
     }
@@ -46,6 +51,7 @@ export const GET = traceApiRoute(
       data: {
         configured: true,
         actorId: currentActor.id,
+        actorHandle,
         clientId: fitnessSettings.clientId,
         connected: !!fitnessSettings.accessToken,
         webhookUrl
