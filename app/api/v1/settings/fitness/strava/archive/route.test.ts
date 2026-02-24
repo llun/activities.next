@@ -135,24 +135,7 @@ describe('POST /api/v1/settings/fitness/strava/archive', () => {
     })
   })
 
-  it('uses selected actor when actorId belongs to current account', async () => {
-    const selectedActorId = 'https://llun.test/users/llun-second'
-    const getActorsForAccount = jest.fn().mockResolvedValue([
-      {
-        id: 'https://llun.test/users/llun',
-        username: 'llun',
-        domain: 'llun.test'
-      },
-      {
-        id: selectedActorId,
-        username: 'llun-second',
-        domain: 'llun.test'
-      }
-    ])
-    mockDatabase = {
-      getActorsForAccount
-    }
-
+  it('returns forbidden when actorId differs from current actor', async () => {
     const formData = new FormData()
     formData.append(
       'archive',
@@ -160,59 +143,7 @@ describe('POST /api/v1/settings/fitness/strava/archive', () => {
         type: 'application/zip'
       })
     )
-    formData.append('actorId', selectedActorId)
-
-    const request = {
-      headers: new Headers(),
-      formData: async () => formData
-    } as unknown as Parameters<typeof POST>[0]
-
-    const response = await POST(request, { params: Promise.resolve({}) })
-    const data = (await response.json()) as {
-      archiveId: string
-      batchId: string
-    }
-
-    expect(response.status).toBe(200)
-    expect(getActorsForAccount).toHaveBeenCalledWith({
-      accountId: 'account-1'
-    })
-    expect(mockSaveFitnessFile).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ id: selectedActorId }),
-      expect.objectContaining({
-        importBatchId: `strava-archive-source:${data.archiveId}`
-      })
-    )
-    expect(getQueue().publish).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          actorId: selectedActorId
-        })
-      })
-    )
-  })
-
-  it('returns forbidden when actorId is not in current account', async () => {
-    const getActorsForAccount = jest.fn().mockResolvedValue([
-      {
-        id: 'https://llun.test/users/llun',
-        username: 'llun',
-        domain: 'llun.test'
-      }
-    ])
-    mockDatabase = {
-      getActorsForAccount
-    }
-
-    const formData = new FormData()
-    formData.append(
-      'archive',
-      new File([Buffer.from('zip-data')], 'export_1.zip', {
-        type: 'application/zip'
-      })
-    )
-    formData.append('actorId', 'https://llun.test/users/other-account-actor')
+    formData.append('actorId', 'https://llun.test/users/llun-second')
 
     const request = {
       headers: new Headers(),
@@ -224,6 +155,33 @@ describe('POST /api/v1/settings/fitness/strava/archive', () => {
     expect(response.status).toBe(403)
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
     expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('allows actorId when it matches current actor id', async () => {
+    const formData = new FormData()
+    formData.append(
+      'archive',
+      new File([Buffer.from('zip-data')], 'export_1.zip', {
+        type: 'application/zip'
+      })
+    )
+    formData.append('actorId', 'https://llun.test/users/llun')
+
+    const request = {
+      headers: new Headers(),
+      formData: async () => formData
+    } as unknown as Parameters<typeof POST>[0]
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockSaveFitnessFile).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ id: 'https://llun.test/users/llun' }),
+      expect.objectContaining({
+        description: 'Strava archive import source'
+      })
+    )
   })
 
   it('returns bad request for non-zip archive files', async () => {

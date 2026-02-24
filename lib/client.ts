@@ -731,15 +731,11 @@ export const startFitnessImport = async (
 
 export const startStravaArchiveImport = async (
   archive: File,
-  visibility: MastodonVisibility,
-  actorId?: string
+  visibility: MastodonVisibility
 ): Promise<StartStravaArchiveImportResult> => {
   const formData = new FormData()
   formData.append('archive', archive)
   formData.append('visibility', visibility)
-  if (actorId) {
-    formData.append('actorId', actorId)
-  }
 
   const response = await fetch('/api/v1/settings/fitness/strava/archive', {
     method: 'POST',

@@ -315,4 +315,90 @@ describe('importStravaArchiveJob', () => {
     expect(mockDeleteFitnessFile).not.toHaveBeenCalled()
     expect(mockSaveMedia).not.toHaveBeenCalled()
   })
+
+  it('deletes archive source file when media retry enqueue fails', async () => {
+    database.getFitnessFilesByIds.mockResolvedValueOnce([
+      {
+        id: 'activity-file-1',
+        actorId: 'actor-1',
+        statusId: null,
+        importStatus: 'pending'
+      } as never
+    ])
+    mockQueuePublish
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('queue unavailable'))
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-5',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(database.updateFitnessFileImportStatus).toHaveBeenCalledWith(
+      'archive-file-1',
+      'failed',
+      'queue unavailable'
+    )
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'archive-file-1',
+      expect.objectContaining({
+        id: 'archive-file-1'
+      })
+    )
+  })
+
+  it('fails and cleans up archive when media retries are exhausted', async () => {
+    database.getFitnessFilesByIds.mockResolvedValueOnce([
+      {
+        id: 'activity-file-1',
+        actorId: 'actor-1',
+        statusId: null,
+        importStatus: 'pending'
+      } as never
+    ])
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-6',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private',
+        mediaAttachmentRetry: 12,
+        pendingMediaActivities: [
+          {
+            fitnessFileId: 'activity-file-1',
+            activityId: 'activity-1',
+            mediaPaths: ['media/photo-1.jpg']
+          }
+        ]
+      }
+    })
+
+    expect(mockQueuePublish).toHaveBeenCalledTimes(0)
+    expect(database.updateFitnessFileImportStatus).toHaveBeenCalledWith(
+      'archive-file-1',
+      'failed',
+      expect.stringContaining(
+        'Timed out waiting for imported statuses to attach archive media'
+      )
+    )
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'archive-file-1',
+      expect.objectContaining({
+        id: 'archive-file-1'
+      })
+    )
+  })
 })

@@ -51,6 +51,7 @@ const toArchiveStorageFile = (archiveFile: File): File => {
   // Fitness storage currently supports only fit/gpx/tcx extensions.
   // Keep the original ZIP MIME type and use a compatible extension until
   // storage supports a dedicated archive file type.
+  // TODO: remove this extension workaround once archive uploads are first-class.
   const baseName = archiveFile.name.replace(/\.zip$/i, '')
   return new File([archiveFile], `${baseName}.fit`, {
     type: archiveFile.type || 'application/zip'
@@ -64,7 +65,6 @@ export const POST = traceApiRoute(
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
     let archiveFileId: string | null = null
-    let targetActorId = currentActor.id
 
     try {
       const formData = await req.formData()
@@ -85,25 +85,11 @@ export const POST = traceApiRoute(
         return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
       }
 
-      let targetActor = currentActor
+      // Archive import is intentionally restricted to the actor in the current
+      // session, matching the settings UI.
       if (actorIdRaw.length > 0 && actorIdRaw !== currentActor.id) {
-        if (!currentActor.account) {
-          return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
-        }
-
-        const accountActors = await database.getActorsForAccount({
-          accountId: currentActor.account.id
-        })
-        const selectedActor =
-          accountActors.find((actor) => actor.id === actorIdRaw) ?? null
-
-        if (!selectedActor) {
-          return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
-        }
-
-        targetActor = selectedActor
+        return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
       }
-      targetActorId = targetActor.id
 
       const archiveId = crypto.randomUUID()
       const sourceBatchId = getStravaArchiveSourceBatchId(archiveId)
@@ -112,7 +98,7 @@ export const POST = traceApiRoute(
       // Keep the original archive MIME type while storing in fitness storage.
       const archiveStorageFile = toArchiveStorageFile(archiveRaw)
 
-      const storedArchive = await saveFitnessFile(database, targetActor, {
+      const storedArchive = await saveFitnessFile(database, currentActor, {
         file: archiveStorageFile,
         importBatchId: sourceBatchId,
         description: 'Strava archive import source'
@@ -125,11 +111,11 @@ export const POST = traceApiRoute(
 
       await getQueue().publish({
         id: getHashFromString(
-          `${targetActor.id}:strava-archive:${archiveId}:import`
+          `${currentActor.id}:strava-archive:${archiveId}:import`
         ),
         name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
         data: {
-          actorId: targetActor.id,
+          actorId: currentActor.id,
           archiveId,
           archiveFitnessFileId: storedArchive.id,
           batchId,
@@ -151,7 +137,7 @@ export const POST = traceApiRoute(
           logger.error({
             message:
               'Failed to rollback archive file after queue publish failure',
-            actorId: targetActorId,
+            actorId: currentActor.id,
             archiveFileId
           })
         })
@@ -160,7 +146,7 @@ export const POST = traceApiRoute(
       const nodeError = error as Error
       logger.error({
         message: 'Failed to start Strava archive import',
-        actorId: targetActorId,
+        actorId: currentActor.id,
         error: nodeError.message
       })
 

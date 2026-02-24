@@ -54,10 +54,15 @@ const JobData = z.object({
   firstFailureMessage: z.string().optional()
 })
 
+// Keep room for " (n)" dedupe suffixes while preserving readable filenames.
 const ATTACHMENT_FILE_NAME_LIMIT = 150
+// Retry media attachment for about one minute in production (12 * 5s).
 const MAX_MEDIA_ATTACHMENT_RETRIES = 12
+const MEDIA_ATTACHMENT_RETRY_DELAY_SECONDS = 5
 const MEDIA_ATTACHMENT_RETRY_DELAY_MS =
-  process.env.NODE_ENV === 'test' ? 0 : 5_000
+  process.env.NODE_ENV === 'test'
+    ? 0
+    : MEDIA_ATTACHMENT_RETRY_DELAY_SECONDS * 1_000
 
 const truncateAttachmentName = (fileName: string): string => {
   if (fileName.length <= ATTACHMENT_FILE_NAME_LIMIT) {
@@ -555,7 +560,6 @@ export const importStravaArchiveJob = createJobHandle(
 
         if (stillPendingMediaActivities.length > 0) {
           if (mediaAttachmentRetry < MAX_MEDIA_ATTACHMENT_RETRIES) {
-            shouldDeleteArchiveSource = false
             await getQueue().publish({
               id: getHashFromString(
                 `${actorId}:strava-archive:${archiveId}:media-retry:${mediaAttachmentRetry + 1}`
@@ -578,6 +582,9 @@ export const importStravaArchiveJob = createJobHandle(
               }
             })
 
+            // Keep archive source until the queued retry can attach remaining
+            // media entries.
+            shouldDeleteArchiveSource = false
             await database.updateFitnessFileImportStatus(
               archiveFitnessFile.id,
               'pending',
@@ -586,6 +593,8 @@ export const importStravaArchiveJob = createJobHandle(
             return
           }
 
+          // Retries are bounded; once exhausted we fail remaining media
+          // activities and allow archive cleanup in finally.
           pendingActivities = stillPendingMediaActivities.length
           failedActivities += stillPendingMediaActivities.length
           if (!importFailureMessage) {

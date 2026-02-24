@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'
+import { getStravaArchiveSourceBatchId } from '@/lib/services/strava/archiveImport'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -29,6 +30,21 @@ const Visibility = z.enum(['public', 'unlisted', 'private', 'direct'])
 type BatchStatus = 'pending' | 'completed' | 'failed' | 'partially_failed'
 
 type BatchFileState = 'pending' | 'completed' | 'failed'
+
+const STRAVA_ARCHIVE_BATCH_PREFIX = 'strava-archive:'
+
+const getArchiveSourceBatchId = (batchId: string): string | null => {
+  if (!batchId.startsWith(STRAVA_ARCHIVE_BATCH_PREFIX)) {
+    return null
+  }
+
+  const archiveId = batchId.slice(STRAVA_ARCHIVE_BATCH_PREFIX.length)
+  if (archiveId.length === 0) {
+    return null
+  }
+
+  return getStravaArchiveSourceBatchId(archiveId)
+}
 
 const getBatchFileState = (file: FitnessFile): BatchFileState => {
   const importStatus = file.importStatus ?? 'pending'
@@ -129,7 +145,15 @@ export const GET = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
     }
 
-    const files = await database.getFitnessFilesByBatchId({ batchId })
+    let files = await database.getFitnessFilesByBatchId({ batchId })
+    if (files.length === 0) {
+      const archiveSourceBatchId = getArchiveSourceBatchId(batchId)
+      if (archiveSourceBatchId) {
+        files = await database.getFitnessFilesByBatchId({
+          batchId: archiveSourceBatchId
+        })
+      }
+    }
     if (files.length === 0) {
       return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
     }

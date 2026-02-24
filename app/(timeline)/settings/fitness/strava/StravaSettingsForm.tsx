@@ -22,6 +22,8 @@ import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
+const MAX_ARCHIVE_BATCH_NOT_READY_POLLS = 90
+
 export const StravaSettingsForm: FC = () => {
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
@@ -147,7 +149,10 @@ export const StravaSettingsForm: FC = () => {
             ? pollError.message
             : 'Failed to load Strava archive import progress'
 
-        if (/(404|not found|not_found)/i.test(message) && notReadyCount < 90) {
+        if (
+          /(404|not found|not_found)/i.test(message) &&
+          notReadyCount < MAX_ARCHIVE_BATCH_NOT_READY_POLLS
+        ) {
           notReadyCount += 1
           scheduleNextPoll()
           return

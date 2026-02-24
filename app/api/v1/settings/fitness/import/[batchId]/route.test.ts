@@ -145,6 +145,59 @@ describe('fitness import batch route', () => {
     })
   })
 
+  it('falls back to Strava archive source batch when import batch is empty', async () => {
+    db.getFitnessFilesByBatchId
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 'archive-file-1',
+          actorId: 'https://llun.test/users/llun',
+          fileName: 'export_1.fit',
+          fileType: 'fit',
+          path: 'fitness/export_1.fit',
+          mimeType: 'application/zip',
+          bytes: 2048,
+          importStatus: 'completed',
+          processingStatus: 'completed',
+          isPrimary: true,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+
+    const request = {
+      headers: new Headers()
+    } as unknown as Parameters<typeof GET>[0]
+
+    const response = await GET(request, {
+      params: Promise.resolve({ batchId: 'strava-archive:archive-1' })
+    })
+    const json = (await response.json()) as {
+      status: string
+      summary: {
+        total: number
+        completed: number
+        failed: number
+        pending: number
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(json.status).toBe('completed')
+    expect(json.summary).toEqual({
+      total: 1,
+      completed: 1,
+      failed: 0,
+      pending: 0
+    })
+    expect(db.getFitnessFilesByBatchId).toHaveBeenNthCalledWith(1, {
+      batchId: 'strava-archive:archive-1'
+    })
+    expect(db.getFitnessFilesByBatchId).toHaveBeenNthCalledWith(2, {
+      batchId: 'strava-archive-source:archive-1'
+    })
+  })
+
   it('keeps batch status pending while any files are still pending', async () => {
     db.getFitnessFilesByBatchId.mockResolvedValue([
       {
