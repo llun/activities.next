@@ -55,9 +55,9 @@ const JobData = z.object({
 })
 
 const ATTACHMENT_FILE_NAME_LIMIT = 150
-const FITNESS_IMPORT_WAIT_INTERVAL_MS = 1_000
-const FITNESS_IMPORT_WAIT_TIMEOUT_MS = 120_000
 const MAX_MEDIA_ATTACHMENT_RETRIES = 12
+const MEDIA_ATTACHMENT_RETRY_DELAY_MS =
+  process.env.NODE_ENV === 'test' ? 0 : 5_000
 
 const truncateAttachmentName = (fileName: string): string => {
   if (fileName.length <= ATTACHMENT_FILE_NAME_LIMIT) {
@@ -187,18 +187,18 @@ const sleep = async (ms: number) => {
   })
 }
 
-const waitForImportedFitnessFiles = async ({
+const getImportedFitnessFiles = async ({
   database,
-  fitnessFileIds,
-  timeoutMs = FITNESS_IMPORT_WAIT_TIMEOUT_MS,
-  intervalMs = FITNESS_IMPORT_WAIT_INTERVAL_MS
+  fitnessFileIds
 }: {
   database: Database
   fitnessFileIds: string[]
-  timeoutMs?: number
-  intervalMs?: number
 }) => {
-  const completedFiles = new Map<
+  const files = await database.getFitnessFilesByIds({
+    fitnessFileIds
+  })
+
+  const importedFiles = new Map<
     string,
     {
       statusId?: string | null
@@ -206,43 +206,16 @@ const waitForImportedFitnessFiles = async ({
       importError?: string
     }
   >()
-  const deadline = Date.now() + timeoutMs
 
-  while (Date.now() <= deadline) {
-    const files = await database.getFitnessFilesByIds({
-      fitnessFileIds
+  for (const file of files) {
+    importedFiles.set(file.id, {
+      statusId: file.statusId,
+      importStatus: file.importStatus,
+      importError: file.importError
     })
-
-    completedFiles.clear()
-    for (const file of files) {
-      completedFiles.set(file.id, {
-        statusId: file.statusId,
-        importStatus: file.importStatus,
-        importError: file.importError
-      })
-    }
-
-    const unresolvedCount = fitnessFileIds.filter((fitnessFileId) => {
-      const fitnessFile = completedFiles.get(fitnessFileId)
-      if (!fitnessFile) {
-        return true
-      }
-
-      if (fitnessFile.statusId) {
-        return false
-      }
-
-      return fitnessFile.importStatus !== 'failed'
-    }).length
-
-    if (unresolvedCount === 0) {
-      return completedFiles
-    }
-
-    await sleep(intervalMs)
   }
 
-  return completedFiles
+  return importedFiles
 }
 
 const attachActivityMediaToStatus = async ({
@@ -427,6 +400,8 @@ export const importStravaArchiveJob = createJobHandle(
 
       archiveReader = await StravaArchiveReader.open(archiveFilePath)
       let mediaActivities = pendingMediaActivities ?? []
+      const isMediaRetryPass =
+        Boolean(pendingMediaActivities) && pendingMediaActivities.length > 0
 
       if (!pendingMediaActivities || pendingMediaActivities.length === 0) {
         const archiveActivities = await archiveReader.getActivities()
@@ -521,7 +496,11 @@ export const importStravaArchiveJob = createJobHandle(
       }
 
       if (mediaActivities.length > 0) {
-        const importedFitnessFiles = await waitForImportedFitnessFiles({
+        if (isMediaRetryPass && MEDIA_ATTACHMENT_RETRY_DELAY_MS > 0) {
+          await sleep(MEDIA_ATTACHMENT_RETRY_DELAY_MS)
+        }
+
+        const importedFitnessFiles = await getImportedFitnessFiles({
           database,
           fitnessFileIds: mediaActivities.map(
             ({ fitnessFileId }) => fitnessFileId
@@ -549,7 +528,7 @@ export const importStravaArchiveJob = createJobHandle(
 
             logger.warn({
               message:
-                'Imported Strava archive fitness file has no status after import wait',
+                'Imported Strava archive fitness file has no status in attachment pass',
               actorId,
               archiveId,
               activityId: mediaActivity.activityId,

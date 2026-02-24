@@ -266,12 +266,6 @@ describe('importStravaArchiveJob', () => {
   })
 
   it('requeues media attachment pass when imported statuses are still pending', async () => {
-    const dateNowSpy = jest
-      .spyOn(Date, 'now')
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0)
-      .mockReturnValue(121_000)
-
     database.getFitnessFilesByIds.mockResolvedValueOnce([
       {
         id: 'activity-file-1',
@@ -292,7 +286,6 @@ describe('importStravaArchiveJob', () => {
         visibility: 'private'
       }
     })
-    dateNowSpy.mockRestore()
 
     expect(mockQueuePublish).toHaveBeenCalledTimes(2)
     expect(mockQueuePublish).toHaveBeenNthCalledWith(
