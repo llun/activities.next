@@ -275,12 +275,14 @@ export const POST = traceApiRoute(
               archiveFileId
             })
           }
-        } catch {
+        } catch (rollbackError) {
+          const nodeError = rollbackError as Error
           logger.error({
             message:
               'Failed to rollback archive file after queue publish failure',
             actorId: currentActor.id,
-            archiveFileId
+            archiveFileId,
+            error: nodeError.message
           })
         }
       }

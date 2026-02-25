@@ -430,6 +430,118 @@ describe('importStravaArchiveJob', () => {
     )
   })
 
+  it('marks fully failed archive imports as failed and keeps source for retry', async () => {
+    database.getFitnessFilesByIds.mockResolvedValueOnce([
+      {
+        id: 'activity-file-1',
+        actorId: 'actor-1',
+        statusId: null,
+        importStatus: 'failed',
+        importError: 'activity parsing failed'
+      } as never
+    ])
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-all-failed',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(mockDeleteFitnessFile).not.toHaveBeenCalledWith(
+      database,
+      'archive-file-1',
+      expect.anything()
+    )
+    expect(database.updateStravaArchiveImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'import-1',
+        status: 'failed',
+        resolvedAt: null
+      })
+    )
+    expect(database.updateStravaArchiveImport).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'import-1',
+        status: 'completed'
+      })
+    )
+  })
+
+  it('does not overwrite cancelled import state when in-flight job fails', async () => {
+    const now = Date.now()
+    database.getStravaArchiveImportById
+      .mockResolvedValueOnce({
+        id: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private',
+        status: 'importing',
+        nextActivityIndex: 0,
+        pendingMediaActivities: [],
+        mediaAttachmentRetry: 0,
+        totalActivitiesCount: undefined,
+        completedActivitiesCount: 0,
+        failedActivitiesCount: 0,
+        firstFailureMessage: undefined,
+        lastError: undefined,
+        resolvedAt: undefined,
+        createdAt: now,
+        updatedAt: now
+      } as never)
+      .mockResolvedValueOnce({
+        id: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private',
+        status: 'cancelled',
+        nextActivityIndex: 0,
+        pendingMediaActivities: [],
+        mediaAttachmentRetry: 0,
+        totalActivitiesCount: undefined,
+        completedActivitiesCount: 0,
+        failedActivitiesCount: 0,
+        firstFailureMessage: undefined,
+        lastError: 'Cancelled by user',
+        resolvedAt: now,
+        createdAt: now,
+        updatedAt: now
+      } as never)
+    mockArchiveReaderOpen.mockRejectedValueOnce(
+      new Error('archive read failed')
+    )
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-cancelled-mid-flight',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(database.updateStravaArchiveImport).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'import-1',
+        status: 'failed'
+      })
+    )
+  })
+
   it('rolls back staged fitness files when import enqueue fails', async () => {
     mockQueuePublish.mockRejectedValueOnce(new Error('queue unavailable'))
 

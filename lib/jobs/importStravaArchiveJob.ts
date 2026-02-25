@@ -549,7 +549,8 @@ export const importStravaArchiveJob = createJobHandle(
     let archiveReader: StravaArchiveReader | null = null
     let cleanupArchivePath = async () => {}
     let shouldDeleteArchiveSource = true
-    let shouldMarkImportCompleted = false
+    let finalImportStatus: 'completed' | 'failed' | null = null
+    let finalImportLastError: string | null = null
     let importFailureMessage =
       activeImport.firstFailureMessage ?? firstFailureMessage ?? null
     let importedActivities = Math.max(
@@ -1004,6 +1005,10 @@ export const importStravaArchiveJob = createJobHandle(
       }
       const summary = summaryParts.join(', ')
       const hasFailures = failedActivities > 0 || pendingActivities > 0
+      const shouldKeepImportFailed =
+        failedActivities > 0 &&
+        importedActivities === 0 &&
+        pendingActivities === 0
 
       setCheckpoint({
         pendingMediaActivities: mediaActivities,
@@ -1032,7 +1037,16 @@ export const importStravaArchiveJob = createJobHandle(
           hasFailures ? 'failed' : 'completed'
         )
       ])
-      shouldMarkImportCompleted = true
+
+      if (shouldKeepImportFailed) {
+        // Keep fully failed imports active so users can retry/cancel.
+        shouldDeleteArchiveSource = false
+        finalImportStatus = 'failed'
+        finalImportLastError = importFailureMessage ?? summary
+      } else {
+        finalImportStatus = 'completed'
+        finalImportLastError = null
+      }
     } catch (error) {
       const nodeError = error as Error
       logger.error({
@@ -1053,26 +1067,51 @@ export const importStravaArchiveJob = createJobHandle(
           : null)
       })
 
-      await updateImportCheckpoint({
-        database,
-        importId,
-        checkpoint,
-        status: 'failed',
-        lastError: nodeError.message,
-        resolvedAt: null
-      })
+      finalImportStatus = null
+      finalImportLastError = null
 
-      await Promise.all([
-        database.updateFitnessFileImportStatus(
-          archiveFitnessFile.id,
-          'failed',
-          nodeError.message
-        ),
-        database.updateFitnessFileProcessingStatus(
-          archiveFitnessFile.id,
-          'failed'
-        )
-      ])
+      const latestImportState = await database.getStravaArchiveImportById({
+        id: importId
+      })
+      const canPersistFailure = Boolean(
+        latestImportState &&
+        latestImportState.status === 'importing' &&
+        !latestImportState.resolvedAt
+      )
+
+      if (canPersistFailure) {
+        await updateImportCheckpoint({
+          database,
+          importId,
+          checkpoint,
+          status: 'failed',
+          lastError: nodeError.message,
+          resolvedAt: null
+        })
+
+        await Promise.all([
+          database.updateFitnessFileImportStatus(
+            archiveFitnessFile.id,
+            'failed',
+            nodeError.message
+          ),
+          database.updateFitnessFileProcessingStatus(
+            archiveFitnessFile.id,
+            'failed'
+          )
+        ])
+      } else {
+        logger.info({
+          message:
+            'Skipping failure state update because Strava archive import is no longer active',
+          importId,
+          actorId,
+          archiveId,
+          archiveFitnessFileId,
+          status: latestImportState?.status,
+          resolvedAt: latestImportState?.resolvedAt
+        })
+      }
     } finally {
       if (archiveReader) {
         archiveReader.close()
@@ -1096,7 +1135,7 @@ export const importStravaArchiveJob = createJobHandle(
             archiveId,
             archiveFitnessFileId
           })
-          if (shouldMarkImportCompleted) {
+          if (finalImportStatus === 'completed') {
             await updateImportCheckpoint({
               database,
               importId,
@@ -1120,7 +1159,7 @@ export const importStravaArchiveJob = createJobHandle(
         }
       }
 
-      if (shouldMarkImportCompleted && !archiveCleanupFailed) {
+      if (finalImportStatus === 'completed' && !archiveCleanupFailed) {
         await updateImportCheckpoint({
           database,
           importId,
@@ -1128,6 +1167,17 @@ export const importStravaArchiveJob = createJobHandle(
           status: 'completed',
           lastError: null,
           resolvedAt: Date.now()
+        })
+      }
+
+      if (finalImportStatus === 'failed') {
+        await updateImportCheckpoint({
+          database,
+          importId,
+          checkpoint,
+          status: 'failed',
+          lastError: finalImportLastError,
+          resolvedAt: null
         })
       }
     }
