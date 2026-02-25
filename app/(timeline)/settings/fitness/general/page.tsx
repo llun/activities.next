@@ -3,12 +3,14 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { ActorInfoBanner } from '@/lib/components/settings/ActorInfoBanner'
 import { FitnessFileManagement } from '@/lib/components/settings/FitnessFileManagement'
 import { FitnessImport } from '@/lib/components/settings/FitnessImport'
 import { FitnessPrivacyLocationSettings } from '@/lib/components/settings/FitnessPrivacyLocationSettings'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getFitnessQuotaLimit } from '@/lib/services/fitness-files/quota'
+import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +40,8 @@ const Page = async ({
     return redirect('/auth/signin')
   }
 
+  const actorHandle = actor ? getMention(getActorProfile(actor), true) : null
+
   const params = await Promise.resolve(searchParams)
   const rawPage = Number.parseInt(params.page || '1', 10)
   const page = Number.isNaN(rawPage) ? 1 : Math.max(1, Math.min(10000, rawPage))
@@ -65,8 +69,9 @@ const Page = async ({
 
   return (
     <div className="space-y-6">
+      {actorHandle && <ActorInfoBanner actorHandle={actorHandle} />}
       <FitnessPrivacyLocationSettings mapboxAccessToken={mapboxAccessToken} />
-      <FitnessImport />
+      <FitnessImport actorHandle={actorHandle ?? undefined} />
       <FitnessFileManagement
         used={used}
         limit={limit}
