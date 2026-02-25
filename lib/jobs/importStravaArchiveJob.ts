@@ -41,6 +41,7 @@ const PendingMediaActivity = z.object({
 })
 
 const JobData = z.object({
+  importId: z.string(),
   actorId: z.string(),
   archiveId: z.string(),
   archiveFitnessFileId: z.string(),
@@ -332,10 +333,103 @@ const attachActivityMediaToStatus = async ({
   }
 }
 
+type StravaArchiveJobData = z.infer<typeof JobData>
+type StravaArchiveJobCheckpoint = Pick<
+  StravaArchiveJobData,
+  | 'nextActivityIndex'
+  | 'pendingMediaActivities'
+  | 'mediaAttachmentRetry'
+  | 'totalActivitiesCount'
+  | 'completedActivitiesCount'
+  | 'failedActivitiesCount'
+  | 'firstFailureMessage'
+>
+
+const queueStravaArchiveContinuation = async ({
+  messageId,
+  importId,
+  actorId,
+  archiveId,
+  archiveFitnessFileId,
+  batchId,
+  visibility,
+  checkpoint,
+  continuationType
+}: {
+  messageId: string
+  importId: string
+  actorId: string
+  archiveId: string
+  archiveFitnessFileId: string
+  batchId: string
+  visibility: z.infer<typeof Visibility>
+  checkpoint: StravaArchiveJobCheckpoint
+  continuationType: string
+}) => {
+  await getQueue().publish({
+    id: getHashFromString(
+      `${actorId}:strava-archive:${archiveId}:continue:${messageId}:${continuationType}:import:${checkpoint.nextActivityIndex}:retry:${checkpoint.mediaAttachmentRetry}`
+    ),
+    name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+    data: {
+      importId,
+      actorId,
+      archiveId,
+      archiveFitnessFileId,
+      batchId,
+      visibility,
+      nextActivityIndex: checkpoint.nextActivityIndex,
+      pendingMediaActivities: checkpoint.pendingMediaActivities ?? [],
+      mediaAttachmentRetry: checkpoint.mediaAttachmentRetry,
+      ...(checkpoint.totalActivitiesCount !== undefined
+        ? { totalActivitiesCount: checkpoint.totalActivitiesCount }
+        : null),
+      completedActivitiesCount: checkpoint.completedActivitiesCount,
+      failedActivitiesCount: checkpoint.failedActivitiesCount,
+      ...(checkpoint.firstFailureMessage
+        ? { firstFailureMessage: checkpoint.firstFailureMessage }
+        : null)
+    }
+  })
+}
+
+const updateImportCheckpoint = async ({
+  database,
+  importId,
+  checkpoint,
+  status,
+  lastError,
+  resolvedAt
+}: {
+  database: Database
+  importId: string
+  checkpoint: StravaArchiveJobCheckpoint
+  status?: 'importing' | 'failed' | 'completed' | 'cancelled'
+  lastError?: string | null
+  resolvedAt?: number | null
+}) => {
+  await database.updateStravaArchiveImport({
+    id: importId,
+    ...(status ? { status } : null),
+    nextActivityIndex: checkpoint.nextActivityIndex,
+    pendingMediaActivities: checkpoint.pendingMediaActivities ?? [],
+    mediaAttachmentRetry: checkpoint.mediaAttachmentRetry,
+    ...(checkpoint.totalActivitiesCount !== undefined
+      ? { totalActivitiesCount: checkpoint.totalActivitiesCount }
+      : null),
+    completedActivitiesCount: checkpoint.completedActivitiesCount,
+    failedActivitiesCount: checkpoint.failedActivitiesCount,
+    firstFailureMessage: checkpoint.firstFailureMessage ?? null,
+    ...(lastError !== undefined ? { lastError } : null),
+    ...(resolvedAt !== undefined ? { resolvedAt } : null)
+  })
+}
+
 export const importStravaArchiveJob = createJobHandle(
   IMPORT_STRAVA_ARCHIVE_JOB_NAME,
   async (database, message) => {
     const {
+      importId,
       actorId,
       archiveId,
       archiveFitnessFileId,
@@ -350,6 +444,34 @@ export const importStravaArchiveJob = createJobHandle(
       firstFailureMessage
     } = JobData.parse(message.data)
 
+    const activeImport = await database.getStravaArchiveImportById({
+      id: importId
+    })
+    if (
+      !activeImport ||
+      activeImport.actorId !== actorId ||
+      activeImport.archiveId !== archiveId
+    ) {
+      logger.warn({
+        message: 'Skipping Strava archive import due to missing import state',
+        importId,
+        actorId,
+        archiveId
+      })
+      return
+    }
+
+    if (activeImport.status !== 'importing' || activeImport.resolvedAt) {
+      logger.info({
+        message: 'Skipping Strava archive import because import is not active',
+        importId,
+        actorId,
+        archiveId,
+        status: activeImport.status
+      })
+      return
+    }
+
     const [actor, archiveFitnessFile] = await Promise.all([
       database.getActorFromId({ id: actorId }),
       database.getFitnessFile({ id: archiveFitnessFileId })
@@ -358,9 +480,16 @@ export const importStravaArchiveJob = createJobHandle(
     if (!archiveFitnessFile || archiveFitnessFile.actorId !== actorId) {
       logger.warn({
         message: 'Strava archive import skipped due to missing archive file',
+        importId,
         actorId,
         archiveId,
         archiveFitnessFileId
+      })
+      await database.updateStravaArchiveImport({
+        id: importId,
+        status: 'cancelled',
+        lastError: 'Archive source file is missing',
+        resolvedAt: Date.now()
       })
       return
     }
@@ -368,6 +497,7 @@ export const importStravaArchiveJob = createJobHandle(
     if (!actor) {
       logger.warn({
         message: 'Strava archive import skipped due to missing actor',
+        importId,
         actorId,
         archiveId,
         archiveFitnessFileId
@@ -382,28 +512,90 @@ export const importStravaArchiveJob = createJobHandle(
         logger.error({
           message:
             'Failed to cleanup Strava archive source file for missing actor',
+          importId,
           actorId,
           archiveId,
           archiveFitnessFileId
         })
       }
+      await database.updateStravaArchiveImport({
+        id: importId,
+        status: 'cancelled',
+        lastError: 'Actor no longer exists',
+        resolvedAt: Date.now()
+      })
       return
     }
 
-    await database.updateFitnessFileProcessingStatus(
-      archiveFitnessFile.id,
-      'processing'
-    )
+    await Promise.all([
+      database.updateFitnessFileProcessingStatus(
+        archiveFitnessFile.id,
+        'processing'
+      ),
+      database.updateStravaArchiveImport({
+        id: importId,
+        status: 'importing',
+        archiveFitnessFileId: archiveFitnessFile.id,
+        lastError: null
+      })
+    ])
 
     let archiveReader: StravaArchiveReader | null = null
     let cleanupArchivePath = async () => {}
     let shouldDeleteArchiveSource = true
-    let importFailureMessage = firstFailureMessage ?? null
-    let importedActivities = completedActivitiesCount
-    let failedActivities = failedActivitiesCount
+    let shouldMarkImportCompleted = false
+    let importFailureMessage =
+      activeImport.firstFailureMessage ?? firstFailureMessage ?? null
+    let importedActivities = Math.max(
+      completedActivitiesCount,
+      activeImport.completedActivitiesCount
+    )
+    let failedActivities = Math.max(
+      failedActivitiesCount,
+      activeImport.failedActivitiesCount
+    )
     let pendingActivities = 0
+    const initialPendingMediaActivities =
+      activeImport.pendingMediaActivities.length > 0
+        ? activeImport.pendingMediaActivities
+        : (pendingMediaActivities ?? [])
+    let checkpoint: StravaArchiveJobCheckpoint = {
+      nextActivityIndex: Math.max(
+        nextActivityIndex,
+        activeImport.nextActivityIndex
+      ),
+      pendingMediaActivities: initialPendingMediaActivities,
+      mediaAttachmentRetry: Math.max(
+        mediaAttachmentRetry,
+        activeImport.mediaAttachmentRetry
+      ),
+      totalActivitiesCount:
+        activeImport.totalActivitiesCount ?? totalActivitiesCount,
+      completedActivitiesCount: importedActivities,
+      failedActivitiesCount: failedActivities,
+      ...(importFailureMessage
+        ? { firstFailureMessage: importFailureMessage }
+        : null)
+    }
+    const setCheckpoint = (next: Partial<StravaArchiveJobCheckpoint>) => {
+      checkpoint = {
+        ...checkpoint,
+        ...next
+      }
+    }
     const runtimeDeadlineMs =
       Date.now() + MAX_IMPORT_JOB_RUNTIME_MS - IMPORT_JOB_REQUEUE_BUFFER_MS
+
+    const isImportStillActive = async () => {
+      const importState = await database.getStravaArchiveImportById({
+        id: importId
+      })
+      return Boolean(
+        importState &&
+        importState.status === 'importing' &&
+        !importState.resolvedAt
+      )
+    }
 
     try {
       const { archiveFilePath, cleanup } = await resolveArchivePath(
@@ -415,18 +607,21 @@ export const importStravaArchiveJob = createJobHandle(
       archiveReader = await StravaArchiveReader.open(archiveFilePath)
       const archiveActivities = await archiveReader.getActivities()
       const targetTotalActivities =
-        totalActivitiesCount ?? archiveActivities.length
+        checkpoint.totalActivitiesCount ?? archiveActivities.length
+      setCheckpoint({
+        totalActivitiesCount: targetTotalActivities
+      })
 
       const savedArchiveActivities: Array<{
         activity: StravaArchiveActivity
         fitnessFileId: string
       }> = []
-      const initialMediaActivities = pendingMediaActivities ?? []
+      const initialMediaActivities = checkpoint.pendingMediaActivities ?? []
       const effectiveNextActivityIndex =
-        nextActivityIndex > 0
-          ? nextActivityIndex
+        checkpoint.nextActivityIndex > 0
+          ? checkpoint.nextActivityIndex
           : initialMediaActivities.length > 0
-            ? (totalActivitiesCount ?? Number.MAX_SAFE_INTEGER)
+            ? targetTotalActivities
             : 0
       let nextArchiveActivityIndex = Math.min(
         effectiveNextActivityIndex,
@@ -438,6 +633,11 @@ export const importStravaArchiveJob = createJobHandle(
         activityIndex < archiveActivities.length;
         activityIndex += 1
       ) {
+        if (!(await isImportStillActive())) {
+          shouldDeleteArchiveSource = false
+          return
+        }
+
         if (hasReachedRuntimeDeadline(runtimeDeadlineMs)) {
           nextArchiveActivityIndex = activityIndex
           break
@@ -515,7 +715,7 @@ export const importStravaArchiveJob = createJobHandle(
         })
       }
 
-      const mediaActivities = [
+      let mediaActivities = [
         ...initialMediaActivities,
         ...savedArchiveActivities.map(({ activity, fitnessFileId }) => ({
           fitnessFileId,
@@ -526,29 +726,37 @@ export const importStravaArchiveJob = createJobHandle(
           mediaPaths: activity.mediaPaths
         }))
       ]
+      const nextMediaAttachmentRetry =
+        savedArchiveActivities.length > 0 ? 0 : checkpoint.mediaAttachmentRetry
+      setCheckpoint({
+        pendingMediaActivities: mediaActivities,
+        nextActivityIndex: nextArchiveActivityIndex,
+        mediaAttachmentRetry: nextMediaAttachmentRetry,
+        completedActivitiesCount: importedActivities,
+        failedActivitiesCount: failedActivities,
+        ...(importFailureMessage
+          ? { firstFailureMessage: importFailureMessage }
+          : null)
+      })
 
       if (nextArchiveActivityIndex < archiveActivities.length) {
-        await getQueue().publish({
-          id: getHashFromString(
-            `${actorId}:strava-archive:${archiveId}:continue:${message.id}:import:${nextArchiveActivityIndex}`
-          ),
-          name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
-          data: {
-            actorId,
-            archiveId,
-            archiveFitnessFileId,
-            batchId,
-            visibility,
-            nextActivityIndex: nextArchiveActivityIndex,
-            pendingMediaActivities: mediaActivities,
-            mediaAttachmentRetry: 0,
-            totalActivitiesCount: targetTotalActivities,
-            completedActivitiesCount: importedActivities,
-            failedActivitiesCount: failedActivities,
-            ...(importFailureMessage
-              ? { firstFailureMessage: importFailureMessage }
-              : null)
-          }
+        await updateImportCheckpoint({
+          database,
+          importId,
+          checkpoint,
+          status: 'importing',
+          lastError: null
+        })
+        await queueStravaArchiveContinuation({
+          messageId: message.id,
+          importId,
+          actorId,
+          archiveId,
+          archiveFitnessFileId,
+          batchId,
+          visibility,
+          checkpoint,
+          continuationType: 'import'
         })
 
         shouldDeleteArchiveSource = false
@@ -560,7 +768,8 @@ export const importStravaArchiveJob = createJobHandle(
         return
       }
 
-      const isMediaRetryPass = mediaAttachmentRetry > 0
+      const currentMediaAttachmentRetry = checkpoint.mediaAttachmentRetry
+      const isMediaRetryPass = currentMediaAttachmentRetry > 0
 
       if (mediaActivities.length > 0) {
         if (isMediaRetryPass && MEDIA_ATTACHMENT_RETRY_DELAY_MS > 0) {
@@ -582,6 +791,11 @@ export const importStravaArchiveJob = createJobHandle(
           activityIndex < mediaActivities.length;
           activityIndex += 1
         ) {
+          if (!(await isImportStillActive())) {
+            shouldDeleteArchiveSource = false
+            return
+          }
+
           if (hasReachedRuntimeDeadline(runtimeDeadlineMs)) {
             stillPendingMediaActivities.push(
               ...mediaActivities.slice(activityIndex)
@@ -635,30 +849,38 @@ export const importStravaArchiveJob = createJobHandle(
           importedActivities += 1
         }
 
+        mediaActivities = stillPendingMediaActivities
+
         if (stillPendingMediaActivities.length > 0) {
           if (hasPendingImportedStatuses) {
-            if (mediaAttachmentRetry < MAX_MEDIA_ATTACHMENT_RETRIES) {
-              await getQueue().publish({
-                id: getHashFromString(
-                  `${actorId}:strava-archive:${archiveId}:continue:${message.id}:media-retry:${mediaAttachmentRetry + 1}`
-                ),
-                name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
-                data: {
-                  actorId,
-                  archiveId,
-                  archiveFitnessFileId,
-                  batchId,
-                  visibility,
-                  pendingMediaActivities: stillPendingMediaActivities,
-                  mediaAttachmentRetry: mediaAttachmentRetry + 1,
-                  totalActivitiesCount: targetTotalActivities,
-                  completedActivitiesCount: importedActivities,
-                  failedActivitiesCount: failedActivities,
-                  nextActivityIndex: nextArchiveActivityIndex,
-                  ...(importFailureMessage
-                    ? { firstFailureMessage: importFailureMessage }
-                    : null)
-                }
+            if (currentMediaAttachmentRetry < MAX_MEDIA_ATTACHMENT_RETRIES) {
+              setCheckpoint({
+                pendingMediaActivities: stillPendingMediaActivities,
+                mediaAttachmentRetry: currentMediaAttachmentRetry + 1,
+                nextActivityIndex: nextArchiveActivityIndex,
+                completedActivitiesCount: importedActivities,
+                failedActivitiesCount: failedActivities,
+                ...(importFailureMessage
+                  ? { firstFailureMessage: importFailureMessage }
+                  : null)
+              })
+              await updateImportCheckpoint({
+                database,
+                importId,
+                checkpoint,
+                status: 'importing',
+                lastError: null
+              })
+              await queueStravaArchiveContinuation({
+                messageId: message.id,
+                importId,
+                actorId,
+                archiveId,
+                archiveFitnessFileId,
+                batchId,
+                visibility,
+                checkpoint,
+                continuationType: 'media-retry'
               })
 
               // Keep archive source until the queued retry can attach remaining
@@ -672,36 +894,51 @@ export const importStravaArchiveJob = createJobHandle(
               return
             }
 
-            // Retries are bounded; once exhausted we fail remaining media
-            // activities and allow archive cleanup in finally.
+            // Retries are bounded; once exhausted we fail the import and keep
+            // archive source for explicit retry/cancel.
             pendingActivities = stillPendingMediaActivities.length
             failedActivities += stillPendingMediaActivities.length
             if (!importFailureMessage) {
               importFailureMessage =
                 'Timed out waiting for imported statuses to attach archive media'
             }
+            setCheckpoint({
+              pendingMediaActivities: stillPendingMediaActivities,
+              completedActivitiesCount: importedActivities,
+              failedActivitiesCount: failedActivities,
+              ...(importFailureMessage
+                ? { firstFailureMessage: importFailureMessage }
+                : null)
+            })
+            throw new Error(importFailureMessage)
           } else {
-            await getQueue().publish({
-              id: getHashFromString(
-                `${actorId}:strava-archive:${archiveId}:continue:${message.id}:media:${stillPendingMediaActivities.length}`
-              ),
-              name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
-              data: {
-                actorId,
-                archiveId,
-                archiveFitnessFileId,
-                batchId,
-                visibility,
-                pendingMediaActivities: stillPendingMediaActivities,
-                mediaAttachmentRetry,
-                totalActivitiesCount: targetTotalActivities,
-                completedActivitiesCount: importedActivities,
-                failedActivitiesCount: failedActivities,
-                nextActivityIndex: nextArchiveActivityIndex,
-                ...(importFailureMessage
-                  ? { firstFailureMessage: importFailureMessage }
-                  : null)
-              }
+            setCheckpoint({
+              pendingMediaActivities: stillPendingMediaActivities,
+              mediaAttachmentRetry: currentMediaAttachmentRetry,
+              nextActivityIndex: nextArchiveActivityIndex,
+              completedActivitiesCount: importedActivities,
+              failedActivitiesCount: failedActivities,
+              ...(importFailureMessage
+                ? { firstFailureMessage: importFailureMessage }
+                : null)
+            })
+            await updateImportCheckpoint({
+              database,
+              importId,
+              checkpoint,
+              status: 'importing',
+              lastError: null
+            })
+            await queueStravaArchiveContinuation({
+              messageId: message.id,
+              importId,
+              actorId,
+              archiveId,
+              archiveFitnessFileId,
+              batchId,
+              visibility,
+              checkpoint,
+              continuationType: 'media'
             })
 
             shouldDeleteArchiveSource = false
@@ -728,6 +965,20 @@ export const importStravaArchiveJob = createJobHandle(
       const summary = summaryParts.join(', ')
       const hasFailures = failedActivities > 0 || pendingActivities > 0
 
+      setCheckpoint({
+        pendingMediaActivities: mediaActivities,
+        nextActivityIndex: targetTotalActivities,
+        mediaAttachmentRetry:
+          hasFailures && pendingActivities > 0
+            ? currentMediaAttachmentRetry
+            : 0,
+        completedActivitiesCount: importedActivities,
+        failedActivitiesCount: failedActivities,
+        ...(importFailureMessage
+          ? { firstFailureMessage: importFailureMessage }
+          : null)
+      })
+
       await Promise.all([
         database.updateFitnessFileImportStatus(
           archiveFitnessFile.id,
@@ -741,14 +992,34 @@ export const importStravaArchiveJob = createJobHandle(
           hasFailures ? 'failed' : 'completed'
         )
       ])
+      shouldMarkImportCompleted = true
     } catch (error) {
       const nodeError = error as Error
       logger.error({
         message: 'Failed to process Strava archive import job',
+        importId,
         actorId,
         archiveId,
         archiveFitnessFileId,
         error: nodeError.message
+      })
+
+      shouldDeleteArchiveSource = false
+      setCheckpoint({
+        completedActivitiesCount: importedActivities,
+        failedActivitiesCount: failedActivities,
+        ...(importFailureMessage
+          ? { firstFailureMessage: importFailureMessage }
+          : null)
+      })
+
+      await updateImportCheckpoint({
+        database,
+        importId,
+        checkpoint,
+        status: 'failed',
+        lastError: nodeError.message,
+        resolvedAt: null
       })
 
       await Promise.all([
@@ -769,6 +1040,7 @@ export const importStravaArchiveJob = createJobHandle(
 
       await cleanupArchivePath()
 
+      let archiveCleanupFailed = false
       if (shouldDeleteArchiveSource) {
         const deletedArchive = await deleteFitnessFile(
           database,
@@ -776,13 +1048,47 @@ export const importStravaArchiveJob = createJobHandle(
           archiveFitnessFile
         )
         if (!deletedArchive) {
+          archiveCleanupFailed = true
           logger.error({
             message: 'Failed to cleanup Strava archive source file',
+            importId,
             actorId,
             archiveId,
             archiveFitnessFileId
           })
+          if (shouldMarkImportCompleted) {
+            await updateImportCheckpoint({
+              database,
+              importId,
+              checkpoint,
+              status: 'failed',
+              lastError: 'Failed to cleanup Strava archive source file',
+              resolvedAt: null
+            })
+            await Promise.all([
+              database.updateFitnessFileImportStatus(
+                archiveFitnessFile.id,
+                'failed',
+                'Failed to cleanup Strava archive source file'
+              ),
+              database.updateFitnessFileProcessingStatus(
+                archiveFitnessFile.id,
+                'failed'
+              )
+            ])
+          }
         }
+      }
+
+      if (shouldMarkImportCompleted && !archiveCleanupFailed) {
+        await updateImportCheckpoint({
+          database,
+          importId,
+          checkpoint,
+          status: 'completed',
+          lastError: null,
+          resolvedAt: Date.now()
+        })
       }
     }
   }

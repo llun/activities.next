@@ -4,8 +4,12 @@ import Link from 'next/link'
 import { FC, useEffect, useState } from 'react'
 
 import {
+  ActiveStravaArchiveImport,
   FitnessImportBatchResult,
+  cancelStravaArchiveImport,
+  getActiveStravaArchiveImport,
   getFitnessImportBatch,
+  retryStravaArchiveImport,
   startStravaArchiveImport
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
@@ -41,10 +45,62 @@ export const StravaSettingsForm: FC = () => {
   const [archiveBatchResult, setArchiveBatchResult] =
     useState<FitnessImportBatchResult | null>(null)
   const [isArchiveImporting, setIsArchiveImporting] = useState(false)
+  const [isArchiveActionLoading, setIsArchiveActionLoading] = useState(false)
   const [isArchivePolling, setIsArchivePolling] = useState(false)
   const [archiveMessage, setArchiveMessage] = useState('')
   const [archiveError, setArchiveError] = useState('')
   const [archiveActorHandle, setArchiveActorHandle] = useState('')
+  const [activeArchiveImport, setActiveArchiveImport] =
+    useState<ActiveStravaArchiveImport | null>(null)
+
+  const hasLockedArchiveImport =
+    activeArchiveImport?.status === 'importing' ||
+    activeArchiveImport?.status === 'failed'
+  const isArchiveControlsDisabled =
+    isArchiveImporting || isArchiveActionLoading || hasLockedArchiveImport
+
+  const syncActiveArchiveImportState = async ({
+    showLoadError
+  }: {
+    showLoadError: boolean
+  }): Promise<ActiveStravaArchiveImport | null> => {
+    try {
+      const response = await getActiveStravaArchiveImport()
+      const activeImport = response.activeImport
+
+      setActiveArchiveImport(activeImport)
+      if (activeImport) {
+        setArchiveBatchId(activeImport.batchId)
+      }
+
+      if (!activeImport) {
+        return null
+      }
+
+      if (activeImport.status === 'importing') {
+        setArchiveError('')
+        setArchiveMessage('A Strava archive import is currently running.')
+      } else {
+        const failedMessage =
+          activeImport.lastError ||
+          activeImport.firstFailureMessage ||
+          'Strava archive import failed. Retry or cancel before importing a new archive.'
+        setArchiveError(failedMessage)
+        setArchiveMessage('')
+      }
+
+      return activeImport
+    } catch (archiveStateError) {
+      if (showLoadError) {
+        const loadMessage =
+          archiveStateError instanceof Error
+            ? archiveStateError.message
+            : 'Failed to load Strava archive import state'
+        setArchiveError(loadMessage)
+      }
+      return null
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -103,8 +159,18 @@ export const StravaSettingsForm: FC = () => {
       }
     }
 
-    fetchSettings()
-    checkUrlParams()
+    const loadInitialState = async () => {
+      await fetchSettings()
+      checkUrlParams()
+      const activeImport = await syncActiveArchiveImportState({
+        showLoadError: true
+      })
+      if (activeImport?.status === 'importing') {
+        setIsArchivePolling(true)
+      }
+    }
+
+    void loadInitialState()
 
     return () => {
       controller.abort()
@@ -134,23 +200,31 @@ export const StravaSettingsForm: FC = () => {
         setArchiveBatchResult(result)
         if (result.status !== 'pending') {
           setIsArchivePolling(false)
+          const activeImport = await syncActiveArchiveImportState({
+            showLoadError: false
+          })
+          if (activeImport?.status === 'failed') {
+            return
+          }
+
           setArchiveMessage(
             result.status === 'completed'
               ? 'Strava archive import completed.'
               : 'Strava archive import finished with partial failures.'
           )
+          setArchiveError('')
           return
         }
       } catch (pollError) {
         if (!isActive) return
 
-        const message =
+        const pollMessage =
           pollError instanceof Error
             ? pollError.message
             : 'Failed to load Strava archive import progress'
 
         if (
-          /(404|not found|not_found)/i.test(message) &&
+          /(404|not found|not_found)/i.test(pollMessage) &&
           notReadyCount < MAX_ARCHIVE_BATCH_NOT_READY_POLLS
         ) {
           notReadyCount += 1
@@ -158,7 +232,7 @@ export const StravaSettingsForm: FC = () => {
           return
         }
 
-        setArchiveError(message)
+        setArchiveError(pollMessage)
         setIsArchivePolling(false)
         return
       }
@@ -264,7 +338,7 @@ export const StravaSettingsForm: FC = () => {
   }
 
   const handleStartArchiveImport = async () => {
-    if (!archiveFile || isArchiveImporting) {
+    if (!archiveFile || isArchiveControlsDisabled) {
       return
     }
 
@@ -283,15 +357,78 @@ export const StravaSettingsForm: FC = () => {
         'Strava archive uploaded. Import started in the background.'
       )
       setArchiveFile(null)
-      setIsArchivePolling(true)
+      const activeImport = await syncActiveArchiveImportState({
+        showLoadError: false
+      })
+      if (activeImport?.status === 'importing') {
+        setIsArchivePolling(true)
+      }
     } catch (archiveImportError) {
-      const message =
+      const archiveImportMessage =
         archiveImportError instanceof Error
           ? archiveImportError.message
           : 'Failed to import Strava archive'
-      setArchiveError(message)
+      setArchiveError(archiveImportMessage)
     } finally {
       setIsArchiveImporting(false)
+    }
+  }
+
+  const handleRetryArchiveImport = async () => {
+    if (activeArchiveImport?.status !== 'failed' || isArchiveActionLoading) {
+      return
+    }
+
+    setArchiveError('')
+    setArchiveMessage('')
+    setIsArchiveActionLoading(true)
+
+    try {
+      const result = await retryStravaArchiveImport()
+      setActiveArchiveImport(result.activeImport)
+      if (result.activeImport) {
+        setArchiveBatchId(result.activeImport.batchId)
+      }
+      setArchiveBatchResult(null)
+      setIsArchivePolling(true)
+      setArchiveMessage('Retrying Strava archive import...')
+    } catch (retryError) {
+      const retryMessage =
+        retryError instanceof Error
+          ? retryError.message
+          : 'Failed to retry Strava archive import'
+      setArchiveError(retryMessage)
+    } finally {
+      setIsArchiveActionLoading(false)
+    }
+  }
+
+  const handleCancelArchiveImport = async () => {
+    if (!activeArchiveImport || isArchiveActionLoading) {
+      return
+    }
+
+    setArchiveError('')
+    setArchiveMessage('')
+    setIsArchiveActionLoading(true)
+
+    try {
+      await cancelStravaArchiveImport()
+      setActiveArchiveImport(null)
+      setArchiveFile(null)
+      setIsArchivePolling(false)
+      setArchiveBatchId(null)
+      setArchiveMessage(
+        'Cancelled remaining archive import. Already imported activities were kept.'
+      )
+    } catch (cancelError) {
+      const cancelMessage =
+        cancelError instanceof Error
+          ? cancelError.message
+          : 'Failed to cancel Strava archive import'
+      setArchiveError(cancelMessage)
+    } finally {
+      setIsArchiveActionLoading(false)
     }
   }
 
@@ -411,7 +548,7 @@ export const StravaSettingsForm: FC = () => {
               type="file"
               accept=".zip,application/zip,application/x-zip-compressed"
               onChange={handleArchiveFileChange}
-              disabled={isArchiveImporting}
+              disabled={isArchiveControlsDisabled}
             />
             {archiveFile && (
               <p className="text-xs text-muted-foreground">
@@ -428,11 +565,35 @@ export const StravaSettingsForm: FC = () => {
             />
           </div>
 
+          {activeArchiveImport && (
+            <div className="rounded-md border p-3 text-xs text-muted-foreground">
+              <p>
+                Active import batch:{' '}
+                <span className="font-medium">
+                  {activeArchiveImport.batchId}
+                </span>
+              </p>
+              <p>
+                Status:{' '}
+                <span className="font-medium">
+                  {activeArchiveImport.status}
+                </span>
+              </p>
+              <p>
+                Imported {activeArchiveImport.completedActivitiesCount}
+                {activeArchiveImport.totalActivitiesCount
+                  ? `/${activeArchiveImport.totalActivitiesCount}`
+                  : ''}{' '}
+                • Failed {activeArchiveImport.failedActivitiesCount}
+              </p>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               onClick={handleStartArchiveImport}
-              disabled={!archiveFile || isArchiveImporting}
+              disabled={!archiveFile || isArchiveControlsDisabled}
             >
               {isArchiveImporting ? 'Importing…' : 'Import archive'}
             </Button>
@@ -440,6 +601,28 @@ export const StravaSettingsForm: FC = () => {
               <span className="text-xs text-muted-foreground">
                 Batch: {archiveBatchId}
               </span>
+            )}
+            {activeArchiveImport?.status === 'failed' && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleRetryArchiveImport}
+                  disabled={isArchiveActionLoading}
+                >
+                  {isArchiveActionLoading ? 'Retrying…' : 'Retry and continue'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleCancelArchiveImport}
+                  disabled={isArchiveActionLoading}
+                >
+                  {isArchiveActionLoading
+                    ? 'Cancelling…'
+                    : 'Cancel and remove archive'}
+                </Button>
+              </>
             )}
           </div>
 

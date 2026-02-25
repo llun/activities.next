@@ -5,7 +5,7 @@ import {
 } from '@/lib/services/fitness-files'
 import { getQueue } from '@/lib/services/queue'
 
-import { POST } from './route'
+import { GET, PATCH, POST } from './route'
 
 const mockGetServerSession = jest.fn()
 jest.mock('next-auth', () => ({
@@ -16,7 +16,17 @@ jest.mock('@/app/api/auth/[...nextauth]/authOptions', () => ({
   getAuthOptions: jest.fn(() => ({}))
 }))
 
-let mockDatabase: Record<string, unknown> | null = {}
+type MockDatabase = {
+  getActiveStravaArchiveImportByActor: jest.Mock
+  createStravaArchiveImport: jest.Mock
+  deleteStravaArchiveImport: jest.Mock
+  getFitnessFile: jest.Mock
+  updateStravaArchiveImport: jest.Mock
+  updateFitnessFileImportStatus: jest.Mock
+  updateFitnessFileProcessingStatus: jest.Mock
+}
+
+let mockDatabase: MockDatabase | null = null
 jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -67,13 +77,54 @@ const mockDeleteFitnessFile = deleteFitnessFile as jest.MockedFunction<
   typeof deleteFitnessFile
 >
 
-describe('POST /api/v1/settings/fitness/strava/archive', () => {
+describe('Strava archive import route', () => {
+  const db: MockDatabase = {
+    getActiveStravaArchiveImportByActor: jest.fn(),
+    createStravaArchiveImport: jest.fn(),
+    deleteStravaArchiveImport: jest.fn(),
+    getFitnessFile: jest.fn(),
+    updateStravaArchiveImport: jest.fn(),
+    updateFitnessFileImportStatus: jest.fn(),
+    updateFitnessFileProcessingStatus: jest.fn()
+  }
+
   beforeEach(() => {
     jest.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: 'llun@activities.local' }
     })
-    mockDatabase = {}
+    mockDatabase = db
+
+    db.getActiveStravaArchiveImportByActor.mockResolvedValue(null)
+    db.createStravaArchiveImport.mockResolvedValue({
+      id: 'import-1',
+      actorId: 'https://llun.test/users/llun',
+      archiveId: 'archive-1',
+      archiveFitnessFileId: 'archive-file-id',
+      batchId: 'strava-archive:archive-1',
+      visibility: 'private',
+      status: 'importing',
+      nextActivityIndex: 0,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 0,
+      totalActivitiesCount: undefined,
+      completedActivitiesCount: 0,
+      failedActivitiesCount: 0,
+      firstFailureMessage: undefined,
+      lastError: undefined,
+      resolvedAt: undefined,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+    db.deleteStravaArchiveImport.mockResolvedValue(true)
+    db.getFitnessFile.mockResolvedValue({
+      id: 'archive-file-id',
+      actorId: 'https://llun.test/users/llun',
+      path: 'archive/path.fit'
+    })
+    db.updateStravaArchiveImport.mockResolvedValue({})
+    db.updateFitnessFileImportStatus.mockResolvedValue(true)
+    db.updateFitnessFileProcessingStatus.mockResolvedValue(true)
 
     mockSaveFitnessFile.mockResolvedValue({
       id: 'archive-file-id',
@@ -87,7 +138,69 @@ describe('POST /api/v1/settings/fitness/strava/archive', () => {
     mockDeleteFitnessFile.mockResolvedValue(true)
   })
 
-  it('stores archive file and queues import job', async () => {
+  it('GET returns current active archive import state', async () => {
+    db.getActiveStravaArchiveImportByActor.mockResolvedValueOnce({
+      id: 'import-1',
+      actorId: 'https://llun.test/users/llun',
+      archiveId: 'archive-1',
+      archiveFitnessFileId: 'archive-file-id',
+      batchId: 'strava-archive:archive-1',
+      visibility: 'private',
+      status: 'failed',
+      nextActivityIndex: 4,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 2,
+      totalActivitiesCount: 10,
+      completedActivitiesCount: 3,
+      failedActivitiesCount: 1,
+      firstFailureMessage: 'bad entry',
+      lastError: 'queue down',
+      resolvedAt: undefined,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
+    const request = {
+      headers: new Headers()
+    } as unknown as Parameters<typeof GET>[0]
+
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = (await response.json()) as {
+      activeImport: { id: string; status: string; batchId: string }
+    }
+
+    expect(response.status).toBe(200)
+    expect(data.activeImport).toEqual(
+      expect.objectContaining({
+        id: 'import-1',
+        status: 'failed',
+        batchId: 'strava-archive:archive-1'
+      })
+    )
+  })
+
+  it('POST stores archive file, creates import state, and queues import job', async () => {
+    db.createStravaArchiveImport.mockResolvedValueOnce({
+      id: 'import-1',
+      actorId: 'https://llun.test/users/llun',
+      archiveId: 'archive-1',
+      archiveFitnessFileId: 'archive-file-id',
+      batchId: 'strava-archive:archive-1',
+      visibility: 'private',
+      status: 'importing',
+      nextActivityIndex: 0,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 0,
+      totalActivitiesCount: undefined,
+      completedActivitiesCount: 0,
+      failedActivitiesCount: 0,
+      firstFailureMessage: undefined,
+      lastError: undefined,
+      resolvedAt: undefined,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
     const formData = new FormData()
     formData.append(
       'archive',
@@ -106,44 +219,60 @@ describe('POST /api/v1/settings/fitness/strava/archive', () => {
     const data = (await response.json()) as {
       archiveId: string
       batchId: string
+      importId: string
     }
 
     expect(response.status).toBe(200)
-    expect(data.archiveId).toBeDefined()
-    expect(data.batchId).toBe(`strava-archive:${data.archiveId}`)
+    expect(data.batchId).toBeDefined()
+    expect(data.importId).toBe('import-1')
     expect(mockSaveFitnessFile).toHaveBeenCalledTimes(1)
-    const saveCallInput = mockSaveFitnessFile.mock.calls[0]?.[2]
-    expect(saveCallInput?.file.name).toBe('export_1.fit')
-    expect(saveCallInput?.file.type).toBe('application/zip')
-    expect(mockSaveFitnessFile).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ id: 'https://llun.test/users/llun' }),
+    expect(db.createStravaArchiveImport).toHaveBeenCalledWith(
       expect.objectContaining({
-        importBatchId: `strava-archive-source:${data.archiveId}`
+        actorId: 'https://llun.test/users/llun',
+        archiveFitnessFileId: 'archive-file-id'
       })
     )
-    expect(getQueue().publish).toHaveBeenCalledWith({
-      id: expect.any(String),
-      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
-      data: {
-        actorId: 'https://llun.test/users/llun',
-        archiveId: data.archiveId,
-        archiveFitnessFileId: 'archive-file-id',
-        batchId: data.batchId,
-        visibility: 'private'
-      }
-    })
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+        data: expect.objectContaining({
+          importId: 'import-1',
+          actorId: 'https://llun.test/users/llun',
+          archiveFitnessFileId: 'archive-file-id'
+        })
+      })
+    )
   })
 
-  it('returns forbidden when actorId differs from current actor', async () => {
+  it('POST rejects when actor already has active import', async () => {
+    db.getActiveStravaArchiveImportByActor.mockResolvedValueOnce({
+      id: 'import-active',
+      actorId: 'https://llun.test/users/llun',
+      archiveId: 'archive-active',
+      archiveFitnessFileId: 'archive-file-id',
+      batchId: 'strava-archive:archive-active',
+      visibility: 'private',
+      status: 'importing',
+      nextActivityIndex: 0,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 0,
+      totalActivitiesCount: 10,
+      completedActivitiesCount: 0,
+      failedActivitiesCount: 0,
+      firstFailureMessage: undefined,
+      lastError: undefined,
+      resolvedAt: undefined,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
     const formData = new FormData()
     formData.append(
       'archive',
-      new File([Buffer.from('zip-data')], 'export_1.zip', {
+      new File([Buffer.from('zip-data')], 'export_2.zip', {
         type: 'application/zip'
       })
     )
-    formData.append('actorId', 'https://llun.test/users/llun-second')
 
     const request = {
       headers: new Headers(),
@@ -152,81 +281,99 @@ describe('POST /api/v1/settings/fitness/strava/archive', () => {
 
     const response = await POST(request, { params: Promise.resolve({}) })
 
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(409)
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
     expect(getQueue().publish).not.toHaveBeenCalled()
   })
 
-  it('allows actorId when it matches current actor id', async () => {
-    const formData = new FormData()
-    formData.append(
-      'archive',
-      new File([Buffer.from('zip-data')], 'export_1.zip', {
-        type: 'application/zip'
-      })
-    )
-    formData.append('actorId', 'https://llun.test/users/llun')
+  it('PATCH retry requeues failed archive import', async () => {
+    db.getActiveStravaArchiveImportByActor.mockResolvedValue({
+      id: 'import-1',
+      actorId: 'https://llun.test/users/llun',
+      archiveId: 'archive-1',
+      archiveFitnessFileId: 'archive-file-id',
+      batchId: 'strava-archive:archive-1',
+      visibility: 'private',
+      status: 'failed',
+      nextActivityIndex: 2,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 1,
+      totalActivitiesCount: 10,
+      completedActivitiesCount: 2,
+      failedActivitiesCount: 1,
+      firstFailureMessage: 'initial failure',
+      lastError: 'queue failure',
+      resolvedAt: undefined,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
 
     const request = {
       headers: new Headers(),
-      formData: async () => formData
-    } as unknown as Parameters<typeof POST>[0]
+      json: async () => ({ action: 'retry' })
+    } as unknown as Parameters<typeof PATCH>[0]
 
-    const response = await POST(request, { params: Promise.resolve({}) })
+    const response = await PATCH(request, { params: Promise.resolve({}) })
 
     expect(response.status).toBe(200)
-    expect(mockSaveFitnessFile).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ id: 'https://llun.test/users/llun' }),
+    expect(db.updateStravaArchiveImport).toHaveBeenCalledWith(
       expect.objectContaining({
-        description: 'Strava archive import source'
+        id: 'import-1',
+        status: 'importing'
+      })
+    )
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+        data: expect.objectContaining({
+          importId: 'import-1',
+          archiveId: 'archive-1',
+          nextActivityIndex: 2
+        })
       })
     )
   })
 
-  it('returns bad request for non-zip archive files', async () => {
-    const formData = new FormData()
-    formData.append(
-      'archive',
-      new File([Buffer.from('not-zip')], 'archive.fit', {
-        type: 'application/vnd.ant.fit'
-      })
-    )
+  it('PATCH cancel removes archive file and resolves import', async () => {
+    db.getActiveStravaArchiveImportByActor.mockResolvedValue({
+      id: 'import-1',
+      actorId: 'https://llun.test/users/llun',
+      archiveId: 'archive-1',
+      archiveFitnessFileId: 'archive-file-id',
+      batchId: 'strava-archive:archive-1',
+      visibility: 'private',
+      status: 'failed',
+      nextActivityIndex: 2,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 1,
+      totalActivitiesCount: 10,
+      completedActivitiesCount: 2,
+      failedActivitiesCount: 1,
+      firstFailureMessage: 'initial failure',
+      lastError: 'queue failure',
+      resolvedAt: undefined,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
 
     const request = {
       headers: new Headers(),
-      formData: async () => formData
-    } as unknown as Parameters<typeof POST>[0]
+      json: async () => ({ action: 'cancel' })
+    } as unknown as Parameters<typeof PATCH>[0]
 
-    const response = await POST(request, { params: Promise.resolve({}) })
+    const response = await PATCH(request, { params: Promise.resolve({}) })
 
-    expect(response.status).toBe(400)
-    expect(mockSaveFitnessFile).not.toHaveBeenCalled()
-    expect(getQueue().publish).not.toHaveBeenCalled()
-  })
-
-  it('rolls back archive file when queue publish fails', async () => {
-    getQueue().publish.mockRejectedValueOnce(new Error('queue down'))
-
-    const formData = new FormData()
-    formData.append(
-      'archive',
-      new File([Buffer.from('zip-data')], 'export_1.zip', {
-        type: 'application/zip'
-      })
-    )
-
-    const request = {
-      headers: new Headers(),
-      formData: async () => formData
-    } as unknown as Parameters<typeof POST>[0]
-
-    const response = await POST(request, { params: Promise.resolve({}) })
-
-    expect(response.status).toBe(500)
+    expect(response.status).toBe(200)
     expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
       expect.any(Object),
-      'archive-file-id'
+      'archive-file-id',
+      expect.objectContaining({ id: 'archive-file-id' })
+    )
+    expect(db.updateStravaArchiveImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'import-1',
+        status: 'cancelled'
+      })
     )
   })
 })

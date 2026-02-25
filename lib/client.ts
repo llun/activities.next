@@ -642,6 +642,30 @@ export interface StartFitnessImportResult {
 export interface StartStravaArchiveImportResult {
   archiveId: string
   batchId: string
+  importId: string
+}
+
+export interface ActiveStravaArchiveImport {
+  id: string
+  archiveId: string
+  archiveFitnessFileId: string
+  batchId: string
+  visibility: MastodonVisibility
+  status: 'importing' | 'failed'
+  nextActivityIndex: number
+  mediaAttachmentRetry: number
+  totalActivitiesCount: number | null
+  completedActivitiesCount: number
+  failedActivitiesCount: number
+  firstFailureMessage: string | null
+  lastError: string | null
+  pendingMediaActivitiesCount: number
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ActiveStravaArchiveImportResponse {
+  activeImport: ActiveStravaArchiveImport | null
 }
 
 const parseApiError = async (
@@ -750,6 +774,72 @@ export const startStravaArchiveImport = async (
     throw new Error(
       `Failed to import Strava archive: ${response.status} ${errorDetails}`
     )
+  }
+
+  return response.json()
+}
+
+export const getActiveStravaArchiveImport =
+  async (): Promise<ActiveStravaArchiveImportResponse> => {
+    const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorDetails = await parseApiError(
+        response,
+        'Failed to load Strava archive import state.'
+      )
+      throw new Error(errorDetails)
+    }
+
+    return response.json()
+  }
+
+export const retryStravaArchiveImport = async (): Promise<{
+  success: boolean
+  activeImport: ActiveStravaArchiveImport | null
+}> => {
+  const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ action: 'retry' })
+  })
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to retry Strava archive import.'
+    )
+    throw new Error(errorDetails)
+  }
+
+  return response.json()
+}
+
+export const cancelStravaArchiveImport = async (): Promise<{
+  success: boolean
+  cancelled: boolean
+}> => {
+  const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ action: 'cancel' })
+  })
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to cancel Strava archive import.'
+    )
+    throw new Error(errorDetails)
   }
 
   return response.json()

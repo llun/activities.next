@@ -69,6 +69,8 @@ type MockDatabase = Pick<
   | 'getActorFromId'
   | 'getFitnessFile'
   | 'getFitnessFilesByIds'
+  | 'getStravaArchiveImportById'
+  | 'updateStravaArchiveImport'
   | 'getAttachments'
   | 'createAttachment'
   | 'updateFitnessFileProcessingStatus'
@@ -80,6 +82,8 @@ describe('importStravaArchiveJob', () => {
     getActorFromId: jest.fn(),
     getFitnessFile: jest.fn(),
     getFitnessFilesByIds: jest.fn(),
+    getStravaArchiveImportById: jest.fn(),
+    updateStravaArchiveImport: jest.fn(),
     getAttachments: jest.fn(),
     createAttachment: jest.fn(),
     updateFitnessFileProcessingStatus: jest.fn(),
@@ -120,6 +124,46 @@ describe('importStravaArchiveJob', () => {
         importStatus: 'completed'
       } as never
     ])
+    database.getStravaArchiveImportById.mockResolvedValue({
+      id: 'import-1',
+      actorId: 'actor-1',
+      archiveId: 'archive-1',
+      archiveFitnessFileId: 'archive-file-1',
+      batchId: 'strava-archive:archive-1',
+      visibility: 'private',
+      status: 'importing',
+      nextActivityIndex: 0,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 0,
+      totalActivitiesCount: undefined,
+      completedActivitiesCount: 0,
+      failedActivitiesCount: 0,
+      firstFailureMessage: undefined,
+      lastError: undefined,
+      resolvedAt: undefined,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    } as never)
+    database.updateStravaArchiveImport.mockResolvedValue({
+      id: 'import-1',
+      actorId: 'actor-1',
+      archiveId: 'archive-1',
+      archiveFitnessFileId: 'archive-file-1',
+      batchId: 'strava-archive:archive-1',
+      visibility: 'private',
+      status: 'importing',
+      nextActivityIndex: 0,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 0,
+      totalActivitiesCount: undefined,
+      completedActivitiesCount: 0,
+      failedActivitiesCount: 0,
+      firstFailureMessage: undefined,
+      lastError: undefined,
+      resolvedAt: undefined,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    } as never)
     database.getAttachments.mockResolvedValue([])
     database.createAttachment.mockResolvedValue({} as never)
     database.updateFitnessFileProcessingStatus.mockResolvedValue(true)
@@ -184,6 +228,7 @@ describe('importStravaArchiveJob', () => {
       id: 'job-1',
       name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
       data: {
+        importId: 'import-1',
         actorId: 'actor-1',
         archiveId: 'archive-1',
         archiveFitnessFileId: 'archive-file-1',
@@ -261,6 +306,7 @@ describe('importStravaArchiveJob', () => {
       id: 'job-continue-import',
       name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
       data: {
+        importId: 'import-1',
         actorId: 'actor-1',
         archiveId: 'archive-1',
         archiveFitnessFileId: 'archive-file-1',
@@ -305,13 +351,14 @@ describe('importStravaArchiveJob', () => {
     expect(mockDeleteFitnessFile).not.toHaveBeenCalled()
   })
 
-  it('still deletes archive source file when import fails', async () => {
+  it('keeps archive source file when import fails', async () => {
     mockArchiveReaderOpen.mockRejectedValueOnce(new Error('broken zip'))
 
     await importStravaArchiveJob(database as unknown as Database, {
       id: 'job-2',
       name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
       data: {
+        importId: 'import-1',
         actorId: 'actor-1',
         archiveId: 'archive-1',
         archiveFitnessFileId: 'archive-file-1',
@@ -320,11 +367,12 @@ describe('importStravaArchiveJob', () => {
       }
     })
 
-    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
-      database,
-      'archive-file-1',
+    expect(mockDeleteFitnessFile).not.toHaveBeenCalled()
+    expect(database.updateStravaArchiveImport).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'archive-file-1'
+        id: 'import-1',
+        status: 'failed',
+        lastError: 'broken zip'
       })
     )
   })
@@ -336,6 +384,7 @@ describe('importStravaArchiveJob', () => {
       id: 'job-3',
       name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
       data: {
+        importId: 'import-1',
         actorId: 'actor-1',
         archiveId: 'archive-1',
         archiveFitnessFileId: 'archive-file-1',
@@ -367,6 +416,7 @@ describe('importStravaArchiveJob', () => {
       id: 'job-4',
       name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
       data: {
+        importId: 'import-1',
         actorId: 'actor-1',
         archiveId: 'archive-1',
         archiveFitnessFileId: 'archive-file-1',
@@ -404,7 +454,7 @@ describe('importStravaArchiveJob', () => {
     expect(mockSaveMedia).not.toHaveBeenCalled()
   })
 
-  it('deletes archive source file when media retry enqueue fails', async () => {
+  it('keeps archive source file when media retry enqueue fails', async () => {
     database.getFitnessFilesByIds.mockResolvedValueOnce([
       {
         id: 'activity-file-1',
@@ -421,6 +471,7 @@ describe('importStravaArchiveJob', () => {
       id: 'job-5',
       name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
       data: {
+        importId: 'import-1',
         actorId: 'actor-1',
         archiveId: 'archive-1',
         archiveFitnessFileId: 'archive-file-1',
@@ -434,16 +485,17 @@ describe('importStravaArchiveJob', () => {
       'failed',
       'queue unavailable'
     )
-    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
-      database,
-      'archive-file-1',
+    expect(mockDeleteFitnessFile).not.toHaveBeenCalled()
+    expect(database.updateStravaArchiveImport).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'archive-file-1'
+        id: 'import-1',
+        status: 'failed',
+        lastError: 'queue unavailable'
       })
     )
   })
 
-  it('fails and cleans up archive when media retries are exhausted', async () => {
+  it('fails and keeps archive when media retries are exhausted', async () => {
     database.getFitnessFilesByIds.mockResolvedValueOnce([
       {
         id: 'activity-file-1',
@@ -457,6 +509,7 @@ describe('importStravaArchiveJob', () => {
       id: 'job-6',
       name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
       data: {
+        importId: 'import-1',
         actorId: 'actor-1',
         archiveId: 'archive-1',
         archiveFitnessFileId: 'archive-file-1',
@@ -481,11 +534,13 @@ describe('importStravaArchiveJob', () => {
         'Timed out waiting for imported statuses to attach archive media'
       )
     )
-    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
-      database,
-      'archive-file-1',
+    expect(mockDeleteFitnessFile).not.toHaveBeenCalled()
+    expect(database.updateStravaArchiveImport).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'archive-file-1'
+        id: 'import-1',
+        status: 'failed',
+        lastError:
+          'Timed out waiting for imported statuses to attach archive media'
       })
     )
   })

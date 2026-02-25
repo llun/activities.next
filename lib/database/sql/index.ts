@@ -10,6 +10,7 @@ import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
 import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
+import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
 
@@ -29,6 +30,8 @@ export const getSQLDatabase = (config: Knex.Config): Database => {
     accountDatabase,
     actorDatabase
   )
+  const stravaArchiveImportDatabase =
+    StravaArchiveImportSQLDatabaseMixin(database)
   const statusDatabase = StatusSQLDatabaseMixin(
     database,
     actorDatabase,
@@ -55,6 +58,7 @@ export const getSQLDatabase = (config: Knex.Config): Database => {
     ...mediaDatabase,
     ...notificationDatabase,
     ...oauthDatabase,
+    ...stravaArchiveImportDatabase,
     ...statusDatabase,
 
     ...timelineDatabase
