@@ -217,6 +217,94 @@ describe('importStravaArchiveJob', () => {
     )
   })
 
+  it('splits import into continuation when runtime budget is reached', async () => {
+    let nowCall = 0
+    const dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => {
+      nowCall += 1
+      if (nowCall <= 2) {
+        return 0
+      }
+      return 300_000
+    })
+
+    mockArchiveReaderOpen.mockResolvedValueOnce({
+      close: jest.fn(),
+      hasEntry: jest.fn().mockReturnValue(true),
+      getActivities: jest.fn().mockResolvedValue([
+        {
+          activityId: 'activity-1',
+          activityName: 'Morning Ride',
+          fitnessFilePath: 'activities/activity-1.fit',
+          mediaPaths: ['media/photo-1.jpg']
+        },
+        {
+          activityId: 'activity-2',
+          activityName: 'Evening Ride',
+          fitnessFilePath: 'activities/activity-2.fit',
+          mediaPaths: ['media/photo-2.jpg']
+        }
+      ]),
+      readEntryBuffer: jest.fn().mockResolvedValue(Buffer.from('fitness-file'))
+    } as never)
+
+    mockSaveFitnessFile.mockResolvedValueOnce({
+      id: 'activity-file-1',
+      type: 'fitness',
+      file_type: 'fit',
+      mime_type: 'application/vnd.ant.fit',
+      url: 'https://llun.test/api/v1/fitness-files/activity-file-1',
+      fileName: 'activity.fit',
+      size: 16
+    })
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-continue-import',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    dateNowSpy.mockRestore()
+
+    expect(mockQueuePublish).toHaveBeenCalledTimes(2)
+    expect(mockQueuePublish).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: expect.objectContaining({
+          fitnessFileIds: ['activity-file-1']
+        })
+      })
+    )
+    expect(mockQueuePublish).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+        data: expect.objectContaining({
+          nextActivityIndex: 1,
+          mediaAttachmentRetry: 0,
+          pendingMediaActivities: [
+            expect.objectContaining({
+              activityId: 'activity-1',
+              fitnessFileId: 'activity-file-1'
+            })
+          ]
+        })
+      })
+    )
+    expect(database.updateFitnessFileImportStatus).toHaveBeenCalledWith(
+      'archive-file-1',
+      'pending',
+      'Continuing Strava archive import from activity 2/2'
+    )
+    expect(mockDeleteFitnessFile).not.toHaveBeenCalled()
+  })
+
   it('still deletes archive source file when import fails', async () => {
     mockArchiveReaderOpen.mockRejectedValueOnce(new Error('broken zip'))
 

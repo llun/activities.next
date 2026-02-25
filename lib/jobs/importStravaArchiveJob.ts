@@ -46,6 +46,7 @@ const JobData = z.object({
   archiveFitnessFileId: z.string(),
   batchId: z.string(),
   visibility: Visibility.default('public'),
+  nextActivityIndex: z.number().int().nonnegative().default(0),
   pendingMediaActivities: z.array(PendingMediaActivity).optional(),
   mediaAttachmentRetry: z.number().int().nonnegative().default(0),
   totalActivitiesCount: z.number().int().nonnegative().optional(),
@@ -63,6 +64,8 @@ const MEDIA_ATTACHMENT_RETRY_DELAY_MS =
   process.env.NODE_ENV === 'test'
     ? 0
     : MEDIA_ATTACHMENT_RETRY_DELAY_SECONDS * 1_000
+const MAX_IMPORT_JOB_RUNTIME_MS = 5 * 60 * 1_000
+const IMPORT_JOB_REQUEUE_BUFFER_MS = 10 * 1_000
 
 const truncateAttachmentName = (fileName: string): string => {
   if (fileName.length <= ATTACHMENT_FILE_NAME_LIMIT) {
@@ -190,6 +193,10 @@ const sleep = async (ms: number) => {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, ms)
   })
+}
+
+const hasReachedRuntimeDeadline = (runtimeDeadlineMs: number): boolean => {
+  return Date.now() >= runtimeDeadlineMs
 }
 
 const getImportedFitnessFiles = async ({
@@ -334,6 +341,7 @@ export const importStravaArchiveJob = createJobHandle(
       archiveFitnessFileId,
       batchId,
       visibility,
+      nextActivityIndex,
       pendingMediaActivities,
       mediaAttachmentRetry,
       totalActivitiesCount,
@@ -394,7 +402,8 @@ export const importStravaArchiveJob = createJobHandle(
     let importedActivities = completedActivitiesCount
     let failedActivities = failedActivitiesCount
     let pendingActivities = 0
-    let targetTotalActivities = totalActivitiesCount
+    const runtimeDeadlineMs =
+      Date.now() + MAX_IMPORT_JOB_RUNTIME_MS - IMPORT_JOB_REQUEUE_BUFFER_MS
 
     try {
       const { archiveFilePath, cleanup } = await resolveArchivePath(
@@ -404,100 +413,154 @@ export const importStravaArchiveJob = createJobHandle(
       cleanupArchivePath = cleanup
 
       archiveReader = await StravaArchiveReader.open(archiveFilePath)
-      let mediaActivities = pendingMediaActivities ?? []
-      const isMediaRetryPass = (pendingMediaActivities?.length ?? 0) > 0
+      const archiveActivities = await archiveReader.getActivities()
+      const targetTotalActivities =
+        totalActivitiesCount ?? archiveActivities.length
 
-      if (!pendingMediaActivities || pendingMediaActivities.length === 0) {
-        const archiveActivities = await archiveReader.getActivities()
-        targetTotalActivities = archiveActivities.length
-        const savedArchiveActivities: Array<{
-          activity: StravaArchiveActivity
-          fitnessFileId: string
-        }> = []
+      const savedArchiveActivities: Array<{
+        activity: StravaArchiveActivity
+        fitnessFileId: string
+      }> = []
+      const initialMediaActivities = pendingMediaActivities ?? []
+      const effectiveNextActivityIndex =
+        nextActivityIndex > 0
+          ? nextActivityIndex
+          : initialMediaActivities.length > 0
+            ? (totalActivitiesCount ?? Number.MAX_SAFE_INTEGER)
+            : 0
+      let nextArchiveActivityIndex = Math.min(
+        effectiveNextActivityIndex,
+        archiveActivities.length
+      )
 
-        for (const archiveActivity of archiveActivities) {
-          try {
-            const fitnessArchiveBuffer = await archiveReader.readEntryBuffer(
-              archiveActivity.fitnessFilePath
-            )
-            if (!fitnessArchiveBuffer) {
-              throw new Error('Fitness activity file is missing from archive')
-            }
-
-            const fitnessPayload = toStravaArchiveFitnessFilePayload({
-              fitnessFilePath: archiveActivity.fitnessFilePath,
-              buffer: fitnessArchiveBuffer
-            })
-
-            const fitnessFile = new File(
-              [new Uint8Array(fitnessPayload.buffer)],
-              fitnessPayload.fileName,
-              { type: fitnessPayload.mimeType }
-            )
-
-            const savedFitnessFile = await saveFitnessFile(database, actor, {
-              file: fitnessFile,
-              importBatchId: batchId,
-              description:
-                archiveActivity.activityDescription ||
-                archiveActivity.activityName
-            })
-            if (!savedFitnessFile) {
-              throw new Error(
-                'Failed to save imported fitness file from archive'
-              )
-            }
-
-            savedArchiveActivities.push({
-              activity: archiveActivity,
-              fitnessFileId: savedFitnessFile.id
-            })
-          } catch (error) {
-            const nodeError = error as Error
-            failedActivities += 1
-            if (!importFailureMessage) {
-              importFailureMessage = nodeError.message
-            }
-            logger.warn({
-              message: 'Failed to import activity from Strava archive',
-              actorId,
-              archiveId,
-              activityId: archiveActivity.activityId,
-              fitnessFilePath: archiveActivity.fitnessFilePath,
-              error: nodeError.message
-            })
-          }
+      for (
+        let activityIndex = nextArchiveActivityIndex;
+        activityIndex < archiveActivities.length;
+        activityIndex += 1
+      ) {
+        if (hasReachedRuntimeDeadline(runtimeDeadlineMs)) {
+          nextArchiveActivityIndex = activityIndex
+          break
         }
 
-        mediaActivities = savedArchiveActivities.map(
-          ({ activity, fitnessFileId }) => ({
-            fitnessFileId,
-            activityId: activity.activityId,
-            ...(activity.activityName
-              ? { activityName: activity.activityName }
-              : null),
-            mediaPaths: activity.mediaPaths
-          })
-        )
+        const archiveActivity = archiveActivities[activityIndex]
+        nextArchiveActivityIndex = activityIndex + 1
 
-        if (savedArchiveActivities.length > 0) {
-          await getQueue().publish({
-            id: getHashFromString(
-              `${actorId}:strava-archive:${archiveId}:import-fitness-files`
-            ),
-            name: IMPORT_FITNESS_FILES_JOB_NAME,
-            data: {
-              actorId,
-              batchId,
-              fitnessFileIds: savedArchiveActivities.map(
-                ({ fitnessFileId }) => fitnessFileId
-              ),
-              overlapFitnessFileIds: [],
-              visibility
-            }
+        try {
+          const fitnessArchiveBuffer = await archiveReader.readEntryBuffer(
+            archiveActivity.fitnessFilePath
+          )
+          if (!fitnessArchiveBuffer) {
+            throw new Error('Fitness activity file is missing from archive')
+          }
+
+          const fitnessPayload = toStravaArchiveFitnessFilePayload({
+            fitnessFilePath: archiveActivity.fitnessFilePath,
+            buffer: fitnessArchiveBuffer
+          })
+
+          const fitnessFile = new File(
+            [new Uint8Array(fitnessPayload.buffer)],
+            fitnessPayload.fileName,
+            { type: fitnessPayload.mimeType }
+          )
+
+          const savedFitnessFile = await saveFitnessFile(database, actor, {
+            file: fitnessFile,
+            importBatchId: batchId,
+            description:
+              archiveActivity.activityDescription ||
+              archiveActivity.activityName
+          })
+          if (!savedFitnessFile) {
+            throw new Error('Failed to save imported fitness file from archive')
+          }
+
+          savedArchiveActivities.push({
+            activity: archiveActivity,
+            fitnessFileId: savedFitnessFile.id
+          })
+        } catch (error) {
+          const nodeError = error as Error
+          failedActivities += 1
+          if (!importFailureMessage) {
+            importFailureMessage = nodeError.message
+          }
+          logger.warn({
+            message: 'Failed to import activity from Strava archive',
+            actorId,
+            archiveId,
+            activityId: archiveActivity.activityId,
+            fitnessFilePath: archiveActivity.fitnessFilePath,
+            error: nodeError.message
           })
         }
       }
+
+      if (savedArchiveActivities.length > 0) {
+        await getQueue().publish({
+          id: getHashFromString(
+            `${actorId}:strava-archive:${archiveId}:import-fitness-files:${nextArchiveActivityIndex}`
+          ),
+          name: IMPORT_FITNESS_FILES_JOB_NAME,
+          data: {
+            actorId,
+            batchId,
+            fitnessFileIds: savedArchiveActivities.map(
+              ({ fitnessFileId }) => fitnessFileId
+            ),
+            overlapFitnessFileIds: [],
+            visibility
+          }
+        })
+      }
+
+      const mediaActivities = [
+        ...initialMediaActivities,
+        ...savedArchiveActivities.map(({ activity, fitnessFileId }) => ({
+          fitnessFileId,
+          activityId: activity.activityId,
+          ...(activity.activityName
+            ? { activityName: activity.activityName }
+            : null),
+          mediaPaths: activity.mediaPaths
+        }))
+      ]
+
+      if (nextArchiveActivityIndex < archiveActivities.length) {
+        await getQueue().publish({
+          id: getHashFromString(
+            `${actorId}:strava-archive:${archiveId}:continue:${message.id}:import:${nextArchiveActivityIndex}`
+          ),
+          name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+          data: {
+            actorId,
+            archiveId,
+            archiveFitnessFileId,
+            batchId,
+            visibility,
+            nextActivityIndex: nextArchiveActivityIndex,
+            pendingMediaActivities: mediaActivities,
+            mediaAttachmentRetry: 0,
+            totalActivitiesCount: targetTotalActivities,
+            completedActivitiesCount: importedActivities,
+            failedActivitiesCount: failedActivities,
+            ...(importFailureMessage
+              ? { firstFailureMessage: importFailureMessage }
+              : null)
+          }
+        })
+
+        shouldDeleteArchiveSource = false
+        await database.updateFitnessFileImportStatus(
+          archiveFitnessFile.id,
+          'pending',
+          `Continuing Strava archive import from activity ${nextArchiveActivityIndex + 1}/${archiveActivities.length}`
+        )
+        return
+      }
+
+      const isMediaRetryPass = mediaAttachmentRetry > 0
 
       if (mediaActivities.length > 0) {
         if (isMediaRetryPass && MEDIA_ATTACHMENT_RETRY_DELAY_MS > 0) {
@@ -512,8 +575,21 @@ export const importStravaArchiveJob = createJobHandle(
         })
 
         const stillPendingMediaActivities: typeof mediaActivities = []
+        let hasPendingImportedStatuses = false
 
-        for (const mediaActivity of mediaActivities) {
+        for (
+          let activityIndex = 0;
+          activityIndex < mediaActivities.length;
+          activityIndex += 1
+        ) {
+          if (hasReachedRuntimeDeadline(runtimeDeadlineMs)) {
+            stillPendingMediaActivities.push(
+              ...mediaActivities.slice(activityIndex)
+            )
+            break
+          }
+
+          const mediaActivity = mediaActivities[activityIndex]
           const importedFitnessFile = importedFitnessFiles.get(
             mediaActivity.fitnessFileId
           )
@@ -528,6 +604,7 @@ export const importStravaArchiveJob = createJobHandle(
               }
             } else {
               stillPendingMediaActivities.push(mediaActivity)
+              hasPendingImportedStatuses = true
             }
 
             logger.warn({
@@ -559,10 +636,54 @@ export const importStravaArchiveJob = createJobHandle(
         }
 
         if (stillPendingMediaActivities.length > 0) {
-          if (mediaAttachmentRetry < MAX_MEDIA_ATTACHMENT_RETRIES) {
+          if (hasPendingImportedStatuses) {
+            if (mediaAttachmentRetry < MAX_MEDIA_ATTACHMENT_RETRIES) {
+              await getQueue().publish({
+                id: getHashFromString(
+                  `${actorId}:strava-archive:${archiveId}:continue:${message.id}:media-retry:${mediaAttachmentRetry + 1}`
+                ),
+                name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+                data: {
+                  actorId,
+                  archiveId,
+                  archiveFitnessFileId,
+                  batchId,
+                  visibility,
+                  pendingMediaActivities: stillPendingMediaActivities,
+                  mediaAttachmentRetry: mediaAttachmentRetry + 1,
+                  totalActivitiesCount: targetTotalActivities,
+                  completedActivitiesCount: importedActivities,
+                  failedActivitiesCount: failedActivities,
+                  nextActivityIndex: nextArchiveActivityIndex,
+                  ...(importFailureMessage
+                    ? { firstFailureMessage: importFailureMessage }
+                    : null)
+                }
+              })
+
+              // Keep archive source until the queued retry can attach remaining
+              // media entries.
+              shouldDeleteArchiveSource = false
+              await database.updateFitnessFileImportStatus(
+                archiveFitnessFile.id,
+                'pending',
+                `Waiting for imported statuses before attaching archive media (${stillPendingMediaActivities.length} remaining)`
+              )
+              return
+            }
+
+            // Retries are bounded; once exhausted we fail remaining media
+            // activities and allow archive cleanup in finally.
+            pendingActivities = stillPendingMediaActivities.length
+            failedActivities += stillPendingMediaActivities.length
+            if (!importFailureMessage) {
+              importFailureMessage =
+                'Timed out waiting for imported statuses to attach archive media'
+            }
+          } else {
             await getQueue().publish({
               id: getHashFromString(
-                `${actorId}:strava-archive:${archiveId}:media-retry:${mediaAttachmentRetry + 1}`
+                `${actorId}:strava-archive:${archiveId}:continue:${message.id}:media:${stillPendingMediaActivities.length}`
               ),
               name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
               data: {
@@ -572,34 +693,24 @@ export const importStravaArchiveJob = createJobHandle(
                 batchId,
                 visibility,
                 pendingMediaActivities: stillPendingMediaActivities,
-                mediaAttachmentRetry: mediaAttachmentRetry + 1,
+                mediaAttachmentRetry,
                 totalActivitiesCount: targetTotalActivities,
                 completedActivitiesCount: importedActivities,
                 failedActivitiesCount: failedActivities,
+                nextActivityIndex: nextArchiveActivityIndex,
                 ...(importFailureMessage
                   ? { firstFailureMessage: importFailureMessage }
                   : null)
               }
             })
 
-            // Keep archive source until the queued retry can attach remaining
-            // media entries.
             shouldDeleteArchiveSource = false
             await database.updateFitnessFileImportStatus(
               archiveFitnessFile.id,
               'pending',
-              `Waiting for imported statuses before attaching archive media (${stillPendingMediaActivities.length} remaining)`
+              `Continuing Strava archive media attachment (${stillPendingMediaActivities.length} remaining)`
             )
             return
-          }
-
-          // Retries are bounded; once exhausted we fail remaining media
-          // activities and allow archive cleanup in finally.
-          pendingActivities = stillPendingMediaActivities.length
-          failedActivities += stillPendingMediaActivities.length
-          if (!importFailureMessage) {
-            importFailureMessage =
-              'Timed out waiting for imported statuses to attach archive media'
           }
         }
       }
