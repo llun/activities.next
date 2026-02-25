@@ -256,6 +256,71 @@ describe('fitness import batch route', () => {
     })
   })
 
+  it('includes archive failure counters when file rows exist', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValueOnce([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'activity-1.fit',
+        fileType: 'fit',
+        path: 'fitness/activity-1.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'completed',
+        processingStatus: 'completed',
+        isPrimary: true,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+    db.getStravaArchiveImportByBatchId.mockResolvedValueOnce({
+      id: 'import-1',
+      actorId: 'https://llun.test/users/llun',
+      archiveId: 'archive-1',
+      archiveFitnessFileId: 'archive-file-1',
+      batchId: 'strava-archive:archive-1',
+      visibility: 'private',
+      status: 'completed',
+      nextActivityIndex: 2,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 0,
+      totalActivitiesCount: 2,
+      completedActivitiesCount: 1,
+      failedActivitiesCount: 1,
+      firstFailureMessage: 'corrupt activity row',
+      lastError: undefined,
+      resolvedAt: Date.now(),
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
+    const request = {
+      headers: new Headers()
+    } as unknown as Parameters<typeof GET>[0]
+
+    const response = await GET(request, {
+      params: Promise.resolve({ batchId: 'strava-archive:archive-1' })
+    })
+    const json = (await response.json()) as {
+      status: string
+      summary: {
+        total: number
+        completed: number
+        failed: number
+        pending: number
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(json.status).toBe('partially_failed')
+    expect(json.summary).toEqual({
+      total: 2,
+      completed: 1,
+      failed: 1,
+      pending: 0
+    })
+  })
+
   it('keeps batch status pending while any files are still pending', async () => {
     db.getFitnessFilesByBatchId.mockResolvedValue([
       {

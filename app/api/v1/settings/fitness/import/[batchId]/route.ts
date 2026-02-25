@@ -205,6 +205,40 @@ const summarizeArchiveImport = (
   }
 }
 
+const summarizeWithArchiveImport = ({
+  filesSummary,
+  archiveSummary
+}: {
+  filesSummary: ReturnType<typeof summarizeBatch>
+  archiveSummary: ReturnType<typeof summarizeArchiveImport>
+}): ReturnType<typeof summarizeArchiveImport> => {
+  const total = Math.max(filesSummary.total, archiveSummary.total)
+  const completed = Math.max(filesSummary.completed, archiveSummary.completed)
+  const failed = Math.max(filesSummary.failed, archiveSummary.failed)
+  const pending = Math.max(
+    filesSummary.pending,
+    archiveSummary.pending,
+    Math.max(total - completed - failed, 0)
+  )
+
+  let status: BatchStatus = 'completed'
+  if (archiveSummary.status === 'pending' || pending > 0) {
+    status = 'pending'
+  } else if (failed > 0 && completed > 0) {
+    status = 'partially_failed'
+  } else if (failed > 0) {
+    status = 'failed'
+  }
+
+  return {
+    status,
+    total,
+    pending,
+    completed,
+    failed
+  }
+}
+
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = traceApiRoute(
@@ -217,6 +251,26 @@ export const GET = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
     }
 
+    const archiveImport =
+      batchId.startsWith(STRAVA_ARCHIVE_BATCH_PREFIX) &&
+      batchId.length > STRAVA_ARCHIVE_BATCH_PREFIX.length
+        ? await database.getStravaArchiveImportByBatchId({
+            batchId
+          })
+        : null
+
+    if (archiveImport) {
+      const hasArchiveAccess = await isActorOwnedByCurrentAccount({
+        actorId: archiveImport.actorId,
+        currentActorId: currentActor.id,
+        currentAccountId: currentActor.account?.id,
+        database
+      })
+      if (!hasArchiveAccess) {
+        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      }
+    }
+
     let files = await database.getFitnessFilesByBatchId({ batchId })
     if (files.length === 0) {
       const archiveSourceBatchId = getArchiveSourceBatchId(batchId)
@@ -227,24 +281,7 @@ export const GET = traceApiRoute(
       }
     }
     if (files.length === 0) {
-      if (!batchId.startsWith(STRAVA_ARCHIVE_BATCH_PREFIX)) {
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
-      }
-
-      const archiveImport = await database.getStravaArchiveImportByBatchId({
-        batchId
-      })
       if (!archiveImport) {
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
-      }
-
-      const hasAccess = await isActorOwnedByCurrentAccount({
-        actorId: archiveImport.actorId,
-        currentActorId: currentActor.id,
-        currentAccountId: currentActor.account?.id,
-        database
-      })
-      if (!hasAccess) {
         return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
       }
 
@@ -277,7 +314,14 @@ export const GET = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
     }
 
-    const summary = summarizeBatch(files)
+    const fileSummary = summarizeBatch(files)
+    const summary =
+      archiveImport && archiveImport.batchId === batchId
+        ? summarizeWithArchiveImport({
+            filesSummary: fileSummary,
+            archiveSummary: summarizeArchiveImport(archiveImport)
+          })
+        : fileSummary
 
     return apiResponse({
       req,

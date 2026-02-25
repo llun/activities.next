@@ -36,9 +36,28 @@ exports.up = async function (knex) {
     table.index(['batchId'], 'strava_archive_imports_batch_id_idx')
   })
 
-  await knex.schema.raw(
-    'CREATE UNIQUE INDEX strava_archive_imports_actor_active_idx ON strava_archive_imports("actorId") WHERE "resolvedAt" IS NULL'
-  )
+  const client = knex.client.config.client
+  const supportsPartialUniqueIndex = [
+    'pg',
+    'postgres',
+    'postgresql',
+    'sqlite3',
+    'better-sqlite3'
+  ].includes(client)
+
+  if (supportsPartialUniqueIndex) {
+    await knex.schema.raw(
+      'CREATE UNIQUE INDEX strava_archive_imports_actor_active_idx ON strava_archive_imports("actorId") WHERE "resolvedAt" IS NULL'
+    )
+  } else {
+    // Fallback for database engines without partial unique indexes.
+    await knex.schema.alterTable('strava_archive_imports', function (table) {
+      table.index(
+        ['actorId', 'resolvedAt'],
+        'strava_archive_imports_actor_resolved_idx'
+      )
+    })
+  }
 }
 
 /**
@@ -46,7 +65,27 @@ exports.up = async function (knex) {
  * @returns { Promise<void> }
  */
 exports.down = async function (knex) {
-  await knex.schema.raw('DROP INDEX strava_archive_imports_actor_active_idx')
+  const client = knex.client.config.client
+  const supportsPartialUniqueIndex = [
+    'pg',
+    'postgres',
+    'postgresql',
+    'sqlite3',
+    'better-sqlite3'
+  ].includes(client)
+
+  if (supportsPartialUniqueIndex) {
+    await knex.schema.raw(
+      'DROP INDEX IF EXISTS strava_archive_imports_actor_active_idx'
+    )
+  } else {
+    await knex.schema.alterTable('strava_archive_imports', function (table) {
+      table.dropIndex(
+        ['actorId', 'resolvedAt'],
+        'strava_archive_imports_actor_resolved_idx'
+      )
+    })
+  }
 
   await knex.schema.dropTable('strava_archive_imports')
 }

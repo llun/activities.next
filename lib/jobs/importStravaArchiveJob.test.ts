@@ -430,6 +430,41 @@ describe('importStravaArchiveJob', () => {
     )
   })
 
+  it('rolls back staged fitness files when import enqueue fails', async () => {
+    mockQueuePublish.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-queue-fail',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(mockDeleteFitnessFile).toHaveBeenCalledTimes(1)
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      database,
+      'activity-file-1'
+    )
+    expect(mockDeleteFitnessFile).not.toHaveBeenCalledWith(
+      database,
+      'archive-file-1',
+      expect.anything()
+    )
+    expect(database.updateStravaArchiveImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'import-1',
+        status: 'failed',
+        lastError: 'queue unavailable'
+      })
+    )
+  })
+
   it('cleans up archive source file when actor no longer exists', async () => {
     database.getActorFromId.mockResolvedValueOnce(null as never)
 

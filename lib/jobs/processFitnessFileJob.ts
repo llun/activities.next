@@ -5,7 +5,10 @@ import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
-import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
+import {
+  isParseableFitnessFileType,
+  parseFitnessFile
+} from '@/lib/services/fitness-files/parseFitnessFile'
 import {
   getFitnessPrivacyLocations,
   getVisibleSegments
@@ -157,6 +160,11 @@ export const processFitnessFileJob = createJobHandle(
       }
 
       const fitnessBuffer = await getFitnessFileBuffer(database, fitnessFileId)
+      if (!isParseableFitnessFileType(fitnessFile.fileType)) {
+        throw new Error(
+          `Unsupported fitness file type for activity parsing: ${fitnessFile.fileType}`
+        )
+      }
 
       const activityData = await parseFitnessFile({
         fileType: fitnessFile.fileType,

@@ -41,7 +41,8 @@ jest.mock('@/lib/services/fitness-files', () => ({
 
 const mockParseFitnessFile = jest.fn()
 jest.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
-  parseFitnessFile: (...args: unknown[]) => mockParseFitnessFile(...args)
+  parseFitnessFile: (...args: unknown[]) => mockParseFitnessFile(...args),
+  isParseableFitnessFileType: jest.fn().mockReturnValue(true)
 }))
 
 jest.mock('next/headers', () => ({

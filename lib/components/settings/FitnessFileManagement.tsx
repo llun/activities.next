@@ -35,7 +35,7 @@ interface FitnessFileItem {
   id: string
   actorId: string
   fileName: string
-  fileType: 'fit' | 'gpx' | 'tcx'
+  fileType: 'fit' | 'gpx' | 'tcx' | 'zip'
   mimeType: string
   bytes: number
   description?: string

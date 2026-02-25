@@ -28,7 +28,8 @@ jest.mock('@/lib/services/fitness-files', () => {
 })
 
 jest.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
-  parseFitnessFile: jest.fn()
+  parseFitnessFile: jest.fn(),
+  isParseableFitnessFileType: jest.fn().mockReturnValue(true)
 }))
 
 const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<

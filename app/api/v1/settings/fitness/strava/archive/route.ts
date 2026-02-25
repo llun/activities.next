@@ -54,17 +54,6 @@ const isZipArchiveFile = (file: File): boolean => {
   return ACCEPTED_ZIP_MIME_TYPES.includes(file.type.toLowerCase())
 }
 
-const toArchiveStorageFile = (archiveFile: File): File => {
-  // Fitness storage currently supports only fit/gpx/tcx extensions.
-  // Keep the original ZIP MIME type and use a compatible extension until
-  // storage supports a dedicated archive file type.
-  // TODO: remove this extension workaround once archive uploads are first-class.
-  const baseName = archiveFile.name.replace(/\.zip$/i, '')
-  return new File([archiveFile], `${baseName}.fit`, {
-    type: archiveFile.type || 'application/zip'
-  })
-}
-
 const toActiveImportResponse = (activeImport: StravaArchiveImport) => {
   return {
     id: activeImport.id,
@@ -230,11 +219,8 @@ export const POST = traceApiRoute(
       const batchId = getStravaArchiveImportBatchId(archiveId)
       const importId = crypto.randomUUID()
 
-      // Keep the original archive MIME type while storing in fitness storage.
-      const archiveStorageFile = toArchiveStorageFile(archiveRaw)
-
       const storedArchive = await saveFitnessFile(database, currentActor, {
-        file: archiveStorageFile,
+        file: archiveRaw,
         importBatchId: sourceBatchId,
         description: 'Strava archive import source'
       })
@@ -279,14 +265,24 @@ export const POST = traceApiRoute(
       })
     } catch (error) {
       if (archiveFileId) {
-        await deleteFitnessFile(database, archiveFileId).catch(() => {
+        try {
+          const deleted = await deleteFitnessFile(database, archiveFileId)
+          if (!deleted) {
+            logger.error({
+              message:
+                'Failed to rollback archive file after queue publish failure',
+              actorId: currentActor.id,
+              archiveFileId
+            })
+          }
+        } catch {
           logger.error({
             message:
               'Failed to rollback archive file after queue publish failure',
             actorId: currentActor.id,
             archiveFileId
           })
-        })
+        }
       }
       if (archiveImportId) {
         await database.deleteStravaArchiveImport({

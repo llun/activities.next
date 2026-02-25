@@ -120,7 +120,7 @@ describe('Strava archive import route', () => {
     db.getFitnessFile.mockResolvedValue({
       id: 'archive-file-id',
       actorId: 'https://llun.test/users/llun',
-      path: 'archive/path.fit'
+      path: 'archive/path.zip'
     })
     db.updateStravaArchiveImport.mockResolvedValue({})
     db.updateFitnessFileImportStatus.mockResolvedValue(true)
@@ -129,10 +129,10 @@ describe('Strava archive import route', () => {
     mockSaveFitnessFile.mockResolvedValue({
       id: 'archive-file-id',
       type: 'fitness',
-      file_type: 'fit',
-      mime_type: 'application/vnd.ant.fit',
+      file_type: 'zip',
+      mime_type: 'application/zip',
       url: 'https://llun.test/api/v1/fitness-files/archive-file-id',
-      fileName: 'export_1.fit',
+      fileName: 'export_1.zip',
       size: 1024
     })
     mockDeleteFitnessFile.mockResolvedValue(true)
@@ -226,6 +226,18 @@ describe('Strava archive import route', () => {
     expect(data.batchId).toBeDefined()
     expect(data.importId).toBe('import-1')
     expect(mockSaveFitnessFile).toHaveBeenCalledTimes(1)
+    expect(mockSaveFitnessFile).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        id: 'https://llun.test/users/llun'
+      }),
+      expect.objectContaining({
+        file: expect.objectContaining({
+          name: 'export_1.zip',
+          type: 'application/zip'
+        })
+      })
+    )
     expect(db.createStravaArchiveImport).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: 'https://llun.test/users/llun',
@@ -375,5 +387,35 @@ describe('Strava archive import route', () => {
         status: 'cancelled'
       })
     )
+  })
+
+  it('POST attempts archive rollback even when delete returns false', async () => {
+    getQueue().publish.mockRejectedValueOnce(new Error('queue unavailable'))
+    mockDeleteFitnessFile.mockResolvedValueOnce(false)
+
+    const formData = new FormData()
+    formData.append(
+      'archive',
+      new File([Buffer.from('zip-data')], 'export_3.zip', {
+        type: 'application/zip'
+      })
+    )
+    formData.append('visibility', 'private')
+
+    const request = {
+      headers: new Headers(),
+      formData: async () => formData
+    } as unknown as Parameters<typeof POST>[0]
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(500)
+    expect(mockDeleteFitnessFile).toHaveBeenCalledWith(
+      expect.any(Object),
+      'archive-file-id'
+    )
+    expect(db.deleteStravaArchiveImport).toHaveBeenCalledWith({
+      id: 'import-1'
+    })
   })
 })

@@ -704,21 +704,55 @@ export const importStravaArchiveJob = createJobHandle(
       }
 
       if (savedArchiveActivities.length > 0) {
-        await getQueue().publish({
-          id: getHashFromString(
-            `${actorId}:strava-archive:${archiveId}:import-fitness-files:${nextArchiveActivityIndex}`
-          ),
-          name: IMPORT_FITNESS_FILES_JOB_NAME,
-          data: {
-            actorId,
-            batchId,
-            fitnessFileIds: savedArchiveActivities.map(
-              ({ fitnessFileId }) => fitnessFileId
+        const savedFitnessFileIds = savedArchiveActivities.map(
+          ({ fitnessFileId }) => fitnessFileId
+        )
+        try {
+          await getQueue().publish({
+            id: getHashFromString(
+              `${actorId}:strava-archive:${archiveId}:import-fitness-files:${nextArchiveActivityIndex}`
             ),
-            overlapFitnessFileIds: [],
-            visibility
+            name: IMPORT_FITNESS_FILES_JOB_NAME,
+            data: {
+              actorId,
+              batchId,
+              fitnessFileIds: savedFitnessFileIds,
+              overlapFitnessFileIds: [],
+              visibility
+            }
+          })
+        } catch (error) {
+          const rollbackResults = await Promise.all(
+            savedFitnessFileIds.map(async (fitnessFileId) => {
+              try {
+                const deleted = await deleteFitnessFile(database, fitnessFileId)
+                return {
+                  fitnessFileId,
+                  deleted
+                }
+              } catch {
+                return {
+                  fitnessFileId,
+                  deleted: false
+                }
+              }
+            })
+          )
+          const rollbackFailures = rollbackResults
+            .filter((result) => !result.deleted)
+            .map((result) => result.fitnessFileId)
+          if (rollbackFailures.length > 0) {
+            logger.error({
+              message:
+                'Failed to rollback staged Strava archive fitness files after queue publish failure',
+              actorId,
+              archiveId,
+              importId,
+              rollbackFailures
+            })
           }
-        })
+          throw error
+        }
       }
 
       let mediaActivities = [

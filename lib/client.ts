@@ -599,7 +599,7 @@ export const getActorMedia = async ({
 export interface UploadFitnessFileResult {
   id: string
   type: 'fitness'
-  file_type: 'fit' | 'gpx' | 'tcx'
+  file_type: 'fit' | 'gpx' | 'tcx' | 'zip'
   mime_type: string
   url: string
   fileName: string
@@ -613,7 +613,7 @@ export interface FitnessImportBatchFile {
   id: string
   actorId: string
   fileName: string
-  fileType: 'fit' | 'gpx' | 'tcx'
+  fileType: 'fit' | 'gpx' | 'tcx' | 'zip'
   statusId: string | null
   isPrimary: boolean
   importStatus: 'pending' | 'completed' | 'failed'
