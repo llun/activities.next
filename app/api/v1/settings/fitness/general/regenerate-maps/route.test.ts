@@ -38,6 +38,7 @@ type MockDatabase = Pick<
   | 'updateFitnessFilesProcessingStatus'
   | 'updateFitnessFileProcessingStatus'
   | 'getAccountFromEmail'
+  | 'getActorsForAccount'
   | 'getActorFromId'
 >
 
@@ -58,6 +59,7 @@ describe('POST /api/v1/settings/fitness/general/regenerate-maps', () => {
     updateFitnessFilesProcessingStatus: jest.fn(),
     updateFitnessFileProcessingStatus: jest.fn(),
     getAccountFromEmail: jest.fn(),
+    getActorsForAccount: jest.fn(),
     getActorFromId: jest.fn()
   }
 
@@ -75,6 +77,17 @@ describe('POST /api/v1/settings/fitness/general/regenerate-maps', () => {
       email: seedActor1.email,
       defaultActorId: ACTOR1_ID
     })
+    mockDb.getActorsForAccount.mockResolvedValue([
+      {
+        ...seedActor1,
+        id: ACTOR1_ID,
+        account: {
+          id: 'account-1',
+          email: seedActor1.email,
+          defaultActorId: ACTOR1_ID
+        }
+      }
+    ])
     mockDb.getActorFromId.mockResolvedValue({
       ...seedActor1,
       id: ACTOR1_ID,

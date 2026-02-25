@@ -11,6 +11,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AppRouterParams, AuthenticatedApiHandle } from './types'
 
@@ -41,9 +42,7 @@ export const OAuthGuard =
 
     const session = await getServerSession(getAuthOptions())
     if (session?.user?.email) {
-      const currentActor = await database.getActorFromEmail({
-        email: session.user.email
-      })
+      const currentActor = await getActorFromSession(database, session)
       if (!currentActor) return apiErrorResponse(401)
       return handle(req, { currentActor, database, params: context.params })
     }

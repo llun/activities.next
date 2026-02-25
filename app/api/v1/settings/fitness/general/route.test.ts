@@ -29,6 +29,7 @@ type MockDatabase = Pick<
   | 'createFitnessSettings'
   | 'updateFitnessSettings'
   | 'getAccountFromEmail'
+  | 'getActorsForAccount'
   | 'getActorFromId'
 >
 
@@ -49,6 +50,7 @@ describe('Fitness General Settings API', () => {
     createFitnessSettings: jest.fn(),
     updateFitnessSettings: jest.fn(),
     getAccountFromEmail: jest.fn(),
+    getActorsForAccount: jest.fn(),
     getActorFromId: jest.fn()
   }
 
@@ -88,6 +90,9 @@ describe('Fitness General Settings API', () => {
       email: seedActor1.email,
       defaultActorId: ACTOR1_ID
     })
+    mockDb.getActorsForAccount.mockResolvedValue([
+      { ...seedActor1, id: ACTOR1_ID }
+    ])
     mockDb.getActorFromId.mockResolvedValue({
       ...seedActor1,
       id: ACTOR1_ID
