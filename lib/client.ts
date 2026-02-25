@@ -668,6 +668,16 @@ export interface ActiveStravaArchiveImportResponse {
   activeImport: ActiveStravaArchiveImport | null
 }
 
+export class ApiRequestError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+  }
+}
+
 const parseApiError = async (
   response: Response,
   fallbackMessage: string
@@ -863,7 +873,7 @@ export const getFitnessImportBatch = async (
       response,
       'Failed to fetch fitness import batch.'
     )
-    throw new Error(errorDetails)
+    throw new ApiRequestError(errorDetails, response.status)
   }
 
   return response.json()

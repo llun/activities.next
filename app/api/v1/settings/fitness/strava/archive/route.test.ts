@@ -132,7 +132,7 @@ describe('Strava archive import route', () => {
       file_type: 'fit',
       mime_type: 'application/vnd.ant.fit',
       url: 'https://llun.test/api/v1/fitness-files/archive-file-id',
-      fileName: 'export_1.zip',
+      fileName: 'export_1.fit',
       size: 1024
     })
     mockDeleteFitnessFile.mockResolvedValue(true)

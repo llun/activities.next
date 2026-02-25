@@ -41,6 +41,9 @@ export interface StravaArchiveImportDatabase {
   getStravaArchiveImportById(params: {
     id: string
   }): Promise<StravaArchiveImport | null>
+  getStravaArchiveImportByBatchId(params: {
+    batchId: string
+  }): Promise<StravaArchiveImport | null>
   getActiveStravaArchiveImportByActor(params: {
     actorId: string
   }): Promise<StravaArchiveImport | null>
@@ -173,6 +176,19 @@ export const StravaArchiveImportSQLDatabaseMixin = (
   async getStravaArchiveImportById({ id }: { id: string }) {
     const row = await database<SQLStravaArchiveImport>('strava_archive_imports')
       .where({ id })
+      .first()
+
+    if (!row) {
+      return null
+    }
+
+    return parseRow(row)
+  },
+
+  async getStravaArchiveImportByBatchId({ batchId }: { batchId: string }) {
+    const row = await database<SQLStravaArchiveImport>('strava_archive_imports')
+      .where({ batchId })
+      .orderBy('createdAt', 'desc')
       .first()
 
     if (!row) {

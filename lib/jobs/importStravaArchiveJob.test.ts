@@ -8,6 +8,7 @@ import {
   deleteFitnessFile,
   saveFitnessFile
 } from '@/lib/services/fitness-files'
+import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import {
   StravaArchiveReader,
@@ -349,6 +350,58 @@ describe('importStravaArchiveJob', () => {
       'Continuing Strava archive import from activity 2/2'
     )
     expect(mockDeleteFitnessFile).not.toHaveBeenCalled()
+  })
+
+  it('attaches valid media paths even when earlier paths are missing', async () => {
+    database.getAttachments.mockResolvedValueOnce(
+      Array.from({ length: MAX_ATTACHMENTS - 1 }, (_, index) => ({
+        id: `attachment-${index}`,
+        statusId: 'status-1',
+        actorId: 'actor-1'
+      })) as never
+    )
+
+    mockArchiveReaderOpen.mockResolvedValueOnce({
+      close: jest.fn(),
+      hasEntry: jest
+        .fn()
+        .mockImplementation(
+          (entryPath: string) => entryPath !== 'media/missing.jpg'
+        ),
+      getActivities: jest.fn().mockResolvedValue([
+        {
+          activityId: 'activity-1',
+          activityName: 'Morning Ride',
+          fitnessFilePath: 'activities/activity-1.fit',
+          mediaPaths: ['media/missing.jpg', 'media/photo-2.jpg']
+        }
+      ]),
+      readEntryBuffer: jest
+        .fn()
+        .mockResolvedValueOnce(Buffer.from('fitness-file'))
+        .mockResolvedValueOnce(Buffer.from('media-file'))
+    } as never)
+
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-media-scan',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1',
+        visibility: 'private'
+      }
+    })
+
+    expect(mockSaveMedia).toHaveBeenCalledTimes(1)
+    expect(database.createAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusId: 'status-1',
+        name: 'photo-2.jpg'
+      })
+    )
   })
 
   it('keeps archive source file when import fails', async () => {

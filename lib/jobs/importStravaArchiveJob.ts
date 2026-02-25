@@ -265,7 +265,12 @@ const attachActivityMediaToStatus = async ({
     return
   }
 
-  for (const mediaPath of activity.mediaPaths.slice(0, remainingSlots)) {
+  let attachedMediaCount = 0
+  for (const mediaPath of activity.mediaPaths) {
+    if (attachedMediaCount >= remainingSlots) {
+      break
+    }
+
     const mimeType = getArchiveMediaMimeType(mediaPath)
     if (!mimeType) {
       continue
@@ -319,6 +324,7 @@ const attachActivityMediaToStatus = async ({
         name: attachmentName,
         mediaId: storedMedia.id
       })
+      attachedMediaCount += 1
     } catch (error) {
       const nodeError = error as Error
       logger.warn({

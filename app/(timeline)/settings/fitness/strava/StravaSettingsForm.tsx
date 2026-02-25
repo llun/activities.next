@@ -5,6 +5,7 @@ import { FC, useEffect, useState } from 'react'
 
 import {
   ActiveStravaArchiveImport,
+  ApiRequestError,
   FitnessImportBatchResult,
   cancelStravaArchiveImport,
   getActiveStravaArchiveImport,
@@ -218,13 +219,15 @@ export const StravaSettingsForm: FC = () => {
       } catch (pollError) {
         if (!isActive) return
 
+        const isBatchNotReady =
+          pollError instanceof ApiRequestError && pollError.status === 404
         const pollMessage =
           pollError instanceof Error
             ? pollError.message
             : 'Failed to load Strava archive import progress'
 
         if (
-          /(404|not found|not_found)/i.test(pollMessage) &&
+          isBatchNotReady &&
           notReadyCount < MAX_ARCHIVE_BATCH_NOT_READY_POLLS
         ) {
           notReadyCount += 1

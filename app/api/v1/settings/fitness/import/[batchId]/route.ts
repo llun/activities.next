@@ -5,6 +5,7 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'
 import { getStravaArchiveSourceBatchId } from '@/lib/services/strava/archiveImport'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
+import { StravaArchiveImport } from '@/lib/types/database/stravaArchiveImport'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -98,27 +99,24 @@ const getSingleBatchActorId = (files: FitnessFile[]): string | null => {
   return actorIds[0] ?? null
 }
 
-const isBatchOwnedByCurrentAccount = async ({
-  files,
+type AccountActorLookupDatabase = {
+  getActorsForAccount: (params: {
+    accountId: string
+  }) => Promise<Array<{ id: string }>>
+}
+
+const isActorOwnedByCurrentAccount = async ({
+  actorId,
   currentActorId,
   currentAccountId,
   database
 }: {
-  files: FitnessFile[]
+  actorId: string
   currentActorId: string
   currentAccountId?: string
-  database: {
-    getActorsForAccount: (params: {
-      accountId: string
-    }) => Promise<Array<{ id: string }>>
-  }
+  database: AccountActorLookupDatabase
 }): Promise<boolean> => {
-  const batchActorId = getSingleBatchActorId(files)
-  if (!batchActorId) {
-    return false
-  }
-
-  if (batchActorId === currentActorId) {
+  if (actorId === currentActorId) {
     return true
   }
 
@@ -130,7 +128,81 @@ const isBatchOwnedByCurrentAccount = async ({
     accountId: currentAccountId
   })
 
-  return accountActors.some((actor) => actor.id === batchActorId)
+  return accountActors.some((actor) => actor.id === actorId)
+}
+
+const isBatchOwnedByCurrentAccount = async ({
+  files,
+  currentActorId,
+  currentAccountId,
+  database
+}: {
+  files: FitnessFile[]
+  currentActorId: string
+  currentAccountId?: string
+  database: AccountActorLookupDatabase
+}): Promise<boolean> => {
+  const batchActorId = getSingleBatchActorId(files)
+  if (!batchActorId) {
+    return false
+  }
+
+  return isActorOwnedByCurrentAccount({
+    actorId: batchActorId,
+    currentActorId,
+    currentAccountId,
+    database
+  })
+}
+
+const summarizeArchiveImport = (
+  archiveImport: StravaArchiveImport
+): {
+  status: BatchStatus
+  total: number
+  pending: number
+  completed: number
+  failed: number
+} => {
+  const completed = archiveImport.completedActivitiesCount
+  const failed = archiveImport.failedActivitiesCount
+  const total = Math.max(
+    archiveImport.totalActivitiesCount ??
+      completed + failed + archiveImport.pendingMediaActivities.length,
+    completed + failed
+  )
+  const pending =
+    archiveImport.status === 'importing'
+      ? Math.max(total - completed - failed, 1)
+      : Math.max(total - completed - failed, 0)
+
+  if (archiveImport.status === 'importing' || pending > 0) {
+    return {
+      status: 'pending',
+      total,
+      pending,
+      completed,
+      failed
+    }
+  }
+
+  if (archiveImport.status === 'completed') {
+    return {
+      status: failed > 0 ? 'partially_failed' : 'completed',
+      total,
+      pending: 0,
+      completed,
+      failed
+    }
+  }
+
+  return {
+    status: completed > 0 ? 'partially_failed' : 'failed',
+    total,
+    pending: 0,
+    completed,
+    failed
+  }
 }
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -155,7 +227,44 @@ export const GET = traceApiRoute(
       }
     }
     if (files.length === 0) {
-      return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      if (!batchId.startsWith(STRAVA_ARCHIVE_BATCH_PREFIX)) {
+        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      }
+
+      const archiveImport = await database.getStravaArchiveImportByBatchId({
+        batchId
+      })
+      if (!archiveImport) {
+        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      }
+
+      const hasAccess = await isActorOwnedByCurrentAccount({
+        actorId: archiveImport.actorId,
+        currentActorId: currentActor.id,
+        currentAccountId: currentActor.account?.id,
+        database
+      })
+      if (!hasAccess) {
+        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      }
+
+      const summary = summarizeArchiveImport(archiveImport)
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {
+          batchId,
+          status: summary.status,
+          summary: {
+            total: summary.total,
+            pending: summary.pending,
+            completed: summary.completed,
+            failed: summary.failed
+          },
+          files: []
+        }
+      })
     }
 
     const hasAccess = await isBatchOwnedByCurrentAccount({

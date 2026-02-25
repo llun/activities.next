@@ -14,6 +14,7 @@ jest.mock('@/app/api/auth/[...nextauth]/authOptions', () => ({
 
 type MockDatabase = {
   getFitnessFilesByBatchId: jest.Mock
+  getStravaArchiveImportByBatchId: jest.Mock
   getActorsForAccount: jest.Mock
   updateFitnessFilesImportStatus: jest.Mock
   updateFitnessFilesProcessingStatus: jest.Mock
@@ -63,6 +64,7 @@ jest.mock('next/headers', () => ({
 describe('fitness import batch route', () => {
   const db: MockDatabase = {
     getFitnessFilesByBatchId: jest.fn(),
+    getStravaArchiveImportByBatchId: jest.fn().mockResolvedValue(null),
     getActorsForAccount: jest.fn().mockResolvedValue([
       {
         id: 'https://llun.test/users/llun'
@@ -82,6 +84,7 @@ describe('fitness import batch route', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: 'llun@activities.local' }
     })
+    db.getStravaArchiveImportByBatchId.mockResolvedValue(null)
     mockDatabase = db
   })
 
@@ -195,6 +198,61 @@ describe('fitness import batch route', () => {
     })
     expect(db.getFitnessFilesByBatchId).toHaveBeenNthCalledWith(2, {
       batchId: 'strava-archive-source:archive-1'
+    })
+  })
+
+  it('falls back to Strava archive import state when source batch was cleaned up', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([])
+    db.getStravaArchiveImportByBatchId.mockResolvedValueOnce({
+      id: 'import-1',
+      actorId: 'https://llun.test/users/llun',
+      archiveId: 'archive-1',
+      archiveFitnessFileId: 'archive-file-1',
+      batchId: 'strava-archive:archive-1',
+      visibility: 'private',
+      status: 'completed',
+      nextActivityIndex: 3,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 0,
+      totalActivitiesCount: 3,
+      completedActivitiesCount: 3,
+      failedActivitiesCount: 0,
+      firstFailureMessage: undefined,
+      lastError: undefined,
+      resolvedAt: Date.now(),
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
+    const request = {
+      headers: new Headers()
+    } as unknown as Parameters<typeof GET>[0]
+
+    const response = await GET(request, {
+      params: Promise.resolve({ batchId: 'strava-archive:archive-1' })
+    })
+    const json = (await response.json()) as {
+      status: string
+      summary: {
+        total: number
+        completed: number
+        failed: number
+        pending: number
+      }
+      files: unknown[]
+    }
+
+    expect(response.status).toBe(200)
+    expect(json.status).toBe('completed')
+    expect(json.summary).toEqual({
+      total: 3,
+      completed: 3,
+      failed: 0,
+      pending: 0
+    })
+    expect(json.files).toEqual([])
+    expect(db.getStravaArchiveImportByBatchId).toHaveBeenCalledWith({
+      batchId: 'strava-archive:archive-1'
     })
   })
 
