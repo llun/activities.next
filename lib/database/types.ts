@@ -1,5 +1,6 @@
 import { FitnessFileDatabase } from '@/lib/database/sql/fitnessFile'
 import { FitnessSettingsDatabase } from '@/lib/database/sql/fitnessSettings'
+import { StravaArchiveImportDatabase } from '@/lib/database/sql/stravaArchiveImport'
 import {
   AccountDatabase,
   ActorDatabase,
@@ -17,6 +18,7 @@ export type Database = AccountDatabase &
   ActorDatabase &
   FitnessFileDatabase &
   FitnessSettingsDatabase &
+  StravaArchiveImportDatabase &
   FollowDatabase &
   LikeDatabase &
   MediaDatabase &

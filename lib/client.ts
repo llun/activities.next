@@ -599,7 +599,7 @@ export const getActorMedia = async ({
 export interface UploadFitnessFileResult {
   id: string
   type: 'fitness'
-  file_type: 'fit' | 'gpx' | 'tcx'
+  file_type: 'fit' | 'gpx' | 'tcx' | 'zip'
   mime_type: string
   url: string
   fileName: string
@@ -613,7 +613,7 @@ export interface FitnessImportBatchFile {
   id: string
   actorId: string
   fileName: string
-  fileType: 'fit' | 'gpx' | 'tcx'
+  fileType: 'fit' | 'gpx' | 'tcx' | 'zip'
   statusId: string | null
   isPrimary: boolean
   importStatus: 'pending' | 'completed' | 'failed'
@@ -637,6 +637,45 @@ export interface FitnessImportBatchResult {
 export interface StartFitnessImportResult {
   batchId: string
   fileCount: number
+}
+
+export interface StartStravaArchiveImportResult {
+  archiveId: string
+  batchId: string
+  importId: string
+}
+
+export interface ActiveStravaArchiveImport {
+  id: string
+  archiveId: string
+  archiveFitnessFileId: string
+  batchId: string
+  visibility: MastodonVisibility
+  status: 'importing' | 'failed'
+  nextActivityIndex: number
+  mediaAttachmentRetry: number
+  totalActivitiesCount: number | null
+  completedActivitiesCount: number
+  failedActivitiesCount: number
+  firstFailureMessage: string | null
+  lastError: string | null
+  pendingMediaActivitiesCount: number
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ActiveStravaArchiveImportResponse {
+  activeImport: ActiveStravaArchiveImport | null
+}
+
+export class ApiRequestError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+  }
 }
 
 const parseApiError = async (
@@ -724,6 +763,98 @@ export const startFitnessImport = async (
   return response.json()
 }
 
+export const startStravaArchiveImport = async (
+  archive: File,
+  visibility: MastodonVisibility
+): Promise<StartStravaArchiveImportResult> => {
+  const formData = new FormData()
+  formData.append('archive', archive)
+  formData.append('visibility', visibility)
+
+  const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to import Strava archive.'
+    )
+    throw new Error(
+      `Failed to import Strava archive: ${response.status} ${errorDetails}`
+    )
+  }
+
+  return response.json()
+}
+
+export const getActiveStravaArchiveImport =
+  async (): Promise<ActiveStravaArchiveImportResponse> => {
+    const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorDetails = await parseApiError(
+        response,
+        'Failed to load Strava archive import state.'
+      )
+      throw new Error(errorDetails)
+    }
+
+    return response.json()
+  }
+
+export const retryStravaArchiveImport = async (): Promise<{
+  success: boolean
+  activeImport: ActiveStravaArchiveImport | null
+}> => {
+  const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ action: 'retry' })
+  })
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to retry Strava archive import.'
+    )
+    throw new Error(errorDetails)
+  }
+
+  return response.json()
+}
+
+export const cancelStravaArchiveImport = async (): Promise<{
+  success: boolean
+  cancelled: boolean
+}> => {
+  const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ action: 'cancel' })
+  })
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to cancel Strava archive import.'
+    )
+    throw new Error(errorDetails)
+  }
+
+  return response.json()
+}
+
 export const getFitnessImportBatch = async (
   batchId: string
 ): Promise<FitnessImportBatchResult> => {
@@ -742,7 +873,7 @@ export const getFitnessImportBatch = async (
       response,
       'Failed to fetch fitness import batch.'
     )
-    throw new Error(errorDetails)
+    throw new ApiRequestError(errorDetails, response.status)
   }
 
   return response.json()

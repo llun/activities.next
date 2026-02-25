@@ -14,6 +14,8 @@ jest.mock('@/app/api/auth/[...nextauth]/authOptions', () => ({
 
 type MockDatabase = {
   getFitnessFilesByBatchId: jest.Mock
+  getStravaArchiveImportByBatchId: jest.Mock
+  getActorsForAccount: jest.Mock
   updateFitnessFilesImportStatus: jest.Mock
   updateFitnessFilesProcessingStatus: jest.Mock
   updateFitnessFileImportStatus: jest.Mock
@@ -30,6 +32,11 @@ jest.mock('@/lib/utils/getActorFromSession', () => ({
     id: 'https://llun.test/users/llun',
     username: 'llun',
     domain: 'llun.test',
+    account: {
+      id: 'account-1',
+      email: 'llun@activities.local',
+      defaultActorId: 'https://llun.test/users/llun'
+    },
     followersUrl: 'https://llun.test/users/llun/followers',
     inboxUrl: 'https://llun.test/users/llun/inbox',
     sharedInboxUrl: 'https://llun.test/inbox',
@@ -57,6 +64,15 @@ jest.mock('next/headers', () => ({
 describe('fitness import batch route', () => {
   const db: MockDatabase = {
     getFitnessFilesByBatchId: jest.fn(),
+    getStravaArchiveImportByBatchId: jest.fn().mockResolvedValue(null),
+    getActorsForAccount: jest.fn().mockResolvedValue([
+      {
+        id: 'https://llun.test/users/llun'
+      },
+      {
+        id: 'https://llun.test/users/testactor2'
+      }
+    ]),
     updateFitnessFilesImportStatus: jest.fn().mockResolvedValue(1),
     updateFitnessFilesProcessingStatus: jest.fn().mockResolvedValue(1),
     updateFitnessFileImportStatus: jest.fn().mockResolvedValue(true),
@@ -68,6 +84,7 @@ describe('fitness import batch route', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: 'llun@activities.local' }
     })
+    db.getStravaArchiveImportByBatchId.mockResolvedValue(null)
     mockDatabase = db
   })
 
@@ -110,6 +127,179 @@ describe('fitness import batch route', () => {
 
     const response = await GET(request, {
       params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const json = (await response.json()) as {
+      status: string
+      summary: {
+        total: number
+        completed: number
+        failed: number
+        pending: number
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(json.status).toBe('partially_failed')
+    expect(json.summary).toEqual({
+      total: 2,
+      completed: 1,
+      failed: 1,
+      pending: 0
+    })
+  })
+
+  it('falls back to Strava archive source batch when import batch is empty', async () => {
+    db.getFitnessFilesByBatchId
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 'archive-file-1',
+          actorId: 'https://llun.test/users/llun',
+          fileName: 'export_1.fit',
+          fileType: 'fit',
+          path: 'fitness/export_1.fit',
+          mimeType: 'application/zip',
+          bytes: 2048,
+          importStatus: 'completed',
+          processingStatus: 'completed',
+          isPrimary: true,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+
+    const request = {
+      headers: new Headers()
+    } as unknown as Parameters<typeof GET>[0]
+
+    const response = await GET(request, {
+      params: Promise.resolve({ batchId: 'strava-archive:archive-1' })
+    })
+    const json = (await response.json()) as {
+      status: string
+      summary: {
+        total: number
+        completed: number
+        failed: number
+        pending: number
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(json.status).toBe('completed')
+    expect(json.summary).toEqual({
+      total: 1,
+      completed: 1,
+      failed: 0,
+      pending: 0
+    })
+    expect(db.getFitnessFilesByBatchId).toHaveBeenNthCalledWith(1, {
+      batchId: 'strava-archive:archive-1'
+    })
+    expect(db.getFitnessFilesByBatchId).toHaveBeenNthCalledWith(2, {
+      batchId: 'strava-archive-source:archive-1'
+    })
+  })
+
+  it('falls back to Strava archive import state when source batch was cleaned up', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([])
+    db.getStravaArchiveImportByBatchId.mockResolvedValueOnce({
+      id: 'import-1',
+      actorId: 'https://llun.test/users/llun',
+      archiveId: 'archive-1',
+      archiveFitnessFileId: 'archive-file-1',
+      batchId: 'strava-archive:archive-1',
+      visibility: 'private',
+      status: 'completed',
+      nextActivityIndex: 3,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 0,
+      totalActivitiesCount: 3,
+      completedActivitiesCount: 3,
+      failedActivitiesCount: 0,
+      firstFailureMessage: undefined,
+      lastError: undefined,
+      resolvedAt: Date.now(),
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
+    const request = {
+      headers: new Headers()
+    } as unknown as Parameters<typeof GET>[0]
+
+    const response = await GET(request, {
+      params: Promise.resolve({ batchId: 'strava-archive:archive-1' })
+    })
+    const json = (await response.json()) as {
+      status: string
+      summary: {
+        total: number
+        completed: number
+        failed: number
+        pending: number
+      }
+      files: unknown[]
+    }
+
+    expect(response.status).toBe(200)
+    expect(json.status).toBe('completed')
+    expect(json.summary).toEqual({
+      total: 3,
+      completed: 3,
+      failed: 0,
+      pending: 0
+    })
+    expect(json.files).toEqual([])
+    expect(db.getStravaArchiveImportByBatchId).toHaveBeenCalledWith({
+      batchId: 'strava-archive:archive-1'
+    })
+  })
+
+  it('includes archive failure counters when file rows exist', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValueOnce([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'activity-1.fit',
+        fileType: 'fit',
+        path: 'fitness/activity-1.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'completed',
+        processingStatus: 'completed',
+        isPrimary: true,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+    db.getStravaArchiveImportByBatchId.mockResolvedValueOnce({
+      id: 'import-1',
+      actorId: 'https://llun.test/users/llun',
+      archiveId: 'archive-1',
+      archiveFitnessFileId: 'archive-file-1',
+      batchId: 'strava-archive:archive-1',
+      visibility: 'private',
+      status: 'completed',
+      nextActivityIndex: 2,
+      pendingMediaActivities: [],
+      mediaAttachmentRetry: 0,
+      totalActivitiesCount: 2,
+      completedActivitiesCount: 1,
+      failedActivitiesCount: 1,
+      firstFailureMessage: 'corrupt activity row',
+      lastError: undefined,
+      resolvedAt: Date.now(),
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
+    const request = {
+      headers: new Headers()
+    } as unknown as Parameters<typeof GET>[0]
+
+    const response = await GET(request, {
+      params: Promise.resolve({ batchId: 'strava-archive:archive-1' })
     })
     const json = (await response.json()) as {
       status: string
@@ -295,6 +485,38 @@ describe('fitness import batch route', () => {
     })
   })
 
+  it('allows reading batch status for another actor in same account', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/testactor2',
+        fileName: 'first.fit',
+        fileType: 'fit',
+        path: 'fitness/first.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'completed',
+        processingStatus: 'completed',
+        isPrimary: true,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    const request = {
+      headers: new Headers()
+    } as unknown as Parameters<typeof GET>[0]
+
+    const response = await GET(request, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+
+    expect(response.status).toBe(200)
+    expect(db.getActorsForAccount).toHaveBeenCalledWith({
+      accountId: 'account-1'
+    })
+  })
+
   it('retries failed files and requeues import job', async () => {
     db.getFitnessFilesByBatchId.mockResolvedValue([
       {
@@ -396,6 +618,48 @@ describe('fitness import batch route', () => {
         batchId: 'batch-1',
         fitnessFileIds: ['file-failed'],
         overlapFitnessFileIds: ['file-completed'],
+        visibility: 'private'
+      }
+    })
+  })
+
+  it('retries failed files for another actor in same account', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/testactor2',
+        fileName: 'failed.fit',
+        fileType: 'fit',
+        path: 'fitness/failed.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'failed',
+        processingStatus: 'failed',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    const request = {
+      headers: new Headers(),
+      json: async () => ({ visibility: 'private' })
+    } as unknown as Parameters<typeof POST>[0]
+
+    const response = await POST(request, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const json = (await response.json()) as { retried: number }
+
+    expect(response.status).toBe(200)
+    expect(json.retried).toBe(1)
+    expect(getQueue().publish).toHaveBeenCalledWith({
+      id: expect.any(String),
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: 'https://llun.test/users/testactor2',
+        batchId: 'batch-1',
+        fitnessFileIds: ['file-1'],
+        overlapFitnessFileIds: [],
         visibility: 'private'
       }
     })

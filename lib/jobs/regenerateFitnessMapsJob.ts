@@ -7,7 +7,10 @@ import {
 } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
-import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
+import {
+  isParseableFitnessFileType,
+  parseFitnessFile
+} from '@/lib/services/fitness-files/parseFitnessFile'
 import {
   getFitnessPrivacyLocations,
   getVisibleSegments
@@ -178,6 +181,11 @@ export const regenerateFitnessMapsJob = createJobHandle(
           database,
           fitnessFileId
         )
+        if (!isParseableFitnessFileType(fitnessFile.fileType)) {
+          throw new Error(
+            `Unsupported fitness file type for map regeneration: ${fitnessFile.fileType}`
+          )
+        }
         const activityData = await parseFitnessFile({
           fileType: fitnessFile.fileType,
           buffer: fitnessBuffer

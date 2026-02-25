@@ -9,7 +9,10 @@ import { Database } from '@/lib/database/types'
 import { groupFitnessActivitiesByOverlap } from '@/lib/jobs/fitnessImportOverlap'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
-import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
+import {
+  isParseableFitnessFileType,
+  parseFitnessFile
+} from '@/lib/services/fitness-files/parseFitnessFile'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
@@ -290,6 +293,11 @@ export const importFitnessFilesJob = createJobHandle(
 
       try {
         const buffer = await getFitnessFileBuffer(database, fitnessFile)
+        if (!isParseableFitnessFileType(fitnessFile.fileType)) {
+          throw new Error(
+            `Unsupported fitness file type for activity parsing: ${fitnessFile.fileType}`
+          )
+        }
         const activityData = await parseFitnessFile({
           fileType: fitnessFile.fileType,
           buffer

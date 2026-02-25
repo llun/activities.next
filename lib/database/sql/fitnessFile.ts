@@ -10,6 +10,7 @@ import {
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   FitnessFile,
+  FitnessFileType,
   FitnessImportStatus,
   FitnessProcessingStatus,
   SQLFitnessFile
@@ -20,7 +21,7 @@ export interface CreateFitnessFileParams {
   statusId?: string
   path: string
   fileName: string
-  fileType: 'fit' | 'gpx' | 'tcx'
+  fileType: FitnessFileType
   mimeType: string
   bytes: number
   description?: string
@@ -530,10 +531,8 @@ export const FitnessFileSQLDatabaseMixin = (
         statusId,
         importStatus: 'completed',
         importError: null,
-        isPrimary: database.raw('CASE WHEN id = ? THEN ? ELSE ? END', [
-          primaryFitnessFileId,
-          true,
-          false
+        isPrimary: database.raw('CASE WHEN id = ? THEN TRUE ELSE FALSE END', [
+          primaryFitnessFileId
         ]),
         processingStatus: database.raw('CASE WHEN id = ? THEN ? ELSE ? END', [
           primaryFitnessFileId,
