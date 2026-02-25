@@ -27,6 +27,10 @@ import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '@/lib/services/fitness-files/c
 import { getMentionFromActorID } from '@/lib/types/domain/actor'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
+interface FitnessImportProps {
+  actorHandle?: string
+}
+
 const getStatusLink = (actorId: string, statusId: string) => {
   try {
     const actorMention = getMentionFromActorID(actorId, true)
@@ -36,7 +40,7 @@ const getStatusLink = (actorId: string, statusId: string) => {
   }
 }
 
-export function FitnessImport() {
+export function FitnessImport({ actorHandle: _actorHandle }: FitnessImportProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<File[]>([])
   const [visibility, setVisibility] = useState<MastodonVisibility>('public')
