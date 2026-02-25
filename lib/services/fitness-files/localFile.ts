@@ -27,7 +27,8 @@ import {
 const FITNESS_MIME_TYPES: Record<string, string> = {
   '.fit': 'application/vnd.ant.fit',
   '.gpx': 'application/gpx+xml',
-  '.tcx': 'application/vnd.garmin.tcx+xml'
+  '.tcx': 'application/vnd.garmin.tcx+xml',
+  '.zip': 'application/zip'
 }
 
 export class LocalFileFitnessStorage implements FitnessStorage {

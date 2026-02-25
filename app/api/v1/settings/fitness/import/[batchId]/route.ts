@@ -3,7 +3,9 @@ import { z } from 'zod'
 import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'
+import { getStravaArchiveSourceBatchId } from '@/lib/services/strava/archiveImport'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
+import { StravaArchiveImport } from '@/lib/types/database/stravaArchiveImport'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -29,6 +31,21 @@ const Visibility = z.enum(['public', 'unlisted', 'private', 'direct'])
 type BatchStatus = 'pending' | 'completed' | 'failed' | 'partially_failed'
 
 type BatchFileState = 'pending' | 'completed' | 'failed'
+
+const STRAVA_ARCHIVE_BATCH_PREFIX = 'strava-archive:'
+
+const getArchiveSourceBatchId = (batchId: string): string | null => {
+  if (!batchId.startsWith(STRAVA_ARCHIVE_BATCH_PREFIX)) {
+    return null
+  }
+
+  const archiveId = batchId.slice(STRAVA_ARCHIVE_BATCH_PREFIX.length)
+  if (archiveId.length === 0) {
+    return null
+  }
+
+  return getStravaArchiveSourceBatchId(archiveId)
+}
 
 const getBatchFileState = (file: FitnessFile): BatchFileState => {
   const importStatus = file.importStatus ?? 'pending'
@@ -74,11 +91,152 @@ const summarizeBatch = (files: FitnessFile[]) => {
   }
 }
 
-const isBatchOwnedByActor = (
-  files: FitnessFile[],
+const getSingleBatchActorId = (files: FitnessFile[]): string | null => {
+  const actorIds = Array.from(new Set(files.map((item) => item.actorId)))
+  if (actorIds.length !== 1) {
+    return null
+  }
+  return actorIds[0] ?? null
+}
+
+type AccountActorLookupDatabase = {
+  getActorsForAccount: (params: {
+    accountId: string
+  }) => Promise<Array<{ id: string }>>
+}
+
+const isActorOwnedByCurrentAccount = async ({
+  actorId,
+  currentActorId,
+  currentAccountId,
+  database
+}: {
+  actorId: string
   currentActorId: string
-): boolean => {
-  return files.every((item) => item.actorId === currentActorId)
+  currentAccountId?: string
+  database: AccountActorLookupDatabase
+}): Promise<boolean> => {
+  if (actorId === currentActorId) {
+    return true
+  }
+
+  if (!currentAccountId) {
+    return false
+  }
+
+  const accountActors = await database.getActorsForAccount({
+    accountId: currentAccountId
+  })
+
+  return accountActors.some((actor) => actor.id === actorId)
+}
+
+const isBatchOwnedByCurrentAccount = async ({
+  files,
+  currentActorId,
+  currentAccountId,
+  database
+}: {
+  files: FitnessFile[]
+  currentActorId: string
+  currentAccountId?: string
+  database: AccountActorLookupDatabase
+}): Promise<boolean> => {
+  const batchActorId = getSingleBatchActorId(files)
+  if (!batchActorId) {
+    return false
+  }
+
+  return isActorOwnedByCurrentAccount({
+    actorId: batchActorId,
+    currentActorId,
+    currentAccountId,
+    database
+  })
+}
+
+const summarizeArchiveImport = (
+  archiveImport: StravaArchiveImport
+): {
+  status: BatchStatus
+  total: number
+  pending: number
+  completed: number
+  failed: number
+} => {
+  const completed = archiveImport.completedActivitiesCount
+  const failed = archiveImport.failedActivitiesCount
+  const total = Math.max(
+    archiveImport.totalActivitiesCount ??
+      completed + failed + archiveImport.pendingMediaActivities.length,
+    completed + failed
+  )
+  const pending =
+    archiveImport.status === 'importing'
+      ? Math.max(total - completed - failed, 1)
+      : Math.max(total - completed - failed, 0)
+
+  if (archiveImport.status === 'importing' || pending > 0) {
+    return {
+      status: 'pending',
+      total,
+      pending,
+      completed,
+      failed
+    }
+  }
+
+  if (archiveImport.status === 'completed') {
+    return {
+      status: failed > 0 ? 'partially_failed' : 'completed',
+      total,
+      pending: 0,
+      completed,
+      failed
+    }
+  }
+
+  return {
+    status: completed > 0 ? 'partially_failed' : 'failed',
+    total,
+    pending: 0,
+    completed,
+    failed
+  }
+}
+
+const summarizeWithArchiveImport = ({
+  filesSummary,
+  archiveSummary
+}: {
+  filesSummary: ReturnType<typeof summarizeBatch>
+  archiveSummary: ReturnType<typeof summarizeArchiveImport>
+}): ReturnType<typeof summarizeArchiveImport> => {
+  const total = Math.max(filesSummary.total, archiveSummary.total)
+  const completed = Math.max(filesSummary.completed, archiveSummary.completed)
+  const failed = Math.max(filesSummary.failed, archiveSummary.failed)
+  const pending = Math.max(
+    filesSummary.pending,
+    archiveSummary.pending,
+    Math.max(total - completed - failed, 0)
+  )
+
+  let status: BatchStatus = 'completed'
+  if (archiveSummary.status === 'pending' || pending > 0) {
+    status = 'pending'
+  } else if (failed > 0 && completed > 0) {
+    status = 'partially_failed'
+  } else if (failed > 0) {
+    status = 'failed'
+  }
+
+  return {
+    status,
+    total,
+    pending,
+    completed,
+    failed
+  }
 }
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -93,16 +251,77 @@ export const GET = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
     }
 
-    const files = await database.getFitnessFilesByBatchId({ batchId })
+    const archiveImport =
+      batchId.startsWith(STRAVA_ARCHIVE_BATCH_PREFIX) &&
+      batchId.length > STRAVA_ARCHIVE_BATCH_PREFIX.length
+        ? await database.getStravaArchiveImportByBatchId({
+            batchId
+          })
+        : null
+
+    if (archiveImport) {
+      const hasArchiveAccess = await isActorOwnedByCurrentAccount({
+        actorId: archiveImport.actorId,
+        currentActorId: currentActor.id,
+        currentAccountId: currentActor.account?.id,
+        database
+      })
+      if (!hasArchiveAccess) {
+        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      }
+    }
+
+    let files = await database.getFitnessFilesByBatchId({ batchId })
     if (files.length === 0) {
+      const archiveSourceBatchId = getArchiveSourceBatchId(batchId)
+      if (archiveSourceBatchId) {
+        files = await database.getFitnessFilesByBatchId({
+          batchId: archiveSourceBatchId
+        })
+      }
+    }
+    if (files.length === 0) {
+      if (!archiveImport) {
+        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      }
+
+      const summary = summarizeArchiveImport(archiveImport)
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {
+          batchId,
+          status: summary.status,
+          summary: {
+            total: summary.total,
+            pending: summary.pending,
+            completed: summary.completed,
+            failed: summary.failed
+          },
+          files: []
+        }
+      })
+    }
+
+    const hasAccess = await isBatchOwnedByCurrentAccount({
+      files,
+      currentActorId: currentActor.id,
+      currentAccountId: currentActor.account?.id,
+      database
+    })
+    if (!hasAccess) {
       return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
     }
 
-    if (!isBatchOwnedByActor(files, currentActor.id)) {
-      return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
-    }
-
-    const summary = summarizeBatch(files)
+    const fileSummary = summarizeBatch(files)
+    const summary =
+      archiveImport && archiveImport.batchId === batchId
+        ? summarizeWithArchiveImport({
+            filesSummary: fileSummary,
+            archiveSummary: summarizeArchiveImport(archiveImport)
+          })
+        : fileSummary
 
     return apiResponse({
       req,
@@ -148,7 +367,18 @@ export const POST = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
     }
 
-    if (!isBatchOwnedByActor(files, currentActor.id)) {
+    const batchActorId = getSingleBatchActorId(files)
+    if (!batchActorId) {
+      return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+    }
+
+    const hasAccess = await isBatchOwnedByCurrentAccount({
+      files,
+      currentActorId: currentActor.id,
+      currentAccountId: currentActor.account?.id,
+      database
+    })
+    if (!hasAccess) {
       return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
     }
 
@@ -204,11 +434,11 @@ export const POST = traceApiRoute(
     try {
       await getQueue().publish({
         id: getHashFromString(
-          `${currentActor.id}:fitness-import-retry:${batchId}`
+          `${batchActorId}:fitness-import-retry:${batchId}`
         ),
         name: IMPORT_FITNESS_FILES_JOB_NAME,
         data: {
-          actorId: currentActor.id,
+          actorId: batchActorId,
           batchId,
           fitnessFileIds: retriableFileIds,
           overlapFitnessFileIds,
@@ -236,7 +466,7 @@ export const POST = traceApiRoute(
 
       logger.error({
         message: 'Failed to queue retry for fitness imports',
-        actorId: currentActor.id,
+        actorId: batchActorId,
         batchId,
         retried: retriableFiles.length,
         error: nodeError.message
@@ -247,7 +477,7 @@ export const POST = traceApiRoute(
 
     logger.info({
       message: 'Queued retry for failed fitness imports',
-      actorId: currentActor.id,
+      actorId: batchActorId,
       batchId,
       retried: retriableFiles.length
     })

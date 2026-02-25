@@ -9,6 +9,7 @@ import { deleteObjectJob } from './deleteObjectJob'
 import { fetchRemoteStatusJob } from './fetchRemoteStatusJob'
 import { importFitnessFilesJob } from './importFitnessFilesJob'
 import { importStravaActivityJob } from './importStravaActivityJob'
+import { importStravaArchiveJob } from './importStravaArchiveJob'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
@@ -19,6 +20,7 @@ import {
   FETCH_REMOTE_STATUS_JOB_NAME,
   IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+  IMPORT_STRAVA_ARCHIVE_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_ANNOUNCE_JOB_NAME,
@@ -54,6 +56,7 @@ export const JOBS: Record<string, JobHandle> = {
   [REGENERATE_FITNESS_MAPS_JOB_NAME]: regenerateFitnessMapsJob,
   [IMPORT_FITNESS_FILES_JOB_NAME]: importFitnessFilesJob,
   [IMPORT_STRAVA_ACTIVITY_JOB_NAME]: importStravaActivityJob,
+  [IMPORT_STRAVA_ARCHIVE_JOB_NAME]: importStravaArchiveJob,
   [SEND_NOTE_JOB_NAME]: sendNoteJob,
   [SEND_UPDATE_NOTE_JOB_NAME]: sendUpdateNoteJob,
   [SEND_UNDO_ANNOUNCE_JOB_NAME]: sendUndoAnnounceJob,

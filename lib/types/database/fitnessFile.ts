@@ -5,6 +5,7 @@ export type FitnessProcessingStatus =
   | 'failed'
 
 export type FitnessImportStatus = 'pending' | 'completed' | 'failed'
+export type FitnessFileType = 'fit' | 'gpx' | 'tcx' | 'zip'
 
 // SQL row type for fitness_files table
 export interface SQLFitnessFile {
@@ -15,7 +16,7 @@ export interface SQLFitnessFile {
   // File information
   path: string
   fileName: string
-  fileType: 'fit' | 'gpx' | 'tcx'
+  fileType: FitnessFileType
   mimeType: string
   bytes: number | string | bigint
 
@@ -50,7 +51,7 @@ export interface FitnessFile {
 
   path: string
   fileName: string
-  fileType: 'fit' | 'gpx' | 'tcx'
+  fileType: FitnessFileType
   mimeType: string
   bytes: number
 

@@ -118,6 +118,10 @@ describe('Strava Settings API', () => {
 
       expect(response.status).toBe(200)
       expect(data.configured).toBe(false)
+      expect(data.actorId).toBe(ACTOR1_ID)
+      expect(data.actorHandle).toBe(
+        `@${seedActor1.username}@${seedActor1.domain}`
+      )
     })
 
     it('returns clientId without secret when configured', async () => {
@@ -140,6 +144,10 @@ describe('Strava Settings API', () => {
 
       expect(response.status).toBe(200)
       expect(data.configured).toBe(true)
+      expect(data.actorId).toBe(ACTOR1_ID)
+      expect(data.actorHandle).toBe(
+        `@${seedActor1.username}@${seedActor1.domain}`
+      )
       expect(data.clientId).toBe('12345')
       expect(data.clientSecret).toBeUndefined()
     })

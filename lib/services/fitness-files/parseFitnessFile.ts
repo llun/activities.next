@@ -23,9 +23,17 @@ export interface FitnessActivityData {
   startTime?: Date
 }
 
+export type ParseableFitnessFileType = 'fit' | 'gpx' | 'tcx'
+
 export interface ParseFitnessFileParams {
-  fileType: 'fit' | 'gpx' | 'tcx'
+  fileType: ParseableFitnessFileType
   buffer: Buffer
+}
+
+export const isParseableFitnessFileType = (
+  fileType: string
+): fileType is ParseableFitnessFileType => {
+  return fileType === 'fit' || fileType === 'gpx' || fileType === 'tcx'
 }
 
 const XML_OPTIONS = {

@@ -7,6 +7,7 @@ import { Database } from '@/lib/database/types'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import {
   FitnessTrackPoint,
+  isParseableFitnessFileType,
   parseFitnessFile
 } from '@/lib/services/fitness-files/parseFitnessFile'
 import {
@@ -249,6 +250,9 @@ export const GET = traceApiRoute(
           fileId: id
         })
         return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      }
+      if (!isParseableFitnessFileType(fileMetadata.fileType)) {
+        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
       }
 
       const activityData = await parseFitnessFile({

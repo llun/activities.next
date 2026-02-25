@@ -14,6 +14,8 @@ import {
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 
+import { StravaArchiveImportSection } from './StravaArchiveImportSection'
+
 export const StravaSettingsForm: FC = () => {
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
@@ -24,6 +26,7 @@ export const StravaSettingsForm: FC = () => {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [showUnlinkDialog, setShowUnlinkDialog] = useState(false)
+  const [archiveActorHandle, setArchiveActorHandle] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -40,6 +43,12 @@ export const StravaSettingsForm: FC = () => {
           setClientId(data.clientId)
           setClientSecret('••••••••')
           setWebhookUrl(data.webhookUrl || '')
+        }
+        if (
+          typeof data.actorHandle === 'string' &&
+          data.actorHandle.length > 0
+        ) {
+          setArchiveActorHandle(data.actorHandle)
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
@@ -76,8 +85,12 @@ export const StravaSettingsForm: FC = () => {
       }
     }
 
-    fetchSettings()
-    checkUrlParams()
+    const loadInitialState = async () => {
+      await fetchSettings()
+      checkUrlParams()
+    }
+
+    void loadInitialState()
 
     return () => {
       controller.abort()
@@ -153,7 +166,7 @@ export const StravaSettingsForm: FC = () => {
 
   return (
     <>
-      <form onSubmit={handleSave} className="space-y-4">
+      <form onSubmit={handleSave} className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="clientId">Client ID</Label>
           <Input
@@ -245,6 +258,8 @@ export const StravaSettingsForm: FC = () => {
             Unlink
           </Button>
         </div>
+
+        <StravaArchiveImportSection actorHandle={archiveActorHandle} />
       </form>
 
       <Dialog open={showUnlinkDialog} onOpenChange={setShowUnlinkDialog}>

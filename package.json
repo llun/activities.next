@@ -87,6 +87,7 @@
     "sanitize-html": "^2.17.1",
     "sharp": "^0.34.5",
     "tailwind-merge": "^3.5.0",
+    "yauzl": "^3.2.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -116,6 +117,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/react-modal": "^3.16.3",
     "@types/sanitize-html": "^2.16.0",
+    "@types/yauzl": "^2.10.3",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
     "dotenv-flow": "^4.1.0",

@@ -56,7 +56,7 @@ export type FitnessFileUploadSchema = z.infer<typeof FitnessFileUploadSchema>
 export const FitnessStorageSaveFileOutput = z.object({
   id: z.string(),
   type: z.literal('fitness'),
-  file_type: z.enum(['fit', 'gpx', 'tcx']),
+  file_type: z.enum(['fit', 'gpx', 'tcx', 'zip']),
   mime_type: z.string(),
   url: z.string().url(),
   fileName: z.string(),
@@ -104,7 +104,7 @@ export interface FitnessStorage {
 export function getFitnessFileType(
   fileName: string,
   mimeType: string
-): 'fit' | 'gpx' | 'tcx' {
+): 'fit' | 'gpx' | 'tcx' | 'zip' {
   const lowerName = fileName.toLowerCase()
   if (lowerName.endsWith('.fit') || mimeType.includes('fit')) {
     return 'fit'
@@ -112,6 +112,12 @@ export function getFitnessFileType(
     return 'gpx'
   } else if (lowerName.endsWith('.tcx') || mimeType.includes('tcx')) {
     return 'tcx'
+  } else if (
+    lowerName.endsWith('.zip') ||
+    mimeType.includes('/zip') ||
+    mimeType.includes('x-zip-compressed')
+  ) {
+    return 'zip'
   }
 
   throw new Error(
