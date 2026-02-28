@@ -42,37 +42,54 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
 
       if (status.text.includes(getActorURL(currentActor))) {
         const account = currentActor.account
+        const notificationPromises: Promise<unknown>[] = []
+
         if (config.email && account && status.actor) {
-          try {
-            // Check if email notifications are enabled for this notification type
-            const shouldSendEmail = await shouldSendEmailForNotification(
+          notificationPromises.push(
+            shouldSendEmailForNotification(
               database,
               currentActor.id,
               NotificationType.enum.mention
-            )
-
-            if (shouldSendEmail) {
-              await sendMail({
-                from: config.email.serviceFromAddress,
-                to: [account.email],
-                subject: getSubject(status.actor),
-                content: {
-                  text: getTextContent(status),
-                  html: getHTMLContent(status)
-                }
-              })
-            }
-          } catch (error) {
-            // Log error but don't fail the mention operation
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: 'Failed to send mention notification email'
+            ).then(async (shouldSendEmail) => {
+              if (shouldSendEmail) {
+                await sendMail({
+                  from: config.email!.serviceFromAddress,
+                  to: [account.email],
+                  subject: getSubject(status.actor!),
+                  content: {
+                    text: getTextContent(status),
+                    html: getHTMLContent(status)
+                  }
+                })
+              }
             })
-            span.recordException(
-              error instanceof Error ? error : new Error(String(error))
-            )
-          }
+          )
         }
+
+        if (!status.isLocalActor) {
+          notificationPromises.push(
+            database.createNotification({
+              actorId: currentActor.id,
+              type: NotificationType.enum.mention,
+              sourceActorId: status.actorId,
+              statusId: status.id,
+              groupKey: `mention:${status.id}`
+            })
+          )
+        }
+
+        try {
+          await Promise.all(notificationPromises)
+        } catch (error) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: 'Failed to process mention notification'
+          })
+          span.recordException(
+            error instanceof Error ? error : new Error(String(error))
+          )
+        }
+
         span.end()
         return Timeline.MENTION
       }
