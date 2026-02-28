@@ -5,8 +5,6 @@ import { redirect } from 'next/navigation'
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { FitnessFileManagement } from '@/lib/components/settings/FitnessFileManagement'
 import { FitnessImport } from '@/lib/components/settings/FitnessImport'
-import { FitnessPrivacyLocationSettings } from '@/lib/components/settings/FitnessPrivacyLocationSettings'
-import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getFitnessQuotaLimit } from '@/lib/services/fitness-files/quota'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
@@ -65,12 +63,9 @@ const Page = async ({
 
   const limit = getFitnessQuotaLimit()
   const used = mediaUsed + fitnessUsed
-  const mapboxAccessToken =
-    getConfig().fitnessStorage?.mapboxAccessToken?.trim()
 
   return (
     <div className="space-y-6">
-      <FitnessPrivacyLocationSettings mapboxAccessToken={mapboxAccessToken} />
       <FitnessImport actorHandle={actorHandle} />
       <FitnessFileManagement
         used={used}
