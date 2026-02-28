@@ -87,6 +87,15 @@ export type FitnessStorageGetRedirectOutput = z.infer<
   typeof FitnessStorageGetRedirectOutput
 >
 
+export const PresignedFitnessUrlOutput = z.object({
+  url: z.string().url(),
+  fields: z.record(z.string(), z.string()),
+  fitnessFileId: z.string()
+})
+export type PresignedFitnessUrlOutput = z.infer<
+  typeof PresignedFitnessUrlOutput
+>
+
 export interface FitnessStorage {
   saveFile(
     actor: Actor,
@@ -98,6 +107,16 @@ export interface FitnessStorage {
     FitnessStorageGetFileOutput | FitnessStorageGetRedirectOutput | null
   >
   deleteFile(filePath: string): Promise<boolean>
+  getPresignedForSaveFileUrl(
+    actor: Actor,
+    input: {
+      fileName: string
+      contentType: string
+      size: number
+      importBatchId?: string
+      description?: string
+    }
+  ): Promise<PresignedFitnessUrlOutput | null>
 }
 
 // Helper to determine file type from filename or mime type

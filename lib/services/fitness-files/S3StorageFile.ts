@@ -4,6 +4,7 @@ import {
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post'
 import crypto from 'crypto'
 import { format } from 'date-fns'
 import { Readable } from 'stream'
@@ -21,6 +22,7 @@ import {
   FitnessStorage,
   FitnessStorageGetFileOutput,
   FitnessStorageSaveFileOutput,
+  PresignedFitnessUrlOutput,
   getFitnessFileType
 } from './types'
 
@@ -185,6 +187,72 @@ export class S3FitnessStorage implements FitnessStorage {
       size: file.size,
       description,
       hasMapData: false
+    })
+  }
+
+  async getPresignedForSaveFileUrl(
+    actor: Actor,
+    input: {
+      fileName: string
+      contentType: string
+      size: number
+      importBatchId?: string
+      description?: string
+    }
+  ): Promise<PresignedFitnessUrlOutput | null> {
+    const quotaCheck = await checkFitnessQuotaAvailable(
+      this._database,
+      actor,
+      input.size
+    )
+    if (!quotaCheck.available) {
+      throw new QuotaExceededError(
+        'Storage quota exceeded',
+        quotaCheck.used,
+        quotaCheck.limit
+      )
+    }
+
+    const { bucket, prefix } = this._config
+    const currentTime = Date.now()
+    const randomPrefix = crypto.randomBytes(8).toString('hex')
+    const timeDirectory = format(currentTime, 'yyyy-MM-dd')
+    const fileName = `${timeDirectory}/${randomPrefix}.zip`
+    const key = prefix ? `${prefix}${fileName}` : fileName
+
+    const { url, fields } = await createPresignedPost(this._client, {
+      Bucket: bucket,
+      Key: key,
+      Conditions: [
+        { bucket },
+        { key },
+        ['content-length-range', 0, input.size]
+      ],
+      // Strava archive ZIPs can be very large; allow 1 hour for the upload.
+      Expires: 3600
+    })
+
+    const storedFile = await this._database.createFitnessFile({
+      actorId: actor.id,
+      path: fileName,
+      fileName: input.fileName,
+      fileType: 'zip',
+      mimeType: input.contentType,
+      bytes: input.size,
+      description: input.description,
+      importBatchId: input.importBatchId
+    })
+
+    if (!storedFile) {
+      throw new Error(
+        'Failed to pre-create fitness file record for presigned upload'
+      )
+    }
+
+    return PresignedFitnessUrlOutput.parse({
+      url,
+      fields,
+      fitnessFileId: storedFile.id
     })
   }
 }
