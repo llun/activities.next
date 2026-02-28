@@ -5,8 +5,10 @@ import { FC } from 'react'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import { Mastodon } from '@/lib/types/activitypub'
 import { getMention } from '@/lib/types/domain/actor'
-import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import { Status } from '@/lib/types/domain/status'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
+import { cleanClassName } from '@/lib/utils/text/cleanClassName'
+import { processStatusText } from '@/lib/utils/text/processStatusText'
 
 interface NotificationWithData extends GroupedNotification {
   account: Mastodon.Account
@@ -15,15 +17,14 @@ interface NotificationWithData extends GroupedNotification {
 }
 
 interface Props {
+  host: string
   notification: NotificationWithData
 }
 
-export const MentionNotification: FC<Props> = ({ notification }) => {
+export const MentionNotification: FC<Props> = ({ host, notification }) => {
   const { account, status, groupedAccounts, groupedCount } = notification
   if (!status.actor) return null
 
-  const displayStatus =
-    status.type === StatusType.enum.Announce ? status.originalStatus : status
   const hasMultiple = groupedCount && groupedCount > 1
 
   const statusUrl =
@@ -69,7 +70,9 @@ export const MentionNotification: FC<Props> = ({ notification }) => {
           href={statusUrl}
           className="mt-2 block rounded-md bg-muted/50 p-2 text-xs text-muted-foreground hover:bg-muted"
         >
-          <p className="line-clamp-2">{(displayStatus as StatusNote).text}</p>
+          <div className="line-clamp-2 [&_p]:inline [&_br]:hidden">
+            {cleanClassName(processStatusText(host, status))}
+          </div>
         </Link>
       </div>
     </div>
