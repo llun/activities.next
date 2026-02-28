@@ -165,11 +165,6 @@ jobs:
         run: |
           git add -A
 
-          if git diff --cached --quiet; then
-            echo "No staged changes found for the merge commit" >&2
-            exit 1
-          fi
-
           git commit \
             -m "Merge branch 'main' into oltp" \
             -m "Source commit: ${MAIN_SHA}"
