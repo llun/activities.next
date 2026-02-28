@@ -41,9 +41,7 @@ const getStatusLink = (actorId: string, statusId: string) => {
   }
 }
 
-export function FitnessImport({
-  actorHandle: _actorHandle
-}: FitnessImportProps) {
+export function FitnessImport({ actorHandle }: FitnessImportProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<File[]>([])
   const [visibility, setVisibility] = useState<MastodonVisibility>('public')
@@ -177,7 +175,7 @@ export function FitnessImport({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {_actorHandle && <ActorInfoBanner actorHandle={_actorHandle} />}
+        {actorHandle && <ActorInfoBanner actorHandle={actorHandle} />}
 
         <input
           ref={fileInputRef}
