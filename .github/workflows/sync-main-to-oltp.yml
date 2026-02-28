@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: sync-main-to-oltp-${{ github.event.client_payload.main_sha }}
