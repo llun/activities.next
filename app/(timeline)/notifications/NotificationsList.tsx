@@ -21,7 +21,11 @@ interface Props {
   host: string
 }
 
-export const NotificationsList = ({ notifications, currentActorId, host }: Props) => {
+export const NotificationsList = ({
+  notifications,
+  currentActorId,
+  host
+}: Props) => {
   const router = useRouter()
   const [readNotifications, setReadNotifications] = useState<Set<string>>(
     new Set()

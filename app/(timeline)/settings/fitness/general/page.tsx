@@ -40,7 +40,9 @@ const Page = async ({
     return redirect('/auth/signin')
   }
 
-  const actorHandle = actor ? getMention(getActorProfile(actor), true) : undefined
+  const actorHandle = actor
+    ? getMention(getActorProfile(actor), true)
+    : undefined
 
   const params = await Promise.resolve(searchParams)
   const rawPage = Number.parseInt(params.page || '1', 10)

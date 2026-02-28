@@ -7,7 +7,10 @@ import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
-import { EXTERNAL_ACTOR1, EXTERNAL_ACTOR1_FOLLOWERS } from '@/lib/stub/seed/external1'
+import {
+  EXTERNAL_ACTOR1,
+  EXTERNAL_ACTOR1_FOLLOWERS
+} from '@/lib/stub/seed/external1'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor, getActorURL } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
@@ -86,14 +89,20 @@ describe('#mentionTimelineRule', () => {
       `${ACTOR3_ID}/followers`
     )
 
-    const result = await mentionTimelineRule({ database, currentActor: actor, status })
+    const result = await mentionTimelineRule({
+      database,
+      currentActor: actor,
+      status
+    })
     expect(result).toEqual(Timeline.MENTION)
 
     const notifications = await database.getNotifications({
       actorId: actor.id,
       limit: 100
     })
-    expect(notifications.filter((n) => n.statusId === status.id)).toHaveLength(0)
+    expect(notifications.filter((n) => n.statusId === status.id)).toHaveLength(
+      0
+    )
   })
 
   it('returns null when status has no mention tag for the current actor', async () => {
@@ -135,9 +144,18 @@ describe('#mentionTimelineRule', () => {
       EXTERNAL_ACTOR1_FOLLOWERS
     )
     // Simulate createNoteJob: persist mention tag before timeline rules run
-    await createMentionTag(database, status.id, getActorURL(actor), actor.username)
+    await createMentionTag(
+      database,
+      status.id,
+      getActorURL(actor),
+      actor.username
+    )
 
-    const result = await mentionTimelineRule({ database, currentActor: actor, status })
+    const result = await mentionTimelineRule({
+      database,
+      currentActor: actor,
+      status
+    })
     expect(result).toEqual(Timeline.MENTION)
 
     const notifications = await database.getNotifications({
@@ -161,7 +179,11 @@ describe('#mentionTimelineRule', () => {
     // Some servers use the ActivityPub actor ID as the mention href
     await createMentionTag(database, status.id, actor.id, actor.username)
 
-    const result = await mentionTimelineRule({ database, currentActor: actor, status })
+    const result = await mentionTimelineRule({
+      database,
+      currentActor: actor,
+      status
+    })
     expect(result).toEqual(Timeline.MENTION)
 
     const notifications = await database.getNotifications({
@@ -181,9 +203,18 @@ describe('#mentionTimelineRule', () => {
       `${ACTOR1_ID}/followers`
     )
     // Simulate createNote.ts: persist mention tag before timeline rules run
-    await createMentionTag(database, status.id, getActorURL(actor), actor.username)
+    await createMentionTag(
+      database,
+      status.id,
+      getActorURL(actor),
+      actor.username
+    )
 
-    const result = await mentionTimelineRule({ database, currentActor: actor, status })
+    const result = await mentionTimelineRule({
+      database,
+      currentActor: actor,
+      status
+    })
     expect(result).toEqual(Timeline.MENTION)
 
     const notifications = await database.getNotifications({
