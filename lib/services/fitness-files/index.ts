@@ -109,3 +109,29 @@ export const deleteFitnessFile = async (
       return false
   }
 }
+
+export const getPresignedFitnessFileUrl = async (
+  database: Database,
+  actor: Actor,
+  input: {
+    fileName: string
+    contentType: string
+    size: number
+    importBatchId?: string
+    description?: string
+  }
+) => {
+  const { fitnessStorage, host } = getConfig()
+  switch (fitnessStorage?.type) {
+    case FitnessStorageType.S3Storage:
+    case FitnessStorageType.ObjectStorage: {
+      return S3FitnessStorage.getStorage(
+        fitnessStorage,
+        host,
+        database
+      ).getPresignedForSaveFileUrl(actor, input)
+    }
+    default:
+      return null
+  }
+}
