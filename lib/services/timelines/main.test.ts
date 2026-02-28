@@ -283,6 +283,50 @@ describe('#mainTimelineRule', () => {
     ).toBeNull()
   })
 
+  it('returns null when parent status does not exist (deleted parent)', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const nonExistentParentId = `${ACTOR2_ID}/statuses/this-status-was-deleted`
+    const followingReply = await createStatus(
+      database,
+      ACTOR2_ID,
+      'Reply to a deleted parent status',
+      nonExistentParentId
+    )
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: followingReply
+      })
+    ).toBeNull()
+  })
+
+  it('returns main timeline for following reply to another following actor status', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const followingStatus = await createStatus(
+      database,
+      ACTOR2_ID,
+      'Following actor root status'
+    )
+    const anotherFollowingReply = await createStatus(
+      database,
+      ACTOR4_ID,
+      'Another following actor reply to following root',
+      followingStatus.id
+    )
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: anotherFollowingReply
+      })
+    ).toEqual(Timeline.MAIN)
+  })
+
   it('returns null for announce that already in timeline', async () => {
     const currentActor = (await database.getActorFromId({
       id: ACTOR3_ID

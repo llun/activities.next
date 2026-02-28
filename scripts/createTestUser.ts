@@ -4,12 +4,11 @@
  * Script to create a test user for development/testing
  * Usage: npx tsx scripts/createTestUser.ts [username] [email] [password]
  */
-
 import * as bcrypt from 'bcrypt'
 
+import { getConfig } from '../lib/config'
 import { getDatabase } from '../lib/database'
 import { generateKeyPair } from '../lib/utils/signature'
-import { getConfig } from '../lib/config'
 
 const BCRYPT_ROUND = 10
 
