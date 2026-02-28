@@ -40,7 +40,7 @@ const Page = async ({
     return redirect('/auth/signin')
   }
 
-  const actorHandle = actor ? getMention(getActorProfile(actor), true) : null
+  const actorHandle = actor ? getMention(getActorProfile(actor), true) : undefined
 
   const params = await Promise.resolve(searchParams)
   const rawPage = Number.parseInt(params.page || '1', 10)
@@ -71,7 +71,7 @@ const Page = async ({
     <div className="space-y-6">
       {actorHandle && <ActorInfoBanner actorHandle={actorHandle} />}
       <FitnessPrivacyLocationSettings mapboxAccessToken={mapboxAccessToken} />
-      <FitnessImport actorHandle={actorHandle ?? undefined} />
+      <FitnessImport actorHandle={actorHandle} />
       <FitnessFileManagement
         used={used}
         limit={limit}
