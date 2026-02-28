@@ -86,4 +86,5 @@ backups/
 .agent
 .claude
 .gemini
+.playwright-mcp
 AGENTS.override.md

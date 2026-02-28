@@ -90,22 +90,10 @@ export const createNoteJob = createJobHandle(
 
     const tags = getTags(note)
 
-    await Promise.all([
-      addStatusToTimelines(database, status),
-      ...attachments.map(async (attachment, index) => {
-        if (attachment.type !== 'Document') return
-        return database.createAttachment({
-          actorId: note.attributedTo,
-          statusId: note.id,
-          mediaType: attachment.mediaType,
-          height: attachment.height,
-          width: attachment.width,
-          name: attachment.name || '',
-          url: attachment.url,
-          createdAt: publishedAt + index
-        })
-      }),
-      ...tags.map((item) => {
+    // Tags must be persisted before timeline rules run so that
+    // mentionTimelineRule can verify mentions via tags rather than text content.
+    await Promise.all(
+      tags.map((item) => {
         if (item.type === 'Emoji') {
           return database.createTag({
             statusId: note.id,
@@ -119,6 +107,23 @@ export const createNoteJob = createJobHandle(
           name: item.name || '',
           value: item.href,
           type: 'mention'
+        })
+      })
+    )
+
+    await Promise.all([
+      addStatusToTimelines(database, status),
+      ...attachments.map(async (attachment, index) => {
+        if (attachment.type !== 'Document') return
+        return database.createAttachment({
+          actorId: note.attributedTo,
+          statusId: note.id,
+          mediaType: attachment.mediaType,
+          height: attachment.height,
+          width: attachment.width,
+          name: attachment.name || '',
+          url: attachment.url,
+          createdAt: publishedAt + index
         })
       })
     ])

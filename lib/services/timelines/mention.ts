@@ -11,6 +11,7 @@ import { shouldSendEmailForNotification } from '@/lib/services/notifications/ema
 import { NotificationType } from '@/lib/types/database/operations'
 import { getActorURL } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
+import { TagType } from '@/lib/types/domain/tag'
 import { getTracer } from '@/lib/utils/trace'
 
 import { MentionTimelineRule, Timeline } from './types'
@@ -40,17 +41,48 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         return Timeline.MENTION
       }
 
-      if (status.text.includes(getActorURL(currentActor))) {
+      const mentionTags = await database.getTags({ statusId: status.id })
+      const isMentioned = mentionTags.some(
+        (tag) =>
+          tag.type === TagType.enum.mention &&
+          (tag.value === currentActor.id ||
+            tag.value === getActorURL(currentActor))
+      )
+
+      if (isMentioned) {
         const account = currentActor.account
-        if (config.email && account && status.actor) {
+
+        if (!status.isLocalActor) {
+          // Error is recorded but not re-thrown: a notification DB failure
+          // should not block the mention from being added to the timeline.
           try {
-            // Check if email notifications are enabled for this notification type
+            await database.createNotification({
+              actorId: currentActor.id,
+              type: NotificationType.enum.mention,
+              sourceActorId: status.actorId,
+              statusId: status.id,
+              groupKey: `mention:${status.id}`
+            })
+          } catch (error) {
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: 'Failed to create mention notification record'
+            })
+            span.recordException(
+              error instanceof Error ? error : new Error(String(error))
+            )
+          }
+        }
+
+        if (config.email && account && status.actor) {
+          // Error is recorded but not re-thrown: email delivery failure is
+          // best-effort and should not affect the notification DB write above.
+          try {
             const shouldSendEmail = await shouldSendEmailForNotification(
               database,
               currentActor.id,
               NotificationType.enum.mention
             )
-
             if (shouldSendEmail) {
               await sendMail({
                 from: config.email.serviceFromAddress,
@@ -63,7 +95,6 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
               })
             }
           } catch (error) {
-            // Log error but don't fail the mention operation
             span.setStatus({
               code: SpanStatusCode.ERROR,
               message: 'Failed to send mention notification email'
@@ -73,6 +104,7 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
             )
           }
         }
+
         span.end()
         return Timeline.MENTION
       }
