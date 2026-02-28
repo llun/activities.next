@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
-import { ActorInfoBanner } from '@/lib/components/settings/ActorInfoBanner'
 import { FitnessFileManagement } from '@/lib/components/settings/FitnessFileManagement'
 import { FitnessImport } from '@/lib/components/settings/FitnessImport'
 import { FitnessPrivacyLocationSettings } from '@/lib/components/settings/FitnessPrivacyLocationSettings'
@@ -71,7 +70,6 @@ const Page = async ({
 
   return (
     <div className="space-y-6">
-      {actorHandle && <ActorInfoBanner actorHandle={actorHandle} />}
       <FitnessPrivacyLocationSettings mapboxAccessToken={mapboxAccessToken} />
       <FitnessImport actorHandle={actorHandle} />
       <FitnessFileManagement

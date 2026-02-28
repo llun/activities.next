@@ -10,6 +10,7 @@ import {
   startFitnessImport
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
+import { ActorInfoBanner } from '@/lib/components/settings/ActorInfoBanner'
 import {
   getFitnessImportFileError,
   getFitnessImportFileIcon,
@@ -176,6 +177,8 @@ export function FitnessImport({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {_actorHandle && <ActorInfoBanner actorHandle={_actorHandle} />}
+
         <input
           ref={fileInputRef}
           type="file"
