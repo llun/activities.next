@@ -107,6 +107,16 @@ export interface FitnessStorage {
     FitnessStorageGetFileOutput | FitnessStorageGetRedirectOutput | null
   >
   deleteFile(filePath: string): Promise<boolean>
+  getPresignedForSaveFileUrl(
+    actor: Actor,
+    input: {
+      fileName: string
+      contentType: string
+      size: number
+      importBatchId?: string
+      description?: string
+    }
+  ): Promise<PresignedFitnessUrlOutput | null>
 }
 
 // Helper to determine file type from filename or mime type

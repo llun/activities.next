@@ -228,6 +228,7 @@ export class S3FitnessStorage implements FitnessStorage {
         { key },
         ['content-length-range', 0, input.size]
       ],
+      // Strava archive ZIPs can be very large; allow 1 hour for the upload.
       Expires: 3600
     })
 
@@ -248,10 +249,10 @@ export class S3FitnessStorage implements FitnessStorage {
       )
     }
 
-    return {
+    return PresignedFitnessUrlOutput.parse({
       url,
       fields,
       fitnessFileId: storedFile.id
-    }
+    })
   }
 }
