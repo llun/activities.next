@@ -53,6 +53,8 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         const account = currentActor.account
 
         if (!status.isLocalActor) {
+          // Error is recorded but not re-thrown: a notification DB failure
+          // should not block the mention from being added to the timeline.
           try {
             await database.createNotification({
               actorId: currentActor.id,
@@ -73,6 +75,8 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         }
 
         if (config.email && account && status.actor) {
+          // Error is recorded but not re-thrown: email delivery failure is
+          // best-effort and should not affect the notification DB write above.
           try {
             const shouldSendEmail = await shouldSendEmailForNotification(
               database,
@@ -91,6 +95,10 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
               })
             }
           } catch (error) {
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: 'Failed to send mention notification email'
+            })
             span.recordException(
               error instanceof Error ? error : new Error(String(error))
             )
