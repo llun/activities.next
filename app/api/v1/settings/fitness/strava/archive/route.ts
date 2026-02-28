@@ -190,6 +190,77 @@ export const POST = traceApiRoute(
         })
       }
 
+      const contentType = req.headers.get('content-type') ?? ''
+
+      if (contentType.includes('application/json')) {
+        const body = (await req.json()) as {
+          fitnessFileId?: unknown
+          archiveId?: unknown
+          visibility?: unknown
+        }
+
+        if (
+          typeof body.fitnessFileId !== 'string' ||
+          !body.fitnessFileId ||
+          typeof body.archiveId !== 'string' ||
+          !body.archiveId
+        ) {
+          return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        }
+
+        const visibilityResult = Visibility.safeParse(body.visibility)
+        if (!visibilityResult.success) {
+          return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        }
+
+        const fitnessFile = await database.getFitnessFile({
+          id: body.fitnessFileId
+        })
+        if (!fitnessFile || fitnessFile.actorId !== currentActor.id) {
+          return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
+        }
+
+        const archiveId = body.archiveId
+        const batchId = getStravaArchiveImportBatchId(archiveId)
+        const importId = crypto.randomUUID()
+
+        archiveFileId = fitnessFile.id
+
+        const importState = await database.createStravaArchiveImport({
+          id: importId,
+          actorId: currentActor.id,
+          archiveId,
+          archiveFitnessFileId: fitnessFile.id,
+          batchId,
+          visibility: visibilityResult.data
+        })
+        archiveImportId = importState.id
+
+        await queueStravaArchiveImportJob({
+          importId: importState.id,
+          actorId: currentActor.id,
+          archiveId,
+          archiveFitnessFileId: fitnessFile.id,
+          batchId,
+          visibility: visibilityResult.data,
+          nextActivityIndex: 0,
+          pendingMediaActivities: [],
+          mediaAttachmentRetry: 0,
+          completedActivitiesCount: 0,
+          failedActivitiesCount: 0
+        })
+
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            archiveId,
+            batchId,
+            importId: importState.id
+          }
+        })
+      }
+
       const formData = await req.formData()
       const archiveRaw = formData.get('archive')
       const visibilityRaw = String(formData.get('visibility') ?? 'public')
