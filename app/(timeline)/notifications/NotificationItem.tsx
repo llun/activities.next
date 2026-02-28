@@ -25,6 +25,7 @@ interface Props {
     groupedAccounts?: (Mastodon.Account | null)[] | null
   }
   currentActorId: string
+  host: string
   isRead: boolean
   observeElement: (element: HTMLElement | null) => void
 }
@@ -32,6 +33,7 @@ interface Props {
 export const NotificationItem = ({
   notification,
   currentActorId,
+  host,
   isRead,
   observeElement
 }: Props) => {
@@ -69,6 +71,7 @@ export const NotificationItem = ({
         // Status-requiring notifications - type assertion for compatibility
         return (
           <LikeNotification
+            host={host}
             notification={
               notificationWithAccount as NotificationWithData & {
                 status: Status
@@ -79,6 +82,7 @@ export const NotificationItem = ({
       case 'reply':
         return (
           <ReplyNotification
+            host={host}
             notification={
               notificationWithAccount as NotificationWithData & {
                 status: Status
@@ -89,6 +93,7 @@ export const NotificationItem = ({
       case 'mention':
         return (
           <MentionNotification
+            host={host}
             notification={
               notificationWithAccount as NotificationWithData & {
                 status: Status

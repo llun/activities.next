@@ -18,9 +18,10 @@ interface NotificationWithData extends GroupedNotification {
 interface Props {
   notifications: NotificationWithData[]
   currentActorId: string
+  host: string
 }
 
-export const NotificationsList = ({ notifications, currentActorId }: Props) => {
+export const NotificationsList = ({ notifications, currentActorId, host }: Props) => {
   const router = useRouter()
   const [readNotifications, setReadNotifications] = useState<Set<string>>(
     new Set()
@@ -140,6 +141,7 @@ export const NotificationsList = ({ notifications, currentActorId }: Props) => {
           key={notification.id}
           notification={notification}
           currentActorId={currentActorId}
+          host={host}
           isRead={notification.isRead || readNotifications.has(notification.id)}
           observeElement={observeElement}
         />
