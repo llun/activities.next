@@ -41,15 +41,15 @@ jobs:
           ref: oltp
           fetch-depth: 0
 
+      - name: Enable corepack
+        shell: bash
+        run: corepack enable
+
       - name: Use Node.js 24
         uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: yarn
-
-      - name: Enable corepack
-        shell: bash
-        run: corepack enable
 
       - name: Configure git identity
         shell: bash
