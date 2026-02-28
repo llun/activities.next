@@ -85,11 +85,14 @@ export const MediasModal: FC<Props> = ({
   useEffect(() => {
     if (medias) {
       document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
     }
     return () => {
       document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
     }
   }, [medias])
 
@@ -198,9 +201,15 @@ export const MediasModal: FC<Props> = ({
     new Set(visibleIndices).size !== visibleIndices.length
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col bg-black/90">
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-black/90"
+      onClick={handleClose}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between p-4">
+      <div
+        className="flex items-center justify-between p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
         <span className="text-sm text-white">
           {shouldShowNavigation && `${currentIndex + 1} / ${medias.length}`}
         </span>
@@ -243,14 +252,10 @@ export const MediasModal: FC<Props> = ({
           </>
         )}
 
-        <div
-          className="relative flex h-full w-full max-w-[90vw] items-center justify-center"
-          onClick={handleClose}
-        >
+        <div className="relative flex h-full w-full max-w-[90vw] items-center justify-center">
           <div
             ref={swipeTrackRef}
             className="relative flex h-full w-full items-center justify-center overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
@@ -275,11 +280,16 @@ export const MediasModal: FC<Props> = ({
                   }
                   className="flex h-full w-full shrink-0 items-center justify-center"
                 >
-                  <Media
-                    showVideoControl
-                    className="max-h-[80vh] max-w-full object-contain"
-                    attachment={medias[index]}
-                  />
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex max-h-[80vh] max-w-full items-center justify-center cursor-default"
+                  >
+                    <Media
+                      showVideoControl
+                      className="max-h-[80vh] max-w-full object-contain"
+                      attachment={medias[index]}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -289,7 +299,10 @@ export const MediasModal: FC<Props> = ({
 
       {/* Thumbnails */}
       {shouldShowNavigation && (
-        <div className="flex justify-center gap-2 overflow-x-auto px-4 pb-4 pt-2">
+        <div
+          className="flex justify-center gap-2 overflow-x-auto px-4 pb-4 pt-2"
+          onClick={(e) => e.stopPropagation()}
+        >
           {medias.map((media, index) => (
             <button
               key={media.id}
