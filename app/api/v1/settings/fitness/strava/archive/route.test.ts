@@ -420,6 +420,7 @@ describe('Strava archive import route', () => {
     expect(body.archiveId).toBe('archive-uuid-123')
     expect(body.batchId).toBe('strava-archive:archive-uuid-123')
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
+    expect(body.importId).toBeDefined()
 
     const queue = getQueue()
     expect(queue.publish).toHaveBeenCalledTimes(1)

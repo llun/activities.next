@@ -170,6 +170,7 @@ export const POST = traceApiRoute(
     const { currentActor, database } = context
     let archiveFileId: string | null = null
     let archiveImportId: string | null = null
+    let archiveFileOwned = false
 
     try {
       const existingImport = await database.getActiveStravaArchiveImportByActor(
@@ -300,6 +301,7 @@ export const POST = traceApiRoute(
       }
 
       archiveFileId = storedArchive.id
+      archiveFileOwned = true
 
       const importState = await database.createStravaArchiveImport({
         id: importId,
@@ -335,7 +337,7 @@ export const POST = traceApiRoute(
         }
       })
     } catch (error) {
-      if (archiveFileId) {
+      if (archiveFileId && archiveFileOwned) {
         try {
           const deleted = await deleteFitnessFile(database, archiveFileId)
           if (!deleted) {
