@@ -32,6 +32,12 @@ jest.mock('next/headers', () => ({
   cookies: jest.fn().mockResolvedValue({ get: () => undefined })
 }))
 
+jest.mock('@/lib/services/strava/archiveImport', () => ({
+  getStravaArchiveSourceBatchId: jest.fn(
+    (id: string) => `strava-archive-source:${id}`
+  )
+}))
+
 const mockGetPresignedFitnessFileUrl =
   getPresignedFitnessFileUrl as jest.MockedFunction<
     typeof getPresignedFitnessFileUrl
@@ -61,7 +67,7 @@ describe('Strava archive presigned URL endpoint', () => {
       }
     )
 
-    const response = await POST(req, { params: {} })
+    const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(404)
   })
 
@@ -88,7 +94,7 @@ describe('Strava archive presigned URL endpoint', () => {
       }
     )
 
-    const response = await POST(req, { params: {} })
+    const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(200)
 
     const body = await response.json()
@@ -108,7 +114,7 @@ describe('Strava archive presigned URL endpoint', () => {
       }
     )
 
-    const response = await POST(req, { params: {} })
+    const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(422)
   })
 
@@ -128,7 +134,7 @@ describe('Strava archive presigned URL endpoint', () => {
       }
     )
 
-    const response = await POST(req, { params: {} })
+    const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(401)
   })
 })
