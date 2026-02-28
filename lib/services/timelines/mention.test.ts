@@ -33,6 +33,20 @@ const createNote = async (
   })
 }
 
+const createMentionTag = async (
+  database: Database,
+  statusId: string,
+  mentionedActorUrl: string,
+  mentionedActorUsername: string
+) => {
+  return database.createTag({
+    statusId,
+    name: `@${mentionedActorUsername}`,
+    value: mentionedActorUrl,
+    type: 'mention'
+  })
+}
+
 describe('#mentionTimelineRule', () => {
   const database = getTestSQLDatabase()
 
@@ -64,6 +78,7 @@ describe('#mentionTimelineRule', () => {
 
   it('returns MENTION timeline for self-post without creating a notification', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
+    // Self-post returns MENTION early via actorId check — no tag needed
     const status = await createNote(
       database,
       ACTOR3_ID,
@@ -81,7 +96,7 @@ describe('#mentionTimelineRule', () => {
     expect(notifications.filter((n) => n.statusId === status.id)).toHaveLength(0)
   })
 
-  it('returns null when status text does not mention the current actor', async () => {
+  it('returns null when status has no mention tag for the current actor', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const status = await createNote(
       database,
@@ -89,6 +104,22 @@ describe('#mentionTimelineRule', () => {
       'Hello world, no mention here',
       EXTERNAL_ACTOR1_FOLLOWERS
     )
+    // No mention tag created — rule must not trigger on text content alone
+
+    expect(
+      await mentionTimelineRule({ database, currentActor: actor, status })
+    ).toBeNull()
+  })
+
+  it('returns null when status text contains actor URL but has no mention tag', async () => {
+    const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
+    const status = await createNote(
+      database,
+      EXTERNAL_ACTOR1,
+      `Check out this profile: ${getActorURL(actor)}`,
+      EXTERNAL_ACTOR1_FOLLOWERS
+    )
+    // Text contains actor URL but no explicit mention tag — must NOT trigger
 
     expect(
       await mentionTimelineRule({ database, currentActor: actor, status })
@@ -103,6 +134,8 @@ describe('#mentionTimelineRule', () => {
       `Hey ${getActorURL(actor)} hello from remote!`,
       EXTERNAL_ACTOR1_FOLLOWERS
     )
+    // Simulate createNoteJob: persist mention tag before timeline rules run
+    await createMentionTag(database, status.id, getActorURL(actor), actor.username)
 
     const result = await mentionTimelineRule({ database, currentActor: actor, status })
     expect(result).toEqual(Timeline.MENTION)
@@ -117,6 +150,27 @@ describe('#mentionTimelineRule', () => {
     expect(mentionNotif?.sourceActorId).toBe(EXTERNAL_ACTOR1)
   })
 
+  it('returns MENTION timeline and creates notification when tag value matches actor id', async () => {
+    const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
+    const status = await createNote(
+      database,
+      EXTERNAL_ACTOR1,
+      `Hey ${actor.id} hello from remote!`,
+      EXTERNAL_ACTOR1_FOLLOWERS
+    )
+    // Some servers use the ActivityPub actor ID as the mention href
+    await createMentionTag(database, status.id, actor.id, actor.username)
+
+    const result = await mentionTimelineRule({ database, currentActor: actor, status })
+    expect(result).toEqual(Timeline.MENTION)
+
+    const notifications = await database.getNotifications({
+      actorId: actor.id,
+      limit: 100
+    })
+    expect(notifications.find((n) => n.statusId === status.id)).toBeDefined()
+  })
+
   it('returns MENTION timeline but does NOT create notification for local actor mention', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     // ACTOR1 is a local actor — local-to-local notifications are handled by createNote.ts
@@ -126,6 +180,8 @@ describe('#mentionTimelineRule', () => {
       `Hey ${getActorURL(actor)} hello from local!`,
       `${ACTOR1_ID}/followers`
     )
+    // Simulate createNote.ts: persist mention tag before timeline rules run
+    await createMentionTag(database, status.id, getActorURL(actor), actor.username)
 
     const result = await mentionTimelineRule({ database, currentActor: actor, status })
     expect(result).toEqual(Timeline.MENTION)

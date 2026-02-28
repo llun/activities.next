@@ -11,6 +11,7 @@ import { shouldSendEmailForNotification } from '@/lib/services/notifications/ema
 import { NotificationType } from '@/lib/types/database/operations'
 import { getActorURL } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
+import { TagType } from '@/lib/types/domain/tag'
 import { getTracer } from '@/lib/utils/trace'
 
 import { MentionTimelineRule, Timeline } from './types'
@@ -40,7 +41,15 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         return Timeline.MENTION
       }
 
-      if (status.text.includes(getActorURL(currentActor))) {
+      const mentionTags = await database.getTags({ statusId: status.id })
+      const isMentioned = mentionTags.some(
+        (tag) =>
+          tag.type === TagType.enum.mention &&
+          (tag.value === currentActor.id ||
+            tag.value === getActorURL(currentActor))
+      )
+
+      if (isMentioned) {
         const account = currentActor.account
 
         if (!status.isLocalActor) {

@@ -215,6 +215,19 @@ export const createNoteFromUserInput = async ({
     reply: replyStatus?.id || ''
   })
 
+  // Tags must be persisted before timeline rules run so that
+  // mentionTimelineRule can verify mentions via tags rather than text content.
+  await Promise.all(
+    mentions.map((mention) =>
+      database.createTag({
+        statusId,
+        name: mention.name || '',
+        value: mention.href,
+        type: 'mention'
+      })
+    )
+  )
+
   await Promise.all([
     addStatusToTimelines(database, createdStatus),
     ...attachments.map((attachment) =>
@@ -227,14 +240,6 @@ export const createNoteFromUserInput = async ({
         height: attachment.height,
         name: attachment.name,
         mediaId: attachment.id
-      })
-    ),
-    ...mentions.map((mention) =>
-      database.createTag({
-        statusId,
-        name: mention.name || '',
-        value: mention.href,
-        type: 'mention'
       })
     )
   ])
