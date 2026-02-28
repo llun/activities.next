@@ -50,17 +50,19 @@ const createAnnounce = async (
 }
 
 /**
- * Seed follow relationships for ACTOR3 (currentActor in most tests):
+ * Seed follow relationships for ACTOR3 (currentActor in all tests):
  *   Actor3 follows Actor2
  *   Actor3 follows Actor4
  *   Actor3 does NOT follow Actor1 or Actor5
  */
 describe('#noannounceTimelineRule', () => {
   const database = getTestSQLDatabase()
+  let currentActor: Actor
 
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
+    currentActor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
   })
 
   afterAll(async () => {
@@ -74,9 +76,6 @@ describe('#noannounceTimelineRule', () => {
   })
 
   it('returns null for announce from following (unlike main timeline which would include it)', async () => {
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     const announce = await createAnnounce(
       database,
       ACTOR2_ID,
@@ -89,9 +88,6 @@ describe('#noannounceTimelineRule', () => {
   })
 
   it('returns null for announce from non-following', async () => {
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     const announce = await createAnnounce(
       database,
       ACTOR5_ID,
@@ -104,9 +100,6 @@ describe('#noannounceTimelineRule', () => {
   })
 
   it('returns noannounce timeline for self status', async () => {
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     const status = await createStatus(database, ACTOR3_ID, 'Self status')
     expect(
       await noannounceTimelineRule({ database, currentActor, status })
@@ -114,9 +107,6 @@ describe('#noannounceTimelineRule', () => {
   })
 
   it('returns null for non-following actor status', async () => {
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     const status = (await database.getStatus({
       statusId: `${ACTOR1_ID}/statuses/post-1`
     })) as Status
@@ -126,9 +116,6 @@ describe('#noannounceTimelineRule', () => {
   })
 
   it('returns noannounce timeline for following actor status with no reply', async () => {
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     const status = await createStatus(
       database,
       ACTOR2_ID,
@@ -151,9 +138,6 @@ describe('#noannounceTimelineRule', () => {
       'Following reply to non-following',
       nonFollowingStatus.id
     )
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     expect(
       await noannounceTimelineRule({
         database,
@@ -181,9 +165,6 @@ describe('#noannounceTimelineRule', () => {
       'Another following reply further up the chain',
       followingReplyToNonFollowing.id
     )
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     expect(
       await noannounceTimelineRule({
         database,
@@ -194,9 +175,6 @@ describe('#noannounceTimelineRule', () => {
   })
 
   it('returns noannounce timeline for non-following reply to self status', async () => {
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     const selfStatus = await createStatus(
       database,
       ACTOR3_ID,
@@ -218,9 +196,6 @@ describe('#noannounceTimelineRule', () => {
   })
 
   it('returns noannounce for following reply to non-following that replied to self', async () => {
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     const selfStatus = await createStatus(
       database,
       ACTOR3_ID,
@@ -248,9 +223,6 @@ describe('#noannounceTimelineRule', () => {
   })
 
   it('returns null for non-following reply at end of a chain through self', async () => {
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     const selfStatus = await createStatus(
       database,
       ACTOR3_ID,
@@ -284,9 +256,6 @@ describe('#noannounceTimelineRule', () => {
   })
 
   it('returns null when parent status does not exist (deleted parent)', async () => {
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     const nonExistentParentId = `${ACTOR2_ID}/statuses/this-status-does-not-exist`
     const followingReply = await createStatus(
       database,
@@ -304,9 +273,6 @@ describe('#noannounceTimelineRule', () => {
   })
 
   it('returns noannounce for following reply to another following status', async () => {
-    const currentActor = (await database.getActorFromId({
-      id: ACTOR3_ID
-    })) as Actor
     const followingStatus = await createStatus(
       database,
       ACTOR2_ID,
