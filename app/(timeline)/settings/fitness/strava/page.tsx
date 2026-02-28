@@ -1,12 +1,28 @@
+import { getServerSession } from 'next-auth'
 import { FC } from 'react'
 
+import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Card } from '@/lib/components/ui/card'
+import { getDatabase } from '@/lib/database'
+import { getActorProfile, getMention } from '@/lib/types/domain/actor'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { StravaSettingsForm } from './StravaSettingsForm'
 
 export const dynamic = 'force-dynamic'
 
-const StravaPage: FC = () => {
+const StravaPage: FC = async () => {
+  const database = getDatabase()
+  if (!database) {
+    throw new Error('Fail to load database')
+  }
+
+  const session = await getServerSession(getAuthOptions())
+  const actor = await getActorFromSession(database, session)
+  const actorHandle = actor
+    ? getMention(getActorProfile(actor), true)
+    : undefined
+
   return (
     <div className="space-y-6">
       <div>
@@ -28,7 +44,7 @@ const StravaPage: FC = () => {
       </div>
 
       <Card className="p-6">
-        <StravaSettingsForm />
+        <StravaSettingsForm serverActorHandle={actorHandle} />
       </Card>
     </div>
   )

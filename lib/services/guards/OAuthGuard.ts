@@ -9,9 +9,9 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { AppRouterParams, AuthenticatedApiHandle } from './types'
 
