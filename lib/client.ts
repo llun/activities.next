@@ -763,10 +763,65 @@ export const startFitnessImport = async (
   return response.json()
 }
 
+interface StravaArchivePresignedResult {
+  presigned: {
+    url: string
+    fields: Record<string, string>
+    fitnessFileId: string
+    archiveId: string
+  }
+}
+
+export const createStravaArchivePresignedUrl = async (
+  archive: File
+): Promise<StravaArchivePresignedResult | null> => {
+  const response = await fetch(
+    '/api/v1/settings/fitness/strava/archive/presigned',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: archive.name,
+        contentType: archive.type || 'application/zip',
+        size: archive.size
+      })
+    }
+  )
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error('Failed to get presigned URL for archive')
+  return response.json()
+}
+
 export const startStravaArchiveImport = async (
   archive: File,
   visibility: MastodonVisibility
 ): Promise<StartStravaArchiveImportResult> => {
+  // Try presigned upload first (ObjectStorage/S3 backends)
+  const presignedResult = await createStravaArchivePresignedUrl(archive).catch(
+    () => null
+  )
+
+  if (presignedResult) {
+    const { url, fields, fitnessFileId, archiveId } = presignedResult.presigned
+    // Upload archive directly to ObjectStorage
+    await uploadFileToPresignedUrl({
+      presignedUrl: url,
+      fields,
+      media: archive
+    })
+    // Notify server to create import record and queue the job
+    const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fitnessFileId, archiveId, visibility })
+    })
+    if (!response.ok) {
+      throw new Error('Failed to start Strava archive import')
+    }
+    return response.json()
+  }
+
+  // Fallback: upload archive through the Next.js server (LocalFile storage)
   const formData = new FormData()
   formData.append('archive', archive)
   formData.append('visibility', visibility)
@@ -775,17 +830,9 @@ export const startStravaArchiveImport = async (
     method: 'POST',
     body: formData
   })
-
   if (!response.ok) {
-    const errorDetails = await parseApiError(
-      response,
-      'Failed to import Strava archive.'
-    )
-    throw new Error(
-      `Failed to import Strava archive: ${response.status} ${errorDetails}`
-    )
+    throw new Error('Failed to start Strava archive import')
   }
-
   return response.json()
 }
 
