@@ -1,0 +1,178 @@
+name: Sync Main to OLTP
+
+on:
+  repository_dispatch:
+    types:
+      - sync-main-to-oltp
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-main-to-oltp-${{ github.event.client_payload.main_sha }}
+  cancel-in-progress: true
+
+env:
+  CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+  MAIN_SHA: ${{ github.event.client_payload.main_sha }}
+
+jobs:
+  sync:
+    name: Merge main into oltp
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Validate dispatch payload
+        shell: bash
+        run: |
+          if [ -z "${MAIN_SHA}" ]; then
+            echo "Missing repository_dispatch client_payload.main_sha" >&2
+            exit 1
+          fi
+
+          if [ -z "${CLAUDE_API_KEY}" ]; then
+            echo "Missing secrets.CLAUDE_API_KEY" >&2
+            exit 1
+          fi
+
+      - name: Checkout oltp branch
+        uses: actions/checkout@v6
+        with:
+          ref: oltp
+          fetch-depth: 0
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: Enable corepack
+        shell: bash
+        run: corepack enable
+
+      - name: Configure git identity
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Fetch main and oltp
+        shell: bash
+        run: |
+          git fetch --no-tags origin main oltp
+          git rev-parse "${MAIN_SHA}^{commit}"
+
+      - name: Skip if main is already synced
+        id: synced
+        shell: bash
+        run: |
+          if git merge-base --is-ancestor "${MAIN_SHA}" origin/oltp; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Prepare merge state
+        if: steps.synced.outputs.skip == 'false'
+        shell: bash
+        run: |
+          git checkout -B oltp-sync origin/oltp
+
+          if git merge --no-commit --no-ff "${MAIN_SHA}"; then
+            exit 0
+          fi
+
+          if git ls-files -u | grep -q .; then
+            exit 0
+          fi
+
+          echo "git merge failed before conflict resolution" >&2
+          exit 1
+
+      - name: Resolve and validate merge with Claude
+        if: steps.synced.outputs.skip == 'false'
+        uses: anthropics/claude-code-action@v1
+        timeout-minutes: 30
+        with:
+          anthropic_api_key: ${{ env.CLAUDE_API_KEY }}
+          prompt: |
+            Resolve and validate a sync from `main` into `oltp`.
+
+            Context:
+            - The current local branch is `oltp-sync`.
+            - It was created from `origin/oltp`.
+            - A `git merge --no-commit --no-ff ${{ env.MAIN_SHA }}` has already
+              been attempted.
+
+            Requirements:
+            - Resolve any merge conflicts or merge-related code issues.
+            - Keep changes scoped to the merge.
+            - Run `yarn install`, `yarn lint`, `yarn run prettier --check`, and
+              `yarn build`.
+            - Make the minimum changes needed for those commands to pass.
+            - Do not create commits.
+            - Do not push.
+            - Do not open a pull request.
+            - Leave the repository in a merge-in-progress state with no
+              unmerged files so the workflow can create the final merge commit.
+            - If you cannot reach that state, stop and fail.
+          claude_args: |
+            --dangerously-skip-permissions
+            --max-turns 20
+
+      - name: Verify merge is still pending
+        if: steps.synced.outputs.skip == 'false'
+        shell: bash
+        run: |
+          if git ls-files -u | grep -q .; then
+            echo "Unmerged files remain after Claude finished" >&2
+            git status --short
+            exit 1
+          fi
+
+          if ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+            echo "Expected an uncommitted merge, but MERGE_HEAD is missing" >&2
+            git status --short
+            exit 1
+          fi
+
+      - name: Install dependencies
+        if: steps.synced.outputs.skip == 'false'
+        shell: bash
+        run: yarn install
+
+      - name: Run lint
+        if: steps.synced.outputs.skip == 'false'
+        shell: bash
+        run: yarn lint
+
+      - name: Check prettier formatting
+        if: steps.synced.outputs.skip == 'false'
+        shell: bash
+        run: yarn run prettier --check
+
+      - name: Build
+        if: steps.synced.outputs.skip == 'false'
+        shell: bash
+        run: yarn build
+
+      - name: Create merge commit
+        if: steps.synced.outputs.skip == 'false'
+        shell: bash
+        run: |
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No staged changes found for the merge commit" >&2
+            exit 1
+          fi
+
+          git commit \
+            -m "Merge branch 'main' into oltp" \
+            -m "Source commit: ${MAIN_SHA}"
+
+      - name: Push oltp
+        if: steps.synced.outputs.skip == 'false'
+        shell: bash
+        run: git push origin HEAD:oltp
