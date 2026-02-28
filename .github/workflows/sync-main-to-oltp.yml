@@ -97,6 +97,7 @@ jobs:
         timeout-minutes: 30
         with:
           anthropic_api_key: ${{ env.CLAUDE_API_KEY }}
+          allowed_bots: github-actions
           prompt: |
             Resolve and validate a sync from `main` into `oltp`.
 
