@@ -53,6 +53,13 @@ export const POST = traceApiRoute(
     }
 
     try {
+      const activeImport = await database.getActiveStravaArchiveImportByActor({
+        actorId: currentActor.id
+      })
+      if (activeImport) {
+        return apiErrorResponse(HTTP_STATUS.CONFLICT)
+      }
+
       const content = await req.json()
       const input = PresignedArchiveInput.parse(content)
 

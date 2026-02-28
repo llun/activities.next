@@ -11,7 +11,9 @@ jest.mock('@/app/api/auth/[...nextauth]/authOptions', () => ({
   getAuthOptions: jest.fn(() => ({}))
 }))
 
-let mockDatabase = {}
+const mockDatabase = {
+  getActiveStravaArchiveImportByActor: jest.fn().mockResolvedValue(null)
+}
 jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -142,6 +144,32 @@ describe('Strava archive presigned URL endpoint', () => {
 
     const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(413)
+  })
+
+  it('returns 409 when actor already has an active archive import', async () => {
+    mockDatabase.getActiveStravaArchiveImportByActor.mockResolvedValueOnce({
+      id: 'import-active',
+      actorId: 'https://llun.test/users/llun',
+      archiveId: 'archive-active',
+      status: 'importing'
+    })
+
+    const req = new Request(
+      'http://localhost/api/v1/settings/fitness/strava/archive/presigned',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: 'export.zip',
+          contentType: 'application/zip',
+          size: 1024
+        })
+      }
+    )
+
+    const response = await POST(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(409)
+    expect(mockGetPresignedFitnessFileUrl).not.toHaveBeenCalled()
   })
 
   it('returns 401 when not authenticated', async () => {

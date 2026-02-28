@@ -397,7 +397,9 @@ describe('Strava archive import route', () => {
       fileName: 'export.zip',
       fileType: 'zip',
       mimeType: 'application/zip',
-      bytes: 2048
+      bytes: 2048,
+      importBatchId:
+        'strava-archive-source:550e8400-e29b-41d4-a716-446655440001'
     })
 
     const req = new Request(
@@ -448,6 +450,67 @@ describe('Strava archive import route', () => {
 
     const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(403)
+  })
+
+  it('POST with presigned fitnessFileId returns 422 when file is not a zip', async () => {
+    db.getFitnessFile.mockResolvedValueOnce({
+      id: 'pre-created-fitness-file-id',
+      actorId: 'https://llun.test/users/llun',
+      path: 'fitness/2024-01-01/abc.fit',
+      fileName: 'activity.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 512,
+      importBatchId:
+        'strava-archive-source:550e8400-e29b-41d4-a716-446655440003'
+    })
+
+    const req = new Request(
+      'http://localhost/api/v1/settings/fitness/strava/archive',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fitnessFileId: 'pre-created-fitness-file-id',
+          archiveId: '550e8400-e29b-41d4-a716-446655440003',
+          visibility: 'private'
+        })
+      }
+    )
+
+    const response = await POST(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(422)
+    expect(mockSaveFitnessFile).not.toHaveBeenCalled()
+  })
+
+  it('POST with presigned fitnessFileId returns 422 when importBatchId does not match archiveId', async () => {
+    db.getFitnessFile.mockResolvedValueOnce({
+      id: 'pre-created-fitness-file-id',
+      actorId: 'https://llun.test/users/llun',
+      path: 'fitness/2024-01-01/abc.zip',
+      fileName: 'export.zip',
+      fileType: 'zip',
+      mimeType: 'application/zip',
+      bytes: 2048,
+      importBatchId: 'strava-archive-source:different-archive-id'
+    })
+
+    const req = new Request(
+      'http://localhost/api/v1/settings/fitness/strava/archive',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fitnessFileId: 'pre-created-fitness-file-id',
+          archiveId: '550e8400-e29b-41d4-a716-446655440004',
+          visibility: 'private'
+        })
+      }
+    )
+
+    const response = await POST(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(422)
+    expect(mockSaveFitnessFile).not.toHaveBeenCalled()
   })
 
   it('POST attempts archive rollback even when delete returns false', async () => {

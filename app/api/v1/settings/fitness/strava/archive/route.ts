@@ -216,6 +216,14 @@ export const POST = traceApiRoute(
           return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
         }
 
+        const sourceBatchId = getStravaArchiveSourceBatchId(archiveId)
+        if (
+          fitnessFile.fileType !== 'zip' ||
+          fitnessFile.importBatchId !== sourceBatchId
+        ) {
+          return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+        }
+
         const batchId = getStravaArchiveImportBatchId(archiveId)
         const importId = crypto.randomUUID()
 
