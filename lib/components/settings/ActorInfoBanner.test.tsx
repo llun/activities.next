@@ -10,7 +10,9 @@ describe('ActorInfoBanner', () => {
   it('renders actor handle correctly', () => {
     render(<ActorInfoBanner actorHandle="@llun@activities.local" />)
 
-    expect(screen.getByText(/All fitness imports will be saved to/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/All fitness imports will be saved to/i)
+    ).toBeInTheDocument()
     expect(screen.getByText('@llun@activities.local')).toBeInTheDocument()
   })
 
@@ -21,9 +23,17 @@ describe('ActorInfoBanner', () => {
   })
 
   it('has correct styling classes', () => {
-    const { container } = render(<ActorInfoBanner actorHandle="@test@domain.com" />)
+    const { container } = render(
+      <ActorInfoBanner actorHandle="@test@domain.com" />
+    )
 
     const banner = container.firstChild as HTMLElement
-    expect(banner).toHaveClass('rounded-md', 'border', 'border-blue-200', 'bg-blue-50', 'p-3')
+    expect(banner).toHaveClass(
+      'rounded-md',
+      'border',
+      'border-blue-200',
+      'bg-blue-50',
+      'p-3'
+    )
   })
 })

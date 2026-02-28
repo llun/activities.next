@@ -20,7 +20,9 @@ interface StravaSettingsFormProps {
   serverActorHandle?: string
 }
 
-export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({ serverActorHandle }) => {
+export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
+  serverActorHandle
+}) => {
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [isConfigured, setIsConfigured] = useState(false)

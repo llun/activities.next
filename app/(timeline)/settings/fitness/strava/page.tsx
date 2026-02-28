@@ -19,7 +19,9 @@ const StravaPage: FC = async () => {
 
   const session = await getServerSession(getAuthOptions())
   const actor = await getActorFromSession(database, session)
-  const actorHandle = actor ? getMention(getActorProfile(actor), true) : undefined
+  const actorHandle = actor
+    ? getMention(getActorProfile(actor), true)
+    : undefined
 
   return (
     <div className="space-y-6">
