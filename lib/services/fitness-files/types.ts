@@ -92,7 +92,9 @@ export const PresignedFitnessUrlOutput = z.object({
   fields: z.record(z.string(), z.string()),
   fitnessFileId: z.string()
 })
-export type PresignedFitnessUrlOutput = z.infer<typeof PresignedFitnessUrlOutput>
+export type PresignedFitnessUrlOutput = z.infer<
+  typeof PresignedFitnessUrlOutput
+>
 
 export interface FitnessStorage {
   saveFile(
