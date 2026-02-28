@@ -100,6 +100,8 @@ jobs:
             Resolve and validate a sync from `main` into `oltp`.
 
             Context:
+            - Read and follow the repository's `AGENTS.md` file before making
+              any changes.
             - The current local branch is `oltp-sync`.
             - It was created from `origin/oltp`.
             - A `git merge --no-commit --no-ff ${{ env.MAIN_SHA }}` has already
