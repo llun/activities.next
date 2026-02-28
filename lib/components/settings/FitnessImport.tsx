@@ -10,6 +10,7 @@ import {
   startFitnessImport
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
+import { ActorInfoBanner } from '@/lib/components/settings/ActorInfoBanner'
 import {
   getFitnessImportFileError,
   getFitnessImportFileIcon,
@@ -40,9 +41,7 @@ const getStatusLink = (actorId: string, statusId: string) => {
   }
 }
 
-export function FitnessImport({
-  actorHandle: _actorHandle
-}: FitnessImportProps) {
+export function FitnessImport({ actorHandle }: FitnessImportProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<File[]>([])
   const [visibility, setVisibility] = useState<MastodonVisibility>('public')
@@ -176,6 +175,8 @@ export function FitnessImport({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {actorHandle && <ActorInfoBanner actorHandle={actorHandle} />}
+
         <input
           ref={fileInputRef}
           type="file"

@@ -23,6 +23,7 @@ const Layout: FC<Props> = ({ children }) => {
 
   const tabs = [
     { name: 'General', url: '/settings/fitness/general' },
+    { name: 'Privacy', url: '/settings/fitness/privacy' },
     { name: 'Strava', url: '/settings/fitness/strava' }
   ]
 
