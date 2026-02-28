@@ -176,4 +176,17 @@ export class LocalFileFitnessStorage implements FitnessStorage {
       hasMapData: false
     })
   }
+
+  async getPresignedForSaveFileUrl(
+    _actor: Actor,
+    _input: {
+      fileName: string
+      contentType: string
+      size: number
+      importBatchId?: string
+      description?: string
+    }
+  ): Promise<import('./types').PresignedFitnessUrlOutput | null> {
+    return null
+  }
 }

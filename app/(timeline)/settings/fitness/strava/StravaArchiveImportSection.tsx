@@ -35,6 +35,7 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
   const [isArchiveImporting, setIsArchiveImporting] = useState(false)
   const [isArchiveActionLoading, setIsArchiveActionLoading] = useState(false)
   const [isArchivePolling, setIsArchivePolling] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const [archiveMessage, setArchiveMessage] = useState('')
   const [archiveError, setArchiveError] = useState('')
   const [activeArchiveImport, setActiveArchiveImport] =
@@ -206,6 +207,11 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
     setArchiveMessage('')
     setArchiveBatchResult(null)
     setIsArchiveImporting(true)
+    setIsUploading(true)
+    setArchiveMessage('Uploading archive to storage…')
+
+    // Give React a tick to render the uploading state
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
     try {
       const result = await startStravaArchiveImport(
@@ -231,6 +237,7 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
       setArchiveError(archiveImportMessage)
     } finally {
       setIsArchiveImporting(false)
+      setIsUploading(false)
     }
   }
 
@@ -355,7 +362,11 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
           onClick={handleStartArchiveImport}
           disabled={!archiveFile || isArchiveControlsDisabled}
         >
-          {isArchiveImporting ? 'Importing…' : 'Import archive'}
+          {isUploading
+            ? 'Uploading…'
+            : isArchiveImporting
+              ? 'Starting import…'
+              : 'Import archive'}
         </Button>
         {archiveBatchId && (
           <span className="text-xs text-muted-foreground">

@@ -35,6 +35,12 @@ const CORS_HEADERS = [
 const Visibility = z.enum(['public', 'unlisted', 'private', 'direct'])
 const ArchiveImportAction = z.enum(['retry', 'cancel'])
 
+const PresignedArchiveBody = z.object({
+  fitnessFileId: z.string().min(1),
+  archiveId: z.string().uuid(),
+  visibility: Visibility.default('public')
+})
+
 const ACCEPTED_ZIP_MIME_TYPES = [
   'application/zip',
   'application/x-zip-compressed',
@@ -170,6 +176,7 @@ export const POST = traceApiRoute(
     const { currentActor, database } = context
     let archiveFileId: string | null = null
     let archiveImportId: string | null = null
+    let archiveFileOwned = false
 
     try {
       const existingImport = await database.getActiveStravaArchiveImportByActor(
@@ -186,6 +193,73 @@ export const POST = traceApiRoute(
             error:
               'A Strava archive import is already active for this actor. Retry or cancel it before starting a new import.',
             activeImport: toActiveImportResponse(existingImport)
+          }
+        })
+      }
+
+      const contentType = req.headers.get('content-type') ?? ''
+
+      if (contentType.includes('application/json')) {
+        const bodyResult = PresignedArchiveBody.safeParse(
+          await req.json().catch(() => null)
+        )
+        if (!bodyResult.success) {
+          return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        }
+
+        const { fitnessFileId, archiveId, visibility } = bodyResult.data
+
+        const fitnessFile = await database.getFitnessFile({
+          id: fitnessFileId
+        })
+        if (!fitnessFile || fitnessFile.actorId !== currentActor.id) {
+          return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
+        }
+
+        const sourceBatchId = getStravaArchiveSourceBatchId(archiveId)
+        if (
+          fitnessFile.fileType !== 'zip' ||
+          fitnessFile.importBatchId !== sourceBatchId
+        ) {
+          return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+        }
+
+        const batchId = getStravaArchiveImportBatchId(archiveId)
+        const importId = crypto.randomUUID()
+
+        archiveFileId = fitnessFile.id
+
+        const importState = await database.createStravaArchiveImport({
+          id: importId,
+          actorId: currentActor.id,
+          archiveId,
+          archiveFitnessFileId: fitnessFile.id,
+          batchId,
+          visibility
+        })
+        archiveImportId = importState.id
+
+        await queueStravaArchiveImportJob({
+          importId: importState.id,
+          actorId: currentActor.id,
+          archiveId,
+          archiveFitnessFileId: fitnessFile.id,
+          batchId,
+          visibility,
+          nextActivityIndex: 0,
+          pendingMediaActivities: [],
+          mediaAttachmentRetry: 0,
+          completedActivitiesCount: 0,
+          failedActivitiesCount: 0
+        })
+
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            archiveId,
+            batchId,
+            importId: importState.id
           }
         })
       }
@@ -229,6 +303,7 @@ export const POST = traceApiRoute(
       }
 
       archiveFileId = storedArchive.id
+      archiveFileOwned = true
 
       const importState = await database.createStravaArchiveImport({
         id: importId,
@@ -264,7 +339,7 @@ export const POST = traceApiRoute(
         }
       })
     } catch (error) {
-      if (archiveFileId) {
+      if (archiveFileId && archiveFileOwned) {
         try {
           const deleted = await deleteFitnessFile(database, archiveFileId)
           if (!deleted) {
