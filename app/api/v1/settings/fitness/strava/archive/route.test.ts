@@ -407,7 +407,7 @@ describe('Strava archive import route', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fitnessFileId: 'pre-created-fitness-file-id',
-          archiveId: 'archive-uuid-123',
+          archiveId: '550e8400-e29b-41d4-a716-446655440001',
           visibility: 'private'
         })
       }
@@ -417,8 +417,8 @@ describe('Strava archive import route', () => {
     expect(response.status).toBe(200)
 
     const body = await response.json()
-    expect(body.archiveId).toBe('archive-uuid-123')
-    expect(body.batchId).toBe('strava-archive:archive-uuid-123')
+    expect(body.archiveId).toBe('550e8400-e29b-41d4-a716-446655440001')
+    expect(body.batchId).toBe('strava-archive:550e8400-e29b-41d4-a716-446655440001')
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
     expect(body.importId).toBeDefined()
 
@@ -440,7 +440,7 @@ describe('Strava archive import route', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fitnessFileId: 'someone-elses-file',
-          archiveId: 'archive-uuid-456',
+          archiveId: '550e8400-e29b-41d4-a716-446655440002',
           visibility: 'private'
         })
       }

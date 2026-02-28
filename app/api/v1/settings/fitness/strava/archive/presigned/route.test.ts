@@ -118,6 +118,32 @@ describe('Strava archive presigned URL endpoint', () => {
     expect(response.status).toBe(422)
   })
 
+  it('returns 413 when storage quota is exceeded', async () => {
+    const { QuotaExceededError } = jest.requireActual(
+      '@/lib/services/fitness-files/errors'
+    ) as typeof import('@/lib/services/fitness-files/errors')
+
+    mockGetPresignedFitnessFileUrl.mockRejectedValue(
+      new QuotaExceededError('Quota exceeded', 1000, 500)
+    )
+
+    const req = new Request(
+      'http://localhost/api/v1/settings/fitness/strava/archive/presigned',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: 'export.zip',
+          contentType: 'application/zip',
+          size: 1024
+        })
+      }
+    )
+
+    const response = await POST(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(413)
+  })
+
   it('returns 401 when not authenticated', async () => {
     mockGetServerSession.mockResolvedValue(null)
 

@@ -35,6 +35,12 @@ const CORS_HEADERS = [
 const Visibility = z.enum(['public', 'unlisted', 'private', 'direct'])
 const ArchiveImportAction = z.enum(['retry', 'cancel'])
 
+const PresignedArchiveBody = z.object({
+  fitnessFileId: z.string().min(1),
+  archiveId: z.string().uuid(),
+  visibility: Visibility.default('public')
+})
+
 const ACCEPTED_ZIP_MIME_TYPES = [
   'application/zip',
   'application/x-zip-compressed',
@@ -194,34 +200,22 @@ export const POST = traceApiRoute(
       const contentType = req.headers.get('content-type') ?? ''
 
       if (contentType.includes('application/json')) {
-        const body = (await req.json()) as {
-          fitnessFileId?: unknown
-          archiveId?: unknown
-          visibility?: unknown
-        }
-
-        if (
-          typeof body.fitnessFileId !== 'string' ||
-          !body.fitnessFileId ||
-          typeof body.archiveId !== 'string' ||
-          !body.archiveId
-        ) {
+        const bodyResult = PresignedArchiveBody.safeParse(
+          await req.json().catch(() => null)
+        )
+        if (!bodyResult.success) {
           return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
         }
 
-        const visibilityResult = Visibility.safeParse(body.visibility)
-        if (!visibilityResult.success) {
-          return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
-        }
+        const { fitnessFileId, archiveId, visibility } = bodyResult.data
 
         const fitnessFile = await database.getFitnessFile({
-          id: body.fitnessFileId
+          id: fitnessFileId
         })
         if (!fitnessFile || fitnessFile.actorId !== currentActor.id) {
           return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
         }
 
-        const archiveId = body.archiveId
         const batchId = getStravaArchiveImportBatchId(archiveId)
         const importId = crypto.randomUUID()
 
@@ -233,7 +227,7 @@ export const POST = traceApiRoute(
           archiveId,
           archiveFitnessFileId: fitnessFile.id,
           batchId,
-          visibility: visibilityResult.data
+          visibility
         })
         archiveImportId = importState.id
 
@@ -243,7 +237,7 @@ export const POST = traceApiRoute(
           archiveId,
           archiveFitnessFileId: fitnessFile.id,
           batchId,
-          visibility: visibilityResult.data,
+          visibility,
           nextActivityIndex: 0,
           pendingMediaActivities: [],
           mediaAttachmentRetry: 0,

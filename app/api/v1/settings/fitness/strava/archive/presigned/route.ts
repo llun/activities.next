@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
 import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
+import { getConfig } from '@/lib/config'
+import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
 import { getDatabase } from '@/lib/database'
 import { getPresignedFitnessFileUrl } from '@/lib/services/fitness-files'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
@@ -23,7 +25,16 @@ const PresignedArchiveInput = z.object({
       'Only .zip archive files are accepted'
     ),
   contentType: z.string().default('application/zip'),
-  size: z.number().positive()
+  size: z
+    .number()
+    .positive()
+    .refine((value) => {
+      const config = getConfig()
+      return (
+        value <=
+        (config.fitnessStorage?.maxFileSize ?? DEFAULT_FITNESS_MAX_FILE_SIZE)
+      )
+    }, 'File is larger than the limit.')
 })
 
 export const POST = traceApiRoute(
@@ -80,7 +91,10 @@ export const POST = traceApiRoute(
       if (error instanceof QuotaExceededError) {
         return apiErrorResponse(HTTP_STATUS.PAYLOAD_TOO_LARGE)
       }
-      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      if (error instanceof z.ZodError) {
+        return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      }
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   }
 )
