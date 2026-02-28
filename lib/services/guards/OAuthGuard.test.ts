@@ -5,8 +5,8 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MOCK_SECRET_PHASES } from '@/lib/stub/actor'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { Actor } from '@/lib/types/domain/actor'
 import { Scope } from '@/lib/types/database/operations'
+import { Actor } from '@/lib/types/domain/actor'
 
 import { OAuthGuard, getTokenFromHeader } from './OAuthGuard'
 

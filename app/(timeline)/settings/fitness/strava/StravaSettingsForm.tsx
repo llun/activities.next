@@ -16,7 +16,13 @@ import { Label } from '@/lib/components/ui/label'
 
 import { StravaArchiveImportSection } from './StravaArchiveImportSection'
 
-export const StravaSettingsForm: FC = () => {
+interface StravaSettingsFormProps {
+  serverActorHandle?: string
+}
+
+export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
+  serverActorHandle
+}) => {
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [isConfigured, setIsConfigured] = useState(false)
@@ -49,6 +55,8 @@ export const StravaSettingsForm: FC = () => {
           data.actorHandle.length > 0
         ) {
           setArchiveActorHandle(data.actorHandle)
+        } else if (serverActorHandle) {
+          setArchiveActorHandle(serverActorHandle)
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
