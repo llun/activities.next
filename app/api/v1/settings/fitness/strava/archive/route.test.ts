@@ -420,7 +420,9 @@ describe('Strava archive import route', () => {
 
     const body = await response.json()
     expect(body.archiveId).toBe('550e8400-e29b-41d4-a716-446655440001')
-    expect(body.batchId).toBe('strava-archive:550e8400-e29b-41d4-a716-446655440001')
+    expect(body.batchId).toBe(
+      'strava-archive:550e8400-e29b-41d4-a716-446655440001'
+    )
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
     expect(body.importId).toBeDefined()
 

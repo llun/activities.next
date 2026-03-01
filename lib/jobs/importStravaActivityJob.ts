@@ -21,13 +21,11 @@ import {
   StravaActivity,
   buildGpxFromStravaStreams,
   buildStravaActivitySummary,
-  downloadStravaActivityFile,
   getStravaActivity,
   getStravaActivityDurationSeconds,
   getStravaActivityPhotos,
   getStravaActivityStartTimeMs,
   getStravaActivityStreams,
-  getStravaUpload,
   getValidStravaAccessToken,
   isSupportedStravaPhotoMimeType,
   mapStravaVisibilityToMastodon
@@ -45,7 +43,14 @@ const JobData = z.object({
   actorId: z.string(),
   stravaActivityId: z
     .union([z.string(), z.number()])
-    .transform((value) => String(value))
+    .transform((value) => String(value)),
+  stravaAuth: z
+    .object({
+      appId: z.string(),
+      appSecret: z.string(),
+      accessToken: z.string()
+    })
+    .optional()
 })
 
 const OVERLAP_CONTEXT_SCAN_LIMIT = 200
@@ -407,15 +412,27 @@ const getOrCreateStravaFallbackNote = async ({
 export const importStravaActivityJob = createJobHandle(
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   async (database, message) => {
-    const { actorId, stravaActivityId } = JobData.parse(message.data)
+    const { actorId, stravaActivityId, stravaAuth } = JobData.parse(
+      message.data
+    )
 
-    const [actor, fitnessSettings] = await Promise.all([
-      database.getActorFromId({ id: actorId }),
-      database.getFitnessSettings({
-        actorId,
-        serviceType: 'strava'
-      })
-    ])
+    const actor = await database.getActorFromId({ id: actorId })
+    const fitnessSettings =
+      stravaAuth !== undefined
+        ? {
+            id: `cli-strava-auth:${actorId}`,
+            actorId,
+            serviceType: 'strava',
+            clientId: stravaAuth.appId,
+            clientSecret: stravaAuth.appSecret,
+            accessToken: stravaAuth.accessToken,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          }
+        : await database.getFitnessSettings({
+            actorId,
+            serviceType: 'strava'
+          })
 
     if (!actor || !fitnessSettings) {
       logger.warn({
@@ -450,58 +467,18 @@ export const importStravaActivityJob = createJobHandle(
       batchFiles.find((file) => file.actorId === actorId) ?? null
 
     if (!targetFitnessFile) {
-      let shouldDownload = Boolean(activity.upload_id)
-
-      if (activity.upload_id) {
-        const upload = await getStravaUpload({
-          uploadId: activity.upload_id,
-          accessToken
-        })
-        if (upload?.error) {
-          logger.warn({
-            message:
-              'Strava upload has error, creating note from activity data',
-            actorId,
-            stravaActivityId,
-            uploadError: upload.error
-          })
-          shouldDownload = false
-        } else if (upload !== null && !upload.activity_id) {
-          throw new Error(
-            `Strava upload ${activity.upload_id} is still being processed`
-          )
-        }
-      }
-
-      let exportFile = shouldDownload
-        ? await downloadStravaActivityFile({
-            activityId: stravaActivityId,
-            accessToken
+      const streams = await getStravaActivityStreams({
+        activityId: stravaActivityId,
+        accessToken
+      })
+      const gpxContent = streams
+        ? buildGpxFromStravaStreams(activity, streams)
+        : null
+      const exportFile = gpxContent
+        ? new File([gpxContent], `strava-${stravaActivityId}.gpx`, {
+            type: 'application/gpx+xml'
           })
         : null
-
-      if (!exportFile && !activity.upload_id) {
-        const streams = await getStravaActivityStreams({
-          activityId: stravaActivityId,
-          accessToken
-        })
-        const gpxContent = streams
-          ? buildGpxFromStravaStreams(activity, streams)
-          : null
-        if (gpxContent) {
-          exportFile = new File(
-            [gpxContent],
-            `strava-${stravaActivityId}.gpx`,
-            { type: 'application/gpx+xml' }
-          )
-        }
-      }
-
-      if (!exportFile && shouldDownload) {
-        throw new Error(
-          `Strava activity ${stravaActivityId} export not yet available, retrying`
-        )
-      }
 
       if (!exportFile) {
         logger.info({

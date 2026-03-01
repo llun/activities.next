@@ -12,7 +12,7 @@ import { logger } from '@/lib/utils/logger'
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3'
 const STRAVA_OAUTH_TOKEN_URL = 'https://www.strava.com/oauth/token'
 const STRAVA_TOKEN_REFRESH_BUFFER_MS = 60_000
-export const STRAVA_OAUTH_SCOPE = 'activity:read_all,activity:write'
+export const STRAVA_OAUTH_SCOPE = 'activity:read_all'
 
 type StravaActivityVisibility =
   | 'everyone'
@@ -475,11 +475,6 @@ export const getStravaUpload = async ({
   }
 
   if (response.status === 401) {
-    logger.warn({
-      message:
-        'Strava Uploads API returned 401 — token may lack activity:write scope, skipping upload check',
-      uploadId
-    })
     return null
   }
 
@@ -660,8 +655,16 @@ export const buildGpxFromStravaStreams = (
     })
     .join('')
 
-  const name = activity.name?.trim() ?? ''
-  const sportType = activity.sport_type?.trim() ?? ''
+  const escapeXml = (s: string) =>
+    s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;')
+
+  const name = escapeXml(activity.name?.trim() ?? '')
+  const sportType = escapeXml(activity.sport_type?.trim() ?? '')
 
   return `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="activities.next" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>${name}</name><type>${sportType}</type><trkseg>${trkpts}</trkseg></trk></gpx>`
 }
