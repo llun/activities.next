@@ -35,6 +35,7 @@ interface StravaActivityPhotos {
 
 export interface StravaActivity {
   id: number
+  upload_id?: number | null
   name?: string | null
   description?: string | null
   distance?: number
@@ -46,6 +47,14 @@ export interface StravaActivity {
   type?: string | null
   visibility?: StravaActivityVisibility | null
   photos?: StravaActivityPhotos | null
+}
+
+export interface StravaUpload {
+  id: number
+  activity_id?: number | null
+  external_id?: string | null
+  error?: string | null
+  status?: string | null
 }
 
 interface StravaTokenRefreshResponse {
@@ -438,6 +447,35 @@ export const downloadStravaActivityFile = async ({
     {
       type: mimeType
     }
+  )
+}
+
+export const getStravaUpload = async ({
+  uploadId,
+  accessToken
+}: {
+  uploadId: number
+  accessToken: string
+}): Promise<StravaUpload | null> => {
+  const response = await fetch(
+    `${STRAVA_API_BASE}/uploads/${encodeURIComponent(uploadId)}`,
+    {
+      method: 'GET',
+      headers: getStravaAuthHeaders(accessToken)
+    }
+  )
+
+  if (response.ok) {
+    return (await response.json()) as StravaUpload
+  }
+
+  if (response.status === 404) {
+    return null
+  }
+
+  const detail = await getStravaErrorDetail(response)
+  throw new Error(
+    `Failed to fetch Strava upload (${response.status}): ${detail}`
   )
 }
 

@@ -24,6 +24,7 @@ import {
   getStravaActivityDurationSeconds,
   getStravaActivityPhotos,
   getStravaActivityStartTimeMs,
+  getStravaUpload,
   getValidStravaAccessToken,
   isSupportedStravaPhotoMimeType,
   mapStravaVisibilityToMastodon
@@ -172,10 +173,35 @@ export const importStravaActivityJob = createJobHandle(
       batchFiles.find((file) => file.actorId === actorId) ?? null
 
     if (!targetFitnessFile) {
-      const exportFile = await downloadStravaActivityFile({
-        activityId: stravaActivityId,
-        accessToken
-      })
+      let shouldDownload = Boolean(activity.upload_id)
+
+      if (activity.upload_id) {
+        const upload = await getStravaUpload({
+          uploadId: activity.upload_id,
+          accessToken
+        })
+        if (upload?.error) {
+          logger.warn({
+            message:
+              'Strava upload has error, creating note from activity data',
+            actorId,
+            stravaActivityId,
+            uploadError: upload.error
+          })
+          shouldDownload = false
+        } else if (!upload?.activity_id) {
+          throw new Error(
+            `Strava upload ${activity.upload_id} is still being processed`
+          )
+        }
+      }
+
+      const exportFile = shouldDownload
+        ? await downloadStravaActivityFile({
+            activityId: stravaActivityId,
+            accessToken
+          })
+        : null
 
       if (!exportFile) {
         logger.info({
