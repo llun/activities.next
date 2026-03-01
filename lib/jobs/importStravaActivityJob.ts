@@ -21,13 +21,11 @@ import {
   StravaActivity,
   buildGpxFromStravaStreams,
   buildStravaActivitySummary,
-  downloadStravaActivityFile,
   getStravaActivity,
   getStravaActivityDurationSeconds,
   getStravaActivityPhotos,
   getStravaActivityStartTimeMs,
   getStravaActivityStreams,
-  getStravaUpload,
   getValidStravaAccessToken,
   isSupportedStravaPhotoMimeType,
   mapStravaVisibilityToMastodon
@@ -469,58 +467,18 @@ export const importStravaActivityJob = createJobHandle(
       batchFiles.find((file) => file.actorId === actorId) ?? null
 
     if (!targetFitnessFile) {
-      let shouldDownload = Boolean(activity.upload_id)
-
-      if (activity.upload_id) {
-        const upload = await getStravaUpload({
-          uploadId: activity.upload_id,
-          accessToken
-        })
-        if (upload?.error) {
-          logger.warn({
-            message:
-              'Strava upload has error, creating note from activity data',
-            actorId,
-            stravaActivityId,
-            uploadError: upload.error
-          })
-          shouldDownload = false
-        } else if (upload !== null && !upload.activity_id) {
-          throw new Error(
-            `Strava upload ${activity.upload_id} is still being processed`
-          )
-        }
-      }
-
-      let exportFile = shouldDownload
-        ? await downloadStravaActivityFile({
-            activityId: stravaActivityId,
-            accessToken
+      const streams = await getStravaActivityStreams({
+        activityId: stravaActivityId,
+        accessToken
+      })
+      const gpxContent = streams
+        ? buildGpxFromStravaStreams(activity, streams)
+        : null
+      const exportFile = gpxContent
+        ? new File([gpxContent], `strava-${stravaActivityId}.gpx`, {
+            type: 'application/gpx+xml'
           })
         : null
-
-      if (!exportFile && !activity.upload_id) {
-        const streams = await getStravaActivityStreams({
-          activityId: stravaActivityId,
-          accessToken
-        })
-        const gpxContent = streams
-          ? buildGpxFromStravaStreams(activity, streams)
-          : null
-        if (gpxContent) {
-          exportFile = new File(
-            [gpxContent],
-            `strava-${stravaActivityId}.gpx`,
-            { type: 'application/gpx+xml' }
-          )
-        }
-      }
-
-      if (!exportFile && shouldDownload) {
-        throw new Error(
-          `Strava activity ${stravaActivityId} export not yet available, retrying`
-        )
-      }
 
       if (!exportFile) {
         logger.info({

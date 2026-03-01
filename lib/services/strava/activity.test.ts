@@ -146,7 +146,10 @@ describe('getStravaActivityStreams', () => {
     })
 
     await expect(
-      getStravaActivityStreams({ activityId: '123', accessToken: 'access-token' })
+      getStravaActivityStreams({
+        activityId: '123',
+        accessToken: 'access-token'
+      })
     ).rejects.toThrow('503')
   })
 })
