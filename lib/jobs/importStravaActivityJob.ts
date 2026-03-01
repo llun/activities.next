@@ -167,6 +167,16 @@ export const importStravaActivityJob = createJobHandle(
         accessToken
       })
 
+      if (!exportFile) {
+        logger.warn({
+          message:
+            'Skipping Strava activity import because no exportable file is available',
+          actorId,
+          stravaActivityId
+        })
+        return
+      }
+
       const storedFitnessFile = await saveFitnessFile(database, actor, {
         file: exportFile,
         description: activity.description?.trim() || undefined,
