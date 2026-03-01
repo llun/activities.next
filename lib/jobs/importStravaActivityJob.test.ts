@@ -217,6 +217,22 @@ describe('importStravaActivityJob', () => {
     )
   })
 
+  it('skips gracefully when the Strava activity has no exportable file', async () => {
+    mockDownloadStravaActivityFile.mockResolvedValueOnce(null as never)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-no-file',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '125'
+      }
+    })
+
+    expect(mockSaveFitnessFile).not.toHaveBeenCalled()
+    expect(mockImportFitnessFilesJob).not.toHaveBeenCalled()
+  })
+
   it('skips re-import when a Strava batch file already has a status', async () => {
     database.getFitnessFilesByBatchId.mockResolvedValueOnce([
       {

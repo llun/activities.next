@@ -388,7 +388,7 @@ export const downloadStravaActivityFile = async ({
 }: {
   activityId: string
   accessToken: string
-}): Promise<File> => {
+}): Promise<File | null> => {
   const originalExport = await fetchStravaActivityExport({
     activityId,
     endpoint: 'export_original',
@@ -403,7 +403,11 @@ export const downloadStravaActivityFile = async ({
     }))
 
   if (!exportResponse) {
-    throw new Error('Unable to fetch Strava activity export')
+    logger.warn({
+      message: 'No exportable file available for Strava activity',
+      activityId
+    })
+    return null
   }
 
   const exportBuffer = await exportResponse.arrayBuffer()
