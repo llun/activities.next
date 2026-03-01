@@ -28,16 +28,9 @@ export function ActorsSection({
   const router = useRouter()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  // Initialize with currentDefault if it's in the actors list, otherwise use first actor
-  const getInitialActorId = () => {
-    if (currentDefault && actors.find((a) => a.id === currentDefault)) {
-      return currentDefault
-    }
-    return actors[0]?.id || ''
-  }
-
-  const [selectedActorId, setSelectedActorId] =
-    useState<string>(getInitialActorId())
+  const [selectedActorId, setSelectedActorId] = useState<string>(
+    currentActor.id
+  )
   const [isSwitching, setIsSwitching] = useState(false)
   const [isSavingDefault, setIsSavingDefault] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
@@ -159,9 +152,16 @@ export function ActorsSection({
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-medium truncate">
-                  {selectedActor?.name || selectedActor?.username}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-medium truncate">
+                    {selectedActor?.name || selectedActor?.username}
+                  </p>
+                  {selectedActorId === currentActor.id && (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      (current)
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground truncate">
                   {selectedActor ? getHandle(selectedActor) : ''}
                 </p>
