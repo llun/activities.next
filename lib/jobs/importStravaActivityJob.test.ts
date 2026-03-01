@@ -218,7 +218,7 @@ describe('importStravaActivityJob', () => {
   })
 
   it('skips gracefully when the Strava activity has no exportable file', async () => {
-    mockDownloadStravaActivityFile.mockResolvedValueOnce(null as never)
+    mockDownloadStravaActivityFile.mockResolvedValueOnce(null)
 
     await importStravaActivityJob(database as unknown as Database, {
       id: 'job-no-file',
