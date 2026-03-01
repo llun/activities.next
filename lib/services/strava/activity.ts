@@ -229,14 +229,20 @@ const fetchStravaActivityExport = async ({
   }
 
   const detail = await getStravaErrorDetail(response)
-  logger.warn({
-    message: 'Failed to fetch Strava activity export',
-    activityId,
-    endpoint,
-    status: response.status,
-    error: detail
-  })
-  return null
+
+  if (response.status === 404) {
+    logger.warn({
+      message: 'Strava activity export not found',
+      activityId,
+      endpoint,
+      status: response.status
+    })
+    return null
+  }
+
+  throw new Error(
+    `Failed to fetch Strava activity export (${response.status}): ${detail}`
+  )
 }
 
 export const getStravaActivityStartTimeMs = (activity: StravaActivity) => {
@@ -388,7 +394,7 @@ export const downloadStravaActivityFile = async ({
 }: {
   activityId: string
   accessToken: string
-}): Promise<File> => {
+}): Promise<File | null> => {
   const originalExport = await fetchStravaActivityExport({
     activityId,
     endpoint: 'export_original',
@@ -403,12 +409,20 @@ export const downloadStravaActivityFile = async ({
     }))
 
   if (!exportResponse) {
-    throw new Error('Unable to fetch Strava activity export')
+    logger.warn({
+      message: 'No exportable file available for Strava activity',
+      activityId
+    })
+    return null
   }
 
   const exportBuffer = await exportResponse.arrayBuffer()
   if (exportBuffer.byteLength <= 0) {
-    throw new Error('Strava activity export is empty')
+    logger.warn({
+      message: 'Strava activity export is empty',
+      activityId
+    })
+    return null
   }
 
   const fileType = getExportFileTypeFromHeaders({
