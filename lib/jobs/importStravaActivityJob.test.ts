@@ -570,6 +570,40 @@ describe('importStravaActivityJob', () => {
     expect(database.createNote).not.toHaveBeenCalled()
   })
 
+  it('falls back to file download when getStravaUpload returns null for activity with upload_id', async () => {
+    mockGetStravaUpload.mockResolvedValueOnce(null)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-upload-null',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    expect(mockDownloadStravaActivityFile).toHaveBeenCalledTimes(1)
+    expect(mockImportFitnessFilesJob).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws to retry when upload_id is present but both upload check and file download return null', async () => {
+    mockGetStravaUpload.mockResolvedValueOnce(null)
+    mockDownloadStravaActivityFile.mockResolvedValueOnce(null)
+
+    await expect(
+      importStravaActivityJob(database as unknown as Database, {
+        id: 'job-upload-null-no-file',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123'
+        }
+      })
+    ).rejects.toThrow()
+
+    expect(database.createNote).not.toHaveBeenCalled()
+  })
+
   it('skips re-import when a Strava batch file already has a status', async () => {
     database.getFitnessFilesByBatchId.mockResolvedValueOnce([
       {

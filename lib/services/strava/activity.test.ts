@@ -58,7 +58,22 @@ describe('getStravaUpload', () => {
     expect(result).toBeNull()
   })
 
-  it('throws when Strava returns a non-404 error', async () => {
+  it('returns null when upload check is unauthorized (401)', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      text: () => Promise.resolve('Authorization Error')
+    })
+
+    const result = await getStravaUpload({
+      uploadId: 67890,
+      accessToken: 'access-token'
+    })
+
+    expect(result).toBeNull()
+  })
+
+  it('throws when Strava returns a non-404 non-401 error', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
