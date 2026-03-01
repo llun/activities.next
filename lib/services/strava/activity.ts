@@ -12,6 +12,7 @@ import { logger } from '@/lib/utils/logger'
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3'
 const STRAVA_OAUTH_TOKEN_URL = 'https://www.strava.com/oauth/token'
 const STRAVA_TOKEN_REFRESH_BUFFER_MS = 60_000
+export const STRAVA_OAUTH_SCOPE = 'activity:read_all,activity:write'
 
 type StravaActivityVisibility =
   | 'everyone'
@@ -470,6 +471,15 @@ export const getStravaUpload = async ({
   }
 
   if (response.status === 404) {
+    return null
+  }
+
+  if (response.status === 401) {
+    logger.warn({
+      message:
+        'Strava Uploads API returned 401 — token may lack activity:write scope, skipping upload check',
+      uploadId
+    })
     return null
   }
 
