@@ -279,6 +279,42 @@ describe('importStravaActivityJob', () => {
     )
   })
 
+  it('uses CLI-provided Strava auth without loading fitness settings', async () => {
+    mockGetValidStravaAccessToken.mockImplementationOnce(
+      async ({ fitnessSettings }) => fitnessSettings.accessToken ?? null
+    )
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-cli-auth',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        stravaAuth: {
+          appId: 'strava-app-id',
+          appSecret: 'strava-app-secret',
+          accessToken: 'override-access-token'
+        }
+      }
+    })
+
+    expect(database.getFitnessSettings).not.toHaveBeenCalled()
+    expect(mockGetValidStravaAccessToken).toHaveBeenCalledWith({
+      database,
+      fitnessSettings: expect.objectContaining({
+        actorId: 'actor-1',
+        serviceType: 'strava',
+        clientId: 'strava-app-id',
+        clientSecret: 'strava-app-secret',
+        accessToken: 'override-access-token'
+      })
+    })
+    expect(mockGetStravaActivity).toHaveBeenCalledWith({
+      activityId: '123',
+      accessToken: 'override-access-token'
+    })
+  })
+
   it('maps Strava only_me visibility to direct import visibility', async () => {
     mockGetStravaActivity.mockResolvedValueOnce({
       id: 124,

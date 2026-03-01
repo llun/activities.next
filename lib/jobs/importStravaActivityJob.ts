@@ -45,7 +45,14 @@ const JobData = z.object({
   actorId: z.string(),
   stravaActivityId: z
     .union([z.string(), z.number()])
-    .transform((value) => String(value))
+    .transform((value) => String(value)),
+  stravaAuth: z
+    .object({
+      appId: z.string(),
+      appSecret: z.string(),
+      accessToken: z.string()
+    })
+    .optional()
 })
 
 const OVERLAP_CONTEXT_SCAN_LIMIT = 200
@@ -407,15 +414,27 @@ const getOrCreateStravaFallbackNote = async ({
 export const importStravaActivityJob = createJobHandle(
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   async (database, message) => {
-    const { actorId, stravaActivityId } = JobData.parse(message.data)
+    const { actorId, stravaActivityId, stravaAuth } = JobData.parse(
+      message.data
+    )
 
-    const [actor, fitnessSettings] = await Promise.all([
-      database.getActorFromId({ id: actorId }),
-      database.getFitnessSettings({
-        actorId,
-        serviceType: 'strava'
-      })
-    ])
+    const actor = await database.getActorFromId({ id: actorId })
+    const fitnessSettings =
+      stravaAuth !== undefined
+        ? {
+            id: `cli-strava-auth:${actorId}`,
+            actorId,
+            serviceType: 'strava',
+            clientId: stravaAuth.appId,
+            clientSecret: stravaAuth.appSecret,
+            accessToken: stravaAuth.accessToken,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          }
+        : await database.getFitnessSettings({
+            actorId,
+            serviceType: 'strava'
+          })
 
     if (!actor || !fitnessSettings) {
       logger.warn({
