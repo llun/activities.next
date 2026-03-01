@@ -11,7 +11,7 @@ import { getSubscription } from '@/lib/services/strava/webhookSubscription'
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
-export async function listStravaWebhooks(args = process.argv.slice(2)) {
+async function listStravaWebhooks(args = process.argv.slice(2)) {
   const input = args[0]
   if (!input) {
     console.error(
