@@ -29,7 +29,10 @@ export function ActorsSection({
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   const [selectedActorId, setSelectedActorId] = useState<string>(
-    currentActor.id
+    () =>
+      actors.find((actor) => actor.id === currentActor.id)?.id ??
+      actors[0]?.id ??
+      currentActor.id
   )
   const [isSwitching, setIsSwitching] = useState(false)
   const [isSavingDefault, setIsSavingDefault] = useState(false)
