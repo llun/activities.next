@@ -39,7 +39,7 @@ export const GET = traceApiRoute(
     stravaAuthUrl.searchParams.set('client_id', fitnessSettings.clientId)
     stravaAuthUrl.searchParams.set('redirect_uri', redirectUri)
     stravaAuthUrl.searchParams.set('response_type', 'code')
-    stravaAuthUrl.searchParams.set('scope', 'activity:read_all')
+    stravaAuthUrl.searchParams.set('scope', 'activity:read_all,activity:write')
     stravaAuthUrl.searchParams.set('state', state)
 
     return NextResponse.redirect(stravaAuthUrl.toString())
