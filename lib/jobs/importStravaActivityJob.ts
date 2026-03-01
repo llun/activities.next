@@ -18,12 +18,14 @@ import { saveMedia } from '@/lib/services/medias/index'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
+  buildGpxFromStravaStreams,
   buildStravaActivitySummary,
   downloadStravaActivityFile,
   getStravaActivity,
   getStravaActivityDurationSeconds,
   getStravaActivityPhotos,
   getStravaActivityStartTimeMs,
+  getStravaActivityStreams,
   getStravaUpload,
   getValidStravaAccessToken,
   isSupportedStravaPhotoMimeType,
@@ -196,12 +198,29 @@ export const importStravaActivityJob = createJobHandle(
         }
       }
 
-      const exportFile = shouldDownload
+      let exportFile = shouldDownload
         ? await downloadStravaActivityFile({
             activityId: stravaActivityId,
             accessToken
           })
         : null
+
+      if (!exportFile && !activity.upload_id) {
+        const streams = await getStravaActivityStreams({
+          activityId: stravaActivityId,
+          accessToken
+        })
+        const gpxContent = streams
+          ? buildGpxFromStravaStreams(activity, streams)
+          : null
+        if (gpxContent) {
+          exportFile = new File(
+            [gpxContent],
+            `strava-${stravaActivityId}.gpx`,
+            { type: 'application/gpx+xml' }
+          )
+        }
+      }
 
       if (!exportFile) {
         logger.info({

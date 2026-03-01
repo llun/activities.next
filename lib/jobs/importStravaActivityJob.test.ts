@@ -10,9 +10,11 @@ import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
+  buildGpxFromStravaStreams,
   downloadStravaActivityFile,
   getStravaActivity,
   getStravaActivityPhotos,
+  getStravaActivityStreams,
   getStravaUpload,
   getValidStravaAccessToken
 } from '@/lib/services/strava/activity'
@@ -29,9 +31,11 @@ jest.mock('@/lib/services/strava/activity', () => {
   const actual = jest.requireActual('@/lib/services/strava/activity')
   return {
     ...actual,
+    buildGpxFromStravaStreams: jest.fn(),
     downloadStravaActivityFile: jest.fn(),
     getStravaActivity: jest.fn(),
     getStravaActivityPhotos: jest.fn(),
+    getStravaActivityStreams: jest.fn(),
     getStravaUpload: jest.fn(),
     getValidStravaAccessToken: jest.fn()
   }
@@ -65,6 +69,10 @@ const mockGetStravaActivityPhotos =
 const mockGetStravaUpload = getStravaUpload as jest.MockedFunction<
   typeof getStravaUpload
 >
+const mockGetStravaActivityStreams =
+  getStravaActivityStreams as jest.MockedFunction<typeof getStravaActivityStreams>
+const mockBuildGpxFromStravaStreams =
+  buildGpxFromStravaStreams as jest.MockedFunction<typeof buildGpxFromStravaStreams>
 const mockGetValidStravaAccessToken =
   getValidStravaAccessToken as jest.MockedFunction<
     typeof getValidStravaAccessToken
@@ -195,6 +203,9 @@ describe('importStravaActivityJob', () => {
     mockGetQueue.mockReturnValue({
       publish: jest.fn().mockResolvedValue(undefined)
     } as never)
+    // Default: no streams available (upload_id path is used by default)
+    mockGetStravaActivityStreams.mockResolvedValue(null)
+    mockBuildGpxFromStravaStreams.mockReturnValue(null)
   })
 
   it('imports Strava activity and forwards overlap context to fitness import', async () => {
@@ -264,10 +275,10 @@ describe('importStravaActivityJob', () => {
     )
   })
 
-  it('creates a note without attempting file download when activity has no upload_id', async () => {
+  it('tries streams API when activity has no upload_id and falls back to a note when no GPS data', async () => {
     mockGetStravaActivity.mockResolvedValueOnce({
       id: 125,
-      // No upload_id — manually created activity
+      // No upload_id — manually created activity with no GPS
       name: 'Morning Run',
       distance: 5_000,
       elapsed_time: 1_500,
@@ -276,6 +287,11 @@ describe('importStravaActivityJob', () => {
       sport_type: 'Run',
       visibility: 'everyone'
     })
+    // Streams exist but have no latlng data
+    mockGetStravaActivityStreams.mockResolvedValueOnce({
+      time: { type: 'time', data: [0, 10, 20] }
+    })
+    mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
 
     await importStravaActivityJob(database as unknown as Database, {
       id: 'job-no-upload',
@@ -288,6 +304,9 @@ describe('importStravaActivityJob', () => {
 
     expect(mockGetStravaUpload).not.toHaveBeenCalled()
     expect(mockDownloadStravaActivityFile).not.toHaveBeenCalled()
+    expect(mockGetStravaActivityStreams).toHaveBeenCalledWith(
+      expect.objectContaining({ activityId: '125' })
+    )
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
     expect(mockImportFitnessFilesJob).not.toHaveBeenCalled()
     expect(database.createNote).toHaveBeenCalledWith(
@@ -301,6 +320,56 @@ describe('importStravaActivityJob', () => {
     expect(mockGetQueue().publish).toHaveBeenCalledWith(
       expect.objectContaining({ name: SEND_NOTE_JOB_NAME })
     )
+  })
+
+  it('imports via fitness pipeline using streams GPX when no upload_id but streams have GPS data', async () => {
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 125,
+      // No upload_id — but activity has GPS data in streams
+      name: 'Outdoor Strength',
+      distance: 0,
+      elapsed_time: 3_600,
+      start_date: '2026-01-01T00:00:00.000Z',
+      sport_type: 'WeightTraining',
+      visibility: 'everyone'
+    })
+    mockGetStravaActivityStreams.mockResolvedValueOnce({
+      latlng: {
+        type: 'latlng',
+        data: [
+          [37.7749, -122.4194],
+          [37.775, -122.4195]
+        ]
+      },
+      time: { type: 'time', data: [0, 10] }
+    })
+    mockBuildGpxFromStravaStreams.mockReturnValueOnce(
+      '<?xml version="1.0"?><gpx>...</gpx>'
+    )
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-streams-gps',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '125'
+      }
+    })
+
+    expect(mockGetStravaUpload).not.toHaveBeenCalled()
+    expect(mockDownloadStravaActivityFile).not.toHaveBeenCalled()
+    expect(mockGetStravaActivityStreams).toHaveBeenCalledWith(
+      expect.objectContaining({ activityId: '125' })
+    )
+    expect(mockSaveFitnessFile).toHaveBeenCalledWith(
+      database,
+      expect.anything(),
+      expect.objectContaining({
+        file: expect.objectContaining({ name: 'strava-125.gpx' })
+      })
+    )
+    expect(mockImportFitnessFilesJob).toHaveBeenCalledTimes(1)
+    expect(database.createNote).not.toHaveBeenCalled()
   })
 
   it('creates a note without attempting file download when upload has an error', async () => {

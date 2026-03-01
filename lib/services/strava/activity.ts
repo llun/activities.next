@@ -576,3 +576,82 @@ export const getValidStravaAccessToken = async ({
 export const isSupportedStravaPhotoMimeType = (contentType: string) => {
   return ACCEPTED_IMAGE_TYPES.includes(contentType)
 }
+
+interface StravaStream<T> {
+  type: string
+  data: T[]
+}
+
+export interface StravaStreamSet {
+  latlng?: StravaStream<[number, number]>
+  time?: StravaStream<number>
+  altitude?: StravaStream<number>
+  distance?: StravaStream<number>
+}
+
+export const getStravaActivityStreams = async ({
+  activityId,
+  accessToken
+}: {
+  activityId: string
+  accessToken: string
+}): Promise<StravaStreamSet | null> => {
+  const response = await fetch(
+    `${STRAVA_API_BASE}/activities/${encodeURIComponent(activityId)}/streams?keys=time,latlng,altitude,distance&key_by_type=true`,
+    {
+      method: 'GET',
+      headers: getStravaAuthHeaders(accessToken)
+    }
+  )
+
+  if (response.ok) {
+    return (await response.json()) as StravaStreamSet
+  }
+
+  if (response.status === 404) {
+    return null
+  }
+
+  const detail = await getStravaErrorDetail(response)
+  throw new Error(
+    `Failed to fetch Strava activity streams (${response.status}): ${detail}`
+  )
+}
+
+export const buildGpxFromStravaStreams = (
+  activity: Pick<StravaActivity, 'id' | 'name' | 'sport_type' | 'start_date'>,
+  streams: StravaStreamSet
+): string | null => {
+  const latlngData = streams.latlng?.data
+  if (!latlngData || latlngData.length === 0) {
+    return null
+  }
+
+  const startMs = activity.start_date
+    ? new Date(activity.start_date).getTime()
+    : null
+
+  const trkpts = latlngData
+    .map(([lat, lon], index) => {
+      let children = ''
+
+      const altitude = streams.altitude?.data[index]
+      if (typeof altitude === 'number') {
+        children += `<ele>${altitude}</ele>`
+      }
+
+      const timeOffset = streams.time?.data[index]
+      if (typeof timeOffset === 'number' && startMs !== null) {
+        const timestamp = new Date(startMs + timeOffset * 1000).toISOString()
+        children += `<time>${timestamp}</time>`
+      }
+
+      return `<trkpt lat="${lat}" lon="${lon}">${children}</trkpt>`
+    })
+    .join('')
+
+  const name = activity.name?.trim() ?? ''
+  const sportType = activity.sport_type?.trim() ?? ''
+
+  return `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="activities.next" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>${name}</name><type>${sportType}</type><trkseg>${trkpts}</trkseg></trk></gpx>`
+}
