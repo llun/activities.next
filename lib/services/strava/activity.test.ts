@@ -229,4 +229,16 @@ describe('buildGpxFromStravaStreams', () => {
     expect(result).toContain('<name>Morning Run</name>')
     expect(result).toContain('<type>Run</type>')
   })
+
+  it('escapes XML special characters in activity name and sport type', () => {
+    const result = buildGpxFromStravaStreams(
+      { ...baseActivity, name: 'Ride & Run <fast>', sport_type: 'Run"2"' },
+      { latlng: { type: 'latlng', data: [[37.7749, -122.4194]] } }
+    )
+
+    expect(result).toContain('<name>Ride &amp; Run &lt;fast&gt;</name>')
+    expect(result).toContain('<type>Run&quot;2&quot;</type>')
+    expect(result).not.toContain('<fast>')
+    expect(result).not.toContain('& Run')
+  })
 })

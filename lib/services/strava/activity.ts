@@ -655,8 +655,16 @@ export const buildGpxFromStravaStreams = (
     })
     .join('')
 
-  const name = activity.name?.trim() ?? ''
-  const sportType = activity.sport_type?.trim() ?? ''
+  const escapeXml = (s: string) =>
+    s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;')
+
+  const name = escapeXml(activity.name?.trim() ?? '')
+  const sportType = escapeXml(activity.sport_type?.trim() ?? '')
 
   return `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="activities.next" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>${name}</name><type>${sportType}</type><trkseg>${trkpts}</trkseg></trk></gpx>`
 }
