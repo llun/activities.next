@@ -466,7 +466,7 @@ export const importStravaActivityJob = createJobHandle(
             uploadError: upload.error
           })
           shouldDownload = false
-        } else if (!upload?.activity_id) {
+        } else if (upload !== null && !upload.activity_id) {
           throw new Error(
             `Strava upload ${activity.upload_id} is still being processed`
           )

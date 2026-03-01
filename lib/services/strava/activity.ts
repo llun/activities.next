@@ -473,6 +473,15 @@ export const getStravaUpload = async ({
     return null
   }
 
+  if (response.status === 401) {
+    logger.warn({
+      message:
+        'Strava Uploads API returned 401 — token may lack activity:write scope, skipping upload check',
+      uploadId
+    })
+    return null
+  }
+
   const detail = await getStravaErrorDetail(response)
   throw new Error(
     `Failed to fetch Strava upload (${response.status}): ${detail}`
