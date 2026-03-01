@@ -1,3 +1,4 @@
+#!/usr/bin/env -S node -r @swc-node/register
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { Timeline } from '@/lib/services/timelines/types'
