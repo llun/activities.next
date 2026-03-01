@@ -1,3 +1,4 @@
+#!/usr/bin/env -S node -r @swc-node/register
 /**
  * Script to clean up media files that are not referenced in the database
  * Usage: scripts/cleanupMediaStorage [--dry-run] [--yes]
