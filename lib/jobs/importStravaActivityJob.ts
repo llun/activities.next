@@ -497,6 +497,12 @@ export const importStravaActivityJob = createJobHandle(
         }
       }
 
+      if (!exportFile && shouldDownload) {
+        throw new Error(
+          `Strava activity ${stravaActivityId} export not yet available, retrying`
+        )
+      }
+
       if (!exportFile) {
         logger.info({
           message:

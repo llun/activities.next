@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { STRAVA_OAUTH_SCOPE } from '@/lib/services/strava/activity'
 import { generateAlphanumeric } from '@/lib/utils/crypto'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -39,7 +40,7 @@ export const GET = traceApiRoute(
     stravaAuthUrl.searchParams.set('client_id', fitnessSettings.clientId)
     stravaAuthUrl.searchParams.set('redirect_uri', redirectUri)
     stravaAuthUrl.searchParams.set('response_type', 'code')
-    stravaAuthUrl.searchParams.set('scope', 'activity:read_all,activity:write')
+    stravaAuthUrl.searchParams.set('scope', STRAVA_OAUTH_SCOPE)
     stravaAuthUrl.searchParams.set('state', state)
 
     return NextResponse.redirect(stravaAuthUrl.toString())
