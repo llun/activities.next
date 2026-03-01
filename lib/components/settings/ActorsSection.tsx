@@ -226,8 +226,8 @@ export function ActorsSection({
                     </p>
                   </div>
                   {isCurrent && !isPendingDeletion && !isDeleting && (
-                    <span className="text-xs text-muted-foreground">
-                      Current
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      (current)
                     </span>
                   )}
                   {actor.id === selectedActorId && (
