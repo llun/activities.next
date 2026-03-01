@@ -3,9 +3,12 @@ import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import { importStravaActivityJob } from '@/lib/jobs/importStravaActivityJob'
 import {
   IMPORT_FITNESS_FILES_JOB_NAME,
-  IMPORT_STRAVA_ACTIVITY_JOB_NAME
+  IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+  SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
+import { getQueue } from '@/lib/services/queue'
+import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   downloadStravaActivityFile,
   getStravaActivity,
@@ -32,6 +35,16 @@ jest.mock('@/lib/services/strava/activity', () => {
   }
 })
 
+jest.mock('@/lib/services/queue', () => ({
+  getQueue: jest.fn().mockReturnValue({
+    publish: jest.fn().mockResolvedValue(undefined)
+  })
+}))
+
+jest.mock('@/lib/services/timelines', () => ({
+  addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
+}))
+
 const mockSaveFitnessFile = saveFitnessFile as jest.MockedFunction<
   typeof saveFitnessFile
 >
@@ -51,6 +64,9 @@ const mockGetValidStravaAccessToken =
   getValidStravaAccessToken as jest.MockedFunction<
     typeof getValidStravaAccessToken
   >
+const mockGetQueue = getQueue as jest.MockedFunction<typeof getQueue>
+const mockAddStatusToTimelines =
+  addStatusToTimelines as jest.MockedFunction<typeof addStatusToTimelines>
 
 type MockDatabase = Pick<
   Database,
@@ -64,6 +80,7 @@ type MockDatabase = Pick<
   | 'getAttachments'
   | 'createAttachment'
   | 'updateFitnessSettings'
+  | 'createNote'
 >
 
 describe('importStravaActivityJob', () => {
@@ -77,7 +94,8 @@ describe('importStravaActivityJob', () => {
     updateNote: jest.fn(),
     getAttachments: jest.fn(),
     createAttachment: jest.fn(),
-    updateFitnessSettings: jest.fn()
+    updateFitnessSettings: jest.fn(),
+    createNote: jest.fn()
   }
 
   beforeEach(() => {
@@ -85,7 +103,9 @@ describe('importStravaActivityJob', () => {
 
     database.getActorFromId.mockResolvedValue({
       id: 'actor-1',
-      domain: 'llun.test'
+      username: 'testuser',
+      domain: 'llun.test',
+      followersUrl: 'https://llun.test/@testuser/followers'
     } as never)
     database.getFitnessSettings.mockResolvedValue({
       id: 'fitness-settings-1',
@@ -125,6 +145,11 @@ describe('importStravaActivityJob', () => {
     database.getAttachments.mockResolvedValue([])
     database.createAttachment.mockResolvedValue({} as never)
     database.updateFitnessSettings.mockResolvedValue({} as never)
+    database.createNote.mockResolvedValue({
+      id: 'status-new',
+      type: 'Note',
+      text: ''
+    } as never)
 
     mockGetValidStravaAccessToken.mockResolvedValue('access-token')
     mockGetStravaActivity.mockResolvedValue({
@@ -153,6 +178,7 @@ describe('importStravaActivityJob', () => {
     })
     mockImportFitnessFilesJob.mockResolvedValue(undefined)
     mockGetStravaActivityPhotos.mockResolvedValue([])
+    mockGetQueue.mockReturnValue({ publish: jest.fn().mockResolvedValue(undefined) } as never)
   })
 
   it('imports Strava activity and forwards overlap context to fitness import', async () => {
@@ -217,7 +243,7 @@ describe('importStravaActivityJob', () => {
     )
   })
 
-  it('skips gracefully when the Strava activity has no exportable file', async () => {
+  it('creates a note from activity data when the Strava activity has no exportable file', async () => {
     mockDownloadStravaActivityFile.mockResolvedValueOnce(null)
 
     await importStravaActivityJob(database as unknown as Database, {
@@ -231,6 +257,21 @@ describe('importStravaActivityJob', () => {
 
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
     expect(mockImportFitnessFilesJob).not.toHaveBeenCalled()
+    expect(database.createNote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'actor-1',
+        text: expect.stringContaining('Morning Run'),
+        to: expect.arrayContaining(['https://www.w3.org/ns/activitystreams#Public']),
+        reply: ''
+      })
+    )
+    expect(mockAddStatusToTimelines).toHaveBeenCalledTimes(1)
+    expect(mockGetQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: SEND_NOTE_JOB_NAME,
+        data: expect.objectContaining({ actorId: 'actor-1' })
+      })
+    )
   })
 
   it('skips re-import when a Strava batch file already has a status', async () => {

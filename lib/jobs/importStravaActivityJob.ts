@@ -1,13 +1,22 @@
+import crypto from 'crypto'
+
 import { z } from 'zod'
 
+import {
+  statusRecipientsCC,
+  statusRecipientsTo
+} from '@/lib/actions/createNote'
 import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import {
   IMPORT_FITNESS_FILES_JOB_NAME,
-  IMPORT_STRAVA_ACTIVITY_JOB_NAME
+  IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+  SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
+import { getQueue } from '@/lib/services/queue'
+import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   buildStravaActivitySummary,
   downloadStravaActivityFile,
@@ -20,6 +29,7 @@ import {
   mapStravaVisibilityToMastodon
 } from '@/lib/services/strava/activity'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
+import { getMention } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -168,12 +178,135 @@ export const importStravaActivityJob = createJobHandle(
       })
 
       if (!exportFile) {
-        logger.warn({
+        logger.info({
           message:
-            'Skipping Strava activity import because no exportable file is available',
+            'No exportable file for Strava activity, creating note from activity data',
           actorId,
           stravaActivityId
         })
+
+        const postId = crypto.randomUUID()
+        const statusId = `${actor.id}/statuses/${postId}`
+        const visibility = mapStravaVisibilityToMastodon(activity.visibility)
+        const text = buildStravaActivitySummary(activity)
+        const to = statusRecipientsTo(actor, [], null, visibility)
+        const cc = statusRecipientsCC(actor, [], null, visibility)
+
+        const createdNote = await database.createNote({
+          id: statusId,
+          url: `https://${actor.domain}/${getMention(actor)}/${postId}`,
+          actorId: actor.id,
+          text,
+          summary: null,
+          to,
+          cc,
+          reply: ''
+        })
+
+        await addStatusToTimelines(database, createdNote)
+
+        const existingAttachments = await database.getAttachments({ statusId })
+        const attachmentNames = new Set(
+          existingAttachments
+            .map((attachment) => attachment.name ?? '')
+            .filter((name) => name.length > 0)
+        )
+        const remainingSlots = Math.max(
+          0,
+          MAX_ATTACHMENTS - existingAttachments.length
+        )
+
+        if (remainingSlots > 0) {
+          const photos = await getStravaActivityPhotos({
+            activityId: stravaActivityId,
+            accessToken,
+            activity,
+            limit: MAX_STRAVA_PHOTOS_TO_ATTACH
+          })
+
+          for (const [index, photo] of photos
+            .slice(0, remainingSlots)
+            .entries()) {
+            const attachmentName = getAttachmentName(photo.id, index)
+            if (attachmentNames.has(attachmentName)) {
+              continue
+            }
+
+            try {
+              const photoResponse = await fetch(photo.url)
+              if (!photoResponse.ok) {
+                logger.warn({
+                  message: 'Failed to download Strava photo',
+                  actorId,
+                  stravaActivityId,
+                  status: photoResponse.status
+                })
+                continue
+              }
+
+              const contentType =
+                photoResponse.headers
+                  .get('content-type')
+                  ?.split(';')[0]
+                  ?.trim()
+                  ?.toLowerCase() ?? ''
+              if (!isSupportedStravaPhotoMimeType(contentType)) {
+                logger.warn({
+                  message: 'Skipping Strava photo with unsupported content type',
+                  actorId,
+                  stravaActivityId,
+                  contentType
+                })
+                continue
+              }
+
+              const buffer = await photoResponse.arrayBuffer()
+              if (buffer.byteLength <= 0) {
+                continue
+              }
+
+              const photoFile = new File(
+                [new Uint8Array(buffer)],
+                `strava-${stravaActivityId}-${photo.id ?? index + 1}.${getPhotoFileExtension(contentType)}`,
+                { type: contentType }
+              )
+
+              const storedMedia = await saveMedia(database, actor, {
+                file: photoFile,
+                description: activity.name?.trim() || 'Strava activity photo'
+              })
+              if (!storedMedia) {
+                continue
+              }
+
+              await database.createAttachment({
+                actorId,
+                statusId,
+                mediaType: storedMedia.mime_type,
+                url: storedMedia.url,
+                width: storedMedia.meta.original.width,
+                height: storedMedia.meta.original.height,
+                name: attachmentName,
+                mediaId: storedMedia.id
+              })
+            } catch (error) {
+              const nodeError = error as Error
+              logger.warn({
+                message: 'Failed to store Strava photo as attachment',
+                actorId,
+                stravaActivityId,
+                error: nodeError.message
+              })
+            }
+          }
+        }
+
+        await getQueue().publish({
+          id: getHashFromString(`${actorId}:strava-note:${stravaActivityId}`),
+          name: SEND_NOTE_JOB_NAME,
+          data: { actorId, statusId }
+        })
+
         return
       }
 
