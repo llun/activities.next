@@ -13,8 +13,8 @@ enableFetchMocks()
 
 describe('Update note visibility action', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | undefined
-  let actor3: Actor | undefined
+  let actor1: Actor | null | undefined
+  let actor3: Actor | null | undefined
 
   beforeAll(async () => {
     await database.migrate()
