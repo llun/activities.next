@@ -36,6 +36,7 @@ import {
   IncrementPollChoiceVotesParams,
   StatusDatabase,
   UpdateNoteParams,
+  UpdateNoteVisibilityParams,
   UpdatePollParams
 } from '@/lib/types/database/operations'
 import { Actor, getActorProfile } from '@/lib/types/domain/actor'
@@ -319,6 +320,44 @@ export const StatusSQLDatabaseMixin = (
           }),
           updatedAt: currentTime
         })
+    })
+    return getStatus({ statusId })
+  }
+
+  async function updateNoteVisibility({
+    statusId,
+    to,
+    cc
+  }: UpdateNoteVisibilityParams): Promise<Status | null> {
+    const status = await getStatus({ statusId })
+    if (!status) return null
+    if (status.type !== StatusType.enum.Note) return null
+
+    const currentTime = new Date()
+    await database.transaction(async (trx) => {
+      await trx('recipients').where('statusId', status.id).delete()
+      await Promise.all([
+        ...to.map((actorId) =>
+          trx('recipients').insert({
+            id: crypto.randomUUID(),
+            statusId: status.id,
+            actorId,
+            type: 'to',
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+        ),
+        ...cc.map((actorId) =>
+          trx('recipients').insert({
+            id: crypto.randomUUID(),
+            statusId: status.id,
+            actorId,
+            type: 'cc',
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+        )
+      ])
     })
     return getStatus({ statusId })
   }
@@ -1190,6 +1229,7 @@ export const StatusSQLDatabaseMixin = (
   return {
     createNote,
     updateNote,
+    updateNoteVisibility,
     createAnnounce,
     createPoll,
     updatePoll,

@@ -601,6 +601,45 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('updateNoteVisibility', () => {
+      it('updates recipients when visibility changes', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-visibility`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Original note for visibility test'
+        })
+
+        const followersUrl = `${emptyActorId}/followers`
+        const updated = await database.updateNoteVisibility({
+          statusId,
+          to: [followersUrl],
+          cc: []
+        })
+
+        expect(updated).not.toBeNull()
+        expect(updated?.to).toEqual([followersUrl])
+        expect(updated?.cc).toEqual([])
+
+        const fetched = (await database.getStatus({ statusId })) as StatusNote
+        expect(fetched.to).toEqual([followersUrl])
+        expect(fetched.cc).toEqual([])
+        expect(fetched.edits).toHaveLength(0)
+      })
+
+      it('returns null for nonexistent statusId', async () => {
+        const result = await database.updateNoteVisibility({
+          statusId: 'https://nonexistent.example/statuses/does-not-exist',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        expect(result).toBeNull()
+      })
+    })
+
     describe('updatePoll', () => {
       it('updates poll content and choice totals', async () => {
         const pollId = `${emptyActorId}/statuses/poll-update`
