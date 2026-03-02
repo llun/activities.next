@@ -329,6 +329,11 @@ type BaseStatusParams = {
 export type UpdateNoteParams = Pick<CreateNoteParams, 'text' | 'summary'> &
   BaseStatusParams
 
+export type UpdateNoteVisibilityParams = BaseStatusParams & {
+  to: string[]
+  cc: string[]
+}
+
 export type CreateAnnounceParams = Pick<
   BaseCreateStatusParams,
   'id' | 'actorId' | 'to' | 'cc' | 'createdAt'
@@ -455,6 +460,9 @@ export interface StatusDatabase {
   createAnnounce(params: CreateAnnounceParams): Promise<Status>
   createPoll(params: CreatePollParams): Promise<Status>
   updateNote(params: UpdateNoteParams): Promise<Status | null>
+  updateNoteVisibility(
+    params: UpdateNoteVisibilityParams
+  ): Promise<Status | null>
   updatePoll(params: UpdatePollParams): Promise<Status | null>
   getStatus(params: GetStatusParams): Promise<Status | null>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
