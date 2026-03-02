@@ -340,6 +340,39 @@ describe('importStravaActivityJob', () => {
     )
   })
 
+  it('prefers queued visibility over Strava activity visibility', async () => {
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 124,
+      name: 'Shared Session',
+      distance: 2_500,
+      elapsed_time: 800,
+      total_elevation_gain: 20,
+      start_date: '2026-01-01T00:30:00.000Z',
+      sport_type: 'Run',
+      visibility: 'everyone'
+    })
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-queued-visibility',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '124',
+        visibility: 'private'
+      }
+    })
+
+    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: expect.objectContaining({
+          visibility: 'private'
+        })
+      })
+    )
+  })
+
   it('falls back to a note when streams have no GPS data', async () => {
     mockGetStravaActivity.mockResolvedValueOnce({
       id: 125,
@@ -375,12 +408,51 @@ describe('importStravaActivityJob', () => {
       expect.objectContaining({
         actorId: 'actor-1',
         text: expect.stringContaining('Morning Run'),
-        reply: ''
+        reply: '',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: ['https://llun.test/@testuser/followers']
       })
     )
     expect(mockAddStatusToTimelines).toHaveBeenCalledTimes(1)
     expect(mockGetQueue().publish).toHaveBeenCalledWith(
       expect.objectContaining({ name: SEND_NOTE_JOB_NAME })
+    )
+  })
+
+  it('uses queued visibility for fallback notes when streams have no GPS data', async () => {
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 126,
+      name: 'Private Morning Run',
+      distance: 5_000,
+      elapsed_time: 1_500,
+      total_elevation_gain: 120,
+      start_date: '2026-01-01T00:00:00.000Z',
+      sport_type: 'Run',
+      visibility: 'everyone'
+    })
+    mockGetStravaActivityStreams.mockResolvedValueOnce({
+      time: { type: 'time', data: [0, 10, 20] }
+    })
+    mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-no-gps-private',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '126',
+        visibility: 'private'
+      }
+    })
+
+    expect(database.createNote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'actor-1',
+        text: expect.stringContaining('Private Morning Run'),
+        to: ['https://llun.test/@testuser/followers'],
+        cc: [],
+        reply: ''
+      })
     )
   })
 

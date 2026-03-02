@@ -50,6 +50,8 @@ describe('FitnessSettings database operations', () => {
       'oauth-flow',
       'webhook',
       'webhook-deleted',
+      'default-visibility',
+      'visibility-update',
       'privacy',
       'privacy-update'
     ]
@@ -129,6 +131,24 @@ describe('FitnessSettings database operations', () => {
 
       expect(settings.oauthState).toBe('state-abc-123')
       expect(settings.oauthStateExpiry).toBeGreaterThan(now)
+    })
+
+    it('stores default visibility for imported activities', async () => {
+      const settings = await database.createFitnessSettings({
+        actorId: `${testActorId}-default-visibility`,
+        serviceType: 'strava',
+        clientId: '12345',
+        defaultVisibility: 'unlisted'
+      })
+
+      expect(settings.defaultVisibility).toBe('unlisted')
+
+      const fetched = await database.getFitnessSettings({
+        actorId: `${testActorId}-default-visibility`,
+        serviceType: 'strava'
+      })
+
+      expect(fetched?.defaultVisibility).toBe('unlisted')
     })
 
     it('handles nullable fields', async () => {
@@ -260,6 +280,21 @@ describe('FitnessSettings database operations', () => {
       expect(updated?.accessToken).toBe('new-access-token')
       expect(updated?.refreshToken).toBe('new-refresh-token')
       expect(updated?.tokenExpiresAt).toBeGreaterThan(Date.now())
+    })
+
+    it('updates default visibility', async () => {
+      const created = await database.createFitnessSettings({
+        actorId: `${testActorId}-visibility-update`,
+        serviceType: 'strava',
+        clientId: '12345'
+      })
+
+      const updated = await database.updateFitnessSettings({
+        id: created.id,
+        defaultVisibility: 'direct'
+      })
+
+      expect(updated?.defaultVisibility).toBe('direct')
     })
 
     it('clears OAuth state after successful auth', async () => {
@@ -493,7 +528,8 @@ describe('FitnessSettings database operations', () => {
         serviceType: 'strava',
         clientId: '12345',
         webhookToken: 'webhook-abc-123',
-        accessToken: 'access-token'
+        accessToken: 'access-token',
+        defaultVisibility: 'unlisted'
       })
 
       const fetched = await database.getFitnessSettingsByWebhookToken({
@@ -505,6 +541,7 @@ describe('FitnessSettings database operations', () => {
       expect(fetched?.actorId).toBe(`${testActorId}-webhook`)
       expect(fetched?.clientId).toBe('12345')
       expect(fetched?.webhookToken).toBe('webhook-abc-123')
+      expect(fetched?.defaultVisibility).toBe('unlisted')
     })
 
     it('returns null for non-existent webhook token', async () => {

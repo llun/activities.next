@@ -34,6 +34,7 @@ import { addStatusToTimelines } from '@/lib/services/timelines'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -50,7 +51,8 @@ const JobData = z.object({
       appSecret: z.string(),
       accessToken: z.string()
     })
-    .optional()
+    .optional(),
+  visibility: Visibility.optional()
 })
 
 const OVERLAP_CONTEXT_SCAN_LIMIT = 200
@@ -360,12 +362,14 @@ const getOrCreateStravaFallbackNote = async ({
   database,
   actor,
   activity,
-  stravaActivityId
+  stravaActivityId,
+  visibility
 }: {
   database: Database
   actor: Actor
   activity: StravaActivity
   stravaActivityId: string
+  visibility: z.infer<typeof Visibility>
 }): Promise<Status> => {
   const postId = getStravaFallbackPostId({
     actorId: actor.id,
@@ -380,7 +384,6 @@ const getOrCreateStravaFallbackNote = async ({
     return existingStatus
   }
 
-  const visibility = mapStravaVisibilityToMastodon(activity.visibility)
   const text = buildStravaActivitySummary(activity)
   const to = statusRecipientsTo(actor, [], null, visibility)
   const cc = statusRecipientsCC(actor, [], null, visibility)
@@ -412,7 +415,7 @@ const getOrCreateStravaFallbackNote = async ({
 export const importStravaActivityJob = createJobHandle(
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   async (database, message) => {
-    const { actorId, stravaActivityId, stravaAuth } = JobData.parse(
+    const { actorId, stravaActivityId, stravaAuth, visibility } = JobData.parse(
       message.data
     )
 
@@ -460,6 +463,8 @@ export const importStravaActivityJob = createJobHandle(
       activityId: stravaActivityId,
       accessToken
     })
+    const resolvedVisibility =
+      visibility ?? mapStravaVisibilityToMastodon(activity.visibility)
     const batchId = getStravaBatchId(stravaActivityId)
 
     const batchFiles = await database.getFitnessFilesByBatchId({ batchId })
@@ -492,7 +497,8 @@ export const importStravaActivityJob = createJobHandle(
           database,
           actor,
           activity,
-          stravaActivityId
+          stravaActivityId,
+          visibility: resolvedVisibility
         })
 
         await addStatusToTimelines(database, createdNote)
@@ -556,7 +562,7 @@ export const importStravaActivityJob = createJobHandle(
           batchId,
           fitnessFileIds: [targetFitnessFile.id],
           overlapFitnessFileIds,
-          visibility: mapStravaVisibilityToMastodon(activity.visibility)
+          visibility: resolvedVisibility
         }
       })
     }

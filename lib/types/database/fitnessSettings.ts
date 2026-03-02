@@ -1,3 +1,5 @@
+import type { Visibility as MastodonVisibility } from '@/lib/types/mastodon/visibility'
+
 export interface FitnessPrivacyLocationSettingsEntry {
   latitude: number
   longitude: number
@@ -25,6 +27,9 @@ export interface SQLFitnessSettings {
   // OAuth flow state (temporary)
   oauthState?: string | null
   oauthStateExpiry?: number | Date | null
+
+  // Default post visibility for imported activities
+  defaultVisibility?: MastodonVisibility | null
 
   // Privacy location settings
   privacyLocations?: FitnessPrivacyLocationSettingsEntry[] | string | null
@@ -55,6 +60,8 @@ export interface FitnessSettings {
 
   oauthState?: string
   oauthStateExpiry?: number
+
+  defaultVisibility?: MastodonVisibility
 
   // Privacy location settings
   privacyLocations?: FitnessPrivacyLocationSettingsEntry[]

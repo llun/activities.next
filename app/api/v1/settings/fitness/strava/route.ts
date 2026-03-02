@@ -1,3 +1,4 @@
+import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
@@ -6,15 +7,48 @@ import {
   deleteSubscription,
   getSubscription
 } from '@/lib/services/strava/webhookSubscription'
+import { Visibility } from '@/lib/types/mastodon/visibility'
 import { generateAlphanumeric } from '@/lib/utils/crypto'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const StravaSettingsRequest = z.object({
-  clientId: z.string().regex(/^\d+$/, 'Client ID must be numeric'),
-  clientSecret: z.string().min(1, 'Client Secret is required')
+  clientId: z.string().regex(/^\d+$/, 'Client ID must be numeric').optional(),
+  clientSecret: z.string().min(1, 'Client Secret is required').optional(),
+  defaultVisibility: Visibility.default('private')
 })
+
+const getStravaSettingsSavedResponse = (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: [],
+    data: {
+      success: true,
+      message: 'Strava settings saved successfully',
+      authorizeUrl: '/api/v1/settings/fitness/strava/authorize'
+    },
+    responseStatusCode: 200
+  })
+
+const getVisibilitySavedResponse = (req: NextRequest) =>
+  apiResponse({
+    req,
+    allowedMethods: [],
+    data: {
+      success: true,
+      message: 'Strava import visibility saved successfully'
+    },
+    responseStatusCode: 200
+  })
+
+const getValidationErrorResponse = (req: NextRequest, error: string) =>
+  apiResponse({
+    req,
+    allowedMethods: [],
+    data: { error },
+    responseStatusCode: 400
+  })
 
 export const GET = traceApiRoute(
   'getStravaSettings',
@@ -35,7 +69,8 @@ export const GET = traceApiRoute(
         data: {
           configured: false,
           actorId: currentActor.id,
-          actorHandle
+          actorHandle,
+          defaultVisibility: 'private'
         },
         responseStatusCode: 200
       })
@@ -54,7 +89,8 @@ export const GET = traceApiRoute(
         actorHandle,
         clientId: fitnessSettings.clientId,
         connected: !!fitnessSettings.accessToken,
-        webhookUrl
+        webhookUrl,
+        defaultVisibility: fitnessSettings.defaultVisibility ?? 'private'
       },
       responseStatusCode: 200
     })
@@ -68,21 +104,39 @@ export const POST = traceApiRoute(
 
     try {
       const body = await req.json()
-      const { clientId, clientSecret } = StravaSettingsRequest.parse(body)
+      const { clientId, clientSecret, defaultVisibility } =
+        StravaSettingsRequest.parse(body)
 
       const existing = await database.getFitnessSettings({
         actorId: currentActor.id,
         serviceType: 'strava'
       })
 
-      const webhookToken = generateAlphanumeric(32)
+      if (existing && clientId === undefined && clientSecret === undefined) {
+        await database.updateFitnessSettings({
+          id: existing.id,
+          defaultVisibility
+        })
+
+        return getVisibilitySavedResponse(req)
+      }
+
+      if (!clientId || !clientSecret) {
+        return getValidationErrorResponse(
+          req,
+          existing
+            ? 'Client ID and Client Secret are required to update Strava credentials'
+            : 'Client ID and Client Secret are required'
+        )
+      }
 
       if (existing) {
         await database.updateFitnessSettings({
           id: existing.id,
           clientId,
           clientSecret,
-          webhookToken
+          webhookToken: existing.webhookToken ?? generateAlphanumeric(32),
+          defaultVisibility
         })
       } else {
         await database.createFitnessSettings({
@@ -90,30 +144,17 @@ export const POST = traceApiRoute(
           serviceType: 'strava',
           clientId,
           clientSecret,
-          webhookToken
+          webhookToken: generateAlphanumeric(32),
+          defaultVisibility
         })
       }
 
-      return apiResponse({
-        req,
-        allowedMethods: [],
-        data: {
-          success: true,
-          message: 'Strava settings saved successfully',
-          authorizeUrl: '/api/v1/settings/fitness/strava/authorize'
-        },
-        responseStatusCode: 200
-      })
+      return getStravaSettingsSavedResponse(req)
     } catch (error) {
       if (error instanceof z.ZodError) {
         const errorMessage =
           error.issues.length > 0 ? error.issues[0].message : 'Invalid input'
-        return apiResponse({
-          req,
-          allowedMethods: [],
-          data: { error: errorMessage },
-          responseStatusCode: 400
-        })
+        return getValidationErrorResponse(req, errorMessage)
       }
       return apiResponse({
         req,
