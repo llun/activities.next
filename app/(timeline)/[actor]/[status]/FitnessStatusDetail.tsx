@@ -6,6 +6,7 @@ import { Bike, Play, Plus } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Media } from '@/lib/components/posts/media'
+import { VisibilityButton } from '@/lib/components/posts/actions/visibility-button'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { StatusNote } from '@/lib/types/domain/status'
@@ -951,6 +952,7 @@ const MetricCard: FC<{ label: string; value: string; highlight?: boolean }> = ({
 
 export const FitnessStatusDetail: FC<Props> = ({
   mapboxAccessToken,
+  currentActor,
   status,
   onShowAttachment
 }) => {
@@ -1889,6 +1891,11 @@ export const FitnessStatusDetail: FC<Props> = ({
                 )}
               </div>
             </div>
+            {currentActor?.id === status.actorId && (
+              <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
+                <VisibilityButton status={status} />
+              </div>
+            )}
           </div>
         </div>
 
