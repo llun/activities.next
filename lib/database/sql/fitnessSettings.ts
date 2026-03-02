@@ -8,6 +8,7 @@ import {
   FitnessSettings,
   SQLFitnessSettings
 } from '@/lib/types/database/fitnessSettings'
+import { Visibility as MastodonVisibilitySchema } from '@/lib/types/mastodon/visibility'
 import { decrypt, encrypt } from '@/lib/utils/crypto'
 
 export interface CreateFitnessSettingsParams {
@@ -21,6 +22,7 @@ export interface CreateFitnessSettingsParams {
   tokenExpiresAt?: number
   oauthState?: string
   oauthStateExpiry?: number
+  defaultVisibility?: FitnessSettings['defaultVisibility']
   privacyLocations?: FitnessPrivacyLocationSettingsEntry[]
   privacyHomeLatitude?: number
   privacyHomeLongitude?: number
@@ -37,6 +39,7 @@ export interface UpdateFitnessSettingsParams {
   tokenExpiresAt?: number | null
   oauthState?: string | null
   oauthStateExpiry?: number | null
+  defaultVisibility?: FitnessSettings['defaultVisibility'] | null
   privacyLocations?: FitnessPrivacyLocationSettingsEntry[] | null
   privacyHomeLatitude?: number | null
   privacyHomeLongitude?: number | null
@@ -105,6 +108,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
     tokenExpiresAt,
     oauthState,
     oauthStateExpiry,
+    defaultVisibility,
     privacyLocations,
     privacyHomeLatitude,
     privacyHomeLongitude,
@@ -139,6 +143,9 @@ export const FitnessSettingsSQLDatabaseMixin = (
       tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
       oauthState,
       oauthStateExpiry: oauthStateExpiry ? new Date(oauthStateExpiry) : null,
+      defaultVisibility: defaultVisibility
+        ? MastodonVisibilitySchema.parse(defaultVisibility)
+        : null,
       privacyLocations: JSON.stringify(sanitizedPrivacyLocations),
       privacyHomeLatitude,
       privacyHomeLongitude,
@@ -161,6 +168,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       tokenExpiresAt,
       oauthState,
       oauthStateExpiry,
+      defaultVisibility,
       privacyLocations: sanitizedPrivacyLocations,
       privacyHomeLatitude,
       privacyHomeLongitude,
@@ -180,6 +188,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
     tokenExpiresAt,
     oauthState,
     oauthStateExpiry,
+    defaultVisibility,
     privacyLocations,
     privacyHomeLatitude,
     privacyHomeLongitude,
@@ -211,6 +220,11 @@ export const FitnessSettingsSQLDatabaseMixin = (
       updateData.oauthStateExpiry = oauthStateExpiry
         ? new Date(oauthStateExpiry)
         : null
+    if (defaultVisibility !== undefined) {
+      updateData.defaultVisibility = defaultVisibility
+        ? MastodonVisibilitySchema.parse(defaultVisibility)
+        : null
+    }
     if (sanitizedPrivacyLocations !== undefined) {
       updateData.privacyLocations = JSON.stringify(sanitizedPrivacyLocations)
     }
@@ -246,6 +260,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       oauthStateExpiry: row.oauthStateExpiry
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
+      defaultVisibility: row.defaultVisibility || undefined,
       privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
@@ -283,6 +298,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       oauthStateExpiry: row.oauthStateExpiry
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
+      defaultVisibility: row.defaultVisibility || undefined,
       privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,

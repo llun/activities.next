@@ -37,6 +37,7 @@ describe('Strava Webhook API', () => {
       serviceType: 'strava',
       webhookToken: 'token-123',
       accessToken: 'access-token',
+      defaultVisibility: 'unlisted',
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
@@ -91,7 +92,49 @@ describe('Strava Webhook API', () => {
         name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
         data: {
           actorId: 'actor-1',
-          stravaActivityId: '987654'
+          stravaActivityId: '987654',
+          visibility: 'unlisted'
+        }
+      })
+    )
+  })
+
+  it('defaults webhook import visibility to private when unset', async () => {
+    mockDb.getFitnessSettingsByWebhookToken.mockResolvedValueOnce({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      webhookToken: 'token-123',
+      accessToken: 'access-token',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
+    const request = new NextRequest(
+      'http://llun.test/api/v1/webhooks/strava/token-123',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          object_type: 'activity',
+          object_id: 13579,
+          aspect_type: 'create',
+          owner_id: 1,
+          event_time: 1_735_689_600
+        })
+      }
+    )
+
+    const response = await POST(request, {
+      params: Promise.resolve({ webhookToken: 'token-123' })
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '13579',
+          visibility: 'private'
         }
       })
     )

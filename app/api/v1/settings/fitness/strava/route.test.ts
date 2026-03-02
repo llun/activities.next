@@ -119,6 +119,7 @@ describe('Strava Settings API', () => {
       expect(response.status).toBe(200)
       expect(data.configured).toBe(false)
       expect(data.actorId).toBe(ACTOR1_ID)
+      expect(data.defaultVisibility).toBe('private')
       expect(data.actorHandle).toBe(
         `@${seedActor1.username}@${seedActor1.domain}`
       )
@@ -150,6 +151,30 @@ describe('Strava Settings API', () => {
       )
       expect(data.clientId).toBe('12345')
       expect(data.clientSecret).toBeUndefined()
+      expect(data.defaultVisibility).toBe('private')
+    })
+
+    it('returns saved default visibility when configured', async () => {
+      mockDb.getFitnessSettings.mockResolvedValue({
+        actorId: ACTOR1_ID,
+        serviceType: 'strava',
+        clientId: '12345',
+        clientSecret: 'secret123',
+        defaultVisibility: 'unlisted'
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/strava',
+        {
+          method: 'GET'
+        }
+      )
+
+      const response = await GET(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.defaultVisibility).toBe('unlisted')
     })
   })
 
@@ -163,7 +188,8 @@ describe('Strava Settings API', () => {
           method: 'POST',
           body: JSON.stringify({
             clientId: '54321',
-            clientSecret: 'newsecret456'
+            clientSecret: 'newsecret456',
+            defaultVisibility: 'unlisted'
           })
         }
       )
@@ -179,9 +205,42 @@ describe('Strava Settings API', () => {
           actorId: ACTOR1_ID,
           serviceType: 'strava',
           clientId: '54321',
-          clientSecret: 'newsecret456'
+          clientSecret: 'newsecret456',
+          defaultVisibility: 'unlisted'
         })
       )
+    })
+
+    it('updates visibility without requiring credentials for existing settings', async () => {
+      mockDb.getFitnessSettings.mockResolvedValue({
+        id: 'fitness-settings-1',
+        actorId: ACTOR1_ID,
+        serviceType: 'strava',
+        clientId: '12345',
+        clientSecret: 'secret123'
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/strava',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            defaultVisibility: 'direct'
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.authorizeUrl).toBeUndefined()
+      expect(mockDb.updateFitnessSettings).toHaveBeenCalledWith({
+        id: 'fitness-settings-1',
+        defaultVisibility: 'direct'
+      })
+      expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
     })
 
     it('rejects non-numeric client ID', async () => {
@@ -203,7 +262,7 @@ describe('Strava Settings API', () => {
       expect(data.error).toContain('numeric')
     })
 
-    it('rejects empty client secret', async () => {
+    it('rejects empty client secret when creating a connection', async () => {
       const request = new NextRequest(
         'http://llun.test/api/v1/settings/fitness/strava',
         {
@@ -211,6 +270,26 @@ describe('Strava Settings API', () => {
           body: JSON.stringify({
             clientId: '12345',
             clientSecret: ''
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toBeDefined()
+    })
+
+    it('rejects invalid visibility values', async () => {
+      const request = new NextRequest(
+        'http://llun.test/api/v1/settings/fitness/strava',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            clientId: '12345',
+            clientSecret: 'secret',
+            defaultVisibility: 'followers_only'
           })
         }
       )
