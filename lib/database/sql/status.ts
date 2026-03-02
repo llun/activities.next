@@ -336,8 +336,8 @@ export const StatusSQLDatabaseMixin = (
     const currentTime = new Date()
     await database.transaction(async (trx) => {
       await trx('recipients').where('statusId', status.id).delete()
-      await Promise.all([
-        ...to.map((actorId) =>
+      await Promise.all(
+        to.map((actorId) =>
           trx('recipients').insert({
             id: crypto.randomUUID(),
             statusId: status.id,
@@ -346,8 +346,10 @@ export const StatusSQLDatabaseMixin = (
             createdAt: currentTime,
             updatedAt: currentTime
           })
-        ),
-        ...cc.map((actorId) =>
+        )
+      )
+      await Promise.all(
+        cc.map((actorId) =>
           trx('recipients').insert({
             id: crypto.randomUUID(),
             statusId: status.id,
@@ -357,7 +359,7 @@ export const StatusSQLDatabaseMixin = (
             updatedAt: currentTime
           })
         )
-      ])
+      )
     })
     return getStatus({ statusId })
   }

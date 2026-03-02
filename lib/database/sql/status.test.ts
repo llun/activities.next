@@ -647,6 +647,15 @@ describe('StatusDatabase', () => {
         })
         expect(result).toBeNull()
       })
+
+      it('returns null for non-Note status type (Announce)', async () => {
+        const result = await database.updateNoteVisibility({
+          statusId: statuses.replyAuthor.announceOwn,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        expect(result).toBeNull()
+      })
     })
 
     describe('updatePoll', () => {
