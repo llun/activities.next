@@ -336,6 +336,7 @@ export const StatusSQLDatabaseMixin = (
     const currentTime = new Date()
     await database.transaction(async (trx) => {
       await trx('recipients').where('statusId', status.id).delete()
+      await trx('timelines').where('statusId', status.id).delete()
       await Promise.all(
         to.map((actorId) =>
           trx('recipients').insert({
