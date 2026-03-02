@@ -147,7 +147,8 @@ export class S3FitnessStorage implements FitnessStorage {
       Bucket: bucket,
       Key: key,
       Body: Readable.fromWeb(file.stream() as WebReadableStream),
-      ContentType: file.type
+      ContentType: file.type,
+      ContentLength: file.size
     })
 
     await this._client.send(command)
