@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { IMPORT_STRAVA_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
@@ -168,7 +169,10 @@ export const POST = traceApiRoute(
         name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
         data: {
           actorId: fitnessSettings.actorId,
-          stravaActivityId
+          stravaActivityId,
+          visibility: Visibility.parse(
+            fitnessSettings.defaultVisibility ?? 'private'
+          )
         }
       })
 

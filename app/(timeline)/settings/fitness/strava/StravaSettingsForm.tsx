@@ -2,6 +2,7 @@
 
 import { FC, useEffect, useState } from 'react'
 
+import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -13,11 +14,19 @@ import {
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
+import { Visibility as MastodonVisibilitySchema } from '@/lib/types/mastodon/visibility'
+import type { Visibility as MastodonVisibility } from '@/lib/types/mastodon/visibility'
 
 import { StravaArchiveImportSection } from './StravaArchiveImportSection'
 
 interface StravaSettingsFormProps {
   serverActorHandle?: string
+}
+
+const DEFAULT_STRAVA_VISIBILITY: MastodonVisibility = 'private'
+
+const isMastodonVisibility = (value: unknown): value is MastodonVisibility => {
+  return MastodonVisibilitySchema.safeParse(value).success
 }
 
 export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
@@ -33,6 +42,8 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
   const [error, setError] = useState('')
   const [showUnlinkDialog, setShowUnlinkDialog] = useState(false)
   const [archiveActorHandle, setArchiveActorHandle] = useState('')
+  const [defaultVisibility, setDefaultVisibility] =
+    useState<MastodonVisibility>(DEFAULT_STRAVA_VISIBILITY)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -49,6 +60,9 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
           setClientId(data.clientId)
           setClientSecret('••••••••')
           setWebhookUrl(data.webhookUrl || '')
+        }
+        if (isMastodonVisibility(data.defaultVisibility)) {
+          setDefaultVisibility(data.defaultVisibility)
         }
         if (
           typeof data.actorHandle === 'string' &&
@@ -117,7 +131,11 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ clientId, clientSecret })
+        body: JSON.stringify(
+          isConfigured
+            ? { defaultVisibility }
+            : { clientId, clientSecret, defaultVisibility }
+        )
       })
 
       const data = await response.json()
@@ -127,13 +145,18 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
         return
       }
 
-      setMessage('Redirecting to Strava for authorization...')
       setIsConfigured(true)
-      setClientSecret('••••••••')
+      if (!isConfigured) {
+        setClientSecret('••••••••')
+      }
 
       if (data.authorizeUrl) {
+        setMessage('Redirecting to Strava for authorization...')
         window.location.href = data.authorizeUrl
+        return
       }
+
+      setMessage(data.message || 'Strava settings saved successfully!')
     } catch (_err) {
       setError('An error occurred. Please try again.')
     } finally {
@@ -164,6 +187,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
       setClientId('')
       setClientSecret('')
       setWebhookUrl('')
+      setDefaultVisibility(DEFAULT_STRAVA_VISIBILITY)
       setShowUnlinkDialog(false)
     } catch (_err) {
       setError('An error occurred. Please try again.')
@@ -217,6 +241,19 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
           </p>
         </div>
 
+        <div className="space-y-2">
+          <Label>Webhook Activity Visibility</Label>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <VisibilitySelector
+              visibility={defaultVisibility}
+              onVisibilityChange={setDefaultVisibility}
+            />
+            <span>
+              Automatically imported Strava activities will use this visibility.
+            </span>
+          </div>
+        </div>
+
         {error && <p className="text-sm text-destructive">{error}</p>}
         {message && <p className="text-sm text-green-600">{message}</p>}
 
@@ -253,8 +290,20 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
         )}
 
         <div className="flex gap-2">
-          <Button type="submit" disabled={isLoading || isConfigured}>
-            {isLoading ? 'Saving...' : 'Save'}
+          <Button
+            type="submit"
+            disabled={
+              isLoading ||
+              (!isConfigured &&
+                (clientId.trim().length === 0 ||
+                  clientSecret.trim().length === 0))
+            }
+          >
+            {isLoading
+              ? 'Saving...'
+              : isConfigured
+                ? 'Save visibility'
+                : 'Save and connect'}
           </Button>
 
           <Button
