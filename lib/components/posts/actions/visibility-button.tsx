@@ -1,7 +1,7 @@
 'use client'
 
 import { Globe, Lock, Mail, Unlock } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, ReactNode, useState } from 'react'
 
 import { updateStatusVisibility } from '@/lib/client'
 import {
@@ -16,7 +16,7 @@ import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
 const VISIBILITY_OPTIONS: {
   value: MastodonVisibility
   label: string
-  icon: React.ReactNode
+  icon: ReactNode
   description: string
 }[] = [
   {
