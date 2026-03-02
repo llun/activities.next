@@ -36,7 +36,10 @@ export const updateNoteVisibilityFromUserInput = async ({
     to,
     cc
   })
-
+  if (!updatedStatus) {
+    span.end()
+    return null
+  }
   span.end()
   return updatedStatus
 }
