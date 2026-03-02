@@ -638,6 +638,15 @@ describe('StatusDatabase', () => {
         })
         expect(result).toBeNull()
       })
+
+      it('returns null for non-Note status type (Poll)', async () => {
+        const result = await database.updateNoteVisibility({
+          statusId: statuses.poll.status,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        expect(result).toBeNull()
+      })
     })
 
     describe('updatePoll', () => {
