@@ -336,6 +336,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       oauthStateExpiry: row.oauthStateExpiry
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
+      defaultVisibility: row.defaultVisibility || undefined,
       privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,

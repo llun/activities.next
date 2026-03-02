@@ -14,7 +14,8 @@ import {
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
-import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { Visibility as MastodonVisibilitySchema } from '@/lib/types/mastodon/visibility'
+import type { Visibility as MastodonVisibility } from '@/lib/types/mastodon/visibility'
 
 import { StravaArchiveImportSection } from './StravaArchiveImportSection'
 
@@ -23,18 +24,9 @@ interface StravaSettingsFormProps {
 }
 
 const DEFAULT_STRAVA_VISIBILITY: MastodonVisibility = 'private'
-const MASTODON_VISIBILITIES: MastodonVisibility[] = [
-  'public',
-  'unlisted',
-  'private',
-  'direct'
-]
 
 const isMastodonVisibility = (value: unknown): value is MastodonVisibility => {
-  return (
-    typeof value === 'string' &&
-    MASTODON_VISIBILITIES.includes(value as MastodonVisibility)
-  )
+  return MastodonVisibilitySchema.safeParse(value).success
 }
 
 export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({

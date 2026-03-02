@@ -528,7 +528,8 @@ describe('FitnessSettings database operations', () => {
         serviceType: 'strava',
         clientId: '12345',
         webhookToken: 'webhook-abc-123',
-        accessToken: 'access-token'
+        accessToken: 'access-token',
+        defaultVisibility: 'unlisted'
       })
 
       const fetched = await database.getFitnessSettingsByWebhookToken({
@@ -540,6 +541,7 @@ describe('FitnessSettings database operations', () => {
       expect(fetched?.actorId).toBe(`${testActorId}-webhook`)
       expect(fetched?.clientId).toBe('12345')
       expect(fetched?.webhookToken).toBe('webhook-abc-123')
+      expect(fetched?.defaultVisibility).toBe('unlisted')
     })
 
     it('returns null for non-existent webhook token', async () => {
