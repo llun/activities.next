@@ -1,3 +1,4 @@
+import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
@@ -18,7 +19,7 @@ const StravaSettingsRequest = z.object({
   defaultVisibility: Visibility.default('private')
 })
 
-const getStravaSettingsSavedResponse = (req: Request) =>
+const getStravaSettingsSavedResponse = (req: NextRequest) =>
   apiResponse({
     req,
     allowedMethods: [],
@@ -30,7 +31,7 @@ const getStravaSettingsSavedResponse = (req: Request) =>
     responseStatusCode: 200
   })
 
-const getVisibilitySavedResponse = (req: Request) =>
+const getVisibilitySavedResponse = (req: NextRequest) =>
   apiResponse({
     req,
     allowedMethods: [],
@@ -41,7 +42,7 @@ const getVisibilitySavedResponse = (req: Request) =>
     responseStatusCode: 200
   })
 
-const getValidationErrorResponse = (req: Request, error: string) =>
+const getValidationErrorResponse = (req: NextRequest, error: string) =>
   apiResponse({
     req,
     allowedMethods: [],
