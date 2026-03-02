@@ -32,7 +32,9 @@ export const Actions: FC<Props> = ({
   const actualStatus =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
   const canEdit = editable && status.type !== StatusType.enum.Announce
-  const isOwner = currentActor.id === actualStatus.actorId
+  const isOwner =
+    Boolean(actualStatus.isLocalActor) &&
+    currentActor.id === actualStatus.actorId
 
   return (
     <div className="mt-3 flex items-center gap-6 text-muted-foreground">

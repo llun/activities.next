@@ -50,12 +50,16 @@ interface Props {
 }
 
 export const VisibilityButton: FC<Props> = ({ status }) => {
-  if (status.type === StatusType.enum.Announce) return null
+  const initialVisibility =
+    status.type !== StatusType.enum.Announce
+      ? getVisibility(status.to, status.cc)
+      : 'public'
 
-  const [visibility, setVisibility] = useState<MastodonVisibility>(
-    getVisibility(status.to, status.cc)
-  )
+  const [visibility, setVisibility] =
+    useState<MastodonVisibility>(initialVisibility)
   const [saving, setSaving] = useState(false)
+
+  if (status.type === StatusType.enum.Announce) return null
 
   const currentOption =
     VISIBILITY_OPTIONS.find((opt) => opt.value === visibility) ??
