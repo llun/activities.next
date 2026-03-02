@@ -601,6 +601,77 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('updateNoteVisibility', () => {
+      it('updates recipients when visibility changes', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-visibility`
+        const note = await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Original note for visibility test'
+        })
+
+        await addStatusToTimelines(database, note)
+
+        const timelineBefore = await database.getTimeline({
+          timeline: Timeline.MAIN,
+          actorId: emptyActorId
+        })
+        expect(timelineBefore.some((s) => s.id === statusId)).toBeTrue()
+
+        const followersUrl = `${emptyActorId}/followers`
+        const updated = await database.updateNoteVisibility({
+          statusId,
+          to: [followersUrl],
+          cc: []
+        })
+
+        expect(updated).not.toBeNull()
+        expect(updated?.to).toEqual([followersUrl])
+        expect(updated?.cc).toEqual([])
+
+        const fetched = (await database.getStatus({ statusId })) as StatusNote
+        expect(fetched.to).toEqual([followersUrl])
+        expect(fetched.cc).toEqual([])
+        expect(fetched.edits).toHaveLength(0)
+
+        const timelineAfter = await database.getTimeline({
+          timeline: Timeline.MAIN,
+          actorId: emptyActorId
+        })
+        expect(timelineAfter.some((s) => s.id === statusId)).toBeFalse()
+      })
+
+      it('returns null for nonexistent statusId', async () => {
+        const result = await database.updateNoteVisibility({
+          statusId: 'https://nonexistent.example/statuses/does-not-exist',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        expect(result).toBeNull()
+      })
+
+      it('returns null for non-Note status type (Poll)', async () => {
+        const result = await database.updateNoteVisibility({
+          statusId: statuses.poll.status,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        expect(result).toBeNull()
+      })
+
+      it('returns null for non-Note status type (Announce)', async () => {
+        const result = await database.updateNoteVisibility({
+          statusId: statuses.replyAuthor.announceOwn,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        expect(result).toBeNull()
+      })
+    })
+
     describe('updatePoll', () => {
       it('updates poll content and choice totals', async () => {
         const pollId = `${emptyActorId}/statuses/poll-update`

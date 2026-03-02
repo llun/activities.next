@@ -97,6 +97,29 @@ export const updateNote = async ({ statusId, message }: UpdateNoteParams) => {
   }
 }
 
+export interface UpdateStatusVisibilityParams {
+  statusId: string
+  visibility: MastodonVisibility
+}
+
+export const updateStatusVisibility = async ({
+  statusId,
+  visibility
+}: UpdateStatusVisibilityParams): Promise<boolean> => {
+  try {
+    const response = await fetch(`/api/v1/statuses/${urlToId(statusId)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ visibility })
+    })
+    return response.status === 200
+  } catch {
+    return false
+  }
+}
+
 export interface CreatePollParams {
   message: string
   choices: string[]

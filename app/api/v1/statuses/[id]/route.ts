@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
+import { updateNoteVisibilityFromUserInput } from '@/lib/actions/updateNoteVisibility'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { Scope } from '@/lib/types/database/operations'
@@ -55,8 +56,9 @@ export const GET = traceApiRoute(
 )
 
 const EditNoteSchema = z.object({
-  status: z.string(),
-  spoiler_text: z.string().optional()
+  status: z.string().optional(),
+  spoiler_text: z.string().optional(),
+  visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional()
 })
 
 export const PUT = traceApiRoute(
@@ -68,32 +70,50 @@ export const PUT = traceApiRoute(
 
     const { database, currentActor } = context
     const statusId = idToUrl(encodedStatusId)
-    const changes = EditNoteSchema.parse(await req.json())
-    const updatedNote = await updateNoteFromUserInput({
-      statusId,
-      currentActor,
-      text: changes.status,
-      summary: changes.spoiler_text,
-      database
-    })
+    try {
+      const changes = EditNoteSchema.parse(await req.json())
 
-    if (!updatedNote) return apiErrorResponse(403)
-    if (updatedNote.type === StatusType.enum.Announce) {
-      return apiErrorResponse(500)
+      let updatedNote
+
+      if (changes.visibility !== undefined && changes.status === undefined) {
+        updatedNote = await updateNoteVisibilityFromUserInput({
+          statusId,
+          currentActor,
+          visibility: changes.visibility,
+          database
+        })
+      } else if (changes.status !== undefined) {
+        updatedNote = await updateNoteFromUserInput({
+          statusId,
+          currentActor,
+          text: changes.status,
+          summary: changes.spoiler_text,
+          database
+        })
+      } else {
+        return apiErrorResponse(422)
+      }
+
+      if (!updatedNote) return apiErrorResponse(403)
+      if (updatedNote.type === StatusType.enum.Announce) {
+        return apiErrorResponse(500)
+      }
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        updatedNote,
+        currentActor.id
+      )
+      if (!mastodonStatus) return apiErrorResponse(500)
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: mastodonStatus
+      })
+    } catch {
+      return apiErrorResponse(400)
     }
-
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      updatedNote,
-      currentActor.id
-    )
-    if (!mastodonStatus) return apiErrorResponse(500)
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus
-    })
   })
 )
 
