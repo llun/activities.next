@@ -70,46 +70,50 @@ export const PUT = traceApiRoute(
 
     const { database, currentActor } = context
     const statusId = idToUrl(encodedStatusId)
-    const changes = EditNoteSchema.parse(await req.json())
+    try {
+      const changes = EditNoteSchema.parse(await req.json())
 
-    let updatedNote
+      let updatedNote
 
-    if (changes.visibility !== undefined && changes.status === undefined) {
-      updatedNote = await updateNoteVisibilityFromUserInput({
-        statusId,
-        currentActor,
-        visibility: changes.visibility,
-        database
+      if (changes.visibility !== undefined && changes.status === undefined) {
+        updatedNote = await updateNoteVisibilityFromUserInput({
+          statusId,
+          currentActor,
+          visibility: changes.visibility,
+          database
+        })
+      } else if (changes.status !== undefined) {
+        updatedNote = await updateNoteFromUserInput({
+          statusId,
+          currentActor,
+          text: changes.status,
+          summary: changes.spoiler_text,
+          database
+        })
+      } else {
+        return apiErrorResponse(422)
+      }
+
+      if (!updatedNote) return apiErrorResponse(403)
+      if (updatedNote.type === StatusType.enum.Announce) {
+        return apiErrorResponse(500)
+      }
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        updatedNote,
+        currentActor.id
+      )
+      if (!mastodonStatus) return apiErrorResponse(500)
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: mastodonStatus
       })
-    } else if (changes.status !== undefined) {
-      updatedNote = await updateNoteFromUserInput({
-        statusId,
-        currentActor,
-        text: changes.status,
-        summary: changes.spoiler_text,
-        database
-      })
-    } else {
-      return apiErrorResponse(422)
+    } catch {
+      return apiErrorResponse(400)
     }
-
-    if (!updatedNote) return apiErrorResponse(403)
-    if (updatedNote.type === StatusType.enum.Announce) {
-      return apiErrorResponse(500)
-    }
-
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      updatedNote,
-      currentActor.id
-    )
-    if (!mastodonStatus) return apiErrorResponse(500)
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus
-    })
   })
 )
 
