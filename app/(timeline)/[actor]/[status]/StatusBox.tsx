@@ -5,6 +5,7 @@ import { FC, useState } from 'react'
 
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Post } from '@/lib/components/posts/post'
+import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -21,6 +22,7 @@ interface Props {
   currentActor?: ActorProfile | null
   status: Status
   variant?: 'detail' | 'comment'
+  isMediaUploadEnabled?: boolean
 }
 
 export const StatusBox: FC<Props> = ({
@@ -29,13 +31,15 @@ export const StatusBox: FC<Props> = ({
   currentTime,
   currentActor,
   status,
-  variant = 'comment'
+  variant = 'comment',
+  isMediaUploadEnabled
 }) => {
   const router = useRouter()
   const [modalMedias, setModalMedias] = useState<{
     medias: Attachment[]
     initialSelection: number
   } | null>(null)
+  const [replyTarget, setReplyTarget] = useState<Status | null>(null)
   const actualStatus =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
   const shouldRenderFitnessDetail =
@@ -85,6 +89,11 @@ export const StatusBox: FC<Props> = ({
           currentTime={currentTime}
           status={status}
           showActions={variant === 'detail'}
+          onReply={
+            variant === 'detail' && currentActor
+              ? (s) => setReplyTarget(s)
+              : undefined
+          }
           onShowAttachment={(allMedias, index) => {
             setModalMedias({ medias: allMedias, initialSelection: index })
           }}
@@ -93,6 +102,18 @@ export const StatusBox: FC<Props> = ({
           <StatusLikes
             statusId={actualStatus.id}
             totalLikes={actualStatus.totalLikes}
+          />
+        )}
+        {replyTarget !== null && currentActor && (
+          <StatusReplyBox
+            profile={currentActor}
+            replyStatus={replyTarget}
+            isMediaUploadEnabled={isMediaUploadEnabled}
+            onCancel={() => setReplyTarget(null)}
+            onPostCreated={() => {
+              setReplyTarget(null)
+              router.refresh()
+            }}
           />
         )}
       </article>
