@@ -39,7 +39,7 @@ export const StatusBox: FC<Props> = ({
     medias: Attachment[]
     initialSelection: number
   } | null>(null)
-  const [isReplying, setIsReplying] = useState<boolean>(false)
+  const [replyTarget, setReplyTarget] = useState<Status | null>(null)
   const actualStatus =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
   const shouldRenderFitnessDetail =
@@ -91,7 +91,7 @@ export const StatusBox: FC<Props> = ({
           showActions={variant === 'detail'}
           onReply={
             variant === 'detail' && currentActor
-              ? () => setIsReplying(true)
+              ? (s) => setReplyTarget(s)
               : undefined
           }
           onShowAttachment={(allMedias, index) => {
@@ -104,14 +104,14 @@ export const StatusBox: FC<Props> = ({
             totalLikes={actualStatus.totalLikes}
           />
         )}
-        {isReplying && currentActor && (
+        {replyTarget !== null && currentActor && (
           <StatusReplyBox
             profile={currentActor}
-            replyStatus={status}
+            replyStatus={replyTarget}
             isMediaUploadEnabled={isMediaUploadEnabled}
-            onCancel={() => setIsReplying(false)}
+            onCancel={() => setReplyTarget(null)}
             onPostCreated={() => {
-              setIsReplying(false)
+              setReplyTarget(null)
               router.refresh()
             }}
           />
