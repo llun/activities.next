@@ -48,46 +48,59 @@ export const TimelineSQLDatabaseMixin = (
 
         const actualTimeline =
           timeline === Timeline.HOME ? Timeline.MAIN : timeline
-        const minId = minStatusId
-          ? ((
-              await database('timelines')
-                .where('actorId', actorId)
-                .where('timeline', actualTimeline)
-                .where('statusId', minStatusId)
-                .select('id')
-                .first<{ id: number }>()
-            )?.id ?? 0)
-          : 0
-        const maxId = maxStatusId
-          ? ((
-              await database('timelines')
-                .where('actorId', actorId)
-                .where('timeline', actualTimeline)
-                .where('statusId', maxStatusId)
-                .select('id')
-                .first<{ id: number }>()
-            )?.id ?? 0)
-          : 0
 
-        if (maxId - minId < 0) {
-          return []
+        const maxRow = maxStatusId
+          ? await database('timelines')
+              .where('actorId', actorId)
+              .where('timeline', actualTimeline)
+              .where('statusId', maxStatusId)
+              .select('id', 'createdAt')
+              .first<{ id: number; createdAt: Date }>()
+          : null
+
+        const minRow = minStatusId
+          ? await database('timelines')
+              .where('actorId', actorId)
+              .where('timeline', actualTimeline)
+              .where('statusId', minStatusId)
+              .select('id', 'createdAt')
+              .first<{ id: number; createdAt: Date }>()
+          : null
+
+        if (maxStatusId && !maxRow) return []
+        if (minStatusId && !minRow) return []
+
+        let query = database('timelines')
+          .where('actorId', actorId)
+          .where('timeline', actualTimeline)
+
+        if (maxRow) {
+          query = query.where((wb) => {
+            wb.where('createdAt', '<', maxRow.createdAt).orWhere((wb2) => {
+              wb2
+                .where('createdAt', '=', maxRow.createdAt)
+                .where('id', '<', maxRow.id)
+            })
+          })
         }
 
-        const statusesId = await (minId || maxId
-          ? database('timelines')
-              .where('actorId', actorId)
-              .where('timeline', actualTimeline)
-              .where('id', '<', maxId)
-              .where('id', '>', minId)
-              .select('statusId')
-              .orderBy('createdAt', 'desc')
-              .limit(limit)
-          : database('timelines')
-              .where('actorId', actorId)
-              .where('timeline', actualTimeline)
-              .select('statusId')
-              .orderBy('createdAt', 'desc')
-              .limit(limit))
+        if (minRow) {
+          query = query.where((wb) => {
+            wb.where('createdAt', '>', minRow.createdAt).orWhere((wb2) => {
+              wb2
+                .where('createdAt', '=', minRow.createdAt)
+                .where('id', '>', minRow.id)
+            })
+          })
+        }
+
+        const statusesId = await query
+          .select('statusId')
+          .orderBy([
+            { column: 'createdAt', order: 'desc' },
+            { column: 'id', order: 'desc' }
+          ])
+          .limit(limit)
 
         const statuses = await Promise.all(
           statusesId
