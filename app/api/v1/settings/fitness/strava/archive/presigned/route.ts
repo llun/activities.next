@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
@@ -95,6 +96,11 @@ export const POST = traceApiRoute(
         }
       })
     } catch (error) {
+      const span = trace.getActiveSpan()
+      if (span) {
+        span.recordException(error instanceof Error ? error : new Error(String(error)))
+        span.setStatus({ code: SpanStatusCode.ERROR })
+      }
       if (error instanceof QuotaExceededError) {
         return apiErrorResponse(HTTP_STATUS.PAYLOAD_TOO_LARGE)
       }
