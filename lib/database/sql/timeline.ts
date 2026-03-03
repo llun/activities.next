@@ -49,23 +49,31 @@ export const TimelineSQLDatabaseMixin = (
         const actualTimeline =
           timeline === Timeline.HOME ? Timeline.MAIN : timeline
 
-        const maxRow = maxStatusId
-          ? await database('timelines')
-              .where('actorId', actorId)
-              .where('timeline', actualTimeline)
-              .where('statusId', maxStatusId)
-              .select('id', 'createdAt')
-              .first<{ id: number; createdAt: Date }>()
-          : null
+        const lookupTimelineCursor = async (
+          statusId: string
+        ): Promise<{ id: number | null; createdAt: Date } | null> => {
+          const timelineRow = await database('timelines')
+            .where('actorId', actorId)
+            .where('timeline', actualTimeline)
+            .where('statusId', statusId)
+            .select('id', 'createdAt')
+            .first<{ id: number; createdAt: Date }>()
+          if (timelineRow) return timelineRow
 
-        const minRow = minStatusId
-          ? await database('timelines')
-              .where('actorId', actorId)
-              .where('timeline', actualTimeline)
-              .where('statusId', minStatusId)
-              .select('id', 'createdAt')
-              .first<{ id: number; createdAt: Date }>()
-          : null
+          // Fallback: status may have been deleted from the timeline (e.g. after
+          // deletion) but we still have the status creation time available. Use it
+          // as the cursor without the row-id tie-breaker so pagination can continue.
+          const statusRow = await database('statuses')
+            .where('id', statusId)
+            .select('createdAt')
+            .first<{ createdAt: Date }>()
+          return statusRow ? { id: null, createdAt: statusRow.createdAt } : null
+        }
+
+        const [maxRow, minRow] = await Promise.all([
+          maxStatusId ? lookupTimelineCursor(maxStatusId) : null,
+          minStatusId ? lookupTimelineCursor(minStatusId) : null
+        ])
 
         if (maxStatusId && !maxRow) return []
         if (minStatusId && !minRow) return []
@@ -77,9 +85,11 @@ export const TimelineSQLDatabaseMixin = (
         if (maxRow) {
           query = query.where((wb) => {
             wb.where('createdAt', '<', maxRow.createdAt).orWhere((wb2) => {
-              wb2
-                .where('createdAt', '=', maxRow.createdAt)
-                .where('id', '<', maxRow.id)
+              if (maxRow.id !== null) {
+                wb2
+                  .where('createdAt', '=', maxRow.createdAt)
+                  .where('id', '<', maxRow.id)
+              }
             })
           })
         }
@@ -87,9 +97,11 @@ export const TimelineSQLDatabaseMixin = (
         if (minRow) {
           query = query.where((wb) => {
             wb.where('createdAt', '>', minRow.createdAt).orWhere((wb2) => {
-              wb2
-                .where('createdAt', '=', minRow.createdAt)
-                .where('id', '>', minRow.id)
+              if (minRow.id !== null) {
+                wb2
+                  .where('createdAt', '=', minRow.createdAt)
+                  .where('id', '>', minRow.id)
+              }
             })
           })
         }
