@@ -48,46 +48,71 @@ export const TimelineSQLDatabaseMixin = (
 
         const actualTimeline =
           timeline === Timeline.HOME ? Timeline.MAIN : timeline
-        const minId = minStatusId
-          ? ((
-              await database('timelines')
-                .where('actorId', actorId)
-                .where('timeline', actualTimeline)
-                .where('statusId', minStatusId)
-                .select('id')
-                .first<{ id: number }>()
-            )?.id ?? 0)
-          : 0
-        const maxId = maxStatusId
-          ? ((
-              await database('timelines')
-                .where('actorId', actorId)
-                .where('timeline', actualTimeline)
-                .where('statusId', maxStatusId)
-                .select('id')
-                .first<{ id: number }>()
-            )?.id ?? 0)
-          : 0
 
-        if (maxId - minId < 0) {
-          return []
+        const lookupTimelineCursor = async (
+          statusId: string
+        ): Promise<{ id: number | null; createdAt: Date } | null> => {
+          const timelineRow = await database('timelines')
+            .where('actorId', actorId)
+            .where('timeline', actualTimeline)
+            .where('statusId', statusId)
+            .select('id', 'createdAt')
+            .first<{ id: number; createdAt: Date }>()
+          if (timelineRow) return timelineRow
+
+          // Fallback: status may have been deleted from the timeline (e.g. after
+          // deletion) but we still have the status creation time available. Use it
+          // as the cursor without the row-id tie-breaker so pagination can continue.
+          const statusRow = await database('statuses')
+            .where('id', statusId)
+            .select('createdAt')
+            .first<{ createdAt: Date }>()
+          return statusRow ? { id: null, createdAt: statusRow.createdAt } : null
         }
 
-        const statusesId = await (minId || maxId
-          ? database('timelines')
-              .where('actorId', actorId)
-              .where('timeline', actualTimeline)
-              .where('id', '<', maxId)
-              .where('id', '>', minId)
-              .select('statusId')
-              .orderBy('createdAt', 'desc')
-              .limit(limit)
-          : database('timelines')
-              .where('actorId', actorId)
-              .where('timeline', actualTimeline)
-              .select('statusId')
-              .orderBy('createdAt', 'desc')
-              .limit(limit))
+        const [maxRow, minRow] = await Promise.all([
+          maxStatusId ? lookupTimelineCursor(maxStatusId) : null,
+          minStatusId ? lookupTimelineCursor(minStatusId) : null
+        ])
+
+        if (maxStatusId && !maxRow) return []
+        if (minStatusId && !minRow) return []
+
+        let query = database('timelines')
+          .where('actorId', actorId)
+          .where('timeline', actualTimeline)
+
+        if (maxRow) {
+          query = query.where((wb) => {
+            wb.where('createdAt', '<', maxRow.createdAt).orWhere((wb2) => {
+              if (maxRow.id !== null) {
+                wb2
+                  .where('createdAt', '=', maxRow.createdAt)
+                  .where('id', '<', maxRow.id)
+              }
+            })
+          })
+        }
+
+        if (minRow) {
+          query = query.where((wb) => {
+            wb.where('createdAt', '>', minRow.createdAt).orWhere((wb2) => {
+              if (minRow.id !== null) {
+                wb2
+                  .where('createdAt', '=', minRow.createdAt)
+                  .where('id', '>', minRow.id)
+              }
+            })
+          })
+        }
+
+        const statusesId = await query
+          .select('statusId')
+          .orderBy([
+            { column: 'createdAt', order: 'desc' },
+            { column: 'id', order: 'desc' }
+          ])
+          .limit(limit)
 
         const statuses = await Promise.all(
           statusesId

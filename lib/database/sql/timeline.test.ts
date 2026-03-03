@@ -75,6 +75,82 @@ describe('TimelineDatabase', () => {
             )
           }
         }, 15000)
+
+        it('does not repeat statuses when paginating with out-of-order insertion', async () => {
+          const TEST_ID_PAGINATE = `https://${TEST_DOMAIN}/users/timeline-paginate`
+          await database.createAccount({
+            email: `timeline-paginate@${TEST_DOMAIN}`,
+            username: 'timeline-paginate',
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'privateKey-timeline-paginate',
+            publicKey: 'publicKey-timeline-paginate'
+          })
+
+          const sender = 'https://llun.dev/users/timeline-sender-pagination'
+          await database.createFollow({
+            actorId: TEST_ID_PAGINATE,
+            targetActorId: sender,
+            status: FollowStatus.enum.Accepted,
+            inbox: `${sender}/inbox`,
+            sharedInbox: `${sender}/inbox`
+          })
+
+          // Status B is created with a newer timestamp but inserted first into timelines.
+          // This simulates a recent status from a followed actor.
+          const statusBId = `${sender}/statuses/pagination-b`
+          const statusB = await database.createNote({
+            id: statusBId,
+            url: statusBId,
+            actorId: sender,
+            text: 'Status B (newer createdAt, inserted first)',
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [TEST_ID_PAGINATE],
+            createdAt: 2000
+          })
+          await addStatusToTimelines(database, statusB)
+
+          // Status A is created with an older timestamp but inserted second into timelines.
+          // This simulates a federated status arriving late (high row id, low createdAt).
+          const statusAId = `${sender}/statuses/pagination-a`
+          const statusA = await database.createNote({
+            id: statusAId,
+            url: statusAId,
+            actorId: sender,
+            text: 'Status A (older createdAt, inserted second)',
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [TEST_ID_PAGINATE],
+            createdAt: 1000
+          })
+          await addStatusToTimelines(database, statusA)
+
+          // First page should show B first (newer createdAt), then A
+          const firstPage = await database.getTimeline({
+            timeline: Timeline.MAIN,
+            actorId: TEST_ID_PAGINATE,
+            limit: 2
+          })
+
+          const firstPageIds = firstPage.map((s) => s.id)
+          expect(firstPageIds).toContain(statusBId)
+          expect(firstPageIds).toContain(statusAId)
+          expect(firstPageIds.indexOf(statusBId)).toBeLessThan(
+            firstPageIds.indexOf(statusAId)
+          )
+
+          // Load more after A (the last on the first page) should NOT return B again
+          const cursor = firstPage[firstPage.length - 1].id
+          const secondPage = await database.getTimeline({
+            timeline: Timeline.MAIN,
+            actorId: TEST_ID_PAGINATE,
+            maxStatusId: cursor,
+            limit: 10
+          })
+
+          const secondPageIds = secondPage.map((s) => s.id)
+          expect(secondPageIds).not.toContain(statusBId)
+          expect(secondPageIds).not.toContain(statusAId)
+        }, 15000)
       })
 
       describe('Timeline.MAIN filters', () => {
