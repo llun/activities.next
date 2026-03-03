@@ -58,6 +58,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const tabRequestId = useRef(0)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
+  const lastStatusIdRef = useRef<string | null>(
+    statuses.length > 0 ? statuses[statuses.length - 1].id : null
+  )
 
   const onEdit = (status: EditableStatus) => {
     dispatchStatusAction(editAction(status))
@@ -70,26 +73,31 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   const onPostDeleted = (status: Status) => {
     const statusIndex = currentStatuses.indexOf(status)
-    setCurrentStatuses([
+    const newStatuses = [
       ...currentStatuses.slice(0, statusIndex),
       ...currentStatuses.slice(statusIndex + 1)
-    ])
+    ]
+    setCurrentStatuses(newStatuses)
+    lastStatusIdRef.current =
+      newStatuses.length > 0 ? newStatuses[newStatuses.length - 1].id : null
   }
 
   const loadMoreStatuses = useCallback(async () => {
-    if (isLoadingRef.current || currentStatuses.length === 0) return
+    const lastStatusId = lastStatusIdRef.current
+    if (isLoadingRef.current || !lastStatusId) return
 
     isLoadingRef.current = true
     setLoadingMoreStatuses(true)
     try {
       const statuses = await getTimeline({
         timeline: currentTab.timeline,
-        maxStatusId: currentStatuses[currentStatuses.length - 1].id
+        maxStatusId: lastStatusId
       })
       if (statuses.length === 0) {
         setHasMoreStatuses(false)
         return
       }
+      lastStatusIdRef.current = statuses[statuses.length - 1].id
       setCurrentStatuses((prev) => [...prev, ...statuses])
     } catch (_error) {
       // Error loading more - user can retry by clicking the button
@@ -97,7 +105,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       isLoadingRef.current = false
       setLoadingMoreStatuses(false)
     }
-  }, [currentTab.timeline, currentStatuses])
+  }, [currentTab.timeline])
 
   // Set up IntersectionObserver for automatic loading
   useEffect(() => {
@@ -140,6 +148,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     setCurrentStatuses([])
     setHasMoreStatuses(true)
     setLoadingMoreStatuses(true)
+    lastStatusIdRef.current = null
 
     try {
       const statuses = await getTimeline({
@@ -148,6 +157,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       if (requestId !== tabRequestId.current) return
       setCurrentStatuses(statuses)
       setHasMoreStatuses(statuses.length > 0)
+      lastStatusIdRef.current =
+        statuses.length > 0 ? statuses[statuses.length - 1].id : null
     } finally {
       if (requestId === tabRequestId.current) {
         setLoadingMoreStatuses(false)
