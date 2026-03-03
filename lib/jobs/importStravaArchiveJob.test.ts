@@ -27,6 +27,7 @@ jest.mock('@/lib/config', () => ({
 }))
 
 jest.mock('@/lib/services/fitness-files', () => ({
+  ...jest.requireActual('@/lib/services/fitness-files'),
   saveFitnessFile: jest.fn(),
   deleteFitnessFile: jest.fn()
 }))

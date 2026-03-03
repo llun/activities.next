@@ -8,11 +8,11 @@ import { pipeline } from 'stream/promises'
 import type { ReadableStream as NodeReadableStream } from 'stream/web'
 import { z } from 'zod'
 
-import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
 import {
   deleteFitnessFile,
+  getEffectiveFitnessStorageConfig,
   saveFitnessFile
 } from '@/lib/services/fitness-files'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
@@ -146,7 +146,7 @@ const resolveArchivePath = async (
   archivePath: string,
   archiveFitnessFileId: string
 ): Promise<{ archiveFilePath: string; cleanup: () => Promise<void> }> => {
-  const { fitnessStorage } = getConfig()
+  const fitnessStorage = getEffectiveFitnessStorageConfig()
   if (!fitnessStorage) {
     throw new Error('Fitness storage is not configured')
   }
