@@ -11,6 +11,7 @@ import { getPresignedFitnessFileUrl } from '@/lib/services/fitness-files'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
 import { getStravaArchiveSourceBatchId } from '@/lib/services/strava/archiveImport'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
   apiErrorResponse,
@@ -103,6 +104,12 @@ export const POST = traceApiRoute(
         )
         span.setStatus({ code: SpanStatusCode.ERROR })
       }
+
+      logger.error({
+        message: 'Fail to get strava archive presigned url',
+        error
+      })
+
       if (error instanceof QuotaExceededError) {
         return apiErrorResponse(HTTP_STATUS.PAYLOAD_TOO_LARGE)
       }
