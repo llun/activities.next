@@ -1,5 +1,6 @@
 import { getConfig } from '@/lib/config'
 import {
+  FitnessStorageConfig,
   FitnessStorageS3Config,
   FitnessStorageType
 } from '@/lib/config/fitnessStorage'
@@ -12,12 +13,36 @@ import { S3FitnessStorage } from './S3StorageFile'
 import { LocalFileFitnessStorage } from './localFile'
 import { FitnessFileUploadSchema } from './types'
 
+// Returns the effective fitness storage config. When fitness storage is not
+// explicitly configured, falls back to media object storage with a 'fitness/'
+// prefix (mirrors the getFitnessStorageConfig env-var fallback).
+export const getEffectiveFitnessStorageConfig = (): FitnessStorageConfig | null => {
+  const { fitnessStorage, mediaStorage } = getConfig()
+  if (fitnessStorage) return fitnessStorage
+
+  if (
+    mediaStorage?.type === MediaStorageType.S3Storage ||
+    mediaStorage?.type === MediaStorageType.ObjectStorage
+  ) {
+    return {
+      type: mediaStorage.type as unknown as FitnessStorageS3Config['type'],
+      bucket: mediaStorage.bucket,
+      region: mediaStorage.region,
+      hostname: mediaStorage.hostname,
+      prefix: 'fitness/'
+    }
+  }
+
+  return null
+}
+
 export const saveFitnessFile = async (
   database: Database,
   actor: Actor,
   fitnessFile: FitnessFileUploadSchema
 ) => {
-  const { fitnessStorage, host } = getConfig()
+  const { host } = getConfig()
+  const fitnessStorage = getEffectiveFitnessStorageConfig()
   switch (fitnessStorage?.type) {
     case FitnessStorageType.LocalFile: {
       return LocalFileFitnessStorage.getStorage(
@@ -44,13 +69,14 @@ export const getFitnessFile = async (
   fileId: string,
   fileMetadata?: FitnessFile
 ) => {
-  const { fitnessStorage, host } = getConfig()
+  const { host } = getConfig()
 
   // Reuse metadata when already loaded by caller to avoid duplicate DB reads.
   const targetFileMetadata =
     fileMetadata ?? (await database.getFitnessFile({ id: fileId }))
   if (!targetFileMetadata) return null
 
+  const fitnessStorage = getEffectiveFitnessStorageConfig()
   switch (fitnessStorage?.type) {
     case FitnessStorageType.LocalFile: {
       return LocalFileFitnessStorage.getStorage(
@@ -77,12 +103,13 @@ export const deleteFitnessFile = async (
   fileId: string,
   fileMetadata?: FitnessFile
 ) => {
-  const { fitnessStorage, host } = getConfig()
+  const { host } = getConfig()
 
   const targetFileMetadata =
     fileMetadata ?? (await database.getFitnessFile({ id: fileId }))
   if (!targetFileMetadata) return false
 
+  const fitnessStorage = getEffectiveFitnessStorageConfig()
   switch (fitnessStorage?.type) {
     case FitnessStorageType.LocalFile: {
       const storageDeleted = await LocalFileFitnessStorage.getStorage(
@@ -125,7 +152,8 @@ export const getPresignedFitnessFileUrl = async (
     description?: string
   }
 ) => {
-  const { fitnessStorage, mediaStorage, host } = getConfig()
+  const { host } = getConfig()
+  const fitnessStorage = getEffectiveFitnessStorageConfig()
 
   if (
     fitnessStorage?.type === FitnessStorageType.S3Storage ||
@@ -133,29 +161,6 @@ export const getPresignedFitnessFileUrl = async (
   ) {
     return S3FitnessStorage.getStorage(
       fitnessStorage,
-      host,
-      database
-    ).getPresignedForSaveFileUrl(actor, input)
-  }
-
-  // If fitness storage is explicitly configured (e.g. local file), presigning is not supported
-  if (fitnessStorage) return null
-
-  // Fall back to media object storage with a fitness-specific prefix when fitness storage
-  // is not explicitly configured (mirrors getFitnessStorageConfig env-var fallback logic)
-  if (
-    mediaStorage?.type === MediaStorageType.S3Storage ||
-    mediaStorage?.type === MediaStorageType.ObjectStorage
-  ) {
-    const fallbackConfig: FitnessStorageS3Config = {
-      type: mediaStorage.type as unknown as FitnessStorageS3Config['type'],
-      bucket: mediaStorage.bucket,
-      region: mediaStorage.region,
-      hostname: mediaStorage.hostname,
-      prefix: 'fitness/'
-    }
-    return S3FitnessStorage.getStorage(
-      fallbackConfig,
       host,
       database
     ).getPresignedForSaveFileUrl(actor, input)
