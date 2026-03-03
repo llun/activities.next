@@ -1,5 +1,8 @@
+import {
+  statusRecipientsCC,
+  statusRecipientsTo
+} from '@/lib/actions/createNote'
 import { Database } from '@/lib/database/types'
-import { statusRecipientsCC, statusRecipientsTo } from '@/lib/actions/createNote'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
