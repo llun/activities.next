@@ -42,7 +42,7 @@ export const Actions: FC<Props> = ({
       <RepostButton currentActor={currentActor} status={actualStatus} />
       <LikeButton currentActor={currentActor} status={actualStatus} />
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-6">
         <EditHistoryButton
           status={actualStatus}
           host={host}
