@@ -94,7 +94,7 @@
     "@types/mime-types": "^3.0.1",
     "@types/node": "^25.3.2",
     "@types/nodemailer": "^7.0.11",
-    "@types/pg": "^8.16.0",
+    "@types/pg": "^8.18.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/react-modal": "^3.16.3",
