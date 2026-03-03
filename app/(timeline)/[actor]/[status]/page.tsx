@@ -36,7 +36,7 @@ export const generateMetadata = async ({
 }
 
 const Page: FC<Props> = async ({ params }) => {
-  const { host, fitnessStorage } = getConfig()
+  const { host, fitnessStorage, mediaStorage } = getConfig()
   const mapboxAccessToken = fitnessStorage?.mapboxAccessToken?.trim()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
@@ -263,6 +263,7 @@ const Page: FC<Props> = async ({ params }) => {
           currentActor={currentActorProfile}
           status={cleanJson(status)}
           variant="detail"
+          isMediaUploadEnabled={Boolean(mediaStorage)}
         />
       </div>
 
