@@ -21,7 +21,7 @@ describe('traceApiRoute', () => {
 
     // Mock the trace module
     jest.spyOn(trace, 'getTracer').mockReturnValue({
-      startSpan: jest.fn().mockReturnValue(mockSpan)
+      startActiveSpan: jest.fn().mockImplementation((_name, fn) => fn(mockSpan))
     } as unknown as Tracer)
   })
 
@@ -142,9 +142,11 @@ describe('traceApiRoute', () => {
       })
     )
 
-    const startSpanMock = jest.fn().mockReturnValue(mockSpan)
+    const startActiveSpanMock = jest
+      .fn()
+      .mockImplementation((_name, fn) => fn(mockSpan))
     jest.spyOn(trace, 'getTracer').mockReturnValue({
-      startSpan: startSpanMock
+      startActiveSpan: startActiveSpanMock
     } as unknown as Tracer)
 
     const wrapped = traceApiRoute('testRoute', handler, { op: 'custom' })
@@ -153,9 +155,9 @@ describe('traceApiRoute', () => {
 
     await wrapped(req, context)
 
-    expect(startSpanMock).toHaveBeenCalledWith(
+    expect(startActiveSpanMock).toHaveBeenCalledWith(
       'custom.testRoute',
-      expect.any(Object)
+      expect.any(Function)
     )
   })
 
