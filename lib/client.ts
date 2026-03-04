@@ -537,11 +537,18 @@ export const uploadFileToPresignedUrl = async ({
   presignedUrl,
   media
 }: UploadFileToPresignedUrlParams) => {
-  return fetch(presignedUrl, {
+  const response = await fetch(presignedUrl, {
     method: 'PUT',
     body: media,
     headers: { 'Content-Type': media.type }
   })
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '')
+    throw new Error(
+      `Failed to upload to storage: ${response.status} ${response.statusText}${errorText ? `. ${errorText}` : ''}`
+    )
+  }
+  return response
 }
 
 export const uploadAttachment = async (
@@ -811,19 +818,24 @@ export const startStravaArchiveImport = async (
   )
 
   if (presignedResult) {
-    const { url, fitnessFileId, archiveId } = presignedResult.presigned
-    // Upload archive directly to ObjectStorage via presigned PUT.
-    await uploadFileToPresignedUrl({ presignedUrl: url, media: archive })
-    // Notify server to create import record and queue the job
-    const response = await fetch('/api/v1/settings/fitness/strava/archive', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fitnessFileId, archiveId, visibility })
-    })
-    if (!response.ok) {
-      throw new Error('Failed to start Strava archive import')
+    try {
+      const { url, fitnessFileId, archiveId } = presignedResult.presigned
+      // Upload archive directly to ObjectStorage via presigned PUT.
+      await uploadFileToPresignedUrl({ presignedUrl: url, media: archive })
+      // Notify server to create import record and queue the job
+      const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fitnessFileId, archiveId, visibility })
+      })
+      if (!response.ok) {
+        throw new Error('Failed to start Strava archive import')
+      }
+      return response.json()
+    } catch {
+      // Presigned PUT failed (e.g. CORS not configured on the bucket).
+      // Fall through to the server-side upload path below.
     }
-    return response.json()
   }
 
   // Fallback: upload archive through the Next.js server (LocalFile storage)
