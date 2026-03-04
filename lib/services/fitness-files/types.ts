@@ -89,7 +89,6 @@ export type FitnessStorageGetRedirectOutput = z.infer<
 
 export const PresignedFitnessUrlOutput = z.object({
   url: z.string().url(),
-  fields: z.record(z.string(), z.string()).optional(),
   fitnessFileId: z.string()
 })
 export type PresignedFitnessUrlOutput = z.infer<
