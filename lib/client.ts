@@ -530,27 +530,25 @@ export const createUploadPresignedUrl = async ({
 
 interface UploadFileToPresignedUrlParams {
   presignedUrl: string
-  fields: { [key: string]: string }
   media: File
 }
 
 export const uploadFileToPresignedUrl = async ({
   presignedUrl,
-  fields,
   media
 }: UploadFileToPresignedUrlParams) => {
-  const data = new FormData()
-  data.append('Content-Type', media.type)
-  Object.entries(fields).forEach(([key, value]) => {
-    data.append(key, value)
+  const response = await fetch(presignedUrl, {
+    method: 'PUT',
+    body: media,
+    headers: { 'Content-Type': media.type }
   })
-  data.append('file', media)
-
-  return fetch(presignedUrl, {
-    method: 'POST',
-    body: data,
-    mode: 'no-cors'
-  })
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '')
+    throw new Error(
+      `Failed to upload to storage: ${response.status} ${response.statusText}${errorText ? `. ${errorText}` : ''}`
+    )
+  }
+  return response
 }
 
 export const uploadAttachment = async (
@@ -572,12 +570,8 @@ export const uploadAttachment = async (
     }
   }
 
-  const { url: presignedUrl, fields, saveFileOutput } = result.presigned
-  await uploadFileToPresignedUrl({
-    media: file,
-    presignedUrl,
-    fields
-  })
+  const { url: presignedUrl, saveFileOutput } = result.presigned
+  await uploadFileToPresignedUrl({ media: file, presignedUrl })
 
   return {
     type: 'upload',
@@ -789,7 +783,6 @@ export const startFitnessImport = async (
 interface StravaArchivePresignedResult {
   presigned: {
     url: string
-    fields: Record<string, string>
     fitnessFileId: string
     archiveId: string
   }
@@ -825,23 +818,24 @@ export const startStravaArchiveImport = async (
   )
 
   if (presignedResult) {
-    const { url, fields, fitnessFileId, archiveId } = presignedResult.presigned
-    // Upload archive directly to ObjectStorage
-    await uploadFileToPresignedUrl({
-      presignedUrl: url,
-      fields,
-      media: archive
-    })
-    // Notify server to create import record and queue the job
-    const response = await fetch('/api/v1/settings/fitness/strava/archive', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fitnessFileId, archiveId, visibility })
-    })
-    if (!response.ok) {
-      throw new Error('Failed to start Strava archive import')
+    try {
+      const { url, fitnessFileId, archiveId } = presignedResult.presigned
+      // Upload archive directly to ObjectStorage via presigned PUT.
+      await uploadFileToPresignedUrl({ presignedUrl: url, media: archive })
+      // Notify server to create import record and queue the job
+      const response = await fetch('/api/v1/settings/fitness/strava/archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fitnessFileId, archiveId, visibility })
+      })
+      if (!response.ok) {
+        throw new Error('Failed to start Strava archive import')
+      }
+      return response.json()
+    } catch {
+      // Presigned PUT failed (e.g. CORS not configured on the bucket).
+      // Fall through to the server-side upload path below.
     }
-    return response.json()
   }
 
   // Fallback: upload archive through the Next.js server (LocalFile storage)
