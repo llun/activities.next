@@ -90,7 +90,6 @@ export const POST = traceApiRoute(
         data: {
           presigned: {
             url: presigned.url,
-            fields: presigned.fields,
             fitnessFileId: presigned.fitnessFileId,
             archiveId
           }

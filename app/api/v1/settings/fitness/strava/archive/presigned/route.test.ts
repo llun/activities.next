@@ -76,10 +76,6 @@ describe('Strava archive presigned URL endpoint', () => {
   it('returns presigned URL with archiveId when ObjectStorage is available', async () => {
     mockGetPresignedFitnessFileUrl.mockResolvedValue({
       url: 'https://s3.example.com/bucket',
-      fields: {
-        key: 'fitness/2024-01-01/abc.zip',
-        'Content-Type': 'application/zip'
-      },
       fitnessFileId: 'fitness-file-id-1'
     })
 
