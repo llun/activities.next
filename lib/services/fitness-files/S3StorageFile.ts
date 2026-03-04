@@ -4,7 +4,7 @@ import {
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
-import { createPresignedPost } from '@aws-sdk/s3-presigned-post'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import crypto from 'crypto'
 import { format } from 'date-fns'
 import { Readable } from 'stream'
@@ -221,17 +221,20 @@ export class S3FitnessStorage implements FitnessStorage {
     const fileName = `${timeDirectory}/${randomPrefix}.zip`
     const key = prefix ? `${prefix}${fileName}` : fileName
 
-    const { url, fields } = await createPresignedPost(this._client, {
+    // Use presigned PUT instead of presigned POST: PUT sends the raw File body
+    // with a known Content-Length, which is reliable for large uploads (2 GB+).
+    // Presigned POST wraps the file in multipart/form-data and browsers may
+    // fall back to chunked transfer encoding for large bodies, causing S3 to
+    // reject the request with 403 because the content-length-range policy
+    // condition cannot be validated.
+    const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
-      Conditions: [
-        { bucket },
-        { key },
-        ['content-length-range', 0, input.size]
-      ],
-      // Strava archive ZIPs can be very large; allow 1 hour for the upload.
-      Expires: 3600
+      ContentType: input.contentType,
+      ContentLength: input.size
     })
+    // Strava archive ZIPs can be very large; allow 1 hour for the upload.
+    const url = await getSignedUrl(this._client, command, { expiresIn: 3600 })
 
     const storedFile = await this._database.createFitnessFile({
       actorId: actor.id,
@@ -252,7 +255,6 @@ export class S3FitnessStorage implements FitnessStorage {
 
     return PresignedFitnessUrlOutput.parse({
       url,
-      fields,
       fitnessFileId: storedFile.id
     })
   }

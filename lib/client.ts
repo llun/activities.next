@@ -789,7 +789,7 @@ export const startFitnessImport = async (
 interface StravaArchivePresignedResult {
   presigned: {
     url: string
-    fields: Record<string, string>
+    fields?: Record<string, string>
     fitnessFileId: string
     archiveId: string
   }
@@ -826,12 +826,25 @@ export const startStravaArchiveImport = async (
 
   if (presignedResult) {
     const { url, fields, fitnessFileId, archiveId } = presignedResult.presigned
-    // Upload archive directly to ObjectStorage
-    await uploadFileToPresignedUrl({
-      presignedUrl: url,
-      fields,
-      media: archive
-    })
+    // Upload archive directly to ObjectStorage.
+    // When fields is absent the server issued a presigned PUT URL, which sends
+    // the raw file body so the browser always includes a known Content-Length.
+    // Presigned POST (fields present) wraps the file in multipart/form-data;
+    // browsers may use chunked transfer encoding for large bodies and S3
+    // rejects those requests with 403.
+    if (fields && Object.keys(fields).length > 0) {
+      await uploadFileToPresignedUrl({
+        presignedUrl: url,
+        fields,
+        media: archive
+      })
+    } else {
+      await fetch(url, {
+        method: 'PUT',
+        body: archive,
+        headers: { 'Content-Type': archive.type || 'application/zip' }
+      })
+    }
     // Notify server to create import record and queue the job
     const response = await fetch('/api/v1/settings/fitness/strava/archive', {
       method: 'POST',
