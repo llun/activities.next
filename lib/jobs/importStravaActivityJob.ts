@@ -21,6 +21,7 @@ import {
   StravaActivity,
   buildGpxFromStravaStreams,
   buildStravaActivitySummary,
+  downloadStravaActivityFile,
   getStravaActivity,
   getStravaActivityDurationSeconds,
   getStravaActivityPhotos,
@@ -479,11 +480,18 @@ export const importStravaActivityJob = createJobHandle(
       const gpxContent = streams
         ? buildGpxFromStravaStreams(activity, streams)
         : null
-      const exportFile = gpxContent
+      let exportFile: File | null = gpxContent
         ? new File([gpxContent], `strava-${stravaActivityId}.gpx`, {
             type: 'application/gpx+xml'
           })
         : null
+
+      if (!exportFile) {
+        exportFile = await downloadStravaActivityFile({
+          activityId: stravaActivityId,
+          accessToken
+        })
+      }
 
       if (!exportFile) {
         logger.info({
