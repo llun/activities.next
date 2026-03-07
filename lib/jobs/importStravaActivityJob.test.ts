@@ -442,7 +442,6 @@ describe('importStravaActivityJob', () => {
       time: { type: 'time', data: [0, 10, 20] }
     })
     mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
-    // downloadStravaActivityFile already returns null by default in beforeEach
 
     await importStravaActivityJob(database as unknown as Database, {
       id: 'job-no-gps',
