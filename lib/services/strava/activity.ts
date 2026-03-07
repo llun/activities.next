@@ -539,14 +539,8 @@ export const buildTcxFromStravaStreams = (
 ): string | null => {
   const timeData = streams?.time?.data
 
-  const lastTimeOffset =
-    timeData && timeData.length > 0
-      ? timeData[timeData.length - 1]
-      : undefined
   const totalDurationSeconds =
-    typeof lastTimeOffset === 'number'
-      ? lastTimeOffset
-      : getStravaActivityDurationSeconds(activity)
+    timeData?.at(-1) ?? getStravaActivityDurationSeconds(activity)
 
   if (totalDurationSeconds <= 0) {
     return null
@@ -561,22 +555,13 @@ export const buildTcxFromStravaStreams = (
       ? new Date(startMs).toISOString()
       : null
 
-  const distanceData = streams?.distance?.data
-  const lastDistanceValue =
-    distanceData && distanceData.length > 0
-      ? distanceData[distanceData.length - 1]
-      : undefined
   const totalDistanceMeters =
-    typeof lastDistanceValue === 'number'
-      ? lastDistanceValue
-      : typeof activity.distance === 'number'
-        ? activity.distance
-        : 0
+    streams?.distance?.data?.at(-1) ?? activity.distance ?? 0
 
   const sportType = escapeXml(activity.sport_type?.trim() ?? '')
 
   let trackContent = ''
-  if (timeData && timeData.length > 0 && startMs !== null) {
+  if (timeData && timeData.length > 0 && startMs !== null && Number.isFinite(startMs)) {
     const altitudeData = streams?.altitude?.data
     const trackpoints = timeData
       .map((timeOffset, index) => {
