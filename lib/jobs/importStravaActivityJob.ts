@@ -21,7 +21,7 @@ import {
   StravaActivity,
   buildGpxFromStravaStreams,
   buildStravaActivitySummary,
-  downloadStravaActivityFile,
+  buildTcxFromStravaStreams,
   getStravaActivity,
   getStravaActivityDurationSeconds,
   getStravaActivityPhotos,
@@ -487,10 +487,14 @@ export const importStravaActivityJob = createJobHandle(
         : null
 
       if (!exportFile) {
-        exportFile = await downloadStravaActivityFile({
-          activityId: stravaActivityId,
-          accessToken
-        })
+        const tcxContent = buildTcxFromStravaStreams(activity, streams)
+        if (tcxContent) {
+          exportFile = new File(
+            [tcxContent],
+            `strava-${stravaActivityId}.tcx`,
+            { type: 'application/vnd.garmin.tcx+xml' }
+          )
+        }
       }
 
       if (!exportFile) {

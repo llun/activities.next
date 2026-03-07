@@ -13,7 +13,7 @@ import { saveMedia } from '@/lib/services/medias/index'
 import { getQueue } from '@/lib/services/queue'
 import {
   buildGpxFromStravaStreams,
-  downloadStravaActivityFile,
+  buildTcxFromStravaStreams,
   getStravaActivity,
   getStravaActivityPhotos,
   getStravaActivityStreams,
@@ -43,7 +43,7 @@ jest.mock('@/lib/services/strava/activity', () => {
   return {
     ...actual,
     buildGpxFromStravaStreams: jest.fn(),
-    downloadStravaActivityFile: jest.fn(),
+    buildTcxFromStravaStreams: jest.fn(),
     getStravaActivity: jest.fn(),
     getStravaActivityPhotos: jest.fn(),
     getStravaActivityStreams: jest.fn(),
@@ -81,9 +81,9 @@ const mockBuildGpxFromStravaStreams =
   buildGpxFromStravaStreams as jest.MockedFunction<
     typeof buildGpxFromStravaStreams
   >
-const mockDownloadStravaActivityFile =
-  downloadStravaActivityFile as jest.MockedFunction<
-    typeof downloadStravaActivityFile
+const mockBuildTcxFromStravaStreams =
+  buildTcxFromStravaStreams as jest.MockedFunction<
+    typeof buildTcxFromStravaStreams
   >
 const mockGetValidStravaAccessToken =
   getValidStravaAccessToken as jest.MockedFunction<
@@ -197,7 +197,7 @@ describe('importStravaActivityJob', () => {
     mockLookup.mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as never)
 
     mockGetValidStravaAccessToken.mockResolvedValue('access-token')
-    mockDownloadStravaActivityFile.mockResolvedValue(null)
+    mockBuildTcxFromStravaStreams.mockReturnValue(null)
     mockGetStravaActivity.mockResolvedValue({
       id: 123,
       upload_id: 67890,
@@ -380,7 +380,7 @@ describe('importStravaActivityJob', () => {
     )
   })
 
-  it('imports via fitness pipeline using original file when streams have no GPS data', async () => {
+  it('imports via fitness pipeline using TCX from streams when no GPS data', async () => {
     mockGetStravaActivity.mockResolvedValueOnce({
       id: 125,
       name: 'Indoor Ride',
@@ -395,13 +395,12 @@ describe('importStravaActivityJob', () => {
       time: { type: 'time', data: [0, 10, 20] }
     })
     mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
-    const fitFile = new File([new Uint8Array([1, 2, 3])], 'strava-125.fit', {
-      type: 'application/vnd.ant.fit'
-    })
-    mockDownloadStravaActivityFile.mockResolvedValueOnce(fitFile)
+    mockBuildTcxFromStravaStreams.mockReturnValueOnce(
+      '<?xml version="1.0"?><TrainingCenterDatabase>...</TrainingCenterDatabase>'
+    )
 
     await importStravaActivityJob(database as unknown as Database, {
-      id: 'job-no-gps-fit',
+      id: 'job-no-gps-tcx',
       name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
       data: {
         actorId: 'actor-1',
@@ -412,14 +411,15 @@ describe('importStravaActivityJob', () => {
     expect(mockGetStravaActivityStreams).toHaveBeenCalledWith(
       expect.objectContaining({ activityId: '125' })
     )
-    expect(mockDownloadStravaActivityFile).toHaveBeenCalledWith(
-      expect.objectContaining({ activityId: '125' })
+    expect(mockBuildTcxFromStravaStreams).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 125 }),
+      expect.objectContaining({ time: expect.anything() })
     )
     expect(mockSaveFitnessFile).toHaveBeenCalledWith(
       database,
       expect.anything(),
       expect.objectContaining({
-        file: expect.objectContaining({ name: 'strava-125.fit' })
+        file: expect.objectContaining({ name: 'strava-125.tcx' })
       })
     )
     expect(mockImportFitnessFilesJob).toHaveBeenCalledTimes(1)
@@ -456,8 +456,9 @@ describe('importStravaActivityJob', () => {
     expect(mockGetStravaActivityStreams).toHaveBeenCalledWith(
       expect.objectContaining({ activityId: '125' })
     )
-    expect(mockDownloadStravaActivityFile).toHaveBeenCalledWith(
-      expect.objectContaining({ activityId: '125' })
+    expect(mockBuildTcxFromStravaStreams).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 125 }),
+      expect.objectContaining({ time: expect.anything() })
     )
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
     expect(mockImportFitnessFilesJob).not.toHaveBeenCalled()

@@ -623,6 +623,14 @@ export const getStravaActivityStreams = async ({
   )
 }
 
+const escapeXml = (s: string) =>
+  s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+
 export const buildGpxFromStravaStreams = (
   activity: Pick<StravaActivity, 'id' | 'name' | 'sport_type' | 'start_date'>,
   streams: StravaStreamSet
@@ -655,16 +663,77 @@ export const buildGpxFromStravaStreams = (
     })
     .join('')
 
-  const escapeXml = (s: string) =>
-    s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;')
-
   const name = escapeXml(activity.name?.trim() ?? '')
   const sportType = escapeXml(activity.sport_type?.trim() ?? '')
 
   return `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="activities.next" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>${name}</name><type>${sportType}</type><trkseg>${trkpts}</trkseg></trk></gpx>`
+}
+
+export const buildTcxFromStravaStreams = (
+  activity: Pick<
+    StravaActivity,
+    'sport_type' | 'start_date' | 'distance' | 'elapsed_time' | 'moving_time'
+  >,
+  streams: StravaStreamSet | null
+): string | null => {
+  const timeData = streams?.time?.data
+
+  const lastTimeOffset =
+    timeData && timeData.length > 0
+      ? timeData[timeData.length - 1]
+      : undefined
+  const totalDurationSeconds =
+    typeof lastTimeOffset === 'number'
+      ? lastTimeOffset
+      : getStravaActivityDurationSeconds(activity)
+
+  if (totalDurationSeconds <= 0) {
+    return null
+  }
+
+  const startMs =
+    activity.start_date != null
+      ? new Date(activity.start_date).getTime()
+      : null
+  const startTimeIso =
+    startMs !== null && Number.isFinite(startMs)
+      ? new Date(startMs).toISOString()
+      : null
+
+  const distanceData = streams?.distance?.data
+  const lastDistanceValue =
+    distanceData && distanceData.length > 0
+      ? distanceData[distanceData.length - 1]
+      : undefined
+  const totalDistanceMeters =
+    typeof lastDistanceValue === 'number'
+      ? lastDistanceValue
+      : typeof activity.distance === 'number'
+        ? activity.distance
+        : 0
+
+  const sportType = escapeXml(activity.sport_type?.trim() ?? '')
+
+  let trackContent = ''
+  if (timeData && timeData.length > 0 && startMs !== null) {
+    const altitudeData = streams?.altitude?.data
+    const trackpoints = timeData
+      .map((timeOffset, index) => {
+        const timestamp = new Date(startMs + timeOffset * 1000).toISOString()
+        const altitude = altitudeData?.[index]
+        const altitudeElem =
+          typeof altitude === 'number'
+            ? `<AltitudeMeters>${altitude}</AltitudeMeters>`
+            : ''
+        return `<Trackpoint><Time>${timestamp}</Time>${altitudeElem}</Trackpoint>`
+      })
+      .join('')
+    trackContent = `<Track>${trackpoints}</Track>`
+  }
+
+  const lapStartAttr = startTimeIso ? ` StartTime="${startTimeIso}"` : ''
+  const activityIdElem = startTimeIso ? `<Id>${startTimeIso}</Id>` : ''
+  const sportAttr = sportType ? ` Sport="${sportType}"` : ''
+
+  return `<?xml version="1.0" encoding="UTF-8"?><TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"><Activities><Activity${sportAttr}>${activityIdElem}<Lap${lapStartAttr}><TotalTimeSeconds>${totalDurationSeconds}</TotalTimeSeconds><DistanceMeters>${totalDistanceMeters}</DistanceMeters>${trackContent}</Lap></Activity></Activities></TrainingCenterDatabase>`
 }
