@@ -180,7 +180,9 @@ export const getStravaActivityStartTimeMs = (activity: StravaActivity) => {
   return timestamp
 }
 
-export const getStravaActivityDurationSeconds = (activity: StravaActivity) => {
+export const getStravaActivityDurationSeconds = (
+  activity: Pick<StravaActivity, 'elapsed_time' | 'moving_time'>
+) => {
   if (
     typeof activity.elapsed_time === 'number' &&
     Number.isFinite(activity.elapsed_time) &&
