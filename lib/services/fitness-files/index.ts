@@ -16,25 +16,26 @@ import { FitnessFileUploadSchema } from './types'
 // Returns the effective fitness storage config. When fitness storage is not
 // explicitly configured, falls back to media object storage with a 'fitness/'
 // prefix (mirrors the getFitnessStorageConfig env-var fallback).
-export const getEffectiveFitnessStorageConfig = (): FitnessStorageConfig | null => {
-  const { fitnessStorage, mediaStorage } = getConfig()
-  if (fitnessStorage) return fitnessStorage
+export const getEffectiveFitnessStorageConfig =
+  (): FitnessStorageConfig | null => {
+    const { fitnessStorage, mediaStorage } = getConfig()
+    if (fitnessStorage) return fitnessStorage
 
-  if (
-    mediaStorage?.type === MediaStorageType.S3Storage ||
-    mediaStorage?.type === MediaStorageType.ObjectStorage
-  ) {
-    return {
-      type: mediaStorage.type as unknown as FitnessStorageS3Config['type'],
-      bucket: mediaStorage.bucket,
-      region: mediaStorage.region,
-      hostname: mediaStorage.hostname,
-      prefix: 'fitness/'
+    if (
+      mediaStorage?.type === MediaStorageType.S3Storage ||
+      mediaStorage?.type === MediaStorageType.ObjectStorage
+    ) {
+      return {
+        type: mediaStorage.type as unknown as FitnessStorageS3Config['type'],
+        bucket: mediaStorage.bucket,
+        region: mediaStorage.region,
+        hostname: mediaStorage.hostname,
+        prefix: 'fitness/'
+      }
     }
-  }
 
-  return null
-}
+    return null
+  }
 
 export const saveFitnessFile = async (
   database: Database,

@@ -142,7 +142,9 @@ describe('traceApiRoute', () => {
       })
     )
 
-    const startActiveSpanMock = jest.fn().mockImplementation((_name, fn) => fn(mockSpan))
+    const startActiveSpanMock = jest
+      .fn()
+      .mockImplementation((_name, fn) => fn(mockSpan))
     jest.spyOn(trace, 'getTracer').mockReturnValue({
       startActiveSpan: startActiveSpanMock
     } as unknown as Tracer)

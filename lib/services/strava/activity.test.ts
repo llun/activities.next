@@ -295,8 +295,12 @@ describe('buildTcxFromStravaStreams', () => {
       time: { type: 'time', data: [0, 60] }
     })
 
-    expect(result).toContain('<Trackpoint><Time>2026-01-01T00:00:00.000Z</Time></Trackpoint>')
-    expect(result).toContain('<Trackpoint><Time>2026-01-01T00:01:00.000Z</Time></Trackpoint>')
+    expect(result).toContain(
+      '<Trackpoint><Time>2026-01-01T00:00:00.000Z</Time></Trackpoint>'
+    )
+    expect(result).toContain(
+      '<Trackpoint><Time>2026-01-01T00:01:00.000Z</Time></Trackpoint>'
+    )
   })
 
   it('includes altitude in track points when altitude stream is present', () => {
