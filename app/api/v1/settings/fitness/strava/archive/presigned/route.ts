@@ -1,5 +1,5 @@
-import crypto from 'crypto'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
+import crypto from 'crypto'
 import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
@@ -98,7 +98,9 @@ export const POST = traceApiRoute(
     } catch (error) {
       const span = trace.getActiveSpan()
       if (span) {
-        span.recordException(error instanceof Error ? error : new Error(String(error)))
+        span.recordException(
+          error instanceof Error ? error : new Error(String(error))
+        )
         span.setStatus({ code: SpanStatusCode.ERROR })
       }
 
