@@ -167,94 +167,6 @@ const getActivityLabelAndEmoji = (activity: StravaActivity) => {
   return { label: 'Workout', emoji: '🏋️' }
 }
 
-const getExportFileTypeFromHeaders = ({
-  contentDisposition,
-  contentType,
-  fallback
-}: {
-  contentDisposition: string | null
-  contentType: string | null
-  fallback: 'fit' | 'gpx' | 'tcx'
-}): 'fit' | 'gpx' | 'tcx' => {
-  if (contentDisposition) {
-    let normalizedDisposition = contentDisposition
-    try {
-      normalizedDisposition = decodeURIComponent(contentDisposition)
-    } catch {
-      // Keep original value if decoding fails.
-    }
-    const match = normalizedDisposition.match(/\.(fit|gpx|tcx)(?:\.gz)?/i)
-    if (match?.[1]) {
-      return match[1].toLowerCase() as 'fit' | 'gpx' | 'tcx'
-    }
-  }
-
-  if (contentType) {
-    const normalized = contentType.toLowerCase()
-    if (normalized.includes('gpx')) {
-      return 'gpx'
-    }
-    if (normalized.includes('tcx')) {
-      return 'tcx'
-    }
-    if (normalized.includes('fit')) {
-      return 'fit'
-    }
-  }
-
-  return fallback
-}
-
-const getMimeTypeFromExportFileType = (fileType: 'fit' | 'gpx' | 'tcx') => {
-  switch (fileType) {
-    case 'gpx':
-      return 'application/gpx+xml'
-    case 'tcx':
-      return 'application/vnd.garmin.tcx+xml'
-    case 'fit':
-    default:
-      return 'application/vnd.ant.fit'
-  }
-}
-
-const fetchStravaActivityExport = async ({
-  activityId,
-  endpoint,
-  accessToken
-}: {
-  activityId: string
-  endpoint: 'export_original' | 'export_gpx'
-  accessToken: string
-}) => {
-  const response = await fetch(
-    `${STRAVA_API_BASE}/activities/${encodeURIComponent(activityId)}/${endpoint}`,
-    {
-      method: 'GET',
-      headers: getStravaAuthHeaders(accessToken)
-    }
-  )
-
-  if (response.ok) {
-    return response
-  }
-
-  const detail = await getStravaErrorDetail(response)
-
-  if (response.status === 404) {
-    logger.warn({
-      message: 'Strava activity export not found',
-      activityId,
-      endpoint,
-      status: response.status
-    })
-    return null
-  }
-
-  throw new Error(
-    `Failed to fetch Strava activity export (${response.status}): ${detail}`
-  )
-}
-
 export const getStravaActivityStartTimeMs = (activity: StravaActivity) => {
   if (!activity.start_date) {
     return undefined
@@ -268,7 +180,9 @@ export const getStravaActivityStartTimeMs = (activity: StravaActivity) => {
   return timestamp
 }
 
-export const getStravaActivityDurationSeconds = (activity: StravaActivity) => {
+export const getStravaActivityDurationSeconds = (
+  activity: Pick<StravaActivity, 'elapsed_time' | 'moving_time'>
+) => {
   if (
     typeof activity.elapsed_time === 'number' &&
     Number.isFinite(activity.elapsed_time) &&
@@ -396,59 +310,6 @@ export const getStravaActivityPhotos = async ({
   })
 
   return uniquePhotos.slice(0, Math.max(limit, 0))
-}
-
-export const downloadStravaActivityFile = async ({
-  activityId,
-  accessToken
-}: {
-  activityId: string
-  accessToken: string
-}): Promise<File | null> => {
-  const originalExport = await fetchStravaActivityExport({
-    activityId,
-    endpoint: 'export_original',
-    accessToken
-  })
-  const exportResponse =
-    originalExport ??
-    (await fetchStravaActivityExport({
-      activityId,
-      endpoint: 'export_gpx',
-      accessToken
-    }))
-
-  if (!exportResponse) {
-    logger.warn({
-      message: 'No exportable file available for Strava activity',
-      activityId
-    })
-    return null
-  }
-
-  const exportBuffer = await exportResponse.arrayBuffer()
-  if (exportBuffer.byteLength <= 0) {
-    logger.warn({
-      message: 'Strava activity export is empty',
-      activityId
-    })
-    return null
-  }
-
-  const fileType = getExportFileTypeFromHeaders({
-    contentDisposition: exportResponse.headers.get('content-disposition'),
-    contentType: exportResponse.headers.get('content-type'),
-    fallback: originalExport ? 'fit' : 'gpx'
-  })
-  const mimeType = getMimeTypeFromExportFileType(fileType)
-
-  return new File(
-    [new Uint8Array(exportBuffer)],
-    `strava-${activityId}.${fileType}`,
-    {
-      type: mimeType
-    }
-  )
 }
 
 export const getStravaUpload = async ({
@@ -623,6 +484,14 @@ export const getStravaActivityStreams = async ({
   )
 }
 
+const escapeXml = (s: string) =>
+  s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+
 export const buildGpxFromStravaStreams = (
   activity: Pick<StravaActivity, 'id' | 'name' | 'sport_type' | 'start_date'>,
   streams: StravaStreamSet
@@ -655,16 +524,65 @@ export const buildGpxFromStravaStreams = (
     })
     .join('')
 
-  const escapeXml = (s: string) =>
-    s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;')
-
   const name = escapeXml(activity.name?.trim() ?? '')
   const sportType = escapeXml(activity.sport_type?.trim() ?? '')
 
   return `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="activities.next" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>${name}</name><type>${sportType}</type><trkseg>${trkpts}</trkseg></trk></gpx>`
+}
+
+export const buildTcxFromStravaStreams = (
+  activity: Pick<
+    StravaActivity,
+    'sport_type' | 'start_date' | 'distance' | 'elapsed_time' | 'moving_time'
+  >,
+  streams: StravaStreamSet | null
+): string | null => {
+  const timeData = streams?.time?.data
+
+  const totalDurationSeconds =
+    timeData?.at(-1) ?? getStravaActivityDurationSeconds(activity)
+
+  if (totalDurationSeconds <= 0) {
+    return null
+  }
+
+  const startMs =
+    activity.start_date != null ? new Date(activity.start_date).getTime() : null
+  const startTimeIso =
+    startMs !== null && Number.isFinite(startMs)
+      ? new Date(startMs).toISOString()
+      : null
+
+  const totalDistanceMeters =
+    streams?.distance?.data?.at(-1) ?? activity.distance ?? 0
+
+  const sportType = escapeXml(activity.sport_type?.trim() ?? '')
+
+  let trackContent = ''
+  if (
+    timeData &&
+    timeData.length > 0 &&
+    startMs !== null &&
+    Number.isFinite(startMs)
+  ) {
+    const altitudeData = streams?.altitude?.data
+    const trackpoints = timeData
+      .map((timeOffset, index) => {
+        const timestamp = new Date(startMs + timeOffset * 1000).toISOString()
+        const altitude = altitudeData?.[index]
+        const altitudeElem =
+          typeof altitude === 'number'
+            ? `<AltitudeMeters>${altitude}</AltitudeMeters>`
+            : ''
+        return `<Trackpoint><Time>${timestamp}</Time>${altitudeElem}</Trackpoint>`
+      })
+      .join('')
+    trackContent = `<Track>${trackpoints}</Track>`
+  }
+
+  const lapStartAttr = startTimeIso ? ` StartTime="${startTimeIso}"` : ''
+  const activityIdElem = startTimeIso ? `<Id>${startTimeIso}</Id>` : ''
+  const sportAttr = sportType ? ` Sport="${sportType}"` : ''
+
+  return `<?xml version="1.0" encoding="UTF-8"?><TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"><Activities><Activity${sportAttr}>${activityIdElem}<Lap${lapStartAttr}><TotalTimeSeconds>${totalDurationSeconds}</TotalTimeSeconds><DistanceMeters>${totalDistanceMeters}</DistanceMeters>${trackContent}</Lap></Activity></Activities></TrainingCenterDatabase>`
 }

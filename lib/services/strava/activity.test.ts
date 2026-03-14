@@ -1,5 +1,6 @@
 import {
   buildGpxFromStravaStreams,
+  buildTcxFromStravaStreams,
   getStravaActivityStreams,
   getStravaUpload
 } from './activity'
@@ -240,5 +241,84 @@ describe('buildGpxFromStravaStreams', () => {
     expect(result).toContain('<type>Run&quot;2&quot;</type>')
     expect(result).not.toContain('<fast>')
     expect(result).not.toContain('& Run')
+  })
+})
+
+describe('buildTcxFromStravaStreams', () => {
+  const baseActivity = {
+    id: 125,
+    sport_type: 'VirtualRide',
+    start_date: '2026-01-01T00:00:00.000Z',
+    distance: 20_000,
+    elapsed_time: 3_600,
+    moving_time: 3_500
+  }
+
+  it('returns null when streams are null and activity has no duration', () => {
+    const result = buildTcxFromStravaStreams(
+      { ...baseActivity, elapsed_time: 0, moving_time: 0 },
+      null
+    )
+    expect(result).toBeNull()
+  })
+
+  it('returns TCX using elapsed_time when streams are null', () => {
+    const result = buildTcxFromStravaStreams(baseActivity, null)
+
+    expect(result).not.toBeNull()
+    expect(result).toContain('<TrainingCenterDatabase')
+    expect(result).toContain('<TotalTimeSeconds>3600</TotalTimeSeconds>')
+    expect(result).toContain('<DistanceMeters>20000</DistanceMeters>')
+    expect(result).toContain('Sport="VirtualRide"')
+    expect(result).toContain('<Id>2026-01-01T00:00:00.000Z</Id>')
+  })
+
+  it('prefers last time stream value over activity elapsed_time for duration', () => {
+    const result = buildTcxFromStravaStreams(baseActivity, {
+      time: { type: 'time', data: [0, 600, 1200] }
+    })
+
+    expect(result).toContain('<TotalTimeSeconds>1200</TotalTimeSeconds>')
+  })
+
+  it('prefers last distance stream value over activity distance', () => {
+    const result = buildTcxFromStravaStreams(baseActivity, {
+      time: { type: 'time', data: [0, 600] },
+      distance: { type: 'distance', data: [0, 10_500] }
+    })
+
+    expect(result).toContain('<DistanceMeters>10500</DistanceMeters>')
+  })
+
+  it('includes time-stamped track points when time stream and start_date are present', () => {
+    const result = buildTcxFromStravaStreams(baseActivity, {
+      time: { type: 'time', data: [0, 60] }
+    })
+
+    expect(result).toContain(
+      '<Trackpoint><Time>2026-01-01T00:00:00.000Z</Time></Trackpoint>'
+    )
+    expect(result).toContain(
+      '<Trackpoint><Time>2026-01-01T00:01:00.000Z</Time></Trackpoint>'
+    )
+  })
+
+  it('includes altitude in track points when altitude stream is present', () => {
+    const result = buildTcxFromStravaStreams(baseActivity, {
+      time: { type: 'time', data: [0, 60] },
+      altitude: { type: 'altitude', data: [100, 105] }
+    })
+
+    expect(result).toContain('<AltitudeMeters>100</AltitudeMeters>')
+    expect(result).toContain('<AltitudeMeters>105</AltitudeMeters>')
+  })
+
+  it('escapes XML special characters in sport type', () => {
+    const result = buildTcxFromStravaStreams(
+      { ...baseActivity, sport_type: 'Run & Bike <test>' },
+      null
+    )
+
+    expect(result).toContain('Sport="Run &amp; Bike &lt;test&gt;"')
   })
 })

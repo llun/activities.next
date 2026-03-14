@@ -13,6 +13,7 @@ import { saveMedia } from '@/lib/services/medias/index'
 import { getQueue } from '@/lib/services/queue'
 import {
   buildGpxFromStravaStreams,
+  buildTcxFromStravaStreams,
   getStravaActivity,
   getStravaActivityPhotos,
   getStravaActivityStreams,
@@ -42,6 +43,7 @@ jest.mock('@/lib/services/strava/activity', () => {
   return {
     ...actual,
     buildGpxFromStravaStreams: jest.fn(),
+    buildTcxFromStravaStreams: jest.fn(),
     getStravaActivity: jest.fn(),
     getStravaActivityPhotos: jest.fn(),
     getStravaActivityStreams: jest.fn(),
@@ -78,6 +80,10 @@ const mockGetStravaActivityStreams =
 const mockBuildGpxFromStravaStreams =
   buildGpxFromStravaStreams as jest.MockedFunction<
     typeof buildGpxFromStravaStreams
+  >
+const mockBuildTcxFromStravaStreams =
+  buildTcxFromStravaStreams as jest.MockedFunction<
+    typeof buildTcxFromStravaStreams
   >
 const mockGetValidStravaAccessToken =
   getValidStravaAccessToken as jest.MockedFunction<
@@ -191,6 +197,7 @@ describe('importStravaActivityJob', () => {
     mockLookup.mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as never)
 
     mockGetValidStravaAccessToken.mockResolvedValue('access-token')
+    mockBuildTcxFromStravaStreams.mockReturnValue(null)
     mockGetStravaActivity.mockResolvedValue({
       id: 123,
       upload_id: 67890,
@@ -373,7 +380,53 @@ describe('importStravaActivityJob', () => {
     )
   })
 
-  it('falls back to a note when streams have no GPS data', async () => {
+  it('imports via fitness pipeline using TCX from streams when no GPS data', async () => {
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 125,
+      name: 'Indoor Ride',
+      distance: 20_000,
+      elapsed_time: 3_600,
+      total_elevation_gain: 0,
+      start_date: '2026-01-01T00:00:00.000Z',
+      sport_type: 'VirtualRide',
+      visibility: 'everyone'
+    })
+    mockGetStravaActivityStreams.mockResolvedValueOnce({
+      time: { type: 'time', data: [0, 10, 20] }
+    })
+    mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
+    mockBuildTcxFromStravaStreams.mockReturnValueOnce(
+      '<?xml version="1.0"?><TrainingCenterDatabase>...</TrainingCenterDatabase>'
+    )
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-no-gps-tcx',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '125'
+      }
+    })
+
+    expect(mockGetStravaActivityStreams).toHaveBeenCalledWith(
+      expect.objectContaining({ activityId: '125' })
+    )
+    expect(mockBuildTcxFromStravaStreams).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 125 }),
+      expect.objectContaining({ time: expect.anything() })
+    )
+    expect(mockSaveFitnessFile).toHaveBeenCalledWith(
+      database,
+      expect.anything(),
+      expect.objectContaining({
+        file: expect.objectContaining({ name: 'strava-125.tcx' })
+      })
+    )
+    expect(mockImportFitnessFilesJob).toHaveBeenCalledTimes(1)
+    expect(database.createNote).not.toHaveBeenCalled()
+  })
+
+  it('falls back to a note when streams have no GPS data and no original file exists', async () => {
     mockGetStravaActivity.mockResolvedValueOnce({
       id: 125,
       name: 'Morning Run',
@@ -401,6 +454,10 @@ describe('importStravaActivityJob', () => {
 
     expect(mockGetStravaActivityStreams).toHaveBeenCalledWith(
       expect.objectContaining({ activityId: '125' })
+    )
+    expect(mockBuildTcxFromStravaStreams).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 125 }),
+      expect.objectContaining({ time: expect.anything() })
     )
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
     expect(mockImportFitnessFilesJob).not.toHaveBeenCalled()
