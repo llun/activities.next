@@ -1761,9 +1761,6 @@ export const FitnessStatusDetail: FC<Props> = ({
             return `rgb(${r}, ${g}, ${b})`
           }
 
-          // Calculate weighted average line position
-          const weightedAvgX = (weightedAvgPower / 25) * (barWidth + barGap)
-
           // Y-axis grid lines (4 intervals)
           const yAxisTicks = Array.from({ length: 5 }, (_, i) => {
             const valueMinutes = (maxValue / 4) * i
@@ -1843,27 +1840,6 @@ export const FitnessStatusDetail: FC<Props> = ({
                           />
                         )
                       })}
-
-                      {/* Weighted Average Line */}
-                      <line
-                        x1={weightedAvgX}
-                        y1={histogramTopPadding}
-                        x2={weightedAvgX}
-                        y2={GRAPH_VIEW_HEIGHT}
-                        stroke="#a65e92"
-                        strokeWidth="1.5"
-                        strokeDasharray="4,4"
-                      />
-                      <text
-                        x={Math.min(Math.max(weightedAvgX, 80), 680)}
-                        y={histogramTopPadding - 6}
-                        textAnchor="middle"
-                        fill="#a65e92"
-                        fontSize="12"
-                        className="font-medium"
-                      >
-                        Weighted Avg Power {weightedAvgPower} W
-                      </text>
                     </svg>
 
                     {/* Tooltip */}
