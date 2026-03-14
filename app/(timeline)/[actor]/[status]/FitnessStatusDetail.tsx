@@ -1354,19 +1354,23 @@ export const FitnessStatusDetail: FC<Props> = ({
       return (
         <div className="space-y-6 p-6">
           <div className="grid gap-6">
-            <ActivityMapPanel
-              mapAttachment={mapAttachment}
-              routeSamples={routeSamples}
-              routeSegments={routeSegments}
-              mapboxAccessToken={mapboxAccessToken}
-              routeDataError={routeDataError}
-              isRouteDataLoading={isRouteDataLoading}
-              onOpenMap={() => {
-                if (mapAttachmentIndex >= 0) {
-                  onShowAttachment(status.attachments, mapAttachmentIndex)
-                }
-              }}
-            />
+            {(fitness?.hasMapData ||
+              isRouteDataLoading ||
+              routeSegments.length > 0) && (
+              <ActivityMapPanel
+                mapAttachment={mapAttachment}
+                routeSamples={routeSamples}
+                routeSegments={routeSegments}
+                mapboxAccessToken={mapboxAccessToken}
+                routeDataError={routeDataError}
+                isRouteDataLoading={isRouteDataLoading}
+                onOpenMap={() => {
+                  if (mapAttachmentIndex >= 0) {
+                    onShowAttachment(status.attachments, mapAttachmentIndex)
+                  }
+                }}
+              />
+            )}
 
             <div className="rounded-sm border border-slate-300 bg-white p-5">
               <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
@@ -1432,21 +1436,25 @@ export const FitnessStatusDetail: FC<Props> = ({
             </p>
           </div>
 
-          <ActivityMapPanel
-            mapAttachment={mapAttachment}
-            routeSamples={routeSamples}
-            routeSegments={routeSegments}
-            highlightedElapsedSeconds={highlightedElapsedSeconds}
-            mapboxAccessToken={mapboxAccessToken}
-            routeDataError={routeDataError}
-            isRouteDataLoading={isRouteDataLoading}
-            compact
-            onOpenMap={() => {
-              if (mapAttachmentIndex >= 0) {
-                onShowAttachment(status.attachments, mapAttachmentIndex)
-              }
-            }}
-          />
+          {(fitness?.hasMapData ||
+            isRouteDataLoading ||
+            routeSegments.length > 0) && (
+            <ActivityMapPanel
+              mapAttachment={mapAttachment}
+              routeSamples={routeSamples}
+              routeSegments={routeSegments}
+              highlightedElapsedSeconds={highlightedElapsedSeconds}
+              mapboxAccessToken={mapboxAccessToken}
+              routeDataError={routeDataError}
+              isRouteDataLoading={isRouteDataLoading}
+              compact
+              onOpenMap={() => {
+                if (mapAttachmentIndex >= 0) {
+                  onShowAttachment(status.attachments, mapAttachmentIndex)
+                }
+              }}
+            />
+          )}
 
           {showAllGraphs || analysisGraphFilter === 'elevation' ? (
             <ChartPanel
