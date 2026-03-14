@@ -1245,14 +1245,6 @@ export const FitnessStatusDetail: FC<Props> = ({
       })
     }
 
-    const histogram = Array.from({ length: 20 }, (_, index) => {
-      const center = 5
-      const distanceFromCenter = Math.abs(index - center)
-      const peak = Math.max(0, 1 - distanceFromCenter / 6)
-      const noise = 0.2 + next() * 0.7
-      return Math.max(0, peak * noise)
-    })
-
     const heartRate = lineSeries(120, 120 + intensity * 0.35, 18)
     const power = lineSeries(120, weightedAvgPower, 42)
     const speed = lineSeries(120, Math.max(12, speedKmh), 4)
@@ -1262,8 +1254,7 @@ export const FitnessStatusDetail: FC<Props> = ({
       heartRate,
       power,
       speed,
-      elevation,
-      histogram
+      elevation
     }
   }, [elevationGainMeters, intensity, speedKmh, status.id, weightedAvgPower])
   const { minValue: elevationMin, maxValue: elevationMax } = useMemo(
@@ -1287,16 +1278,30 @@ export const FitnessStatusDetail: FC<Props> = ({
       ? formatDuration(Math.round(highlightedElapsedSeconds))
       : null
   const histogramMinutes = useMemo(() => {
+    const maxPower = Math.max(...seededSeries.power, 100)
+    // Dynamic number of buckets based on max power (25W increments)
+    const bucketCount = Math.ceil((maxPower + 25) / 25)
+    
+    const next = createSeededGenerator(status.id + '-histogram')
+    const histogramData = Array.from({ length: bucketCount }, (_, index) => {
+      // Create a distribution centered around weightedAvgPower
+      const bucketPower = index * 25
+      const distanceFromAvg = Math.abs(bucketPower - weightedAvgPower)
+      const peak = Math.max(0, 1 - distanceFromAvg / (weightedAvgPower * 0.8))
+      const noise = 0.2 + next() * 0.7
+      return Math.max(0, peak * noise)
+    })
+
     const totalMinutes = Math.max(1, durationSeconds / 60)
     const totalWeight = Math.max(
       1,
-      seededSeries.histogram.reduce((sum, value) => sum + value, 0)
+      histogramData.reduce((sum, value) => sum + value, 0)
     )
 
-    return seededSeries.histogram.map(
+    return histogramData.map(
       (value) => (value / totalWeight) * totalMinutes
     )
-  }, [durationSeconds, seededSeries.histogram])
+  }, [durationSeconds, seededSeries.power, status.id, weightedAvgPower])
 
   const zoneDistribution = useMemo(() => {
     const total = Math.max(1, durationSeconds)
@@ -1729,16 +1734,23 @@ export const FitnessStatusDetail: FC<Props> = ({
                     })()}
                   </svg>
                   <div className="mt-2 flex justify-between text-[11px] text-slate-500">
-                    {histogramMinutes.map((_, index) => (
-                      <span key={`label-${index}`} className="text-center">
-                        {index * 25}
-                      </span>
-                    ))}
+                    {histogramMinutes.map((_, index) => {
+                      // Only show every Nth label to prevent overlapping on mobile/small screens
+                      const skip = histogramMinutes.length > 20 ? 4 : 2
+                      if (index % skip !== 0 && index !== histogramMinutes.length - 1) {
+                        return <span key={`label-${index}`} className="flex-1" />
+                      }
+                      return (
+                        <span key={`label-${index}`} className="flex-1 text-center">
+                          {index * 25}
+                        </span>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
-              <p className="mt-2 text-[11px] text-slate-500">
-                Time in each 25 W power bin (minutes)
+              <p className="mt-2 text-[11px] text-slate-500 text-center">
+                Power bucket (watts)
               </p>
             </div>
           </div>
