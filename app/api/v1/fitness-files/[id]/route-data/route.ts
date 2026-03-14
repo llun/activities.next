@@ -293,7 +293,8 @@ export const GET = traceApiRoute(
         data: {
           samples: responseSamples,
           segments: responseSegments,
-          totalDurationSeconds: activityData.totalDurationSeconds
+          totalDurationSeconds: activityData.totalDurationSeconds,
+          powerSeries: activityData.powerSeries
         },
         additionalHeaders: [
           [

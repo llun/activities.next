@@ -11,6 +11,7 @@ export interface FitnessCoordinate {
 export interface FitnessTrackPoint extends FitnessCoordinate {
   altitudeMeters?: number
   timestamp?: Date
+  power?: number
 }
 
 export interface FitnessActivityData {
@@ -21,6 +22,7 @@ export interface FitnessActivityData {
   elevationGainMeters?: number
   activityType?: string
   startTime?: Date
+  powerSeries?: number[]
 }
 
 export type ParseableFitnessFileType = 'fit' | 'gpx' | 'tcx'
@@ -322,6 +324,10 @@ const toActivityData = ({
     points.map((point) => point.altitudeMeters)
   )
 
+  const powerSeries = points
+    .map((point) => point.power)
+    .filter((value): value is number => typeof value === 'number')
+
   return {
     coordinates,
     trackPoints,
@@ -337,7 +343,8 @@ const toActivityData = ({
       ? { startTime }
       : timestamps[0]
         ? { startTime: timestamps[0] }
-        : null)
+        : null),
+    powerSeries
   }
 }
 
@@ -385,7 +392,8 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
         lat,
         lng,
         altitudeMeters: toNumber(record.altitude),
-        timestamp: toDate(record.timestamp)
+        timestamp: toDate(record.timestamp),
+        power: toNumber(record.power)
       }
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)
@@ -484,7 +492,8 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
         lat,
         lng,
         altitudeMeters: toNumber(point.AltitudeMeters),
-        timestamp: toDate(point.Time)
+        timestamp: toDate(point.Time),
+        power: toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Watts'])
       }
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)

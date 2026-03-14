@@ -62,6 +62,7 @@ interface FitnessRouteDataResponse {
   samples: FitnessRouteSample[]
   segments?: FitnessRouteSegment[]
   totalDurationSeconds: number
+  powerSeries?: number[]
 }
 
 interface StatusFitnessFileItem {
@@ -956,6 +957,20 @@ const MetricCard: FC<{ label: string; value: string; highlight?: boolean }> = ({
   )
 }
 
+const downsampleSeries = (series: number[], targetCount: number) => {
+  if (series.length <= targetCount) return series
+  const ratio = series.length / targetCount
+  const result: number[] = []
+  for (let i = 0; i < targetCount; i++) {
+    const start = Math.floor(i * ratio)
+    const end = Math.floor((i + 1) * ratio)
+    const chunk = series.slice(start, end)
+    const sum = chunk.reduce((a, b) => a + b, 0)
+    result.push(sum / chunk.length)
+  }
+  return result
+}
+
 export const FitnessStatusDetail: FC<Props> = ({
   mapboxAccessToken,
   currentActor,
@@ -965,6 +980,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
   const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
   const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
+  const [powerSeries, setPowerSeries] = useState<number[]>([])
   const [routeDataError, setRouteDataError] = useState<string | null>(null)
   const [isRouteDataLoading, setIsRouteDataLoading] = useState(false)
   const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
@@ -1135,6 +1151,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     if (!shouldLoadInteractiveMap || !fitness?.id) {
       setRouteSamples([])
       setRouteSegments([])
+      setPowerSeries([])
       setRouteDataError(null)
       setIsRouteDataLoading(false)
       return
@@ -1179,10 +1196,12 @@ export const FitnessStatusDetail: FC<Props> = ({
 
         setRouteSamples(normalizedSamples)
         setRouteSegments(normalizedSegments)
+        setPowerSeries(data.powerSeries ?? [])
       } catch (_error) {
         if (cancelled) return
         setRouteSamples([])
         setRouteSegments([])
+        setPowerSeries([])
         setRouteDataError('Interactive map unavailable. Using static preview.')
       } finally {
         if (!cancelled) {
@@ -1249,7 +1268,10 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
 
     const heartRate = lineSeries(120, 120 + intensity * 0.35, 18)
-    const power = lineSeries(120, weightedAvgPower, 42)
+    const power =
+      powerSeries.length > 0
+        ? downsampleSeries(powerSeries, 120)
+        : lineSeries(120, weightedAvgPower, 42)
     const speed = lineSeries(120, Math.max(12, speedKmh), 4)
     const elevation = lineSeries(120, 12 + elevationGainMeters / 30, 7)
 
@@ -1259,7 +1281,14 @@ export const FitnessStatusDetail: FC<Props> = ({
       speed,
       elevation
     }
-  }, [elevationGainMeters, intensity, speedKmh, status.id, weightedAvgPower])
+  }, [
+    elevationGainMeters,
+    intensity,
+    speedKmh,
+    status.id,
+    weightedAvgPower,
+    powerSeries
+  ])
   const { minValue: elevationMin, maxValue: elevationMax } = useMemo(
     () => getSeriesMinMax(seededSeries.elevation),
     [seededSeries.elevation]
@@ -1281,9 +1310,22 @@ export const FitnessStatusDetail: FC<Props> = ({
       ? formatDuration(Math.round(highlightedElapsedSeconds))
       : null
   const histogramMinutes = useMemo(() => {
-    const maxPower = Math.max(...seededSeries.power, 100)
+    const maxPower = Math.max(...powerSeries, ...seededSeries.power, 100)
     const bucketCount = Math.ceil((maxPower + 25) / 25)
-    
+
+    if (powerSeries.length > 0) {
+      const buckets = new Array(bucketCount).fill(0)
+      // Actual power data represents samples (usually 1 per second)
+      for (const p of powerSeries) {
+        const bucketIndex = Math.floor(p / 25)
+        if (bucketIndex >= 0 && bucketIndex < bucketCount) {
+          buckets[bucketIndex] += 1
+        }
+      }
+      // Convert samples (seconds) to minutes
+      return buckets.map((seconds) => seconds / 60)
+    }
+
     const next = createSeededGenerator(status.id + '-histogram')
     // Use a normal distribution centered around weightedAvgPower
     const mean = weightedAvgPower
@@ -1292,9 +1334,10 @@ export const FitnessStatusDetail: FC<Props> = ({
     const histogramData = Array.from({ length: bucketCount }, (_, index) => {
       const bucketPower = index * 25
       // Gaussian function: e^(-(x-mean)^2 / (2*sigma^2))
-      const exponent = -Math.pow(bucketPower - mean, 2) / (2 * Math.pow(sigma, 2))
+      const exponent =
+        -Math.pow(bucketPower - mean, 2) / (2 * Math.pow(sigma, 2))
       let peak = Math.exp(exponent)
-      
+
       // Penalize high power intensities much faster
       if (bucketPower > mean) {
         // Sharper drop-off for higher power
@@ -1314,10 +1357,14 @@ export const FitnessStatusDetail: FC<Props> = ({
       histogramData.reduce((sum, value) => sum + value, 0)
     )
 
-    return histogramData.map(
-      (value) => (value / totalWeight) * totalMinutes
-    )
-  }, [durationSeconds, seededSeries.power, status.id, weightedAvgPower])
+    return histogramData.map((value) => (value / totalWeight) * totalMinutes)
+  }, [
+    durationSeconds,
+    seededSeries.power,
+    status.id,
+    weightedAvgPower,
+    powerSeries
+  ])
 
   const zoneDistribution = useMemo(() => {
     const total = Math.max(1, durationSeconds)
