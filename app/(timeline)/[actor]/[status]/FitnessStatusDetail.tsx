@@ -31,7 +31,6 @@ type SectionKey =
   | 'analysis'
   | 'heart-rate'
   | 'power-curve'
-  | 'zone-distribution'
   | '25w-distribution'
   | 'best-efforts'
   | 'matched-activities'
@@ -161,11 +160,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'analysis', label: 'Analysis' },
   { id: 'heart-rate', label: 'Heart Rate', group: 'subscription' },
   { id: 'power-curve', label: 'Power Curve', group: 'subscription' },
-  {
-    id: 'zone-distribution',
-    label: 'Zone Distribution',
-    group: 'subscription'
-  },
   { id: '25w-distribution', label: '25 W Distribution', group: 'subscription' },
   { id: 'best-efforts', label: 'Best Efforts' },
   { id: 'matched-activities', label: 'Matched Activities' }
@@ -1366,21 +1360,6 @@ export const FitnessStatusDetail: FC<Props> = ({
     powerSeries
   ])
 
-  const zoneDistribution = useMemo(() => {
-    const total = Math.max(1, durationSeconds)
-    const base = [0.28, 0.55, 0.11, 0.05, 0.01, 0.003, 0.002]
-
-    return base.map((ratio, index) => {
-      const seconds = Math.round(total * ratio)
-      const percentage = Math.round(ratio * 100)
-      return {
-        zone: `Z${index + 1}`,
-        seconds,
-        percentage
-      }
-    })
-  }, [durationSeconds])
-
   const heartRateZones = useMemo(() => {
     const base = [0.02, 0.26, 0.52, 0.17, 0.03]
     const total = Math.max(1, durationSeconds)
@@ -1682,49 +1661,6 @@ export const FitnessStatusDetail: FC<Props> = ({
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-
-        {activeSection === 'zone-distribution' && (
-          <div className="space-y-4 p-4 sm:p-6">
-            <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
-              Zone Distribution
-            </h3>
-            <div className="overflow-x-auto rounded-sm border border-slate-300 bg-white">
-              <table className="w-full min-w-[600px] text-left text-sm">
-                <thead className="bg-slate-100 text-slate-700">
-                  <tr>
-                    <th className="px-4 py-3">Zone</th>
-                    <th className="px-4 py-3">Time</th>
-                    <th className="px-4 py-3">Percent</th>
-                    <th className="px-4 py-3">Distribution</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {zoneDistribution.map((zone) => (
-                    <tr key={zone.zone} className="border-t">
-                      <td className="px-4 py-3 font-medium text-slate-800">
-                        {zone.zone}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">
-                        {formatDuration(zone.seconds)}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">
-                        {zone.percentage}%
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="h-8 w-full bg-slate-100">
-                          <div
-                            className="h-full bg-violet-300"
-                            style={{ width: `${Math.max(zone.percentage, 1)}%` }}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </div>
         )}
