@@ -1680,6 +1680,7 @@ export const FitnessStatusDetail: FC<Props> = ({
         )}
 
         {activeSection === '25w-distribution' && (() => {
+          const [hoveredBucketIndex, setHoveredBucketIndex] = useState<number | null>(null)
           const histogramViewHeight = GRAPH_VIEW_HEIGHT
           const histogramTopPadding = 24 // More padding for the weighted avg label
           const histogramHeight = histogramViewHeight - histogramTopPadding
@@ -1711,6 +1712,18 @@ export const FitnessStatusDetail: FC<Props> = ({
             return { y, label: valueMinutes === 0 ? '0s' : formatDuration(Math.round(valueMinutes * 60)) }
           })
 
+          const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+            const svg = e.currentTarget
+            const rect = svg.getBoundingClientRect()
+            const x = ((e.clientX - rect.left) / rect.width) * 760
+            const index = Math.floor(x / (barWidth + barGap))
+            if (index >= 0 && index < barCount) {
+              setHoveredBucketIndex(index)
+            } else {
+              setHoveredBucketIndex(null)
+            }
+          }
+
           return (
             <div className="space-y-4 p-4 sm:p-6">
               <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
@@ -1734,7 +1747,9 @@ export const FitnessStatusDetail: FC<Props> = ({
                     <svg
                       viewBox={`0 0 760 ${GRAPH_VIEW_HEIGHT}`}
                       preserveAspectRatio="none"
-                      className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+                      className={cn('w-full cursor-crosshair', GRAPH_HEIGHT_CLASSNAME)}
+                      onMouseMove={handleMouseMove}
+                      onMouseLeave={() => setHoveredBucketIndex(null)}
                     >
                       {/* Grid lines */}
                       {yAxisTicks.map((tick, i) => (
@@ -1762,6 +1777,10 @@ export const FitnessStatusDetail: FC<Props> = ({
                             width={barWidth}
                             height={barHeight}
                             fill={getBarColor(index, barCount)}
+                            className={cn(
+                              'transition-opacity',
+                              hoveredBucketIndex !== null && hoveredBucketIndex !== index ? 'opacity-40' : 'opacity-100'
+                            )}
                           />
                         )
                       })}
@@ -1787,6 +1806,25 @@ export const FitnessStatusDetail: FC<Props> = ({
                         Weighted Avg Power {weightedAvgPower} W
                       </text>
                     </svg>
+
+                    {/* Tooltip */}
+                    {hoveredBucketIndex !== null && (
+                      <div 
+                        className="absolute z-10 bg-white border border-slate-200 shadow-lg rounded-sm p-3 pointer-events-none text-xs"
+                        style={{
+                          left: `${(hoveredBucketIndex / barCount) * 100}%`,
+                          top: '20%',
+                          transform: hoveredBucketIndex > barCount / 2 ? 'translateX(-110%)' : 'translateX(10%)'
+                        }}
+                      >
+                        <p className="font-semibold text-slate-900">
+                          Range: {hoveredBucketIndex * 25}-{hoveredBucketIndex * 25 + 24} W
+                        </p>
+                        <p className="text-slate-600 mt-1">
+                          Time Spent: {formatDuration(Math.round(histogramMinutes[hoveredBucketIndex] * 60))} ({((histogramMinutes[hoveredBucketIndex] / (durationSeconds / 60)) * 100).toFixed(1)}%)
+                        </p>
+                      </div>
+                    )}
                     
                     {/* X-Axis labels */}
                     <div className="mt-2 flex text-[11px] text-slate-400 border-t border-slate-200 pt-2 relative h-6">
