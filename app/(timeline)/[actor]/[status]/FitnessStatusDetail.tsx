@@ -1679,45 +1679,77 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
         )}
 
-        {activeSection === '25w-distribution' && (
-          <div className="space-y-4 p-4 sm:p-6">
-            <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
-              25W Power Distribution
-            </h3>
-            <div className="rounded-sm border border-slate-300 bg-white p-4">
-              <div className="mb-2 flex items-end justify-between">
-                <p className="text-sm font-medium text-slate-700">
-                  Time spent per 25 W bucket
-                </p>
-                <p className="text-xs text-slate-500">
-                  Scale 0.0 min - {Math.max(...histogramMinutes, 1).toFixed(1)} min
-                </p>
-              </div>
-              <div className="grid grid-cols-[auto_1fr] items-stretch gap-2">
-                <div
-                  className={cn(
-                    'flex flex-col justify-between text-[11px] text-slate-500',
-                    GRAPH_HEIGHT_CLASSNAME
-                  )}
-                >
-                  <span>{Math.max(...histogramMinutes, 1).toFixed(1)} min</span>
-                  <span>0.0 min</span>
-                </div>
-                <div className="min-w-0">
-                  <svg
-                    viewBox={`0 0 760 ${GRAPH_VIEW_HEIGHT}`}
-                    preserveAspectRatio="none"
-                    className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
-                  >
-                    {(() => {
-                      const maxValue = Math.max(...histogramMinutes, 1)
-                      const barCount = histogramMinutes.length
-                      const barGap = 2
-                      const totalGaps = (barCount - 1) * barGap
-                      const barWidth = (760 - totalGaps) / barCount
-                      const histogramHeight = GRAPH_VIEW_HEIGHT - 16
+        {activeSection === '25w-distribution' && (() => {
+          const histogramViewHeight = GRAPH_VIEW_HEIGHT
+          const histogramTopPadding = 24 // More padding for the weighted avg label
+          const histogramHeight = histogramViewHeight - histogramTopPadding
+          const barCount = histogramMinutes.length
+          const barGap = 2
+          const totalGaps = (barCount - 1) * barGap
+          const barWidth = (760 - totalGaps) / barCount
+          const maxValue = Math.max(...histogramMinutes, 1)
 
-                      return histogramMinutes.map((value, index) => {
+          // Gradient of purples
+          const getBarColor = (index: number, total: number) => {
+            const ratio = index / Math.max(1, total - 1)
+            // Interpolate between light pink (#f4e6ec) and dark purple (#804374)
+            const r1 = 244, g1 = 230, b1 = 236
+            const r2 = 128, g2 = 67,  b2 = 116
+            const r = Math.round(r1 + (r2 - r1) * ratio)
+            const g = Math.round(g1 + (g2 - g1) * ratio)
+            const b = Math.round(b1 + (b2 - b1) * ratio)
+            return `rgb(${r}, ${g}, ${b})`
+          }
+
+          // Calculate weighted average line position
+          const weightedAvgX = (weightedAvgPower / 25) * (barWidth + barGap)
+
+          // Y-axis grid lines (4 intervals)
+          const yAxisTicks = Array.from({ length: 5 }, (_, i) => {
+            const valueMinutes = (maxValue / 4) * i
+            const y = histogramViewHeight - (valueMinutes / maxValue) * histogramHeight
+            return { y, label: valueMinutes === 0 ? '0s' : formatDuration(Math.round(valueMinutes * 60)) }
+          })
+
+          return (
+            <div className="space-y-4 p-4 sm:p-6">
+              <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
+                25W Power Distribution
+              </h3>
+              <div className="rounded-sm border border-slate-300 bg-white p-4">
+                <div className="grid grid-cols-[auto_1fr] items-stretch gap-4">
+                  <div
+                    className={cn(
+                      'flex flex-col justify-between text-[11px] text-slate-400 py-1',
+                      GRAPH_HEIGHT_CLASSNAME
+                    )}
+                  >
+                    {yAxisTicks.reverse().map((tick, i) => (
+                      <span key={`y-tick-${i}`} className="text-right pr-2">
+                        {tick.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="min-w-0 relative pt-1">
+                    <svg
+                      viewBox={`0 0 760 ${GRAPH_VIEW_HEIGHT}`}
+                      preserveAspectRatio="none"
+                      className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+                    >
+                      {/* Grid lines */}
+                      {yAxisTicks.map((tick, i) => (
+                        <line
+                          key={`grid-${i}`}
+                          x1="0"
+                          y1={tick.y}
+                          x2="760"
+                          y2={tick.y}
+                          className="stroke-slate-100 stroke-[1]"
+                        />
+                      ))}
+
+                      {/* Bars */}
+                      {histogramMinutes.map((value, index) => {
                         const x = index * (barWidth + barGap)
                         const barHeight = (value / maxValue) * histogramHeight
                         const y = GRAPH_VIEW_HEIGHT - barHeight
@@ -1729,35 +1761,63 @@ export const FitnessStatusDetail: FC<Props> = ({
                             y={y}
                             width={barWidth}
                             height={barHeight}
-                            fill={index > 7 ? '#9f4a8f' : '#c69cbf'}
-                            opacity={0.9}
+                            fill={getBarColor(index, barCount)}
                           />
                         )
-                      })
-                    })()}
-                  </svg>
-                  <div className="mt-2 flex justify-between text-[11px] text-slate-500">
-                    {histogramMinutes.map((_, index) => {
-                      // Only show every Nth label to prevent overlapping on mobile/small screens
-                      const skip = histogramMinutes.length > 20 ? 4 : 2
-                      if (index % skip !== 0 && index !== histogramMinutes.length - 1) {
-                        return <span key={`label-${index}`} className="flex-1" />
-                      }
-                      return (
-                        <span key={`label-${index}`} className="flex-1 text-center">
-                          {index * 25}
-                        </span>
-                      )
-                    })}
+                      })}
+
+                      {/* Weighted Average Line */}
+                      <line
+                        x1={weightedAvgX}
+                        y1={histogramTopPadding}
+                        x2={weightedAvgX}
+                        y2={GRAPH_VIEW_HEIGHT}
+                        stroke="#a65e92"
+                        strokeWidth="1.5"
+                        strokeDasharray="4,4"
+                      />
+                      <text
+                        x={Math.min(Math.max(weightedAvgX, 80), 680)}
+                        y={histogramTopPadding - 6}
+                        textAnchor="middle"
+                        fill="#a65e92"
+                        fontSize="12"
+                        className="font-medium"
+                      >
+                        Weighted Avg Power {weightedAvgPower} W
+                      </text>
+                    </svg>
+                    
+                    {/* X-Axis labels */}
+                    <div className="mt-2 flex text-[11px] text-slate-400 border-t border-slate-200 pt-2 relative h-6">
+                      {histogramMinutes.map((_, index) => {
+                        // Show label at start of bucket, only every 50W (index % 2 === 0)
+                        if (index % 2 !== 0) return null
+                        
+                        const leftPercent = (index / barCount) * 100
+                        return (
+                          <span 
+                            key={`label-${index}`} 
+                            className="absolute"
+                            style={{ left: `${leftPercent}%` }}
+                          >
+                            {index * 25} W
+                          </span>
+                        )
+                      })}
+                      {/* Final label at the end */}
+                      <span 
+                        className="absolute right-0 text-right"
+                      >
+                        {barCount * 25} W
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-              <p className="mt-2 text-[11px] text-slate-500 text-center">
-                Power bucket (watts)
-              </p>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {activeSection === 'best-efforts' && (
           <div className="space-y-4 p-4 sm:p-6">
