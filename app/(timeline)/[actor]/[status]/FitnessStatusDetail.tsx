@@ -1810,23 +1810,30 @@ export const FitnessStatusDetail: FC<Props> = ({
                     </svg>
 
                     {/* Tooltip */}
-                    {hoveredBucketIndex !== null && (
-                      <div 
-                        className="absolute z-10 bg-white border border-slate-200 shadow-lg rounded-sm p-3 pointer-events-none text-xs"
-                        style={{
-                          left: `${(hoveredBucketIndex / barCount) * 100}%`,
-                          top: '20%',
-                          transform: hoveredBucketIndex > barCount / 2 ? 'translateX(-110%)' : 'translateX(10%)'
-                        }}
-                      >
-                        <p className="font-semibold text-slate-900">
-                          Range: {hoveredBucketIndex * 25}-{hoveredBucketIndex * 25 + 24} W
-                        </p>
-                        <p className="text-slate-600 mt-1">
-                          Time Spent: {formatDuration(Math.round(histogramMinutes[hoveredBucketIndex] * 60))} ({((histogramMinutes[hoveredBucketIndex] / (durationSeconds / 60)) * 100).toFixed(1)}%)
-                        </p>
-                      </div>
-                    )}
+                    {hoveredBucketIndex !== null && (() => {
+                      const valueMinutes = histogramMinutes[hoveredBucketIndex]
+                      const totalSeconds = Math.round(valueMinutes * 60)
+                      const timeStr = totalSeconds < 60 ? `${totalSeconds}s` : formatDuration(totalSeconds)
+                      const percentage = ((valueMinutes / (durationSeconds / 60)) * 100).toFixed(1)
+                      
+                      return (
+                        <div 
+                          className="absolute z-10 bg-white border border-slate-300 shadow-md rounded-none p-2 pointer-events-none text-[11px] leading-relaxed"
+                          style={{
+                            left: `${((hoveredBucketIndex + 0.5) / barCount) * 100}%`,
+                            bottom: '30%',
+                            transform: 'translateX(-50%)'
+                          }}
+                        >
+                          <p className="text-slate-900">
+                            Range: {hoveredBucketIndex * 25}-{hoveredBucketIndex * 25 + 24} W
+                          </p>
+                          <p className="text-slate-900">
+                            Time Spent: {timeStr} ({percentage}%)
+                          </p>
+                        </div>
+                      )
+                    })()}
                     
                     {/* X-Axis labels */}
                     <div className="mt-2 flex text-[11px] text-slate-400 border-t border-slate-200 pt-2 relative h-6">
