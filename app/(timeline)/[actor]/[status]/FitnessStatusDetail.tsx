@@ -1016,6 +1016,9 @@ export const FitnessStatusDetail: FC<Props> = ({
   const [selectedFitnessFileId, setSelectedFitnessFileId] = useState<
     string | null
   >(defaultFitnessFiles[0]?.id ?? null)
+  const [hoveredBucketIndex, setHoveredBucketIndex] = useState<number | null>(
+    null
+  )
 
   useEffect(() => {
     setFitnessFiles(defaultFitnessFiles)
@@ -1680,7 +1683,6 @@ export const FitnessStatusDetail: FC<Props> = ({
         )}
 
         {activeSection === '25w-distribution' && (() => {
-          const [hoveredBucketIndex, setHoveredBucketIndex] = useState<number | null>(null)
           const histogramViewHeight = GRAPH_VIEW_HEIGHT
           const histogramTopPadding = 24 // More padding for the weighted avg label
           const histogramHeight = histogramViewHeight - histogramTopPadding
