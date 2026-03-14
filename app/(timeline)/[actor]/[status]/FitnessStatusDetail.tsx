@@ -1349,14 +1349,18 @@ export const FitnessStatusDetail: FC<Props> = ({
     })
   }, [elevationGainMeters, intensity, weightedAvgPower])
 
+  const shouldRenderMapPanel =
+    !!mapAttachment ||
+    fitness?.hasMapData ||
+    isRouteDataLoading ||
+    routeSegments.length > 0
+
   const sectionContent = () => {
     if (activeSection === 'overview') {
       return (
         <div className="space-y-6 p-6">
           <div className="grid gap-6">
-            {(fitness?.hasMapData ||
-              isRouteDataLoading ||
-              routeSegments.length > 0) && (
+            {shouldRenderMapPanel && (
               <ActivityMapPanel
                 mapAttachment={mapAttachment}
                 routeSamples={routeSamples}
@@ -1436,9 +1440,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             </p>
           </div>
 
-          {(fitness?.hasMapData ||
-            isRouteDataLoading ||
-            routeSegments.length > 0) && (
+          {shouldRenderMapPanel && (
             <ActivityMapPanel
               mapAttachment={mapAttachment}
               routeSamples={routeSamples}
