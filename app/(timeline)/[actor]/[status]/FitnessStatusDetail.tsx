@@ -34,7 +34,6 @@ type SectionKey =
   | 'zone-distribution'
   | '25w-distribution'
   | 'best-efforts'
-  | 'matched-activities'
 
 type AnalysisGraphKey = 'elevation' | 'speed' | 'power' | 'heart-rate'
 type AnalysisGraphFilter = 'all' | AnalysisGraphKey
@@ -166,8 +165,7 @@ const NAV_ITEMS: NavItem[] = [
     group: 'subscription'
   },
   { id: '25w-distribution', label: '25 W Distribution', group: 'subscription' },
-  { id: 'best-efforts', label: 'Best Efforts' },
-  { id: 'matched-activities', label: 'Matched Activities' }
+  { id: 'best-efforts', label: 'Best Efforts' }
 ]
 
 const ANALYSIS_GRAPH_OPTIONS: Array<{
@@ -1381,10 +1379,6 @@ export const FitnessStatusDetail: FC<Props> = ({
                 Overview
               </h3>
               <p className="mt-2 text-sm text-slate-600">{statusDescription}</p>
-              <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                Flyby and other-athlete sections are intentionally hidden on
-                this page.
-              </div>
             </div>
           </div>
 
@@ -1780,42 +1774,7 @@ export const FitnessStatusDetail: FC<Props> = ({
       )
     }
 
-    return (
-      <div className="space-y-4 p-6">
-        <h3 className="text-5xl font-semibold text-slate-900">Matched Rides</h3>
-        <p className="text-sm text-slate-500">
-          Only your activities are shown here. Flyby and other-athlete
-          comparisons are excluded.
-        </p>
-
-        <div className="overflow-hidden rounded-sm border border-slate-300 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-100 text-slate-700">
-              <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Activity</th>
-                <th className="px-4 py-3">Speed</th>
-                <th className="px-4 py-3">Moving Time</th>
-                <th className="px-4 py-3">Relative Effort</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-t bg-orange-50/50">
-                <td className="px-4 py-3">
-                  {formatUtcDate(status.createdAt, 'M/d/yy')}
-                </td>
-                <td className="px-4 py-3 font-medium text-slate-900">
-                  {statusTitle}
-                </td>
-                <td className="px-4 py-3">{speedKmh.toFixed(1)} km/h</td>
-                <td className="px-4 py-3">{formatDuration(durationSeconds)}</td>
-                <td className="px-4 py-3">{relativeEffort}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
