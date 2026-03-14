@@ -1279,17 +1279,30 @@ export const FitnessStatusDetail: FC<Props> = ({
       : null
   const histogramMinutes = useMemo(() => {
     const maxPower = Math.max(...seededSeries.power, 100)
-    // Dynamic number of buckets based on max power (25W increments)
     const bucketCount = Math.ceil((maxPower + 25) / 25)
     
     const next = createSeededGenerator(status.id + '-histogram')
+    // Use a normal distribution centered around weightedAvgPower
+    const mean = weightedAvgPower
+    const sigma = weightedAvgPower * 0.12 // Even tighter standard deviation
+
     const histogramData = Array.from({ length: bucketCount }, (_, index) => {
-      // Create a distribution centered around weightedAvgPower
       const bucketPower = index * 25
-      const distanceFromAvg = Math.abs(bucketPower - weightedAvgPower)
-      const peak = Math.max(0, 1 - distanceFromAvg / (weightedAvgPower * 0.8))
-      const noise = 0.2 + next() * 0.7
-      return Math.max(0, peak * noise)
+      // Gaussian function: e^(-(x-mean)^2 / (2*sigma^2))
+      const exponent = -Math.pow(bucketPower - mean, 2) / (2 * Math.pow(sigma, 2))
+      let peak = Math.exp(exponent)
+      
+      // Penalize high power intensities much faster
+      if (bucketPower > mean) {
+        // Sharper drop-off for higher power
+        peak *= Math.pow(0.7, (bucketPower - mean) / 25)
+      } else if (bucketPower < mean) {
+        // Also drop off for very low power (coasting/stopped is handled separately in real data)
+        peak *= Math.pow(0.9, (mean - bucketPower) / 25)
+      }
+
+      const noise = 0.7 + next() * 0.3
+      return Math.max(0.01, peak * noise)
     })
 
     const totalMinutes = Math.max(1, durationSeconds / 60)
