@@ -34,7 +34,6 @@ type SectionKey =
   | 'zone-distribution'
   | '25w-distribution'
   | 'best-efforts'
-  | 'matched-activities'
 
 type AnalysisGraphKey = 'elevation' | 'speed' | 'power' | 'heart-rate'
 type AnalysisGraphFilter = 'all' | AnalysisGraphKey
@@ -166,8 +165,7 @@ const NAV_ITEMS: NavItem[] = [
     group: 'subscription'
   },
   { id: '25w-distribution', label: '25 W Distribution', group: 'subscription' },
-  { id: 'best-efforts', label: 'Best Efforts' },
-  { id: 'matched-activities', label: 'Matched Activities' }
+  { id: 'best-efforts', label: 'Best Efforts' }
 ]
 
 const ANALYSIS_GRAPH_OPTIONS: Array<{
@@ -1081,48 +1079,6 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
   }, [status.id])
 
-  const [matchedActivities, setMatchedActivities] = useState<
-    StatusFitnessFileItem[]
-  >([])
-
-  useEffect(() => {
-    let cancelled = false
-
-    const loadMatchedActivities = async () => {
-      try {
-        const response = await fetch(
-          `/api/v1/fitness-files/by-actor?actorId=${encodeURIComponent(
-            status.actorId
-          )}`,
-          {
-            method: 'GET',
-            headers: {
-              Accept: 'application/json'
-            }
-          }
-        )
-        if (!response.ok || cancelled) {
-          return
-        }
-
-        const data = (await response.json()) as { files: StatusFitnessFileItem[] }
-        if (cancelled || !Array.isArray(data.files)) {
-          return
-        }
-
-        setMatchedActivities(data.files)
-      } catch {
-        // Leave list empty if endpoint is unavailable
-      }
-    }
-
-    void loadMatchedActivities()
-
-    return () => {
-      cancelled = true
-    }
-  }, [status.actorId])
-
   const actorName = status.actor?.name || status.actor?.username || 'Athlete'
   const fitness = useMemo(
     () =>
@@ -1811,112 +1767,6 @@ export const FitnessStatusDetail: FC<Props> = ({
                     <td className="px-4 py-3">{effort.elevation} m</td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )
-    }
-
-    if (activeSection === 'matched-activities') {
-      const activitiesToShow =
-        matchedActivities.length > 0
-          ? matchedActivities
-          : [
-              {
-                id: fitness?.id ?? '',
-                actorId: status.actorId,
-                fileName: fitness?.fileName ?? '',
-                fileType: (fitness?.fileType ?? 'fit') as
-                  | 'fit'
-                  | 'gpx'
-                  | 'tcx',
-                statusId: status.id,
-                isPrimary: true,
-                processingStatus: (fitness?.processingStatus ??
-                  'completed') as
-                  | 'pending'
-                  | 'processing'
-                  | 'completed'
-                  | 'failed',
-                totalDistanceMeters: fitness?.totalDistanceMeters ?? null,
-                totalDurationSeconds: fitness?.totalDurationSeconds ?? null,
-                elevationGainMeters: fitness?.elevationGainMeters ?? null,
-                activityType: fitness?.activityType ?? null,
-                activityStartTime: status.createdAt,
-                hasMapData: fitness?.hasMapData ?? false,
-                description: fitness?.description ?? null
-              }
-            ]
-
-      return (
-        <div className="space-y-4 p-6">
-          <h3 className="text-5xl font-semibold text-slate-900">
-            Matched Activities
-          </h3>
-
-          <div className="overflow-hidden rounded-sm border border-slate-300 bg-white">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-100 text-slate-700">
-                <tr>
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Activity</th>
-                  <th className="px-4 py-3">Speed</th>
-                  <th className="px-4 py-3">Moving Time</th>
-                  <th className="px-4 py-3">Relative Effort</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activitiesToShow.map((activity) => {
-                  const distM = activity.totalDistanceMeters ?? 0
-                  const durS = activity.totalDurationSeconds ?? 0
-                  const elevM = activity.elevationGainMeters ?? 0
-                  const actSpeedKmh =
-                    distM > 0 && durS > 0
-                      ? distM / 1000 / (durS / 3600)
-                      : 0
-                  const actRelativeEffort = Math.max(
-                    1,
-                    Math.min(
-                      300,
-                      Math.round(
-                        durS / 50 + elevM / 12 + actSpeedKmh * 1.4
-                      )
-                    )
-                  )
-                  const isCurrent = activity.statusId === status.id
-
-                  return (
-                    <tr
-                      key={activity.id}
-                      className={cn(
-                        'border-t',
-                        isCurrent && 'bg-orange-50/50'
-                      )}
-                    >
-                      <td className="px-4 py-3">
-                        {activity.activityStartTime
-                          ? formatUtcDate(
-                              activity.activityStartTime,
-                              'M/d/yy'
-                            )
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-900">
-                        {getActivityLabel(activity.activityType ?? undefined)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {actSpeedKmh > 0
-                          ? `${actSpeedKmh.toFixed(1)} km/h`
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        {formatDuration(durS || undefined)}
-                      </td>
-                      <td className="px-4 py-3">{actRelativeEffort}</td>
-                    </tr>
-                  )
-                })}
               </tbody>
             </table>
           </div>
