@@ -11,6 +11,7 @@ import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import {
   IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+  REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
@@ -477,22 +478,22 @@ export const importStravaActivityJob = createJobHandle(
         activityId: stravaActivityId,
         accessToken
       })
-      const gpxContent = streams
-        ? buildGpxFromStravaStreams(activity, streams)
-        : null
-      let exportFile: File | null = gpxContent
-        ? new File([gpxContent], `strava-${stravaActivityId}.gpx`, {
-            type: 'application/gpx+xml'
+      const tcxContent = buildTcxFromStravaStreams(activity, streams)
+      let exportFile: File | null = tcxContent
+        ? new File([tcxContent], `strava-${stravaActivityId}.tcx`, {
+            type: 'application/vnd.garmin.tcx+xml'
           })
         : null
 
       if (!exportFile) {
-        const tcxContent = buildTcxFromStravaStreams(activity, streams)
-        if (tcxContent) {
+        const gpxContent = streams
+          ? buildGpxFromStravaStreams(activity, streams)
+          : null
+        if (gpxContent) {
           exportFile = new File(
-            [tcxContent],
-            `strava-${stravaActivityId}.tcx`,
-            { type: 'application/vnd.garmin.tcx+xml' }
+            [gpxContent],
+            `strava-${stravaActivityId}.gpx`,
+            { type: 'application/gpx+xml' }
           )
         }
       }
@@ -617,5 +618,18 @@ export const importStravaActivityJob = createJobHandle(
       accessToken,
       activity
     })
+
+    if (!importedFitnessFile.hasMapData) {
+      await getQueue().publish({
+        id: getHashFromString(
+          `${importedFitnessFile.statusId}:${importedFitnessFile.id}:regenerate-map`
+        ),
+        name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+        data: {
+          actorId,
+          fitnessFileIds: [importedFitnessFile.id]
+        }
+      })
+    }
   }
 )
