@@ -1272,6 +1272,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     typeof highlightedElapsedSeconds === 'number'
       ? formatDuration(Math.round(highlightedElapsedSeconds))
       : null
+
   const histogramMinutes = useMemo(() => {
     if (powerSeries.length === 0) return []
 
@@ -1290,345 +1291,61 @@ export const FitnessStatusDetail: FC<Props> = ({
     return buckets.map((seconds) => seconds / 60)
   }, [powerSeries])
 
-  const sectionContent = () => {
-    return (
-      <div
-        id={`panel-${activeSection}`}
-        role="tabpanel"
-        aria-labelledby={`tab-${activeSection}`}
-        tabIndex={0}
-        className="focus-visible:outline-none"
-      >
-        {activeSection === 'overview' && (
-          <div className="space-y-6 p-4 sm:p-6">
-            <div className="grid gap-6">
-              <ActivityMapPanel
-                mapAttachment={mapAttachment}
-                routeSamples={routeSamples}
-                routeSegments={routeSegments}
-                mapboxAccessToken={mapboxAccessToken}
-                routeDataError={routeDataError}
-                isRouteDataLoading={isRouteDataLoading}
-                onOpenMap={() => {
-                  if (mapAttachmentIndex >= 0) {
-                    onShowAttachment(status.attachments, mapAttachmentIndex)
-                  }
-                }}
-              />
-            </div>
+  const histogramLayout = useMemo(() => {
+    const histogramViewHeight = GRAPH_VIEW_HEIGHT
+    const histogramTopPadding = 24 // More padding for the average power label
+    const histogramHeight = histogramViewHeight - histogramTopPadding
+    const barCount = histogramMinutes.length
+    const barGap = 2
+    const totalGaps = (barCount - 1) * barGap
+    const barWidth = (760 - totalGaps) / Math.max(1, barCount)
+    const maxValue = Math.max(...histogramMinutes, 1)
 
-            <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-slate-900">Media</h3>
-              <ActivityGallery
-                attachments={mediaWithoutMap}
-                onOpenAttachment={(index) => {
-                  const target = status.attachments.findIndex(
-                    (attachment) => attachment.id === mediaWithoutMap[index]?.id
-                  )
-                  if (target >= 0) {
-                    onShowAttachment(status.attachments, target)
-                  }
-                }}
-              />
-            </div>
-          </div>
-        )}
+    // Calculate weighted average line position
+    const weightedAvgPowerValue = avgPower ?? 0
+    const weightedAvgX = (weightedAvgPowerValue / 25) * (barWidth + barGap)
 
-        {activeSection === 'analysis' && (
-          <div className="space-y-4 p-4 sm:p-6">
-            <div className="rounded-lg border bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Graph display
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {ANALYSIS_GRAPH_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    aria-pressed={analysisGraphFilter === option.id}
-                    onClick={() => setAnalysisGraphFilter(option.id)}
-                    className={cn(
-                      'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                      analysisGraphFilter === option.id
-                        ? 'border-orange-500 bg-orange-50 text-orange-700'
-                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-slate-500">
-                {highlightedElapsedLabel
-                  ? `Selected time: ${highlightedElapsedLabel}`
-                  : 'Hover any graph below to follow that time point on the map.'}
-              </p>
-            </div>
+    // Y-axis grid lines (4 intervals)
+    const yAxisTicks = Array.from({ length: 5 }, (_, i) => {
+      const valueMinutes = (maxValue / 4) * i
+      const y =
+        histogramViewHeight - (valueMinutes / maxValue) * histogramHeight
+      return {
+        y,
+        label:
+          valueMinutes === 0
+            ? '0s'
+            : formatDuration(Math.round(valueMinutes * 60))
+      }
+    })
 
-            <ActivityMapPanel
-              mapAttachment={mapAttachment}
-              routeSamples={routeSamples}
-              routeSegments={routeSegments}
-              highlightedElapsedSeconds={highlightedElapsedSeconds}
-              mapboxAccessToken={mapboxAccessToken}
-              routeDataError={routeDataError}
-              isRouteDataLoading={isRouteDataLoading}
-              compact
-              onOpenMap={() => {
-                if (mapAttachmentIndex >= 0) {
-                  onShowAttachment(status.attachments, mapAttachmentIndex)
-                }
-              }}
-            />
+    return {
+      histogramViewHeight,
+      histogramTopPadding,
+      histogramHeight,
+      barCount,
+      barGap,
+      barWidth,
+      maxValue,
+      weightedAvgPowerValue,
+      weightedAvgX,
+      yAxisTicks
+    }
+  }, [avgPower, histogramMinutes])
 
-            {analysisGraphFilter === 'all' || analysisGraphFilter === 'elevation' ? (
-              <ChartPanel
-                title="Elevation profile"
-                unit="m"
-                values={activitySeries.elevation}
-                colorClassName="stroke-slate-400"
-                minLabel={elevationMin.toFixed(0)}
-                maxLabel={elevationMax.toFixed(0)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            ) : null}
-
-            {analysisGraphFilter === 'all' || analysisGraphFilter === 'speed' ? (
-              <ChartPanel
-                title="Speed"
-                unit="km/h"
-                values={activitySeries.speed}
-                colorClassName="stroke-sky-500"
-                minLabel={speedMin.toFixed(1)}
-                maxLabel={speedMax.toFixed(1)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            ) : null}
-
-            {analysisGraphFilter === 'all' || analysisGraphFilter === 'power' ? (
-              <ChartPanel
-                title="Power"
-                unit="w"
-                values={activitySeries.power}
-                colorClassName="stroke-violet-500"
-                minLabel={powerMin.toFixed(0)}
-                maxLabel={powerMax.toFixed(0)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            ) : null}
-
-            {analysisGraphFilter === 'all' || analysisGraphFilter === 'heart-rate' ? (
-              <ChartPanel
-                title="Heart rate"
-                unit="bpm"
-                values={activitySeries.heartRate}
-                colorClassName="stroke-rose-500"
-                minLabel={heartRateMin.toFixed(0)}
-                maxLabel={heartRateMax.toFixed(0)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            ) : null}
-          </div>
-        )}
-
-        {activeSection === '25w-distribution' && (() => {
-          const histogramViewHeight = GRAPH_VIEW_HEIGHT
-          const histogramTopPadding = 24 // More padding for the average power label
-          const histogramHeight = histogramViewHeight - histogramTopPadding
-          const barCount = histogramMinutes.length
-          const barGap = 2
-          const totalGaps = (barCount - 1) * barGap
-          const barWidth = (760 - totalGaps) / barCount
-          const maxValue = Math.max(...histogramMinutes, 1)
-
-          // Gradient of purples
-          const getBarColor = (index: number, total: number) => {
-            const ratio = index / Math.max(1, total - 1)
-            // Interpolate between light pink (#f4e6ec) and dark purple (#804374)
-            const r1 = 244, g1 = 230, b1 = 236
-            const r2 = 128, g2 = 67,  b2 = 116
-            const r = Math.round(r1 + (r2 - r1) * ratio)
-            const g = Math.round(g1 + (g2 - g1) * ratio)
-            const b = Math.round(b1 + (b2 - b1) * ratio)
-            return `rgb(${r}, ${g}, ${b})`
-          }
-
-          // Calculate weighted average line position
-          const weightedAvgPowerValue = avgPower ?? 0
-          const weightedAvgX = (weightedAvgPowerValue / 25) * (barWidth + barGap)
-
-          // Y-axis grid lines (4 intervals)
-          const yAxisTicks = Array.from({ length: 5 }, (_, i) => {
-            const valueMinutes = (maxValue / 4) * i
-            const y = histogramViewHeight - (valueMinutes / maxValue) * histogramHeight
-            return { y, label: valueMinutes === 0 ? '0s' : formatDuration(Math.round(valueMinutes * 60)) }
-          })
-
-          return (
-            <div className="space-y-4 p-4 sm:p-6">
-              <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
-                25W Power Distribution
-              </h3>
-              <div className="rounded-sm border border-slate-300 bg-white p-4">
-                <div className="grid grid-cols-[auto_1fr] items-stretch gap-4">
-                  <div
-                    className={cn(
-                      'flex flex-col justify-between text-[11px] text-slate-400 py-1',
-                      GRAPH_HEIGHT_CLASSNAME
-                    )}
-                  >
-                    {yAxisTicks.reverse().map((tick, i) => (
-                      <span key={`y-tick-${i}`} className="text-right pr-2">
-                        {tick.label}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="min-w-0 relative pt-1">
-                    <svg
-                      viewBox={`0 0 760 ${GRAPH_VIEW_HEIGHT}`}
-                      preserveAspectRatio="none"
-                      className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
-                    >
-                      {/* Grid lines */}
-                      {yAxisTicks.map((tick, i) => (
-                        <line
-                          key={`grid-${i}`}
-                          x1="0"
-                          y1={tick.y}
-                          x2="760"
-                          y2={tick.y}
-                          className="stroke-slate-100 stroke-[1]"
-                        />
-                      ))}
-
-                      {/* Bars */}
-                      {histogramMinutes.map((value, index) => {
-                        const x = index * (barWidth + barGap)
-                        const barHeight = (value / maxValue) * histogramHeight
-                        const y = GRAPH_VIEW_HEIGHT - barHeight
-                        const isHovered = hoveredBucketIndex === index
-
-                        return (
-                          <rect
-                            key={`bar-${index}`}
-                            x={x}
-                            y={y}
-                            width={barWidth}
-                            height={barHeight}
-                            fill={getBarColor(index, barCount)}
-                            className={cn(
-                              'transition-opacity cursor-crosshair',
-                              hoveredBucketIndex !== null && !isHovered
-                                ? 'opacity-40'
-                                : 'opacity-100'
-                            )}
-                            onMouseMove={() => setHoveredBucketIndex(index)}
-                            onMouseLeave={() => setHoveredBucketIndex(null)}
-                          />
-                        )
-                      })}
-
-                      {/* Hover Tooltip */}
-                      {hoveredBucketIndex !== null && (
-                        (() => {
-                          const value = histogramMinutes[hoveredBucketIndex]
-                          const totalMinutes = histogramMinutes.reduce((a, b) => a + b, 0)
-                          const percentage = totalMinutes > 0 ? (value / totalMinutes) * 100 : 0
-                          const powerRange = `${hoveredBucketIndex * 25}-${(hoveredBucketIndex + 1) * 25}W`
-                          
-                          // Tooltip positioning
-                          const tooltipWidth = 140
-                          const tooltipHeight = 60
-                          let tooltipX = hoveredBucketIndex * (barWidth + barGap) + barWidth / 2 - tooltipWidth / 2
-                          // Keep within bounds
-                          tooltipX = Math.max(0, Math.min(760 - tooltipWidth, tooltipX))
-                          const tooltipY = Math.max(0, GRAPH_VIEW_HEIGHT - (value / maxValue) * histogramHeight - tooltipHeight - 10)
-
-                          return (
-                            <g transform={`translate(${tooltipX}, ${tooltipY})`} className="pointer-events-none">
-                              <rect
-                                width={tooltipWidth}
-                                height={tooltipHeight}
-                                rx="4"
-                                className="fill-slate-900/90"
-                              />
-                              <text x={tooltipWidth / 2} y="20" textAnchor="middle" className="fill-white text-[11px] font-bold">
-                                {powerRange}
-                              </text>
-                              <text x={tooltipWidth / 2} y="38" textAnchor="middle" className="fill-slate-300 text-[11px]">
-                                {formatDuration(Math.round(value * 60))} ({percentage.toFixed(1)}%)
-                              </text>
-                            </g>
-                          )
-                        })()
-                      )}
-
-                      {/* Weighted Average Line */}
-                      <line
-                        x1={weightedAvgX}
-                        y1={histogramTopPadding}
-                        x2={weightedAvgX}
-                        y2={GRAPH_VIEW_HEIGHT}
-                        stroke="#a65e92"
-                        strokeWidth="1.5"
-                        strokeDasharray="4,4"
-                      />
-                      <text
-                        x={Math.min(Math.max(weightedAvgX, 80), 680)}
-                        y={histogramTopPadding - 6}
-                        textAnchor="middle"
-                        fill="#a65e92"
-                        fontSize="12"
-                        className="font-medium"
-                      >
-                        Average Power {weightedAvgPowerValue} W
-                      </text>
-                    </svg>
-                    
-                    {/* X-Axis labels */}
-                    <div className="mt-2 flex text-[11px] text-slate-400 border-t border-slate-200 pt-2 relative h-6">
-                      {histogramMinutes.map((_, index) => {
-                        // Show label at start of bucket, only every 50W (index % 2 === 0)
-                        if (index % 2 !== 0) return null
-                        
-                        const leftPercent = (index / barCount) * 100
-                        return (
-                          <span 
-                            key={`label-${index}`} 
-                            className="absolute"
-                            style={{ left: `${leftPercent}%` }}
-                          >
-                            {index * 25} W
-                          </span>
-                        )
-                      })}
-                      {/* Final label at the end */}
-                      <span 
-                        className="absolute right-0 text-right"
-                      >
-                        {barCount * 25} W
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-      </div>
-    )
+  const getBarColor = (index: number, total: number) => {
+    const ratio = index / Math.max(1, total - 1)
+    // Interpolate between light pink (#f4e6ec) and dark purple (#804374)
+    const r1 = 244,
+      g1 = 230,
+      b1 = 236
+    const r2 = 128,
+      g2 = 67,
+      b2 = 116
+    const r = Math.round(r1 + (r2 - r1) * ratio)
+    const g = Math.round(g1 + (g2 - g1) * ratio)
+    const b = Math.round(b1 + (b2 - b1) * ratio)
+    return `rgb(${r}, ${g}, ${b})`
   }
 
   const navItems = useMemo(() => {
@@ -1774,7 +1491,374 @@ export const FitnessStatusDetail: FC<Props> = ({
           )}
         </div>
 
-        {sectionContent()}
+        <div
+          id="panel-overview"
+          role="tabpanel"
+          aria-labelledby="tab-overview"
+          tabIndex={0}
+          className={cn(
+            'focus-visible:outline-none',
+            activeSection !== 'overview' && 'hidden'
+          )}
+        >
+          <div className="space-y-6 p-4 sm:p-6">
+            <div className="grid gap-6">
+              <ActivityMapPanel
+                mapAttachment={mapAttachment}
+                routeSamples={routeSamples}
+                routeSegments={routeSegments}
+                mapboxAccessToken={mapboxAccessToken}
+                routeDataError={routeDataError}
+                isRouteDataLoading={isRouteDataLoading}
+                onOpenMap={() => {
+                  if (mapAttachmentIndex >= 0) {
+                    onShowAttachment(status.attachments, mapAttachmentIndex)
+                  }
+                }}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-slate-900">Media</h3>
+              <ActivityGallery
+                attachments={mediaWithoutMap}
+                onOpenAttachment={(index) => {
+                  const target = status.attachments.findIndex(
+                    (attachment) => attachment.id === mediaWithoutMap[index]?.id
+                  )
+                  if (target >= 0) {
+                    onShowAttachment(status.attachments, target)
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="panel-analysis"
+          role="tabpanel"
+          aria-labelledby="tab-analysis"
+          tabIndex={0}
+          className={cn(
+            'focus-visible:outline-none',
+            activeSection !== 'analysis' && 'hidden'
+          )}
+        >
+          <div className="space-y-4 p-4 sm:p-6">
+            <div className="rounded-lg border bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Graph display
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {ANALYSIS_GRAPH_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={analysisGraphFilter === option.id}
+                    onClick={() => setAnalysisGraphFilter(option.id)}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                      analysisGraphFilter === option.id
+                        ? 'border-orange-500 bg-orange-50 text-orange-700'
+                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                {highlightedElapsedLabel
+                  ? `Selected time: ${highlightedElapsedLabel}`
+                  : 'Hover any graph below to follow that time point on the map.'}
+              </p>
+            </div>
+
+            <ActivityMapPanel
+              mapAttachment={mapAttachment}
+              routeSamples={routeSamples}
+              routeSegments={routeSegments}
+              highlightedElapsedSeconds={highlightedElapsedSeconds}
+              mapboxAccessToken={mapboxAccessToken}
+              routeDataError={routeDataError}
+              isRouteDataLoading={isRouteDataLoading}
+              compact
+              onOpenMap={() => {
+                if (mapAttachmentIndex >= 0) {
+                  onShowAttachment(status.attachments, mapAttachmentIndex)
+                }
+              }}
+            />
+
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'elevation') && (
+              <ChartPanel
+                title="Elevation profile"
+                unit="m"
+                values={activitySeries.elevation}
+                colorClassName="stroke-slate-400"
+                minLabel={elevationMin.toFixed(0)}
+                maxLabel={elevationMax.toFixed(0)}
+                durationSeconds={durationSeconds}
+                highlightedElapsedSeconds={highlightedElapsedSeconds}
+                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                showHoverMessage={analysisGraphFilter !== 'all'}
+              />
+            )}
+
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'speed') && (
+              <ChartPanel
+                title="Speed"
+                unit="km/h"
+                values={activitySeries.speed}
+                colorClassName="stroke-sky-500"
+                minLabel={speedMin.toFixed(1)}
+                maxLabel={speedMax.toFixed(1)}
+                durationSeconds={durationSeconds}
+                highlightedElapsedSeconds={highlightedElapsedSeconds}
+                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                showHoverMessage={analysisGraphFilter !== 'all'}
+              />
+            )}
+
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'power') && (
+              <ChartPanel
+                title="Power"
+                unit="w"
+                values={activitySeries.power}
+                colorClassName="stroke-violet-500"
+                minLabel={powerMin.toFixed(0)}
+                maxLabel={powerMax.toFixed(0)}
+                durationSeconds={durationSeconds}
+                highlightedElapsedSeconds={highlightedElapsedSeconds}
+                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                showHoverMessage={analysisGraphFilter !== 'all'}
+              />
+            )}
+
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'heart-rate') && (
+              <ChartPanel
+                title="Heart rate"
+                unit="bpm"
+                values={activitySeries.heartRate}
+                colorClassName="stroke-rose-500"
+                minLabel={heartRateMin.toFixed(0)}
+                maxLabel={heartRateMax.toFixed(0)}
+                durationSeconds={durationSeconds}
+                highlightedElapsedSeconds={highlightedElapsedSeconds}
+                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                showHoverMessage={analysisGraphFilter !== 'all'}
+              />
+            )}
+          </div>
+        </div>
+
+        <div
+          id="panel-25w-distribution"
+          role="tabpanel"
+          aria-labelledby="tab-25w-distribution"
+          tabIndex={0}
+          className={cn(
+            'focus-visible:outline-none',
+            activeSection !== '25w-distribution' && 'hidden'
+          )}
+        >
+          <div className="space-y-4 p-4 sm:p-6">
+            <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
+              25W Power Distribution
+            </h3>
+            <div className="rounded-sm border border-slate-300 bg-white p-4">
+              <div className="grid grid-cols-[auto_1fr] items-stretch gap-4">
+                <div
+                  className={cn(
+                    'flex flex-col justify-between text-[11px] text-slate-400 py-1',
+                    GRAPH_HEIGHT_CLASSNAME
+                  )}
+                >
+                  {histogramLayout.yAxisTicks
+                    .slice()
+                    .reverse()
+                    .map((tick, i) => (
+                      <span key={`y-tick-${i}`} className="text-right pr-2">
+                        {tick.label}
+                      </span>
+                    ))}
+                </div>
+                <div className="min-w-0 relative pt-1">
+                  <svg
+                    viewBox={`0 0 760 ${histogramLayout.histogramViewHeight}`}
+                    preserveAspectRatio="none"
+                    className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+                  >
+                    {/* Grid lines */}
+                    {histogramLayout.yAxisTicks.map((tick, i) => (
+                      <line
+                        key={`grid-${i}`}
+                        x1="0"
+                        y1={tick.y}
+                        x2="760"
+                        y2={tick.y}
+                        className="stroke-slate-100 stroke-[1]"
+                      />
+                    ))}
+
+                    {/* Bars */}
+                    {histogramMinutes.map((value, index) => {
+                      const x =
+                        index *
+                        (histogramLayout.barWidth + histogramLayout.barGap)
+                      const barHeight =
+                        (value / histogramLayout.maxValue) *
+                        histogramLayout.histogramHeight
+                      const y = histogramLayout.histogramViewHeight - barHeight
+                      const isHovered = hoveredBucketIndex === index
+
+                      return (
+                        <rect
+                          key={`bar-${index}`}
+                          x={x}
+                          y={y}
+                          width={histogramLayout.barWidth}
+                          height={barHeight}
+                          fill={getBarColor(index, histogramLayout.barCount)}
+                          className={cn(
+                            'transition-opacity cursor-crosshair',
+                            hoveredBucketIndex !== null && !isHovered
+                              ? 'opacity-40'
+                              : 'opacity-100'
+                          )}
+                          onMouseMove={() => setHoveredBucketIndex(index)}
+                          onMouseLeave={() => setHoveredBucketIndex(null)}
+                        />
+                      )
+                    })}
+
+                    {/* Hover Tooltip */}
+                    {hoveredBucketIndex !== null &&
+                      (() => {
+                        const value = histogramMinutes[hoveredBucketIndex]
+                        const totalMinutes = histogramMinutes.reduce(
+                          (a, b) => a + b,
+                          0
+                        )
+                        const percentage =
+                          totalMinutes > 0 ? (value / totalMinutes) * 100 : 0
+                        const powerRange = `${hoveredBucketIndex * 25}-${
+                          (hoveredBucketIndex + 1) * 25
+                        }W`
+
+                        // Tooltip positioning
+                        const tooltipWidth = 140
+                        const tooltipHeight = 60
+                        let tooltipX =
+                          hoveredBucketIndex *
+                            (histogramLayout.barWidth +
+                              histogramLayout.barGap) +
+                          histogramLayout.barWidth / 2 -
+                          tooltipWidth / 2
+                        // Keep within bounds
+                        tooltipX = Math.max(
+                          0,
+                          Math.min(760 - tooltipWidth, tooltipX)
+                        )
+                        const tooltipY = Math.max(
+                          0,
+                          histogramLayout.histogramViewHeight -
+                            (value / histogramLayout.maxValue) *
+                              histogramLayout.histogramHeight -
+                            tooltipHeight -
+                            10
+                        )
+
+                        return (
+                          <g
+                            transform={`translate(${tooltipX}, ${tooltipY})`}
+                            className="pointer-events-none"
+                          >
+                            <rect
+                              width={tooltipWidth}
+                              height={tooltipHeight}
+                              rx="4"
+                              className="fill-slate-900/90"
+                            />
+                            <text
+                              x={tooltipWidth / 2}
+                              y="20"
+                              textAnchor="middle"
+                              className="fill-white text-[11px] font-bold"
+                            >
+                              {powerRange}
+                            </text>
+                            <text
+                              x={tooltipWidth / 2}
+                              y="38"
+                              textAnchor="middle"
+                              className="fill-slate-300 text-[11px]"
+                            >
+                              {formatDuration(Math.round(value * 60))} (
+                              {percentage.toFixed(1)}%)
+                            </text>
+                          </g>
+                        )
+                      })()}
+
+                    {/* Weighted Average Line */}
+                    <line
+                      x1={histogramLayout.weightedAvgX}
+                      y1={histogramLayout.histogramTopPadding}
+                      x2={histogramLayout.weightedAvgX}
+                      y2={histogramLayout.histogramViewHeight}
+                      stroke="#a65e92"
+                      strokeWidth="1.5"
+                      strokeDasharray="4,4"
+                    />
+                    <text
+                      x={Math.min(
+                        Math.max(histogramLayout.weightedAvgX, 80),
+                        680
+                      )}
+                      y={histogramLayout.histogramTopPadding - 6}
+                      textAnchor="middle"
+                      fill="#a65e92"
+                      fontSize="12"
+                      className="font-medium"
+                    >
+                      Average Power {histogramLayout.weightedAvgPowerValue} W
+                    </text>
+                  </svg>
+
+                  {/* X-Axis labels */}
+                  <div className="mt-2 flex text-[11px] text-slate-400 border-t border-slate-200 pt-2 relative h-6">
+                    {histogramMinutes.map((_, index) => {
+                      // Show label at start of bucket, only every 50W (index % 2 === 0)
+                      if (index % 2 !== 0) return null
+
+                      const leftPercent =
+                        (index / histogramLayout.barCount) * 100
+                      return (
+                        <span
+                          key={`label-${index}`}
+                          className="absolute"
+                          style={{ left: `${leftPercent}%` }}
+                        >
+                          {index * 25} W
+                        </span>
+                      )
+                    })}
+                    {/* Final label at the end */}
+                    <span className="absolute right-0 text-right">
+                      {histogramLayout.barCount * 25} W
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   )
