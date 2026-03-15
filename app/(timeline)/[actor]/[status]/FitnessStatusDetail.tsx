@@ -1113,9 +1113,6 @@ export const FitnessStatusDetail: FC<Props> = ({
   const shouldLoadInteractiveMap = Boolean(mapboxAccessToken && fitness?.id)
   const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
   const statusTitle = status.text.trim() || `${activityLabel} workout`
-  const statusDescription =
-    fitness?.description ||
-    'Strava-inspired activity view generated from your uploaded file.'
   const activityDate = formatUtcDate(
     status.createdAt,
     'p \u2022 EEEE, MMMM d, yyyy'
@@ -1318,17 +1315,6 @@ export const FitnessStatusDetail: FC<Props> = ({
                   }
                 }}
               />
-
-              <div className="rounded-sm border border-slate-300 bg-white p-5">
-                <h3 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
-                  Overview
-                </h3>
-                <p className="mt-2 text-sm text-slate-600">{statusDescription}</p>
-                <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                  Flyby and other-athlete sections are intentionally hidden on
-                  this page.
-                </div>
-              </div>
             </div>
 
             <div className="space-y-3">
