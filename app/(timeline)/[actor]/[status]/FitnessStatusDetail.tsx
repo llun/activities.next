@@ -1137,6 +1137,12 @@ export const FitnessStatusDetail: FC<Props> = ({
   const mapAttachment =
     mapAttachmentIndex >= 0 ? status.attachments[mapAttachmentIndex] : undefined
 
+  const shouldRenderMapPanel =
+    !!mapAttachment ||
+    fitness?.hasMapData ||
+    isRouteDataLoading ||
+    routeSegments.length > 0
+
   const mediaWithoutMap = status.attachments.filter(
     (_, index) => index !== mapAttachmentIndex
   )
@@ -1491,20 +1497,22 @@ export const FitnessStatusDetail: FC<Props> = ({
           )}
         </div>
 
-        <ActivityMapPanel
-          mapAttachment={mapAttachment}
-          routeSamples={routeSamples}
-          routeSegments={routeSegments}
-          highlightedElapsedSeconds={highlightedElapsedSeconds}
-          mapboxAccessToken={mapboxAccessToken}
-          routeDataError={routeDataError}
-          isRouteDataLoading={isRouteDataLoading}
-          onOpenMap={() => {
-            if (mapAttachmentIndex >= 0) {
-              onShowAttachment(status.attachments, mapAttachmentIndex)
-            }
-          }}
-        />
+        {shouldRenderMapPanel && (
+          <ActivityMapPanel
+            mapAttachment={mapAttachment}
+            routeSamples={routeSamples}
+            routeSegments={routeSegments}
+            highlightedElapsedSeconds={highlightedElapsedSeconds}
+            mapboxAccessToken={mapboxAccessToken}
+            routeDataError={routeDataError}
+            isRouteDataLoading={isRouteDataLoading}
+            onOpenMap={() => {
+              if (mapAttachmentIndex >= 0) {
+                onShowAttachment(status.attachments, mapAttachmentIndex)
+              }
+            }}
+          />
+        )}
 
         <div
           id="panel-overview"
