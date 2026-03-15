@@ -1491,20 +1491,25 @@ export const FitnessStatusDetail: FC<Props> = ({
           )}
         </div>
 
-        <ActivityMapPanel
-          mapAttachment={mapAttachment}
-          routeSamples={routeSamples}
-          routeSegments={routeSegments}
-          highlightedElapsedSeconds={highlightedElapsedSeconds}
-          mapboxAccessToken={mapboxAccessToken}
-          routeDataError={routeDataError}
-          isRouteDataLoading={isRouteDataLoading}
-          onOpenMap={() => {
-            if (mapAttachmentIndex >= 0) {
-              onShowAttachment(status.attachments, mapAttachmentIndex)
-            }
-          }}
-        />
+        {(mapAttachment ||
+          isRouteDataLoading ||
+          routeSegments.length > 0 ||
+          routeDataError) && (
+          <ActivityMapPanel
+            mapAttachment={mapAttachment}
+            routeSamples={routeSamples}
+            routeSegments={routeSegments}
+            highlightedElapsedSeconds={highlightedElapsedSeconds}
+            mapboxAccessToken={mapboxAccessToken}
+            routeDataError={routeDataError}
+            isRouteDataLoading={isRouteDataLoading}
+            onOpenMap={() => {
+              if (mapAttachmentIndex >= 0) {
+                onShowAttachment(status.attachments, mapAttachmentIndex)
+              }
+            }}
+          />
+        )}
 
         <div
           id="panel-overview"
