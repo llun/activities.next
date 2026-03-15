@@ -477,22 +477,22 @@ export const importStravaActivityJob = createJobHandle(
         activityId: stravaActivityId,
         accessToken
       })
-      const gpxContent = streams
-        ? buildGpxFromStravaStreams(activity, streams)
-        : null
-      let exportFile: File | null = gpxContent
-        ? new File([gpxContent], `strava-${stravaActivityId}.gpx`, {
-            type: 'application/gpx+xml'
+      const tcxContent = buildTcxFromStravaStreams(activity, streams)
+      let exportFile: File | null = tcxContent
+        ? new File([tcxContent], `strava-${stravaActivityId}.tcx`, {
+            type: 'application/vnd.garmin.tcx+xml'
           })
         : null
 
       if (!exportFile) {
-        const tcxContent = buildTcxFromStravaStreams(activity, streams)
-        if (tcxContent) {
+        const gpxContent = streams
+          ? buildGpxFromStravaStreams(activity, streams)
+          : null
+        if (gpxContent) {
           exportFile = new File(
-            [tcxContent],
-            `strava-${stravaActivityId}.tcx`,
-            { type: 'application/vnd.garmin.tcx+xml' }
+            [gpxContent],
+            `strava-${stravaActivityId}.gpx`,
+            { type: 'application/gpx+xml' }
           )
         }
       }

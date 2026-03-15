@@ -380,7 +380,7 @@ describe('importStravaActivityJob', () => {
     )
   })
 
-  it('imports via fitness pipeline using TCX from streams when no GPS data', async () => {
+  it('imports via fitness pipeline using TCX format as the preferred format', async () => {
     mockGetStravaActivity.mockResolvedValueOnce({
       id: 125,
       name: 'Indoor Ride',
@@ -394,7 +394,6 @@ describe('importStravaActivityJob', () => {
     mockGetStravaActivityStreams.mockResolvedValueOnce({
       time: { type: 'time', data: [0, 10, 20] }
     })
-    mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
     mockBuildTcxFromStravaStreams.mockReturnValueOnce(
       '<?xml version="1.0"?><TrainingCenterDatabase>...</TrainingCenterDatabase>'
     )
@@ -626,7 +625,7 @@ describe('importStravaActivityJob', () => {
     }
   })
 
-  it('imports via fitness pipeline using streams GPX when streams have GPS data', async () => {
+  it('imports via fitness pipeline using GPX as fallback when TCX is unavailable', async () => {
     mockGetStravaActivity.mockResolvedValueOnce({
       id: 125,
       name: 'Outdoor Strength',
