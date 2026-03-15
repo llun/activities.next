@@ -1140,8 +1140,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   const shouldRenderMapPanel =
     !!mapAttachment ||
     fitness?.hasMapData ||
-    (isRouteDataLoading && shouldLoadInteractiveMap) ||
-    routeSegments.length > 0
+    (shouldLoadInteractiveMap && (isRouteDataLoading || routeSegments.length > 0))
 
   const mediaWithoutMap = status.attachments.filter(
     (_, index) => index !== mapAttachmentIndex

@@ -381,7 +381,8 @@ const toActivityData = ({
 const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
   const parser = new FitParser({
     force: true,
-    mode: 'list'
+    mode: 'list',
+    speedUnit: 'km/h'
   })
 
   const fitContent = Uint8Array.from(buffer).buffer
@@ -480,6 +481,9 @@ const parseGpx = (buffer: Buffer): FitnessActivityData => {
       }
 
       const tpx = (point.extensions?.['gpxtpx:TrackPointExtension'] as any)
+      // gpxtpx:speed and point.speed are in m/s per the GPX spec; convert to km/h
+      const speedMs =
+        toNumber(tpx?.['gpxtpx:speed']) ?? toNumber(point.speed)
       return {
         lat,
         lng,
@@ -487,7 +491,7 @@ const parseGpx = (buffer: Buffer): FitnessActivityData => {
         altitude: toNumber(point.ele),
         timestamp: toDate(point.time),
         heartRate: toNumber(tpx?.['gpxtpx:hr']),
-        speed: toNumber(tpx?.['gpxtpx:speed']) ?? toNumber(point.speed)
+        speed: typeof speedMs === 'number' ? speedMs * 3.6 : undefined
       }
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)
@@ -533,7 +537,11 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
         timestamp: toDate(point.Time),
         power: toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Watts']),
         heartRate: toNumber(point.HeartRateBpm?.Value),
-        speed: toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Speed'])
+        // ns3:Speed is in m/s per the TCX schema; convert to km/h
+        speed: (() => {
+          const ms = toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Speed'])
+          return typeof ms === 'number' ? ms * 3.6 : undefined
+        })()
       }
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)
