@@ -130,7 +130,7 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
   const s3Client = new S3Client({ region: fitnessStorage.region })
   const { bucket, prefix } = fitnessStorage
 
-  // Use a raw knex instance to query with a LIKE filter (not in the database abstraction)
+  // Use a raw knex instance to query/update with a LIKE filter (not in the database abstraction)
   const rawDb = knex(config.database)
   let files: StravaFitnessFileRow[]
   try {
@@ -154,8 +154,9 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
     }
 
     files = await query
-  } finally {
+  } catch (error) {
     await rawDb.destroy()
+    throw error
   }
 
   const actorLabel = input.actorId ? ` for actor ${input.actorId}` : ''
@@ -218,8 +219,18 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
 
       let newContent: string | null = null
       let contentType: string
+      let newFileType: string
 
-      if (file.fileType === 'gpx') {
+      // Always prefer TCX: it supports all GPX data plus power (watts).
+      // If the stored file is GPX but TCX content is available (e.g. watts
+      // data now fetchable), upgrade to TCX in-place by overwriting the S3
+      // object and updating the DB metadata.
+      const tcxContent = buildTcxFromStravaStreams(activity, streams)
+      if (tcxContent) {
+        newContent = tcxContent
+        contentType = 'application/vnd.garmin.tcx+xml'
+        newFileType = 'tcx'
+      } else if (file.fileType === 'gpx') {
         if (!streams) {
           console.log(`    ⚠ No streams available for GPX activity, skipping`)
           skipCount += 1
@@ -227,10 +238,11 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
         }
         newContent = buildGpxFromStravaStreams(activity, streams)
         contentType = 'application/gpx+xml'
+        newFileType = 'gpx'
       } else {
-        // tcx
-        newContent = buildTcxFromStravaStreams(activity, streams)
-        contentType = 'application/vnd.garmin.tcx+xml'
+        console.log(`    ⚠ Generated file content is empty, skipping`)
+        skipCount += 1
+        continue
       }
 
       if (!newContent) {
@@ -242,7 +254,13 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
       const body = Buffer.from(newContent, 'utf-8')
 
       if (input.dryRun) {
-        console.log(`    ✓ Would overwrite (${body.length} bytes)`)
+        const upgradeNote =
+          newFileType !== file.fileType
+            ? ` (upgrading ${file.fileType.toUpperCase()} → ${newFileType.toUpperCase()})`
+            : ''
+        console.log(
+          `    ✓ Would overwrite (${body.length} bytes)${upgradeNote}`
+        )
         updatedCount += 1
         continue
       }
@@ -258,7 +276,18 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
         })
       )
 
-      console.log(`    ✓ Overwritten (${body.length} bytes)`)
+      if (newFileType !== file.fileType) {
+        await rawDb('fitness_files').where('id', file.id).update({
+          fileType: newFileType,
+          mimeType: contentType,
+          updatedAt: new Date()
+        })
+        console.log(
+          `    ✓ Upgraded ${file.fileType.toUpperCase()} → ${newFileType.toUpperCase()} (${body.length} bytes)`
+        )
+      } else {
+        console.log(`    ✓ Overwritten (${body.length} bytes)`)
+      }
       updatedCount += 1
     } catch (error) {
       const nodeError = error as Error
@@ -299,6 +328,8 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
       }
     }
   }
+
+  await rawDb.destroy()
 
   const dryRunLabel = input.dryRun ? ' (dry-run)' : ''
   console.log(

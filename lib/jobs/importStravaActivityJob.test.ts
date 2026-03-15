@@ -6,6 +6,7 @@ import { importStravaActivityJob } from '@/lib/jobs/importStravaActivityJob'
 import {
   IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+  REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
@@ -380,7 +381,7 @@ describe('importStravaActivityJob', () => {
     )
   })
 
-  it('imports via fitness pipeline using TCX from streams when no GPS data', async () => {
+  it('imports via fitness pipeline using TCX format as the preferred format', async () => {
     mockGetStravaActivity.mockResolvedValueOnce({
       id: 125,
       name: 'Indoor Ride',
@@ -394,7 +395,6 @@ describe('importStravaActivityJob', () => {
     mockGetStravaActivityStreams.mockResolvedValueOnce({
       time: { type: 'time', data: [0, 10, 20] }
     })
-    mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
     mockBuildTcxFromStravaStreams.mockReturnValueOnce(
       '<?xml version="1.0"?><TrainingCenterDatabase>...</TrainingCenterDatabase>'
     )
@@ -626,7 +626,7 @@ describe('importStravaActivityJob', () => {
     }
   })
 
-  it('imports via fitness pipeline using streams GPX when streams have GPS data', async () => {
+  it('imports via fitness pipeline using GPX as fallback when TCX is unavailable', async () => {
     mockGetStravaActivity.mockResolvedValueOnce({
       id: 125,
       name: 'Outdoor Strength',
@@ -690,5 +690,76 @@ describe('importStravaActivityJob', () => {
 
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
     expect(mockImportFitnessFilesJob).not.toHaveBeenCalled()
+  })
+
+  it('queues map regeneration when existing activity has no map', async () => {
+    database.getFitnessFilesByBatchId.mockResolvedValueOnce([
+      {
+        id: 'existing-file',
+        actorId: 'actor-1',
+        statusId: 'status-existing'
+      }
+    ] as never)
+    database.getFitnessFile.mockResolvedValueOnce({
+      id: 'existing-file',
+      actorId: 'actor-1',
+      statusId: 'status-existing',
+      hasMapData: false
+    } as never)
+    database.getStatus.mockResolvedValueOnce({
+      id: 'status-existing',
+      type: 'Note',
+      text: 'Already imported'
+    } as never)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-regen-map',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    expect(mockGetQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({ name: REGENERATE_FITNESS_MAPS_JOB_NAME })
+    )
+  })
+
+  it('skips map regeneration when existing activity already has a map', async () => {
+    database.getFitnessFilesByBatchId.mockResolvedValueOnce([
+      {
+        id: 'existing-file',
+        actorId: 'actor-1',
+        statusId: 'status-existing'
+      }
+    ] as never)
+    database.getFitnessFile.mockResolvedValueOnce({
+      id: 'existing-file',
+      actorId: 'actor-1',
+      statusId: 'status-existing',
+      hasMapData: true
+    } as never)
+    database.getStatus.mockResolvedValueOnce({
+      id: 'status-existing',
+      type: 'Note',
+      text: 'Already imported'
+    } as never)
+
+    const publishMock = jest.fn().mockResolvedValue(undefined)
+    mockGetQueue.mockReturnValueOnce({ publish: publishMock } as never)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-skip-regen-map',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    expect(publishMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: REGENERATE_FITNESS_MAPS_JOB_NAME })
+    )
   })
 })

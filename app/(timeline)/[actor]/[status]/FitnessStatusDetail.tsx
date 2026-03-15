@@ -1365,6 +1365,16 @@ export const FitnessStatusDetail: FC<Props> = ({
     return items
   }, [powerSeries])
 
+  const analysisGraphOptions = useMemo(() => {
+    return ANALYSIS_GRAPH_OPTIONS.filter((option) => {
+      if (option.id === 'elevation') return activitySeries.elevation.length > 0
+      if (option.id === 'speed') return activitySeries.speed.length > 0
+      if (option.id === 'power') return activitySeries.power.length > 0
+      if (option.id === 'heart-rate') return activitySeries.heartRate.length > 0
+      return true
+    })
+  }, [activitySeries])
+
   return (
     <div>
       <nav
@@ -1562,7 +1572,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 Graph display
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {ANALYSIS_GRAPH_OPTIONS.map((option) => (
+                {analysisGraphOptions.map((option) => (
                   <button
                     key={option.id}
                     type="button"

@@ -518,9 +518,12 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
   const activity = activities[0]
   const laps = asArray(activity?.Lap)
 
-  const points = laps
+  const rawTrackpoints = laps
     .flatMap((lap) => asArray(lap.Track))
     .flatMap((track) => asArray(track.Trackpoint))
+
+  // GPS-only points for coordinates and map track (FitnessTrackPoint requires lat/lng)
+  const gpsPoints = rawTrackpoints
     .map((point) => {
       const lat = normalizeLatitude(point.Position?.LatitudeDegrees)
       const lng = normalizeLongitude(point.Position?.LongitudeDegrees)
@@ -545,6 +548,24 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)
 
+  // Extract metric series from all trackpoints regardless of GPS presence
+  // so indoor activities (no GPS) still get power/HR/speed data
+  const powerSeries = rawTrackpoints
+    .map((point) => toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Watts']))
+    .filter((v): v is number => typeof v === 'number')
+  const heartRateSeries = rawTrackpoints
+    .map((point) => toNumber(point.HeartRateBpm?.Value))
+    .filter((v): v is number => typeof v === 'number')
+  const speedSeries = rawTrackpoints
+    .map((point) => {
+      const ms = toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Speed'])
+      return typeof ms === 'number' ? ms * 3.6 : undefined
+    })
+    .filter((v): v is number => typeof v === 'number')
+  const altitudeSeries = rawTrackpoints
+    .map((point) => toNumber(point.AltitudeMeters))
+    .filter((v): v is number => typeof v === 'number')
+
   const lapDurationSeconds = laps.reduce(
     (sum, lap) => sum + (toNumber(lap.TotalTimeSeconds) ?? 0),
     0
@@ -554,14 +575,24 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
     0
   )
 
-  return toActivityData({
-    points,
+  const base = toActivityData({
+    points: gpsPoints,
     totalDistanceMeters: lapDistanceMeters > 0 ? lapDistanceMeters : undefined,
     totalDurationSeconds:
       lapDurationSeconds > 0 ? lapDurationSeconds : undefined,
     activityType: activity?.Sport,
     startTime: toDate(activity?.Id)
   })
+
+  return {
+    ...base,
+    powerSeries: powerSeries.length > 0 ? powerSeries : base.powerSeries,
+    heartRateSeries:
+      heartRateSeries.length > 0 ? heartRateSeries : base.heartRateSeries,
+    speedSeries: speedSeries.length > 0 ? speedSeries : base.speedSeries,
+    altitudeSeries:
+      altitudeSeries.length > 0 ? altitudeSeries : base.altitudeSeries
+  }
 }
 
 export const parseFitnessFile = async ({
