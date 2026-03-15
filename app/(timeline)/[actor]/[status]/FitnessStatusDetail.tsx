@@ -36,20 +36,6 @@ const getActivityIcon = (activityType?: string) => {
   return <Bike className="size-5" />
 }
 
-const getActivityLabel = (activityType?: string) => {
-  if (!activityType) return 'Activity'
-
-  const normalized = activityType.toLowerCase()
-  if (normalized.includes('ride') || normalized.includes('bike')) {
-    return 'Ride'
-  }
-  if (normalized.includes('run')) return 'Run'
-  if (normalized.includes('walk') || normalized.includes('hike')) return 'Walk'
-  if (normalized.includes('swim')) return 'Swim'
-
-  return `${activityType[0].toUpperCase()}${activityType.slice(1)}`
-}
-
 const downsampleSeries = (series: number[], targetCount: number) => {
   if (series.length <= targetCount) return series
   const ratio = series.length / targetCount
@@ -88,6 +74,9 @@ interface FitnessRouteSample {
   lng: number
   elapsedSeconds: number
   timestamp?: number
+  altitude?: number
+  heartRate?: number
+  speed?: number
   isHiddenByPrivacy?: boolean
 }
 
@@ -101,6 +90,9 @@ interface FitnessRouteDataResponse {
   segments?: FitnessRouteSegment[]
   totalDurationSeconds: number
   powerSeries?: number[]
+  heartRateSeries?: number[]
+  altitudeSeries?: number[]
+  speedSeries?: number[]
 }
 
 interface StatusFitnessFileItem {
@@ -234,18 +226,6 @@ const getActivityLabel = (activityType?: string) => {
   if (normalized.includes('swim')) return 'Swim'
 
   return `${activityType[0].toUpperCase()}${activityType.slice(1)}`
-}
-
-const createSeededGenerator = (seedText: string) => {
-  let seed = 0
-  for (let i = 0; i < seedText.length; i += 1) {
-    seed = (seed * 31 + seedText.charCodeAt(i)) >>> 0
-  }
-
-  return () => {
-    seed = (seed * 1664525 + 1013904223) >>> 0
-    return seed / 0xffffffff
-  }
 }
 
 const GRAPH_VIEW_HEIGHT = 250
@@ -994,13 +974,6 @@ export const FitnessStatusDetail: FC<Props> = ({
   onShowAttachment
 }) => {
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
-  const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
-  const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
-  const [routeDataError, setRouteDataError] = useState<string | null>(null)
-  const [isRouteDataLoading, setIsRouteDataLoading] = useState(false)
-  const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
-    number | null
-  >(null)
   const [analysisGraphFilter, setAnalysisGraphFilter] =
     useState<AnalysisGraphFilter>('all')
 
@@ -1050,6 +1023,9 @@ export const FitnessStatusDetail: FC<Props> = ({
   const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
   const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
   const [powerSeries, setPowerSeries] = useState<number[]>([])
+  const [heartRateSeries, setHeartRateSeries] = useState<number[]>([])
+  const [altitudeSeries, setAltitudeSeries] = useState<number[]>([])
+  const [speedSeries, setSpeedSeries] = useState<number[]>([])
   const [routeDataError, setRouteDataError] = useState<string | null>(null)
   const [isRouteDataLoading, setIsRouteDataLoading] = useState(false)
   const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
@@ -1172,6 +1148,9 @@ export const FitnessStatusDetail: FC<Props> = ({
       setRouteSamples([])
       setRouteSegments([])
       setPowerSeries([])
+      setHeartRateSeries([])
+      setAltitudeSeries([])
+      setSpeedSeries([])
       setRouteDataError(null)
       setIsRouteDataLoading(false)
       return
@@ -1217,11 +1196,17 @@ export const FitnessStatusDetail: FC<Props> = ({
         setRouteSamples(normalizedSamples)
         setRouteSegments(normalizedSegments)
         setPowerSeries(data.powerSeries ?? [])
+        setHeartRateSeries(data.heartRateSeries ?? [])
+        setAltitudeSeries(data.altitudeSeries ?? [])
+        setSpeedSeries(data.speedSeries ?? [])
       } catch (_error) {
         if (cancelled) return
         setRouteSamples([])
         setRouteSegments([])
         setPowerSeries([])
+        setHeartRateSeries([])
+        setAltitudeSeries([])
+        setSpeedSeries([])
         setRouteDataError('Interactive map unavailable. Using static preview.')
       } finally {
         if (!cancelled) {
@@ -1259,51 +1244,31 @@ export const FitnessStatusDetail: FC<Props> = ({
     return Math.round((avgPower * durationSeconds) / 1000)
   }, [avgPower, durationSeconds])
 
-  const speedKmh =
-    paceOrSpeed?.speedKmh ??
-    (distanceMeters > 0 && durationSeconds > 0
-      ? distanceMeters / 1000 / (durationSeconds / 3600)
-      : 0)
-
-  const seededSeries = useMemo(() => {
-    const next = createSeededGenerator(status.id)
-
-    const lineSeries = (count: number, base: number, variance: number) => {
-      return Array.from({ length: count }, (_, index) => {
-        const drift = Math.sin(index / (count / 5)) * variance * 0.25
-        const noise = (next() - 0.5) * variance
-        return Math.max(1, base + drift + noise)
-      })
-    }
-
-    const heartRate = lineSeries(120, 140, 18)
-    const power =
-      powerSeries.length > 0 ? downsampleSeries(powerSeries, 120) : []
-    const speed = lineSeries(120, Math.max(12, speedKmh), 4)
-    const elevation = lineSeries(120, 12 + elevationGainMeters / 30, 7)
-
+  const activitySeries = useMemo(() => {
     return {
-      heartRate,
-      power,
-      speed,
-      elevation
+      heartRate:
+        heartRateSeries.length > 0 ? downsampleSeries(heartRateSeries, 120) : [],
+      power: powerSeries.length > 0 ? downsampleSeries(powerSeries, 120) : [],
+      speed: speedSeries.length > 0 ? downsampleSeries(speedSeries, 120) : [],
+      elevation:
+        altitudeSeries.length > 0 ? downsampleSeries(altitudeSeries, 120) : []
     }
-  }, [elevationGainMeters, speedKmh, status.id, powerSeries])
+  }, [heartRateSeries, powerSeries, speedSeries, altitudeSeries])
   const { minValue: elevationMin, maxValue: elevationMax } = useMemo(
-    () => getSeriesMinMax(seededSeries.elevation),
-    [seededSeries.elevation]
+    () => getSeriesMinMax(activitySeries.elevation),
+    [activitySeries.elevation]
   )
   const { minValue: speedMin, maxValue: speedMax } = useMemo(
-    () => getSeriesMinMax(seededSeries.speed),
-    [seededSeries.speed]
+    () => getSeriesMinMax(activitySeries.speed),
+    [activitySeries.speed]
   )
   const { minValue: powerMin, maxValue: powerMax } = useMemo(
-    () => getSeriesMinMax(seededSeries.power),
-    [seededSeries.power]
+    () => getSeriesMinMax(activitySeries.power),
+    [activitySeries.power]
   )
   const { minValue: heartRateMin, maxValue: heartRateMax } = useMemo(
-    () => getSeriesMinMax(seededSeries.heartRate),
-    [seededSeries.heartRate]
+    () => getSeriesMinMax(activitySeries.heartRate),
+    [activitySeries.heartRate]
   )
   const highlightedElapsedLabel =
     typeof highlightedElapsedSeconds === 'number'
@@ -1443,7 +1408,7 @@ export const FitnessStatusDetail: FC<Props> = ({
               <ChartPanel
                 title="Elevation profile"
                 unit="m"
-                values={seededSeries.elevation}
+                values={activitySeries.elevation}
                 colorClassName="stroke-slate-400"
                 minLabel={elevationMin.toFixed(0)}
                 maxLabel={elevationMax.toFixed(0)}
@@ -1458,7 +1423,7 @@ export const FitnessStatusDetail: FC<Props> = ({
               <ChartPanel
                 title="Speed"
                 unit="km/h"
-                values={seededSeries.speed}
+                values={activitySeries.speed}
                 colorClassName="stroke-sky-500"
                 minLabel={speedMin.toFixed(1)}
                 maxLabel={speedMax.toFixed(1)}
@@ -1473,7 +1438,7 @@ export const FitnessStatusDetail: FC<Props> = ({
               <ChartPanel
                 title="Power"
                 unit="w"
-                values={seededSeries.power}
+                values={activitySeries.power}
                 colorClassName="stroke-violet-500"
                 minLabel={powerMin.toFixed(0)}
                 maxLabel={powerMax.toFixed(0)}
@@ -1488,7 +1453,7 @@ export const FitnessStatusDetail: FC<Props> = ({
               <ChartPanel
                 title="Heart rate"
                 unit="bpm"
-                values={seededSeries.heartRate}
+                values={activitySeries.heartRate}
                 colorClassName="stroke-rose-500"
                 minLabel={heartRateMin.toFixed(0)}
                 maxLabel={heartRateMax.toFixed(0)}
@@ -1533,7 +1498,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   >
                     <path
                       d={buildChartPath(
-                        seededSeries.power,
+                        activitySeries.power,
                         760,
                         GRAPH_VIEW_HEIGHT,
                         powerMin,
@@ -1545,7 +1510,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   </svg>
                   <div className="mt-2 flex justify-between text-[11px] text-slate-500">
                     {buildXAxisLabels(
-                      seededSeries.power.length,
+                      activitySeries.power.length,
                       durationSeconds
                     ).map((label, i) => (
                       <span key={i}>{label}</span>
