@@ -1523,7 +1523,7 @@ export const FitnessStatusDetail: FC<Props> = ({
 
         {activeSection === '25w-distribution' && (() => {
           const histogramViewHeight = GRAPH_VIEW_HEIGHT
-          const histogramTopPadding = 24 // More padding for the weighted avg label
+          const histogramTopPadding = 24 // More padding for the average power label
           const histogramHeight = histogramViewHeight - histogramTopPadding
           const barCount = histogramMinutes.length
           const barGap = 2
@@ -1627,7 +1627,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                         fontSize="12"
                         className="font-medium"
                       >
-                        Weighted Avg Power {weightedAvgPowerValue} W
+                        Average Power {weightedAvgPowerValue} W
                       </text>
                     </svg>
                     
@@ -1803,7 +1803,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             value={paceOrSpeed?.value ?? '0.0 km/h'}
           />
           {avgPower !== null && (
-            <MetricCard label="Weighted Avg" value={`${avgPower} w`} />
+            <MetricCard label="Avg Power" value={`${avgPower} w`} />
           )}
           {totalWorkKj !== null && (
             <MetricCard label="Total Work" value={`${totalWorkKj} kJ`} />
