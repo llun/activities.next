@@ -12,6 +12,7 @@
  */
 import { loadEnvConfig } from '@next/env'
 import { z } from 'zod'
+
 import { getDatabase } from '@/lib/database'
 
 const projectDir = process.cwd()
@@ -77,7 +78,7 @@ async function importStravaArchive(args = process.argv.slice(2)) {
 
   const database = getDatabase()
   if (!database) {
-    console.error('Error: Database is not available. Check your env configuration.')
+    console.error('Error: Database is not available')
     return 1
   }
 
