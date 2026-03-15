@@ -12,6 +12,9 @@ export interface FitnessTrackPoint extends FitnessCoordinate {
   altitudeMeters?: number
   timestamp?: Date
   power?: number
+  heartRate?: number
+  altitude?: number
+  speed?: number
 }
 
 export interface FitnessActivityData {
@@ -23,6 +26,9 @@ export interface FitnessActivityData {
   activityType?: string
   startTime?: Date
   powerSeries?: number[]
+  heartRateSeries?: number[]
+  altitudeSeries?: number[]
+  speedSeries?: number[]
 }
 
 export type ParseableFitnessFileType = 'fit' | 'gpx' | 'tcx'
@@ -55,7 +61,9 @@ const GpxPointSchema = z
     lat: NumberLikeSchema.optional(),
     lon: NumberLikeSchema.optional(),
     ele: NumberLikeSchema.optional(),
-    time: DateLikeSchema.optional()
+    time: DateLikeSchema.optional(),
+    extensions: z.record(z.string(), z.any()).optional(),
+    speed: NumberLikeSchema.optional()
   })
   .passthrough()
 
@@ -99,7 +107,14 @@ const TcxTrackPointSchema = z
         LongitudeDegrees: NumberLikeSchema.optional()
       })
       .passthrough()
-      .optional()
+      .optional(),
+    HeartRateBpm: z
+      .object({
+        Value: NumberLikeSchema.optional()
+      })
+      .passthrough()
+      .optional(),
+    Extensions: z.record(z.string(), z.any()).optional()
   })
   .passthrough()
 
@@ -328,6 +343,18 @@ const toActivityData = ({
     .map((point) => point.power)
     .filter((value): value is number => typeof value === 'number')
 
+  const heartRateSeries = points
+    .map((point) => point.heartRate)
+    .filter((value): value is number => typeof value === 'number')
+
+  const altitudeSeries = points
+    .map((point) => point.altitude ?? point.altitudeMeters)
+    .filter((value): value is number => typeof value === 'number')
+
+  const speedSeries = points
+    .map((point) => point.speed)
+    .filter((value): value is number => typeof value === 'number')
+
   return {
     coordinates,
     trackPoints,
@@ -344,7 +371,10 @@ const toActivityData = ({
       : timestamps[0]
         ? { startTime: timestamps[0] }
         : null),
-    powerSeries
+    powerSeries,
+    heartRateSeries,
+    altitudeSeries,
+    speedSeries
   }
 }
 
@@ -392,8 +422,11 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
         lat,
         lng,
         altitudeMeters: toNumber(record.altitude),
+        altitude: toNumber(record.altitude),
         timestamp: toDate(record.timestamp),
-        power: toNumber(record.power)
+        power: toNumber(record.power),
+        heartRate: toNumber(record.heart_rate),
+        speed: toNumber(record.speed)
       }
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)
@@ -450,7 +483,14 @@ const parseGpx = (buffer: Buffer): FitnessActivityData => {
         lat,
         lng,
         altitudeMeters: toNumber(point.ele),
-        timestamp: toDate(point.time)
+        altitude: toNumber(point.ele),
+        timestamp: toDate(point.time),
+        heartRate: toNumber(
+          (point.extensions?.['gpxtpx:TrackPointExtension'] as any)?.[
+            'gpxtpx:hr'
+          ]
+        ),
+        speed: toNumber(point.speed) // some GPX have speed directly
       }
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)
@@ -492,8 +532,11 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
         lat,
         lng,
         altitudeMeters: toNumber(point.AltitudeMeters),
+        altitude: toNumber(point.AltitudeMeters),
         timestamp: toDate(point.Time),
-        power: toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Watts'])
+        power: toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Watts']),
+        heartRate: toNumber(point.HeartRateBpm?.Value),
+        speed: toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Speed'])
       }
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)
