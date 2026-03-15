@@ -131,6 +131,7 @@ async function importStravaArchive(args = process.argv.slice(2)) {
 
     let savedCount = 0
     let failedCount = 0
+    let processFailedCount = 0
 
     for (const activity of archiveActivities) {
       try {
@@ -229,7 +230,6 @@ async function importStravaArchive(args = process.argv.slice(2)) {
       )
 
       let processedCount = 0
-      let processFailedCount = 0
       for (const fitnessFile of primaryFilesWithStatus) {
         try {
           await processFitnessFileJob(database, {
@@ -246,7 +246,6 @@ async function importStravaArchive(args = process.argv.slice(2)) {
         } catch (error) {
           const nodeError = error as Error
           processFailedCount += 1
-          failedCount += 1
           console.warn(
             `  ✗ Failed to process fitness file ${fitnessFile.id}: ${nodeError.message}`
           )
@@ -381,11 +380,12 @@ async function importStravaArchive(args = process.argv.slice(2)) {
 
     console.log('\n=== Import complete ===')
     console.log(`Activities saved:    ${savedCount}`)
-    console.log(`Activities failed:   ${failedCount}`)
+    console.log(`Save failures:       ${failedCount}`)
+    console.log(`Process failures:    ${processFailedCount}`)
     console.log(`Archive ID:          ${archiveId}`)
     console.log(`Batch ID:            ${batchId}`)
 
-    return failedCount > 0 ? 1 : 0
+    return failedCount > 0 || processFailedCount > 0 ? 1 : 0
   } finally {
     archiveReader?.close()
   }
