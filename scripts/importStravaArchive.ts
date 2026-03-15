@@ -23,6 +23,7 @@ import {
 } from '@/lib/jobs/names'
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
+import { saveMedia } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
 import { getStravaArchiveImportBatchId } from '@/lib/services/strava/archiveImport'
 import {
@@ -256,7 +257,114 @@ async function importStravaArchive(args = process.argv.slice(2)) {
       )
     }
 
-    // Phase 4 will go here
+    // Phase 4: attach photos from archive to statuses
+    const activitiesWithMedia = savedFiles.filter(
+      (f) => f.mediaPaths.length > 0
+    )
+
+    if (activitiesWithMedia.length > 0) {
+      console.log(
+        `\nPhase 4: attaching media for ${activitiesWithMedia.length} activity(ies)…`
+      )
+
+      // Re-fetch to get final statusIds after processing
+      const allFinalFiles = await database.getFitnessFilesByIds({
+        fitnessFileIds: savedFiles.map((f) => f.fitnessFileId)
+      })
+      const fitnessFileStatusMap = new Map(
+        allFinalFiles.filter((f) => f.statusId).map((f) => [f.id, f.statusId!])
+      )
+
+      let mediaAttached = 0
+      let mediaFailed = 0
+
+      for (const activity of activitiesWithMedia) {
+        const statusId = fitnessFileStatusMap.get(activity.fitnessFileId)
+        if (!statusId) {
+          console.warn(
+            `  ✗ No status for activity ${activity.activityId} — skipping media`
+          )
+          continue
+        }
+
+        const existingAttachments = await database.getAttachments({ statusId })
+        const attachmentNames = new Set(
+          existingAttachments
+            .map((a) => a.name ?? '')
+            .filter((n) => n.length > 0)
+        )
+        const MAX_ATTACHMENTS = 4
+        let remainingSlots = Math.max(
+          0,
+          MAX_ATTACHMENTS - existingAttachments.length
+        )
+
+        for (const mediaPath of activity.mediaPaths) {
+          if (remainingSlots <= 0) break
+
+          const mimeType = getArchiveMediaMimeType(mediaPath)
+          if (!mimeType) continue
+          if (!archiveReader!.hasEntry(mediaPath)) {
+            console.warn(`  ✗ Media missing from archive: ${mediaPath}`)
+            continue
+          }
+
+          try {
+            const mediaBuffer = await archiveReader!.readEntryBuffer(mediaPath)
+            if (!mediaBuffer || mediaBuffer.length === 0) continue
+
+            const mediaFile = new File(
+              [new Uint8Array(mediaBuffer)],
+              path.basename(mediaPath),
+              { type: mimeType }
+            )
+
+            const storedMedia = await saveMedia(database, actor, {
+              file: mediaFile,
+              description: activity.activityName || 'Strava archive media'
+            })
+            if (!storedMedia) continue
+
+            const baseName = path.basename(mediaPath)
+            let attachmentName = baseName
+            if (attachmentNames.has(attachmentName)) {
+              for (let suffix = 2; suffix <= 99; suffix += 1) {
+                const candidate = `${baseName} (${suffix})`
+                if (!attachmentNames.has(candidate)) {
+                  attachmentName = candidate
+                  break
+                }
+              }
+            }
+            attachmentNames.add(attachmentName)
+
+            await database.createAttachment({
+              actorId: actor.id,
+              statusId,
+              mediaType: storedMedia.mime_type,
+              url: storedMedia.url,
+              width: storedMedia.meta.original.width,
+              height: storedMedia.meta.original.height,
+              name: attachmentName,
+              mediaId: storedMedia.id
+            })
+
+            remainingSlots -= 1
+            mediaAttached += 1
+          } catch (error) {
+            const nodeError = error as Error
+            console.warn(
+              `  ✗ Failed to attach ${mediaPath}: ${nodeError.message}`
+            )
+            mediaFailed += 1
+          }
+        }
+      }
+
+      console.log(
+        `Phase 4 done: ${mediaAttached} photo(s) attached, ${mediaFailed} failed`
+      )
+    }
 
     return failedCount > 0 ? 1 : 0
   } finally {
