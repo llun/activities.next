@@ -24,6 +24,7 @@ import {
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { saveMedia } from '@/lib/services/medias'
+import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { getQueue } from '@/lib/services/queue'
 import { getStravaArchiveImportBatchId } from '@/lib/services/strava/archiveImport'
 import {
@@ -293,7 +294,6 @@ async function importStravaArchive(args = process.argv.slice(2)) {
             .map((a) => a.name ?? '')
             .filter((n) => n.length > 0)
         )
-        const MAX_ATTACHMENTS = 4
         let remainingSlots = Math.max(
           0,
           MAX_ATTACHMENTS - existingAttachments.length
@@ -325,15 +325,28 @@ async function importStravaArchive(args = process.argv.slice(2)) {
             })
             if (!storedMedia) continue
 
-            const baseName = path.basename(mediaPath)
+            const ATTACHMENT_NAME_LIMIT = 150
+            const truncate = (name: string) =>
+              name.length <= ATTACHMENT_NAME_LIMIT
+                ? name
+                : name.slice(0, ATTACHMENT_NAME_LIMIT)
+
+            const baseName = truncate(path.basename(mediaPath))
             let attachmentName = baseName
             if (attachmentNames.has(attachmentName)) {
-              for (let suffix = 2; suffix <= 99; suffix += 1) {
-                const candidate = `${baseName} (${suffix})`
+              let resolved = false
+              for (let suffix = 2; suffix <= 999; suffix += 1) {
+                const candidate = truncate(`${baseName} (${suffix})`)
                 if (!attachmentNames.has(candidate)) {
                   attachmentName = candidate
+                  resolved = true
                   break
                 }
+              }
+              if (!resolved) {
+                attachmentName = truncate(
+                  `${baseName}-${Date.now().toString(36).slice(-4)}`
+                )
               }
             }
             attachmentNames.add(attachmentName)
