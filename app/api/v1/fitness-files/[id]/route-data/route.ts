@@ -40,6 +40,9 @@ interface FitnessRouteSample {
   lng: number
   elapsedSeconds: number
   timestamp?: number
+  heartRate?: number
+  altitude?: number
+  speed?: number
   isHiddenByPrivacy: boolean
 }
 
@@ -104,7 +107,10 @@ const toRouteSamples = (
       lng: point.lng,
       elapsedSeconds: Number(elapsedSeconds.toFixed(3)),
       isHiddenByPrivacy: false,
-      ...(point.timestamp ? { timestamp: point.timestamp.getTime() } : null)
+      ...(point.timestamp ? { timestamp: point.timestamp.getTime() } : null),
+      heartRate: point.heartRate,
+      altitude: point.altitude,
+      speed: point.speed
     }
   })
 }
@@ -119,7 +125,10 @@ const toResponseSegments = (
       lng: point.lng,
       elapsedSeconds: point.elapsedSeconds,
       isHiddenByPrivacy: point.isHiddenByPrivacy,
-      ...(point.timestamp ? { timestamp: point.timestamp } : null)
+      ...(point.timestamp ? { timestamp: point.timestamp } : null),
+      heartRate: point.heartRate,
+      altitude: point.altitude,
+      speed: point.speed
     }))
   }))
 }
@@ -293,7 +302,11 @@ export const GET = traceApiRoute(
         data: {
           samples: responseSamples,
           segments: responseSegments,
-          totalDurationSeconds: activityData.totalDurationSeconds
+          totalDurationSeconds: activityData.totalDurationSeconds,
+          powerSeries: activityData.powerSeries,
+          heartRateSeries: activityData.heartRateSeries,
+          altitudeSeries: activityData.altitudeSeries,
+          speedSeries: activityData.speedSeries
         },
         additionalHeaders: [
           [

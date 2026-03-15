@@ -2,7 +2,7 @@
 
 import { UTCDate } from '@date-fns/utc'
 import { format } from 'date-fns'
-import { Bike, Play, Plus } from 'lucide-react'
+import { Bike, Footprints, Play, Plus, Waves } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { VisibilityButton } from '@/lib/components/posts/actions/visibility-button'
@@ -18,6 +18,38 @@ import {
 } from '@/lib/utils/fitness'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 
+const getActivityIcon = (activityType?: string) => {
+  const normalized = activityType?.toLowerCase() ?? ''
+  if (normalized.includes('ride') || normalized.includes('bike')) {
+    return <Bike className="size-5" />
+  }
+  if (
+    normalized.includes('run') ||
+    normalized.includes('walk') ||
+    normalized.includes('hike')
+  ) {
+    return <Footprints className="size-5" />
+  }
+  if (normalized.includes('swim')) {
+    return <Waves className="size-5" />
+  }
+  return <Bike className="size-5" />
+}
+
+const downsampleSeries = (series: number[], targetCount: number) => {
+  if (series.length <= targetCount) return series
+  const ratio = series.length / targetCount
+  const result: number[] = []
+  for (let i = 0; i < targetCount; i++) {
+    const start = Math.floor(i * ratio)
+    const end = Math.floor((i + 1) * ratio)
+    const chunk = series.slice(start, end)
+    const sum = chunk.reduce((a, b) => a + b, 0)
+    result.push(sum / chunk.length)
+  }
+  return result
+}
+
 interface Props {
   host: string
   mapboxAccessToken?: string
@@ -26,14 +58,7 @@ interface Props {
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
 }
 
-type SectionKey =
-  | 'overview'
-  | 'analysis'
-  | 'heart-rate'
-  | 'power-curve'
-  | 'zone-distribution'
-  | '25w-distribution'
-  | 'best-efforts'
+type SectionKey = 'overview' | 'analysis' | '25w-distribution'
 
 type AnalysisGraphKey = 'elevation' | 'speed' | 'power' | 'heart-rate'
 type AnalysisGraphFilter = 'all' | AnalysisGraphKey
@@ -49,6 +74,9 @@ interface FitnessRouteSample {
   lng: number
   elapsedSeconds: number
   timestamp?: number
+  altitude?: number
+  heartRate?: number
+  speed?: number
   isHiddenByPrivacy?: boolean
 }
 
@@ -61,6 +89,10 @@ interface FitnessRouteDataResponse {
   samples: FitnessRouteSample[]
   segments?: FitnessRouteSegment[]
   totalDurationSeconds: number
+  powerSeries?: number[]
+  heartRateSeries?: number[]
+  altitudeSeries?: number[]
+  speedSeries?: number[]
 }
 
 interface StatusFitnessFileItem {
@@ -157,15 +189,7 @@ interface MapboxModule {
 const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'analysis', label: 'Analysis' },
-  { id: 'heart-rate', label: 'Heart Rate', group: 'subscription' },
-  { id: 'power-curve', label: 'Power Curve', group: 'subscription' },
-  {
-    id: 'zone-distribution',
-    label: 'Zone Distribution',
-    group: 'subscription'
-  },
-  { id: '25w-distribution', label: '25 W Distribution', group: 'subscription' },
-  { id: 'best-efforts', label: 'Best Efforts' }
+  { id: '25w-distribution', label: '25 W Distribution', group: 'subscription' }
 ]
 
 const ANALYSIS_GRAPH_OPTIONS: Array<{
@@ -201,18 +225,6 @@ const getActivityLabel = (activityType?: string) => {
   if (normalized.includes('swim')) return 'Swim'
 
   return `${activityType[0].toUpperCase()}${activityType.slice(1)}`
-}
-
-const createSeededGenerator = (seedText: string) => {
-  let seed = 0
-  for (let i = 0; i < seedText.length; i += 1) {
-    seed = (seed * 31 + seedText.charCodeAt(i)) >>> 0
-  }
-
-  return () => {
-    seed = (seed * 1664525 + 1013904223) >>> 0
-    return seed / 0xffffffff
-  }
 }
 
 const GRAPH_VIEW_HEIGHT = 250
@@ -908,13 +920,14 @@ const ActivityGallery: FC<{
   }
 
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       {attachments.slice(0, 6).map((attachment, index) => (
         <button
           key={attachment.id}
           type="button"
           onClick={() => onOpenAttachment(index)}
-          className="relative aspect-video overflow-hidden rounded-md border border-slate-300"
+          className="relative aspect-video overflow-hidden rounded-md border border-slate-300 transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+          aria-label={`Open media ${index + 1}`}
         >
           <Media
             attachment={attachment}
@@ -931,18 +944,23 @@ const MetricCard: FC<{ label: string; value: string; highlight?: boolean }> = ({
   value,
   highlight = false
 }) => {
+  const match = value.match(/^([\d:.,]+)\s*(.*)$/)
+  const numericValue = match ? match[1] : value
+  const unit = match && match[2] ? match[2] : ''
+
   return (
-    <div className="min-w-0 rounded-sm px-4 py-3">
+    <div className="flex min-w-0 flex-col justify-center rounded-sm px-4 py-3">
       <p
         className={cn(
-          'break-words text-[clamp(1.75rem,4vw,2.25rem)] font-semibold leading-tight tracking-tight text-slate-900',
+          'truncate whitespace-nowrap text-2xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-3xl md:text-4xl',
           highlight && 'text-orange-600'
         )}
       >
-        {value}
+        {numericValue}
       </p>
-      <p className="mt-1 break-words text-sm font-medium text-slate-500">
+      <p className="mt-1 truncate whitespace-nowrap text-xs font-medium text-slate-500 sm:text-sm">
         {label}
+        {unit ? ` (${unit})` : ''}
       </p>
     </div>
   )
@@ -955,13 +973,6 @@ export const FitnessStatusDetail: FC<Props> = ({
   onShowAttachment
 }) => {
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
-  const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
-  const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
-  const [routeDataError, setRouteDataError] = useState<string | null>(null)
-  const [isRouteDataLoading, setIsRouteDataLoading] = useState(false)
-  const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
-    number | null
-  >(null)
   const [analysisGraphFilter, setAnalysisGraphFilter] =
     useState<AnalysisGraphFilter>('all')
 
@@ -1008,6 +1019,20 @@ export const FitnessStatusDetail: FC<Props> = ({
   const [selectedFitnessFileId, setSelectedFitnessFileId] = useState<
     string | null
   >(defaultFitnessFiles[0]?.id ?? null)
+  const [hoveredBucketIndex, setHoveredBucketIndex] = useState<number | null>(
+    null
+  )
+  const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
+  const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
+  const [powerSeries, setPowerSeries] = useState<number[]>([])
+  const [heartRateSeries, setHeartRateSeries] = useState<number[]>([])
+  const [altitudeSeries, setAltitudeSeries] = useState<number[]>([])
+  const [speedSeries, setSpeedSeries] = useState<number[]>([])
+  const [routeDataError, setRouteDataError] = useState<string | null>(null)
+  const [isRouteDataLoading, setIsRouteDataLoading] = useState(false)
+  const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
+    number | null
+  >(null)
 
   useEffect(() => {
     setFitnessFiles(defaultFitnessFiles)
@@ -1089,9 +1114,6 @@ export const FitnessStatusDetail: FC<Props> = ({
   const shouldLoadInteractiveMap = Boolean(mapboxAccessToken && fitness?.id)
   const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
   const statusTitle = status.text.trim() || `${activityLabel} workout`
-  const statusDescription =
-    fitness?.description ||
-    'Strava-inspired activity view generated from your uploaded file.'
   const activityDate = formatUtcDate(
     status.createdAt,
     'p \u2022 EEEE, MMMM d, yyyy'
@@ -1124,6 +1146,10 @@ export const FitnessStatusDetail: FC<Props> = ({
     if (!shouldLoadInteractiveMap || !fitness?.id) {
       setRouteSamples([])
       setRouteSegments([])
+      setPowerSeries([])
+      setHeartRateSeries([])
+      setAltitudeSeries([])
+      setSpeedSeries([])
       setRouteDataError(null)
       setIsRouteDataLoading(false)
       return
@@ -1168,10 +1194,18 @@ export const FitnessStatusDetail: FC<Props> = ({
 
         setRouteSamples(normalizedSamples)
         setRouteSegments(normalizedSegments)
+        setPowerSeries(data.powerSeries ?? [])
+        setHeartRateSeries(data.heartRateSeries ?? [])
+        setAltitudeSeries(data.altitudeSeries ?? [])
+        setSpeedSeries(data.speedSeries ?? [])
       } catch (_error) {
         if (cancelled) return
         setRouteSamples([])
         setRouteSegments([])
+        setPowerSeries([])
+        setHeartRateSeries([])
+        setAltitudeSeries([])
+        setSpeedSeries([])
         setRouteDataError('Interactive map unavailable. Using static preview.')
       } finally {
         if (!cancelled) {
@@ -1197,617 +1231,154 @@ export const FitnessStatusDetail: FC<Props> = ({
   const durationSeconds = fitness?.totalDurationSeconds ?? 0
   const elevationGainMeters = fitness?.elevationGainMeters ?? 0
 
-  const speedKmh =
-    paceOrSpeed?.speedKmh ??
-    (distanceMeters > 0 && durationSeconds > 0
-      ? distanceMeters / 1000 / (durationSeconds / 3600)
-      : 0)
-
-  const relativeEffort = Math.max(
-    1,
-    Math.min(
-      300,
-      Math.round(
-        durationSeconds / 50 + elevationGainMeters / 12 + speedKmh * 1.4
-      )
+  const avgPower = useMemo(() => {
+    if (powerSeries.length === 0) return null
+    return Math.round(
+      powerSeries.reduce((a, b) => a + b, 0) / powerSeries.length
     )
-  )
+  }, [powerSeries])
 
-  const weightedAvgPower = Math.max(
-    70,
-    Math.round(speedKmh * 3 + relativeEffort * 0.55)
-  )
-  const totalWorkKj = Math.round(
-    (weightedAvgPower * Math.max(0, durationSeconds)) / 1000
-  )
-  const trainingLoad = Math.max(5, Math.round(relativeEffort * 0.48))
-  const intensity = Math.max(
-    15,
-    Math.min(100, Math.round((weightedAvgPower / 250) * 100))
-  )
+  const totalWorkKj = useMemo(() => {
+    if (!avgPower || durationSeconds <= 0) return null
+    return Math.round((avgPower * durationSeconds) / 1000)
+  }, [avgPower, durationSeconds])
 
-  const seededSeries = useMemo(() => {
-    const next = createSeededGenerator(status.id)
-
-    const lineSeries = (count: number, base: number, variance: number) => {
-      return Array.from({ length: count }, (_, index) => {
-        const drift = Math.sin(index / (count / 5)) * variance * 0.25
-        const noise = (next() - 0.5) * variance
-        return Math.max(1, base + drift + noise)
-      })
-    }
-
-    const histogram = Array.from({ length: 20 }, (_, index) => {
-      const center = 5
-      const distanceFromCenter = Math.abs(index - center)
-      const peak = Math.max(0, 1 - distanceFromCenter / 6)
-      const noise = 0.2 + next() * 0.7
-      return Math.max(0, peak * noise)
-    })
-
-    const heartRate = lineSeries(120, 120 + intensity * 0.35, 18)
-    const power = lineSeries(120, weightedAvgPower, 42)
-    const speed = lineSeries(120, Math.max(12, speedKmh), 4)
-    const elevation = lineSeries(120, 12 + elevationGainMeters / 30, 7)
-
+  const activitySeries = useMemo(() => {
     return {
-      heartRate,
-      power,
-      speed,
-      elevation,
-      histogram
+      heartRate:
+        heartRateSeries.length > 0
+          ? downsampleSeries(heartRateSeries, 120)
+          : [],
+      power: powerSeries.length > 0 ? downsampleSeries(powerSeries, 120) : [],
+      speed: speedSeries.length > 0 ? downsampleSeries(speedSeries, 120) : [],
+      elevation:
+        altitudeSeries.length > 0 ? downsampleSeries(altitudeSeries, 120) : []
     }
-  }, [elevationGainMeters, intensity, speedKmh, status.id, weightedAvgPower])
+  }, [heartRateSeries, powerSeries, speedSeries, altitudeSeries])
   const { minValue: elevationMin, maxValue: elevationMax } = useMemo(
-    () => getSeriesMinMax(seededSeries.elevation),
-    [seededSeries.elevation]
+    () => getSeriesMinMax(activitySeries.elevation),
+    [activitySeries.elevation]
   )
   const { minValue: speedMin, maxValue: speedMax } = useMemo(
-    () => getSeriesMinMax(seededSeries.speed),
-    [seededSeries.speed]
+    () => getSeriesMinMax(activitySeries.speed),
+    [activitySeries.speed]
   )
   const { minValue: powerMin, maxValue: powerMax } = useMemo(
-    () => getSeriesMinMax(seededSeries.power),
-    [seededSeries.power]
+    () => getSeriesMinMax(activitySeries.power),
+    [activitySeries.power]
   )
   const { minValue: heartRateMin, maxValue: heartRateMax } = useMemo(
-    () => getSeriesMinMax(seededSeries.heartRate),
-    [seededSeries.heartRate]
+    () => getSeriesMinMax(activitySeries.heartRate),
+    [activitySeries.heartRate]
   )
   const highlightedElapsedLabel =
     typeof highlightedElapsedSeconds === 'number'
       ? formatDuration(Math.round(highlightedElapsedSeconds))
       : null
+
   const histogramMinutes = useMemo(() => {
-    const totalMinutes = Math.max(1, durationSeconds / 60)
-    const totalWeight = Math.max(
-      1,
-      seededSeries.histogram.reduce((sum, value) => sum + value, 0)
-    )
+    if (powerSeries.length === 0) return []
 
-    return seededSeries.histogram.map(
-      (value) => (value / totalWeight) * totalMinutes
-    )
-  }, [durationSeconds, seededSeries.histogram])
+    const maxPower = Math.max(...powerSeries, 100)
+    const bucketCount = Math.ceil((maxPower + 25) / 25)
 
-  const zoneDistribution = useMemo(() => {
-    const total = Math.max(1, durationSeconds)
-    const base = [0.28, 0.55, 0.11, 0.05, 0.01, 0.003, 0.002]
-
-    return base.map((ratio, index) => {
-      const seconds = Math.round(total * ratio)
-      const percentage = Math.round(ratio * 100)
-      return {
-        zone: `Z${index + 1}`,
-        seconds,
-        percentage
+    const buckets = new Array(bucketCount).fill(0)
+    // Actual power data represents samples (usually 1 per second)
+    for (const p of powerSeries) {
+      const bucketIndex = Math.floor(p / 25)
+      if (bucketIndex >= 0 && bucketIndex < bucketCount) {
+        buckets[bucketIndex] += 1
       }
-    })
-  }, [durationSeconds])
+    }
+    // Convert samples (seconds) to minutes
+    return buckets.map((seconds) => seconds / 60)
+  }, [powerSeries])
 
-  const heartRateZones = useMemo(() => {
-    const base = [0.02, 0.26, 0.52, 0.17, 0.03]
-    const total = Math.max(1, durationSeconds)
+  const histogramLayout = useMemo(() => {
+    const histogramViewHeight = GRAPH_VIEW_HEIGHT
+    const histogramTopPadding = 24 // More padding for the average power label
+    const histogramHeight = histogramViewHeight - histogramTopPadding
+    const barCount = histogramMinutes.length
+    const barGap = 2
+    const totalGaps = (barCount - 1) * barGap
+    const barWidth = (760 - totalGaps) / Math.max(1, barCount)
+    const maxValue = Math.max(...histogramMinutes, 1)
 
-    return base.map((ratio, index) => {
-      const seconds = Math.round(total * ratio)
-      const percentage = Number((ratio * 100).toFixed(1))
+    // Calculate weighted average line position
+    const weightedAvgPowerValue = avgPower ?? 0
+    const weightedAvgX = (weightedAvgPowerValue / 25) * (barWidth + barGap)
+
+    // Y-axis grid lines (4 intervals)
+    const yAxisTicks = Array.from({ length: 5 }, (_, i) => {
+      const valueMinutes = (maxValue / 4) * i
+      const y =
+        histogramViewHeight - (valueMinutes / maxValue) * histogramHeight
       return {
-        zone: `Z${index + 1}`,
-        seconds,
-        percentage
-      }
-    })
-  }, [durationSeconds])
-
-  const bestEfforts = useMemo(() => {
-    const intervals = [5, 15, 30, 60, 120, 180, 300, 480, 600]
-    return intervals.map((seconds, index) => {
-      const dropOff = 1 - index * 0.08
-      const effortPower = Math.max(
-        90,
-        Math.round(weightedAvgPower * (2.3 * dropOff))
-      )
-      const effortHeartRate = Math.round(
-        122 + index * 3 + (intensity / 100) * 20
-      )
-      const effortElevation = Math.max(
-        0,
-        Math.round((elevationGainMeters / 180) * (index + 1))
-      )
-
-      return {
+        y,
         label:
-          seconds < 60 ? `${seconds} sec` : `${Math.round(seconds / 60)} min`,
-        power: effortPower,
-        powerKg: (effortPower / 56).toFixed(2),
-        heartRate: effortHeartRate,
-        elevation: effortElevation
+          valueMinutes === 0
+            ? '0s'
+            : formatDuration(Math.round(valueMinutes * 60))
       }
     })
-  }, [elevationGainMeters, intensity, weightedAvgPower])
 
-  const shouldRenderMapPanel =
-    !!mapAttachment ||
-    fitness?.hasMapData ||
-    isRouteDataLoading ||
-    routeSegments.length > 0
-
-  const sectionContent = () => {
-    if (activeSection === 'overview') {
-      return (
-        <div className="space-y-6 p-6">
-          <div className="grid gap-6">
-            {shouldRenderMapPanel && (
-              <ActivityMapPanel
-                mapAttachment={mapAttachment}
-                routeSamples={routeSamples}
-                routeSegments={routeSegments}
-                mapboxAccessToken={mapboxAccessToken}
-                routeDataError={routeDataError}
-                isRouteDataLoading={isRouteDataLoading}
-                onOpenMap={() => {
-                  if (mapAttachmentIndex >= 0) {
-                    onShowAttachment(status.attachments, mapAttachmentIndex)
-                  }
-                }}
-              />
-            )}
-
-            <div className="rounded-sm border border-slate-300 bg-white p-5">
-              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
-                Overview
-              </h3>
-              <p className="mt-2 text-sm text-slate-600">{statusDescription}</p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-slate-900">Media</h3>
-            <ActivityGallery
-              attachments={mediaWithoutMap}
-              onOpenAttachment={(index) => {
-                const target = status.attachments.findIndex(
-                  (attachment) => attachment.id === mediaWithoutMap[index]?.id
-                )
-                if (target >= 0) {
-                  onShowAttachment(status.attachments, target)
-                }
-              }}
-            />
-          </div>
-        </div>
-      )
+    return {
+      histogramViewHeight,
+      histogramTopPadding,
+      histogramHeight,
+      barCount,
+      barGap,
+      barWidth,
+      maxValue,
+      weightedAvgPowerValue,
+      weightedAvgX,
+      yAxisTicks
     }
+  }, [avgPower, histogramMinutes])
 
-    if (activeSection === 'analysis') {
-      const showAllGraphs = analysisGraphFilter === 'all'
-
-      return (
-        <div className="space-y-4 p-6">
-          <div className="rounded-lg border bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Graph display
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {ANALYSIS_GRAPH_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  aria-pressed={analysisGraphFilter === option.id}
-                  onClick={() => setAnalysisGraphFilter(option.id)}
-                  className={cn(
-                    'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                    analysisGraphFilter === option.id
-                      ? 'border-orange-500 bg-orange-50 text-orange-700'
-                      : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
-                  )}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-slate-500">
-              {highlightedElapsedLabel
-                ? `Selected time: ${highlightedElapsedLabel}`
-                : 'Hover any graph below to follow that time point on the map.'}
-            </p>
-          </div>
-
-          {shouldRenderMapPanel && (
-            <ActivityMapPanel
-              mapAttachment={mapAttachment}
-              routeSamples={routeSamples}
-              routeSegments={routeSegments}
-              highlightedElapsedSeconds={highlightedElapsedSeconds}
-              mapboxAccessToken={mapboxAccessToken}
-              routeDataError={routeDataError}
-              isRouteDataLoading={isRouteDataLoading}
-              compact
-              onOpenMap={() => {
-                if (mapAttachmentIndex >= 0) {
-                  onShowAttachment(status.attachments, mapAttachmentIndex)
-                }
-              }}
-            />
-          )}
-
-          {showAllGraphs || analysisGraphFilter === 'elevation' ? (
-            <ChartPanel
-              title="Elevation profile"
-              unit="m"
-              values={seededSeries.elevation}
-              colorClassName="stroke-slate-400"
-              minLabel={elevationMin.toFixed(0)}
-              maxLabel={elevationMax.toFixed(0)}
-              durationSeconds={durationSeconds}
-              highlightedElapsedSeconds={highlightedElapsedSeconds}
-              onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-              showHoverMessage={!showAllGraphs}
-            />
-          ) : null}
-
-          {showAllGraphs || analysisGraphFilter === 'speed' ? (
-            <ChartPanel
-              title="Speed"
-              unit="km/h"
-              values={seededSeries.speed}
-              colorClassName="stroke-sky-500"
-              minLabel={speedMin.toFixed(1)}
-              maxLabel={speedMax.toFixed(1)}
-              durationSeconds={durationSeconds}
-              highlightedElapsedSeconds={highlightedElapsedSeconds}
-              onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-              showHoverMessage={!showAllGraphs}
-            />
-          ) : null}
-
-          {showAllGraphs || analysisGraphFilter === 'power' ? (
-            <ChartPanel
-              title="Power"
-              unit="w"
-              values={seededSeries.power}
-              colorClassName="stroke-violet-500"
-              minLabel={powerMin.toFixed(0)}
-              maxLabel={powerMax.toFixed(0)}
-              durationSeconds={durationSeconds}
-              highlightedElapsedSeconds={highlightedElapsedSeconds}
-              onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-              showHoverMessage={!showAllGraphs}
-            />
-          ) : null}
-
-          {showAllGraphs || analysisGraphFilter === 'heart-rate' ? (
-            <ChartPanel
-              title="Heart rate"
-              unit="bpm"
-              values={seededSeries.heartRate}
-              colorClassName="stroke-rose-500"
-              minLabel={heartRateMin.toFixed(0)}
-              maxLabel={heartRateMax.toFixed(0)}
-              durationSeconds={durationSeconds}
-              highlightedElapsedSeconds={highlightedElapsedSeconds}
-              onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-              showHoverMessage={!showAllGraphs}
-            />
-          ) : null}
-        </div>
-      )
-    }
-
-    if (activeSection === 'heart-rate') {
-      return (
-        <div className="space-y-4 p-6">
-          <h3 className="text-5xl font-semibold text-slate-900">
-            Heart Rate Analysis
-          </h3>
-          <div className="overflow-hidden rounded-sm border border-slate-300">
-            <table className="w-full bg-white text-left text-sm">
-              <thead className="bg-slate-100 text-slate-700">
-                <tr>
-                  <th className="px-4 py-3">Zone</th>
-                  <th className="px-4 py-3">Time</th>
-                  <th className="px-4 py-3">Percent</th>
-                  <th className="px-4 py-3">Distribution</th>
-                </tr>
-              </thead>
-              <tbody>
-                {heartRateZones.map((zone) => (
-                  <tr key={zone.zone} className="border-t">
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      {zone.zone}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {formatDuration(zone.seconds)}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {zone.percentage}%
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="h-8 w-full bg-slate-100">
-                        <div
-                          className="h-full bg-rose-300"
-                          style={{ width: `${Math.max(zone.percentage, 1)}%` }}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )
-    }
-
-    if (activeSection === 'power-curve') {
-      const powerCurveChartHeight = GRAPH_VIEW_HEIGHT
-
-      return (
-        <div className="space-y-4 p-6">
-          <h3 className="text-5xl font-semibold text-slate-900">Power Curve</h3>
-          <div className="rounded-sm border border-slate-300 bg-white p-4">
-            <div className="mb-2 flex items-end justify-between">
-              <p className="text-sm font-medium text-slate-700">
-                Power (watts)
-              </p>
-              <p className="text-xs text-slate-500">
-                Scale {powerMin.toFixed(0)} w - {powerMax.toFixed(0)} w
-              </p>
-            </div>
-            <div className="grid grid-cols-[auto_1fr] items-stretch gap-2">
-              <div
-                className={cn(
-                  'flex flex-col justify-between text-[11px] text-slate-500',
-                  GRAPH_HEIGHT_CLASSNAME
-                )}
-              >
-                <span>{powerMax.toFixed(0)} w</span>
-                <span>{powerMin.toFixed(0)} w</span>
-              </div>
-              <div>
-                <svg
-                  viewBox={`0 0 760 ${powerCurveChartHeight}`}
-                  preserveAspectRatio="none"
-                  className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
-                >
-                  <path
-                    d={buildChartPath(
-                      seededSeries.power,
-                      760,
-                      powerCurveChartHeight,
-                      powerMin,
-                      powerMax
-                    )}
-                    className="stroke-violet-600 stroke-[3]"
-                    fill="none"
-                  />
-                </svg>
-                <div className="mt-2 flex justify-between text-[11px] text-slate-500">
-                  {buildXAxisLabels(
-                    seededSeries.power.length,
-                    durationSeconds
-                  ).map((label, i) => (
-                    <span key={i}>{label}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    if (activeSection === 'zone-distribution') {
-      return (
-        <div className="space-y-4 p-6">
-          <h3 className="text-5xl font-semibold text-slate-900">
-            Zone Distribution
-          </h3>
-          <div className="overflow-hidden rounded-sm border border-slate-300 bg-white">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-100 text-slate-700">
-                <tr>
-                  <th className="px-4 py-3">Zone</th>
-                  <th className="px-4 py-3">Time</th>
-                  <th className="px-4 py-3">Percent</th>
-                  <th className="px-4 py-3">Distribution</th>
-                </tr>
-              </thead>
-              <tbody>
-                {zoneDistribution.map((zone) => (
-                  <tr key={zone.zone} className="border-t">
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      {zone.zone}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {formatDuration(zone.seconds)}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {zone.percentage}%
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="h-8 w-full bg-slate-100">
-                        <div
-                          className="h-full bg-violet-300"
-                          style={{ width: `${Math.max(zone.percentage, 1)}%` }}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )
-    }
-
-    if (activeSection === '25w-distribution') {
-      const histogramViewHeight = GRAPH_VIEW_HEIGHT
-      const histogramTopPadding = 16
-      const histogramHeight = histogramViewHeight - histogramTopPadding
-      const barCount = histogramMinutes.length
-      const barGap = 2
-      const totalGaps = (barCount - 1) * barGap
-      const barWidth = (760 - totalGaps) / barCount
-      const maxValue = Math.max(...histogramMinutes, 1)
-
-      return (
-        <div className="space-y-4 p-6">
-          <h3 className="text-5xl font-semibold text-slate-900">
-            25W Power Distribution
-          </h3>
-          <div className="rounded-sm border border-slate-300 bg-white p-4">
-            <div className="mb-2 flex items-end justify-between">
-              <p className="text-sm font-medium text-slate-700">
-                Time spent per 25 W bucket
-              </p>
-              <p className="text-xs text-slate-500">
-                Scale 0.0 min - {maxValue.toFixed(1)} min
-              </p>
-            </div>
-            <div className="grid grid-cols-[auto_1fr] items-stretch gap-2">
-              <div
-                className={cn(
-                  'flex flex-col justify-between text-[11px] text-slate-500',
-                  GRAPH_HEIGHT_CLASSNAME
-                )}
-              >
-                <span>{maxValue.toFixed(1)} min</span>
-                <span>0.0 min</span>
-              </div>
-              <div>
-                <svg
-                  viewBox={`0 0 760 ${histogramViewHeight}`}
-                  preserveAspectRatio="none"
-                  className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
-                >
-                  {histogramMinutes.map((value, index) => {
-                    const x = index * (barWidth + barGap)
-                    const barHeight = (value / maxValue) * histogramHeight
-                    const y = histogramViewHeight - barHeight
-
-                    return (
-                      <rect
-                        key={`bar-${index}`}
-                        x={x}
-                        y={y}
-                        width={barWidth}
-                        height={barHeight}
-                        fill={index > 7 ? '#9f4a8f' : '#c69cbf'}
-                        opacity={0.9}
-                      />
-                    )
-                  })}
-                </svg>
-                <div className="mt-2 flex justify-between text-[11px] text-slate-500">
-                  {histogramMinutes.map((_, index) => (
-                    <span key={`label-${index}`} className="text-center">
-                      {index * 25}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <p className="mt-2 text-[11px] text-slate-500">
-              Time in each 25 W power bin (minutes)
-            </p>
-          </div>
-        </div>
-      )
-    }
-
-    if (activeSection === 'best-efforts') {
-      return (
-        <div className="space-y-4 p-6">
-          <h3 className="text-5xl font-semibold text-slate-900">
-            Best Efforts
-          </h3>
-          <div className="overflow-hidden rounded-sm border border-slate-300 bg-white">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-100 text-slate-700">
-                <tr>
-                  <th className="px-4 py-3">Time</th>
-                  <th className="px-4 py-3">Power</th>
-                  <th className="px-4 py-3">W/kg</th>
-                  <th className="px-4 py-3">Heart Rate</th>
-                  <th className="px-4 py-3">Elev</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bestEfforts.map((effort) => (
-                  <tr key={effort.label} className="border-t">
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      {effort.label}
-                    </td>
-                    <td className="px-4 py-3">{effort.power} w</td>
-                    <td className="px-4 py-3">{effort.powerKg}</td>
-                    <td className="px-4 py-3">{effort.heartRate} bpm</td>
-                    <td className="px-4 py-3">{effort.elevation} m</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )
-    }
-
-    return null
+  const getBarColor = (index: number, total: number) => {
+    const ratio = index / Math.max(1, total - 1)
+    // Interpolate between light pink (#f4e6ec) and dark purple (#804374)
+    const r1 = 244,
+      g1 = 230,
+      b1 = 236
+    const r2 = 128,
+      g2 = 67,
+      b2 = 116
+    const r = Math.round(r1 + (r2 - r1) * ratio)
+    const g = Math.round(g1 + (g2 - g1) * ratio)
+    const b = Math.round(b1 + (b2 - b1) * ratio)
+    return `rgb(${r}, ${g}, ${b})`
   }
+
+  const navItems = useMemo(() => {
+    const items = [...NAV_ITEMS]
+    if (powerSeries.length === 0) {
+      return items.filter((item) => item.id !== '25w-distribution')
+    }
+    return items
+  }, [powerSeries])
 
   return (
     <div>
-      <nav className="overflow-x-auto border-b border-border bg-[#f7f7f8]">
-        <ul className="flex min-w-max">
-          {NAV_ITEMS.filter((item) => !item.group).map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => setActiveSection(item.id)}
-                className={cn(
-                  'inline-block cursor-pointer whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground',
-                  activeSection === item.id
-                    ? 'border-b-2 border-primary text-primary'
-                    : 'border-b-2 border-transparent text-muted-foreground'
-                )}
-              >
-                {item.label}
-              </button>
-            </li>
-          ))}
-          <li className="flex items-center px-2">
-            <span className="h-4 w-px bg-border" />
-          </li>
-          {NAV_ITEMS.filter((item) => item.group === 'subscription').map(
-            (item) => (
-              <li key={item.id}>
+      <nav
+        className="overflow-x-auto border-b border-border bg-[#f7f7f8]"
+        aria-label="Activity sections"
+      >
+        <ul className="flex min-w-max" role="tablist">
+          {navItems
+            .filter((item) => !item.group)
+            .map((item) => (
+              <li key={item.id} role="presentation">
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={activeSection === item.id}
+                  aria-controls={`panel-${item.id}`}
+                  id={`tab-${item.id}`}
                   onClick={() => setActiveSection(item.id)}
                   className={cn(
-                    'inline-block cursor-pointer whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground',
+                    'inline-block cursor-pointer whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500',
                     activeSection === item.id
                       ? 'border-b-2 border-primary text-primary'
                       : 'border-b-2 border-transparent text-muted-foreground'
@@ -1816,24 +1387,56 @@ export const FitnessStatusDetail: FC<Props> = ({
                   {item.label}
                 </button>
               </li>
-            )
-          )}
+            ))}
+          <li className="flex items-center px-2" aria-hidden="true">
+            <span className="h-4 w-px bg-border" />
+          </li>
+          {navItems
+            .filter((item) => item.group === 'subscription')
+            .map((item) => (
+              <li key={item.id} role="presentation">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeSection === item.id}
+                  aria-controls={`panel-${item.id}`}
+                  id={`tab-${item.id}`}
+                  onClick={() => setActiveSection(item.id)}
+                  className={cn(
+                    'inline-block cursor-pointer whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500',
+                    activeSection === item.id
+                      ? 'border-b-2 border-primary text-primary'
+                      : 'border-b-2 border-transparent text-muted-foreground'
+                  )}
+                >
+                  {item.label}
+                </button>
+              </li>
+            ))}
         </ul>
       </nav>
 
       <section className="bg-[#f4f4f6]">
-        <div className="border-b border-slate-300 bg-[#f7f7f8] px-6 py-4">
+        <div className="border-b border-slate-300 bg-[#f7f7f8] px-4 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-3">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
               <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-orange-100 text-orange-600">
-                <Bike className="size-5" />
+                {getActivityIcon(fitness?.activityType ?? undefined)}
               </span>
-              <div className="min-w-0">
-                <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight text-slate-900 md:text-4xl">
+              <div className="min-w-0 flex-1">
+                <h1
+                  className="truncate text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl md:text-4xl"
+                  title={`${actorName} - ${activityLabel}`}
+                >
                   {actorName} - {activityLabel}
                 </h1>
-                <p className="mt-1 text-sm text-slate-500">{activityDate}</p>
-                <h2 className="mt-2 min-w-0 break-words text-xl font-semibold tracking-tight text-slate-900 md:text-3xl">
+                <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">
+                  {activityDate}
+                </p>
+                <h2
+                  className="mt-2 truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl md:text-3xl"
+                  title={statusTitle}
+                >
                   {statusTitle}
                 </h2>
                 {fitnessFiles.length > 1 && (
@@ -1847,11 +1450,12 @@ export const FitnessStatusDetail: FC<Props> = ({
                         type="button"
                         onClick={() => setSelectedFitnessFileId(item.id)}
                         className={cn(
-                          'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                          'max-w-[150px] truncate rounded-full border px-3 py-1 text-xs font-medium transition-colors sm:max-w-xs',
                           selectedFitnessFileId === item.id
                             ? 'border-orange-500 bg-orange-50 text-orange-700'
                             : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
                         )}
+                        title={item.fileName}
                       >
                         {item.fileName}
                       </button>
@@ -1868,7 +1472,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-y-1 border-b border-slate-300 bg-[#f0f1f3] px-2 py-2 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-y-1 border-b border-slate-300 bg-[#f0f1f3] px-2 py-2 sm:grid-cols-3">
           <MetricCard label="Distance" value={formatDistance(distanceMeters)} />
           <MetricCard
             label="Moving Time"
@@ -1882,22 +1486,365 @@ export const FitnessStatusDetail: FC<Props> = ({
             label={paceOrSpeed?.label ?? 'Avg speed'}
             value={paceOrSpeed?.value ?? '0.0 km/h'}
           />
-          <MetricCard label="Total Work" value={`${totalWorkKj} kJ`} />
-          <MetricCard label="Weighted Avg" value={`${weightedAvgPower} w`} />
-          <MetricCard label="Training Load" value={`${trainingLoad}`} />
-          <MetricCard
-            label="Relative Effort"
-            value={`${relativeEffort}`}
-            highlight
-          />
+          {avgPower !== null && (
+            <MetricCard label="Avg Power" value={`${avgPower} w`} />
+          )}
+          {totalWorkKj !== null && (
+            <MetricCard label="Total Work" value={`${totalWorkKj} kJ`} />
+          )}
         </div>
 
-        <div className="border-b border-slate-300 bg-[#f4f4f6] px-6 py-3 text-sm text-slate-600">
-          Intensity {intensity}%<span className="mx-3 text-slate-400">|</span>
-          Sensor-level charts are estimated from the uploaded file summary.
+        <ActivityMapPanel
+          mapAttachment={mapAttachment}
+          routeSamples={routeSamples}
+          routeSegments={routeSegments}
+          highlightedElapsedSeconds={highlightedElapsedSeconds}
+          mapboxAccessToken={mapboxAccessToken}
+          routeDataError={routeDataError}
+          isRouteDataLoading={isRouteDataLoading}
+          onOpenMap={() => {
+            if (mapAttachmentIndex >= 0) {
+              onShowAttachment(status.attachments, mapAttachmentIndex)
+            }
+          }}
+        />
+
+        <div
+          id="panel-overview"
+          role="tabpanel"
+          aria-labelledby="tab-overview"
+          tabIndex={0}
+          className={cn(
+            'focus-visible:outline-none',
+            activeSection !== 'overview' && 'hidden'
+          )}
+        >
+          <div className="space-y-6 p-4 sm:p-6">
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-slate-900">Media</h3>
+              <ActivityGallery
+                attachments={mediaWithoutMap}
+                onOpenAttachment={(index) => {
+                  const target = status.attachments.findIndex(
+                    (attachment) => attachment.id === mediaWithoutMap[index]?.id
+                  )
+                  if (target >= 0) {
+                    onShowAttachment(status.attachments, target)
+                  }
+                }}
+              />
+            </div>
+          </div>
         </div>
 
-        {sectionContent()}
+        <div
+          id="panel-analysis"
+          role="tabpanel"
+          aria-labelledby="tab-analysis"
+          tabIndex={0}
+          className={cn(
+            'focus-visible:outline-none',
+            activeSection !== 'analysis' && 'hidden'
+          )}
+        >
+          <div className="space-y-4 p-4 sm:p-6">
+            <div className="rounded-lg border bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Graph display
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {ANALYSIS_GRAPH_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={analysisGraphFilter === option.id}
+                    onClick={() => setAnalysisGraphFilter(option.id)}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                      analysisGraphFilter === option.id
+                        ? 'border-orange-500 bg-orange-50 text-orange-700'
+                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                {highlightedElapsedLabel
+                  ? `Selected time: ${highlightedElapsedLabel}`
+                  : 'Hover any graph below to follow that time point on the map.'}
+              </p>
+            </div>
+
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'elevation') && (
+              <ChartPanel
+                title="Elevation profile"
+                unit="m"
+                values={activitySeries.elevation}
+                colorClassName="stroke-slate-400"
+                minLabel={elevationMin.toFixed(0)}
+                maxLabel={elevationMax.toFixed(0)}
+                durationSeconds={durationSeconds}
+                highlightedElapsedSeconds={highlightedElapsedSeconds}
+                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                showHoverMessage={analysisGraphFilter !== 'all'}
+              />
+            )}
+
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'speed') && (
+              <ChartPanel
+                title="Speed"
+                unit="km/h"
+                values={activitySeries.speed}
+                colorClassName="stroke-sky-500"
+                minLabel={speedMin.toFixed(1)}
+                maxLabel={speedMax.toFixed(1)}
+                durationSeconds={durationSeconds}
+                highlightedElapsedSeconds={highlightedElapsedSeconds}
+                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                showHoverMessage={analysisGraphFilter !== 'all'}
+              />
+            )}
+
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'power') && (
+              <ChartPanel
+                title="Power"
+                unit="w"
+                values={activitySeries.power}
+                colorClassName="stroke-violet-500"
+                minLabel={powerMin.toFixed(0)}
+                maxLabel={powerMax.toFixed(0)}
+                durationSeconds={durationSeconds}
+                highlightedElapsedSeconds={highlightedElapsedSeconds}
+                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                showHoverMessage={analysisGraphFilter !== 'all'}
+              />
+            )}
+
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'heart-rate') && (
+              <ChartPanel
+                title="Heart rate"
+                unit="bpm"
+                values={activitySeries.heartRate}
+                colorClassName="stroke-rose-500"
+                minLabel={heartRateMin.toFixed(0)}
+                maxLabel={heartRateMax.toFixed(0)}
+                durationSeconds={durationSeconds}
+                highlightedElapsedSeconds={highlightedElapsedSeconds}
+                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                showHoverMessage={analysisGraphFilter !== 'all'}
+              />
+            )}
+          </div>
+        </div>
+
+        <div
+          id="panel-25w-distribution"
+          role="tabpanel"
+          aria-labelledby="tab-25w-distribution"
+          tabIndex={0}
+          className={cn(
+            'focus-visible:outline-none',
+            activeSection !== '25w-distribution' && 'hidden'
+          )}
+        >
+          <div className="space-y-4 p-4 sm:p-6">
+            <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
+              25W Power Distribution
+            </h3>
+            <div className="rounded-sm border border-slate-300 bg-white p-4">
+              <div className="grid grid-cols-[auto_1fr] items-stretch gap-4">
+                <div
+                  className={cn(
+                    'flex flex-col justify-between text-[11px] text-slate-400 py-1',
+                    GRAPH_HEIGHT_CLASSNAME
+                  )}
+                >
+                  {histogramLayout.yAxisTicks
+                    .slice()
+                    .reverse()
+                    .map((tick, i) => (
+                      <span key={`y-tick-${i}`} className="text-right pr-2">
+                        {tick.label}
+                      </span>
+                    ))}
+                </div>
+                <div className="min-w-0 relative pt-1">
+                  <svg
+                    viewBox={`0 0 760 ${histogramLayout.histogramViewHeight}`}
+                    preserveAspectRatio="none"
+                    className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+                  >
+                    {/* Grid lines */}
+                    {histogramLayout.yAxisTicks.map((tick, i) => (
+                      <line
+                        key={`grid-${i}`}
+                        x1="0"
+                        y1={tick.y}
+                        x2="760"
+                        y2={tick.y}
+                        className="stroke-slate-100 stroke-[1]"
+                      />
+                    ))}
+
+                    {/* Bars */}
+                    {histogramMinutes.map((value, index) => {
+                      const x =
+                        index *
+                        (histogramLayout.barWidth + histogramLayout.barGap)
+                      const barHeight =
+                        (value / histogramLayout.maxValue) *
+                        histogramLayout.histogramHeight
+                      const y = histogramLayout.histogramViewHeight - barHeight
+                      const isHovered = hoveredBucketIndex === index
+
+                      return (
+                        <rect
+                          key={`bar-${index}`}
+                          x={x}
+                          y={y}
+                          width={histogramLayout.barWidth}
+                          height={barHeight}
+                          fill={getBarColor(index, histogramLayout.barCount)}
+                          className={cn(
+                            'transition-opacity cursor-crosshair',
+                            hoveredBucketIndex !== null && !isHovered
+                              ? 'opacity-40'
+                              : 'opacity-100'
+                          )}
+                          onMouseMove={() => setHoveredBucketIndex(index)}
+                          onMouseLeave={() => setHoveredBucketIndex(null)}
+                        />
+                      )
+                    })}
+
+                    {/* Hover Tooltip */}
+                    {hoveredBucketIndex !== null &&
+                      (() => {
+                        const value = histogramMinutes[hoveredBucketIndex]
+                        const totalMinutes = histogramMinutes.reduce(
+                          (a, b) => a + b,
+                          0
+                        )
+                        const percentage =
+                          totalMinutes > 0 ? (value / totalMinutes) * 100 : 0
+                        const powerRange = `${hoveredBucketIndex * 25}-${
+                          (hoveredBucketIndex + 1) * 25
+                        }W`
+
+                        // Tooltip positioning
+                        const tooltipWidth = 140
+                        const tooltipHeight = 60
+                        let tooltipX =
+                          hoveredBucketIndex *
+                            (histogramLayout.barWidth +
+                              histogramLayout.barGap) +
+                          histogramLayout.barWidth / 2 -
+                          tooltipWidth / 2
+                        // Keep within bounds
+                        tooltipX = Math.max(
+                          0,
+                          Math.min(760 - tooltipWidth, tooltipX)
+                        )
+                        const tooltipY = Math.max(
+                          0,
+                          histogramLayout.histogramViewHeight -
+                            (value / histogramLayout.maxValue) *
+                              histogramLayout.histogramHeight -
+                            tooltipHeight -
+                            10
+                        )
+
+                        return (
+                          <g
+                            transform={`translate(${tooltipX}, ${tooltipY})`}
+                            className="pointer-events-none"
+                          >
+                            <rect
+                              width={tooltipWidth}
+                              height={tooltipHeight}
+                              rx="4"
+                              className="fill-slate-900/90"
+                            />
+                            <text
+                              x={tooltipWidth / 2}
+                              y="20"
+                              textAnchor="middle"
+                              className="fill-white text-[11px] font-bold"
+                            >
+                              {powerRange}
+                            </text>
+                            <text
+                              x={tooltipWidth / 2}
+                              y="38"
+                              textAnchor="middle"
+                              className="fill-slate-300 text-[11px]"
+                            >
+                              {formatDuration(Math.round(value * 60))} (
+                              {percentage.toFixed(1)}%)
+                            </text>
+                          </g>
+                        )
+                      })()}
+
+                    {/* Weighted Average Line */}
+                    <line
+                      x1={histogramLayout.weightedAvgX}
+                      y1={histogramLayout.histogramTopPadding}
+                      x2={histogramLayout.weightedAvgX}
+                      y2={histogramLayout.histogramViewHeight}
+                      stroke="#a65e92"
+                      strokeWidth="1.5"
+                      strokeDasharray="4,4"
+                    />
+                    <text
+                      x={Math.min(
+                        Math.max(histogramLayout.weightedAvgX, 80),
+                        680
+                      )}
+                      y={histogramLayout.histogramTopPadding - 6}
+                      textAnchor="middle"
+                      fill="#a65e92"
+                      fontSize="12"
+                      className="font-medium"
+                    >
+                      Average Power {histogramLayout.weightedAvgPowerValue} W
+                    </text>
+                  </svg>
+
+                  {/* X-Axis labels */}
+                  <div className="mt-2 flex text-[11px] text-slate-400 border-t border-slate-200 pt-2 relative h-6">
+                    {histogramMinutes.map((_, index) => {
+                      // Show label at start of bucket, only every 50W (index % 2 === 0)
+                      if (index % 2 !== 0) return null
+
+                      const leftPercent =
+                        (index / histogramLayout.barCount) * 100
+                      return (
+                        <span
+                          key={`label-${index}`}
+                          className="absolute"
+                          style={{ left: `${leftPercent}%` }}
+                        >
+                          {index * 25} W
+                        </span>
+                      )
+                    })}
+                    {/* Final label at the end */}
+                    <span className="absolute right-0 text-right">
+                      {histogramLayout.barCount * 25} W
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   )
