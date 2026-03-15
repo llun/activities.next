@@ -1141,8 +1141,8 @@ export const FitnessStatusDetail: FC<Props> = ({
   const shouldRenderMapPanel =
     !!mapAttachment ||
     fitness?.hasMapData ||
-    isRouteDataLoading ||
-    routeSegments.length > 0
+    (shouldLoadInteractiveMap &&
+      (isRouteDataLoading || routeSegments.length > 0))
 
   const mediaWithoutMap = status.attachments.filter(
     (_, index) => index !== mapAttachmentIndex
@@ -1157,7 +1157,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     setSpeedSeries([])
     setRouteDataError(null)
 
-    if (!shouldLoadInteractiveMap || !fitness?.id) {
+    if (!fitness?.id) {
       setIsRouteDataLoading(false)
       return
     }
@@ -1225,7 +1225,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     return () => {
       cancelled = true
     }
-  }, [fitness?.id, shouldLoadInteractiveMap])
+  }, [fitness?.id])
 
   useEffect(() => {
     if (activeSection !== 'analysis') {
@@ -1394,9 +1394,11 @@ export const FitnessStatusDetail: FC<Props> = ({
                 </button>
               </li>
             ))}
-          <li className="flex items-center px-2" aria-hidden="true">
-            <span className="h-4 w-px bg-border" />
-          </li>
+          {navItems.some((item) => item.group === 'subscription') && (
+            <li className="flex items-center px-2" aria-hidden="true">
+              <span className="h-4 w-px bg-border" />
+            </li>
+          )}
           {navItems
             .filter((item) => item.group === 'subscription')
             .map((item) => (
@@ -1585,68 +1587,72 @@ export const FitnessStatusDetail: FC<Props> = ({
             </div>
 
             {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'elevation') && (
-              <ChartPanel
-                title="Elevation profile"
-                unit="m"
-                values={activitySeries.elevation}
-                colorClassName="stroke-slate-400"
-                minLabel={elevationMin.toFixed(0)}
-                maxLabel={elevationMax.toFixed(0)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            )}
+              analysisGraphFilter === 'elevation') &&
+              activitySeries.elevation.length > 0 && (
+                <ChartPanel
+                  title="Elevation profile"
+                  unit="m"
+                  values={activitySeries.elevation}
+                  colorClassName="stroke-slate-400"
+                  minLabel={elevationMin.toFixed(0)}
+                  maxLabel={elevationMax.toFixed(0)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
 
             {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'speed') && (
-              <ChartPanel
-                title="Speed"
-                unit="km/h"
-                values={activitySeries.speed}
-                colorClassName="stroke-sky-500"
-                minLabel={speedMin.toFixed(1)}
-                maxLabel={speedMax.toFixed(1)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            )}
+              analysisGraphFilter === 'speed') &&
+              activitySeries.speed.length > 0 && (
+                <ChartPanel
+                  title="Speed"
+                  unit="km/h"
+                  values={activitySeries.speed}
+                  colorClassName="stroke-sky-500"
+                  minLabel={speedMin.toFixed(1)}
+                  maxLabel={speedMax.toFixed(1)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
 
             {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'power') && (
-              <ChartPanel
-                title="Power"
-                unit="w"
-                values={activitySeries.power}
-                colorClassName="stroke-violet-500"
-                minLabel={powerMin.toFixed(0)}
-                maxLabel={powerMax.toFixed(0)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            )}
+              analysisGraphFilter === 'power') &&
+              activitySeries.power.length > 0 && (
+                <ChartPanel
+                  title="Power"
+                  unit="w"
+                  values={activitySeries.power}
+                  colorClassName="stroke-violet-500"
+                  minLabel={powerMin.toFixed(0)}
+                  maxLabel={powerMax.toFixed(0)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
 
             {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'heart-rate') && (
-              <ChartPanel
-                title="Heart rate"
-                unit="bpm"
-                values={activitySeries.heartRate}
-                colorClassName="stroke-rose-500"
-                minLabel={heartRateMin.toFixed(0)}
-                maxLabel={heartRateMax.toFixed(0)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            )}
+              analysisGraphFilter === 'heart-rate') &&
+              activitySeries.heartRate.length > 0 && (
+                <ChartPanel
+                  title="Heart rate"
+                  unit="bpm"
+                  values={activitySeries.heartRate}
+                  colorClassName="stroke-rose-500"
+                  minLabel={heartRateMin.toFixed(0)}
+                  maxLabel={heartRateMax.toFixed(0)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
           </div>
         </div>
 
