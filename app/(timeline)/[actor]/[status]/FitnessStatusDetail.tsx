@@ -1443,26 +1443,25 @@ export const FitnessStatusDetail: FC<Props> = ({
                   {statusTitle}
                 </h2>
                 {fitnessFiles.length > 1 && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <div className="mt-3 flex items-center gap-2">
+                    <label
+                      htmlFor="activity-file-select"
+                      className="text-xs font-medium uppercase tracking-wide text-slate-500"
+                    >
                       Activity File
-                    </span>
-                    {fitnessFiles.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => setSelectedFitnessFileId(item.id)}
-                        className={cn(
-                          'max-w-[150px] truncate rounded-full border px-3 py-1 text-xs font-medium transition-colors sm:max-w-xs',
-                          selectedFitnessFileId === item.id
-                            ? 'border-orange-500 bg-orange-50 text-orange-700'
-                            : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
-                        )}
-                        title={item.fileName}
-                      >
-                        {item.fileName}
-                      </button>
-                    ))}
+                    </label>
+                    <select
+                      id="activity-file-select"
+                      value={selectedFitnessFileId ?? ''}
+                      onChange={(e) => setSelectedFitnessFileId(e.target.value)}
+                      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    >
+                      {fitnessFiles.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.fileName}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
               </div>
