@@ -379,6 +379,12 @@ async function importStravaArchive(args = process.argv.slice(2)) {
       )
     }
 
+    console.log('\n=== Import complete ===')
+    console.log(`Activities saved:    ${savedCount}`)
+    console.log(`Activities failed:   ${failedCount}`)
+    console.log(`Archive ID:          ${archiveId}`)
+    console.log(`Batch ID:            ${batchId}`)
+
     return failedCount > 0 ? 1 : 0
   } finally {
     archiveReader?.close()
