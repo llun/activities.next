@@ -12,6 +12,7 @@
  */
 import { loadEnvConfig } from '@next/env'
 import { z } from 'zod'
+import { getDatabase } from '@/lib/database'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
@@ -74,9 +75,19 @@ async function importStravaArchive(args = process.argv.slice(2)) {
     return 1
   }
 
-  console.log(`Importing Strava archive: ${input.archivePath}`)
-  console.log(`Actor: ${input.actorId}`)
-  console.log(`Visibility: ${input.visibility}`)
+  const database = getDatabase()
+  if (!database) {
+    console.error('Error: Database is not available. Check your env configuration.')
+    return 1
+  }
+
+  const actor = await database.getActorFromId({ id: input.actorId })
+  if (!actor) {
+    console.error(`Error: Actor not found: ${input.actorId}`)
+    return 1
+  }
+
+  console.log(`Actor resolved: ${actor.username}@${actor.domain}`)
 
   return 0
 }
