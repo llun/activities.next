@@ -1148,14 +1148,15 @@ export const FitnessStatusDetail: FC<Props> = ({
   )
 
   useEffect(() => {
+    setRouteSamples([])
+    setRouteSegments([])
+    setPowerSeries([])
+    setHeartRateSeries([])
+    setAltitudeSeries([])
+    setSpeedSeries([])
+    setRouteDataError(null)
+
     if (!shouldLoadInteractiveMap || !fitness?.id) {
-      setRouteSamples([])
-      setRouteSegments([])
-      setPowerSeries([])
-      setHeartRateSeries([])
-      setAltitudeSeries([])
-      setSpeedSeries([])
-      setRouteDataError(null)
       setIsRouteDataLoading(false)
       return
     }
@@ -1165,7 +1166,6 @@ export const FitnessStatusDetail: FC<Props> = ({
     const loadRouteSamples = async () => {
       try {
         setIsRouteDataLoading(true)
-        setRouteDataError(null)
 
         const response = await fetch(
           `/api/v1/fitness-files/${fitness.id}/route-data`,
