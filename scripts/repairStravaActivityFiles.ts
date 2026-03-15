@@ -267,7 +267,7 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
         await rawDb('fitness_files').where('id', file.id).update({
           fileType: newFileType,
           mimeType: contentType,
-          updatedAt: Date.now()
+          updatedAt: new Date()
         })
         console.log(
           `    ✓ Upgraded ${file.fileType.toUpperCase()} → ${newFileType.toUpperCase()} (${body.length} bytes)`
