@@ -453,6 +453,13 @@ export interface StravaStreamSet {
   time?: StravaStream<number>
   altitude?: StravaStream<number>
   distance?: StravaStream<number>
+  heartrate?: StravaStream<number>
+  watts?: StravaStream<number>
+  velocity_smooth?: StravaStream<number>
+  cadence?: StravaStream<number>
+  temp?: StravaStream<number>
+  moving?: StravaStream<boolean>
+  grade_smooth?: StravaStream<number>
 }
 
 export const getStravaActivityStreams = async ({
@@ -463,7 +470,7 @@ export const getStravaActivityStreams = async ({
   accessToken: string
 }): Promise<StravaStreamSet | null> => {
   const response = await fetch(
-    `${STRAVA_API_BASE}/activities/${encodeURIComponent(activityId)}/streams?keys=time,latlng,altitude,distance&key_by_type=true`,
+    `${STRAVA_API_BASE}/activities/${encodeURIComponent(activityId)}/streams?keys=time,latlng,altitude,distance,heartrate,watts,velocity_smooth,cadence,temp,moving,grade_smooth&key_by_type=true`,
     {
       method: 'GET',
       headers: getStravaAuthHeaders(accessToken)
@@ -520,6 +527,19 @@ export const buildGpxFromStravaStreams = (
         children += `<time>${timestamp}</time>`
       }
 
+      const extParts: string[] = []
+      const hr = streams.heartrate?.data[index]
+      if (typeof hr === 'number') extParts.push(`<gpxtpx:hr>${hr}</gpxtpx:hr>`)
+      const cad = streams.cadence?.data[index]
+      if (typeof cad === 'number') extParts.push(`<gpxtpx:cad>${cad}</gpxtpx:cad>`)
+      const speed = streams.velocity_smooth?.data[index]
+      if (typeof speed === 'number') extParts.push(`<gpxtpx:speed>${speed}</gpxtpx:speed>`)
+      const temp = streams.temp?.data[index]
+      if (typeof temp === 'number') extParts.push(`<gpxtpx:atemp>${temp}</gpxtpx:atemp>`)
+      if (extParts.length > 0) {
+        children += `<extensions><gpxtpx:TrackPointExtension>${extParts.join('')}</gpxtpx:TrackPointExtension></extensions>`
+      }
+
       return `<trkpt lat="${lat}" lon="${lon}">${children}</trkpt>`
     })
     .join('')
@@ -527,7 +547,7 @@ export const buildGpxFromStravaStreams = (
   const name = escapeXml(activity.name?.trim() ?? '')
   const sportType = escapeXml(activity.sport_type?.trim() ?? '')
 
-  return `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="activities.next" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>${name}</name><type>${sportType}</type><trkseg>${trkpts}</trkseg></trk></gpx>`
+  return `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="activities.next" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1"><trk><name>${name}</name><type>${sportType}</type><trkseg>${trkpts}</trkseg></trk></gpx>`
 }
 
 export const buildTcxFromStravaStreams = (
@@ -565,16 +585,47 @@ export const buildTcxFromStravaStreams = (
     startMs !== null &&
     Number.isFinite(startMs)
   ) {
+    const latlngData = streams?.latlng?.data
     const altitudeData = streams?.altitude?.data
+    const heartrateData = streams?.heartrate?.data
+    const wattsData = streams?.watts?.data
+    const velocityData = streams?.velocity_smooth?.data
+    const cadenceData = streams?.cadence?.data
     const trackpoints = timeData
       .map((timeOffset, index) => {
         const timestamp = new Date(startMs + timeOffset * 1000).toISOString()
+        let tp = `<Time>${timestamp}</Time>`
+
+        const latlng = latlngData?.[index]
+        if (latlng) {
+          tp += `<Position><LatitudeDegrees>${latlng[0]}</LatitudeDegrees><LongitudeDegrees>${latlng[1]}</LongitudeDegrees></Position>`
+        }
+
         const altitude = altitudeData?.[index]
-        const altitudeElem =
-          typeof altitude === 'number'
-            ? `<AltitudeMeters>${altitude}</AltitudeMeters>`
-            : ''
-        return `<Trackpoint><Time>${timestamp}</Time>${altitudeElem}</Trackpoint>`
+        if (typeof altitude === 'number') {
+          tp += `<AltitudeMeters>${altitude}</AltitudeMeters>`
+        }
+
+        const hr = heartrateData?.[index]
+        if (typeof hr === 'number') {
+          tp += `<HeartRateBpm><Value>${hr}</Value></HeartRateBpm>`
+        }
+
+        const cad = cadenceData?.[index]
+        if (typeof cad === 'number') {
+          tp += `<Cadence>${cad}</Cadence>`
+        }
+
+        const extParts: string[] = []
+        const speed = velocityData?.[index]
+        if (typeof speed === 'number') extParts.push(`<ns3:Speed>${speed}</ns3:Speed>`)
+        const watts = wattsData?.[index]
+        if (typeof watts === 'number') extParts.push(`<ns3:Watts>${watts}</ns3:Watts>`)
+        if (extParts.length > 0) {
+          tp += `<Extensions><ns3:TPX xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2">${extParts.join('')}</ns3:TPX></Extensions>`
+        }
+
+        return `<Trackpoint>${tp}</Trackpoint>`
       })
       .join('')
     trackContent = `<Track>${trackpoints}</Track>`

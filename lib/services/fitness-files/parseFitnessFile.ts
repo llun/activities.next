@@ -479,18 +479,15 @@ const parseGpx = (buffer: Buffer): FitnessActivityData => {
         return null
       }
 
+      const tpx = (point.extensions?.['gpxtpx:TrackPointExtension'] as any)
       return {
         lat,
         lng,
         altitudeMeters: toNumber(point.ele),
         altitude: toNumber(point.ele),
         timestamp: toDate(point.time),
-        heartRate: toNumber(
-          (point.extensions?.['gpxtpx:TrackPointExtension'] as any)?.[
-            'gpxtpx:hr'
-          ]
-        ),
-        speed: toNumber(point.speed) // some GPX have speed directly
+        heartRate: toNumber(tpx?.['gpxtpx:hr']),
+        speed: toNumber(tpx?.['gpxtpx:speed']) ?? toNumber(point.speed)
       }
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)
