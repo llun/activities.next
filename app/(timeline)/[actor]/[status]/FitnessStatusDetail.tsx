@@ -1019,6 +1019,9 @@ export const FitnessStatusDetail: FC<Props> = ({
   const [selectedFitnessFileId, setSelectedFitnessFileId] = useState<
     string | null
   >(defaultFitnessFiles[0]?.id ?? null)
+  const [hoveredBucketIndex, setHoveredBucketIndex] = useState<number | null>(
+    null
+  )
   const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
   const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
   const [powerSeries, setPowerSeries] = useState<number[]>([])
@@ -1586,6 +1589,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                         const x = index * (barWidth + barGap)
                         const barHeight = (value / maxValue) * histogramHeight
                         const y = GRAPH_VIEW_HEIGHT - barHeight
+                        const isHovered = hoveredBucketIndex === index
 
                         return (
                           <rect
@@ -1595,9 +1599,52 @@ export const FitnessStatusDetail: FC<Props> = ({
                             width={barWidth}
                             height={barHeight}
                             fill={getBarColor(index, barCount)}
+                            className={cn(
+                              'transition-opacity cursor-crosshair',
+                              hoveredBucketIndex !== null && !isHovered
+                                ? 'opacity-40'
+                                : 'opacity-100'
+                            )}
+                            onMouseMove={() => setHoveredBucketIndex(index)}
+                            onMouseLeave={() => setHoveredBucketIndex(null)}
                           />
                         )
                       })}
+
+                      {/* Hover Tooltip */}
+                      {hoveredBucketIndex !== null && (
+                        (() => {
+                          const value = histogramMinutes[hoveredBucketIndex]
+                          const totalMinutes = histogramMinutes.reduce((a, b) => a + b, 0)
+                          const percentage = totalMinutes > 0 ? (value / totalMinutes) * 100 : 0
+                          const powerRange = `${hoveredBucketIndex * 25}-${(hoveredBucketIndex + 1) * 25}W`
+                          
+                          // Tooltip positioning
+                          const tooltipWidth = 140
+                          const tooltipHeight = 60
+                          let tooltipX = hoveredBucketIndex * (barWidth + barGap) + barWidth / 2 - tooltipWidth / 2
+                          // Keep within bounds
+                          tooltipX = Math.max(0, Math.min(760 - tooltipWidth, tooltipX))
+                          const tooltipY = Math.max(0, GRAPH_VIEW_HEIGHT - (value / maxValue) * histogramHeight - tooltipHeight - 10)
+
+                          return (
+                            <g transform={`translate(${tooltipX}, ${tooltipY})`} className="pointer-events-none">
+                              <rect
+                                width={tooltipWidth}
+                                height={tooltipHeight}
+                                rx="4"
+                                className="fill-slate-900/90"
+                              />
+                              <text x={tooltipWidth / 2} y="20" textAnchor="middle" className="fill-white text-[11px] font-bold">
+                                {powerRange}
+                              </text>
+                              <text x={tooltipWidth / 2} y="38" textAnchor="middle" className="fill-slate-300 text-[11px]">
+                                {formatDuration(Math.round(value * 60))} ({percentage.toFixed(1)}%)
+                              </text>
+                            </g>
+                          )
+                        })()
+                      )}
 
                       {/* Weighted Average Line */}
                       <line
