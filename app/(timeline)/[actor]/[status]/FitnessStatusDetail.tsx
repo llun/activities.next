@@ -1113,9 +1113,6 @@ export const FitnessStatusDetail: FC<Props> = ({
   const shouldLoadInteractiveMap = Boolean(mapboxAccessToken && fitness?.id)
   const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
   const statusTitle = status.text.trim() || `${activityLabel} workout`
-  const statusDescription =
-    fitness?.description ||
-    'Strava-inspired activity view generated from your uploaded file.'
   const activityDate = formatUtcDate(
     status.createdAt,
     'p \u2022 EEEE, MMMM d, yyyy'
@@ -1305,35 +1302,19 @@ export const FitnessStatusDetail: FC<Props> = ({
         {activeSection === 'overview' && (
           <div className="space-y-6 p-4 sm:p-6">
             <div className="grid gap-6">
-              {(mapAttachment ||
-                isRouteDataLoading ||
-                routeSegments.length > 0 ||
-                routeDataError) && (
-                <ActivityMapPanel
-                  mapAttachment={mapAttachment}
-                  routeSamples={routeSamples}
-                  routeSegments={routeSegments}
-                  mapboxAccessToken={mapboxAccessToken}
-                  routeDataError={routeDataError}
-                  isRouteDataLoading={isRouteDataLoading}
-                  onOpenMap={() => {
-                    if (mapAttachmentIndex >= 0) {
-                      onShowAttachment(status.attachments, mapAttachmentIndex)
-                    }
-                  }}
-                />
-              )}
-
-              <div className="rounded-sm border border-slate-300 bg-white p-5">
-                <h3 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
-                  Overview
-                </h3>
-                <p className="mt-2 text-sm text-slate-600">{statusDescription}</p>
-                <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                  Flyby and other-athlete sections are intentionally hidden on
-                  this page.
-                </div>
-              </div>
+              <ActivityMapPanel
+                mapAttachment={mapAttachment}
+                routeSamples={routeSamples}
+                routeSegments={routeSegments}
+                mapboxAccessToken={mapboxAccessToken}
+                routeDataError={routeDataError}
+                isRouteDataLoading={isRouteDataLoading}
+                onOpenMap={() => {
+                  if (mapAttachmentIndex >= 0) {
+                    onShowAttachment(status.attachments, mapAttachmentIndex)
+                  }
+                }}
+              />
             </div>
 
             <div className="space-y-3">
@@ -1384,26 +1365,21 @@ export const FitnessStatusDetail: FC<Props> = ({
               </p>
             </div>
 
-            {(mapAttachment ||
-              isRouteDataLoading ||
-              routeSegments.length > 0 ||
-              routeDataError) && (
-              <ActivityMapPanel
-                mapAttachment={mapAttachment}
-                routeSamples={routeSamples}
-                routeSegments={routeSegments}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                mapboxAccessToken={mapboxAccessToken}
-                routeDataError={routeDataError}
-                isRouteDataLoading={isRouteDataLoading}
-                compact
-                onOpenMap={() => {
-                  if (mapAttachmentIndex >= 0) {
-                    onShowAttachment(status.attachments, mapAttachmentIndex)
-                  }
-                }}
-              />
-            )}
+            <ActivityMapPanel
+              mapAttachment={mapAttachment}
+              routeSamples={routeSamples}
+              routeSegments={routeSegments}
+              highlightedElapsedSeconds={highlightedElapsedSeconds}
+              mapboxAccessToken={mapboxAccessToken}
+              routeDataError={routeDataError}
+              isRouteDataLoading={isRouteDataLoading}
+              compact
+              onOpenMap={() => {
+                if (mapAttachmentIndex >= 0) {
+                  onShowAttachment(status.attachments, mapAttachmentIndex)
+                }
+              }}
+            />
 
             {analysisGraphFilter === 'all' || analysisGraphFilter === 'elevation' ? (
               <ChartPanel
