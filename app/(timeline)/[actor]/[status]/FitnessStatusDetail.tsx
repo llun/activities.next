@@ -1491,6 +1491,21 @@ export const FitnessStatusDetail: FC<Props> = ({
           )}
         </div>
 
+        <ActivityMapPanel
+          mapAttachment={mapAttachment}
+          routeSamples={routeSamples}
+          routeSegments={routeSegments}
+          highlightedElapsedSeconds={highlightedElapsedSeconds}
+          mapboxAccessToken={mapboxAccessToken}
+          routeDataError={routeDataError}
+          isRouteDataLoading={isRouteDataLoading}
+          onOpenMap={() => {
+            if (mapAttachmentIndex >= 0) {
+              onShowAttachment(status.attachments, mapAttachmentIndex)
+            }
+          }}
+        />
+
         <div
           id="panel-overview"
           role="tabpanel"
@@ -1502,22 +1517,6 @@ export const FitnessStatusDetail: FC<Props> = ({
           )}
         >
           <div className="space-y-6 p-4 sm:p-6">
-            <div className="grid gap-6">
-              <ActivityMapPanel
-                mapAttachment={mapAttachment}
-                routeSamples={routeSamples}
-                routeSegments={routeSegments}
-                mapboxAccessToken={mapboxAccessToken}
-                routeDataError={routeDataError}
-                isRouteDataLoading={isRouteDataLoading}
-                onOpenMap={() => {
-                  if (mapAttachmentIndex >= 0) {
-                    onShowAttachment(status.attachments, mapAttachmentIndex)
-                  }
-                }}
-              />
-            </div>
-
             <div className="space-y-3">
               <h3 className="text-lg font-semibold text-slate-900">Media</h3>
               <ActivityGallery
@@ -1545,50 +1544,35 @@ export const FitnessStatusDetail: FC<Props> = ({
             activeSection !== 'analysis' && 'hidden'
           )}
         >
-            <ActivityMapPanel
-              mapAttachment={mapAttachment}
-              routeSamples={routeSamples}
-              routeSegments={routeSegments}
-              highlightedElapsedSeconds={highlightedElapsedSeconds}
-              mapboxAccessToken={mapboxAccessToken}
-              routeDataError={routeDataError}
-              isRouteDataLoading={isRouteDataLoading}
-              onOpenMap={() => {
-                if (mapAttachmentIndex >= 0) {
-                  onShowAttachment(status.attachments, mapAttachmentIndex)
-                }
-              }}
-            />
-
-            <div className="space-y-4 p-4 sm:p-6">
-              <div className="rounded-lg border bg-white p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Graph display
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {ANALYSIS_GRAPH_OPTIONS.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={analysisGraphFilter === option.id}
-                      onClick={() => setAnalysisGraphFilter(option.id)}
-                      className={cn(
-                        'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                        analysisGraphFilter === option.id
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
-                          : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-2 text-xs text-slate-500">
-                  {highlightedElapsedLabel
-                    ? `Selected time: ${highlightedElapsedLabel}`
-                    : 'Hover any graph below to follow that time point on the map.'}
-                </p>
+          <div className="space-y-4 p-4 sm:p-6">
+            <div className="rounded-lg border bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Graph display
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {ANALYSIS_GRAPH_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={analysisGraphFilter === option.id}
+                    onClick={() => setAnalysisGraphFilter(option.id)}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                      analysisGraphFilter === option.id
+                        ? 'border-orange-500 bg-orange-50 text-orange-700'
+                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
+              <p className="mt-2 text-xs text-slate-500">
+                {highlightedElapsedLabel
+                  ? `Selected time: ${highlightedElapsedLabel}`
+                  : 'Hover any graph below to follow that time point on the map.'}
+              </p>
+            </div>
 
               {(analysisGraphFilter === 'all' ||
                 analysisGraphFilter === 'elevation') && (
