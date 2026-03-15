@@ -58,7 +58,7 @@ interface Props {
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
 }
 
-type SectionKey = 'overview' | 'analysis' | 'power-curve' | '25w-distribution'
+type SectionKey = 'overview' | 'analysis' | '25w-distribution'
 
 type AnalysisGraphKey = 'elevation' | 'speed' | 'power' | 'heart-rate'
 type AnalysisGraphFilter = 'all' | AnalysisGraphKey
@@ -189,7 +189,6 @@ interface MapboxModule {
 const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'analysis', label: 'Analysis' },
-  { id: 'power-curve', label: 'Power Curve', group: 'subscription' },
   { id: '25w-distribution', label: '25 W Distribution', group: 'subscription' }
 ]
 
@@ -1458,62 +1457,6 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
         )}
 
-        {activeSection === 'power-curve' && (
-          <div className="space-y-4 p-4 sm:p-6">
-            <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
-              Power Curve
-            </h3>
-            <div className="rounded-sm border border-slate-300 bg-white p-4">
-              <div className="mb-2 flex items-end justify-between">
-                <p className="text-sm font-medium text-slate-700">
-                  Power (watts)
-                </p>
-                <p className="text-xs text-slate-500">
-                  Scale {powerMin.toFixed(0)} w - {powerMax.toFixed(0)} w
-                </p>
-              </div>
-              <div className="grid grid-cols-[auto_1fr] items-stretch gap-2">
-                <div
-                  className={cn(
-                    'flex flex-col justify-between text-[11px] text-slate-500',
-                    GRAPH_HEIGHT_CLASSNAME
-                  )}
-                >
-                  <span>{powerMax.toFixed(0)} w</span>
-                  <span>{powerMin.toFixed(0)} w</span>
-                </div>
-                <div className="min-w-0">
-                  <svg
-                    viewBox={`0 0 760 ${GRAPH_VIEW_HEIGHT}`}
-                    preserveAspectRatio="none"
-                    className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
-                  >
-                    <path
-                      d={buildChartPath(
-                        activitySeries.power,
-                        760,
-                        GRAPH_VIEW_HEIGHT,
-                        powerMin,
-                        powerMax
-                      )}
-                      className="stroke-violet-600 stroke-[3]"
-                      fill="none"
-                    />
-                  </svg>
-                  <div className="mt-2 flex justify-between text-[11px] text-slate-500">
-                    {buildXAxisLabels(
-                      activitySeries.power.length,
-                      durationSeconds
-                    ).map((label, i) => (
-                      <span key={i}>{label}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {activeSection === '25w-distribution' && (() => {
           const histogramViewHeight = GRAPH_VIEW_HEIGHT
           const histogramTopPadding = 24 // More padding for the average power label
@@ -1705,9 +1648,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   const navItems = useMemo(() => {
     const items = [...NAV_ITEMS]
     if (powerSeries.length === 0) {
-      return items.filter(
-        (item) => item.id !== 'power-curve' && item.id !== '25w-distribution'
-      )
+      return items.filter((item) => item.id !== '25w-distribution')
     }
     return items
   }, [powerSeries])
