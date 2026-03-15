@@ -1545,36 +1545,6 @@ export const FitnessStatusDetail: FC<Props> = ({
             activeSection !== 'analysis' && 'hidden'
           )}
         >
-          <div className="space-y-4 p-4 sm:p-6">
-            <div className="rounded-lg border bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Graph display
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {ANALYSIS_GRAPH_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    aria-pressed={analysisGraphFilter === option.id}
-                    onClick={() => setAnalysisGraphFilter(option.id)}
-                    className={cn(
-                      'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                      analysisGraphFilter === option.id
-                        ? 'border-orange-500 bg-orange-50 text-orange-700'
-                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-slate-500">
-                {highlightedElapsedLabel
-                  ? `Selected time: ${highlightedElapsedLabel}`
-                  : 'Hover any graph below to follow that time point on the map.'}
-              </p>
-            </div>
-
             <ActivityMapPanel
               mapAttachment={mapAttachment}
               routeSamples={routeSamples}
@@ -1583,7 +1553,6 @@ export const FitnessStatusDetail: FC<Props> = ({
               mapboxAccessToken={mapboxAccessToken}
               routeDataError={routeDataError}
               isRouteDataLoading={isRouteDataLoading}
-              compact
               onOpenMap={() => {
                 if (mapAttachmentIndex >= 0) {
                   onShowAttachment(status.attachments, mapAttachmentIndex)
@@ -1591,70 +1560,100 @@ export const FitnessStatusDetail: FC<Props> = ({
               }}
             />
 
-            {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'elevation') && (
-              <ChartPanel
-                title="Elevation profile"
-                unit="m"
-                values={activitySeries.elevation}
-                colorClassName="stroke-slate-400"
-                minLabel={elevationMin.toFixed(0)}
-                maxLabel={elevationMax.toFixed(0)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            )}
+            <div className="space-y-4 p-4 sm:p-6">
+              <div className="rounded-lg border bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Graph display
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {ANALYSIS_GRAPH_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={analysisGraphFilter === option.id}
+                      onClick={() => setAnalysisGraphFilter(option.id)}
+                      className={cn(
+                        'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                        analysisGraphFilter === option.id
+                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {highlightedElapsedLabel
+                    ? `Selected time: ${highlightedElapsedLabel}`
+                    : 'Hover any graph below to follow that time point on the map.'}
+                </p>
+              </div>
 
-            {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'speed') && (
-              <ChartPanel
-                title="Speed"
-                unit="km/h"
-                values={activitySeries.speed}
-                colorClassName="stroke-sky-500"
-                minLabel={speedMin.toFixed(1)}
-                maxLabel={speedMax.toFixed(1)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            )}
+              {(analysisGraphFilter === 'all' ||
+                analysisGraphFilter === 'elevation') && (
+                <ChartPanel
+                  title="Elevation profile"
+                  unit="m"
+                  values={activitySeries.elevation}
+                  colorClassName="stroke-slate-400"
+                  minLabel={elevationMin.toFixed(0)}
+                  maxLabel={elevationMax.toFixed(0)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
 
-            {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'power') && (
-              <ChartPanel
-                title="Power"
-                unit="w"
-                values={activitySeries.power}
-                colorClassName="stroke-violet-500"
-                minLabel={powerMin.toFixed(0)}
-                maxLabel={powerMax.toFixed(0)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            )}
+              {(analysisGraphFilter === 'all' ||
+                analysisGraphFilter === 'speed') && (
+                <ChartPanel
+                  title="Speed"
+                  unit="km/h"
+                  values={activitySeries.speed}
+                  colorClassName="stroke-sky-500"
+                  minLabel={speedMin.toFixed(1)}
+                  maxLabel={speedMax.toFixed(1)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
 
-            {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'heart-rate') && (
-              <ChartPanel
-                title="Heart rate"
-                unit="bpm"
-                values={activitySeries.heartRate}
-                colorClassName="stroke-rose-500"
-                minLabel={heartRateMin.toFixed(0)}
-                maxLabel={heartRateMax.toFixed(0)}
-                durationSeconds={durationSeconds}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                showHoverMessage={analysisGraphFilter !== 'all'}
-              />
-            )}
-          </div>
+              {(analysisGraphFilter === 'all' ||
+                analysisGraphFilter === 'power') && (
+                <ChartPanel
+                  title="Power"
+                  unit="w"
+                  values={activitySeries.power}
+                  colorClassName="stroke-violet-500"
+                  minLabel={powerMin.toFixed(0)}
+                  maxLabel={powerMax.toFixed(0)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
+
+              {(analysisGraphFilter === 'all' ||
+                analysisGraphFilter === 'heart-rate') && (
+                <ChartPanel
+                  title="Heart rate"
+                  unit="bpm"
+                  values={activitySeries.heartRate}
+                  colorClassName="stroke-rose-500"
+                  minLabel={heartRateMin.toFixed(0)}
+                  maxLabel={heartRateMax.toFixed(0)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
+            </div>
         </div>
 
         <div
