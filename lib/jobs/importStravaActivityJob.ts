@@ -11,6 +11,7 @@ import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import {
   IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+  REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
@@ -617,5 +618,18 @@ export const importStravaActivityJob = createJobHandle(
       accessToken,
       activity
     })
+
+    if (!importedFitnessFile.hasMapData) {
+      await getQueue().publish({
+        id: getHashFromString(
+          `${importedFitnessFile.statusId}:${importedFitnessFile.id}:regenerate-map`
+        ),
+        name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+        data: {
+          actorId,
+          fitnessFileIds: [importedFitnessFile.id]
+        }
+      })
+    }
   }
 )
