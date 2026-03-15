@@ -27,11 +27,9 @@ export const Header: FC<Props> = ({ isFitnessDashboard = false }) => {
         <h1 className="text-lg font-semibold">
           {isFitnessDashboard ? 'Activity' : 'Post'}
         </h1>
-        <p className="text-xs text-muted-foreground">
-          {isFitnessDashboard
-            ? 'Strava-inspired activity detail'
-            : 'Conversation thread'}
-        </p>
+        {!isFitnessDashboard && (
+          <p className="text-xs text-muted-foreground">Conversation thread</p>
+        )}
       </div>
     </div>
   )
