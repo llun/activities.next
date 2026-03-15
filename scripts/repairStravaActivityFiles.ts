@@ -242,8 +242,14 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
       successCount += 1
     } catch (error) {
       const nodeError = error as Error
-      console.error(`    ✗ Failed: ${nodeError.message}`)
-      failureCount += 1
+      // 404 means the activity was deleted from Strava after import — skip gracefully
+      if (nodeError.message.includes('(404)')) {
+        console.log(`    ⚠ Activity deleted from Strava, skipping`)
+        skipCount += 1
+      } else {
+        console.error(`    ✗ Failed: ${nodeError.message}`)
+        failureCount += 1
+      }
     }
   }
 
