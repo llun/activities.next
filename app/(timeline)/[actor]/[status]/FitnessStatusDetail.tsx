@@ -2,7 +2,7 @@
 
 import { UTCDate } from '@date-fns/utc'
 import { format } from 'date-fns'
-import { Bike, Play, Plus } from 'lucide-react'
+import { Bike, Footprints, Play, Plus, Waves } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { VisibilityButton } from '@/lib/components/posts/actions/visibility-button'
@@ -18,6 +18,52 @@ import {
 } from '@/lib/utils/fitness'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 
+const getActivityIcon = (activityType?: string) => {
+  const normalized = activityType?.toLowerCase() ?? ''
+  if (normalized.includes('ride') || normalized.includes('bike')) {
+    return <Bike className="size-5" />
+  }
+  if (
+    normalized.includes('run') ||
+    normalized.includes('walk') ||
+    normalized.includes('hike')
+  ) {
+    return <Footprints className="size-5" />
+  }
+  if (normalized.includes('swim')) {
+    return <Waves className="size-5" />
+  }
+  return <Bike className="size-5" />
+}
+
+const getActivityLabel = (activityType?: string) => {
+  if (!activityType) return 'Activity'
+
+  const normalized = activityType.toLowerCase()
+  if (normalized.includes('ride') || normalized.includes('bike')) {
+    return 'Ride'
+  }
+  if (normalized.includes('run')) return 'Run'
+  if (normalized.includes('walk') || normalized.includes('hike')) return 'Walk'
+  if (normalized.includes('swim')) return 'Swim'
+
+  return `${activityType[0].toUpperCase()}${activityType.slice(1)}`
+}
+
+const downsampleSeries = (series: number[], targetCount: number) => {
+  if (series.length <= targetCount) return series
+  const ratio = series.length / targetCount
+  const result: number[] = []
+  for (let i = 0; i < targetCount; i++) {
+    const start = Math.floor(i * ratio)
+    const end = Math.floor((i + 1) * ratio)
+    const chunk = series.slice(start, end)
+    const sum = chunk.reduce((a, b) => a + b, 0)
+    result.push(sum / chunk.length)
+  }
+  return result
+}
+
 interface Props {
   host: string
   mapboxAccessToken?: string
@@ -26,14 +72,7 @@ interface Props {
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
 }
 
-type SectionKey =
-  | 'overview'
-  | 'analysis'
-  | 'heart-rate'
-  | 'power-curve'
-  | '25w-distribution'
-  | 'best-efforts'
-  | 'matched-activities'
+type SectionKey = 'overview' | 'analysis' | 'power-curve' | '25w-distribution'
 
 type AnalysisGraphKey = 'elevation' | 'speed' | 'power' | 'heart-rate'
 type AnalysisGraphFilter = 'all' | AnalysisGraphKey
@@ -158,11 +197,8 @@ interface MapboxModule {
 const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'analysis', label: 'Analysis' },
-  { id: 'heart-rate', label: 'Heart Rate', group: 'subscription' },
   { id: 'power-curve', label: 'Power Curve', group: 'subscription' },
-  { id: '25w-distribution', label: '25 W Distribution', group: 'subscription' },
-  { id: 'best-efforts', label: 'Best Efforts' },
-  { id: 'matched-activities', label: 'Matched Activities' }
+  { id: '25w-distribution', label: '25 W Distribution', group: 'subscription' }
 ]
 
 const ANALYSIS_GRAPH_OPTIONS: Array<{
@@ -951,20 +987,6 @@ const MetricCard: FC<{ label: string; value: string; highlight?: boolean }> = ({
   )
 }
 
-const downsampleSeries = (series: number[], targetCount: number) => {
-  if (series.length <= targetCount) return series
-  const ratio = series.length / targetCount
-  const result: number[] = []
-  for (let i = 0; i < targetCount; i++) {
-    const start = Math.floor(i * ratio)
-    const end = Math.floor((i + 1) * ratio)
-    const chunk = series.slice(start, end)
-    const sum = chunk.reduce((a, b) => a + b, 0)
-    result.push(sum / chunk.length)
-  }
-  return result
-}
-
 export const FitnessStatusDetail: FC<Props> = ({
   mapboxAccessToken,
   currentActor,
@@ -974,7 +996,6 @@ export const FitnessStatusDetail: FC<Props> = ({
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
   const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
   const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
-  const [powerSeries, setPowerSeries] = useState<number[]>([])
   const [routeDataError, setRouteDataError] = useState<string | null>(null)
   const [isRouteDataLoading, setIsRouteDataLoading] = useState(false)
   const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
@@ -1026,9 +1047,14 @@ export const FitnessStatusDetail: FC<Props> = ({
   const [selectedFitnessFileId, setSelectedFitnessFileId] = useState<
     string | null
   >(defaultFitnessFiles[0]?.id ?? null)
-  const [hoveredBucketIndex, setHoveredBucketIndex] = useState<number | null>(
-    null
-  )
+  const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
+  const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
+  const [powerSeries, setPowerSeries] = useState<number[]>([])
+  const [routeDataError, setRouteDataError] = useState<string | null>(null)
+  const [isRouteDataLoading, setIsRouteDataLoading] = useState(false)
+  const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
+    number | null
+  >(null)
 
   useEffect(() => {
     setFitnessFiles(defaultFitnessFiles)
@@ -1221,34 +1247,23 @@ export const FitnessStatusDetail: FC<Props> = ({
   const durationSeconds = fitness?.totalDurationSeconds ?? 0
   const elevationGainMeters = fitness?.elevationGainMeters ?? 0
 
+  const avgPower = useMemo(() => {
+    if (powerSeries.length === 0) return null
+    return Math.round(
+      powerSeries.reduce((a, b) => a + b, 0) / powerSeries.length
+    )
+  }, [powerSeries])
+
+  const totalWorkKj = useMemo(() => {
+    if (!avgPower || durationSeconds <= 0) return null
+    return Math.round((avgPower * durationSeconds) / 1000)
+  }, [avgPower, durationSeconds])
+
   const speedKmh =
     paceOrSpeed?.speedKmh ??
     (distanceMeters > 0 && durationSeconds > 0
       ? distanceMeters / 1000 / (durationSeconds / 3600)
       : 0)
-
-  const relativeEffort = Math.max(
-    1,
-    Math.min(
-      300,
-      Math.round(
-        durationSeconds / 50 + elevationGainMeters / 12 + speedKmh * 1.4
-      )
-    )
-  )
-
-  const weightedAvgPower = Math.max(
-    70,
-    Math.round(speedKmh * 3 + relativeEffort * 0.55)
-  )
-  const totalWorkKj = Math.round(
-    (weightedAvgPower * Math.max(0, durationSeconds)) / 1000
-  )
-  const trainingLoad = Math.max(5, Math.round(relativeEffort * 0.48))
-  const intensity = Math.max(
-    15,
-    Math.min(100, Math.round((weightedAvgPower / 250) * 100))
-  )
 
   const seededSeries = useMemo(() => {
     const next = createSeededGenerator(status.id)
@@ -1261,11 +1276,9 @@ export const FitnessStatusDetail: FC<Props> = ({
       })
     }
 
-    const heartRate = lineSeries(120, 120 + intensity * 0.35, 18)
+    const heartRate = lineSeries(120, 140, 18)
     const power =
-      powerSeries.length > 0
-        ? downsampleSeries(powerSeries, 120)
-        : lineSeries(120, weightedAvgPower, 42)
+      powerSeries.length > 0 ? downsampleSeries(powerSeries, 120) : []
     const speed = lineSeries(120, Math.max(12, speedKmh), 4)
     const elevation = lineSeries(120, 12 + elevationGainMeters / 30, 7)
 
@@ -1275,14 +1288,7 @@ export const FitnessStatusDetail: FC<Props> = ({
       speed,
       elevation
     }
-  }, [
-    elevationGainMeters,
-    intensity,
-    speedKmh,
-    status.id,
-    weightedAvgPower,
-    powerSeries
-  ])
+  }, [elevationGainMeters, speedKmh, status.id, powerSeries])
   const { minValue: elevationMin, maxValue: elevationMax } = useMemo(
     () => getSeriesMinMax(seededSeries.elevation),
     [seededSeries.elevation]
@@ -1304,103 +1310,22 @@ export const FitnessStatusDetail: FC<Props> = ({
       ? formatDuration(Math.round(highlightedElapsedSeconds))
       : null
   const histogramMinutes = useMemo(() => {
-    const maxPower = Math.max(...powerSeries, ...seededSeries.power, 100)
+    if (powerSeries.length === 0) return []
+
+    const maxPower = Math.max(...powerSeries, 100)
     const bucketCount = Math.ceil((maxPower + 25) / 25)
 
-    if (powerSeries.length > 0) {
-      const buckets = new Array(bucketCount).fill(0)
-      // Actual power data represents samples (usually 1 per second)
-      for (const p of powerSeries) {
-        const bucketIndex = Math.floor(p / 25)
-        if (bucketIndex >= 0 && bucketIndex < bucketCount) {
-          buckets[bucketIndex] += 1
-        }
+    const buckets = new Array(bucketCount).fill(0)
+    // Actual power data represents samples (usually 1 per second)
+    for (const p of powerSeries) {
+      const bucketIndex = Math.floor(p / 25)
+      if (bucketIndex >= 0 && bucketIndex < bucketCount) {
+        buckets[bucketIndex] += 1
       }
-      // Convert samples (seconds) to minutes
-      return buckets.map((seconds) => seconds / 60)
     }
-
-    const next = createSeededGenerator(status.id + '-histogram')
-    // Use a normal distribution centered around weightedAvgPower
-    const mean = weightedAvgPower
-    const sigma = weightedAvgPower * 0.12 // Even tighter standard deviation
-
-    const histogramData = Array.from({ length: bucketCount }, (_, index) => {
-      const bucketPower = index * 25
-      // Gaussian function: e^(-(x-mean)^2 / (2*sigma^2))
-      const exponent =
-        -Math.pow(bucketPower - mean, 2) / (2 * Math.pow(sigma, 2))
-      let peak = Math.exp(exponent)
-
-      // Penalize high power intensities much faster
-      if (bucketPower > mean) {
-        // Sharper drop-off for higher power
-        peak *= Math.pow(0.7, (bucketPower - mean) / 25)
-      } else if (bucketPower < mean) {
-        // Also drop off for very low power (coasting/stopped is handled separately in real data)
-        peak *= Math.pow(0.9, (mean - bucketPower) / 25)
-      }
-
-      const noise = 0.7 + next() * 0.3
-      return Math.max(0.01, peak * noise)
-    })
-
-    const totalMinutes = Math.max(1, durationSeconds / 60)
-    const totalWeight = Math.max(
-      1,
-      histogramData.reduce((sum, value) => sum + value, 0)
-    )
-
-    return histogramData.map((value) => (value / totalWeight) * totalMinutes)
-  }, [
-    durationSeconds,
-    seededSeries.power,
-    status.id,
-    weightedAvgPower,
-    powerSeries
-  ])
-
-  const heartRateZones = useMemo(() => {
-    const base = [0.02, 0.26, 0.52, 0.17, 0.03]
-    const total = Math.max(1, durationSeconds)
-
-    return base.map((ratio, index) => {
-      const seconds = Math.round(total * ratio)
-      const percentage = Number((ratio * 100).toFixed(1))
-      return {
-        zone: `Z${index + 1}`,
-        seconds,
-        percentage
-      }
-    })
-  }, [durationSeconds])
-
-  const bestEfforts = useMemo(() => {
-    const intervals = [5, 15, 30, 60, 120, 180, 300, 480, 600]
-    return intervals.map((seconds, index) => {
-      const dropOff = 1 - index * 0.08
-      const effortPower = Math.max(
-        90,
-        Math.round(weightedAvgPower * (2.3 * dropOff))
-      )
-      const effortHeartRate = Math.round(
-        122 + index * 3 + (intensity / 100) * 20
-      )
-      const effortElevation = Math.max(
-        0,
-        Math.round((elevationGainMeters / 180) * (index + 1))
-      )
-
-      return {
-        label:
-          seconds < 60 ? `${seconds} sec` : `${Math.round(seconds / 60)} min`,
-        power: effortPower,
-        powerKg: (effortPower / 56).toFixed(2),
-        heartRate: effortHeartRate,
-        elevation: effortElevation
-      }
-    })
-  }, [elevationGainMeters, intensity, weightedAvgPower])
+    // Convert samples (seconds) to minutes
+    return buckets.map((seconds) => seconds / 60)
+  }, [powerSeries])
 
   const sectionContent = () => {
     return (
@@ -1576,49 +1501,6 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
         )}
 
-        {activeSection === 'heart-rate' && (
-          <div className="space-y-4 p-4 sm:p-6">
-            <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
-              Heart Rate Analysis
-            </h3>
-            <div className="overflow-x-auto rounded-sm border border-slate-300">
-              <table className="w-full min-w-[600px] bg-white text-left text-sm">
-                <thead className="bg-slate-100 text-slate-700">
-                  <tr>
-                    <th className="px-4 py-3">Zone</th>
-                    <th className="px-4 py-3">Time</th>
-                    <th className="px-4 py-3">Percent</th>
-                    <th className="px-4 py-3">Distribution</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {heartRateZones.map((zone) => (
-                    <tr key={zone.zone} className="border-t">
-                      <td className="px-4 py-3 font-medium text-slate-800">
-                        {zone.zone}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">
-                        {formatDuration(zone.seconds)}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">
-                        {zone.percentage}%
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="h-8 w-full bg-slate-100">
-                          <div
-                            className="h-full bg-rose-300"
-                            style={{ width: `${Math.max(zone.percentage, 1)}%` }}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {activeSection === 'power-curve' && (
           <div className="space-y-4 p-4 sm:p-6">
             <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
@@ -1697,24 +1579,16 @@ export const FitnessStatusDetail: FC<Props> = ({
             return `rgb(${r}, ${g}, ${b})`
           }
 
+          // Calculate weighted average line position
+          const weightedAvgPowerValue = avgPower ?? 0
+          const weightedAvgX = (weightedAvgPowerValue / 25) * (barWidth + barGap)
+
           // Y-axis grid lines (4 intervals)
           const yAxisTicks = Array.from({ length: 5 }, (_, i) => {
             const valueMinutes = (maxValue / 4) * i
             const y = histogramViewHeight - (valueMinutes / maxValue) * histogramHeight
             return { y, label: valueMinutes === 0 ? '0s' : formatDuration(Math.round(valueMinutes * 60)) }
           })
-
-          const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-            const svg = e.currentTarget
-            const rect = svg.getBoundingClientRect()
-            const x = ((e.clientX - rect.left) / rect.width) * 760
-            const index = Math.floor(x / (barWidth + barGap))
-            if (index >= 0 && index < barCount) {
-              setHoveredBucketIndex(index)
-            } else {
-              setHoveredBucketIndex(null)
-            }
-          }
 
           return (
             <div className="space-y-4 p-4 sm:p-6">
@@ -1739,9 +1613,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                     <svg
                       viewBox={`0 0 760 ${GRAPH_VIEW_HEIGHT}`}
                       preserveAspectRatio="none"
-                      className={cn('w-full cursor-crosshair', GRAPH_HEIGHT_CLASSNAME)}
-                      onMouseMove={handleMouseMove}
-                      onMouseLeave={() => setHoveredBucketIndex(null)}
+                      className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
                     >
                       {/* Grid lines */}
                       {yAxisTicks.map((tick, i) => (
@@ -1769,40 +1641,31 @@ export const FitnessStatusDetail: FC<Props> = ({
                             width={barWidth}
                             height={barHeight}
                             fill={getBarColor(index, barCount)}
-                            className={cn(
-                              'transition-opacity',
-                              hoveredBucketIndex !== null && hoveredBucketIndex !== index ? 'opacity-40' : 'opacity-100'
-                            )}
                           />
                         )
                       })}
-                    </svg>
 
-                    {/* Tooltip */}
-                    {hoveredBucketIndex !== null && (() => {
-                      const valueMinutes = histogramMinutes[hoveredBucketIndex]
-                      const totalSeconds = Math.round(valueMinutes * 60)
-                      const timeStr = totalSeconds < 60 ? `${totalSeconds}s` : formatDuration(totalSeconds)
-                      const percentage = ((valueMinutes / (durationSeconds / 60)) * 100).toFixed(1)
-                      
-                      return (
-                        <div 
-                          className="absolute z-10 bg-white border border-slate-300 shadow-md rounded-none p-2 pointer-events-none text-[11px] leading-relaxed"
-                          style={{
-                            left: `${((hoveredBucketIndex + 0.5) / barCount) * 100}%`,
-                            bottom: '30%',
-                            transform: 'translateX(-50%)'
-                          }}
-                        >
-                          <p className="text-slate-900">
-                            Range: {hoveredBucketIndex * 25}-{hoveredBucketIndex * 25 + 24} W
-                          </p>
-                          <p className="text-slate-900">
-                            Time Spent: {timeStr} ({percentage}%)
-                          </p>
-                        </div>
-                      )
-                    })()}
+                      {/* Weighted Average Line */}
+                      <line
+                        x1={weightedAvgX}
+                        y1={histogramTopPadding}
+                        x2={weightedAvgX}
+                        y2={GRAPH_VIEW_HEIGHT}
+                        stroke="#a65e92"
+                        strokeWidth="1.5"
+                        strokeDasharray="4,4"
+                      />
+                      <text
+                        x={Math.min(Math.max(weightedAvgX, 80), 680)}
+                        y={histogramTopPadding - 6}
+                        textAnchor="middle"
+                        fill="#a65e92"
+                        fontSize="12"
+                        className="font-medium"
+                      >
+                        Weighted Avg Power {weightedAvgPowerValue} W
+                      </text>
+                    </svg>
                     
                     {/* X-Axis labels */}
                     <div className="mt-2 flex text-[11px] text-slate-400 border-t border-slate-200 pt-2 relative h-6">
@@ -1834,112 +1697,30 @@ export const FitnessStatusDetail: FC<Props> = ({
             </div>
           )
         })()}
-
-        {activeSection === 'best-efforts' && (
-          <div className="space-y-4 p-4 sm:p-6">
-            <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
-              Best Efforts
-            </h3>
-            <div className="overflow-x-auto rounded-sm border border-slate-300 bg-white">
-              <table className="w-full min-w-[600px] text-left text-sm">
-                <thead className="bg-slate-100 text-slate-700">
-                  <tr>
-                    <th className="px-4 py-3">Time</th>
-                    <th className="px-4 py-3">Power</th>
-                    <th className="px-4 py-3">W/kg</th>
-                    <th className="px-4 py-3">Heart Rate</th>
-                    <th className="px-4 py-3">Elev</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bestEfforts.map((effort) => (
-                    <tr key={effort.label} className="border-t">
-                      <td className="px-4 py-3 font-medium text-slate-800">
-                        {effort.label}
-                      </td>
-                      <td className="px-4 py-3">{effort.power} w</td>
-                      <td className="px-4 py-3">{effort.powerKg}</td>
-                      <td className="px-4 py-3">{effort.heartRate} bpm</td>
-                      <td className="px-4 py-3">{effort.elevation} m</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {activeSection === 'matched-activities' && (
-          <div className="space-y-4 p-4 sm:p-6">
-            <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
-              Matched Rides
-            </h3>
-            <p className="text-sm text-slate-500">
-              Only your activities are shown here. Flyby and other-athlete
-              comparisons are excluded.
-            </p>
-
-            <div className="overflow-x-auto rounded-sm border border-slate-300 bg-white">
-              <table className="w-full min-w-[600px] text-left text-sm">
-                <thead className="bg-slate-100 text-slate-700">
-                  <tr>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Activity</th>
-                    <th className="px-4 py-3">Speed</th>
-                    <th className="px-4 py-3">Moving Time</th>
-                    <th className="px-4 py-3">Relative Effort</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-t bg-orange-50/50">
-                    <td className="px-4 py-3">
-                      {formatUtcDate(status.createdAt, 'M/d/yy')}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      {statusTitle}
-                    </td>
-                    <td className="px-4 py-3">{speedKmh.toFixed(1)} km/h</td>
-                    <td className="px-4 py-3">{formatDuration(durationSeconds)}</td>
-                    <td className="px-4 py-3">{relativeEffort}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
       </div>
     )
   }
 
+  const navItems = useMemo(() => {
+    const items = [...NAV_ITEMS]
+    if (powerSeries.length === 0) {
+      return items.filter(
+        (item) => item.id !== 'power-curve' && item.id !== '25w-distribution'
+      )
+    }
+    return items
+  }, [powerSeries])
+
   return (
     <div>
-      <nav className="overflow-x-auto border-b border-border bg-[#f7f7f8]" aria-label="Activity sections">
+      <nav
+        className="overflow-x-auto border-b border-border bg-[#f7f7f8]"
+        aria-label="Activity sections"
+      >
         <ul className="flex min-w-max" role="tablist">
-          {NAV_ITEMS.filter((item) => !item.group).map((item) => (
-            <li key={item.id} role="presentation">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeSection === item.id}
-                aria-controls={`panel-${item.id}`}
-                id={`tab-${item.id}`}
-                onClick={() => setActiveSection(item.id)}
-                className={cn(
-                  'inline-block cursor-pointer whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500',
-                  activeSection === item.id
-                    ? 'border-b-2 border-primary text-primary'
-                    : 'border-b-2 border-transparent text-muted-foreground'
-                )}
-              >
-                {item.label}
-              </button>
-            </li>
-          ))}
-          <li className="flex items-center px-2" aria-hidden="true">
-            <span className="h-4 w-px bg-border" />
-          </li>
-          {NAV_ITEMS.filter((item) => item.group === 'subscription').map(
-            (item) => (
+          {navItems
+            .filter((item) => !item.group)
+            .map((item) => (
               <li key={item.id} role="presentation">
                 <button
                   type="button"
@@ -1958,8 +1739,32 @@ export const FitnessStatusDetail: FC<Props> = ({
                   {item.label}
                 </button>
               </li>
-            )
-          )}
+            ))}
+          <li className="flex items-center px-2" aria-hidden="true">
+            <span className="h-4 w-px bg-border" />
+          </li>
+          {navItems
+            .filter((item) => item.group === 'subscription')
+            .map((item) => (
+              <li key={item.id} role="presentation">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeSection === item.id}
+                  aria-controls={`panel-${item.id}`}
+                  id={`tab-${item.id}`}
+                  onClick={() => setActiveSection(item.id)}
+                  className={cn(
+                    'inline-block cursor-pointer whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500',
+                    activeSection === item.id
+                      ? 'border-b-2 border-primary text-primary'
+                      : 'border-b-2 border-transparent text-muted-foreground'
+                  )}
+                >
+                  {item.label}
+                </button>
+              </li>
+            ))}
         </ul>
       </nav>
 
@@ -1968,14 +1773,22 @@ export const FitnessStatusDetail: FC<Props> = ({
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex min-w-0 flex-1 items-start gap-3">
               <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-orange-100 text-orange-600">
-                <Bike className="size-5" />
+                {getActivityIcon(fitness?.activityType ?? undefined)}
               </span>
               <div className="min-w-0 flex-1">
-                <h1 className="truncate text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl md:text-4xl" title={`${actorName} - ${activityLabel}`}>
+                <h1
+                  className="truncate text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl md:text-4xl"
+                  title={`${actorName} - ${activityLabel}`}
+                >
                   {actorName} - {activityLabel}
                 </h1>
-                <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">{activityDate}</p>
-                <h2 className="mt-2 truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl md:text-3xl" title={statusTitle}>
+                <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">
+                  {activityDate}
+                </p>
+                <h2
+                  className="mt-2 truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl md:text-3xl"
+                  title={statusTitle}
+                >
                   {statusTitle}
                 </h2>
                 {fitnessFiles.length > 1 && (
@@ -1989,7 +1802,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                         type="button"
                         onClick={() => setSelectedFitnessFileId(item.id)}
                         className={cn(
-                          'truncate max-w-[150px] sm:max-w-xs rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                          'max-w-[150px] truncate rounded-full border px-3 py-1 text-xs font-medium transition-colors sm:max-w-xs',
                           selectedFitnessFileId === item.id
                             ? 'border-orange-500 bg-orange-50 text-orange-700'
                             : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
@@ -2011,7 +1824,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-y-1 border-b border-slate-300 bg-[#f0f1f3] px-2 py-2 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-y-1 border-b border-slate-300 bg-[#f0f1f3] px-2 py-2 md:grid-cols-4 lg:grid-cols-6">
           <MetricCard label="Distance" value={formatDistance(distanceMeters)} />
           <MetricCard
             label="Moving Time"
@@ -2025,22 +1838,12 @@ export const FitnessStatusDetail: FC<Props> = ({
             label={paceOrSpeed?.label ?? 'Avg speed'}
             value={paceOrSpeed?.value ?? '0.0 km/h'}
           />
-          <MetricCard label="Total Work" value={`${totalWorkKj} kJ`} />
-          <MetricCard label="Weighted Avg" value={`${weightedAvgPower} w`} />
-          <MetricCard label="Training Load" value={`${trainingLoad}`} />
-          <MetricCard
-            label="Relative Effort"
-            value={`${relativeEffort}`}
-            highlight
-          />
-        </div>
-
-        <div className="flex flex-col gap-2 border-b border-slate-300 bg-[#f4f4f6] px-4 py-3 text-xs text-slate-600 sm:flex-row sm:items-center sm:px-6 sm:text-sm">
-          <span className="font-medium">Intensity {intensity}%</span>
-          <span className="hidden h-4 w-px bg-slate-300 sm:mx-3 sm:block" aria-hidden="true" />
-          <span className="text-slate-500 italic sm:not-italic">
-            Sensor-level charts are estimated from the uploaded file summary.
-          </span>
+          {avgPower !== null && (
+            <MetricCard label="Weighted Avg" value={`${avgPower} w`} />
+          )}
+          {totalWorkKj !== null && (
+            <MetricCard label="Total Work" value={`${totalWorkKj} kJ`} />
+          )}
         </div>
 
         {sectionContent()}
