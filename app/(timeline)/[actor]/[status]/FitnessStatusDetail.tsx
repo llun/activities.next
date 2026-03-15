@@ -953,14 +953,13 @@ const MetricCard: FC<{ label: string; value: string; highlight?: boolean }> = ({
     <div className="flex min-w-0 flex-col justify-center rounded-sm px-4 py-3">
       <p
         className={cn(
-          'text-2xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-3xl md:text-4xl',
+          'truncate whitespace-nowrap text-2xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-3xl md:text-4xl',
           highlight && 'text-orange-600'
         )}
-        style={{ wordBreak: 'break-word' }}
       >
         {numericValue}
       </p>
-      <p className="mt-1 text-xs font-medium text-slate-500 sm:text-sm">
+      <p className="mt-1 truncate whitespace-nowrap text-xs font-medium text-slate-500 sm:text-sm">
         {label}{unit ? ` (${unit})` : ''}
       </p>
     </div>
@@ -1789,7 +1788,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-y-1 border-b border-slate-300 bg-[#f0f1f3] px-2 py-2 md:grid-cols-4 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-y-1 border-b border-slate-300 bg-[#f0f1f3] px-2 py-2 sm:grid-cols-3">
           <MetricCard label="Distance" value={formatDistance(distanceMeters)} />
           <MetricCard
             label="Moving Time"
