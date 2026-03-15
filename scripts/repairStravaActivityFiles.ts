@@ -7,6 +7,9 @@
  * and overwrites the stored GPX/TCX files with enriched data (heartrate, power,
  * speed, cadence, temperature).
  *
+ * Activities that have been deleted from Strava (404) are cleaned up: their S3
+ * file, database record, and associated status post are all removed.
+ *
  * Usage:
  *   NODE_ENV=production scripts/repairStravaActivityFiles.ts \
  *     [--actor-id https://<host>/users/<username>] \
@@ -14,12 +17,16 @@
  *
  * Options:
  *   --actor-id  Limit repairs to a specific actor (optional, repairs all actors)
- *   --dry-run   Print what would be updated without modifying any files
+ *   --dry-run   Print what would be done without modifying anything
  *
  * Only S3/Object storage backends are supported.
  */
 import { loadEnvConfig } from '@next/env'
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectCommand,
+  PutObjectCommand,
+  S3Client
+} from '@aws-sdk/client-s3'
 import knex from 'knex'
 import { z } from 'zod'
 
@@ -81,6 +88,7 @@ const parseArgs = (args: string[]) => {
 type StravaFitnessFileRow = {
   id: string
   actorId: string
+  statusId: string | null
   path: string
   fileType: string
   importBatchId: string
@@ -132,7 +140,7 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
       .whereIn('fileType', ['gpx', 'tcx'])
       .orderBy('actorId', 'asc')
       .orderBy('createdAt', 'asc')
-      .select(['id', 'actorId', 'path', 'fileType', 'importBatchId'])
+      .select(['id', 'actorId', 'statusId', 'path', 'fileType', 'importBatchId'])
 
     if (input.actorId) {
       query = query.where('actorId', input.actorId)
@@ -146,14 +154,15 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
   const actorLabel = input.actorId ? ` for actor ${input.actorId}` : ''
   console.log(`Found ${files.length} Strava activity file(s) to repair${actorLabel}`)
   if (input.dryRun) {
-    console.log('Dry-run mode: no files will be modified')
+    console.log('Dry-run mode: no changes will be made')
   }
   console.log()
 
   // Cache valid access tokens per actor to avoid redundant DB lookups and token refreshes
   const accessTokenCache = new Map<string, string | null>()
 
-  let successCount = 0
+  let updatedCount = 0
+  let deletedCount = 0
   let skipCount = 0
   let failureCount = 0
 
@@ -223,7 +232,7 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
 
       if (input.dryRun) {
         console.log(`    ✓ Would overwrite (${body.length} bytes)`)
-        successCount += 1
+        updatedCount += 1
         continue
       }
 
@@ -239,15 +248,42 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
       )
 
       console.log(`    ✓ Overwritten (${body.length} bytes)`)
-      successCount += 1
+      updatedCount += 1
     } catch (error) {
       const nodeError = error as Error
-      // 404 means the activity was deleted from Strava after import — skip gracefully
-      if (nodeError.message.includes('(404)')) {
-        console.log(`    ⚠ Activity deleted from Strava, skipping`)
-        skipCount += 1
-      } else {
+      if (!nodeError.message.includes('(404)')) {
         console.error(`    ✗ Failed: ${nodeError.message}`)
+        failureCount += 1
+        continue
+      }
+
+      // Activity was deleted from Strava — clean up the S3 file, DB record, and status
+      const s3Key = prefix ? `${prefix}${file.path}` : file.path
+      const statusLabel = file.statusId ? ` + status ${file.statusId}` : ''
+
+      if (input.dryRun) {
+        console.log(
+          `    ✓ Would delete S3 file, fitness file record${statusLabel} (activity removed from Strava)`
+        )
+        deletedCount += 1
+        continue
+      }
+
+      try {
+        await s3Client.send(
+          new DeleteObjectCommand({ Bucket: bucket, Key: s3Key })
+        )
+        await database.deleteFitnessFile({ id: file.id })
+        if (file.statusId) {
+          await database.deleteStatus({ statusId: file.statusId })
+        }
+        console.log(
+          `    ✓ Deleted S3 file, fitness file record${statusLabel} (activity removed from Strava)`
+        )
+        deletedCount += 1
+      } catch (deleteError) {
+        const deleteNodeError = deleteError as Error
+        console.error(`    ✗ Cleanup failed: ${deleteNodeError.message}`)
         failureCount += 1
       }
     }
@@ -255,7 +291,7 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
 
   const dryRunLabel = input.dryRun ? ' (dry-run)' : ''
   console.log(
-    `\nDone${dryRunLabel}: ${successCount} updated, ${skipCount} skipped, ${failureCount} failed out of ${files.length} total`
+    `\nDone${dryRunLabel}: ${updatedCount} updated, ${deletedCount} deleted, ${skipCount} skipped, ${failureCount} failed out of ${files.length} total`
   )
   return failureCount > 0 ? 1 : 0
 }
