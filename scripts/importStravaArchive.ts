@@ -16,6 +16,12 @@ import path from 'path'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
+import {
+  IMPORT_FITNESS_FILES_JOB_NAME,
+  PROCESS_FITNESS_FILE_JOB_NAME
+} from '@/lib/jobs/names'
+import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { getStravaArchiveImportBatchId } from '@/lib/services/strava/archiveImport'
 import {
@@ -23,6 +29,7 @@ import {
   getArchiveMediaMimeType,
   toStravaArchiveFitnessFilePayload
 } from '@/lib/services/strava/archiveReader'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
@@ -176,7 +183,64 @@ async function importStravaArchive(args = process.argv.slice(2)) {
 
     console.log(`\nPhase 2 done: ${savedCount} saved, ${failedCount} failed`)
 
-    // Phases 3 & 4 will go here
+    // Phase 3: create statuses and process fitness files inline
+    if (savedFiles.length > 0) {
+      console.log('\nPhase 3: importing fitness files and creating statuses…')
+
+      const savedFileIds = savedFiles.map((f) => f.fitnessFileId)
+
+      await importFitnessFilesJob(database, {
+        id: getHashFromString(`script:import-fitness:${archiveId}`),
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          batchId,
+          fitnessFileIds: savedFileIds,
+          overlapFitnessFileIds: [],
+          visibility: input.visibility
+        }
+      })
+
+      // Find which fitness files got a statusId assigned (primary files only)
+      const updatedFiles = await database.getFitnessFilesByIds({
+        fitnessFileIds: savedFileIds
+      })
+
+      const primaryFilesWithStatus = updatedFiles.filter(
+        (f) => f.isPrimary && f.statusId
+      )
+
+      console.log(
+        `  Created ${primaryFilesWithStatus.length} status(es). Processing…`
+      )
+
+      let processedCount = 0
+      for (const fitnessFile of primaryFilesWithStatus) {
+        try {
+          await processFitnessFileJob(database, {
+            id: getHashFromString(`script:process:${fitnessFile.id}`),
+            name: PROCESS_FITNESS_FILE_JOB_NAME,
+            data: {
+              actorId: actor.id,
+              statusId: fitnessFile.statusId!,
+              fitnessFileId: fitnessFile.id,
+              publishSendNote: false
+            }
+          })
+          processedCount += 1
+        } catch (error) {
+          const nodeError = error as Error
+          console.warn(
+            `  ✗ Failed to process fitness file ${fitnessFile.id}: ${nodeError.message}`
+          )
+          failedCount += 1
+        }
+      }
+
+      console.log(`Phase 3 done: ${processedCount} status(es) processed`)
+    }
+
+    // Phase 4 will go here
 
     return failedCount > 0 ? 1 : 0
   } finally {
