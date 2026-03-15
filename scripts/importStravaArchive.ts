@@ -23,6 +23,7 @@ import {
 } from '@/lib/jobs/names'
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
+import { getQueue } from '@/lib/services/queue'
 import { getStravaArchiveImportBatchId } from '@/lib/services/strava/archiveImport'
 import {
   StravaArchiveReader,
@@ -189,17 +190,28 @@ async function importStravaArchive(args = process.argv.slice(2)) {
 
       const savedFileIds = savedFiles.map((f) => f.fitnessFileId)
 
-      await importFitnessFilesJob(database, {
-        id: getHashFromString(`script:import-fitness:${archiveId}`),
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: {
-          actorId: actor.id,
-          batchId,
-          fitnessFileIds: savedFileIds,
-          overlapFitnessFileIds: [],
-          visibility: input.visibility
-        }
-      })
+      // Stub queue.publish so importFitnessFilesJob's internal
+      // getQueue().publish(PROCESS_FITNESS_FILE_JOB_NAME) calls are no-ops.
+      // We call processFitnessFileJob directly below instead.
+      const queue = getQueue()
+      const originalPublish = queue.publish.bind(queue)
+      queue.publish = async () => {}
+
+      try {
+        await importFitnessFilesJob(database, {
+          id: getHashFromString(`script:import-fitness:${archiveId}`),
+          name: IMPORT_FITNESS_FILES_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            batchId,
+            fitnessFileIds: savedFileIds,
+            overlapFitnessFileIds: [],
+            visibility: input.visibility
+          }
+        })
+      } finally {
+        queue.publish = originalPublish
+      }
 
       // Find which fitness files got a statusId assigned (primary files only)
       const updatedFiles = await database.getFitnessFilesByIds({
@@ -215,6 +227,7 @@ async function importStravaArchive(args = process.argv.slice(2)) {
       )
 
       let processedCount = 0
+      let processFailedCount = 0
       for (const fitnessFile of primaryFilesWithStatus) {
         try {
           await processFitnessFileJob(database, {
@@ -230,14 +243,17 @@ async function importStravaArchive(args = process.argv.slice(2)) {
           processedCount += 1
         } catch (error) {
           const nodeError = error as Error
+          processFailedCount += 1
+          failedCount += 1
           console.warn(
             `  ✗ Failed to process fitness file ${fitnessFile.id}: ${nodeError.message}`
           )
-          failedCount += 1
         }
       }
 
-      console.log(`Phase 3 done: ${processedCount} status(es) processed`)
+      console.log(
+        `Phase 3 done: ${processedCount} processed, ${processFailedCount} failed`
+      )
     }
 
     // Phase 4 will go here
