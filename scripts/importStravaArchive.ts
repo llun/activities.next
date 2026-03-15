@@ -11,9 +11,18 @@
  * Set NODE_ENV=production to load .env.production; omit for dev env files.
  */
 import { loadEnvConfig } from '@next/env'
+import crypto from 'crypto'
+import path from 'path'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { saveFitnessFile } from '@/lib/services/fitness-files'
+import { getStravaArchiveImportBatchId } from '@/lib/services/strava/archiveImport'
+import {
+  StravaArchiveReader,
+  getArchiveMediaMimeType,
+  toStravaArchiveFitnessFilePayload
+} from '@/lib/services/strava/archiveReader'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
@@ -90,7 +99,89 @@ async function importStravaArchive(args = process.argv.slice(2)) {
 
   console.log(`Actor resolved: ${actor.username}@${actor.domain}`)
 
-  return 0
+  const archiveId = crypto.randomUUID()
+  const batchId = getStravaArchiveImportBatchId(archiveId)
+
+  const resolvedArchivePath = path.resolve(input.archivePath)
+  let archiveReader: StravaArchiveReader | null = null
+
+  try {
+    archiveReader = await StravaArchiveReader.open(resolvedArchivePath)
+    const archiveActivities = await archiveReader.getActivities()
+    const totalActivities = archiveActivities.length
+    console.log(`Found ${totalActivities} activities in archive`)
+
+    // Phase 2: save each activity's fitness file
+    const savedFiles: Array<{
+      fitnessFileId: string
+      mediaPaths: string[]
+      activityId: string
+      activityName?: string
+    }> = []
+
+    let savedCount = 0
+    let failedCount = 0
+
+    for (const activity of archiveActivities) {
+      try {
+        const fitnessBuffer = await archiveReader.readEntryBuffer(
+          activity.fitnessFilePath
+        )
+        if (!fitnessBuffer) {
+          throw new Error('Fitness activity file is missing from archive')
+        }
+
+        const fitnessPayload = toStravaArchiveFitnessFilePayload({
+          fitnessFilePath: activity.fitnessFilePath,
+          buffer: fitnessBuffer
+        })
+
+        const fitnessFile = new File(
+          [new Uint8Array(fitnessPayload.buffer)],
+          fitnessPayload.fileName,
+          { type: fitnessPayload.mimeType }
+        )
+
+        const savedFitnessFile = await saveFitnessFile(database, actor, {
+          file: fitnessFile,
+          importBatchId: batchId,
+          description: activity.activityDescription || activity.activityName
+        })
+
+        if (!savedFitnessFile) {
+          throw new Error(
+            'saveFitnessFile returned null — check storage config'
+          )
+        }
+
+        savedFiles.push({
+          fitnessFileId: savedFitnessFile.id,
+          mediaPaths: activity.mediaPaths,
+          activityId: activity.activityId,
+          activityName: activity.activityName
+        })
+
+        savedCount += 1
+        console.log(
+          `  [${savedCount + failedCount}/${totalActivities}] ✓ Saved activity ${activity.activityId}`
+        )
+      } catch (error) {
+        const nodeError = error as Error
+        failedCount += 1
+        console.warn(
+          `  [${savedCount + failedCount}/${totalActivities}] ✗ Failed activity ${activity.activityId}: ${nodeError.message}`
+        )
+      }
+    }
+
+    console.log(`\nPhase 2 done: ${savedCount} saved, ${failedCount} failed`)
+
+    // Phases 3 & 4 will go here
+
+    return failedCount > 0 ? 1 : 0
+  } finally {
+    archiveReader?.close()
+  }
 }
 
 if (require.main === module) {
