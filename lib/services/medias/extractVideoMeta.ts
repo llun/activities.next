@@ -25,11 +25,15 @@ export const extractVideoMeta = async (buffer: Buffer): Promise<FfprobeData> => 
       'pipe:0'
     ])
     let stdout = ''
+    let stderr = ''
     proc.stdout.on('data', (data: Buffer) => {
       stdout += data.toString()
     })
+    proc.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString()
+    })
     proc.on('close', (code) => {
-      if (code !== 0) return reject(new Error(`ffprobe exited with code ${code}`))
+      if (code !== 0) return reject(new Error(`ffprobe exited with code ${code}: ${stderr}`))
       try {
         resolve(JSON.parse(stdout))
       } catch (e) {
@@ -37,6 +41,7 @@ export const extractVideoMeta = async (buffer: Buffer): Promise<FfprobeData> => 
       }
     })
     proc.on('error', reject)
+    proc.stdin.on('error', reject)
     proc.stdin.write(buffer)
     proc.stdin.end()
   })
