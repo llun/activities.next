@@ -42,13 +42,15 @@ const Visibility = z.enum(['public', 'unlisted', 'private', 'direct'])
 const CliArgs = z.object({
   archivePath: z.string().min(1),
   actorId: z.string().min(1),
-  visibility: Visibility.default('private')
+  visibility: Visibility.default('private'),
+  skipToIndex: z.coerce.number().int().min(0).default(0)
 })
 
 const USAGE = `Usage: NODE_ENV=production scripts/importStravaArchive.ts \\
   --archive-path /path/to/export.zip \\
   --actor-id https://yourdomain.com/users/username \\
-  [--visibility public|unlisted|private|direct]`
+  [--visibility public|unlisted|private|direct] \\
+  [--skip-to-index N]`
 
 const parseArgs = (args: string[]) => {
   const parsedArgs: Record<string, string> = {}
@@ -75,8 +77,24 @@ const parseArgs = (args: string[]) => {
   return CliArgs.parse({
     archivePath: parsedArgs['archive-path'],
     actorId: parsedArgs['actor-id'],
-    visibility: parsedArgs['visibility']
+    visibility: parsedArgs['visibility'],
+    skipToIndex: parsedArgs['skip-to-index']
   })
+}
+
+const withTimeout = <T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> => {
+  let timer: NodeJS.Timeout
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Timed out after ${ms}ms: ${label}`)),
+      ms
+    )
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer!))
 }
 
 async function importStravaArchive(args = process.argv.slice(2)) {
@@ -133,7 +151,18 @@ async function importStravaArchive(args = process.argv.slice(2)) {
     let failedCount = 0
     let processFailedCount = 0
 
-    for (const activity of archiveActivities) {
+    const SAVE_TIMEOUT_MS = 30_000
+
+    const activitiesToProcess =
+      input.skipToIndex > 0
+        ? archiveActivities.slice(input.skipToIndex)
+        : archiveActivities
+
+    if (input.skipToIndex > 0) {
+      console.log(`Skipping first ${input.skipToIndex} activities (--skip-to-index)`)
+    }
+
+    for (const activity of activitiesToProcess) {
       try {
         const fitnessBuffer = await archiveReader.readEntryBuffer(
           activity.fitnessFilePath
@@ -153,11 +182,15 @@ async function importStravaArchive(args = process.argv.slice(2)) {
           { type: fitnessPayload.mimeType }
         )
 
-        const savedFitnessFile = await saveFitnessFile(database, actor, {
-          file: fitnessFile,
-          importBatchId: batchId,
-          description: activity.activityDescription || activity.activityName
-        })
+        const savedFitnessFile = await withTimeout(
+          saveFitnessFile(database, actor, {
+            file: fitnessFile,
+            importBatchId: batchId,
+            description: activity.activityDescription || activity.activityName
+          }),
+          SAVE_TIMEOUT_MS,
+          `saveFitnessFile(${activity.activityId})`
+        )
 
         if (!savedFitnessFile) {
           throw new Error(
