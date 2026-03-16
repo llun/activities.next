@@ -1,3 +1,4 @@
+import fs from 'fs/promises'
 import path from 'path'
 import { Readable } from 'stream'
 import yauzl from 'yauzl'
@@ -122,6 +123,52 @@ const readStreamToBuffer = async (stream: Readable): Promise<Buffer> => {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
   }
   return Buffer.concat(chunks)
+}
+
+// Read a ZIP entry that uses Stored (no compression) directly via fs.read,
+// bypassing yauzl's openReadStream which can hang on Stored entries in large
+// archives due to an fd-slicer read-queue issue.
+const readStoredEntryDirectly = async (
+  zipFilePath: string,
+  entry: yauzl.Entry
+): Promise<Buffer> => {
+  // Local file header layout (PKWARE spec section 4.3.7):
+  //   signature         4 bytes
+  //   version needed    2 bytes
+  //   general flags     2 bytes
+  //   compression       2 bytes
+  //   mod time          2 bytes
+  //   mod date          2 bytes
+  //   crc-32            4 bytes
+  //   compressed size   4 bytes
+  //   uncompressed size 4 bytes
+  //   filename length   2 bytes  (offset 26)
+  //   extra field len   2 bytes  (offset 28)
+  //   = 30 bytes fixed header
+  const fd = await fs.open(zipFilePath, 'r')
+  try {
+    const headerBuf = Buffer.allocUnsafe(30)
+    const headerResult = await fd.read(headerBuf, 0, 30, entry.relativeOffsetOfLocalHeader)
+    if (headerResult.bytesRead < 30) {
+      throw new Error(
+        `Short read on local file header for ${entry.fileName}: expected 30, got ${headerResult.bytesRead}`
+      )
+    }
+    const fileNameLength = headerBuf.readUInt16LE(26)
+    const extraFieldLength = headerBuf.readUInt16LE(28)
+    const dataOffset =
+      entry.relativeOffsetOfLocalHeader + 30 + fileNameLength + extraFieldLength
+    const dataBuf = Buffer.allocUnsafe(entry.compressedSize)
+    const dataResult = await fd.read(dataBuf, 0, entry.compressedSize, dataOffset)
+    if (dataResult.bytesRead < entry.compressedSize) {
+      throw new Error(
+        `Short read on entry data for ${entry.fileName}: expected ${entry.compressedSize}, got ${dataResult.bytesRead}`
+      )
+    }
+    return dataBuf
+  } finally {
+    await fd.close()
+  }
 }
 
 const parseCsvRows = (csvText: string): string[][] => {
@@ -267,16 +314,20 @@ export const toStravaArchiveFitnessFilePayload = ({
 }
 
 export class StravaArchiveReader {
+  private _filePath: string
   private _zipFile: yauzl.ZipFile
   private _entriesByPath: Map<string, yauzl.Entry>
 
   private constructor({
+    filePath,
     zipFile,
     entriesByPath
   }: {
+    filePath: string
     zipFile: yauzl.ZipFile
     entriesByPath: Map<string, yauzl.Entry>
   }) {
+    this._filePath = filePath
     this._zipFile = zipFile
     this._entriesByPath = entriesByPath
   }
@@ -285,6 +336,7 @@ export class StravaArchiveReader {
     const zipFile = await openZipFile(filePath)
     const entriesByPath = await indexZipEntries(zipFile)
     return new StravaArchiveReader({
+      filePath,
       zipFile,
       entriesByPath
     })
@@ -299,6 +351,13 @@ export class StravaArchiveReader {
     const entry = this._entriesByPath.get(normalizedPath)
     if (!entry || entry.fileName.endsWith('/')) {
       return null
+    }
+
+    // Stored entries (compressionMethod=0) can hang in yauzl's openReadStream
+    // due to an fd-slicer read-queue issue in large archives.  Read them
+    // directly via fs.read to bypass the problem entirely.
+    if (entry.compressionMethod === 0) {
+      return readStoredEntryDirectly(this._filePath, entry)
     }
 
     const entryStream = await openZipEntryStream(this._zipFile, entry)
