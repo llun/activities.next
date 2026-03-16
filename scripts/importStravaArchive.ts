@@ -358,17 +358,19 @@ async function importStravaArchive(args = process.argv.slice(2)) {
             if (!storedMedia) continue
 
             const ATTACHMENT_NAME_LIMIT = 150
-            const truncate = (name: string) =>
-              name.length <= ATTACHMENT_NAME_LIMIT
-                ? name
-                : name.slice(0, ATTACHMENT_NAME_LIMIT)
-
-            const baseName = truncate(path.basename(mediaPath))
-            let attachmentName = baseName
+            const originalName = path.basename(mediaPath)
+            let attachmentName =
+              originalName.length <= ATTACHMENT_NAME_LIMIT
+                ? originalName
+                : originalName.slice(0, ATTACHMENT_NAME_LIMIT)
             if (attachmentNames.has(attachmentName)) {
+              const ext = path.extname(originalName)
+              const stem = path.basename(originalName, ext)
               let resolved = false
               for (let suffix = 2; suffix <= 999; suffix += 1) {
-                const candidate = truncate(`${baseName} (${suffix})`)
+                const s = ` (${suffix})`
+                const maxStem = ATTACHMENT_NAME_LIMIT - ext.length - s.length
+                const candidate = `${stem.slice(0, maxStem)}${s}${ext}`
                 if (!attachmentNames.has(candidate)) {
                   attachmentName = candidate
                   resolved = true
@@ -376,9 +378,9 @@ async function importStravaArchive(args = process.argv.slice(2)) {
                 }
               }
               if (!resolved) {
-                attachmentName = truncate(
-                  `${baseName}-${Date.now().toString(36).slice(-4)}`
-                )
+                const s = `-${Date.now().toString(36).slice(-4)}`
+                const maxStem = ATTACHMENT_NAME_LIMIT - ext.length - s.length
+                attachmentName = `${stem.slice(0, maxStem)}${s}${ext}`
               }
             }
             attachmentNames.add(attachmentName)

@@ -148,13 +148,23 @@ const readStoredEntryDirectly = async (
   const fd = await fs.open(zipFilePath, 'r')
   try {
     const headerBuf = Buffer.allocUnsafe(30)
-    await fd.read(headerBuf, 0, 30, entry.relativeOffsetOfLocalHeader)
+    const headerResult = await fd.read(headerBuf, 0, 30, entry.relativeOffsetOfLocalHeader)
+    if (headerResult.bytesRead < 30) {
+      throw new Error(
+        `Short read on local file header for ${entry.fileName}: expected 30, got ${headerResult.bytesRead}`
+      )
+    }
     const fileNameLength = headerBuf.readUInt16LE(26)
     const extraFieldLength = headerBuf.readUInt16LE(28)
     const dataOffset =
       entry.relativeOffsetOfLocalHeader + 30 + fileNameLength + extraFieldLength
     const dataBuf = Buffer.allocUnsafe(entry.compressedSize)
-    await fd.read(dataBuf, 0, entry.compressedSize, dataOffset)
+    const dataResult = await fd.read(dataBuf, 0, entry.compressedSize, dataOffset)
+    if (dataResult.bytesRead < entry.compressedSize) {
+      throw new Error(
+        `Short read on entry data for ${entry.fileName}: expected ${entry.compressedSize}, got ${dataResult.bytesRead}`
+      )
+    }
     return dataBuf
   } finally {
     await fd.close()

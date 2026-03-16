@@ -91,6 +91,7 @@ async function resumeStravaProcessing(args = process.argv.slice(2)) {
 
   const pendingFiles = allFiles.filter(
     (f) =>
+      f.actorId === actor.id &&
       f.statusId &&
       f.isPrimary &&
       (f.processingStatus === 'pending' || f.processingStatus === 'processing')
