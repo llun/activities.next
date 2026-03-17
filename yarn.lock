@@ -138,9 +138,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-lambda@npm:^3.1009.0":
-  version: 3.1009.0
-  resolution: "@aws-sdk/client-lambda@npm:3.1009.0"
+"@aws-sdk/client-lambda@npm:^3.1011.0":
+  version: 3.1011.0
+  resolution: "@aws-sdk/client-lambda@npm:3.1011.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:5.2.0"
     "@aws-crypto/sha256-js": "npm:5.2.0"
@@ -186,7 +186,7 @@ __metadata:
     "@smithy/util-utf8": "npm:^4.2.2"
     "@smithy/util-waiter": "npm:^4.2.13"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/25b47477d320b80baed48632f99e45468ca80a106bb6c2c2fbaa718272c1b18fc2f1d1037a44bba0c756c50a285cf0976e6a53de773c548d5b752211637190cd
+  checksum: 10c0/0e9544f743f706ed2f7ae6b895ac84df0bb922bb65d0daefc95cceff7bb87e4b2db225ca58d2d9dbf78b8bd7e3a7ce64bbb0272ed7262ed9e256ff16e58599b3
   languageName: node
   linkType: hard
 
@@ -5285,7 +5285,7 @@ __metadata:
   resolution: "activities.next@workspace:."
   dependencies:
     "@auth/core": "npm:^0.41.1"
-    "@aws-sdk/client-lambda": "npm:^3.1009.0"
+    "@aws-sdk/client-lambda": "npm:^3.1011.0"
     "@aws-sdk/client-s3": "npm:^3.1009.0"
     "@aws-sdk/s3-presigned-post": "npm:^3.1011.0"
     "@aws-sdk/s3-request-presigner": "npm:3.1009.0"
