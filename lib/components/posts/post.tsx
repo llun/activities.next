@@ -11,17 +11,17 @@ import {
   formatFitnessElevation,
   getFitnessPaceOrSpeed
 } from '@/lib/utils/fitness'
+import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import {
   getActualStatus,
   processStatusText
 } from '@/lib/utils/text/processStatusText'
 
+import { BrandedDeviceLink } from './BrandedDeviceLink'
 import { Actions } from './actions/actions'
 import { ActorAvatar, ActorInfo } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
-import { BrandedDeviceLink } from './BrandedDeviceLink'
-import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { Poll } from './poll'
 
 export interface PostProps {

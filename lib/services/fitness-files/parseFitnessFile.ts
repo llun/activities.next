@@ -521,10 +521,9 @@ const parseGpx = (buffer: Buffer): FitnessActivityData => {
         return null
       }
 
-      const tpx = (point.extensions?.['gpxtpx:TrackPointExtension'] as any)
+      const tpx = point.extensions?.['gpxtpx:TrackPointExtension'] as any
       // gpxtpx:speed and point.speed are in m/s per the GPX spec; convert to km/h
-      const speedMs =
-        toNumber(tpx?.['gpxtpx:speed']) ?? toNumber(point.speed)
+      const speedMs = toNumber(tpx?.['gpxtpx:speed']) ?? toNumber(point.speed)
       return {
         lat,
         lng,
