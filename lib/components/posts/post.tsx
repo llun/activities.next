@@ -20,6 +20,8 @@ import {
 import { Actions } from './actions/actions'
 import { ActorAvatar, ActorInfo } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
+import { BrandedDeviceLink } from './BrandedDeviceLink'
+import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { Poll } from './poll'
 
 export interface PostProps {
@@ -189,6 +191,18 @@ export const Post: FC<PostProps> = (props) => {
                       <strong className="text-foreground">
                         {fitnessElevation}
                       </strong>
+                    </span>
+                  ) : null}
+                  {getDeviceDisplayLabel(
+                    fitnessFile.deviceName,
+                    fitnessFile.deviceManufacturer
+                  ) ? (
+                    <span className="text-muted-foreground">
+                      Via:{' '}
+                      <BrandedDeviceLink
+                        deviceName={fitnessFile.deviceName}
+                        deviceManufacturer={fitnessFile.deviceManufacturer}
+                      />
                     </span>
                   ) : null}
                 </div>

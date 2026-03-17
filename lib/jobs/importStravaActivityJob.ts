@@ -37,6 +37,7 @@ import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { Visibility } from '@/lib/types/mastodon/visibility'
+import { getManufacturerKeyFromDeviceName } from '@/lib/utils/fitnessDeviceBrands'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -546,12 +547,46 @@ export const importStravaActivityJob = createJobHandle(
         )
       }
 
+      if (activity.device_name) {
+        const manufacturerKey = getManufacturerKeyFromDeviceName(
+          activity.device_name
+        )
+        const deviceData = {
+          deviceName: activity.device_name,
+          ...(manufacturerKey !== undefined
+            ? { deviceManufacturer: manufacturerKey }
+            : {})
+        }
+        await database.updateFitnessFileActivityData(
+          storedFitnessFile.id,
+          deviceData
+        )
+      }
+
       targetFitnessFile = await database.getFitnessFile({
         id: storedFitnessFile.id
       })
       if (!targetFitnessFile) {
         throw new Error('Stored Strava fitness file was not found in database')
       }
+    } else if (activity.device_name && (!targetFitnessFile.deviceName || !targetFitnessFile.deviceManufacturer)) {
+      // Re-import: file already existed before this run, device name not yet stored
+      const manufacturerKey = getManufacturerKeyFromDeviceName(
+        activity.device_name
+      )
+      const deviceData = {
+        deviceName: activity.device_name,
+        ...(manufacturerKey !== undefined
+          ? { deviceManufacturer: manufacturerKey }
+          : {})
+      }
+      await database.updateFitnessFileActivityData(
+        targetFitnessFile.id,
+        deviceData
+      )
+      targetFitnessFile =
+        (await database.getFitnessFile({ id: targetFitnessFile.id })) ??
+        targetFitnessFile
     }
 
     if (!targetFitnessFile.statusId) {

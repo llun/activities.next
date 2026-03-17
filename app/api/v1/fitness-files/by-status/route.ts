@@ -96,7 +96,9 @@ export const GET = traceApiRoute(
             activityType: file.activityType ?? null,
             activityStartTime: file.activityStartTime ?? null,
             hasMapData: file.hasMapData ?? false,
-            description: file.description ?? null
+            description: file.description ?? null,
+            deviceManufacturer: file.deviceManufacturer ?? null,
+            deviceName: file.deviceName ?? null
           }))
         }
       })
