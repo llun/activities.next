@@ -179,8 +179,15 @@ export const processFitnessFileJob = createJobHandle(
         activityStartTime: activityData.startTime ?? null,
         hasMapData: false,
         mapImagePath: null,
-        deviceManufacturer: activityData.deviceManufacturer ?? null,
-        deviceName: activityData.deviceName ?? null
+        // Only overwrite device fields when parsing found them.
+        // Preserves device info already set from other sources (e.g. Strava import).
+        ...(activityData.deviceManufacturer !== undefined ||
+        activityData.deviceName !== undefined
+          ? {
+              deviceManufacturer: activityData.deviceManufacturer ?? null,
+              deviceName: activityData.deviceName ?? null
+            }
+          : {})
       })
 
       const privacySettings = await database.getFitnessSettings({

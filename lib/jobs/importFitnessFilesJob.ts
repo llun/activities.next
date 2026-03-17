@@ -310,7 +310,14 @@ export const importFitnessFilesJob = createJobHandle(
           activityType: activityData.activityType,
           activityStartTime: activityData.startTime ?? null,
           hasMapData: false,
-          mapImagePath: null
+          mapImagePath: null,
+          ...(activityData.deviceManufacturer !== undefined ||
+          activityData.deviceName !== undefined
+            ? {
+                deviceManufacturer: activityData.deviceManufacturer ?? null,
+                deviceName: activityData.deviceName ?? null
+              }
+            : {})
         })
 
         parsedFiles.push({
