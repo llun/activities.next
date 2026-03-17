@@ -37,6 +37,7 @@ import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { Visibility } from '@/lib/types/mastodon/visibility'
+import { getManufacturerKeyFromDeviceName } from '@/lib/utils/fitnessDeviceBrands'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -546,12 +547,29 @@ export const importStravaActivityJob = createJobHandle(
         )
       }
 
+      if (activity.device_name) {
+        await database.updateFitnessFileActivityData(storedFitnessFile.id, {
+          deviceName: activity.device_name,
+          deviceManufacturer:
+            getManufacturerKeyFromDeviceName(activity.device_name) ?? undefined
+        })
+      }
+
       targetFitnessFile = await database.getFitnessFile({
         id: storedFitnessFile.id
       })
       if (!targetFitnessFile) {
         throw new Error('Stored Strava fitness file was not found in database')
       }
+    }
+
+    // Handle re-import: if the file already exists but device name wasn't stored yet
+    if (targetFitnessFile && activity.device_name && !targetFitnessFile.deviceName) {
+      await database.updateFitnessFileActivityData(targetFitnessFile.id, {
+        deviceName: activity.device_name,
+        deviceManufacturer:
+          getManufacturerKeyFromDeviceName(activity.device_name) ?? undefined
+      })
     }
 
     if (!targetFitnessFile.statusId) {

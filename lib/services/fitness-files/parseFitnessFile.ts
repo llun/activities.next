@@ -3,6 +3,8 @@ import FitParser from 'fit-file-parser'
 import type { FitData } from 'fit-file-parser'
 import { z } from 'zod'
 
+import { getBrandFromManufacturer } from '@/lib/utils/fitnessDeviceBrands'
+
 export interface FitnessCoordinate {
   lat: number
   lng: number
@@ -29,6 +31,8 @@ export interface FitnessActivityData {
   heartRateSeries?: number[]
   altitudeSeries?: number[]
   speedSeries?: number[]
+  deviceManufacturer?: string
+  deviceName?: string
 }
 
 export type ParseableFitnessFileType = 'fit' | 'gpx' | 'tcx'
@@ -410,6 +414,37 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
   const records = asArray(parsed.records)
   const primarySession = sessions[0]
 
+  // Extract device info from device_infos (device_index 0 = primary recording device)
+  const deviceInfos = asArray(parsed.device_infos)
+  const primaryDevice =
+    deviceInfos.find((d) => d.device_index === 0) ?? deviceInfos[0]
+
+  let deviceManufacturer: string | undefined
+  let deviceName: string | undefined
+
+  if (primaryDevice) {
+    const mfr = primaryDevice.manufacturer
+    if (typeof mfr === 'number') {
+      // Store as canonical string alias when known, otherwise as numeric string
+      const brand = getBrandFromManufacturer(mfr)
+      deviceManufacturer = brand ? mfr.toString() : mfr.toString()
+    } else if (typeof mfr === 'string' && mfr.trim().length > 0) {
+      deviceManufacturer = mfr.trim().toLowerCase()
+    }
+
+    const productName = primaryDevice.product_name
+    if (typeof productName === 'string' && productName.trim().length > 0) {
+      const brand = getBrandFromManufacturer(primaryDevice.manufacturer)
+      const brandLabel = brand?.displayName ?? ''
+      const trimmed = productName.trim()
+      deviceName =
+        brandLabel &&
+        !trimmed.toLowerCase().startsWith(brandLabel.toLowerCase())
+          ? `${brandLabel} ${trimmed}`
+          : trimmed
+    }
+  }
+
   const points = records
     .map((record) => {
       const lat = normalizeLatitude(record.position_lat)
@@ -441,7 +476,7 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
       ? Math.max(...recordDistanceSamples)
       : undefined
 
-  return toActivityData({
+  const base = toActivityData({
     points,
     totalDistanceMeters:
       toNumber(primarySession?.total_distance) ?? distanceFromRecords,
@@ -457,6 +492,12 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
           : undefined,
     startTime: toDate(primarySession?.start_time)
   })
+
+  return {
+    ...base,
+    ...(deviceManufacturer ? { deviceManufacturer } : null),
+    ...(deviceName ? { deviceName } : null)
+  }
 }
 
 const parseGpx = (buffer: Buffer): FitnessActivityData => {

@@ -37,7 +37,9 @@ export const StatusFitnessFile = z.object({
   totalDurationSeconds: z.number().optional(),
   elevationGainMeters: z.number().optional(),
   activityType: z.string().optional(),
-  hasMapData: z.boolean().optional()
+  hasMapData: z.boolean().optional(),
+  deviceName: z.string().optional(),
+  deviceManufacturer: z.string().optional()
 })
 export type StatusFitnessFile = z.infer<typeof StatusFitnessFile>
 
