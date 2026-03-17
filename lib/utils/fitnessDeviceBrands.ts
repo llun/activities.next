@@ -59,30 +59,31 @@ const BRAND_MAP: Record<string | number, FitnessDeviceBrand> = {
   32: WAHOO,
   wahoo_fitness: WAHOO,
 
-  // Hammerhead: code 95
-  95: HAMMERHEAD,
+  // Hammerhead: code 289 (not 95 — that is stryd)
+  289: HAMMERHEAD,
   hammerhead: HAMMERHEAD,
 
   // Bryton: code 267 only (code 64 belongs to North Pole Engineering / NPE)
   267: BRYTON,
   bryton: BRYTON,
 
-  // Sigma Sport: codes 154, 80, 148
-  154: SIGMA,
-  80: SIGMA,
-  148: SIGMA,
+  // Sigma Sport: code 70 (FIT string: sigmasport; codes 80/148/154 are lifebeam/segment_id/polar)
+  70: SIGMA,
   sigma_sport: SIGMA,
+  sigmasport: SIGMA,
 
-  // Polar: code 14
-  14: POLAR,
+  // Polar: codes 123 (polar_electro) and 154 (polar); code 14 is nautilus
+  123: POLAR,
+  154: POLAR,
   polar: POLAR,
+  polar_electro: POLAR,
 
   // Suunto: code 23
   23: SUUNTO,
   suunto: SUUNTO,
 
-  // Coros: code 434
-  434: COROS,
+  // Coros: code 294 (not 434 — that is unassigned)
+  294: COROS,
   coros: COROS
 }
 

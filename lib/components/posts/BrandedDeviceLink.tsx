@@ -19,7 +19,10 @@ export const BrandedDeviceLink: FC<BrandedDeviceLinkProps> = ({
   const brand =
     getBrandFromManufacturer(deviceManufacturer) ??
     getBrandFromDeviceName(deviceName)
-  const label = deviceName || brand?.displayName || deviceManufacturer
+  // Suppress raw numeric strings (e.g. "999" for an unknown FIT manufacturer code)
+  const numericOnly = deviceManufacturer && /^\d+$/.test(deviceManufacturer)
+  const label =
+    deviceName || brand?.displayName || (!numericOnly ? deviceManufacturer : null)
 
   if (!label) return null
 

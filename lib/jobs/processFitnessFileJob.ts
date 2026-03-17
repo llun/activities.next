@@ -179,12 +179,8 @@ export const processFitnessFileJob = createJobHandle(
         activityStartTime: activityData.startTime ?? null,
         hasMapData: false,
         mapImagePath: null,
-        ...(activityData.deviceManufacturer !== undefined
-          ? { deviceManufacturer: activityData.deviceManufacturer }
-          : null),
-        ...(activityData.deviceName !== undefined
-          ? { deviceName: activityData.deviceName }
-          : null)
+        deviceManufacturer: activityData.deviceManufacturer ?? null,
+        deviceName: activityData.deviceName ?? null
       })
 
       const privacySettings = await database.getFitnessSettings({

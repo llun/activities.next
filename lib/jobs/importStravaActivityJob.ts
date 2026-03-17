@@ -568,6 +568,9 @@ export const importStravaActivityJob = createJobHandle(
         deviceManufacturer:
           getManufacturerKeyFromDeviceName(activity.device_name) ?? undefined
       })
+      targetFitnessFile =
+        (await database.getFitnessFile({ id: targetFitnessFile.id })) ??
+        targetFitnessFile
     }
 
     if (!targetFitnessFile.statusId) {
