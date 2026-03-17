@@ -548,10 +548,14 @@ export const importStravaActivityJob = createJobHandle(
       }
 
       if (activity.device_name) {
+        const manufacturerKey = getManufacturerKeyFromDeviceName(
+          activity.device_name
+        )
         const deviceData = {
           deviceName: activity.device_name,
-          deviceManufacturer:
-            getManufacturerKeyFromDeviceName(activity.device_name) ?? undefined
+          ...(manufacturerKey !== undefined
+            ? { deviceManufacturer: manufacturerKey }
+            : {})
         }
         await database.updateFitnessFileActivityData(
           storedFitnessFile.id,
@@ -567,10 +571,14 @@ export const importStravaActivityJob = createJobHandle(
       }
     } else if (activity.device_name && !targetFitnessFile.deviceName) {
       // Re-import: file already existed before this run, device name not yet stored
+      const manufacturerKey = getManufacturerKeyFromDeviceName(
+        activity.device_name
+      )
       const deviceData = {
         deviceName: activity.device_name,
-        deviceManufacturer:
-          getManufacturerKeyFromDeviceName(activity.device_name) ?? undefined
+        ...(manufacturerKey !== undefined
+          ? { deviceManufacturer: manufacturerKey }
+          : {})
       }
       await database.updateFitnessFileActivityData(
         targetFitnessFile.id,
