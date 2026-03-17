@@ -17,7 +17,7 @@ export const extractVideoImage = async (filePath: string): Promise<Buffer> => {
       '-i', path.resolve(filePath),
       '-frames:v', '1',
       '-y', fileName
-    ])
+    ], { timeout: 30_000 })
     return await fs.readFile(fileName)
   } finally {
     await fs.unlink(fileName).catch(() => {})
