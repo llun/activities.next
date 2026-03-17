@@ -1,55 +1,100 @@
 export interface FitnessDeviceBrand {
+  /** Canonical string key used for storage and lookups */
+  key: string
   displayName: string
   url: string
   brandColor?: string
 }
 
-const BRAND_MAP: Record<string | number, FitnessDeviceBrand> = {
-  // Garmin: code 1, string "garmin"
-  1: { displayName: 'Garmin', url: 'https://www.garmin.com', brandColor: '#007CC3' },
-  garmin: { displayName: 'Garmin', url: 'https://www.garmin.com', brandColor: '#007CC3' },
-
-  // Wahoo Fitness: code 32, string "wahoo_fitness"
-  32: { displayName: 'Wahoo', url: 'https://www.wahoofitness.com' },
-  wahoo_fitness: { displayName: 'Wahoo', url: 'https://www.wahoofitness.com' },
-
-  // Hammerhead: code 95
-  95: { displayName: 'Hammerhead', url: 'https://www.hammerhead.io' },
-  hammerhead: { displayName: 'Hammerhead', url: 'https://www.hammerhead.io' },
-
-  // Bryton: codes 267, 64
-  267: { displayName: 'Bryton', url: 'https://www.brytonsport.com' },
-  64: { displayName: 'Bryton', url: 'https://www.brytonsport.com' },
-  bryton: { displayName: 'Bryton', url: 'https://www.brytonsport.com' },
-
-  // Sigma Sport: codes 154, 80, 148
-  154: { displayName: 'Sigma', url: 'https://www.sigmasport.com' },
-  80: { displayName: 'Sigma', url: 'https://www.sigmasport.com' },
-  148: { displayName: 'Sigma', url: 'https://www.sigmasport.com' },
-  sigma_sport: { displayName: 'Sigma', url: 'https://www.sigmasport.com' },
-
-  // Polar: code 14
-  14: { displayName: 'Polar', url: 'https://www.polar.com' },
-  polar: { displayName: 'Polar', url: 'https://www.polar.com' },
-
-  // Suunto: code 23
-  23: { displayName: 'Suunto', url: 'https://www.suunto.com' },
-  suunto: { displayName: 'Suunto', url: 'https://www.suunto.com' },
-
-  // Coros: code 434
-  434: { displayName: 'Coros', url: 'https://www.coros.com' },
-  coros: { displayName: 'Coros', url: 'https://www.coros.com' }
+// Named brand constants — each brand defined once, referenced by all its keys
+const GARMIN: FitnessDeviceBrand = {
+  key: 'garmin',
+  displayName: 'Garmin',
+  url: 'https://www.garmin.com',
+  brandColor: '#007CC3'
+}
+const WAHOO: FitnessDeviceBrand = {
+  key: 'wahoo_fitness',
+  displayName: 'Wahoo',
+  url: 'https://www.wahoofitness.com'
+}
+const HAMMERHEAD: FitnessDeviceBrand = {
+  key: 'hammerhead',
+  displayName: 'Hammerhead',
+  url: 'https://www.hammerhead.io'
+}
+const BRYTON: FitnessDeviceBrand = {
+  key: 'bryton',
+  displayName: 'Bryton',
+  url: 'https://www.brytonsport.com'
+}
+const SIGMA: FitnessDeviceBrand = {
+  key: 'sigma_sport',
+  displayName: 'Sigma',
+  url: 'https://www.sigmasport.com'
+}
+const POLAR: FitnessDeviceBrand = {
+  key: 'polar',
+  displayName: 'Polar',
+  url: 'https://www.polar.com'
+}
+const SUUNTO: FitnessDeviceBrand = {
+  key: 'suunto',
+  displayName: 'Suunto',
+  url: 'https://www.suunto.com'
+}
+const COROS: FitnessDeviceBrand = {
+  key: 'coros',
+  displayName: 'Coros',
+  url: 'https://www.coros.com'
 }
 
-const BRAND_PREFIXES: Array<{ prefix: string; key: string }> = [
-  { prefix: 'garmin', key: 'garmin' },
-  { prefix: 'wahoo', key: 'wahoo_fitness' },
-  { prefix: 'hammerhead', key: 'hammerhead' },
-  { prefix: 'bryton', key: 'bryton' },
-  { prefix: 'sigma', key: 'sigma_sport' },
-  { prefix: 'polar', key: 'polar' },
-  { prefix: 'suunto', key: 'suunto' },
-  { prefix: 'coros', key: 'coros' }
+/** FIT SDK integer manufacturer codes and their string aliases */
+const BRAND_MAP: Record<string | number, FitnessDeviceBrand> = {
+  // Garmin: code 1
+  1: GARMIN,
+  garmin: GARMIN,
+
+  // Wahoo Fitness: code 32
+  32: WAHOO,
+  wahoo_fitness: WAHOO,
+
+  // Hammerhead: code 95
+  95: HAMMERHEAD,
+  hammerhead: HAMMERHEAD,
+
+  // Bryton: code 267 only (code 64 belongs to North Pole Engineering / NPE)
+  267: BRYTON,
+  bryton: BRYTON,
+
+  // Sigma Sport: codes 154, 80, 148
+  154: SIGMA,
+  80: SIGMA,
+  148: SIGMA,
+  sigma_sport: SIGMA,
+
+  // Polar: code 14
+  14: POLAR,
+  polar: POLAR,
+
+  // Suunto: code 23
+  23: SUUNTO,
+  suunto: SUUNTO,
+
+  // Coros: code 434
+  434: COROS,
+  coros: COROS
+}
+
+const BRAND_PREFIXES: Array<{ prefix: string; brand: FitnessDeviceBrand }> = [
+  { prefix: 'garmin', brand: GARMIN },
+  { prefix: 'wahoo', brand: WAHOO },
+  { prefix: 'hammerhead', brand: HAMMERHEAD },
+  { prefix: 'bryton', brand: BRYTON },
+  { prefix: 'sigma', brand: SIGMA },
+  { prefix: 'polar', brand: POLAR },
+  { prefix: 'suunto', brand: SUUNTO },
+  { prefix: 'coros', brand: COROS }
 ]
 
 /**
@@ -76,10 +121,8 @@ export const getBrandFromDeviceName = (
 ): FitnessDeviceBrand | null => {
   if (!deviceName) return null
   const lower = deviceName.toLowerCase().trim()
-  for (const { prefix, key } of BRAND_PREFIXES) {
-    if (lower.startsWith(prefix)) {
-      return BRAND_MAP[key] ?? null
-    }
+  for (const { prefix, brand } of BRAND_PREFIXES) {
+    if (lower.startsWith(prefix)) return brand
   }
   return null
 }
@@ -91,10 +134,5 @@ export const getBrandFromDeviceName = (
 export const getManufacturerKeyFromDeviceName = (
   deviceName: string | undefined | null
 ): string | undefined => {
-  if (!deviceName) return undefined
-  const lower = deviceName.toLowerCase().trim()
-  for (const { prefix, key } of BRAND_PREFIXES) {
-    if (lower.startsWith(prefix)) return key
-  }
-  return undefined
+  return getBrandFromDeviceName(deviceName)?.key
 }

@@ -425,9 +425,9 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
   if (primaryDevice) {
     const mfr = primaryDevice.manufacturer
     if (typeof mfr === 'number') {
-      // Store as canonical string alias when known, otherwise as numeric string
+      // Store canonical string alias when known (e.g. 1 → "garmin"), otherwise numeric string
       const brand = getBrandFromManufacturer(mfr)
-      deviceManufacturer = brand ? mfr.toString() : mfr.toString()
+      deviceManufacturer = brand?.key ?? mfr.toString()
     } else if (typeof mfr === 'string' && mfr.trim().length > 0) {
       deviceManufacturer = mfr.trim().toLowerCase()
     }
