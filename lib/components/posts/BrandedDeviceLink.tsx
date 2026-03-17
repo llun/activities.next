@@ -3,8 +3,8 @@
 import { FC } from 'react'
 
 import {
-  getBrandFromDeviceName,
-  getBrandFromManufacturer
+  getBrandFromManufacturer,
+  getDeviceDisplayLabel
 } from '@/lib/utils/fitnessDeviceBrands'
 
 interface BrandedDeviceLinkProps {
@@ -16,13 +16,8 @@ export const BrandedDeviceLink: FC<BrandedDeviceLinkProps> = ({
   deviceName,
   deviceManufacturer
 }) => {
-  const brand =
-    getBrandFromManufacturer(deviceManufacturer) ??
-    getBrandFromDeviceName(deviceName)
-  // Suppress raw numeric strings (e.g. "999" for an unknown FIT manufacturer code)
-  const numericOnly = deviceManufacturer && /^\d+$/.test(deviceManufacturer)
-  const label =
-    deviceName || brand?.displayName || (!numericOnly ? deviceManufacturer : null)
+  const brand = getBrandFromManufacturer(deviceManufacturer)
+  const label = getDeviceDisplayLabel(deviceName, deviceManufacturer)
 
   if (!label) return null
 

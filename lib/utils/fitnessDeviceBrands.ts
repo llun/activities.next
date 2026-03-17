@@ -137,3 +137,28 @@ export const getManufacturerKeyFromDeviceName = (
 ): string | undefined => {
   return getBrandFromDeviceName(deviceName)?.key
 }
+
+/**
+ * Compute the display label that BrandedDeviceLink would render for the given
+ * device fields.  Returns null when there is nothing useful to show — notably
+ * when deviceManufacturer is a raw numeric string for an unrecognised FIT code.
+ *
+ * Use this to guard parent containers so that "Recorded with" / "Via:" labels
+ * are not rendered without accompanying content.
+ */
+export const getDeviceDisplayLabel = (
+  deviceName: string | undefined | null,
+  deviceManufacturer: string | undefined | null
+): string | null => {
+  const brand =
+    getBrandFromManufacturer(deviceManufacturer) ??
+    getBrandFromDeviceName(deviceName)
+  const numericOnly =
+    !!deviceManufacturer && /^\d+$/.test(deviceManufacturer)
+  return (
+    deviceName ||
+    brand?.displayName ||
+    (!numericOnly ? deviceManufacturer : null) ||
+    null
+  )
+}

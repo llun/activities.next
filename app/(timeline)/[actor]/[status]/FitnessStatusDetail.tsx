@@ -6,6 +6,7 @@ import { Bike, Footprints, Play, Plus, Waves } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
+import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { VisibilityButton } from '@/lib/components/posts/actions/visibility-button'
 import { Media } from '@/lib/components/posts/media'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -1454,7 +1455,10 @@ export const FitnessStatusDetail: FC<Props> = ({
                 <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">
                   {activityDate}
                 </p>
-                {fitness?.deviceName || fitness?.deviceManufacturer ? (
+                {getDeviceDisplayLabel(
+                  fitness?.deviceName,
+                  fitness?.deviceManufacturer
+                ) ? (
                   <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">
                     Recorded with{' '}
                     <BrandedDeviceLink

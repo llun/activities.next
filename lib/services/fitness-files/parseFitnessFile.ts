@@ -414,10 +414,10 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
   const records = asArray(parsed.records)
   const primarySession = sessions[0]
 
-  // Extract device info from device_infos (device_index 0 = primary recording device)
+  // Extract device info from device_infos (device_index 0 = primary recording device).
+  // Do NOT fall back to deviceInfos[0] — other entries may be sensors (HR, power meter, etc.)
   const deviceInfos = asArray(parsed.device_infos)
-  const primaryDevice =
-    deviceInfos.find((d) => d.device_index === 0) ?? deviceInfos[0]
+  const primaryDevice = deviceInfos.find((d) => d.device_index === 0)
 
   let deviceManufacturer: string | undefined
   let deviceName: string | undefined
