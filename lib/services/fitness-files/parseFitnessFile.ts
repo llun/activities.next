@@ -495,8 +495,8 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
 
   return {
     ...base,
-    ...(deviceManufacturer ? { deviceManufacturer } : null),
-    ...(deviceName ? { deviceName } : null)
+    ...(deviceManufacturer ? { deviceManufacturer } : {}),
+    ...(deviceName ? { deviceName } : {})
   }
 }
 
