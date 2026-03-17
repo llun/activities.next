@@ -1462,8 +1462,8 @@ export const FitnessStatusDetail: FC<Props> = ({
                   <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">
                     Recorded with{' '}
                     <BrandedDeviceLink
-                      deviceName={fitness.deviceName}
-                      deviceManufacturer={fitness.deviceManufacturer}
+                      deviceName={fitness?.deviceName}
+                      deviceManufacturer={fitness?.deviceManufacturer}
                     />
                   </p>
                 ) : null}

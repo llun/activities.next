@@ -3,6 +3,7 @@
 import { FC } from 'react'
 
 import {
+  getBrandFromDeviceName,
   getBrandFromManufacturer,
   getDeviceDisplayLabel
 } from '@/lib/utils/fitnessDeviceBrands'
@@ -16,7 +17,9 @@ export const BrandedDeviceLink: FC<BrandedDeviceLinkProps> = ({
   deviceName,
   deviceManufacturer
 }) => {
-  const brand = getBrandFromManufacturer(deviceManufacturer)
+  const brand =
+    getBrandFromManufacturer(deviceManufacturer) ??
+    getBrandFromDeviceName(deviceName)
   const label = getDeviceDisplayLabel(deviceName, deviceManufacturer)
 
   if (!label) return null
