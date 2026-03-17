@@ -72,7 +72,20 @@ describe('mention email template', () => {
         text: 'Line one\nLine two\nLine three'
       }
       const result = getHTMLContent(localStatus)
-      expect(result).toContain('<br>')
+      expect(result).toContain(
+        '<div><p>Line one<br>Line two<br>Line three</p></div>'
+      )
+    })
+
+    it('sanitizes remote actor HTML in email', () => {
+      const remoteStatus: EditableStatus = {
+        ...mockStatus,
+        isLocalActor: false,
+        text: '<p>Hello</p><script>alert("xss")</script>'
+      }
+      const result = getHTMLContent(remoteStatus)
+      expect(result).not.toContain('<script>')
+      expect(result).toContain('<p>Hello</p>')
     })
   })
 })

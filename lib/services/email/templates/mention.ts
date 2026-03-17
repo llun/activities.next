@@ -2,6 +2,7 @@ import { getConfig } from '@/lib/config'
 import { ActorProfile, getMention } from '@/lib/types/domain/actor'
 import { EditableStatus } from '@/lib/types/domain/status'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
+import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 export const getSubject = (actor: ActorProfile) =>
   `@${actor.username} mentions you in ${getConfig().host}`
@@ -35,7 +36,7 @@ export const getHTMLContent = (status: EditableStatus) => {
   const actorMention = status.actor ? getMention(status.actor, true) : 'Unknown'
   const messageHtml = status.isLocalActor
     ? convertMarkdownText(config.host)(status.text)
-    : status.text
+    : sanitizeText(status.text)
 
   return `
 <h3>${actorMention} mentioned you in a post</h3>
