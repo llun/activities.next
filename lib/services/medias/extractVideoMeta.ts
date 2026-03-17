@@ -41,7 +41,9 @@ export const extractVideoMeta = async (buffer: Buffer): Promise<FfprobeData> => 
       }
     })
     proc.on('error', reject)
-    proc.stdin.on('error', reject)
+    proc.stdin.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code !== 'EPIPE') reject(err)
+    })
     proc.stdin.write(buffer)
     proc.stdin.end()
   })

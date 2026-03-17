@@ -12,7 +12,12 @@ export const extractVideoImage = async (filePath: string): Promise<Buffer> => {
   const tmpDir = tmpdir()
   const fileName = path.join(tmpDir, `${randomFileName}.jpg`)
   try {
-    await execFileAsync('ffmpeg', ['-i', filePath, '-frames:v', '1', '-y', fileName])
+    await execFileAsync('ffmpeg', [
+      '-loglevel', 'error',
+      '-i', path.resolve(filePath),
+      '-frames:v', '1',
+      '-y', fileName
+    ])
     return await fs.readFile(fileName)
   } finally {
     await fs.unlink(fileName).catch(() => {})
