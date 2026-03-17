@@ -1007,6 +1007,12 @@ export const StatusSQLDatabaseMixin = (
               hasMapData: Boolean(fitnessFile.hasMapData),
               ...(fitnessFile.description
                 ? { description: fitnessFile.description }
+                : null),
+              ...(fitnessFile.deviceManufacturer
+                ? { deviceManufacturer: fitnessFile.deviceManufacturer }
+                : null),
+              ...(fitnessFile.deviceName
+                ? { deviceName: fitnessFile.deviceName }
                 : null)
             }
           }

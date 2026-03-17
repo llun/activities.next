@@ -21,9 +21,19 @@ declare module 'fit-file-parser' {
     [key: string]: unknown
   }
 
+  export interface FitDeviceInfo {
+    device_index?: number
+    manufacturer?: number | string
+    product?: number | string
+    product_name?: string
+    garmin_product?: number | string
+    [key: string]: unknown
+  }
+
   export interface FitData {
     sessions?: FitSession[]
     records?: FitRecord[]
+    device_infos?: FitDeviceInfo[]
     [key: string]: unknown
   }
 

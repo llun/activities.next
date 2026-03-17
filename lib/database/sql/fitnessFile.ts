@@ -38,6 +38,8 @@ export interface UpdateFitnessFileActivityData {
   activityStartTime?: Date | null
   hasMapData?: boolean | null
   mapImagePath?: string | null
+  deviceManufacturer?: string | null
+  deviceName?: string | null
 }
 
 export interface GetFitnessFileParams {
@@ -190,6 +192,8 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   totalDurationSeconds: normalizeOptionalNumber(row.totalDurationSeconds),
   elevationGainMeters: normalizeOptionalNumber(row.elevationGainMeters),
   activityType: row.activityType ?? undefined,
+  deviceManufacturer: row.deviceManufacturer ?? undefined,
+  deviceName: row.deviceName ?? undefined,
   activityStartTime: row.activityStartTime
     ? getCompatibleTime(row.activityStartTime)
     : undefined,
@@ -574,6 +578,12 @@ export const FitnessFileSQLDatabaseMixin = (
     }
     if ('mapImagePath' in data) {
       updateData.mapImagePath = data.mapImagePath ?? null
+    }
+    if ('deviceManufacturer' in data) {
+      updateData.deviceManufacturer = data.deviceManufacturer ?? null
+    }
+    if ('deviceName' in data) {
+      updateData.deviceName = data.deviceName ?? null
     }
 
     const result = await database('fitness_files')

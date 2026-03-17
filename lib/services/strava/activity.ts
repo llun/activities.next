@@ -48,6 +48,7 @@ export interface StravaActivity {
   type?: string | null
   visibility?: StravaActivityVisibility | null
   photos?: StravaActivityPhotos | null
+  device_name?: string | null
 }
 
 export interface StravaUpload {

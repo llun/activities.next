@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import { Bike, Footprints, Play, Plus, Waves } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
+import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { VisibilityButton } from '@/lib/components/posts/actions/visibility-button'
 import { Media } from '@/lib/components/posts/media'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -16,6 +17,7 @@ import {
   formatFitnessDuration,
   getFitnessPaceOrSpeed
 } from '@/lib/utils/fitness'
+import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 
 const getActivityIcon = (activityType?: string) => {
@@ -110,6 +112,8 @@ interface StatusFitnessFileItem {
   activityStartTime: number | null
   hasMapData: boolean
   description: string | null
+  deviceManufacturer: string | null
+  deviceName: string | null
 }
 
 interface FitnessFilesByStatusResponse {
@@ -996,7 +1000,9 @@ export const FitnessStatusDetail: FC<Props> = ({
         activityType: status.fitness.activityType ?? null,
         activityStartTime: status.createdAt,
         hasMapData: status.fitness.hasMapData ?? false,
-        description: status.fitness.description ?? null
+        description: status.fitness.description ?? null,
+        deviceManufacturer: status.fitness.deviceManufacturer ?? null,
+        deviceName: status.fitness.deviceName ?? null
       }
     ]
   }, [
@@ -1012,7 +1018,9 @@ export const FitnessStatusDetail: FC<Props> = ({
     status.fitness?.elevationGainMeters,
     status.fitness?.activityType,
     status.fitness?.hasMapData,
-    status.fitness?.description
+    status.fitness?.description,
+    status.fitness?.deviceManufacturer,
+    status.fitness?.deviceName
   ])
   const [fitnessFiles, setFitnessFiles] =
     useState<StatusFitnessFileItem[]>(defaultFitnessFiles)
@@ -1451,6 +1459,18 @@ export const FitnessStatusDetail: FC<Props> = ({
                 <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">
                   {activityDate}
                 </p>
+                {getDeviceDisplayLabel(
+                  fitness?.deviceName,
+                  fitness?.deviceManufacturer
+                ) ? (
+                  <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">
+                    Recorded with{' '}
+                    <BrandedDeviceLink
+                      deviceName={fitness?.deviceName}
+                      deviceManufacturer={fitness?.deviceManufacturer}
+                    />
+                  </p>
+                ) : null}
                 <h2
                   className="mt-2 truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl md:text-3xl"
                   title={statusTitle}

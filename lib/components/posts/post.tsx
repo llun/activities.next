@@ -11,12 +11,14 @@ import {
   formatFitnessElevation,
   getFitnessPaceOrSpeed
 } from '@/lib/utils/fitness'
+import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import {
   getActualStatus,
   processStatusText
 } from '@/lib/utils/text/processStatusText'
 
+import { BrandedDeviceLink } from './BrandedDeviceLink'
 import { Actions } from './actions/actions'
 import { ActorAvatar, ActorInfo } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
@@ -189,6 +191,18 @@ export const Post: FC<PostProps> = (props) => {
                       <strong className="text-foreground">
                         {fitnessElevation}
                       </strong>
+                    </span>
+                  ) : null}
+                  {getDeviceDisplayLabel(
+                    fitnessFile.deviceName,
+                    fitnessFile.deviceManufacturer
+                  ) ? (
+                    <span className="text-muted-foreground">
+                      Via:{' '}
+                      <BrandedDeviceLink
+                        deviceName={fitnessFile.deviceName}
+                        deviceManufacturer={fitnessFile.deviceManufacturer}
+                      />
                     </span>
                   ) : null}
                 </div>
