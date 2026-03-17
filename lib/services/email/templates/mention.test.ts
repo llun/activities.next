@@ -54,15 +54,38 @@ describe('mention email template', () => {
   })
 
   describe('#getHTMLContent', () => {
-    it('returns HTML content with message and local URL', () => {
+    it('returns HTML content with message and local URL for remote actor', () => {
       const result = getHTMLContent(mockStatus)
       expect(result).toContain('@mentioner@remote.example.com mentioned you')
       expect(result).toContain(
-        '<p>Hey @user@test.example.com check this out!</p>'
+        '<div>Hey @user@test.example.com check this out!</div>'
       )
       // Should link to local server, not remote
       expect(result).toContain('View this post on your server')
       expect(result).toContain('test.llun.dev/@mentioner@remote.example.com')
+    })
+
+    it('converts markdown to HTML for local actor status', () => {
+      const localStatus: EditableStatus = {
+        ...mockStatus,
+        isLocalActor: true,
+        text: 'Line one\nLine two\nLine three'
+      }
+      const result = getHTMLContent(localStatus)
+      expect(result).toContain(
+        '<div><p>Line one<br>Line two<br>Line three</p></div>'
+      )
+    })
+
+    it('sanitizes remote actor HTML in email', () => {
+      const remoteStatus: EditableStatus = {
+        ...mockStatus,
+        isLocalActor: false,
+        text: '<p>Hello</p><script>alert("xss")</script>'
+      }
+      const result = getHTMLContent(remoteStatus)
+      expect(result).not.toContain('<script>')
+      expect(result).toContain('<p>Hello</p>')
     })
   })
 })

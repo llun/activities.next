@@ -569,7 +569,10 @@ export const importStravaActivityJob = createJobHandle(
       if (!targetFitnessFile) {
         throw new Error('Stored Strava fitness file was not found in database')
       }
-    } else if (activity.device_name && (!targetFitnessFile.deviceName || !targetFitnessFile.deviceManufacturer)) {
+    } else if (
+      activity.device_name &&
+      (!targetFitnessFile.deviceName || !targetFitnessFile.deviceManufacturer)
+    ) {
       // Re-import: file already existed before this run, device name not yet stored
       const manufacturerKey = getManufacturerKeyFromDeviceName(
         activity.device_name

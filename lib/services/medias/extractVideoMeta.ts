@@ -13,17 +13,23 @@ export interface FfprobeData {
   }
 }
 
-export const extractVideoMeta = async (buffer: Buffer): Promise<FfprobeData> => {
+export const extractVideoMeta = async (
+  buffer: Buffer
+): Promise<FfprobeData> => {
   return new Promise((resolve, reject) => {
-    const proc = spawn('ffprobe', [
-      '-v',
-      'quiet',
-      '-print_format',
-      'json',
-      '-show_streams',
-      '-show_format',
-      'pipe:0'
-    ], { timeout: 30_000 })
+    const proc = spawn(
+      'ffprobe',
+      [
+        '-v',
+        'quiet',
+        '-print_format',
+        'json',
+        '-show_streams',
+        '-show_format',
+        'pipe:0'
+      ],
+      { timeout: 30_000 }
+    )
     let stdout = ''
     let stderr = ''
     proc.stdout.on('data', (data: Buffer) => {
@@ -34,7 +40,9 @@ export const extractVideoMeta = async (buffer: Buffer): Promise<FfprobeData> => 
     })
     proc.on('close', (code, signal) => {
       if (code !== 0) {
-        const reason = signal ? `killed by signal ${signal}` : `exited with code ${code}`
+        const reason = signal
+          ? `killed by signal ${signal}`
+          : `exited with code ${code}`
         return reject(new Error(`ffprobe ${reason}: ${stderr}`))
       }
       try {

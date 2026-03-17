@@ -532,11 +532,14 @@ export const buildGpxFromStravaStreams = (
       const hr = streams.heartrate?.data[index]
       if (typeof hr === 'number') extParts.push(`<gpxtpx:hr>${hr}</gpxtpx:hr>`)
       const cad = streams.cadence?.data[index]
-      if (typeof cad === 'number') extParts.push(`<gpxtpx:cad>${cad}</gpxtpx:cad>`)
+      if (typeof cad === 'number')
+        extParts.push(`<gpxtpx:cad>${cad}</gpxtpx:cad>`)
       const speed = streams.velocity_smooth?.data[index]
-      if (typeof speed === 'number') extParts.push(`<gpxtpx:speed>${speed}</gpxtpx:speed>`)
+      if (typeof speed === 'number')
+        extParts.push(`<gpxtpx:speed>${speed}</gpxtpx:speed>`)
       const temp = streams.temp?.data[index]
-      if (typeof temp === 'number') extParts.push(`<gpxtpx:atemp>${temp}</gpxtpx:atemp>`)
+      if (typeof temp === 'number')
+        extParts.push(`<gpxtpx:atemp>${temp}</gpxtpx:atemp>`)
       if (extParts.length > 0) {
         children += `<extensions><gpxtpx:TrackPointExtension>${extParts.join('')}</gpxtpx:TrackPointExtension></extensions>`
       }
@@ -619,9 +622,11 @@ export const buildTcxFromStravaStreams = (
 
         const extParts: string[] = []
         const speed = velocityData?.[index]
-        if (typeof speed === 'number') extParts.push(`<ns3:Speed>${speed}</ns3:Speed>`)
+        if (typeof speed === 'number')
+          extParts.push(`<ns3:Speed>${speed}</ns3:Speed>`)
         const watts = wattsData?.[index]
-        if (typeof watts === 'number') extParts.push(`<ns3:Watts>${watts}</ns3:Watts>`)
+        if (typeof watts === 'number')
+          extParts.push(`<ns3:Watts>${watts}</ns3:Watts>`)
         if (extParts.length > 0) {
           tp += `<Extensions><ns3:TPX xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2">${extParts.join('')}</ns3:TPX></Extensions>`
         }

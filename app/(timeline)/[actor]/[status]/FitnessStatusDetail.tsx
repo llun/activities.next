@@ -6,7 +6,6 @@ import { Bike, Footprints, Play, Plus, Waves } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
-import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { VisibilityButton } from '@/lib/components/posts/actions/visibility-button'
 import { Media } from '@/lib/components/posts/media'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -18,6 +17,7 @@ import {
   formatFitnessDuration,
   getFitnessPaceOrSpeed
 } from '@/lib/utils/fitness'
+import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 
 const getActivityIcon = (activityType?: string) => {
@@ -963,7 +963,8 @@ const MetricCard: FC<{ label: string; value: string; highlight?: boolean }> = ({
         {numericValue}
       </p>
       <p className="mt-1 truncate whitespace-nowrap text-xs font-medium text-slate-500 sm:text-sm">
-        {label}{unit ? ` (${unit})` : ''}
+        {label}
+        {unit ? ` (${unit})` : ''}
       </p>
     </div>
   )
@@ -1148,7 +1149,8 @@ export const FitnessStatusDetail: FC<Props> = ({
   const shouldRenderMapPanel =
     !!mapAttachment ||
     fitness?.hasMapData ||
-    (shouldLoadInteractiveMap && (isRouteDataLoading || routeSegments.length > 0))
+    (shouldLoadInteractiveMap &&
+      (isRouteDataLoading || routeSegments.length > 0))
 
   const mediaWithoutMap = status.attachments.filter(
     (_, index) => index !== mapAttachmentIndex
@@ -1258,7 +1260,9 @@ export const FitnessStatusDetail: FC<Props> = ({
   const activitySeries = useMemo(() => {
     return {
       heartRate:
-        heartRateSeries.length > 0 ? downsampleSeries(heartRateSeries, 120) : [],
+        heartRateSeries.length > 0
+          ? downsampleSeries(heartRateSeries, 120)
+          : [],
       power: powerSeries.length > 0 ? downsampleSeries(powerSeries, 120) : [],
       speed: speedSeries.length > 0 ? downsampleSeries(speedSeries, 120) : [],
       elevation:
@@ -1612,74 +1616,74 @@ export const FitnessStatusDetail: FC<Props> = ({
               </p>
             </div>
 
-              {(analysisGraphFilter === 'all' ||
-                analysisGraphFilter === 'elevation') &&
-                activitySeries.elevation.length > 0 && (
-                  <ChartPanel
-                    title="Elevation profile"
-                    unit="m"
-                    values={activitySeries.elevation}
-                    colorClassName="stroke-slate-400"
-                    minLabel={elevationMin.toFixed(0)}
-                    maxLabel={elevationMax.toFixed(0)}
-                    durationSeconds={durationSeconds}
-                    highlightedElapsedSeconds={highlightedElapsedSeconds}
-                    onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                    showHoverMessage={analysisGraphFilter !== 'all'}
-                  />
-                )}
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'elevation') &&
+              activitySeries.elevation.length > 0 && (
+                <ChartPanel
+                  title="Elevation profile"
+                  unit="m"
+                  values={activitySeries.elevation}
+                  colorClassName="stroke-slate-400"
+                  minLabel={elevationMin.toFixed(0)}
+                  maxLabel={elevationMax.toFixed(0)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
 
-              {(analysisGraphFilter === 'all' ||
-                analysisGraphFilter === 'speed') &&
-                activitySeries.speed.length > 0 && (
-                  <ChartPanel
-                    title="Speed"
-                    unit="km/h"
-                    values={activitySeries.speed}
-                    colorClassName="stroke-sky-500"
-                    minLabel={speedMin.toFixed(1)}
-                    maxLabel={speedMax.toFixed(1)}
-                    durationSeconds={durationSeconds}
-                    highlightedElapsedSeconds={highlightedElapsedSeconds}
-                    onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                    showHoverMessage={analysisGraphFilter !== 'all'}
-                  />
-                )}
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'speed') &&
+              activitySeries.speed.length > 0 && (
+                <ChartPanel
+                  title="Speed"
+                  unit="km/h"
+                  values={activitySeries.speed}
+                  colorClassName="stroke-sky-500"
+                  minLabel={speedMin.toFixed(1)}
+                  maxLabel={speedMax.toFixed(1)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
 
-              {(analysisGraphFilter === 'all' ||
-                analysisGraphFilter === 'power') &&
-                activitySeries.power.length > 0 && (
-                  <ChartPanel
-                    title="Power"
-                    unit="w"
-                    values={activitySeries.power}
-                    colorClassName="stroke-violet-500"
-                    minLabel={powerMin.toFixed(0)}
-                    maxLabel={powerMax.toFixed(0)}
-                    durationSeconds={durationSeconds}
-                    highlightedElapsedSeconds={highlightedElapsedSeconds}
-                    onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                    showHoverMessage={analysisGraphFilter !== 'all'}
-                  />
-                )}
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'power') &&
+              activitySeries.power.length > 0 && (
+                <ChartPanel
+                  title="Power"
+                  unit="w"
+                  values={activitySeries.power}
+                  colorClassName="stroke-violet-500"
+                  minLabel={powerMin.toFixed(0)}
+                  maxLabel={powerMax.toFixed(0)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
 
-              {(analysisGraphFilter === 'all' ||
-                analysisGraphFilter === 'heart-rate') &&
-                activitySeries.heartRate.length > 0 && (
-                  <ChartPanel
-                    title="Heart rate"
-                    unit="bpm"
-                    values={activitySeries.heartRate}
-                    colorClassName="stroke-rose-500"
-                    minLabel={heartRateMin.toFixed(0)}
-                    maxLabel={heartRateMax.toFixed(0)}
-                    durationSeconds={durationSeconds}
-                    highlightedElapsedSeconds={highlightedElapsedSeconds}
-                    onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                    showHoverMessage={analysisGraphFilter !== 'all'}
-                  />
-                )}
-            </div>
+            {(analysisGraphFilter === 'all' ||
+              analysisGraphFilter === 'heart-rate') &&
+              activitySeries.heartRate.length > 0 && (
+                <ChartPanel
+                  title="Heart rate"
+                  unit="bpm"
+                  values={activitySeries.heartRate}
+                  colorClassName="stroke-rose-500"
+                  minLabel={heartRateMin.toFixed(0)}
+                  maxLabel={heartRateMax.toFixed(0)}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  showHoverMessage={analysisGraphFilter !== 'all'}
+                />
+              )}
+          </div>
         </div>
 
         <div
