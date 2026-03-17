@@ -153,12 +153,13 @@ export const getDeviceDisplayLabel = (
   const brand =
     getBrandFromManufacturer(deviceManufacturer) ??
     getBrandFromDeviceName(deviceName)
-  const numericOnly =
+  const numericOnlyManufacturer =
     !!deviceManufacturer && /^\d+$/.test(deviceManufacturer)
+  const numericOnlyDeviceName = !!deviceName && /^\d+$/.test(deviceName)
   return (
-    deviceName ||
+    (!numericOnlyDeviceName ? deviceName : null) ||
     brand?.displayName ||
-    (!numericOnly ? deviceManufacturer : null) ||
+    (!numericOnlyManufacturer ? deviceManufacturer : null) ||
     null
   )
 }

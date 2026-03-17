@@ -311,12 +311,11 @@ export const importFitnessFilesJob = createJobHandle(
           activityStartTime: activityData.startTime ?? null,
           hasMapData: false,
           mapImagePath: null,
-          ...(activityData.deviceManufacturer !== undefined ||
-          activityData.deviceName !== undefined
-            ? {
-                deviceManufacturer: activityData.deviceManufacturer ?? null,
-                deviceName: activityData.deviceName ?? null
-              }
+          ...(activityData.deviceManufacturer !== undefined
+            ? { deviceManufacturer: activityData.deviceManufacturer }
+            : {}),
+          ...(activityData.deviceName !== undefined
+            ? { deviceName: activityData.deviceName }
             : {})
         })
 

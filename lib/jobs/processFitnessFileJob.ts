@@ -179,14 +179,15 @@ export const processFitnessFileJob = createJobHandle(
         activityStartTime: activityData.startTime ?? null,
         hasMapData: false,
         mapImagePath: null,
-        // Only overwrite device fields when parsing found them.
+        // Only overwrite each device field when parsing found a value for it.
         // Preserves device info already set from other sources (e.g. Strava import).
-        ...(activityData.deviceManufacturer !== undefined ||
-        activityData.deviceName !== undefined
-          ? {
-              deviceManufacturer: activityData.deviceManufacturer ?? null,
-              deviceName: activityData.deviceName ?? null
-            }
+        // Each field is guarded independently so a file with manufacturer-but-no-product-name
+        // does not erase a pre-existing deviceName.
+        ...(activityData.deviceManufacturer !== undefined
+          ? { deviceManufacturer: activityData.deviceManufacturer }
+          : {}),
+        ...(activityData.deviceName !== undefined
+          ? { deviceName: activityData.deviceName }
           : {})
       })
 
