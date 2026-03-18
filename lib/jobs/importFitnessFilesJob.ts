@@ -45,6 +45,7 @@ interface ParsedImportFile {
   totalDurationSeconds: number
   startTimeMs?: number
   source: ParsedImportFileSource
+  hasCoordinates?: boolean
 }
 
 const getFitnessFileBuffer = async (
@@ -87,6 +88,32 @@ const sortFilesByActivityStart = (files: ParsedImportFile[]) => {
   })
 }
 
+const selectPrimaryTargetFile = (
+  orderedTargetGroup: ParsedImportFile[]
+): ParsedImportFile => {
+  const outdoorFiles = orderedTargetGroup.filter((item) => item.hasCoordinates)
+
+  if (outdoorFiles.length === 0) {
+    return orderedTargetGroup[0]
+  }
+
+  const sorted = [...outdoorFiles].sort((a, b) => {
+    if (a.totalDurationSeconds !== b.totalDurationSeconds) {
+      return b.totalDurationSeconds - a.totalDurationSeconds
+    }
+
+    const startA = a.startTimeMs ?? Number.MAX_SAFE_INTEGER
+    const startB = b.startTimeMs ?? Number.MAX_SAFE_INTEGER
+    if (startA !== startB) {
+      return startA - startB
+    }
+
+    return Math.random() - 0.5
+  })
+
+  return sorted[0]
+}
+
 const buildParsedFileFromStoredActivity = ({
   fitnessFile,
   source
@@ -105,6 +132,7 @@ const buildParsedFileFromStoredActivity = ({
     fitnessFile,
     totalDurationSeconds: fitnessFile.totalDurationSeconds,
     source,
+    hasCoordinates: fitnessFile.hasMapData ?? false,
     ...(typeof fitnessFile.activityStartTime === 'number'
       ? { startTimeMs: fitnessFile.activityStartTime }
       : null)
@@ -323,6 +351,7 @@ export const importFitnessFilesJob = createJobHandle(
           fitnessFile,
           totalDurationSeconds: activityData.totalDurationSeconds,
           source: 'target',
+          hasCoordinates: activityData.coordinates.length >= 2,
           ...(activityData.startTime
             ? { startTimeMs: activityData.startTime.getTime() }
             : null)
@@ -360,7 +389,7 @@ export const importFitnessFilesJob = createJobHandle(
       const targetFitnessFileIds = orderedTargetGroup.map(
         (item) => item.fitnessFile.id
       )
-      const primaryTargetFile = orderedTargetGroup[0]
+      const primaryTargetFile = selectPrimaryTargetFile(orderedTargetGroup)
       const createdAt =
         primaryTargetFile.startTimeMs ?? primaryTargetFile.fitnessFile.createdAt
       let createdStatusId: string | null = null
