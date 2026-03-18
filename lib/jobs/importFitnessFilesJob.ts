@@ -97,19 +97,22 @@ const selectPrimaryTargetFile = (
     return orderedTargetGroup[0]
   }
 
-  const sorted = [...outdoorFiles].sort((a, b) => {
-    if (a.totalDurationSeconds !== b.totalDurationSeconds) {
-      return b.totalDurationSeconds - a.totalDurationSeconds
-    }
+  const sorted = [...outdoorFiles]
+    .map((file) => ({ file, tiebreak: Math.random() }))
+    .sort((a, b) => {
+      if (a.file.totalDurationSeconds !== b.file.totalDurationSeconds) {
+        return b.file.totalDurationSeconds - a.file.totalDurationSeconds
+      }
 
-    const startA = a.startTimeMs ?? Number.MAX_SAFE_INTEGER
-    const startB = b.startTimeMs ?? Number.MAX_SAFE_INTEGER
-    if (startA !== startB) {
-      return startA - startB
-    }
+      const startA = a.file.startTimeMs ?? Number.MAX_SAFE_INTEGER
+      const startB = b.file.startTimeMs ?? Number.MAX_SAFE_INTEGER
+      if (startA !== startB) {
+        return startA - startB
+      }
 
-    return Math.random() - 0.5
-  })
+      return a.tiebreak - b.tiebreak
+    })
+    .map(({ file }) => file)
 
   return sorted[0]
 }
@@ -390,8 +393,10 @@ export const importFitnessFilesJob = createJobHandle(
         (item) => item.fitnessFile.id
       )
       const primaryTargetFile = selectPrimaryTargetFile(orderedTargetGroup)
+      const earliestTargetFile = orderedTargetGroup[0]
       const createdAt =
-        primaryTargetFile.startTimeMs ?? primaryTargetFile.fitnessFile.createdAt
+        earliestTargetFile.startTimeMs ??
+        earliestTargetFile.fitnessFile.createdAt
       let createdStatusId: string | null = null
 
       try {
