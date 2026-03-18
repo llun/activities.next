@@ -45,6 +45,7 @@ interface ParsedImportFile {
   totalDurationSeconds: number
   startTimeMs?: number
   source: ParsedImportFileSource
+  hasCoordinates?: boolean
 }
 
 const getFitnessFileBuffer = async (
@@ -87,6 +88,35 @@ const sortFilesByActivityStart = (files: ParsedImportFile[]) => {
   })
 }
 
+const selectPrimaryTargetFile = (
+  orderedTargetGroup: ParsedImportFile[]
+): ParsedImportFile => {
+  const outdoorFiles = orderedTargetGroup.filter((item) => item.hasCoordinates)
+
+  if (outdoorFiles.length === 0) {
+    return orderedTargetGroup[0]
+  }
+
+  const sorted = [...outdoorFiles]
+    .map((file) => ({ file, tiebreak: Math.random() }))
+    .sort((a, b) => {
+      if (a.file.totalDurationSeconds !== b.file.totalDurationSeconds) {
+        return b.file.totalDurationSeconds - a.file.totalDurationSeconds
+      }
+
+      const startA = a.file.startTimeMs ?? Number.MAX_SAFE_INTEGER
+      const startB = b.file.startTimeMs ?? Number.MAX_SAFE_INTEGER
+      if (startA !== startB) {
+        return startA - startB
+      }
+
+      return a.tiebreak - b.tiebreak
+    })
+    .map(({ file }) => file)
+
+  return sorted[0]
+}
+
 const buildParsedFileFromStoredActivity = ({
   fitnessFile,
   source
@@ -105,6 +135,7 @@ const buildParsedFileFromStoredActivity = ({
     fitnessFile,
     totalDurationSeconds: fitnessFile.totalDurationSeconds,
     source,
+    hasCoordinates: fitnessFile.hasMapData ?? false,
     ...(typeof fitnessFile.activityStartTime === 'number'
       ? { startTimeMs: fitnessFile.activityStartTime }
       : null)
@@ -323,6 +354,7 @@ export const importFitnessFilesJob = createJobHandle(
           fitnessFile,
           totalDurationSeconds: activityData.totalDurationSeconds,
           source: 'target',
+          hasCoordinates: activityData.coordinates.length >= 2,
           ...(activityData.startTime
             ? { startTimeMs: activityData.startTime.getTime() }
             : null)
@@ -360,9 +392,11 @@ export const importFitnessFilesJob = createJobHandle(
       const targetFitnessFileIds = orderedTargetGroup.map(
         (item) => item.fitnessFile.id
       )
-      const primaryTargetFile = orderedTargetGroup[0]
+      const primaryTargetFile = selectPrimaryTargetFile(orderedTargetGroup)
+      const earliestTargetFile = orderedTargetGroup[0]
       const createdAt =
-        primaryTargetFile.startTimeMs ?? primaryTargetFile.fitnessFile.createdAt
+        earliestTargetFile.startTimeMs ??
+        earliestTargetFile.fitnessFile.createdAt
       let createdStatusId: string | null = null
 
       try {

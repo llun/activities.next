@@ -476,6 +476,159 @@ describe('importFitnessFilesJob', () => {
     expect(updated?.statusId).toBeDefined()
   })
 
+  it('prefers outdoor file (with coordinates) as primary when merging indoor and outdoor cycling', async () => {
+    const indoorFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/indoor-cycling.fit',
+      fileName: 'indoor-cycling.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-indoor-outdoor'
+    })
+    const outdoorFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/outdoor-cycling.fit',
+      fileName: 'outdoor-cycling.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-indoor-outdoor'
+    })
+
+    expect(indoorFile).toBeDefined()
+    expect(outdoorFile).toBeDefined()
+
+    const indoorActivity: FitnessActivityData = {
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 20_000,
+      totalDurationSeconds: 3_600,
+      startTime: new Date('2026-02-01T08:00:00.000Z')
+    }
+    const outdoorActivity: FitnessActivityData = {
+      coordinates: [
+        { lat: 13.7563, lng: 100.5018 },
+        { lat: 13.76, lng: 100.505 }
+      ],
+      trackPoints: [],
+      totalDistanceMeters: 18_000,
+      totalDurationSeconds: 3_000,
+      startTime: new Date('2026-02-01T08:01:00.000Z')
+    }
+
+    mockParseFitnessFile
+      .mockResolvedValueOnce(indoorActivity)
+      .mockResolvedValueOnce(outdoorActivity)
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-indoor-outdoor',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-indoor-outdoor',
+        fitnessFileIds: [indoorFile!.id, outdoorFile!.id],
+        visibility: 'public'
+      }
+    })
+
+    const updatedIndoor = await database.getFitnessFile({ id: indoorFile!.id })
+    const updatedOutdoor = await database.getFitnessFile({
+      id: outdoorFile!.id
+    })
+
+    expect(updatedIndoor?.statusId).toBeDefined()
+    expect(updatedOutdoor?.statusId).toBe(updatedIndoor?.statusId)
+    expect(updatedOutdoor?.isPrimary).toBe(true)
+    expect(updatedIndoor?.isPrimary).toBe(false)
+
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: expect.objectContaining({ fitnessFileId: outdoorFile!.id })
+      })
+    )
+  })
+
+  it('picks the longest outdoor file as primary when multiple outdoor cycling files are merged', async () => {
+    const shorterOutdoor = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/outdoor-short.fit',
+      fileName: 'outdoor-short.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-multi-outdoor'
+    })
+    const longerOutdoor = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/outdoor-long.fit',
+      fileName: 'outdoor-long.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-multi-outdoor'
+    })
+
+    expect(shorterOutdoor).toBeDefined()
+    expect(longerOutdoor).toBeDefined()
+
+    const shorterActivity: FitnessActivityData = {
+      coordinates: [
+        { lat: 13.7563, lng: 100.5018 },
+        { lat: 13.757, lng: 100.5025 }
+      ],
+      trackPoints: [],
+      totalDistanceMeters: 10_000,
+      totalDurationSeconds: 1_800,
+      startTime: new Date('2026-02-02T07:00:00.000Z')
+    }
+    const longerActivity: FitnessActivityData = {
+      coordinates: [
+        { lat: 13.7563, lng: 100.5018 },
+        { lat: 13.76, lng: 100.508 }
+      ],
+      trackPoints: [],
+      totalDistanceMeters: 30_000,
+      totalDurationSeconds: 5_400,
+      startTime: new Date('2026-02-02T07:01:00.000Z')
+    }
+
+    mockParseFitnessFile
+      .mockResolvedValueOnce(shorterActivity)
+      .mockResolvedValueOnce(longerActivity)
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-multi-outdoor',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-multi-outdoor',
+        fitnessFileIds: [shorterOutdoor!.id, longerOutdoor!.id],
+        visibility: 'public'
+      }
+    })
+
+    const updatedShorter = await database.getFitnessFile({
+      id: shorterOutdoor!.id
+    })
+    const updatedLonger = await database.getFitnessFile({
+      id: longerOutdoor!.id
+    })
+
+    expect(updatedShorter?.statusId).toBeDefined()
+    expect(updatedLonger?.statusId).toBe(updatedShorter?.statusId)
+    expect(updatedLonger?.isPrimary).toBe(true)
+    expect(updatedShorter?.isPrimary).toBe(false)
+
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: expect.objectContaining({ fitnessFileId: longerOutdoor!.id })
+      })
+    )
+  })
+
   it('marks parse failures and still processes valid files', async () => {
     const failedFile = await database.createFitnessFile({
       actorId: actor.id,
