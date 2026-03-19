@@ -435,6 +435,191 @@ describe('FitnessFileDatabase', () => {
       })
     })
 
+    describe('getFitnessActivitySummary', () => {
+      it('returns activity counts and totals grouped by type within date range', async () => {
+        const run1 = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/summary-run1.fit',
+          fileName: 'summary-run1.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+        const run2 = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/summary-run2.fit',
+          fileName: 'summary-run2.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+        const cycle1 = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/summary-cycle1.fit',
+          fileName: 'summary-cycle1.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+
+        await database.updateFitnessFileActivityData(run1!.id, {
+          activityType: 'running',
+          activityStartTime: new Date('2026-02-10T08:00:00.000Z'),
+          totalDistanceMeters: 5000,
+          totalDurationSeconds: 1500,
+          elevationGainMeters: 100
+        })
+        await database.updateFitnessFileProcessingStatus(run1!.id, 'completed')
+
+        await database.updateFitnessFileActivityData(run2!.id, {
+          activityType: 'running',
+          activityStartTime: new Date('2026-02-15T09:00:00.000Z'),
+          totalDistanceMeters: 8000,
+          totalDurationSeconds: 2400,
+          elevationGainMeters: 150
+        })
+        await database.updateFitnessFileProcessingStatus(run2!.id, 'completed')
+
+        await database.updateFitnessFileActivityData(cycle1!.id, {
+          activityType: 'cycling',
+          activityStartTime: new Date('2026-02-12T10:00:00.000Z'),
+          totalDistanceMeters: 20000,
+          totalDurationSeconds: 3600,
+          elevationGainMeters: 300
+        })
+        await database.updateFitnessFileProcessingStatus(
+          cycle1!.id,
+          'completed'
+        )
+
+        const summary = await database.getFitnessActivitySummary({
+          actorId: actors.extra.id,
+          startDate: new Date('2026-02-01T00:00:00.000Z').getTime(),
+          endDate: new Date('2026-03-01T00:00:00.000Z').getTime()
+        })
+
+        expect(summary).toHaveLength(2)
+
+        const running = summary.find((s) => s.activityType === 'running')
+        expect(running).toMatchObject({
+          activityType: 'running',
+          count: 2,
+          totalDistanceMeters: 13000,
+          totalDurationSeconds: 3900,
+          totalElevationGainMeters: 250
+        })
+
+        const cycling = summary.find((s) => s.activityType === 'cycling')
+        expect(cycling).toMatchObject({
+          activityType: 'cycling',
+          count: 1,
+          totalDistanceMeters: 20000,
+          totalDurationSeconds: 3600,
+          totalElevationGainMeters: 300
+        })
+      })
+
+      it('excludes fitness files outside the date range', async () => {
+        const outside = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/summary-outside.fit',
+          fileName: 'summary-outside.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+
+        await database.updateFitnessFileActivityData(outside!.id, {
+          activityType: 'running',
+          activityStartTime: new Date('2026-06-01T08:00:00.000Z'),
+          totalDistanceMeters: 3000,
+          totalDurationSeconds: 900,
+          elevationGainMeters: 50
+        })
+        await database.updateFitnessFileProcessingStatus(
+          outside!.id,
+          'completed'
+        )
+
+        const summary = await database.getFitnessActivitySummary({
+          actorId: actors.extra.id,
+          startDate: new Date('2026-05-01T00:00:00.000Z').getTime(),
+          endDate: new Date('2026-05-31T00:00:00.000Z').getTime()
+        })
+
+        expect(summary).toHaveLength(0)
+      })
+
+      it('returns empty array when no fitness files exist in range', async () => {
+        const summary = await database.getFitnessActivitySummary({
+          actorId: actors.extra.id,
+          startDate: new Date('2020-01-01T00:00:00.000Z').getTime(),
+          endDate: new Date('2020-02-01T00:00:00.000Z').getTime()
+        })
+
+        expect(summary).toEqual([])
+      })
+    })
+
+    describe('getActorHasFitnessData', () => {
+      it('returns true when actor has completed fitness files', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/has-data-completed.fit',
+          fileName: 'has-data-completed.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+        expect(created).toBeDefined()
+
+        await database.updateFitnessFileProcessingStatus(
+          created!.id,
+          'completed'
+        )
+
+        const result = await database.getActorHasFitnessData({
+          actorId: actors.extra.id
+        })
+        expect(result).toBe(true)
+      })
+
+      it('returns false when actor has no fitness files', async () => {
+        const result = await database.getActorHasFitnessData({
+          actorId: 'non-existent-actor-id'
+        })
+        expect(result).toBe(false)
+      })
+
+      it('returns false when actor only has pending/failed fitness files', async () => {
+        const pending = await database.createFitnessFile({
+          actorId: actors.replyAuthor.id,
+          path: 'fitness/has-data-pending.fit',
+          fileName: 'has-data-pending.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+        const failed = await database.createFitnessFile({
+          actorId: actors.replyAuthor.id,
+          path: 'fitness/has-data-failed.fit',
+          fileName: 'has-data-failed.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+        expect(pending).toBeDefined()
+        expect(failed).toBeDefined()
+
+        await database.updateFitnessFileProcessingStatus(failed!.id, 'failed')
+
+        const result = await database.getActorHasFitnessData({
+          actorId: actors.replyAuthor.id
+        })
+        expect(result).toBe(false)
+      })
+    })
+
     describe('deleteFitnessFile', () => {
       it('soft deletes a file and updates usage counters', async () => {
         const actor = await database.getActorFromId({ id: actors.extra.id })
