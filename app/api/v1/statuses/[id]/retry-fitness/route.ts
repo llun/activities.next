@@ -45,14 +45,11 @@ export const POST = traceApiRoute(
       return apiErrorResponse(422)
     }
 
-    for (const file of retriableFiles) {
-      await database.updateFitnessFileProcessingStatus(file.id, 'pending')
-    }
-
     const retryTimestamp = Date.now()
     const publishedFileIds: string[] = []
     try {
       for (const file of retriableFiles) {
+        await database.updateFitnessFileProcessingStatus(file.id, 'pending')
         await getQueue().publish({
           id: getHashFromString(
             `${statusId}:${file.id}:retry-fitness:${retryTimestamp}`
@@ -95,7 +92,7 @@ export const POST = traceApiRoute(
       message: 'Retrying fitness processing',
       statusId,
       actorId: currentActor.id,
-      retriedFiles: retriableFiles.length
+      retriedFiles: publishedFileIds.length
     })
 
     return apiResponse({
