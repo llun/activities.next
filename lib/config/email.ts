@@ -1,12 +1,12 @@
 import type { LambdaConfig } from '@/lib/services/email/lambda'
 import type { ResendConfig } from '@/lib/services/email/resend'
+import type { SESConfig } from '@/lib/services/email/ses'
 import type { SMTPConfig } from '@/lib/services/email/smtp'
-
 import { logger } from '@/lib/utils/logger'
 
 import { matcher } from './utils'
 
-type EmailConfig = SMTPConfig | ResendConfig | LambdaConfig
+type EmailConfig = SMTPConfig | ResendConfig | LambdaConfig | SESConfig
 
 const getSMTPConfig = () => {
   const portStr = process.env.ACTIVITIES_EMAIL_SMTP_PORT
@@ -50,7 +50,16 @@ const getLambdaConfig = () => ({
     ? { functionName: process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_NAME }
     : {}),
   ...(process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_QUALIFIER
-    ? { functionQualifier: process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_QUALIFIER }
+    ? {
+        functionQualifier:
+          process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_QUALIFIER
+      }
+    : {})
+})
+
+const getSESConfig = () => ({
+  ...(process.env.ACTIVITIES_EMAIL_SES_REGION
+    ? { region: process.env.ACTIVITIES_EMAIL_SES_REGION }
     : {})
 })
 
@@ -99,6 +108,14 @@ export const getEmailConfig = (): { email: EmailConfig } | null => {
           ...(serviceFromAddress ? { serviceFromAddress } : {}),
           ...getLambdaConfig()
         } as LambdaConfig
+      }
+    case 'ses':
+      return {
+        email: {
+          type,
+          ...(serviceFromAddress ? { serviceFromAddress } : {}),
+          ...getSESConfig()
+        } as SESConfig
       }
     default:
       logger.warn(

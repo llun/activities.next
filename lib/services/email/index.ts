@@ -2,6 +2,7 @@ import { getConfig } from '@/lib/config'
 
 import { TYPE_LAMBDA, sendLambdaMail } from './lambda'
 import { TYPE_RESEND, sendResendMail } from './resend'
+import { TYPE_SES, sendSESMail } from './ses'
 import { TYPE_SMTP, sendSMTPMail } from './smtp'
 import { Message } from './types'
 
@@ -16,6 +17,8 @@ export const sendMail = async (message: Message) => {
       return sendSMTPMail(message)
     case TYPE_RESEND:
       return sendResendMail(message)
+    case TYPE_SES:
+      return sendSESMail(message)
     default:
       throw new Error('Unsupported email type')
   }

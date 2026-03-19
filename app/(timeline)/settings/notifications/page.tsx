@@ -55,7 +55,8 @@ const notificationTypes: {
   {
     key: 'activity_import',
     label: 'Fitness Activity Imported',
-    description: 'A Strava fitness activity has been imported and is ready to view'
+    description:
+      'A Strava fitness activity has been imported and is ready to view'
   }
 ]
 
