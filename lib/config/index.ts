@@ -7,6 +7,7 @@ import { z } from 'zod'
 
 import { LambdaConfig } from '@/lib/services/email/lambda'
 import { ResendConfig } from '@/lib/services/email/resend'
+import { SESConfig } from '@/lib/services/email/ses'
 import { SMTPConfig } from '@/lib/services/email/smtp'
 import { logger } from '@/lib/utils/logger'
 
@@ -32,7 +33,9 @@ const Config = z.object({
   allowMediaDomains: z.string().array().optional(),
   allowActorDomains: z.string().array().optional(),
   auth: AuthConfig.optional(),
-  email: z.union([SMTPConfig, LambdaConfig, ResendConfig]).optional(),
+  email: z
+    .union([SMTPConfig, LambdaConfig, ResendConfig, SESConfig])
+    .optional(),
   mediaStorage: MediaStorageConfig.optional(),
   fitnessStorage: FitnessStorageConfig.optional(),
   openTelemetry: OpenTelemetryConfig.optional(),
