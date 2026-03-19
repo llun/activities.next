@@ -228,6 +228,32 @@ describe('getEmailConfig', () => {
     expect(config?.email.serviceFromAddress).toBeUndefined()
   })
 
+  it('builds SES config from individual env vars', () => {
+    process.env.ACTIVITIES_EMAIL_TYPE = 'ses'
+    process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
+    process.env.ACTIVITIES_EMAIL_SES_REGION = 'us-east-1'
+
+    const config = getEmailConfig()
+
+    expect(config).not.toBeNull()
+    expect(config?.email.type).toBe('ses')
+    expect(config?.email.serviceFromAddress).toBe('noreply@example.com')
+
+    const email = config!.email as { region: string }
+    expect(email.region).toBe('us-east-1')
+  })
+
+  it('omits SES region when ACTIVITIES_EMAIL_SES_REGION is absent', () => {
+    process.env.ACTIVITIES_EMAIL_TYPE = 'ses'
+    process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
+    // ACTIVITIES_EMAIL_SES_REGION intentionally absent
+
+    const config = getEmailConfig()
+    const email = config!.email as { region?: string }
+
+    expect(email.region).toBeUndefined()
+  })
+
   it('returns null when ACTIVITIES_EMAIL_TYPE is unknown', () => {
     process.env.ACTIVITIES_EMAIL_TYPE = 'unknown'
     process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
