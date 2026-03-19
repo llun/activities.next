@@ -509,7 +509,7 @@ describe('importFitnessFilesJob', () => {
     const outdoorActivity: FitnessActivityData = {
       coordinates: [
         { lat: 13.7563, lng: 100.5018 },
-        { lat: 13.7600, lng: 100.5050 }
+        { lat: 13.76, lng: 100.505 }
       ],
       trackPoints: [],
       totalDistanceMeters: 18_000,
@@ -576,7 +576,7 @@ describe('importFitnessFilesJob', () => {
     const shorterActivity: FitnessActivityData = {
       coordinates: [
         { lat: 13.7563, lng: 100.5018 },
-        { lat: 13.7570, lng: 100.5025 }
+        { lat: 13.757, lng: 100.5025 }
       ],
       trackPoints: [],
       totalDistanceMeters: 10_000,
@@ -586,7 +586,7 @@ describe('importFitnessFilesJob', () => {
     const longerActivity: FitnessActivityData = {
       coordinates: [
         { lat: 13.7563, lng: 100.5018 },
-        { lat: 13.7600, lng: 100.5080 }
+        { lat: 13.76, lng: 100.508 }
       ],
       trackPoints: [],
       totalDistanceMeters: 30_000,
