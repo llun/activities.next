@@ -379,7 +379,7 @@ export class S3FileStorage implements MediaStorage {
       ? `https://${this._host}/api/v1/files/${media.thumbnail?.path}`
       : url
     return MediaStorageSaveFileOutput.parse({
-      id: media.id,
+      id: `${media.id}`,
       type,
       mime_type: mimeType,
       // TODO: Add config for base image domain?
