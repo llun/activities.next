@@ -128,6 +128,18 @@ describe('getEmailConfig', () => {
     expect(email.port).toBeUndefined()
   })
 
+  it('omits port when SMTP port is a float', () => {
+    process.env.ACTIVITIES_EMAIL_TYPE = 'smtp'
+    process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
+    process.env.ACTIVITIES_EMAIL_SMTP_HOST = 'mail.example.com'
+    process.env.ACTIVITIES_EMAIL_SMTP_PORT = '587.5'
+
+    const config = getEmailConfig()
+    const email = config!.email as { port?: number }
+
+    expect(email.port).toBeUndefined()
+  })
+
   it('builds Resend config from individual env vars', () => {
     process.env.ACTIVITIES_EMAIL_TYPE = 'resend'
     process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'

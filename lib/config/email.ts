@@ -2,6 +2,8 @@ import type { LambdaConfig } from '@/lib/services/email/lambda'
 import type { ResendConfig } from '@/lib/services/email/resend'
 import type { SMTPConfig } from '@/lib/services/email/smtp'
 
+import { logger } from '@/lib/utils/logger'
+
 import { matcher } from './utils'
 
 type EmailConfig = SMTPConfig | ResendConfig | LambdaConfig
@@ -11,7 +13,7 @@ const getSMTPConfig = () => ({
     ? { host: process.env.ACTIVITIES_EMAIL_SMTP_HOST }
     : {}),
   ...(process.env.ACTIVITIES_EMAIL_SMTP_PORT &&
-  Number.isFinite(Number(process.env.ACTIVITIES_EMAIL_SMTP_PORT))
+  Number.isInteger(Number(process.env.ACTIVITIES_EMAIL_SMTP_PORT))
     ? { port: Number(process.env.ACTIVITIES_EMAIL_SMTP_PORT) }
     : {}),
   ...(process.env.ACTIVITIES_EMAIL_SMTP_USER &&
@@ -51,7 +53,9 @@ export const getEmailConfig = (): { email: EmailConfig } | null => {
     try {
       return { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
     } catch {
-      // malformed JSON — fall through to individual env vars
+      logger.warn(
+        'ACTIVITIES_EMAIL contains malformed JSON; falling back to individual env vars'
+      )
     }
   }
 
@@ -86,6 +90,9 @@ export const getEmailConfig = (): { email: EmailConfig } | null => {
         } as LambdaConfig
       }
     default:
+      logger.warn(
+        `Unknown ACTIVITIES_EMAIL_TYPE value "${type}"; email will be disabled`
+      )
       return null
   }
 }
