@@ -23,6 +23,7 @@ import { Actions } from './actions/actions'
 import { ActorAvatar, ActorInfo } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
 import { Poll } from './poll'
+import { RetryFitnessButton } from './retry-fitness-button'
 
 export interface PostProps {
   host: string
@@ -84,6 +85,9 @@ export const Post: FC<PostProps> = (props) => {
     durationSeconds: fitnessFile?.totalDurationSeconds,
     activityType: fitnessFile?.activityType
   })
+  const isOwner =
+    Boolean(actualStatus.isLocalActor) &&
+    props.currentActor?.id === actualStatus.actorId
 
   return (
     <div className="flex flex-col gap-1">
@@ -153,10 +157,16 @@ export const Post: FC<PostProps> = (props) => {
               ) : null}
 
               {isFitnessFailed ? (
-                <div className="mt-2 text-destructive">
-                  Processing failed. The original activity file is still
-                  available.
-                </div>
+                isOwner ? (
+                  <RetryFitnessButton statusId={actualStatus.id} />
+                ) : (
+                  <div className="mt-2 flex items-center gap-2 text-destructive">
+                    <span>
+                      Processing failed. The original activity file is still
+                      available.
+                    </span>
+                  </div>
+                )
               ) : null}
 
               {isFitnessCompleted ? (
