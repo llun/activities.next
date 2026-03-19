@@ -8,27 +8,33 @@ import { matcher } from './utils'
 
 type EmailConfig = SMTPConfig | ResendConfig | LambdaConfig
 
-const getSMTPConfig = () => ({
-  ...(process.env.ACTIVITIES_EMAIL_SMTP_HOST
-    ? { host: process.env.ACTIVITIES_EMAIL_SMTP_HOST }
-    : {}),
-  ...(process.env.ACTIVITIES_EMAIL_SMTP_PORT &&
-  Number.isInteger(Number(process.env.ACTIVITIES_EMAIL_SMTP_PORT))
-    ? { port: Number(process.env.ACTIVITIES_EMAIL_SMTP_PORT) }
-    : {}),
-  ...(process.env.ACTIVITIES_EMAIL_SMTP_USER &&
-  process.env.ACTIVITIES_EMAIL_SMTP_PASSWORD
-    ? {
-        auth: {
-          user: process.env.ACTIVITIES_EMAIL_SMTP_USER,
-          pass: process.env.ACTIVITIES_EMAIL_SMTP_PASSWORD
+const getSMTPConfig = () => {
+  const portStr = process.env.ACTIVITIES_EMAIL_SMTP_PORT
+  const portNum = portStr ? Number(portStr) : NaN
+  const port =
+    Number.isInteger(portNum) && portNum >= 0 && portNum <= 65535
+      ? portNum
+      : undefined
+
+  return {
+    ...(process.env.ACTIVITIES_EMAIL_SMTP_HOST
+      ? { host: process.env.ACTIVITIES_EMAIL_SMTP_HOST }
+      : {}),
+    ...(port !== undefined ? { port } : {}),
+    ...(process.env.ACTIVITIES_EMAIL_SMTP_USER &&
+    process.env.ACTIVITIES_EMAIL_SMTP_PASSWORD
+      ? {
+          auth: {
+            user: process.env.ACTIVITIES_EMAIL_SMTP_USER,
+            pass: process.env.ACTIVITIES_EMAIL_SMTP_PASSWORD
+          }
         }
-      }
-    : {}),
-  ...(process.env.ACTIVITIES_EMAIL_SMTP_SECURE
-    ? { secure: process.env.ACTIVITIES_EMAIL_SMTP_SECURE === 'true' }
-    : {})
-})
+      : {}),
+    ...(process.env.ACTIVITIES_EMAIL_SMTP_SECURE
+      ? { secure: process.env.ACTIVITIES_EMAIL_SMTP_SECURE === 'true' }
+      : {})
+  }
+}
 
 const getResendConfig = () => ({
   ...(process.env.ACTIVITIES_EMAIL_RESEND_TOKEN
@@ -63,6 +69,8 @@ export const getEmailConfig = (): { email: EmailConfig } | null => {
 
   const type = process.env.ACTIVITIES_EMAIL_TYPE
   const serviceFromAddress = process.env.ACTIVITIES_EMAIL_FROM
+
+  if (!type) return null
 
   switch (type) {
     case 'smtp':

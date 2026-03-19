@@ -140,6 +140,18 @@ describe('getEmailConfig', () => {
     expect(email.port).toBeUndefined()
   })
 
+  it('omits port when SMTP port is out of valid range', () => {
+    process.env.ACTIVITIES_EMAIL_TYPE = 'smtp'
+    process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
+    process.env.ACTIVITIES_EMAIL_SMTP_HOST = 'mail.example.com'
+
+    process.env.ACTIVITIES_EMAIL_SMTP_PORT = '-1'
+    expect((getEmailConfig()!.email as { port?: number }).port).toBeUndefined()
+
+    process.env.ACTIVITIES_EMAIL_SMTP_PORT = '65536'
+    expect((getEmailConfig()!.email as { port?: number }).port).toBeUndefined()
+  })
+
   it('builds Resend config from individual env vars', () => {
     process.env.ACTIVITIES_EMAIL_TYPE = 'resend'
     process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
@@ -219,6 +231,15 @@ describe('getEmailConfig', () => {
   it('returns null when ACTIVITIES_EMAIL_TYPE is unknown', () => {
     process.env.ACTIVITIES_EMAIL_TYPE = 'unknown'
     process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
+
+    const config = getEmailConfig()
+
+    expect(config).toBeNull()
+  })
+
+  it('returns null when ACTIVITIES_EMAIL_TYPE is not set', () => {
+    process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
+    // ACTIVITIES_EMAIL_TYPE intentionally absent
 
     const config = getEmailConfig()
 
