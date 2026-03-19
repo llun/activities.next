@@ -969,6 +969,25 @@ export const retryFitnessImportBatch = async (
   return response.json()
 }
 
+export const retryFitnessProcessing = async (
+  statusId: string
+): Promise<{ statusId: string; retried: number }> => {
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(statusId)}/retry-fitness`,
+    { method: 'POST' }
+  )
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to retry fitness processing.'
+    )
+    throw new Error(errorDetails)
+  }
+
+  return response.json()
+}
+
 export const deleteFitnessFile = async (id: string): Promise<void> => {
   const response = await fetch(`/api/v1/accounts/fitness-files/${id}`, {
     method: 'DELETE'
