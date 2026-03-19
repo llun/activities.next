@@ -38,9 +38,7 @@ export const POST = traceApiRoute(
 
     const files = await database.getFitnessFilesByStatus({ statusId })
     const retriableFiles = files.filter(
-      (file) =>
-        file.processingStatus === 'failed' ||
-        file.processingStatus === 'processing'
+      (file) => file.processingStatus === 'failed'
     )
 
     if (retriableFiles.length === 0) {
@@ -49,16 +47,39 @@ export const POST = traceApiRoute(
 
     for (const file of retriableFiles) {
       await database.updateFitnessFileProcessingStatus(file.id, 'pending')
-      await getQueue().publish({
-        id: getHashFromString(`${statusId}:${file.id}:retry-fitness`),
-        name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: {
-          actorId: currentActor.id,
-          statusId,
-          fitnessFileId: file.id,
-          publishSendNote: false
-        }
+    }
+
+    const retryTimestamp = Date.now()
+    try {
+      for (const file of retriableFiles) {
+        await getQueue().publish({
+          id: getHashFromString(
+            `${statusId}:${file.id}:retry-fitness:${retryTimestamp}`
+          ),
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: {
+            actorId: currentActor.id,
+            statusId,
+            fitnessFileId: file.id,
+            publishSendNote: false
+          }
+        })
+      }
+    } catch (error) {
+      const nodeError = error as Error
+
+      for (const file of retriableFiles) {
+        await database.updateFitnessFileProcessingStatus(file.id, 'failed')
+      }
+
+      logger.error({
+        message: 'Failed to queue retry for fitness processing',
+        statusId,
+        actorId: currentActor.id,
+        error: nodeError.message
       })
+
+      return apiErrorResponse(500)
     }
 
     logger.info({
