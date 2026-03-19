@@ -50,6 +50,7 @@ export const POST = traceApiRoute(
     }
 
     const retryTimestamp = Date.now()
+    const publishedFileIds: string[] = []
     try {
       for (const file of retriableFiles) {
         await getQueue().publish({
@@ -64,11 +65,15 @@ export const POST = traceApiRoute(
             publishSendNote: false
           }
         })
+        publishedFileIds.push(file.id)
       }
     } catch (error) {
       const nodeError = error as Error
+      const unpublishedFiles = retriableFiles.filter(
+        (f) => !publishedFileIds.includes(f.id)
+      )
 
-      for (const file of retriableFiles) {
+      for (const file of unpublishedFiles) {
         await database.updateFitnessFileProcessingStatus(file.id, 'failed')
       }
 
@@ -76,10 +81,14 @@ export const POST = traceApiRoute(
         message: 'Failed to queue retry for fitness processing',
         statusId,
         actorId: currentActor.id,
+        published: publishedFileIds.length,
+        failed: unpublishedFiles.length,
         error: nodeError.message
       })
 
-      return apiErrorResponse(500)
+      if (publishedFileIds.length === 0) {
+        return apiErrorResponse(500)
+      }
     }
 
     logger.info({
@@ -92,7 +101,7 @@ export const POST = traceApiRoute(
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { statusId, retried: retriableFiles.length }
+      data: { statusId, retried: publishedFileIds.length }
     })
   }),
   {

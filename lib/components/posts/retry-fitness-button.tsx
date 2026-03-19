@@ -18,8 +18,8 @@ export const RetryFitnessButton: FC<Props> = ({ statusId }) => {
   if (retryRequested) {
     return (
       <span className="inline-flex items-center gap-1 text-muted-foreground">
-        <RefreshCw className="size-3 animate-spin" />
-        Retrying...
+        <RefreshCw className="size-3" />
+        Retry queued
       </span>
     )
   }
