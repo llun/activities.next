@@ -65,10 +65,13 @@ export const getEmailConfig = (): { email: EmailConfig } | null => {
     }
   }
 
+  if (!matcher('ACTIVITIES_EMAIL_')) return null
+
+  const type = process.env.ACTIVITIES_EMAIL_TYPE
+  const serviceFromAddress = process.env.ACTIVITIES_EMAIL_FROM
+
   if (!type) {
-    logger.warn(
-      'ACTIVITIES_EMAIL_TYPE is not set; email will be disabled'
-    )
+    logger.warn('ACTIVITIES_EMAIL_TYPE is not set; email will be disabled')
     return null
   }
 
