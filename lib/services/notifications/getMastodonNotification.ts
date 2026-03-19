@@ -47,6 +47,8 @@ const mapNotificationType = (
       return 'follow_request'
     case 'mention':
       return 'mention'
+    case 'activity_import':
+      return 'status'
     default:
       return 'mention' // Default fallback
   }

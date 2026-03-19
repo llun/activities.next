@@ -83,6 +83,11 @@ STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('fe80::', 10, 'ipv6')
 STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('ff00::', 8, 'ipv6')
 STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('2001:db8::', 32, 'ipv6')
 
+const getActivityImportGroupKey = (actorId: string) => {
+  const dateStr = new Date().toISOString().slice(0, 10)
+  return `activity_import:${actorId}:${dateStr}`
+}
+
 const getStravaBatchId = (stravaActivityId: string) =>
   `strava-activity:${stravaActivityId}`
 
@@ -532,6 +537,14 @@ export const importStravaActivityJob = createJobHandle(
           data: { actorId, statusId: createdNote.id }
         })
 
+        await database.createNotification({
+          actorId,
+          type: 'activity_import',
+          sourceActorId: actorId,
+          statusId: createdNote.id,
+          groupKey: getActivityImportGroupKey(actorId)
+        })
+
         return
       }
 
@@ -655,6 +668,14 @@ export const importStravaActivityJob = createJobHandle(
       stravaActivityId,
       accessToken,
       activity
+    })
+
+    await database.createNotification({
+      actorId,
+      type: 'activity_import',
+      sourceActorId: actorId,
+      statusId: importedFitnessFile.statusId,
+      groupKey: getActivityImportGroupKey(actorId)
     })
 
     if (!importedFitnessFile.hasMapData) {

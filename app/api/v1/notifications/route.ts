@@ -87,12 +87,14 @@ export const GET = traceApiRoute(
     const internalTypes = types?.map((type) => {
       if (type === 'favourite') return 'like'
       if (type === 'reblog') return 'reblog'
+      if (type === 'status') return 'activity_import'
       return type
     }) as NotificationType[] | undefined
 
     const internalExcludeTypes = excludeTypes?.map((type) => {
       if (type === 'favourite') return 'like'
       if (type === 'reblog') return 'reblog'
+      if (type === 'status') return 'activity_import'
       return type
     }) as NotificationType[] | undefined
 

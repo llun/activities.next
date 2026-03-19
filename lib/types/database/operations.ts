@@ -714,7 +714,8 @@ export const NotificationType = z.enum([
   'like',
   'mention',
   'reply',
-  'reblog'
+  'reblog',
+  'activity_import'
 ])
 
 export type NotificationType = z.infer<typeof NotificationType>

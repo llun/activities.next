@@ -109,6 +109,7 @@ type MockDatabase = Pick<
   | 'createAttachment'
   | 'updateFitnessSettings'
   | 'createNote'
+  | 'createNotification'
 >
 
 describe('importStravaActivityJob', () => {
@@ -123,7 +124,8 @@ describe('importStravaActivityJob', () => {
     getAttachments: jest.fn(),
     createAttachment: jest.fn(),
     updateFitnessSettings: jest.fn(),
-    createNote: jest.fn()
+    createNote: jest.fn(),
+    createNotification: jest.fn()
   }
 
   beforeEach(() => {
@@ -183,6 +185,15 @@ describe('importStravaActivityJob', () => {
       id: 'status-new',
       type: 'Note',
       text: ''
+    } as never)
+    database.createNotification.mockResolvedValue({
+      id: 'notification-1',
+      actorId: 'actor-1',
+      type: 'activity_import',
+      sourceActorId: 'actor-1',
+      isRead: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     } as never)
     mockSaveMedia.mockResolvedValue({
       id: 'media-1',
@@ -723,6 +734,63 @@ describe('importStravaActivityJob', () => {
 
     expect(mockGetQueue().publish).toHaveBeenCalledWith(
       expect.objectContaining({ name: REGENERATE_FITNESS_MAPS_JOB_NAME })
+    )
+  })
+
+  it('creates activity_import notification on normal path', async () => {
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-notify-normal',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    expect(database.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'actor-1',
+        type: 'activity_import',
+        sourceActorId: 'actor-1',
+        statusId: 'status-1',
+        groupKey: expect.stringMatching(/^activity_import:actor-1:\d{4}-\d{2}-\d{2}$/)
+      })
+    )
+  })
+
+  it('creates activity_import notification on fallback path', async () => {
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 125,
+      name: 'Morning Run',
+      distance: 5_000,
+      elapsed_time: 1_500,
+      total_elevation_gain: 120,
+      start_date: '2026-01-01T00:00:00.000Z',
+      sport_type: 'Run',
+      visibility: 'everyone'
+    })
+    mockGetStravaActivityStreams.mockResolvedValueOnce({
+      time: { type: 'time', data: [0, 10, 20] }
+    })
+    mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-notify-fallback',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '125'
+      }
+    })
+
+    expect(database.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'actor-1',
+        type: 'activity_import',
+        sourceActorId: 'actor-1',
+        statusId: 'status-new',
+        groupKey: expect.stringMatching(/^activity_import:actor-1:\d{4}-\d{2}-\d{2}$/)
+      })
     )
   })
 
