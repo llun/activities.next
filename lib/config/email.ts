@@ -12,7 +12,7 @@ const getSMTPConfig = () => {
   const portStr = process.env.ACTIVITIES_EMAIL_SMTP_PORT
   const portNum = portStr ? Number(portStr) : NaN
   const port =
-    Number.isInteger(portNum) && portNum >= 0 && portNum <= 65535
+    Number.isInteger(portNum) && portNum >= 1 && portNum <= 65535
       ? portNum
       : undefined
 
