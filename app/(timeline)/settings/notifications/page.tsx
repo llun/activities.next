@@ -51,6 +51,12 @@ const notificationTypes: {
     key: 'reblog',
     label: 'Reblogs',
     description: 'Someone reblogs your post'
+  },
+  {
+    key: 'activity_import',
+    label: 'Fitness Activity Imported',
+    description:
+      'A Strava fitness activity has been imported and is ready to view'
   }
 ]
 
