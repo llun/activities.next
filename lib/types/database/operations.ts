@@ -71,6 +71,7 @@ export type UpdateActorParams = {
     mention?: boolean
     reply?: boolean
     reblog?: boolean
+    activity_import?: boolean
   }
   fitness?: {
     strava?: {
@@ -714,7 +715,8 @@ export const NotificationType = z.enum([
   'like',
   'mention',
   'reply',
-  'reblog'
+  'reblog',
+  'activity_import'
 ])
 
 export type NotificationType = z.infer<typeof NotificationType>

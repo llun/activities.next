@@ -14,6 +14,7 @@ export interface ActorSettings {
     mention?: boolean
     reply?: boolean
     reblog?: boolean
+    activity_import?: boolean
   }
 }
 

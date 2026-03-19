@@ -87,12 +87,18 @@ export const GET = traceApiRoute(
     const internalTypes = types?.map((type) => {
       if (type === 'favourite') return 'like'
       if (type === 'reblog') return 'reblog'
+      // Maps Mastodon 'status' type to internal 'activity_import'.
+      // This codebase has no native follow-post 'status' notifications;
+      // if one is ever added, this mapping must be updated.
+      if (type === 'status') return 'activity_import'
       return type
     }) as NotificationType[] | undefined
 
     const internalExcludeTypes = excludeTypes?.map((type) => {
       if (type === 'favourite') return 'like'
       if (type === 'reblog') return 'reblog'
+      // See comment above about 'status' → 'activity_import' mapping
+      if (type === 'status') return 'activity_import'
       return type
     }) as NotificationType[] | undefined
 
