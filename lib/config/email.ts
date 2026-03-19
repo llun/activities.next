@@ -9,10 +9,12 @@ type EmailConfig = SMTPConfig | ResendConfig | LambdaConfig
 const getSMTPConfig = () => ({
   host: process.env.ACTIVITIES_EMAIL_SMTP_HOST,
   port: process.env.ACTIVITIES_EMAIL_SMTP_PORT
-    ? Number(process.env.ACTIVITIES_EMAIL_SMTP_PORT)
+    ? Number.isFinite(Number(process.env.ACTIVITIES_EMAIL_SMTP_PORT))
+      ? Number(process.env.ACTIVITIES_EMAIL_SMTP_PORT)
+      : undefined
     : undefined,
   auth:
-    process.env.ACTIVITIES_EMAIL_SMTP_USER ||
+    process.env.ACTIVITIES_EMAIL_SMTP_USER &&
     process.env.ACTIVITIES_EMAIL_SMTP_PASSWORD
       ? {
           user: process.env.ACTIVITIES_EMAIL_SMTP_USER,
@@ -25,25 +27,28 @@ const getSMTPConfig = () => ({
 })
 
 const getResendConfig = () => ({
-  token: process.env.ACTIVITIES_EMAIL_RESEND_TOKEN ?? ''
+  token: process.env.ACTIVITIES_EMAIL_RESEND_TOKEN
 })
 
 const getLambdaConfig = () => ({
-  region: process.env.ACTIVITIES_EMAIL_LAMBDA_REGION ?? '',
-  functionName: process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_NAME ?? '',
-  functionQualifier:
-    process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_QUALIFIER ?? ''
+  region: process.env.ACTIVITIES_EMAIL_LAMBDA_REGION,
+  functionName: process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_NAME,
+  functionQualifier: process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_QUALIFIER
 })
 
 export const getEmailConfig = (): { email: EmailConfig } | null => {
   if (process.env.ACTIVITIES_EMAIL) {
-    return { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
+    try {
+      return { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
+    } catch {
+      // malformed JSON — fall through to individual env vars
+    }
   }
 
   if (!matcher('ACTIVITIES_EMAIL_')) return null
 
   const type = process.env.ACTIVITIES_EMAIL_TYPE
-  const serviceFromAddress = process.env.ACTIVITIES_EMAIL_FROM ?? ''
+  const serviceFromAddress = process.env.ACTIVITIES_EMAIL_FROM
 
   switch (type) {
     case 'smtp':
