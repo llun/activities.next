@@ -71,7 +71,16 @@ export const POST = traceApiRoute(
       )
 
       for (const file of unpublishedFiles) {
-        await database.updateFitnessFileProcessingStatus(file.id, 'failed')
+        try {
+          await database.updateFitnessFileProcessingStatus(file.id, 'failed')
+        } catch (rollbackError) {
+          logger.error({
+            message: 'Failed to roll back fitness file status',
+            fitnessFileId: file.id,
+            statusId,
+            error: (rollbackError as Error).message
+          })
+        }
       }
 
       logger.error({

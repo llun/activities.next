@@ -157,15 +157,16 @@ export const Post: FC<PostProps> = (props) => {
               ) : null}
 
               {isFitnessFailed ? (
-                <div className="mt-2 flex items-center gap-2 text-destructive">
-                  <span>
-                    Processing failed. The original activity file is still
-                    available.
-                  </span>
-                  {isOwner && (
-                    <RetryFitnessButton statusId={actualStatus.id} />
-                  )}
-                </div>
+                isOwner ? (
+                  <RetryFitnessButton statusId={actualStatus.id} />
+                ) : (
+                  <div className="mt-2 flex items-center gap-2 text-destructive">
+                    <span>
+                      Processing failed. The original activity file is still
+                      available.
+                    </span>
+                  </div>
+                )
               ) : null}
 
               {isFitnessCompleted ? (
