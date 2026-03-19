@@ -1,6 +1,6 @@
 'use client'
 
-import { Bell, Home, Settings } from 'lucide-react'
+import { Activity, Bell, Home, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -15,15 +15,24 @@ const navItems = [
 
 interface MobileNavProps {
   unreadCount?: number
+  fitnessUrl?: string
 }
 
-export function MobileNav({ unreadCount = 0 }: MobileNavProps) {
+export function MobileNav({ unreadCount = 0, fitnessUrl }: MobileNavProps) {
   const pathname = usePathname()
+
+  const allNavItems = fitnessUrl
+    ? [
+        ...navItems.slice(0, 1),
+        { href: fitnessUrl, label: 'Fitness', icon: Activity },
+        ...navItems.slice(1)
+      ]
+    : navItems
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/90 backdrop-blur md:hidden safe-area-pb">
       <ul className="flex items-center justify-around py-2">
-        {navItems.map((item) => {
+        {allNavItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + '/')
           const isNotifications = item.href === '/notifications'

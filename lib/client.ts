@@ -988,6 +988,43 @@ export const retryFitnessProcessing = async (
   return response.json()
 }
 
+export interface FitnessActivitySummary {
+  activityType: string
+  count: number
+  totalDistanceMeters: number
+  totalDurationSeconds: number
+  totalElevationGainMeters: number
+}
+
+interface GetFitnessSummaryParams {
+  actorId: string
+  startDate: number
+  endDate: number
+}
+
+export const getFitnessSummary = async ({
+  actorId,
+  startDate,
+  endDate
+}: GetFitnessSummaryParams): Promise<FitnessActivitySummary[]> => {
+  const encodedId = urlToId(actorId)
+  const url = new URL(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-summary`
+  )
+  url.searchParams.append('start_date', `${startDate}`)
+  url.searchParams.append('end_date', `${endDate}`)
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to fetch fitness summary: ${response.status}`)
+  }
+  return response.json()
+}
+
 export const deleteFitnessFile = async (id: string): Promise<void> => {
   const response = await fetch(`/api/v1/accounts/fitness-files/${id}`, {
     method: 'DELETE'

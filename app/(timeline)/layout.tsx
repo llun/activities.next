@@ -64,13 +64,19 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
       }
     : undefined
 
-  // Get unread notifications count
-  const unreadCount = actor
-    ? await database.getNotificationsCount({
-        actorId: actor.id,
-        onlyUnread: true
-      })
-    : 0
+  // Get unread notifications count and fitness data status
+  const [unreadCount, hasFitnessData] = await Promise.all([
+    actor
+      ? database.getNotificationsCount({
+          actorId: actor.id,
+          onlyUnread: true
+        })
+      : 0,
+    actor ? database.getActorHasFitnessData({ actorId: actor.id }) : false
+  ])
+
+  const fitnessUrl =
+    hasFitnessData && user ? `/${user.handle}/fitness` : undefined
 
   return (
     <div className="min-h-screen">
@@ -88,9 +94,12 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
             deletionScheduledAt: a.deletionScheduledAt ?? null
           }))}
           unreadCount={unreadCount}
+          fitnessUrl={fitnessUrl}
         />
       )}
-      {showNavigation && <MobileNav unreadCount={unreadCount} />}
+      {showNavigation && (
+        <MobileNav unreadCount={unreadCount} fitnessUrl={fitnessUrl} />
+      )}
       <main
         className={cn(
           'pb-6',
