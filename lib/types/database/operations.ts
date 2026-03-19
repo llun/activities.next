@@ -71,6 +71,7 @@ export type UpdateActorParams = {
     mention?: boolean
     reply?: boolean
     reblog?: boolean
+    activity_import?: boolean
   }
   fitness?: {
     strava?: {
