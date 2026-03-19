@@ -1,6 +1,6 @@
 'use client'
 
-import { Bell, Home, Settings } from 'lucide-react'
+import { Activity, Bell, Home, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -37,15 +37,25 @@ interface SidebarProps {
   currentActor?: ActorInfo
   actors?: ActorInfo[]
   unreadCount?: number
+  fitnessUrl?: string
 }
 
 export function Sidebar({
   user,
   currentActor,
   actors = [],
-  unreadCount = 0
+  unreadCount = 0,
+  fitnessUrl
 }: SidebarProps) {
   const pathname = usePathname()
+
+  const allNavItems = fitnessUrl
+    ? [
+        ...navItems.slice(0, 1),
+        { href: fitnessUrl, label: 'Fitness', icon: Activity },
+        ...navItems.slice(1)
+      ]
+    : navItems
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'
@@ -62,7 +72,7 @@ export function Sidebar({
 
         <nav className="flex-1 px-3">
           <ul className="space-y-1">
-            {navItems.map((item) => {
+            {allNavItems.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(item.href + '/')
               const isNotifications = item.href === '/notifications'
@@ -129,7 +139,7 @@ export function Sidebar({
 
         <nav className="flex-1 pb-4">
           <ul className="space-y-2">
-            {navItems.map((item) => {
+            {allNavItems.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(item.href + '/')
               const isNotifications = item.href === '/notifications'

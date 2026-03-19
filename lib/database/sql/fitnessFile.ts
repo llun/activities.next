@@ -84,6 +84,24 @@ export interface GetFitnessStorageUsageForAccountParams {
   accountId: string
 }
 
+export interface FitnessActivitySummary {
+  activityType: string
+  count: number
+  totalDistanceMeters: number
+  totalDurationSeconds: number
+  totalElevationGainMeters: number
+}
+
+export interface GetFitnessActivitySummaryParams {
+  actorId: string
+  startDate: number
+  endDate: number
+}
+
+export interface GetActorHasFitnessDataParams {
+  actorId: string
+}
+
 export interface FitnessFileDatabase {
   createFitnessFile(
     params: CreateFitnessFileParams
@@ -146,6 +164,10 @@ export interface FitnessFileDatabase {
     fitnessFileId: string,
     data: UpdateFitnessFileActivityData
   ): Promise<boolean>
+  getFitnessActivitySummary(
+    params: GetFitnessActivitySummaryParams
+  ): Promise<FitnessActivitySummary[]>
+  getActorHasFitnessData(params: GetActorHasFitnessDataParams): Promise<boolean>
 }
 
 // Helper function to normalize bytes from database which can be number, string, or bigint
@@ -591,5 +613,56 @@ export const FitnessFileSQLDatabaseMixin = (
       .update(updateData)
 
     return result > 0
+  },
+
+  async getFitnessActivitySummary({
+    actorId,
+    startDate,
+    endDate
+  }: GetFitnessActivitySummaryParams): Promise<FitnessActivitySummary[]> {
+    const rows = await database('fitness_files')
+      .where('actorId', actorId)
+      .whereNull('deletedAt')
+      .where('processingStatus', 'completed')
+      .where('isPrimary', true)
+      .whereNotNull('activityType')
+      .whereNotNull('activityStartTime')
+      .where('activityStartTime', '>=', new Date(startDate))
+      .where('activityStartTime', '<', new Date(endDate))
+      .groupBy('activityType')
+      .select(
+        'activityType',
+        database.raw('COUNT(*) as count'),
+        database.raw(
+          'COALESCE(SUM(totalDistanceMeters), 0) as totalDistanceMeters'
+        ),
+        database.raw(
+          'COALESCE(SUM(totalDurationSeconds), 0) as totalDurationSeconds'
+        ),
+        database.raw(
+          'COALESCE(SUM(elevationGainMeters), 0) as totalElevationGainMeters'
+        )
+      )
+
+    return rows.map((row: Record<string, unknown>) => ({
+      activityType: String(row.activityType),
+      count: Number(row.count),
+      totalDistanceMeters: Number(row.totalDistanceMeters),
+      totalDurationSeconds: Number(row.totalDurationSeconds),
+      totalElevationGainMeters: Number(row.totalElevationGainMeters)
+    }))
+  },
+
+  async getActorHasFitnessData({ actorId }: GetActorHasFitnessDataParams) {
+    const row = await database('fitness_files')
+      .where('actorId', actorId)
+      .where('processingStatus', 'completed')
+      .where('isPrimary', true)
+      .whereNull('deletedAt')
+      .whereNotNull('activityType')
+      .whereNotNull('activityStartTime')
+      .select(database.raw('1'))
+      .first()
+    return Boolean(row)
   }
 })

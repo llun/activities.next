@@ -27,6 +27,7 @@ describe('getProfileData', () => {
     getAttachmentsForActor: jest.fn(),
     getActorFollowingCount: jest.fn(),
     getActorFollowersCount: jest.fn(),
+    getActorHasFitnessData: jest.fn(),
     updateActor: jest.fn()
   } as unknown as Database
 
@@ -82,6 +83,7 @@ describe('getProfileData', () => {
     )
     ;(mockDatabase.getActorFollowingCount as jest.Mock).mockResolvedValue(10)
     ;(mockDatabase.getActorFollowersCount as jest.Mock).mockResolvedValue(20)
+    ;(mockDatabase.getActorHasFitnessData as jest.Mock).mockResolvedValue(false)
     ;(getPersonFromActor as jest.Mock).mockReturnValue(mockPerson)
   })
 
@@ -127,6 +129,34 @@ describe('getProfileData', () => {
       expect(getWebfingerSelf).not.toHaveBeenCalled()
       expect(getActorPerson).not.toHaveBeenCalled()
     })
+
+    it('should return hasFitnessData as false when actor has no fitness data', async () => {
+      ;(mockDatabase.getActorHasFitnessData as jest.Mock).mockResolvedValue(
+        false
+      )
+      const result = await getProfileData(
+        mockDatabase,
+        '@localuser@example.com',
+        true
+      )
+
+      expect(result).not.toBeNull()
+      expect(result?.hasFitnessData).toBe(false)
+    })
+
+    it('should return hasFitnessData as true when actor has fitness data', async () => {
+      ;(mockDatabase.getActorHasFitnessData as jest.Mock).mockResolvedValue(
+        true
+      )
+      const result = await getProfileData(
+        mockDatabase,
+        '@localuser@example.com',
+        true
+      )
+
+      expect(result).not.toBeNull()
+      expect(result?.hasFitnessData).toBe(true)
+    })
   })
 
   describe('when actor is remote (no account)', () => {
@@ -170,6 +200,17 @@ describe('getProfileData', () => {
       expect(getActorPerson).toHaveBeenCalledWith({
         actorId: 'https://remote.com/users/remoteuser'
       })
+    })
+
+    it('should return hasFitnessData as false for remote actors', async () => {
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true
+      )
+
+      expect(result).not.toBeNull()
+      expect(result?.hasFitnessData).toBe(false)
     })
 
     it('should return null for anonymous user without calling remote APIs', async () => {

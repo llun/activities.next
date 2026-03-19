@@ -18,6 +18,7 @@ type ProfileData = {
   followingCount: number
   followersCount: number
   isInternalAccount: boolean
+  hasFitnessData: boolean
 }
 
 export const getProfileData = async (
@@ -38,13 +39,15 @@ export const getProfileData = async (
       statusesCount,
       attachments,
       followingCount,
-      followersCount
+      followersCount,
+      hasFitnessData
     ] = await Promise.all([
       database.getActorStatuses({ actorId: persistedActor.id }),
       database.getActorStatusesCount({ actorId: persistedActor.id }),
       database.getAttachmentsForActor({ actorId: persistedActor.id }),
       database.getActorFollowingCount({ actorId: persistedActor.id }),
-      database.getActorFollowersCount({ actorId: persistedActor.id })
+      database.getActorFollowersCount({ actorId: persistedActor.id }),
+      database.getActorHasFitnessData({ actorId: persistedActor.id })
     ])
     return {
       person: getPersonFromActor(persistedActor),
@@ -53,7 +56,8 @@ export const getProfileData = async (
       attachments,
       followingCount,
       followersCount,
-      isInternalAccount: true
+      isInternalAccount: true,
+      hasFitnessData
     }
   }
 
@@ -101,6 +105,7 @@ export const getProfileData = async (
     attachments,
     followingCount: actorFollowingResponse.followingCount,
     followersCount: actorFollowersResponse.followerCount,
-    isInternalAccount: false
+    isInternalAccount: false,
+    hasFitnessData: false
   }
 }
