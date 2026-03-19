@@ -77,7 +77,12 @@ describe('getEmailConfig', () => {
     expect(config?.email.type).toBe('smtp')
     expect(config?.email.serviceFromAddress).toBe('noreply@example.com')
 
-    const email = config?.email as { host: string; port: number; auth: { user: string; pass: string }; secure: boolean }
+    const email = config!.email as {
+      host: string
+      port: number
+      auth: { user: string; pass: string }
+      secure: boolean
+    }
     expect(email.host).toBe('mail.example.com')
     expect(email.port).toBe(587)
     expect(email.auth?.user).toBe('user@example.com')
@@ -93,7 +98,7 @@ describe('getEmailConfig', () => {
     // no ACTIVITIES_EMAIL_SMTP_PASSWORD
 
     const config = getEmailConfig()
-    const email = config?.email as { auth?: unknown }
+    const email = config!.email as { auth?: unknown }
 
     expect(email.auth).toBeUndefined()
   })
@@ -106,19 +111,19 @@ describe('getEmailConfig', () => {
     // no ACTIVITIES_EMAIL_SMTP_USER
 
     const config = getEmailConfig()
-    const email = config?.email as { auth?: unknown }
+    const email = config!.email as { auth?: unknown }
 
     expect(email.auth).toBeUndefined()
   })
 
-  it('returns undefined port when SMTP port is not a valid number', () => {
+  it('omits port when SMTP port is not a valid number', () => {
     process.env.ACTIVITIES_EMAIL_TYPE = 'smtp'
     process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
     process.env.ACTIVITIES_EMAIL_SMTP_HOST = 'mail.example.com'
     process.env.ACTIVITIES_EMAIL_SMTP_PORT = 'not-a-number'
 
     const config = getEmailConfig()
-    const email = config?.email as { port?: number }
+    const email = config!.email as { port?: number }
 
     expect(email.port).toBeUndefined()
   })
@@ -134,17 +139,17 @@ describe('getEmailConfig', () => {
     expect(config?.email.type).toBe('resend')
     expect(config?.email.serviceFromAddress).toBe('noreply@example.com')
 
-    const email = config?.email as { token: string }
+    const email = config!.email as { token: string }
     expect(email.token).toBe('re_abc123')
   })
 
-  it('returns undefined token when ACTIVITIES_EMAIL_RESEND_TOKEN is absent', () => {
+  it('omits token when ACTIVITIES_EMAIL_RESEND_TOKEN is absent', () => {
     process.env.ACTIVITIES_EMAIL_TYPE = 'resend'
     process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
     // ACTIVITIES_EMAIL_RESEND_TOKEN intentionally absent
 
     const config = getEmailConfig()
-    const email = config?.email as { token?: string }
+    const email = config!.email as { token?: string }
 
     expect(email.token).toBeUndefined()
   })
@@ -162,26 +167,34 @@ describe('getEmailConfig', () => {
     expect(config?.email.type).toBe('lambda')
     expect(config?.email.serviceFromAddress).toBe('noreply@example.com')
 
-    const email = config?.email as { region: string; functionName: string; functionQualifier: string }
+    const email = config!.email as {
+      region: string
+      functionName: string
+      functionQualifier: string
+    }
     expect(email.region).toBe('us-east-1')
     expect(email.functionName).toBe('send-email')
     expect(email.functionQualifier).toBe('LIVE')
   })
 
-  it('returns undefined Lambda fields when env vars are absent', () => {
+  it('omits Lambda fields when env vars are absent', () => {
     process.env.ACTIVITIES_EMAIL_TYPE = 'lambda'
     process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
     // Lambda-specific env vars intentionally absent
 
     const config = getEmailConfig()
-    const email = config?.email as { region?: string; functionName?: string; functionQualifier?: string }
+    const email = config!.email as {
+      region?: string
+      functionName?: string
+      functionQualifier?: string
+    }
 
     expect(email.region).toBeUndefined()
     expect(email.functionName).toBeUndefined()
     expect(email.functionQualifier).toBeUndefined()
   })
 
-  it('returns undefined serviceFromAddress when ACTIVITIES_EMAIL_FROM is absent', () => {
+  it('omits serviceFromAddress when ACTIVITIES_EMAIL_FROM is absent', () => {
     process.env.ACTIVITIES_EMAIL_TYPE = 'resend'
     process.env.ACTIVITIES_EMAIL_RESEND_TOKEN = 're_abc123'
     // ACTIVITIES_EMAIL_FROM intentionally absent
