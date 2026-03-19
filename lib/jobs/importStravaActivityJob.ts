@@ -83,8 +83,13 @@ STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('fe80::', 10, 'ipv6')
 STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('ff00::', 8, 'ipv6')
 STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('2001:db8::', 32, 'ipv6')
 
-const getActivityImportGroupKey = (actorId: string) => {
-  const dateStr = new Date().toISOString().slice(0, 10)
+const getActivityImportGroupKey = (
+  actorId: string,
+  activityStartDate?: string
+) => {
+  const dateStr = activityStartDate
+    ? activityStartDate.slice(0, 10)
+    : new Date().toISOString().slice(0, 10)
   return `activity_import:${actorId}:${dateStr}`
 }
 
@@ -378,7 +383,7 @@ const getOrCreateStravaFallbackNote = async ({
   activity: StravaActivity
   stravaActivityId: string
   visibility: z.infer<typeof Visibility>
-}): Promise<Status> => {
+}): Promise<{ status: Status; created: boolean }> => {
   const postId = getStravaFallbackPostId({
     actorId: actor.id,
     stravaActivityId
@@ -389,7 +394,7 @@ const getOrCreateStravaFallbackNote = async ({
     withReplies: false
   })
   if (existingStatus) {
-    return existingStatus
+    return { status: existingStatus, created: false }
   }
 
   const text = buildStravaActivitySummary(activity)
@@ -397,7 +402,7 @@ const getOrCreateStravaFallbackNote = async ({
   const cc = statusRecipientsCC(actor, [], null, visibility)
 
   try {
-    return await database.createNote({
+    const status = await database.createNote({
       id: statusId,
       url: `https://${actor.domain}/${getMention(actor)}/${postId}`,
       actorId: actor.id,
@@ -407,13 +412,14 @@ const getOrCreateStravaFallbackNote = async ({
       cc,
       reply: ''
     })
+    return { status, created: true }
   } catch (error) {
     const duplicateStatus = await database.getStatus({
       statusId,
       withReplies: false
     })
     if (duplicateStatus) {
-      return duplicateStatus
+      return { status: duplicateStatus, created: false }
     }
 
     throw error
@@ -512,13 +518,14 @@ export const importStravaActivityJob = createJobHandle(
           stravaActivityId
         })
 
-        const createdNote = await getOrCreateStravaFallbackNote({
-          database,
-          actor,
-          activity,
-          stravaActivityId,
-          visibility: resolvedVisibility
-        })
+        const { status: createdNote, created: isNewFallback } =
+          await getOrCreateStravaFallbackNote({
+            database,
+            actor,
+            activity,
+            stravaActivityId,
+            visibility: resolvedVisibility
+          })
 
         await addStatusToTimelines(database, createdNote)
         await attachStravaPhotosToStatus({
@@ -537,13 +544,15 @@ export const importStravaActivityJob = createJobHandle(
           data: { actorId, statusId: createdNote.id }
         })
 
-        await database.createNotification({
-          actorId,
-          type: 'activity_import',
-          sourceActorId: actorId,
-          statusId: createdNote.id,
-          groupKey: getActivityImportGroupKey(actorId)
-        })
+        if (isNewFallback) {
+          await database.createNotification({
+            actorId,
+            type: 'activity_import',
+            sourceActorId: actorId,
+            statusId: createdNote.id,
+            groupKey: getActivityImportGroupKey(actorId, activity.start_date)
+          })
+        }
 
         return
       }
@@ -605,6 +614,7 @@ export const importStravaActivityJob = createJobHandle(
         targetFitnessFile
     }
 
+    const isNewImport = !targetFitnessFile.statusId
     if (!targetFitnessFile.statusId) {
       const actorFitnessFiles = await database.getFitnessFilesByActor({
         actorId,
@@ -670,13 +680,15 @@ export const importStravaActivityJob = createJobHandle(
       activity
     })
 
-    await database.createNotification({
-      actorId,
-      type: 'activity_import',
-      sourceActorId: actorId,
-      statusId: importedFitnessFile.statusId,
-      groupKey: getActivityImportGroupKey(actorId)
-    })
+    if (isNewImport) {
+      await database.createNotification({
+        actorId,
+        type: 'activity_import',
+        sourceActorId: actorId,
+        statusId: importedFitnessFile.statusId,
+        groupKey: getActivityImportGroupKey(actorId, activity.start_date)
+      })
+    }
 
     if (!importedFitnessFile.hasMapData) {
       await getQueue().publish({
