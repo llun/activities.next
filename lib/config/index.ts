@@ -12,6 +12,7 @@ import { logger } from '@/lib/utils/logger'
 
 import { AuthConfig, getAuthConfig } from './auth'
 import { getDatabaseConfig } from './database'
+import { getEmailConfig } from './email'
 import { FitnessStorageConfig, getFitnessStorageConfig } from './fitnessStorage'
 import { InternalApiConfig, getInternalApiConfig } from './internalApi'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
@@ -75,9 +76,7 @@ const getConfigFromEnvironment = () => {
       allowActorDomains: JSON.parse(
         process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS || '[]'
       ),
-      ...(process.env.ACTIVITIES_EMAIL
-        ? { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
-        : null),
+      ...getEmailConfig(),
       ...getAuthConfig(),
       ...getDatabaseConfig(),
       ...getMediaStorageConfig(),
