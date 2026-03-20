@@ -73,7 +73,7 @@ const applyWhere = (
         break
       }
       default:
-        query = query[method](`${model}.${field}`, '=', value)
+        throw new Error(`Unsupported where operator: ${operator}`)
     }
   }
   return query

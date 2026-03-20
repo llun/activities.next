@@ -471,6 +471,21 @@ describe('knexAdapter', () => {
       expect(results[0].id).toBe('u4')
     })
 
+    it('throws on unsupported operator', async () => {
+      await expect(
+        adapter.findMany({
+          model: 'users',
+          where: [
+            {
+              field: 'email',
+              value: 'test',
+              operator: 'invalid_op' as any
+            }
+          ]
+        })
+      ).rejects.toThrow('Unsupported where operator: invalid_op')
+    })
+
     it('OR connector', async () => {
       const results = await adapter.findMany({
         model: 'users',
