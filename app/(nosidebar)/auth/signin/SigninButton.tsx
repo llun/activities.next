@@ -23,7 +23,12 @@ export const SigninButton: FC<Props> = ({ provider }) => {
       onClick={() =>
         authClient.signIn.social({
           provider: provider.id as 'github',
-          callbackURL: redirectBack
+          callbackURL: redirectBack,
+          fetchOptions: {
+            onError: () => {
+              alert(`Sign in with ${provider.name} failed. Please try again.`)
+            }
+          }
         })
       }
     >

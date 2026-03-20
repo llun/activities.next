@@ -12,8 +12,7 @@ export const getKnex = (): Knex => {
   // Force initialization of the database (and shared knex) if not done yet
   getDatabase()
   if (!sharedKnex) {
-    const config = getConfig()
-    sharedKnex = knex(config.database)
+    throw new Error('Database not initialized')
   }
   return sharedKnex
 }
