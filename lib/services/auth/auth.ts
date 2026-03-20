@@ -20,6 +20,7 @@ export const getAuth = memoize(() => {
     logger: {
       level: process.env.NODE_ENV === 'development' ? 'debug' : 'warn'
     },
+    appName: 'activities-next',
     secret: config.secretPhase,
     baseURL: config.host.startsWith('http')
       ? config.host
