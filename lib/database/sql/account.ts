@@ -142,20 +142,18 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     passwordHash
   }: CreateCredentialProviderParams): Promise<void> {
     const currentTime = new Date()
-    const existing = await database('account_providers')
-      .where({ accountId, provider: 'credential' })
-      .first()
-    if (existing) return
-
-    await database('account_providers').insert({
-      id: `credential_${accountId}`,
-      accountId,
-      provider: 'credential',
-      providerId: accountId,
-      password: passwordHash,
-      createdAt: currentTime,
-      updatedAt: currentTime
-    })
+    await database('account_providers')
+      .insert({
+        id: `credential_${accountId}`,
+        accountId,
+        provider: 'credential',
+        providerId: accountId,
+        password: passwordHash,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+      .onConflict('id')
+      .ignore()
   },
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {

@@ -3,9 +3,11 @@
  * @returns { Promise<void> }
  */
 exports.up = async (knex) => {
-  await knex.schema.alterTable('sessions', (table) => {
-    table.text('ipAddress').nullable()
-    table.text('userAgent').nullable()
+  await knex.transaction(async (trx) => {
+    await trx.schema.alterTable('sessions', (table) => {
+      table.text('ipAddress').nullable()
+      table.text('userAgent').nullable()
+    })
   })
 }
 
@@ -14,8 +16,10 @@ exports.up = async (knex) => {
  * @returns { Promise<void> }
  */
 exports.down = async (knex) => {
-  await knex.schema.alterTable('sessions', (table) => {
-    table.dropColumn('ipAddress')
-    table.dropColumn('userAgent')
+  await knex.transaction(async (trx) => {
+    await trx.schema.alterTable('sessions', (table) => {
+      table.dropColumn('ipAddress')
+      table.dropColumn('userAgent')
+    })
   })
 }

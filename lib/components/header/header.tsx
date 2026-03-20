@@ -56,7 +56,7 @@ export const Header: FC<Props> = ({
                       window.location.href = '/auth/signin'
                     },
                     onError: () => {
-                      window.location.href = '/auth/signin'
+                      alert('Sign out failed. Please try again.')
                     }
                   }
                 })

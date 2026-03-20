@@ -75,7 +75,14 @@ export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({
               onClick={() =>
                 authClient.signIn.social({
                   provider: provider.id as 'github',
-                  callbackURL: '/settings'
+                  callbackURL: '/settings',
+                  fetchOptions: {
+                    onError: () => {
+                      alert(
+                        `Failed to connect to ${provider.name}. Please try again.`
+                      )
+                    }
+                  }
                 })
               }
             >
