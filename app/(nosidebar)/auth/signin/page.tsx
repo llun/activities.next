@@ -35,8 +35,7 @@ const Page: FC = async () => {
 
   const { auth, serviceName } = getConfig()
   const oauthProviders = auth?.github ? [{ id: 'github', name: 'GitHub' }] : []
-  const credentialEnabled =
-    !oauthProviders.length || auth?.enableCredential !== false
+  const credentialEnabled = auth?.enableCredential !== false
 
   return (
     <Card>

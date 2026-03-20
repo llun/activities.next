@@ -240,6 +240,27 @@ describe('knexAdapter', () => {
 
       expect(result).toBeNull()
     })
+
+    it('only updates the first matching row when where is non-unique', async () => {
+      await db('users').insert([
+        { id: 'u2', display_name: 'Bob', email: 'bob@test.com' },
+        { id: 'u3', display_name: 'Bob', email: 'bob2@test.com' }
+      ])
+
+      await adapter.update({
+        model: 'users',
+        where: [
+          { field: 'display_name', value: 'Bob', operator: 'eq' as const }
+        ],
+        update: { display_name: 'Bob Updated' }
+      })
+
+      const all = await db('users').whereIn('id', ['u2', 'u3']).orderBy('id')
+      const updatedCount = all.filter(
+        (r: any) => r.display_name === 'Bob Updated'
+      ).length
+      expect(updatedCount).toBe(1)
+    })
   })
 
   describe('updateMany', () => {

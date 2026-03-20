@@ -68,6 +68,12 @@ export const getAuth = memoize(() => {
         userId: 'accountId',
         token: 'token',
         expiresAt: 'expireAt'
+      },
+      additionalFields: {
+        actorId: {
+          type: 'string',
+          required: false
+        }
       }
     },
     pages: {

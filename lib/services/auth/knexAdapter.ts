@@ -160,11 +160,9 @@ export const knexAdapter = (db: Knex) =>
           const existing = await idQuery
           if (!existing) return null as any
           const id = existing.id
-          let query = db(tableName)
-          if (where) {
-            query = applyWhere(query, tableName, where)
-          }
-          await query.update(updateData as Record<string, unknown>)
+          await db(tableName)
+            .where(`${tableName}.id`, id)
+            .update(updateData as Record<string, unknown>)
           const row = await db(tableName).where(`${tableName}.id`, id).first()
           return (row ?? null) as any
         },
