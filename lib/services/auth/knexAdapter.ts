@@ -86,40 +86,19 @@ export const knexAdapter = (db: Knex) =>
       supportsNumericIds: false
     },
     adapter: ({ getModelName, getFieldName }) => {
-      const transformData = (
-        model: string,
-        data: Record<string, unknown>
-      ): Record<string, unknown> => {
-        const result: Record<string, unknown> = {}
-        for (const [key, value] of Object.entries(data)) {
-          const fieldName = getFieldName({ model, field: key })
-          result[fieldName] = value
-        }
-        return result
-      }
-
-      const transformWhere = (
-        model: string,
-        where: CleanedWhere[]
-      ): CleanedWhere[] => {
-        return where.map((clause) => ({
-          ...clause,
-          field: getFieldName({ model, field: clause.field })
-        }))
-      }
+      // The factory's createAdapterFactory already transforms `where` clauses
+      // and `data` objects (via transformWhereClause and transformInput) before
+      // passing them to the adapter. Field names in `where` and `data` are
+      // already DB column names. Only `select` and `sortBy.field` arrive as
+      // schema field names and need mapping via getFieldName.
 
       return {
         async create({ data, model }) {
           const tableName = getModelName(model)
-          const idField = getFieldName({ model, field: 'id' })
-          const transformed = transformData(
-            model,
-            data as Record<string, unknown>
-          )
-          await db(tableName).insert(transformed)
-          const row = await db(tableName)
-            .where(`${tableName}.${idField}`, transformed[idField] as string)
-            .first()
+          const record = data as Record<string, unknown>
+          await db(tableName).insert(record)
+          const id = record.id as string
+          const row = await db(tableName).where(`${tableName}.id`, id).first()
           if (!row) throw new Error('Failed to create record')
           return row as any
         },
@@ -129,13 +108,12 @@ export const knexAdapter = (db: Knex) =>
           let query = select
             ? db(tableName).first(
                 select.map(
-                  (f) =>
-                    `${tableName}.${getFieldName({ model, field: f })} as ${f}`
+                  (f) => `${tableName}.${getFieldName({ model, field: f })}`
                 )
               )
             : db(tableName).first()
           if (where) {
-            query = applyWhere(query, tableName, transformWhere(model, where))
+            query = applyWhere(query, tableName, where)
           }
           const row = await query
           return (row ?? null) as any
@@ -146,13 +124,12 @@ export const knexAdapter = (db: Knex) =>
           let query = select
             ? db(tableName).select(
                 select.map(
-                  (f) =>
-                    `${tableName}.${getFieldName({ model, field: f })} as ${f}`
+                  (f) => `${tableName}.${getFieldName({ model, field: f })}`
                 )
               )
             : db(tableName)
           if (where) {
-            query = applyWhere(query, tableName, transformWhere(model, where))
+            query = applyWhere(query, tableName, where)
           }
           if (sortBy) {
             const sortField = getFieldName({ model, field: sortBy.field })
@@ -168,7 +145,7 @@ export const knexAdapter = (db: Knex) =>
           const tableName = getModelName(model)
           let query = db(tableName).count('* as count')
           if (where) {
-            query = applyWhere(query, tableName, transformWhere(model, where))
+            query = applyWhere(query, tableName, where)
           }
           const result = await query.first()
           return Number(result?.count ?? 0)
@@ -176,30 +153,19 @@ export const knexAdapter = (db: Knex) =>
 
         async update({ model, where, update: updateData }) {
           const tableName = getModelName(model)
-          const idField = getFieldName({ model, field: 'id' })
-          let idQuery = db(tableName).first(idField)
+          let idQuery = db(tableName).first('id')
           if (where) {
-            idQuery = applyWhere(
-              idQuery,
-              tableName,
-              transformWhere(model, where)
-            )
+            idQuery = applyWhere(idQuery, tableName, where)
           }
           const existing = await idQuery
           if (!existing) return null as any
-          const id = existing[idField]
+          const id = existing.id
           let query = db(tableName)
           if (where) {
-            query = applyWhere(query, tableName, transformWhere(model, where))
+            query = applyWhere(query, tableName, where)
           }
-          const transformedUpdate = transformData(
-            model,
-            updateData as Record<string, unknown>
-          )
-          await query.update(transformedUpdate)
-          const row = await db(tableName)
-            .where(`${tableName}.${idField}`, id)
-            .first()
+          await query.update(updateData as Record<string, unknown>)
+          const row = await db(tableName).where(`${tableName}.id`, id).first()
           return (row ?? null) as any
         },
 
@@ -207,13 +173,11 @@ export const knexAdapter = (db: Knex) =>
           const tableName = getModelName(model)
           let query = db(tableName)
           if (where) {
-            query = applyWhere(query, tableName, transformWhere(model, where))
+            query = applyWhere(query, tableName, where)
           }
-          const transformedUpdate = transformData(
-            model,
+          const result = await query.update(
             updateData as Record<string, unknown>
           )
-          const result = await query.update(transformedUpdate)
           return result
         },
 
@@ -221,7 +185,7 @@ export const knexAdapter = (db: Knex) =>
           const tableName = getModelName(model)
           let query = db(tableName)
           if (where) {
-            query = applyWhere(query, tableName, transformWhere(model, where))
+            query = applyWhere(query, tableName, where)
           }
           await query.delete()
         },
@@ -230,7 +194,7 @@ export const knexAdapter = (db: Knex) =>
           const tableName = getModelName(model)
           let query = db(tableName)
           if (where) {
-            query = applyWhere(query, tableName, transformWhere(model, where))
+            query = applyWhere(query, tableName, where)
           }
           const result = await query.delete()
           return result
