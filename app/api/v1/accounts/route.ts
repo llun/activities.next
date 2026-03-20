@@ -1,5 +1,6 @@
 import * as bcrypt from 'bcrypt'
 import crypto from 'crypto'
+import knex from 'knex'
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
@@ -115,7 +116,7 @@ export const POST = traceApiRoute(
       ? crypto.randomBytes(32).toString('base64url')
       : null
 
-    await database.createAccount({
+    const accountId = await database.createAccount({
       domain,
       email: form.email,
       username: form.username,
@@ -124,6 +125,20 @@ export const POST = traceApiRoute(
       passwordHash,
       verificationCode
     })
+
+    // Create credential provider entry for better-auth sign-in
+    const db = knex(config.database)
+    const now = new Date()
+    await db('account_providers').insert({
+      id: `credential_${accountId}`,
+      accountId,
+      provider: 'credential',
+      providerId: accountId,
+      password: passwordHash,
+      createdAt: now,
+      updatedAt: now
+    })
+    await db.destroy()
 
     if (config.email) {
       try {
