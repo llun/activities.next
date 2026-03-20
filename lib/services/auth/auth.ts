@@ -102,6 +102,11 @@ export const getAuth = memoize(() => {
         }
       }
     },
+    advanced: {
+      ipAddress: {
+        ipAddressHeaders: ['x-forwarded-for', 'x-real-ip']
+      }
+    },
     plugins: [dash()]
   })
 })
