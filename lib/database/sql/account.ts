@@ -608,12 +608,17 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       if (updatedCount === 0) return null
 
       await trx('account_providers')
-        .where('accountId', targetAccountId)
-        .where('provider', 'credential')
-        .update({
+        .insert({
+          id: `credential_${targetAccountId}`,
+          accountId: targetAccountId,
+          provider: 'credential',
+          providerId: targetAccountId,
           password: newPasswordHash,
+          createdAt: now,
           updatedAt: now
         })
+        .onConflict('id')
+        .merge({ password: newPasswordHash, updatedAt: now })
 
       await trx('sessions').where('accountId', targetAccountId).delete()
       return targetAccountId
@@ -636,12 +641,17 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         updatedAt: currentTime
       })
       await trx('account_providers')
-        .where('accountId', accountId)
-        .where('provider', 'credential')
-        .update({
+        .insert({
+          id: `credential_${accountId}`,
+          accountId,
+          provider: 'credential',
+          providerId: accountId,
           password: newPasswordHash,
+          createdAt: currentTime,
           updatedAt: currentTime
         })
+        .onConflict('id')
+        .merge({ password: newPasswordHash, updatedAt: currentTime })
       await trx('sessions').where('accountId', accountId).delete()
     })
   }

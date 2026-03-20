@@ -38,7 +38,8 @@ export const getAuth = memoize(() => {
       github: config.auth?.github
         ? {
             clientId: config.auth.github.id,
-            clientSecret: config.auth.github.secret
+            clientSecret: config.auth.github.secret,
+            disableSignUp: true
           }
         : undefined
     },

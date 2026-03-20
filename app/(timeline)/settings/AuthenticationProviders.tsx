@@ -76,8 +76,10 @@ export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({
             <Button
               onClick={() => {
                 setError(undefined)
-                authClient.signIn.social({
-                  provider: provider.id as 'github',
+                authClient.linkSocial({
+                  provider: provider.id as Parameters<
+                    typeof authClient.linkSocial
+                  >[0]['provider'],
                   callbackURL: '/settings',
                   fetchOptions: {
                     onError: () => {

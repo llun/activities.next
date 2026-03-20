@@ -32,23 +32,29 @@ exports.up = async (knex) => {
       .whereNotNull('passwordHash')
       .select('id', 'passwordHash')
 
-    for (const account of accountsWithPasswords) {
-      const existingCredential = await trx('account_providers')
-        .where({ accountId: account.id, provider: 'credential' })
-        .first()
+    const existingCredentials = await trx('account_providers')
+      .where('provider', 'credential')
+      .whereIn(
+        'accountId',
+        accountsWithPasswords.map((a) => a.id)
+      )
+      .select('accountId')
+    const existingSet = new Set(existingCredentials.map((c) => c.accountId))
 
-      if (!existingCredential) {
-        const id = `credential_${account.id}`
-        await trx('account_providers').insert({
-          id,
-          accountId: account.id,
-          provider: 'credential',
-          providerId: account.id,
-          password: account.passwordHash,
-          createdAt: trx.fn.now(),
-          updatedAt: trx.fn.now()
-        })
-      }
+    const rowsToInsert = accountsWithPasswords
+      .filter((account) => !existingSet.has(account.id))
+      .map((account) => ({
+        id: `credential_${account.id}`,
+        accountId: account.id,
+        provider: 'credential',
+        providerId: account.id,
+        password: account.passwordHash,
+        createdAt: trx.fn.now(),
+        updatedAt: trx.fn.now()
+      }))
+
+    if (rowsToInsert.length > 0) {
+      await trx.batchInsert('account_providers', rowsToInsert, 100)
     }
   })
 }

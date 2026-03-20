@@ -135,8 +135,8 @@ export const knexAdapter = (db: Knex) =>
             const sortField = getFieldName({ model, field: sortBy.field })
             query = query.orderBy(`${tableName}.${sortField}`, sortBy.direction)
           }
-          if (limit) query = query.limit(limit)
-          if (offset) query = query.offset(offset)
+          if (limit !== undefined) query = query.limit(limit)
+          if (offset !== undefined) query = query.offset(offset)
           const rows = await query
           return rows as any
         },

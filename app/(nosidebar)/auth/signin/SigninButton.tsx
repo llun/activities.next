@@ -25,7 +25,9 @@ export const SigninButton: FC<Props> = ({ provider }) => {
         onClick={() => {
           setError(undefined)
           authClient.signIn.social({
-            provider: provider.id as 'github',
+            provider: provider.id as Parameters<
+              typeof authClient.signIn.social
+            >[0]['provider'],
             callbackURL: redirectBack,
             fetchOptions: {
               onError: () => {
