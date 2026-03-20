@@ -1,3 +1,4 @@
+import { dash } from '@better-auth/infra'
 import bcrypt from 'bcrypt'
 import { betterAuth } from 'better-auth'
 import memoize from 'lodash/memoize'
@@ -100,6 +101,7 @@ export const getAuth = memoize(() => {
           }
         }
       }
-    }
+    },
+    plugins: [dash()]
   })
 })
