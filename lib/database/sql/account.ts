@@ -108,7 +108,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         passwordHash,
         ...(verificationCode
           ? { verificationCode }
-          : { verifiedAt: currentTime }),
+          : { verifiedAt: currentTime, emailVerified: true }),
         createdAt: currentTime,
         updatedAt: currentTime
       })
@@ -227,6 +227,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     await database('accounts').where('id', account.id).update({
       verificationCode: '',
       verifiedAt: currentTime,
+      emailVerified: true,
       updatedAt: currentTime
     })
     return this.getAccountFromId({ id: account.id })
