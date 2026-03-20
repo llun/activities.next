@@ -28,8 +28,8 @@ const Page = async () => {
   // Get current session token from cookies (server-side)
   const cookieStore = await cookies()
   const currentSessionToken =
-    cookieStore.get('better-auth.session_token')?.value ||
     cookieStore.get('__Secure-better-auth.session_token')?.value ||
+    cookieStore.get('better-auth.session_token')?.value ||
     null
 
   const currentTime = Date.now()

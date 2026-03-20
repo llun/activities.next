@@ -74,7 +74,8 @@ export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({
             <Button
               onClick={() =>
                 authClient.signIn.social({
-                  provider: provider.id as 'github'
+                  provider: provider.id as 'github',
+                  callbackURL: '/settings'
                 })
               }
             >

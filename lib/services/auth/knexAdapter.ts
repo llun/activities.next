@@ -117,16 +117,22 @@ export const knexAdapter = (db: Knex) =>
 
         async update({ model, where, update: updateData }) {
           const tableName = getModelName(model)
+          const idField = getFieldName({ model, field: 'id' })
+          let idQuery = db(tableName).first(idField)
+          if (where) {
+            idQuery = applyWhere(idQuery, tableName, where)
+          }
+          const existing = await idQuery
+          if (!existing) return null as any
+          const id = existing[idField]
           let query = db(tableName)
           if (where) {
             query = applyWhere(query, tableName, where)
           }
           await query.update(updateData as Record<string, unknown>)
-          let selectQuery = db(tableName).first()
-          if (where) {
-            selectQuery = applyWhere(selectQuery, tableName, where)
-          }
-          const row = await selectQuery
+          const row = await db(tableName)
+            .where(`${tableName}.${idField}`, id)
+            .first()
           return (row ?? null) as any
         },
 

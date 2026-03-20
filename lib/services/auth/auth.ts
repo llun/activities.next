@@ -1,20 +1,21 @@
 import bcrypt from 'bcrypt'
 import { betterAuth } from 'better-auth'
-import knex from 'knex'
 import memoize from 'lodash/memoize'
 
 import { getConfig } from '@/lib/config'
-import { getDatabase } from '@/lib/database'
+import { getDatabase, getKnex } from '@/lib/database'
 
 import { knexAdapter } from './knexAdapter'
 
 export const getAuth = memoize(() => {
   const config = getConfig()
   const database = getDatabase()
-  const db = knex(config.database)
+  const db = getKnex()
 
   return betterAuth({
-    logger: { level: 'debug' },
+    logger: {
+      level: process.env.NODE_ENV === 'development' ? 'debug' : 'warn'
+    },
     secret: config.secretPhase,
     baseURL: config.host.startsWith('http')
       ? config.host

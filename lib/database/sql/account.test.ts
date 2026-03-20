@@ -360,15 +360,17 @@ describe('AccountDatabase', () => {
         expect(resolved?.id).toBe(accountId)
 
         const providers = await database.getAccountProviders({ accountId })
-        expect(providers).toHaveLength(1)
-        expect(providers[0]).toMatchObject({
-          provider,
-          providerId: providerAccountId
-        })
+        expect(providers).toHaveLength(2)
+        expect(providers).toContainEqual(
+          expect.objectContaining({
+            provider,
+            providerId: providerAccountId
+          })
+        )
 
         await database.unlinkAccountFromProvider({ accountId, provider })
         const afterUnlink = await database.getAccountProviders({ accountId })
-        expect(afterUnlink).toHaveLength(0)
+        expect(afterUnlink).toHaveLength(1)
       })
     })
 

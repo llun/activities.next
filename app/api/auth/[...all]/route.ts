@@ -1,11 +1,7 @@
+import { toNextJsHandler } from 'better-auth/next-js'
+
 import { getAuth } from '@/lib/services/auth/auth'
 
 export const dynamic = 'force-dynamic'
 
-const handler = (req: Request) => {
-  const auth = getAuth()
-  return auth.handler(req)
-}
-
-export const GET = handler
-export const POST = handler
+export const { GET, POST } = toNextJsHandler(getAuth())

@@ -115,7 +115,7 @@ export const POST = traceApiRoute(
       ? crypto.randomBytes(32).toString('base64url')
       : null
 
-    const accountId = await database.createAccount({
+    await database.createAccount({
       domain,
       email: form.email,
       username: form.username,
@@ -124,8 +124,6 @@ export const POST = traceApiRoute(
       passwordHash,
       verificationCode
     })
-
-    await database.createCredentialProvider({ accountId, passwordHash })
 
     if (config.email) {
       try {

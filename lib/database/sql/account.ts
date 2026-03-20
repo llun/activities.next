@@ -123,6 +123,15 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         createdAt: currentTime,
         updatedAt: currentTime
       })
+      await trx('account_providers').insert({
+        id: `credential_${accountId}`,
+        accountId,
+        provider: 'credential',
+        providerId: accountId,
+        password: passwordHash,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
     })
 
     return accountId

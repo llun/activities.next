@@ -29,18 +29,21 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
     const password = formData.get('password') as string
     const redirectBack = searchParams.get('redirectBack') || '/'
 
-    const result = await authClient.signIn.email({
-      email,
-      password
-    })
-
-    if (result.error) {
-      setError(result.error.message || 'Sign in failed')
+    try {
+      const result = await authClient.signIn.email({
+        email,
+        password
+      })
+      if (result.error) {
+        setError(result.error.message || 'Sign in failed')
+        setLoading(false)
+        return
+      }
+      router.push(redirectBack)
+    } catch {
+      setError('Sign in failed. Please try again.')
       setLoading(false)
-      return
     }
-
-    router.push(redirectBack)
   }
 
   return (
