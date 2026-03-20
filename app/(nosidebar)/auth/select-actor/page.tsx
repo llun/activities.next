@@ -1,9 +1,7 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import {
   Card,
   CardContent,
@@ -12,6 +10,7 @@ import {
   CardTitle
 } from '@/lib/components/ui/card'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
 import { ActorSelectionList } from './ActorSelectionList'
 
@@ -34,7 +33,7 @@ const isRealAvatar = (url?: string) => {
 
 const Page: FC = async () => {
   const database = getDatabase()
-  const session = await getServerSession(getAuthOptions())
+  const session = await getServerAuthSession()
 
   if (!database) throw new Error('Database is not available')
   if (!session?.user?.email) {

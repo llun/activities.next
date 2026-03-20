@@ -1,11 +1,10 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Pagination } from '@/lib/components/pagination/Pagination'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -30,7 +29,7 @@ const Page = async ({ searchParams }: Props) => {
     throw new Error('Fail to load database')
   }
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
   if (!actor) {
     return redirect('/auth/signin')

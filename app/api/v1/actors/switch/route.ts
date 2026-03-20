@@ -1,10 +1,9 @@
-import { getServerSession } from 'next-auth'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -14,7 +13,7 @@ const SwitchActorRequest = z.object({
 
 export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
   const database = getDatabase()
-  const session = await getServerSession(getAuthOptions())
+  const session = await getServerAuthSession()
 
   if (!database || !session?.user?.email) {
     return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)

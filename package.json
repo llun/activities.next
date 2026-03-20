@@ -14,7 +14,6 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@auth/core": "^0.41.1",
     "@aws-sdk/client-lambda": "^3.1011.0",
     "@aws-sdk/client-s3": "^3.1009.0",
     "@aws-sdk/client-ses": "^3.1013.0",
@@ -39,6 +38,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@upstash/qstash": "^2.9.0",
     "bcrypt": "^6.0.0",
+    "better-auth": "^1.5.5",
     "better-sqlite3": "^12.8.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -56,7 +56,6 @@
     "marked": "^17.0.4",
     "mime-types": "^3.0.2",
     "next": "^16.1.7",
-    "next-auth": "^4.24.13",
     "nodemailer": "^8.0.2",
     "peggy": "^5.1.0",
     "pg": "^8.20.0",

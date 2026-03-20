@@ -1,9 +1,8 @@
-import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import {
   FitnessTrackPoint,
@@ -171,7 +170,7 @@ export const GET = traceApiRoute(
     const { id } = await context.params
 
     try {
-      const session = await getServerSession(getAuthOptions())
+      const session = await getServerAuthSession()
       const currentActor = await getActorFromSession(database, session)
       const currentAccountId = currentActor?.account?.id
 

@@ -103,8 +103,8 @@ async function createMockUser() {
     console.log(`    Token: ${session.token}`)
     console.log(`    Expires: ${new Date(session.expiresAt).toISOString()}`)
   })
-  console.log('  Cookie name (dev): next-auth.session-token')
-  console.log('  Cookie name (secure): __Secure-next-auth.session-token')
+  console.log('  Cookie name (dev): better-auth.session_token')
+  console.log('  Cookie name (secure): __Secure-better-auth.session_token')
   console.log(`\nYou can now sign in at: http://localhost:3000/auth/signin`)
 
   process.exit(0)

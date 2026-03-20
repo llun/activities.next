@@ -1,13 +1,13 @@
 'use client'
 
-import { ClientSafeProvider, signIn } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
+import { authClient } from '@/lib/services/auth/auth-client'
 
 interface Props {
-  provider: ClientSafeProvider
+  provider: { id: string; name: string }
 }
 
 export const SigninButton: FC<Props> = ({ provider }) => {
@@ -18,7 +18,12 @@ export const SigninButton: FC<Props> = ({ provider }) => {
     <Button
       variant="outline"
       className="w-full"
-      onClick={() => signIn(provider.id, { callbackUrl: redirectBack })}
+      onClick={() =>
+        authClient.signIn.social({
+          provider: provider.id as 'github',
+          callbackURL: redirectBack
+        })
+      }
     >
       Sign in with {provider.name}
     </Button>

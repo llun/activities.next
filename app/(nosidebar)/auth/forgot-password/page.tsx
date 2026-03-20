@@ -1,10 +1,8 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import {
   Card,
   CardContent,
@@ -14,6 +12,7 @@ import {
   CardTitle
 } from '@/lib/components/ui/card'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
 import { RequestPasswordResetForm } from './RequestPasswordResetForm'
 
@@ -26,7 +25,7 @@ const Page: FC = async () => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await getServerAuthSession()
   if (session && session.user) {
     return redirect('/')
   }

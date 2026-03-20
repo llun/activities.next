@@ -1,8 +1,11 @@
-import { Session } from 'next-auth'
 import { cookies } from 'next/headers'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+
+interface AuthSession {
+  user: { email: string }
+}
 
 const getActorIdFromCookie = async (): Promise<string | undefined> => {
   try {
@@ -16,7 +19,7 @@ const getActorIdFromCookie = async (): Promise<string | undefined> => {
 
 export const getActorFromSession = async (
   database: Database,
-  session: Session | null
+  session: AuthSession | null
 ) => {
   const config = getConfig()
   if (!session?.user?.email) return null

@@ -1,8 +1,7 @@
-import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -34,7 +33,7 @@ export const GET = traceApiRoute(
     }
 
     try {
-      const session = await getServerSession(getAuthOptions())
+      const session = await getServerAuthSession()
       const currentActor = await getActorFromSession(database, session)
 
       const status = await database.getStatus({

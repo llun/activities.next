@@ -1,35 +1,50 @@
 'use client'
 
-import { ClientSafeProvider, getCsrfToken } from 'next-auth/react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
-import { FC, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { FC, FormEvent, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
-
-import { getSigninCallbackUrl } from './getSigninCallbackUrl'
+import { authClient } from '@/lib/services/auth/auth-client'
 
 interface Props {
-  provider: ClientSafeProvider
+  providerName: string
 }
 
-export const CredentialForm: FC<Props> = ({ provider }) => {
-  const [csrfToken, setCsrfToken] = useState<string>()
+export const CredentialForm: FC<Props> = ({ providerName }) => {
+  const [error, setError] = useState<string>()
+  const [loading, setLoading] = useState(false)
   const searchParams = useSearchParams()
+  const router = useRouter()
 
-  useEffect(() => {
-    getCsrfToken().then((token) => setCsrfToken(token))
-  }, [provider])
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setError(undefined)
+    setLoading(true)
+
+    const formData = new FormData(e.currentTarget)
+    const email = formData.get('email') as string
+    const password = formData.get('password') as string
+    const redirectBack = searchParams.get('redirectBack') || '/'
+
+    const result = await authClient.signIn.email({
+      email,
+      password
+    })
+
+    if (result.error) {
+      setError(result.error.message || 'Sign in failed')
+      setLoading(false)
+      return
+    }
+
+    router.push(redirectBack)
+  }
 
   return (
-    <form
-      method="post"
-      action={getSigninCallbackUrl(provider, searchParams)}
-      className="space-y-4"
-    >
-      <input name="csrfToken" type="hidden" value={csrfToken ?? ''} readOnly />
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="inputEmail">Email</Label>
         <Input name="email" type="email" id="inputEmail" />
@@ -47,8 +62,10 @@ export const CredentialForm: FC<Props> = ({ provider }) => {
         </Link>
       </div>
 
-      <Button type="submit" className="w-full">
-        Sign in with {provider.name}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <Button type="submit" className="w-full" disabled={loading}>
+        {loading ? 'Signing in...' : `Sign in with ${providerName}`}
       </Button>
     </form>
   )

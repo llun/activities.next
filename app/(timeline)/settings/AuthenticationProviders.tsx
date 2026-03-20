@@ -1,13 +1,18 @@
 'use client'
 
-import { ClientSafeProvider, signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
+import { authClient } from '@/lib/services/auth/auth-client'
+
+interface ProviderInfo {
+  id: string
+  name: string
+}
 
 interface AuthenticationProvidersProps {
-  nonCredentialsProviders: ClientSafeProvider[]
+  nonCredentialsProviders: ProviderInfo[]
   connectedProviders: {
     provider: string
     providerId: string
@@ -66,7 +71,13 @@ export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({
 
         return (
           <div key={provider.name} className="flex justify-end">
-            <Button onClick={() => signIn(provider.id)}>
+            <Button
+              onClick={() =>
+                authClient.signIn.social({
+                  provider: provider.id as 'github'
+                })
+              }
+            >
               Connect to {provider.name}
             </Button>
           </div>

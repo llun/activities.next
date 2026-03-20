@@ -1,11 +1,10 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -23,7 +22,7 @@ interface Props {
 const Page: FC<Props> = async ({ searchParams }) => {
   const [database, session] = await Promise.all([
     getDatabase(),
-    getServerSession(getAuthOptions())
+    getServerAuthSession()
   ])
 
   if (!database) throw new Error('Database is not available')

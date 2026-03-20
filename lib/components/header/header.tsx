@@ -1,23 +1,23 @@
 'use client'
 
 import { Bell } from 'lucide-react'
-import { Session } from 'next-auth'
-import { signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { FC } from 'react'
 
 import { Logo } from '@/lib/components/layout/logo'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import { Button } from '@/lib/components/ui/button'
+import { authClient } from '@/lib/services/auth/auth-client'
 
 interface Props {
-  session?: Session | null
+  isLoggedIn?: boolean
   followRequestCount?: number
 }
 
-export const Header: FC<Props> = ({ session, followRequestCount = 0 }) => {
-  const isLoggedIn = Boolean(session?.user)
-
+export const Header: FC<Props> = ({
+  isLoggedIn = false,
+  followRequestCount = 0
+}) => {
   return (
     <header className="navbar navbar-expand-lg bg-light">
       <nav className="container">
@@ -47,7 +47,18 @@ export const Header: FC<Props> = ({ session, followRequestCount = 0 }) => {
               </Link>
             </Button>
 
-            <Button variant="outline" onClick={() => signOut()}>
+            <Button
+              variant="outline"
+              onClick={() =>
+                authClient.signOut({
+                  fetchOptions: {
+                    onSuccess: () => {
+                      window.location.href = '/auth/signin'
+                    }
+                  }
+                })
+              }
+            >
               Logout
             </Button>
           </div>

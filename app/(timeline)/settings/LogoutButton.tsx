@@ -1,11 +1,21 @@
 'use client'
 
-import { signOut } from 'next-auth/react'
-
 import { Button } from '@/lib/components/ui/button'
+import { authClient } from '@/lib/services/auth/auth-client'
 
 export const LogoutButton = () => (
-  <Button variant="outline" onClick={() => signOut()}>
+  <Button
+    variant="outline"
+    onClick={() =>
+      authClient.signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            window.location.href = '/auth/signin'
+          }
+        }
+      })
+    }
+  >
     Logout
   </Button>
 )

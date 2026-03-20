@@ -1,9 +1,6 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
-import { getProviders } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { ActorsSection } from '@/lib/components/settings/ActorsSection'
 import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
@@ -13,6 +10,7 @@ import { Label } from '@/lib/components/ui/label'
 import { Textarea } from '@/lib/components/ui/textarea'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -42,11 +40,7 @@ const Page = async () => {
     throw new Error('Fail to load database')
   }
 
-  const [session, providers] = await Promise.all([
-    getServerSession(getAuthOptions()),
-    getProviders()
-  ])
-
+  const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
   if (!actor || !actor.account) {
     return redirect('/auth/signin')
@@ -56,13 +50,7 @@ const Page = async () => {
   const { auth } = getConfig()
   const [nonCredentialsProviders, connectedProviders, actors] =
     await Promise.all([
-      (providers &&
-        Object.values(providers).filter((provider) => {
-          if (provider.id === 'credentials') return false
-          if (provider.id === 'github' && !auth?.github) return false
-          return true
-        })) ||
-        [],
+      auth?.github ? [{ id: 'github', name: 'GitHub' }] : [],
       database.getAccountProviders({ accountId: actor.account.id }),
       database.getActorsForAccount({ accountId: actor.account.id })
     ])

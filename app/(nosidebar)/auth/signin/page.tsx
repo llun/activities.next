@@ -1,11 +1,8 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
-import { getProviders } from 'next-auth/react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import {
   Card,
   CardContent,
@@ -15,7 +12,9 @@ import {
   CardTitle
 } from '@/lib/components/ui/card'
 import { Separator } from '@/lib/components/ui/separator'
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
 import { CredentialForm } from './CredentialForm'
 import { SigninButton } from './SigninButton'
@@ -27,22 +26,16 @@ export const metadata: Metadata = {
 
 const Page: FC = async () => {
   const database = getDatabase()
-  const [providers, session] = await Promise.all([
-    getProviders(),
-    getServerSession(getAuthOptions())
-  ])
+  const session = await getServerAuthSession()
 
   if (!database) throw new Error('Database is not available')
   if (session && session.user) {
     return redirect('/')
   }
 
-  const credentialProvider = Object.values(providers ?? []).find(
-    (p) => p.id === 'credentials'
-  )
-  const oauthProviders = Object.values(providers ?? []).filter(
-    (p) => p.id !== 'credentials'
-  )
+  const { auth, serviceName } = getConfig()
+  const hasCredentials = true
+  const oauthProviders = auth?.github ? [{ id: 'github', name: 'GitHub' }] : []
 
   return (
     <Card>
@@ -51,9 +44,11 @@ const Page: FC = async () => {
         <CardDescription>Sign in to your account</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {credentialProvider && <CredentialForm provider={credentialProvider} />}
+        {hasCredentials && (
+          <CredentialForm providerName={serviceName ?? 'credentials'} />
+        )}
 
-        {oauthProviders.length > 0 && credentialProvider && (
+        {oauthProviders.length > 0 && hasCredentials && (
           <div className="relative">
             <Separator />
             <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
