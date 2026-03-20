@@ -9,6 +9,7 @@ import {
   CreateAccountParams,
   CreateAccountSessionParams,
   CreateActorForAccountParams,
+  CreateCredentialProviderParams,
   DeleteAccountSessionParams,
   GetAccountAllSessionsParams,
   GetAccountFromEmailParams,
@@ -125,6 +126,22 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     })
 
     return accountId
+  },
+
+  async createCredentialProvider({
+    accountId,
+    passwordHash
+  }: CreateCredentialProviderParams): Promise<void> {
+    const currentTime = new Date()
+    await database('account_providers').insert({
+      id: `credential_${accountId}`,
+      accountId,
+      provider: 'credential',
+      providerId: accountId,
+      password: passwordHash,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
   },
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
