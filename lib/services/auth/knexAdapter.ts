@@ -47,17 +47,29 @@ const applyWhere = (
         break
       case 'contains': {
         const escaped = escapeLikeValue(value)
-        query = query[method](`${model}.${field}`, 'like', `%${escaped}%`)
+        const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
+        query = query[rawMethod]("?? like ? escape '\\'", [
+          `${model}.${field}`,
+          `%${escaped}%`
+        ])
         break
       }
       case 'starts_with': {
         const escaped = escapeLikeValue(value)
-        query = query[method](`${model}.${field}`, 'like', `${escaped}%`)
+        const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
+        query = query[rawMethod]("?? like ? escape '\\'", [
+          `${model}.${field}`,
+          `${escaped}%`
+        ])
         break
       }
       case 'ends_with': {
         const escaped = escapeLikeValue(value)
-        query = query[method](`${model}.${field}`, 'like', `%${escaped}`)
+        const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
+        query = query[rawMethod]("?? like ? escape '\\'", [
+          `${model}.${field}`,
+          `%${escaped}`
+        ])
         break
       }
       default:
@@ -112,9 +124,16 @@ export const knexAdapter = (db: Knex) =>
           return row as any
         },
 
-        async findOne({ model, where }) {
+        async findOne({ model, where, select }) {
           const tableName = getModelName(model)
-          let query = db(tableName).first()
+          let query = select
+            ? db(tableName).first(
+                select.map(
+                  (f) =>
+                    `${tableName}.${getFieldName({ model, field: f })} as ${f}`
+                )
+              )
+            : db(tableName).first()
           if (where) {
             query = applyWhere(query, tableName, transformWhere(model, where))
           }
@@ -122,9 +141,16 @@ export const knexAdapter = (db: Knex) =>
           return (row ?? null) as any
         },
 
-        async findMany({ model, where, limit, sortBy, offset }) {
+        async findMany({ model, where, limit, sortBy, offset, select }) {
           const tableName = getModelName(model)
-          let query = db(tableName)
+          let query = select
+            ? db(tableName).select(
+                select.map(
+                  (f) =>
+                    `${tableName}.${getFieldName({ model, field: f })} as ${f}`
+                )
+              )
+            : db(tableName)
           if (where) {
             query = applyWhere(query, tableName, transformWhere(model, where))
           }

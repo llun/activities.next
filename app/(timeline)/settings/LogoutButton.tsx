@@ -11,6 +11,9 @@ export const LogoutButton = () => (
         fetchOptions: {
           onSuccess: () => {
             window.location.href = '/auth/signin'
+          },
+          onError: () => {
+            window.location.href = '/auth/signin'
           }
         }
       })
