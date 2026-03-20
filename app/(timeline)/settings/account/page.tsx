@@ -1,12 +1,11 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
 import { LogoutButton } from '@/app/(timeline)/settings/LogoutButton'
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ChangeEmailForm } from './ChangeEmailForm'
@@ -24,7 +23,7 @@ const Page = async () => {
     throw new Error('Fail to load database')
   }
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
   if (!actor || !actor.account) {
     return redirect('/auth/signin')

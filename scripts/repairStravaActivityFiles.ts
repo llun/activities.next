@@ -21,12 +21,12 @@
  *
  * Only S3/Object storage backends are supported.
  */
-import { loadEnvConfig } from '@next/env'
 import {
   DeleteObjectCommand,
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
+import { loadEnvConfig } from '@next/env'
 import knex from 'knex'
 import { z } from 'zod'
 
@@ -140,7 +140,14 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
       .whereIn('fileType', ['gpx', 'tcx'])
       .orderBy('actorId', 'asc')
       .orderBy('createdAt', 'asc')
-      .select(['id', 'actorId', 'statusId', 'path', 'fileType', 'importBatchId'])
+      .select([
+        'id',
+        'actorId',
+        'statusId',
+        'path',
+        'fileType',
+        'importBatchId'
+      ])
 
     if (input.actorId) {
       query = query.where('actorId', input.actorId)
@@ -153,7 +160,9 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
   }
 
   const actorLabel = input.actorId ? ` for actor ${input.actorId}` : ''
-  console.log(`Found ${files.length} Strava activity file(s) to repair${actorLabel}`)
+  console.log(
+    `Found ${files.length} Strava activity file(s) to repair${actorLabel}`
+  )
   if (input.dryRun) {
     console.log('Dry-run mode: no changes will be made')
   }
@@ -182,7 +191,9 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
           serviceType: 'strava'
         })
         if (!fitnessSettings) {
-          console.log(`    ✗ No Strava settings found for actor ${file.actorId}`)
+          console.log(
+            `    ✗ No Strava settings found for actor ${file.actorId}`
+          )
           accessTokenCache.set(file.actorId, null)
           failureCount += 1
           continue
@@ -247,7 +258,9 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
           newFileType !== file.fileType
             ? ` (upgrading ${file.fileType.toUpperCase()} → ${newFileType.toUpperCase()})`
             : ''
-        console.log(`    ✓ Would overwrite (${body.length} bytes)${upgradeNote}`)
+        console.log(
+          `    ✓ Would overwrite (${body.length} bytes)${upgradeNote}`
+        )
         updatedCount += 1
         continue
       }

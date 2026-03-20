@@ -159,7 +159,9 @@ async function importStravaArchive(args = process.argv.slice(2)) {
         : archiveActivities
 
     if (input.skipToIndex > 0) {
-      console.log(`Skipping first ${input.skipToIndex} activities (--skip-to-index)`)
+      console.log(
+        `Skipping first ${input.skipToIndex} activities (--skip-to-index)`
+      )
     }
 
     for (const activity of activitiesToProcess) {

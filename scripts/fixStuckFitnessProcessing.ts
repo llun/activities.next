@@ -27,11 +27,10 @@ import { FitnessFile } from '@/lib/types/database/fitnessFile'
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
-const CliArgs = z
-  .union([
-    z.object({ mode: z.literal('hash'), statusHash: z.string().length(64) }),
-    z.object({ mode: z.literal('actor'), actorId: z.string().min(1) })
-  ])
+const CliArgs = z.union([
+  z.object({ mode: z.literal('hash'), statusHash: z.string().length(64) }),
+  z.object({ mode: z.literal('actor'), actorId: z.string().min(1) })
+])
 
 const USAGE = `Usage:
   Fix one status:
@@ -100,7 +99,9 @@ async function fixFile(
     return target
   } catch (error) {
     const nodeError = error as Error
-    console.error(`  [${file.id}] ${file.fileName} — failed: ${nodeError.message}`)
+    console.error(
+      `  [${file.id}] ${file.fileName} — failed: ${nodeError.message}`
+    )
     return 'error'
   }
 }
@@ -158,7 +159,9 @@ async function fixStuckFitnessProcessing(args = process.argv.slice(2)) {
         offset
       })
 
-      filesToFix.push(...page.filter((f) => f.processingStatus === 'processing'))
+      filesToFix.push(
+        ...page.filter((f) => f.processingStatus === 'processing')
+      )
 
       if (page.length < PAGE_SIZE) break
       offset += PAGE_SIZE
@@ -169,7 +172,9 @@ async function fixStuckFitnessProcessing(args = process.argv.slice(2)) {
       return 0
     }
 
-    console.log(`Found ${filesToFix.length} stuck file(s) for actor ${input.actorId}`)
+    console.log(
+      `Found ${filesToFix.length} stuck file(s) for actor ${input.actorId}`
+    )
   }
 
   const counts = { completed: 0, pending: 0, skipped: 0, error: 0 }

@@ -1,11 +1,14 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { SessionsList } from '@/lib/components/settings/SessionsList'
 import { getDatabase } from '@/lib/database'
+import {
+  AUTH_COOKIE_PREFIX,
+  AUTH_SESSION_COOKIE_NAME
+} from '@/lib/services/auth/auth'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +23,7 @@ const Page = async () => {
     throw new Error('Fail to load database')
   }
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
   if (!actor || !actor.account) {
     return redirect('/auth/signin')
@@ -28,9 +31,11 @@ const Page = async () => {
 
   // Get current session token from cookies (server-side)
   const cookieStore = await cookies()
+  const sessionCookieName = `${AUTH_COOKIE_PREFIX}.${AUTH_SESSION_COOKIE_NAME}`
+  const secureCookieName = `__Secure-${sessionCookieName}`
   const currentSessionToken =
-    cookieStore.get('__Secure-next-auth.session-token')?.value ||
-    cookieStore.get('next-auth.session-token')?.value ||
+    cookieStore.get(secureCookieName)?.value ||
+    cookieStore.get(sessionCookieName)?.value ||
     null
 
   const currentTime = Date.now()

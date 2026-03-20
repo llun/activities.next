@@ -7,12 +7,8 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { GET } from './route'
 
 const mockGetServerSession = jest.fn()
-jest.mock('next-auth', () => ({
-  getServerSession: (...args: unknown[]) => mockGetServerSession(...args)
-}))
-
-jest.mock('@/app/api/auth/[...nextauth]/authOptions', () => ({
-  getAuthOptions: jest.fn(() => ({}))
+jest.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: () => mockGetServerSession()
 }))
 
 const mockGetConfig = jest.fn()

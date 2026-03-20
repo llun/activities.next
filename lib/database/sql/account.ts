@@ -9,6 +9,7 @@ import {
   CreateAccountParams,
   CreateAccountSessionParams,
   CreateActorForAccountParams,
+  CreateCredentialProviderParams,
   DeleteAccountSessionParams,
   GetAccountAllSessionsParams,
   GetAccountFromEmailParams,
@@ -107,7 +108,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         passwordHash,
         ...(verificationCode
           ? { verificationCode }
-          : { verifiedAt: currentTime }),
+          : { verifiedAt: currentTime, emailVerified: true }),
         createdAt: currentTime,
         updatedAt: currentTime
       })
@@ -122,9 +123,37 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         createdAt: currentTime,
         updatedAt: currentTime
       })
+      await trx('account_providers').insert({
+        id: `credential_${accountId}`,
+        accountId,
+        provider: 'credential',
+        providerId: accountId,
+        password: passwordHash,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
     })
 
     return accountId
+  },
+
+  async createCredentialProvider({
+    accountId,
+    passwordHash
+  }: CreateCredentialProviderParams): Promise<void> {
+    const currentTime = new Date()
+    await database('account_providers')
+      .insert({
+        id: `credential_${accountId}`,
+        accountId,
+        provider: 'credential',
+        providerId: accountId,
+        password: passwordHash,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+      .onConflict('id')
+      .ignore()
   },
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
@@ -198,6 +227,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     await database('accounts').where('id', account.id).update({
       verificationCode: '',
       verifiedAt: currentTime,
+      emailVerified: true,
       updatedAt: currentTime
     })
     return this.getAccountFromId({ id: account.id })
@@ -577,6 +607,19 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
       if (updatedCount === 0) return null
 
+      await trx('account_providers')
+        .insert({
+          id: `credential_${targetAccountId}`,
+          accountId: targetAccountId,
+          provider: 'credential',
+          providerId: targetAccountId,
+          password: newPasswordHash,
+          createdAt: now,
+          updatedAt: now
+        })
+        .onConflict('id')
+        .merge({ password: newPasswordHash, updatedAt: now })
+
       await trx('sessions').where('accountId', targetAccountId).delete()
       return targetAccountId
     })
@@ -597,6 +640,18 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         passwordResetCodeExpiresAt: null,
         updatedAt: currentTime
       })
+      await trx('account_providers')
+        .insert({
+          id: `credential_${accountId}`,
+          accountId,
+          provider: 'credential',
+          providerId: accountId,
+          password: newPasswordHash,
+          createdAt: currentTime,
+          updatedAt: currentTime
+        })
+        .onConflict('id')
+        .merge({ password: newPasswordHash, updatedAt: currentTime })
       await trx('sessions').where('accountId', accountId).delete()
     })
   }

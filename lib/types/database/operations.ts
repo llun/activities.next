@@ -182,6 +182,10 @@ export type LinkAccountWithProviderParams = {
 export type VerifyAccountParams = {
   verificationCode: string
 }
+export type CreateCredentialProviderParams = {
+  accountId: string
+  passwordHash: string
+}
 export type CreateAccountSessionParams = {
   accountId: string
   token: string
@@ -254,6 +258,9 @@ export interface AccountDatabase {
   isUsernameExists(params: IsUsernameExistsParams): Promise<boolean>
 
   createAccount(params: CreateAccountParams): Promise<string>
+  createCredentialProvider(
+    params: CreateCredentialProviderParams
+  ): Promise<void>
   getAccountFromId(params: GetAccountFromIdParams): Promise<Account | null>
   getAccountFromEmail(
     params: GetAccountFromEmailParams

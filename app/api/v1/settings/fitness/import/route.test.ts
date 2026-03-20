@@ -8,12 +8,8 @@ import { getQueue } from '@/lib/services/queue'
 import { POST } from './route'
 
 const mockGetServerSession = jest.fn()
-jest.mock('next-auth', () => ({
-  getServerSession: (...args: unknown[]) => mockGetServerSession(...args)
-}))
-
-jest.mock('@/app/api/auth/[...nextauth]/authOptions', () => ({
-  getAuthOptions: jest.fn(() => ({}))
+jest.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: () => mockGetServerSession()
 }))
 
 let mockDatabase: Record<string, unknown> | null = {}
