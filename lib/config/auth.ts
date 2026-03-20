@@ -9,7 +9,8 @@ const GithubConfig = z.object({
 type GithubConfig = z.infer<typeof GithubConfig>
 
 export const AuthConfig = z.object({
-  github: GithubConfig.nullish()
+  github: GithubConfig.nullish(),
+  enableCredential: z.boolean().optional()
 })
 export type AuthConfig = z.infer<typeof AuthConfig>
 

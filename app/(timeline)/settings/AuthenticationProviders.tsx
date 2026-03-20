@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FC } from 'react'
+import { FC, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import { authClient } from '@/lib/services/auth/auth-client'
@@ -26,10 +26,12 @@ export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({
   connectedProviders
 }) => {
   const router = useRouter()
+  const [error, setError] = useState<string>()
   if (!nonCredentialsProviders.length) return
 
   return (
     <div className="space-y-2">
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {nonCredentialsProviders.map((provider) => {
         const isConnected = connectedProviders.some(
           (connected) => connected.provider === provider.id
@@ -72,19 +74,20 @@ export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({
         return (
           <div key={provider.name} className="flex justify-end">
             <Button
-              onClick={() =>
+              onClick={() => {
+                setError(undefined)
                 authClient.signIn.social({
                   provider: provider.id as 'github',
                   callbackURL: '/settings',
                   fetchOptions: {
                     onError: () => {
-                      alert(
+                      setError(
                         `Failed to connect to ${provider.name}. Please try again.`
                       )
                     }
                   }
                 })
-              }
+              }}
             >
               Connect to {provider.name}
             </Button>

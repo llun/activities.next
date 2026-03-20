@@ -2,7 +2,7 @@
 
 import { Bell } from 'lucide-react'
 import Link from 'next/link'
-import { FC } from 'react'
+import { FC, useState } from 'react'
 
 import { Logo } from '@/lib/components/layout/logo'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
@@ -18,6 +18,8 @@ export const Header: FC<Props> = ({
   isLoggedIn = false,
   followRequestCount = 0
 }) => {
+  const [error, setError] = useState<string>()
+
   return (
     <header className="navbar navbar-expand-lg bg-light">
       <nav className="container">
@@ -47,23 +49,27 @@ export const Header: FC<Props> = ({
               </Link>
             </Button>
 
-            <Button
-              variant="outline"
-              onClick={() =>
-                authClient.signOut({
-                  fetchOptions: {
-                    onSuccess: () => {
-                      window.location.href = '/auth/signin'
-                    },
-                    onError: () => {
-                      alert('Sign out failed. Please try again.')
+            <div className="flex flex-col items-start">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setError(undefined)
+                  authClient.signOut({
+                    fetchOptions: {
+                      onSuccess: () => {
+                        window.location.href = '/auth/signin'
+                      },
+                      onError: () => {
+                        setError('Sign out failed. Please try again.')
+                      }
                     }
-                  }
-                })
-              }
-            >
-              Logout
-            </Button>
+                  })
+                }}
+              >
+                Logout
+              </Button>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+            </div>
           </div>
         )}
       </nav>

@@ -35,6 +35,8 @@ const Page: FC = async () => {
 
   const { auth, serviceName } = getConfig()
   const oauthProviders = auth?.github ? [{ id: 'github', name: 'GitHub' }] : []
+  const credentialEnabled =
+    !oauthProviders.length || auth?.enableCredential !== false
 
   return (
     <Card>
@@ -43,9 +45,11 @@ const Page: FC = async () => {
         <CardDescription>Sign in to your account</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <CredentialForm providerName={serviceName ?? 'credentials'} />
+        {credentialEnabled && (
+          <CredentialForm providerName={serviceName ?? 'credentials'} />
+        )}
 
-        {oauthProviders.length > 0 && (
+        {oauthProviders.length > 0 && credentialEnabled && (
           <div className="relative">
             <Separator />
             <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">

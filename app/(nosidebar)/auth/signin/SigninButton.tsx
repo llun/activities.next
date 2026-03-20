@@ -1,7 +1,7 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { FC } from 'react'
+import { FC, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import { authClient } from '@/lib/services/auth/auth-client'
@@ -11,28 +11,35 @@ interface Props {
 }
 
 export const SigninButton: FC<Props> = ({ provider }) => {
+  const [error, setError] = useState<string>()
   const searchParams = useSearchParams()
   const raw = searchParams.get('redirectBack')
   const redirectBack =
     raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/'
 
   return (
-    <Button
-      variant="outline"
-      className="w-full"
-      onClick={() =>
-        authClient.signIn.social({
-          provider: provider.id as 'github',
-          callbackURL: redirectBack,
-          fetchOptions: {
-            onError: () => {
-              alert(`Sign in with ${provider.name} failed. Please try again.`)
+    <div className="space-y-1">
+      <Button
+        variant="outline"
+        className="w-full"
+        onClick={() => {
+          setError(undefined)
+          authClient.signIn.social({
+            provider: provider.id as 'github',
+            callbackURL: redirectBack,
+            fetchOptions: {
+              onError: () => {
+                setError(
+                  `Sign in with ${provider.name} failed. Please try again.`
+                )
+              }
             }
-          }
-        })
-      }
-    >
-      Sign in with {provider.name}
-    </Button>
+          })
+        }}
+      >
+        Sign in with {provider.name}
+      </Button>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
   )
 }
