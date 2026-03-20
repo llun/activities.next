@@ -22,7 +22,7 @@ export const getAuth = memoize(() => {
     secret: config.secretPhase,
     baseURL: config.host.startsWith('http')
       ? config.host
-      : `${process.env.NODE_ENV === 'development' ? 'http' : 'https'}://${config.host}`,
+      : `https://${config.host}`,
     basePath: '/api/auth',
     database: knexAdapter(db),
     emailAndPassword: {
