@@ -27,6 +27,7 @@ export const getAuth = memoize(() => {
     database: knexAdapter(db),
     emailAndPassword: {
       enabled: config.auth?.enableCredential !== false,
+      disableSignUp: true,
       requireEmailVerification: true,
       password: {
         hash: (password: string) => bcrypt.hash(password, 10),

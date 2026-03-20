@@ -363,6 +363,12 @@ describe('AccountDatabase', () => {
         expect(providers).toHaveLength(2)
         expect(providers).toContainEqual(
           expect.objectContaining({
+            provider: 'credential',
+            providerId: accountId
+          })
+        )
+        expect(providers).toContainEqual(
+          expect.objectContaining({
             provider,
             providerId: providerAccountId
           })
