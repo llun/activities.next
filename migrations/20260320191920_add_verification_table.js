@@ -5,11 +5,17 @@
 exports.up = async (knex) => {
   await knex.schema.createTable('verification', (table) => {
     table.text('id').primary()
-    table.text('identifier').notNullable()
+    table.text('identifier').notNullable().index()
     table.text('value').notNullable()
-    table.timestamp('expiresAt').notNullable()
-    table.timestamp('createdAt').nullable()
-    table.timestamp('updatedAt').nullable()
+    table.timestamp('expiresAt', { useTz: true }).notNullable()
+    table
+      .timestamp('createdAt', { useTz: true })
+      .notNullable()
+      .defaultTo(knex.fn.now())
+    table
+      .timestamp('updatedAt', { useTz: true })
+      .notNullable()
+      .defaultTo(knex.fn.now())
   })
 }
 
