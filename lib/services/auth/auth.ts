@@ -89,6 +89,8 @@ export const getAuth = memoize(() => {
             const account = await database.getAccountFromId({
               id: session.userId
             })
+            if (!account) return false
+            if (!account.verifiedAt) return false
             return {
               data: {
                 ...session,
