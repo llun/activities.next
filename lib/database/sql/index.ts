@@ -1,4 +1,4 @@
-import knex, { Knex } from 'knex'
+import { Knex } from 'knex'
 
 import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
 import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
@@ -14,9 +14,7 @@ import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaAr
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
 
-export const getSQLDatabase = (config: Knex.Config): Database => {
-  const database = knex(config)
-
+export const getSQLDatabase = (database: Knex): Database => {
   const accountDatabase = AccountSQLDatabaseMixin(database)
   const actorDatabase = ActorSQLDatabaseMixin(database)
   const fitnessFileDatabase = FitnessFileSQLDatabaseMixin(database)

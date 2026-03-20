@@ -12,12 +12,8 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { GET } from './route'
 
 const mockGetServerSession = jest.fn()
-jest.mock('next-auth', () => ({
-  getServerSession: (...args: unknown[]) => mockGetServerSession(...args)
-}))
-
-jest.mock('@/app/api/auth/[...nextauth]/authOptions', () => ({
-  getAuthOptions: jest.fn(() => ({}))
+jest.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: () => mockGetServerSession()
 }))
 
 jest.mock('@/lib/config', () => ({

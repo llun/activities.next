@@ -10,10 +10,10 @@ import { Actor } from '@/lib/types/domain/actor'
 
 import { OAuthGuard, getTokenFromHeader } from './OAuthGuard'
 
-// Mock next-auth session
+// Mock auth session
 const mockGetServerSession = jest.fn()
-jest.mock('next-auth', () => ({
-  getServerSession: (...args: unknown[]) => mockGetServerSession(...args)
+jest.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: () => mockGetServerSession()
 }))
 
 // Mock database getter

@@ -1,3 +1,4 @@
+import knex from 'knex'
 import { noop } from 'lodash'
 import { Client as PostgresClient } from 'pg'
 
@@ -25,24 +26,28 @@ type GetTestDatabase = () => {
 const DATABASES: Record<string, GetTestDatabase> = {
   sqlite: () => ({
     name: 'sqlite',
-    database: getSQLDatabase({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    }),
+    database: getSQLDatabase(
+      knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+    ),
     prepare: noop
   }),
   pg: () => ({
     name: 'pg',
-    database: getSQLDatabase({
-      client: 'pg',
-      connection: {
-        ...TEST_PG_CONNECTION,
-        database: TEST_PG_TABLE
-      }
-    }),
+    database: getSQLDatabase(
+      knex({
+        client: 'pg',
+        connection: {
+          ...TEST_PG_CONNECTION,
+          database: TEST_PG_TABLE
+        }
+      })
+    ),
     prepare: async () => {
       const client = new PostgresClient({
         ...TEST_PG_CONNECTION,
@@ -84,10 +89,12 @@ export const databaseBeforeAll = async (table: TestDatabaseTable) => {
 }
 
 export const getTestSQLDatabase = () =>
-  getSQLDatabase({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
+  getSQLDatabase(
+    knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+  )

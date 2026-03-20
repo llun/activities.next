@@ -1,10 +1,8 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/ui/button'
 import {
   Card,
@@ -17,6 +15,7 @@ import {
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -27,7 +26,7 @@ const Page: FC = async () => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await getServerAuthSession()
   if (session && session.user) {
     return redirect('/')
   }

@@ -1,12 +1,11 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import crypto from 'crypto'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getPresignedFitnessFileUrl } from '@/lib/services/fitness-files'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
 import { getStravaArchiveSourceBatchId } from '@/lib/services/strava/archiveImport'
@@ -43,7 +42,7 @@ export const POST = traceApiRoute(
   'getStravaArchivePresignedUrl',
   async (req) => {
     const database = getDatabase()
-    const session = await getServerSession(getAuthOptions())
+    const session = await getServerAuthSession()
 
     if (!database || !session?.user?.email) {
       return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)

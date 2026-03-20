@@ -1,11 +1,10 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { FitnessPrivacyLocationSettings } from '@/lib/components/settings/FitnessPrivacyLocationSettings'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +19,7 @@ const Page = async () => {
     throw new Error('Fail to load database')
   }
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
   if (!actor || !actor.account) {
     return redirect('/auth/signin')

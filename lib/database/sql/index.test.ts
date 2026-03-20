@@ -1,4 +1,4 @@
-import knex, { Knex } from 'knex'
+import { Knex } from 'knex'
 
 import { AccountSQLDatabaseMixin } from './account'
 import { ActorSQLDatabaseMixin } from './actor'
@@ -11,11 +11,6 @@ import { NotificationSQLDatabaseMixin } from './notification'
 import { OAuthSQLDatabaseMixin } from './oauth'
 import { StatusSQLDatabaseMixin } from './status'
 import { TimelineSQLDatabaseMixin } from './timeline'
-
-jest.mock('knex', () => ({
-  __esModule: true,
-  default: jest.fn()
-}))
 
 jest.mock('@/lib/database/sql/account', () => ({
   AccountSQLDatabaseMixin: jest.fn()
@@ -58,7 +53,6 @@ jest.mock('@/lib/database/sql/timeline', () => ({
 }))
 
 describe('getSQLDatabase', () => {
-  const knexMock = knex as unknown as jest.Mock
   const accountMixinMock = AccountSQLDatabaseMixin as unknown as jest.Mock
   const actorMixinMock = ActorSQLDatabaseMixin as unknown as jest.Mock
   const fitnessSettingsMixinMock =
@@ -72,13 +66,7 @@ describe('getSQLDatabase', () => {
   const statusMixinMock = StatusSQLDatabaseMixin as unknown as jest.Mock
   const timelineMixinMock = TimelineSQLDatabaseMixin as unknown as jest.Mock
 
-  const config = {
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  } as Knex.Config
+  let _knexMock: Knex
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -90,7 +78,7 @@ describe('getSQLDatabase', () => {
         latest: jest.fn().mockResolvedValue(undefined)
       },
       destroy: jest.fn().mockResolvedValue(undefined)
-    }
+    } as unknown as Knex
 
     const accountDatabase = {
       isAccountExists: jest.fn(),
@@ -126,7 +114,7 @@ describe('getSQLDatabase', () => {
       testPriority: 'timeline'
     }
 
-    knexMock.mockReturnValue(knexDatabase)
+    _knexMock = knexDatabase
     accountMixinMock.mockReturnValue(accountDatabase)
     actorMixinMock.mockReturnValue(actorDatabase)
     fitnessSettingsMixinMock.mockReturnValue(fitnessSettingsDatabase)
@@ -138,7 +126,7 @@ describe('getSQLDatabase', () => {
     statusMixinMock.mockReturnValue(statusDatabase)
     timelineMixinMock.mockReturnValue(timelineDatabase)
 
-    const database = getSQLDatabase(config)
+    const database = getSQLDatabase(knexDatabase)
 
     return {
       accountDatabase,
@@ -166,7 +154,6 @@ describe('getSQLDatabase', () => {
       statusDatabase
     } = createComposedDatabase()
 
-    expect(knexMock).toHaveBeenCalledWith(config)
     expect(accountMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(actorMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(fitnessSettingsMixinMock).toHaveBeenCalledWith(knexDatabase)

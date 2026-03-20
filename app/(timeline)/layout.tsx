@@ -1,11 +1,10 @@
-import { getServerSession } from 'next-auth'
 import { FC, ReactNode } from 'react'
 
 import { Modal } from '@/app/Modal'
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
 import { Sidebar } from '@/lib/components/layout/sidebar'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -20,7 +19,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
     throw new Error('Fail to load database')
   }
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
 
   // Check if iconUrl is a real user-uploaded avatar (not auto-generated)

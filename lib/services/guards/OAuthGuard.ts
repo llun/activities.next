@@ -1,12 +1,11 @@
 import jwt from 'jsonwebtoken'
 import intersection from 'lodash/intersection'
-import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 import { generate } from 'peggy'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -40,7 +39,7 @@ export const OAuthGuard =
       return apiErrorResponse(500)
     }
 
-    const session = await getServerSession(getAuthOptions())
+    const session = await getServerAuthSession()
     if (session?.user?.email) {
       const currentActor = await getActorFromSession(database, session)
       if (!currentActor) return apiErrorResponse(401)

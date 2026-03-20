@@ -1,10 +1,9 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { MediaManagement } from '@/lib/components/settings/MediaManagement'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -24,7 +23,7 @@ const Page = async ({
     throw new Error('Fail to load database')
   }
 
-  const session = await getServerSession(getAuthOptions())
+  const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
   if (!actor || !actor.account) {
     return redirect('/auth/signin')

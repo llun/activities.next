@@ -1,8 +1,7 @@
-import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -18,7 +17,7 @@ export const DELETE = traceApiRoute(
       return apiErrorResponse(500)
     }
 
-    const session = await getServerSession(getAuthOptions())
+    const session = await getServerAuthSession()
     const actor = await getActorFromSession(database, session)
     if (!actor || !actor.account) {
       return apiErrorResponse(401)

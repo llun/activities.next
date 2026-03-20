@@ -1,9 +1,8 @@
-import { getServerSession } from 'next-auth'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -38,7 +37,7 @@ export const GET = traceApiRoute(
       return apiErrorResponse(500)
     }
 
-    const session = await getServerSession(getAuthOptions())
+    const session = await getServerAuthSession()
     if (!session?.user?.email) {
       return apiErrorResponse(401)
     }

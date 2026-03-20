@@ -1,9 +1,7 @@
 import { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { getAuthOptions } from '@/app/api/auth/[...nextauth]/authOptions'
 import { Button } from '@/lib/components/ui/button'
 import {
   Card,
@@ -14,6 +12,7 @@ import {
   CardTitle
 } from '@/lib/components/ui/card'
 import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 export const dynamic = 'force-dynamic'
@@ -51,7 +50,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
   }
 
   // Check if user is logged in to provide better navigation
-  const session = await getServerSession(getAuthOptions())
+  const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
   const isLoggedIn = !!(actor && actor.account)
 
