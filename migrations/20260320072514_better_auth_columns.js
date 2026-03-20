@@ -9,8 +9,8 @@ exports.up = async (knex) => {
     table.text('accessToken').nullable()
     table.text('refreshToken').nullable()
     table.text('idToken').nullable()
-    table.timestamp('accessTokenExpiresAt', { useTz: true }).nullable()
-    table.timestamp('refreshTokenExpiresAt', { useTz: true }).nullable()
+    table.timestamp('accessTokenExpiresAt').nullable()
+    table.timestamp('refreshTokenExpiresAt').nullable()
     table.text('scope').nullable()
   })
 

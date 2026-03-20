@@ -12,7 +12,9 @@ interface Props {
 
 export const SigninButton: FC<Props> = ({ provider }) => {
   const searchParams = useSearchParams()
-  const redirectBack = searchParams.get('redirectBack') ?? undefined
+  const raw = searchParams.get('redirectBack')
+  const redirectBack =
+    raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/'
 
   return (
     <Button

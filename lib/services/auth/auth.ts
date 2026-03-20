@@ -7,6 +7,9 @@ import { getDatabase, getKnex } from '@/lib/database'
 
 import { knexAdapter } from './knexAdapter'
 
+export const AUTH_COOKIE_PREFIX = 'better-auth'
+export const AUTH_SESSION_COOKIE_NAME = 'session_token'
+
 export const getAuth = memoize(() => {
   const config = getConfig()
   const database = getDatabase()
@@ -24,6 +27,7 @@ export const getAuth = memoize(() => {
     database: knexAdapter(db),
     emailAndPassword: {
       enabled: true,
+      requireEmailVerification: true,
       password: {
         hash: (password: string) => bcrypt.hash(password, 10),
         verify: ({ hash, password }: { hash: string; password: string }) =>

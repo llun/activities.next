@@ -25,9 +25,23 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
     setLoading(true)
 
     const formData = new FormData(e.currentTarget)
-    const email = formData.get('email') as string
-    const password = formData.get('password') as string
-    const redirectBack = searchParams.get('redirectBack') || '/'
+    const email = formData.get('email')
+    const password = formData.get('password')
+
+    if (typeof email !== 'string' || !email.trim()) {
+      setError('Email is required')
+      setLoading(false)
+      return
+    }
+    if (typeof password !== 'string' || !password) {
+      setError('Password is required')
+      setLoading(false)
+      return
+    }
+
+    const raw = searchParams.get('redirectBack') || '/'
+    const redirectBack =
+      raw.startsWith('/') && !raw.startsWith('//') ? raw : '/'
 
     try {
       const result = await authClient.signIn.email({

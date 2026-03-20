@@ -4,6 +4,10 @@ import { redirect } from 'next/navigation'
 
 import { SessionsList } from '@/lib/components/settings/SessionsList'
 import { getDatabase } from '@/lib/database'
+import {
+  AUTH_COOKIE_PREFIX,
+  AUTH_SESSION_COOKIE_NAME
+} from '@/lib/services/auth/auth'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -27,9 +31,11 @@ const Page = async () => {
 
   // Get current session token from cookies (server-side)
   const cookieStore = await cookies()
+  const sessionCookieName = `${AUTH_COOKIE_PREFIX}.${AUTH_SESSION_COOKIE_NAME}`
+  const secureCookieName = `__Secure-${sessionCookieName}`
   const currentSessionToken =
-    cookieStore.get('__Secure-better-auth.session_token')?.value ||
-    cookieStore.get('better-auth.session_token')?.value ||
+    cookieStore.get(secureCookieName)?.value ||
+    cookieStore.get(sessionCookieName)?.value ||
     null
 
   const currentTime = Date.now()

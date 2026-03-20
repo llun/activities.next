@@ -603,6 +603,14 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
       if (updatedCount === 0) return null
 
+      await trx('account_providers')
+        .where('accountId', targetAccountId)
+        .where('provider', 'credential')
+        .update({
+          password: newPasswordHash,
+          updatedAt: now
+        })
+
       await trx('sessions').where('accountId', targetAccountId).delete()
       return targetAccountId
     })
@@ -623,6 +631,13 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         passwordResetCodeExpiresAt: null,
         updatedAt: currentTime
       })
+      await trx('account_providers')
+        .where('accountId', accountId)
+        .where('provider', 'credential')
+        .update({
+          password: newPasswordHash,
+          updatedAt: currentTime
+        })
       await trx('sessions').where('accountId', accountId).delete()
     })
   }

@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 
-interface AuthSession {
+export interface AuthSession {
   user: { email: string }
 }
 
