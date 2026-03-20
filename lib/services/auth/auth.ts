@@ -14,8 +14,11 @@ export const getAuth = memoize(() => {
   const db = knex(config.database)
 
   return betterAuth({
+    logger: { level: 'debug' },
     secret: config.secretPhase,
-    baseURL: config.host,
+    baseURL: config.host.startsWith('http')
+      ? config.host
+      : `https://${config.host}`,
     basePath: '/api/auth',
     database: knexAdapter(db),
     emailAndPassword: {

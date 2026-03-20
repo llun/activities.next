@@ -63,64 +63,37 @@ export const knexAdapter = (db: Knex) =>
       adapterId: 'knex',
       supportsNumericIds: false
     },
-    adapter: ({
-      getModelName,
-      getFieldName,
-      getDefaultModelName,
-      transformInput,
-      transformOutput,
-      transformWhereClause
-    }) => {
+    adapter: ({ getModelName, getFieldName }) => {
       return {
-        async create({ data, model, select }) {
+        async create({ data, model }) {
           const tableName = getModelName(model)
-          const defaultModel = getDefaultModelName(model)
-          const transformed = await transformInput(
-            data as Record<string, unknown>,
-            defaultModel,
-            'create',
-            true
-          )
-
-          await db(tableName).insert(transformed)
-
           const idField = getFieldName({ model, field: 'id' })
+          await db(tableName).insert(data)
           const row = await db(tableName)
-            .where(`${tableName}.${idField}`, transformed[idField] as string)
+            .where(
+              `${tableName}.${idField}`,
+              (data as Record<string, unknown>)[idField] as string
+            )
             .first()
           if (!row) throw new Error('Failed to create record')
-          return (await transformOutput(row, defaultModel, select)) as any
+          return row as any
         },
 
-        async findOne({ model, where, select }) {
+        async findOne({ model, where }) {
           const tableName = getModelName(model)
-          const defaultModel = getDefaultModelName(model)
-          const transformedWhere = transformWhereClause({
-            model,
-            where,
-            action: 'findOne'
-          })
-
           let query = db(tableName).first()
-          if (transformedWhere) {
-            query = applyWhere(query, tableName, transformedWhere)
+          if (where) {
+            query = applyWhere(query, tableName, where)
           }
-
           const row = await query
-          if (!row) return null
-          return (await transformOutput(row, defaultModel, select)) as any
+          return (row ?? null) as any
         },
 
-        async findMany({ model, where, limit, sortBy, offset, select }) {
+        async findMany({ model, where, limit, sortBy, offset }) {
           const tableName = getModelName(model)
-          const defaultModel = getDefaultModelName(model)
-          const transformedWhere = where
-            ? transformWhereClause({ model, where, action: 'findMany' })
-            : undefined
-
           let query = db(tableName)
-          if (transformedWhere) {
-            query = applyWhere(query, tableName, transformedWhere)
+          if (where) {
+            query = applyWhere(query, tableName, where)
           }
           if (sortBy) {
             const sortField = getFieldName({ model, field: sortBy.field })
@@ -128,107 +101,61 @@ export const knexAdapter = (db: Knex) =>
           }
           if (limit) query = query.limit(limit)
           if (offset) query = query.offset(offset)
-
           const rows = await query
-          const results = []
-          for (const row of rows) {
-            results.push(await transformOutput(row, defaultModel, select))
-          }
-          return results as any
+          return rows as any
         },
 
         async count({ model, where }) {
           const tableName = getModelName(model)
-          const transformedWhere = where
-            ? transformWhereClause({ model, where, action: 'count' })
-            : undefined
-
           let query = db(tableName).count('* as count')
-          if (transformedWhere) {
-            query = applyWhere(query, tableName, transformedWhere)
+          if (where) {
+            query = applyWhere(query, tableName, where)
           }
-
           const result = await query.first()
           return Number(result?.count ?? 0)
         },
 
         async update({ model, where, update: updateData }) {
           const tableName = getModelName(model)
-          const defaultModel = getDefaultModelName(model)
-          const transformedWhere = transformWhereClause({
-            model,
-            where,
-            action: 'update'
-          })
-          const transformed = await transformInput(
-            updateData as Record<string, unknown>,
-            defaultModel,
-            'update'
-          )
-
           let query = db(tableName)
-          if (transformedWhere) {
-            query = applyWhere(query, tableName, transformedWhere)
+          if (where) {
+            query = applyWhere(query, tableName, where)
           }
-          await query.update(transformed)
-
+          await query.update(updateData as Record<string, unknown>)
           let selectQuery = db(tableName).first()
-          if (transformedWhere) {
-            selectQuery = applyWhere(selectQuery, tableName, transformedWhere)
+          if (where) {
+            selectQuery = applyWhere(selectQuery, tableName, where)
           }
           const row = await selectQuery
-          if (!row) return null
-          return (await transformOutput(row, defaultModel)) as any
+          return (row ?? null) as any
         },
 
         async updateMany({ model, where, update: updateData }) {
           const tableName = getModelName(model)
-          const defaultModel = getDefaultModelName(model)
-          const transformedWhere = transformWhereClause({
-            model,
-            where,
-            action: 'updateMany'
-          })
-          const transformed = await transformInput(
-            updateData as Record<string, unknown>,
-            defaultModel,
-            'update'
-          )
-
           let query = db(tableName)
-          if (transformedWhere) {
-            query = applyWhere(query, tableName, transformedWhere)
+          if (where) {
+            query = applyWhere(query, tableName, where)
           }
-          const result = await query.update(transformed)
+          const result = await query.update(
+            updateData as Record<string, unknown>
+          )
           return result
         },
 
         async delete({ model, where }) {
           const tableName = getModelName(model)
-          const transformedWhere = transformWhereClause({
-            model,
-            where,
-            action: 'delete'
-          })
-
           let query = db(tableName)
-          if (transformedWhere) {
-            query = applyWhere(query, tableName, transformedWhere)
+          if (where) {
+            query = applyWhere(query, tableName, where)
           }
           await query.delete()
         },
 
         async deleteMany({ model, where }) {
           const tableName = getModelName(model)
-          const transformedWhere = transformWhereClause({
-            model,
-            where,
-            action: 'deleteMany'
-          })
-
           let query = db(tableName)
-          if (transformedWhere) {
-            query = applyWhere(query, tableName, transformedWhere)
+          if (where) {
+            query = applyWhere(query, tableName, where)
           }
           const result = await query.delete()
           return result
