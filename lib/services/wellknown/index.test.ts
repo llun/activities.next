@@ -17,7 +17,7 @@ describe('wellknown services', () => {
       const metadata = getOAuthAuthorizationServerMetadata()
 
       expect(metadata).toMatchObject({
-        issuer: 'https://test.example.com/',
+        issuer: 'https://test.example.com',
         authorization_endpoint:
           'https://test.example.com/api/auth/oauth2/authorize',
         token_endpoint: 'https://test.example.com/oauth/token',

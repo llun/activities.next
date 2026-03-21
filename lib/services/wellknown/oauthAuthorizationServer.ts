@@ -20,7 +20,7 @@ export const getOAuthAuthorizationServerMetadata =
   (): OAuthAuthorizationServerMetadata => {
     const config = getConfig()
     return {
-      issuer: `https://${config.host}/`,
+      issuer: `https://${config.host}`,
       authorization_endpoint: `https://${config.host}/api/auth/oauth2/authorize`,
       token_endpoint: `https://${config.host}/oauth/token`,
       revocation_endpoint: `https://${config.host}/api/oauth/revoke`,

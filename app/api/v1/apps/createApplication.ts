@@ -23,10 +23,15 @@ const hashClientSecret = async (secret: string): Promise<string> => {
 
 const generateRandomString = (length: number): string => {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  const limit = 256 - (256 % chars.length)
   let result = ''
-  const bytes = crypto.randomBytes(length)
-  for (let i = 0; i < length; i++) {
-    result += chars[bytes[i] % chars.length]
+  while (result.length < length) {
+    const bytes = crypto.randomBytes(length * 2)
+    for (let i = 0; i < bytes.length && result.length < length; i++) {
+      if (bytes[i] < limit) {
+        result += chars[bytes[i] % chars.length]
+      }
+    }
   }
   return result
 }

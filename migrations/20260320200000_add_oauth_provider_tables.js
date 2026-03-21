@@ -1,3 +1,14 @@
+const crypto = require('crypto')
+
+const hashClientSecret = (secret) => {
+  const hash = crypto.createHash('sha256').update(secret).digest()
+  return hash
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
+
 /**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
@@ -41,7 +52,7 @@ exports.up = async (knex) => {
     // Create oauthRefreshToken table
     await trx.schema.createTable('oauthRefreshToken', (table) => {
       table.string('id').primary()
-      table.text('token').notNullable()
+      table.text('token').notNullable().unique()
       table
         .string('clientId')
         .notNullable()
@@ -109,11 +120,11 @@ exports.up = async (knex) => {
       await trx('oauthClient').insert({
         id: crypto.randomUUID(),
         clientId: client.id,
-        clientSecret: client.secret,
+        clientSecret: hashClientSecret(client.secret),
         name: client.name,
         scopes: JSON.stringify(scopes),
         redirectUris: JSON.stringify(redirectUris),
-        website: client.website || null,
+        uri: client.website || null,
         requirePKCE: false,
         disabled: false,
         grantTypes: JSON.stringify([

@@ -2,7 +2,12 @@ import { NextRequest } from 'next/server'
 
 import { getAuth } from '@/lib/services/auth/auth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { StatusCode, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  StatusCode,
+  apiResponse,
+  codeMap,
+  defaultOptions
+} from '@/lib/utils/response'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -22,7 +27,20 @@ export const POST = async (req: NextRequest) => {
   })
 
   const response = await auth.handler(proxyReq)
-  const data = (await response.json()) as Record<string, unknown>
+
+  let data: Record<string, unknown> = {}
+  const contentType = response.headers.get('content-type') ?? ''
+  if (contentType.includes('application/json')) {
+    try {
+      data = (await response.json()) as Record<string, unknown>
+    } catch {
+      // Non-parseable body; data remains empty
+    }
+  }
+
+  const statusCode = (
+    response.status in codeMap ? response.status : 500
+  ) as StatusCode
 
   return apiResponse({
     req,
@@ -31,6 +49,6 @@ export const POST = async (req: NextRequest) => {
       ...data,
       created_at: Math.floor(Date.now() / 1000)
     },
-    responseStatusCode: response.status as StatusCode
+    responseStatusCode: statusCode
   })
 }

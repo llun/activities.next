@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getAuth } from '@/lib/services/auth/auth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { logger } from '@/lib/utils/logger'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -23,9 +24,15 @@ export const POST = traceApiRoute('revokeToken', async (req: NextRequest) => {
   })
 
   try {
-    await auth.handler(proxyReq)
-  } catch {
-    // Per RFC 7009, return 200 OK even on failure
+    const revokeResponse = await auth.handler(proxyReq)
+    if (!revokeResponse.ok) {
+      logger.error({
+        message: 'Token revocation failed',
+        status: revokeResponse.status
+      })
+    }
+  } catch (e) {
+    logger.error({ message: 'Token revocation threw', error: e })
   }
 
   return apiResponse({

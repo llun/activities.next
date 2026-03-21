@@ -85,6 +85,6 @@ export const OAuthGuard =
       }
 
       logger.error(err)
-      return apiErrorResponse(401)
+      return apiErrorResponse(500)
     }
   }

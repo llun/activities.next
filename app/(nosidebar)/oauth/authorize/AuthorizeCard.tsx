@@ -112,24 +112,58 @@ export const AuthorizeCard: FC<Props> = ({
       // If consent failed, try falling back to redirect_uri with error
       const redirectUri = searchParams.redirect_uri
       if (redirectUri) {
-        const errorUrl = new URL(redirectUri)
-        errorUrl.searchParams.set('error', 'server_error')
-        window.location.href = errorUrl.toString()
+        try {
+          const errorUrl = new URL(redirectUri)
+          errorUrl.searchParams.set('error', 'server_error')
+          if (searchParams.state) {
+            errorUrl.searchParams.set('state', searchParams.state)
+          }
+          window.location.href = errorUrl.toString()
+        } catch {
+          router.push(client.website ?? '/')
+        }
       }
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleDeny = () => {
+  const handleDeny = async () => {
+    const oauthQuery = new URLSearchParams()
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (value !== undefined) oauthQuery.set(key, String(value))
+    }
+    try {
+      const response = await fetch('/api/auth/oauth2/consent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accept: false,
+          oauth_query: oauthQuery.toString()
+        })
+      })
+      if (response.ok) {
+        const data = (await response.json()) as { redirect_uri?: string }
+        if (data.redirect_uri) {
+          window.location.href = data.redirect_uri
+          return
+        }
+      }
+    } catch {
+      // Fall through to client-side redirect
+    }
     const redirectUri = searchParams.redirect_uri
     if (redirectUri) {
-      const errorUrl = new URL(redirectUri)
-      errorUrl.searchParams.set('error', 'access_denied')
-      if (searchParams.state) {
-        errorUrl.searchParams.set('state', searchParams.state)
+      try {
+        const errorUrl = new URL(redirectUri)
+        errorUrl.searchParams.set('error', 'access_denied')
+        if (searchParams.state) {
+          errorUrl.searchParams.set('state', searchParams.state)
+        }
+        window.location.href = errorUrl.toString()
+      } catch {
+        router.push(client.website ?? '/')
       }
-      window.location.href = errorUrl.toString()
     } else {
       router.push(client.website ?? '/')
     }
