@@ -7,7 +7,10 @@ exports.up = async (knex) => {
     table.string('id').primary()
     table.text('publicKey').notNullable()
     table.text('privateKey').notNullable()
-    table.timestamp('createdAt', { useTz: true }).notNullable()
+    table
+      .timestamp('createdAt', { useTz: true })
+      .notNullable()
+      .defaultTo(knex.fn.now())
     table.timestamp('expiresAt', { useTz: true }).nullable()
   })
 }
