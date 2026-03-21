@@ -17,8 +17,8 @@ jest.mock('@/lib/services/auth/getSession', () => ({
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-// mockRevokedTokens stores hashed tokens (matching OAuthGuard's hashToken transform)
-const mockRevokedTokens = new Set<string>()
+// mockStoredTokens maps hashed tokens to their stored records
+const mockStoredTokens = new Map<string, Record<string, unknown>>()
 const hashToken = (token: string) =>
   crypto
     .createHash('sha256')
@@ -29,10 +29,7 @@ const hashToken = (token: string) =>
     .replace(/\//g, '_')
     .replace(/=+$/, '')
 const mockKnexQueryBuilder = (hashedToken: string) => ({
-  first: () =>
-    Promise.resolve(
-      mockRevokedTokens.has(hashedToken) ? null : { token: hashedToken }
-    )
+  first: () => Promise.resolve(mockStoredTokens.get(hashedToken) ?? null)
 })
 jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
@@ -120,6 +117,7 @@ describe('#OAuthGuard', () => {
     mockGetServerSession.mockReset()
     mockVerifyAccessToken.mockReset()
     mockCookieValue.value = undefined
+    mockStoredTokens.clear()
   })
 
   const createRequest = (headers: Record<string, string> = {}) => {
@@ -272,6 +270,12 @@ describe('#OAuthGuard', () => {
         scope: 'read',
         actorId: primaryActor?.id
       })
+      mockStoredTokens.set(hashToken('valid-token'), {
+        token: hashToken('valid-token'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: 'read'
+      })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
       const req = createRequest({ Authorization: 'Bearer valid-token' })
@@ -297,6 +301,12 @@ describe('#OAuthGuard', () => {
         scope: 'read'
         // no actorId
       })
+      mockStoredTokens.set(hashToken('no-actor-token'), {
+        token: hashToken('no-actor-token'),
+        referenceId: null,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: 'read'
+      })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
       const req = createRequest({ Authorization: 'Bearer no-actor-token' })
@@ -312,6 +322,12 @@ describe('#OAuthGuard', () => {
         sub: 'user-id',
         scope: 'read',
         actorId: 'non-existent-actor-id'
+      })
+      mockStoredTokens.set(hashToken('bad-actor-token'), {
+        token: hashToken('bad-actor-token'),
+        referenceId: 'non-existent-actor-id',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: 'read'
       })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
@@ -335,14 +351,13 @@ describe('#OAuthGuard', () => {
         scope: 'read',
         actorId: primaryActor?.id
       })
-      mockRevokedTokens.add(hashToken('revoked-token'))
+      // Token not in store — simulates revocation (deleted from oauthAccessToken)
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
       const req = createRequest({ Authorization: 'Bearer revoked-token' })
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(401)
-      mockRevokedTokens.delete(hashToken('revoked-token'))
     })
 
     test('returns 401 when token is expired', async () => {
@@ -365,6 +380,94 @@ describe('#OAuthGuard', () => {
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
       const req = createRequest({
         Authorization: 'Bearer invalid.jwt.token'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+    })
+  })
+
+  describe('opaque token authentication', () => {
+    test('allows request with valid opaque token', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      mockVerifyAccessToken.mockRejectedValue(new Error('not a JWT'))
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('opaque-token'), {
+        token: hashToken('opaque-token'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: 'read'
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({ Authorization: 'Bearer opaque-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('returns 401 when opaque token is expired', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      mockVerifyAccessToken.mockRejectedValue(new Error('not a JWT'))
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('expired-opaque'), {
+        token: hashToken('expired-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() - 1000),
+        scopes: 'read'
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({ Authorization: 'Bearer expired-opaque' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+    })
+
+    test('returns 401 when opaque token lacks required scope', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      mockVerifyAccessToken.mockRejectedValue(new Error('not a JWT'))
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('read-only-opaque'), {
+        token: hashToken('read-only-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: 'read'
+      })
+
+      const guard = OAuthGuard([Scope.enum.write], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer read-only-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+    })
+
+    test('returns 401 when opaque token has no referenceId', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      mockVerifyAccessToken.mockRejectedValue(new Error('not a JWT'))
+
+      mockStoredTokens.set(hashToken('no-ref-opaque'), {
+        token: hashToken('no-ref-opaque'),
+        referenceId: null,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: 'read'
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer no-ref-opaque'
       })
       const response = await guard(req, { params: Promise.resolve({}) })
 

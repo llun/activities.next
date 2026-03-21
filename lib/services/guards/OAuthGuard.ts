@@ -56,24 +56,25 @@ export const OAuthGuard =
     const baseURL = getBaseURL()
     const jwksUrl = `${baseURL}/api/auth/jwks`
 
-    // verifyAccessToken throws for any auth failure (expired, invalid, wrong scope, etc.)
-    let payload: unknown
+    // Try JWT verification first (tokens issued with a resource/audience param).
+    // Falls back to opaque-token DB lookup when the token is not a JWT.
+    let jwtPayload: Record<string, unknown> | null = null
     try {
-      payload = await verifyAccessToken(token, {
+      jwtPayload = (await verifyAccessToken(token, {
         jwksUrl,
         scopes,
         verifyOptions: {
           issuer: baseURL,
           audience: baseURL
         }
-      })
+      })) as Record<string, unknown>
     } catch {
-      return apiErrorResponse(401)
+      // Not a JWT or JWT verification failed — fall through to opaque lookup
     }
 
     try {
-      // Check the token has not been revoked (deleted from oauthAccessToken).
-      // better-auth stores tokens hashed, so we hash before lookup.
+      // Verify the token exists in DB (revocation check for JWTs,
+      // primary auth check for opaque tokens).
       const db = getKnex()
       const storedToken = await db('oauthAccessToken')
         .where('token', hashToken(token))
@@ -82,10 +83,24 @@ export const OAuthGuard =
         return apiErrorResponse(401)
       }
 
-      // Extract actorId from JWT claims
-      const actorId = (payload as Record<string, unknown>).actorId as
-        | string
-        | null
+      // For opaque tokens, check expiration and scopes manually
+      // (JWT verification already handles these for JWT tokens)
+      if (!jwtPayload) {
+        if (new Date(storedToken.expiresAt) < new Date()) {
+          return apiErrorResponse(401)
+        }
+        const storedScopes = (storedToken.scopes as string).split(' ')
+        for (const scope of scopes) {
+          if (!storedScopes.includes(scope)) {
+            return apiErrorResponse(401)
+          }
+        }
+      }
+
+      // Extract actorId: from JWT claims or from stored referenceId (opaque)
+      const actorId = jwtPayload
+        ? (jwtPayload.actorId as string | null)
+        : (storedToken.referenceId as string | null)
 
       if (!actorId) {
         return apiErrorResponse(401)
