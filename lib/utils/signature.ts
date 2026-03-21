@@ -1,6 +1,5 @@
 import crypto from 'crypto'
 import { IncomingHttpHeaders } from 'http'
-import { generate } from 'peggy'
 import util from 'util'
 
 import { getConfig } from '@/lib/config'
@@ -9,23 +8,19 @@ import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
 import { Actor } from '@/lib/types/domain/actor'
 import { getSpan } from '@/lib/utils/trace'
 
-export const SIGNATURE_GRAMMAR = `
-pairs = (","? pair:pair { return pair })+
-pair = key:token "=" '"' value:value '"' { return [key, value] }
-value = value:[0-9a-zA-Z:\\/\\.#\\-() \\+\\=]+ { return value.join('') }
-token = token:[0-9a-zA-Z]+ { return token.join('') }`.trim()
-
 interface StringMap {
   [key: string]: string
 }
 
 export async function parse(signature: string): Promise<StringMap> {
-  const parser = generate(SIGNATURE_GRAMMAR)
   try {
-    return (parser.parse(signature) as [string, string][]).reduce(
-      (out, item) => ({ ...out, [item[0]]: item[1] }),
-      {}
-    )
+    const result: StringMap = {}
+    const regex = /([a-zA-Z0-9]+)="([^"]*)"/g
+    let match
+    while ((match = regex.exec(signature)) !== null) {
+      result[match[1]] = match[2]
+    }
+    return result
   } catch {
     return {}
   }
