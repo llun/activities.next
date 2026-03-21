@@ -118,6 +118,7 @@ describe('#OAuthGuard', () => {
     mockVerifyAccessToken.mockReset()
     mockCookieValue.value = undefined
     mockStoredTokens.clear()
+    mockHandler.mockClear()
   })
 
   const createRequest = (headers: Record<string, string> = {}) => {
@@ -274,7 +275,7 @@ describe('#OAuthGuard', () => {
         token: hashToken('valid-token'),
         referenceId: primaryActor?.id,
         expiresAt: new Date(Date.now() + 3600000),
-        scopes: 'read'
+        scopes: JSON.stringify(['read'])
       })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
@@ -305,7 +306,7 @@ describe('#OAuthGuard', () => {
         token: hashToken('no-actor-token'),
         referenceId: null,
         expiresAt: new Date(Date.now() + 3600000),
-        scopes: 'read'
+        scopes: JSON.stringify(['read'])
       })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
@@ -327,7 +328,7 @@ describe('#OAuthGuard', () => {
         token: hashToken('bad-actor-token'),
         referenceId: 'non-existent-actor-id',
         expiresAt: new Date(Date.now() + 3600000),
-        scopes: 'read'
+        scopes: JSON.stringify(['read'])
       })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
@@ -399,7 +400,7 @@ describe('#OAuthGuard', () => {
         token: hashToken('opaque-token'),
         referenceId: primaryActor?.id,
         expiresAt: new Date(Date.now() + 3600000),
-        scopes: 'read'
+        scopes: JSON.stringify(['read'])
       })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
@@ -421,7 +422,7 @@ describe('#OAuthGuard', () => {
         token: hashToken('expired-opaque'),
         referenceId: primaryActor?.id,
         expiresAt: new Date(Date.now() - 1000),
-        scopes: 'read'
+        scopes: JSON.stringify(['read'])
       })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
@@ -442,7 +443,7 @@ describe('#OAuthGuard', () => {
         token: hashToken('read-only-opaque'),
         referenceId: primaryActor?.id,
         expiresAt: new Date(Date.now() + 3600000),
-        scopes: 'read'
+        scopes: JSON.stringify(['read'])
       })
 
       const guard = OAuthGuard([Scope.enum.write], mockHandler)
@@ -462,7 +463,7 @@ describe('#OAuthGuard', () => {
         token: hashToken('no-ref-opaque'),
         referenceId: null,
         expiresAt: new Date(Date.now() + 3600000),
-        scopes: 'read'
+        scopes: JSON.stringify(['read'])
       })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)

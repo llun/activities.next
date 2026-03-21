@@ -89,7 +89,10 @@ export const OAuthGuard =
         if (new Date(storedToken.expiresAt) < new Date()) {
           return apiErrorResponse(401)
         }
-        const storedScopes = (storedToken.scopes as string).split(' ')
+        const rawScopes = storedToken.scopes as string
+        const storedScopes = rawScopes.startsWith('[')
+          ? (JSON.parse(rawScopes) as string[])
+          : rawScopes.split(' ')
         for (const scope of scopes) {
           if (!storedScopes.includes(scope)) {
             return apiErrorResponse(401)

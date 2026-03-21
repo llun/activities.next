@@ -154,13 +154,17 @@ export const AuthorizeCard: FC<Props> = ({
           window.location.href = data.redirect_uri
           return
         }
+        // Denial processed but no redirect — use access_denied
+        redirectWithError('access_denied')
+        return
       }
+      // Server returned non-ok — infrastructure failure
+      redirectWithError('server_error')
     } catch {
-      // Fall through to client-side redirect
+      redirectWithError('server_error')
     } finally {
       setIsSubmitting(false)
     }
-    redirectWithError('access_denied')
   }
 
   return (

@@ -71,7 +71,7 @@ exports.up = async (knex) => {
     // Create oauthAccessToken table
     await trx.schema.createTable('oauthAccessToken', (table) => {
       table.string('id').primary()
-      table.text('token').unique()
+      table.text('token').notNullable().unique()
       table
         .string('clientId')
         .notNullable()
