@@ -1,8 +1,6 @@
-import jwt from 'jsonwebtoken'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { MOCK_SECRET_PHASES } from '@/lib/stub/actor'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Scope } from '@/lib/types/database/operations'
@@ -39,13 +37,19 @@ jest.mock('next/headers', () => ({
   )
 }))
 
-// Mock config — secretPhase must match MOCK_SECRET_PHASES used to sign JWTs in tests
+// Mock config
 jest.mock('@/lib/config', () => ({
   getConfig: () => ({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'secret phases'
   })
+}))
+
+// Mock verifyAccessToken from better-auth
+const mockVerifyAccessToken = jest.fn()
+jest.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: (...args: unknown[]) => mockVerifyAccessToken(...args)
 }))
 
 describe('#getTokenFromHeader', () => {
@@ -92,6 +96,7 @@ describe('#OAuthGuard', () => {
 
   beforeEach(() => {
     mockGetServerSession.mockReset()
+    mockVerifyAccessToken.mockReset()
     mockCookieValue.value = undefined
   })
 
@@ -155,7 +160,6 @@ describe('#OAuthGuard', () => {
     })
 
     test('resolves sub-actor when actor-id cookie is set to sub-actor', async () => {
-      // Create a sub-actor for actor1's account
       const primaryActor = await database.getActorFromEmail({
         email: seedActor1.email
       })
@@ -185,7 +189,6 @@ describe('#OAuthGuard', () => {
       await guard(req, { params: Promise.resolve({}) })
 
       expect(handler).toHaveBeenCalled()
-      // Must resolve the sub-actor chosen via cookie, not the login (primary) actor
       expect(capturedActor?.id).toBe(subActorId)
       expect(capturedActor?.username).toBe('oauth-subactor')
     })
@@ -235,42 +238,90 @@ describe('#OAuthGuard', () => {
       expect(response.status).toBe(401)
     })
 
-    test('returns 401 with invalid JWT', async () => {
+    test('allows request with valid access token', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+
+      mockVerifyAccessToken.mockResolvedValue({
+        sub: 'user-id',
+        scope: 'read',
+        actorId: primaryActor?.id
+      })
+
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
-      const req = createRequest({ Authorization: 'Bearer invalid.jwt.token' })
+      const req = createRequest({ Authorization: 'Bearer valid-token' })
       const response = await guard(req, { params: Promise.resolve({}) })
 
-      expect(response.status).toBe(500) // JWT parse error
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+      expect(mockVerifyAccessToken).toHaveBeenCalledWith('valid-token', {
+        jwksUrl: 'https://llun.test/api/auth/jwks',
+        scopes: [Scope.enum.read],
+        verifyOptions: {
+          issuer: 'https://llun.test',
+          audience: 'https://llun.test'
+        }
+      })
     })
 
-    test('returns 401 when access token not found in database', async () => {
+    test('returns 401 when token has no actorId claim', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
-      const token = jwt.sign(
-        { jti: 'nonexistent-token-id' },
-        MOCK_SECRET_PHASES,
-        { expiresIn: '1h' }
-      )
+      mockVerifyAccessToken.mockResolvedValue({
+        sub: 'user-id',
+        scope: 'read'
+        // no actorId
+      })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
-      const req = createRequest({ Authorization: `Bearer ${token}` })
+      const req = createRequest({ Authorization: 'Bearer no-actor-token' })
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(401)
     })
 
-    test('returns 401 when token has expired', async () => {
+    test('returns 401 when actorId refers to non-existent actor', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
-      // Create an expired token
-      const token = jwt.sign({ jti: 'expired-token' }, MOCK_SECRET_PHASES, {
-        expiresIn: '-1h'
+      mockVerifyAccessToken.mockResolvedValue({
+        sub: 'user-id',
+        scope: 'read',
+        actorId: 'non-existent-actor-id'
       })
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
-      const req = createRequest({ Authorization: `Bearer ${token}` })
+      const req = createRequest({
+        Authorization: 'Bearer bad-actor-token'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+    })
+
+    test('returns 401 when token is expired', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      mockVerifyAccessToken.mockRejectedValue(new Error('token expired'))
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({ Authorization: 'Bearer expired-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+    })
+
+    test('returns 401 when token is invalid', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      mockVerifyAccessToken.mockRejectedValue(new Error('token invalid'))
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer invalid.jwt.token'
+      })
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(401)

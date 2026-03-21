@@ -18,15 +18,16 @@ describe('wellknown services', () => {
 
       expect(metadata).toMatchObject({
         issuer: 'https://test.example.com/',
-        authorization_endpoint: 'https://test.example.com/oauth/authorize',
+        authorization_endpoint:
+          'https://test.example.com/api/auth/oauth2/authorize',
         token_endpoint: 'https://test.example.com/oauth/token',
-        revocation_endpoint: 'https://test.example.com/oauth/revoke',
+        revocation_endpoint: 'https://test.example.com/api/oauth/revoke',
         response_types_supported: ['code'],
-        response_modes_supported: ['query', 'fragment', 'form_post'],
+        response_modes_supported: ['query'],
         grant_types_supported: [
           'authorization_code',
-          'password',
-          'client_credentials'
+          'client_credentials',
+          'refresh_token'
         ],
         token_endpoint_auth_methods_supported: [
           'client_secret_basic',

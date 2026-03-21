@@ -23,9 +23,9 @@ const customJestConfig = {
   setupFilesAfterEnv: ['jest-extended/all'],
   setupFiles: ['<rootDir>/jest.setup.mjs'],
   transform: {
-    '\\.(js|jsx|ts|tsx)$': ['@swc/jest']
+    '\\.(js|mjs|jsx|ts|tsx)$': ['@swc/jest']
   },
-  transformIgnorePatterns: ['node_modules/(?!(marked|uuid)/)'],
+  transformIgnorePatterns: ['node_modules/(?!(marked|uuid|better-auth)/)'],
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^@/app/(.*)$': '<rootDir>/app/$1',

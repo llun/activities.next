@@ -1,7 +1,5 @@
-import jwt from 'jsonwebtoken'
-import intersection from 'lodash/intersection'
+import { verifyAccessToken } from 'better-auth/oauth2'
 import { NextRequest } from 'next/server'
-import { generate } from 'peggy'
 
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
@@ -14,21 +12,13 @@ import { apiErrorResponse } from '@/lib/utils/response'
 
 import { AppRouterParams, AuthenticatedApiHandle } from './types'
 
-const BEARER_GRAMMAR = `
-value = "Bearer" " " token:base64 { return token }
-base64 = front:(alpha / digit / other)+ padding:"="* { return [front.join(''), padding.join('')].join('') }
-alpha = [a-zA-Z]
-digit = [0-9]
-other = [-._~+/]
-`
-const BEARER_PARSER = generate(BEARER_GRAMMAR)
-
-export const getTokenFromHeader = (authorizationHeader: string | null) => {
-  try {
-    return BEARER_PARSER.parse(authorizationHeader ?? '')
-  } catch {
-    return null
-  }
+export const getTokenFromHeader = (
+  authorizationHeader: string | null
+): string | null => {
+  if (!authorizationHeader) return null
+  const parts = authorizationHeader.split(' ')
+  if (parts.length !== 2 || parts[0] !== 'Bearer') return null
+  return parts[1] || null
 }
 
 export const OAuthGuard =
@@ -53,55 +43,48 @@ export const OAuthGuard =
     }
 
     try {
-      const currentTime = Date.now()
-      const decoded = jwt.verify(
-        token,
-        getConfig().secretPhase
-      ) as jwt.JwtPayload
-      const accessToken = await database.getAccessToken({
-        accessToken: decoded.jti ?? ''
+      const config = getConfig()
+      const baseURL = config.host.startsWith('http')
+        ? config.host
+        : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`
+
+      const jwksUrl = `${baseURL}/api/auth/jwks`
+
+      const payload = await verifyAccessToken(token, {
+        jwksUrl,
+        scopes,
+        verifyOptions: {
+          issuer: baseURL,
+          audience: baseURL
+        }
       })
-      // This is guard for user access token
-      if (!accessToken || !accessToken.user) {
+
+      // Extract actorId from JWT claims
+      const actorId = (payload as Record<string, unknown>).actorId as
+        | string
+        | null
+
+      if (!actorId) {
         return apiErrorResponse(401)
       }
 
-      const tokenScopes = accessToken.scopes.map((scope) => scope.name)
-      if (
-        intersection(tokenScopes, scopes).length === 0 ||
-        accessToken.accessTokenExpiresAt.getTime() < currentTime
-      ) {
+      const actor = await database.getActorFromId({ id: actorId })
+      if (!actor) {
         return apiErrorResponse(401)
-      }
-
-      // Sliding session: extend tokens when within 1 day of expiry
-      const ONE_DAY_MS = 24 * 60 * 60 * 1000
-      const timeUntilExpiry =
-        accessToken.accessTokenExpiresAt.getTime() - currentTime
-      if (timeUntilExpiry <= ONE_DAY_MS) {
-        const sevenDaysFromNow = currentTime + 7 * ONE_DAY_MS
-        const thirtyDaysFromNow = currentTime + 30 * ONE_DAY_MS
-        database
-          .touchAccessToken({
-            accessToken: decoded.jti ?? '',
-            accessTokenExpiresAt: sevenDaysFromNow,
-            refreshTokenExpiresAt: thirtyDaysFromNow
-          })
-          .catch(() => {}) // Fire-and-forget, don't block the request
       }
 
       return handle(req, {
-        currentActor: Actor.parse(accessToken.user.actor),
+        currentActor: Actor.parse(actor),
         database,
         params: context.params
       })
     } catch (e) {
-      const nodeErr = e as NodeJS.ErrnoException
-      if (nodeErr.message === 'jwt expired') {
+      const err = e as Error
+      if (err.message === 'token expired' || err.message === 'token invalid') {
         return apiErrorResponse(401)
       }
 
-      logger.error(nodeErr)
-      return apiErrorResponse(500)
+      logger.error(err)
+      return apiErrorResponse(401)
     }
   }

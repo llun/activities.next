@@ -38,6 +38,11 @@ jest.mock('next/headers', () => ({
   )
 }))
 
+// Mock better-auth/oauth2 (ESM-only module, not needed for session-based tests)
+jest.mock('better-auth/oauth2', () => ({
+  verifyAccessToken: jest.fn()
+}))
+
 // Mock config
 jest.mock('@/lib/config', () => ({
   getConfig: () => ({

@@ -1,5 +1,7 @@
+import { oauthProvider } from '@better-auth/oauth-provider'
 import bcrypt from 'bcrypt'
 import { betterAuth } from 'better-auth'
+import { jwt } from 'better-auth/plugins'
 import memoize from 'lodash/memoize'
 
 import { getConfig } from '@/lib/config'
@@ -15,16 +17,43 @@ export const getAuth = memoize(() => {
   const database = getDatabase()
   const db = getKnex()
 
+  const baseURL = config.host.startsWith('http')
+    ? config.host
+    : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`
+
   return betterAuth({
     logger: {
       level: process.env.NODE_ENV === 'development' ? 'debug' : 'warn'
     },
     secret: config.secretPhase,
-    baseURL: config.host.startsWith('http')
-      ? config.host
-      : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`,
+    baseURL,
     basePath: '/api/auth',
     database: knexAdapter(db),
+    disabledPaths: ['/token'],
+    plugins: [
+      jwt(),
+      oauthProvider({
+        loginPage: '/auth/signin',
+        consentPage: '/oauth/authorize',
+        scopes: ['read', 'write', 'follow', 'push'],
+        accessTokenExpiresIn: 30 * 24 * 60 * 60,
+        refreshTokenExpiresIn: 30 * 24 * 60 * 60,
+        codeExpiresIn: 10 * 60,
+        grantTypes: [
+          'authorization_code',
+          'client_credentials',
+          'refresh_token'
+        ],
+        allowDynamicClientRegistration: false,
+        customAccessTokenClaims: async ({ user }) => {
+          if (!database || !user) return {}
+          const account = await database.getAccountFromId({ id: user.id })
+          return {
+            actorId: account?.defaultActorId || null
+          }
+        }
+      })
+    ],
     emailAndPassword: {
       enabled: config.auth?.enableCredential !== false,
       disableSignUp: true,

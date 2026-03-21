@@ -42,7 +42,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
     const url = new URL('/auth/signin', `https://${getConfig().host}`)
     url.searchParams.append(
       'redirectBack',
-      `/oauth/authorize?${new URLSearchParams(Object.entries(params))}`
+      `/oauth/authorize?${new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][])}`
     )
     return redirect(url.toString())
   }

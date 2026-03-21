@@ -23,11 +23,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const likeDatabase = LikeSQLDatabaseMixin(database)
   const mediaDatabase = MediaSQLDatabaseMixin(database)
   const notificationDatabase = NotificationSQLDatabaseMixin(database)
-  const oauthDatabase = OAuthSQLDatabaseMixin(
-    database,
-    accountDatabase,
-    actorDatabase
-  )
+  const oauthDatabase = OAuthSQLDatabaseMixin(database)
   const stravaArchiveImportDatabase =
     StravaArchiveImportSQLDatabaseMixin(database)
   const statusDatabase = StatusSQLDatabaseMixin(

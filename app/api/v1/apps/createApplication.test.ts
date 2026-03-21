@@ -1,11 +1,25 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import knex from 'knex'
+
+import { getSQLDatabase } from '@/lib/database/sql'
 import { seedDatabase } from '@/lib/stub/database'
 
 import { createApplication } from './createApplication'
 import { SuccessResponse } from './types'
 
+// Create a knex instance we can use for both the database and for getKnex mock
+const knexDatabase = knex({
+  client: 'better-sqlite3',
+  useNullAsDefault: true,
+  connection: { filename: ':memory:' }
+})
+
+jest.mock('@/lib/database', () => ({
+  getDatabase: jest.fn(),
+  getKnex: () => knexDatabase
+}))
+
 describe('createApplication', () => {
-  const database = getTestSQLDatabase()
+  const database = getSQLDatabase(knexDatabase)
 
   beforeAll(async () => {
     await database.migrate()
@@ -19,8 +33,7 @@ describe('createApplication', () => {
   })
 
   afterAll(async () => {
-    if (!database) return
-    await database.destroy()
+    await knexDatabase.destroy()
   })
 
   test('it generates secret and create application in database and returns application response', async () => {
@@ -42,7 +55,7 @@ describe('createApplication', () => {
     expect(response.id).toEqual(response.client_id)
   })
 
-  test('it returns existing application without updating it', async () => {
+  test('it returns existing application with rotated secret', async () => {
     const response = await createApplication(database, {
       client_name: 'existsClient',
       redirect_uris: 'https://test.llun.dev/apps/redirect',
@@ -56,7 +69,7 @@ describe('createApplication', () => {
       client_secret: expect.toBeString(),
       name: 'existsClient',
       website: 'https://exists.llun.dev',
-      redirect_uri: 'https://exists.llun.dev/apps/redirect'
+      redirect_uri: 'https://test.llun.dev/apps/redirect'
     })
   })
 

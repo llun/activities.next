@@ -21,16 +21,16 @@ export const getOAuthAuthorizationServerMetadata =
     const config = getConfig()
     return {
       issuer: `https://${config.host}/`,
-      authorization_endpoint: `https://${config.host}/oauth/authorize`,
+      authorization_endpoint: `https://${config.host}/api/auth/oauth2/authorize`,
       token_endpoint: `https://${config.host}/oauth/token`,
-      revocation_endpoint: `https://${config.host}/oauth/revoke`,
+      revocation_endpoint: `https://${config.host}/api/oauth/revoke`,
       scopes_supported: UsableScopes,
       response_types_supported: ['code'],
-      response_modes_supported: ['query', 'fragment', 'form_post'],
+      response_modes_supported: ['query'],
       grant_types_supported: [
         'authorization_code',
-        'password',
-        'client_credentials'
+        'client_credentials',
+        'refresh_token'
       ],
       token_endpoint_auth_methods_supported: [
         'client_secret_basic',
