@@ -45,10 +45,9 @@ export const POST = async (req: NextRequest) => {
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
-    data: {
-      ...data,
-      created_at: Math.floor(Date.now() / 1000)
-    },
+    data: response.ok
+      ? { ...data, created_at: Math.floor(Date.now() / 1000) }
+      : data,
     responseStatusCode: statusCode
   })
 }

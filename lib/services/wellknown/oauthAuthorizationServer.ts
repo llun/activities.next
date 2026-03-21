@@ -19,11 +19,16 @@ export interface OAuthAuthorizationServerMetadata {
 export const getOAuthAuthorizationServerMetadata =
   (): OAuthAuthorizationServerMetadata => {
     const config = getConfig()
+    const scheme =
+      process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'
+    const baseURL = config.host.startsWith('http')
+      ? config.host
+      : `${scheme}://${config.host}`
     return {
-      issuer: `https://${config.host}`,
-      authorization_endpoint: `https://${config.host}/api/auth/oauth2/authorize`,
-      token_endpoint: `https://${config.host}/oauth/token`,
-      revocation_endpoint: `https://${config.host}/api/oauth/revoke`,
+      issuer: baseURL,
+      authorization_endpoint: `${baseURL}/api/auth/oauth2/authorize`,
+      token_endpoint: `${baseURL}/oauth/token`,
+      revocation_endpoint: `${baseURL}/api/oauth/revoke`,
       scopes_supported: UsableScopes,
       response_types_supported: ['code'],
       response_modes_supported: ['query'],
@@ -38,6 +43,6 @@ export const getOAuthAuthorizationServerMetadata =
       ],
       code_challenge_methods_supported: ['S256'],
       service_documentation: 'https://github.com/llun/activities.next',
-      app_registration_endpoint: `https://${config.host}/api/v1/apps`
+      app_registration_endpoint: `${baseURL}/api/v1/apps`
     }
   }
