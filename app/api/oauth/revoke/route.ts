@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { getBaseURL } from '@/lib/config'
 import { getAuth } from '@/lib/services/auth/auth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
@@ -19,7 +20,7 @@ export const POST = traceApiRoute('revokeToken', async (req: NextRequest) => {
   const auth = getAuth()
 
   // Rewrite the URL to better-auth's revoke endpoint
-  const url = new URL('/api/auth/oauth2/revoke', req.url)
+  const url = new URL('/api/auth/oauth2/revoke', getBaseURL())
   const proxyReq = new Request(url.toString(), {
     method: 'POST',
     headers: req.headers,

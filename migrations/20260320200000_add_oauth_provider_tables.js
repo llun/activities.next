@@ -112,6 +112,12 @@ exports.up = async (knex) => {
         typeof client.scopes === 'string'
           ? JSON.parse(client.scopes)
           : client.scopes
+      // Normalize scopes: the old @jmondi/oauth2-server model transformed
+      // plain strings to { name: 'read' } objects at read time, but the DB
+      // stored them as plain strings. Handle both formats defensively.
+      const normalizedScopes = Array.isArray(scopes)
+        ? scopes.map((s) => (typeof s === 'object' && s !== null ? s.name : s))
+        : scopes
       const redirectUris =
         typeof client.redirectUris === 'string'
           ? JSON.parse(client.redirectUris)
@@ -122,7 +128,7 @@ exports.up = async (knex) => {
         clientId: client.id,
         clientSecret: client.secret ? hashClientSecret(client.secret) : null,
         name: client.name,
-        scopes: JSON.stringify(scopes),
+        scopes: JSON.stringify(normalizedScopes),
         redirectUris: JSON.stringify(redirectUris),
         uri: client.website || null,
         requirePKCE: false,
