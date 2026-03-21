@@ -1,3 +1,4 @@
+import { dash } from '@better-auth/infra'
 import { oauthProvider } from '@better-auth/oauth-provider'
 import bcrypt from 'bcrypt'
 import { betterAuth } from 'better-auth'
@@ -73,7 +74,8 @@ export const getAuth = memoize(() => {
         customAccessTokenClaims: async ({ referenceId }) => {
           return { actorId: referenceId ?? null }
         }
-      })
+      }),
+      dash()
     ],
     emailAndPassword: {
       enabled: config.auth?.enableCredential !== false,
