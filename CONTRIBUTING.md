@@ -20,9 +20,9 @@ This project follows the standard open source code of conduct. Be respectful, in
 
 ### Prerequisites
 
-- Node.js 18 or higher
-- Yarn 4.12.0 (via Corepack)
-- Git
+- **Node.js 24** or higher
+- **Yarn** 4.12.0 (via Corepack)
+- **Git**
 - A code editor (VS Code recommended)
 
 ### Setting Up Development Environment
@@ -53,7 +53,9 @@ This project follows the standard open source code of conduct. Be respectful, in
    # Edit .env.local with your local configuration
    ```
 
-5. **Run database migrations** (if using SQL):
+   At minimum, set `ACTIVITIES_HOST` and `ACTIVITIES_SECRET_PHASE`.
+
+5. **Run database migrations**:
 
    ```bash
    yarn migrate
@@ -100,15 +102,15 @@ Keep commits:
 
 ### TypeScript
 
-- **Use strict TypeScript**: Avoid `any` types - use proper types or `unknown`
+- **Use strict TypeScript**: Avoid `any` types — use proper types or `unknown`
 - **Type everything**: Functions, parameters, and complex objects should have explicit types
-- **Use TypeScript features**: Enums, interfaces, type guards, etc.
+- **Use TypeScript features**: Interfaces, type guards, utility types, etc.
 
 ### Code Style
 
 The project uses:
 
-- **Prettier** for formatting (runs automatically on commit)
+- **Prettier** for formatting (runs automatically on commit via Husky)
 - **ESLint** for linting
 - **2-space indentation**
 - **Single quotes**
@@ -117,14 +119,20 @@ The project uses:
 Run formatting and linting:
 
 ```bash
-yarn lint
 yarn prettier
+yarn lint
 ```
+
+### Import Conventions
+
+- Use **absolute imports** (`@/lib/...`) for anything outside the current directory
+- **Relative imports** (`./helper`) are only allowed for files in the same directory
+- **Never** use `../` relative imports
+- Apply the same rules to `jest.mock(...)` paths
 
 ### File Organization
 
 - Place tests next to the code: `feature.ts` and `feature.test.ts`
-- Use index files for cleaner imports
 - Follow existing directory structure
 
 ### Naming Conventions
@@ -160,20 +168,31 @@ export const ProfileCard: FC<ProfileCardProps> = ({
 }
 ```
 
-### Error Handling
+### Logging
 
-- Use the logger utility (`@/lib/utils/logger`) instead of `console.log`/`console.error`
-- Provide meaningful error messages
-- Handle edge cases gracefully
+- **Never** use `console.log`, `console.warn`, `console.error`, or any `console.*` methods in committed code
+- Exception: Migration files in `migrations/` and scripts in `scripts/` may use `console.*`
+- For server-side code, use the logger:
 
 ```typescript
 import { logger } from '@/lib/utils/logger'
 
-try {
-  // code
-} catch (error) {
-  logger.error('Failed to process request', { error, context })
-}
+logger.info({ message: 'Something happened' })
+logger.error({ message: 'Error occurred', error })
+```
+
+- **Do not** use logger in React components or client-side code
+
+### API Responses
+
+- Always use `apiResponse` and `apiErrorResponse` from `@/lib/utils/response`
+- **Never** use `Response.json()` directly in API routes
+
+```typescript
+import { apiResponse, apiErrorResponse, StatusCode } from '@/lib/utils/response'
+
+return apiResponse({ data: result })
+return apiErrorResponse(StatusCode.NotFound)
 ```
 
 ## Testing
@@ -224,27 +243,25 @@ describe('createNote', () => {
 
 ### Before Submitting
 
-1. **Ensure tests pass**:
+Run all checks in order:
 
-   ```bash
-   yarn test
-   ```
+```bash
+yarn run prettier --write .   # Format code
+yarn lint                     # Lint — must pass with no errors
+yarn build                    # Build — must succeed
+yarn test                     # Tests — must pass
+```
 
-2. **Run linting**:
+Also:
 
-   ```bash
-   yarn lint
-   ```
+- Update documentation if needed
+- Test manually if UI changes are involved
+- Rebase on main to ensure clean history:
 
-3. **Update documentation** if needed
-
-4. **Test manually** if UI changes are involved
-
-5. **Rebase on main** to ensure clean history:
-   ```bash
-   git fetch origin
-   git rebase origin/main
-   ```
+  ```bash
+  git fetch origin
+  git rebase origin/main
+  ```
 
 ### PR Guidelines
 
@@ -256,77 +273,74 @@ describe('createNote', () => {
   - Screenshots for UI changes
 - **Link issues**: Reference related issues using `Fixes #123` or `Relates to #456`
 - **Keep PRs focused**: One feature/fix per PR
-- **Request review**: Tag relevant maintainers if needed
 
 ### PR Checklist
 
 - [ ] Code follows project style guidelines
 - [ ] Tests added/updated and passing
 - [ ] Documentation updated (if applicable)
-- [ ] No console.log statements (use logger)
+- [ ] No `console.log` statements (use logger for server-side code)
 - [ ] TypeScript types are proper (no `any`)
 - [ ] Commit messages follow convention
-- [ ] PR description is clear and complete
+- [ ] `yarn lint` and `yarn build` pass
 
 ## Project Structure
 
-### Key Directories
-
 ```
 activities.next/
-├── app/                    # Next.js App Router
-│   ├── (timeline)/        # Timeline routes (with sidebar)
-│   ├── (nosidebar)/       # Auth routes (no sidebar)
-│   ├── api/               # API routes
-│   └── layout.tsx         # Root layout
-├── lib/                   # Core application logic
-│   ├── actions/           # Server actions
-│   ├── activities/        # ActivityPub logic
-│   ├── components/        # Shared React components
-│   ├── database/          # Database abstraction
-│   ├── jobs/              # Background job handlers
-│   ├── models/            # Data models
-│   ├── services/          # Business logic services
-│   └── utils/             # Utility functions
-├── migrations/            # Database migrations
-├── docs/                  # Documentation
-├── public/                # Static assets
-└── scripts/               # Development/admin scripts
+├── app/                       # Next.js App Router
+│   ├── (timeline)/            # Timeline routes (with sidebar)
+│   ├── (nosidebar)/           # Auth routes (no sidebar)
+│   ├── api/                   # API routes
+│   │   ├── auth/              #   Authentication (better-auth)
+│   │   ├── v1/               #   Mastodon-compatible API v1
+│   │   ├── v2/               #   Mastodon-compatible API v2
+│   │   ├── users/            #   ActivityPub actor endpoints
+│   │   ├── oauth/            #   OAuth 2.0 provider
+│   │   └── well-known/       #   Federation discovery
+│   └── layout.tsx             # Root layout
+├── lib/                       # Core application logic
+│   ├── actions/               # Server actions
+│   ├── activities/            # ActivityPub protocol logic
+│   ├── components/            # Shared React components
+│   ├── config/                # Configuration loaders
+│   ├── database/              # Database abstraction (Knex)
+│   ├── jobs/                  # Background job handlers
+│   ├── services/              # Business logic services
+│   ├── types/                 # TypeScript type definitions
+│   └── utils/                 # Utility functions
+├── migrations/                # Database migrations (Knex)
+├── docs/                      # Documentation
+├── public/                    # Static assets
+└── scripts/                   # Development/admin scripts
 ```
 
 ### Important Files
 
-- `package.json` - Dependencies and scripts
-- `tsconfig.json` - TypeScript configuration
-- `eslint.config.mjs` - ESLint rules
-- `.prettierrc.yml` - Code formatting rules
-- `jest.config.mjs` - Test configuration
-- `next.config.ts` - Next.js configuration
-- `knexfile.js` - Database migration configuration
+- `package.json` — Dependencies and scripts
+- `tsconfig.json` — TypeScript configuration
+- `eslint.config.mjs` — ESLint rules
+- `.prettierrc.yml` — Code formatting rules
+- `jest.config.mjs` — Test configuration
+- `next.config.ts` — Next.js configuration
+- `knexfile.js` — Database migration configuration
+- `Dockerfile` — Docker container build
 
 ## Common Tasks
-
-### Adding a New Database Model
-
-1. Create model in `lib/models/`
-2. Add database interface in `lib/database/types/`
-3. Implement in `lib/database/sql/` or `lib/database/dynamodb/`
-4. Create migration: `yarn migrate:make model_name`
-5. Add tests
 
 ### Adding a New API Endpoint
 
 1. Create route in `app/api/v1/[endpoint]/route.ts`
 2. Define request/response types using Zod
-3. Add authentication guard if needed
-4. Add tests
-5. Update API documentation
+3. Add authentication guard if needed (use guards from `lib/services/guards/`)
+4. Use `apiResponse`/`apiErrorResponse` for responses
+5. Add tests
 
-### Adding a New Job
+### Adding a New Background Job
 
 1. Create job handler in `lib/jobs/`
 2. Add job name constant in `lib/jobs/names.ts`
-3. Add job to queue service
+3. Register the job in `lib/jobs/index.ts`
 4. Add tests
 
 ### Creating a Database Migration
@@ -341,12 +355,16 @@ Edit the generated file in `migrations/`, then run:
 yarn migrate
 ```
 
+> **Important:** All migrations must work with both SQLite and PostgreSQL. Use Knex query builder and avoid database-specific SQL.
+
 ## Resources
 
 - [Next.js Documentation](https://nextjs.org/docs)
 - [ActivityPub Specification](https://www.w3.org/TR/activitypub/)
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
 - [Jest Documentation](https://jestjs.io/docs/getting-started)
+- [better-auth Documentation](https://www.better-auth.com/)
+- [Knex.js Documentation](https://knexjs.org/)
 
 ## Getting Help
 

@@ -4,7 +4,7 @@ This guide will help you set up Activity.next using SQLite as your database back
 
 ## Prerequisites
 
-- Node.js 18+ and Yarn
+- Node.js 24 and Yarn (v4.12.0 via Corepack)
 - Git (to clone the repository)
 
 ## Database Configuration
@@ -54,9 +54,10 @@ git clone https://github.com/llun/activities.next.git
 cd activities.next
 ```
 
-2. Install dependencies:
+2. Enable Corepack and install dependencies:
 
 ```bash
+corepack enable
 yarn install
 ```
 
@@ -69,18 +70,21 @@ Create a `config.json` file with the following content:
   "host": "your-domain.tld",
   "secretPhase": "your-random-secret-for-sessions",
   "allowEmails": ["your-email@example.com"],
-  "auth": {
-    "github": {
-      "id": "github-app-client-id",
-      "secret": "github-app-secret"
+  "database": {
+    "type": "sql",
+    "client": "better-sqlite3",
+    "useNullAsDefault": true,
+    "connection": {
+      "filename": "./dev.sqlite3"
     }
   }
 }
 ```
 
-4. Run the development server:
+4. Run migrations and start the development server:
 
 ```bash
+yarn migrate
 yarn dev
 ```
 
@@ -100,7 +104,7 @@ For production deployment with SQLite:
 2. Consider using a more robust file locking mechanism
 3. Implement regular database backups
 
-Remember that SQLite is best suited for low to moderate traffic instances. For higher traffic or multi-server deployments, consider using PostgreSQL instead.
+Remember that SQLite is best suited for low to moderate traffic instances. For higher traffic or multi-server deployments, consider using [PostgreSQL](postgresql-setup.md) instead.
 
 ### Docker Deployment with SQLite
 
@@ -110,8 +114,6 @@ To deploy Activity.next with SQLite using Docker:
 docker run -p 3000:3000 \
   -e ACTIVITIES_HOST=your.domain.tld \
   -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
-  -e NEXTAUTH_URL=https://your.domain.tld \
-  -e NEXTAUTH_SECRET=session-secret \
   -e ACTIVITIES_DATABASE_TYPE=sql \
   -e ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
   -e ACTIVITIES_DATABASE_SQLITE_FILENAME=/opt/activities.next/data.sqlite \

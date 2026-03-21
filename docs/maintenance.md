@@ -123,4 +123,11 @@ Creates a test user for development/testing:
 ./scripts/createMockUser [username] [email] [password]
 ```
 
-See the [Setup Guide](setup.md) for more information on initial setup and configuration.
+> **Note:** This script is for development and testing purposes only. In production, users should register through the web interface at `/auth/signup`.
+
+## Related Documentation
+
+- [Setup Guide](setup.md) — Initial setup and configuration
+- [Environment Variables](environment-variables.md) — Complete configuration reference
+- [SQLite Setup](sqlite-setup.md) — SQLite-specific setup and backups
+- [PostgreSQL Setup](postgresql-setup.md) — PostgreSQL-specific setup and backups
