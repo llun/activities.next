@@ -1,34 +1,70 @@
 import { NextRequest } from 'next/server'
 
-import { getOAuth2Server } from '@/lib/services/oauth/server'
+import { getBaseURL } from '@/lib/config'
+import { getAuth } from '@/lib/services/auth/auth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { getQueryParams } from '@/lib/utils/getQueryParams'
-import { getRequestBody } from '@/lib/utils/getRequestBody'
-import { StatusCode, apiResponse, defaultOptions } from '@/lib/utils/response'
+import { logger } from '@/lib/utils/logger'
+import {
+  StatusCode,
+  apiResponse,
+  codeMap,
+  defaultOptions
+} from '@/lib/utils/response'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = async (req: NextRequest) => {
-  const server = await getOAuth2Server()
+  const auth = getAuth()
 
-  const query = getQueryParams(req)
-  const body = await getRequestBody(req)
+  // Rewrite the URL to better-auth's token endpoint
+  const url = new URL('/api/auth/oauth2/token', getBaseURL())
+  const proxyReq = new Request(url.toString(), {
+    method: 'POST',
+    headers: req.headers,
+    body: req.body,
+    // @ts-expect-error duplex is needed for streaming body
+    duplex: 'half'
+  })
 
-  const request = {
-    headers: Object.fromEntries(req.headers.entries()),
-    query,
-    body
+  let response: Response
+  try {
+    response = await auth.handler(proxyReq)
+  } catch (e) {
+    logger.error({ message: 'Token endpoint handler threw', error: e })
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: codeMap[500],
+      responseStatusCode: 500
+    })
   }
-  const oauthResponse = await server.respondToAccessTokenRequest(request)
+
+  let data: Record<string, unknown> = {}
+  const contentType = response.headers.get('content-type') ?? ''
+  if (contentType.includes('application/json')) {
+    try {
+      data = (await response.json()) as Record<string, unknown>
+    } catch {
+      // Non-parseable body; data remains empty
+    }
+  }
+
+  const statusCode = (
+    response.status in codeMap
+      ? response.status
+      : response.status >= 500
+        ? 500
+        : 400
+  ) as StatusCode
+
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
-    data: {
-      ...oauthResponse.body,
-      created_at: Math.floor(Date.now() / 1000)
-    },
-    responseStatusCode: oauthResponse.status as StatusCode
+    data: response.ok
+      ? { ...data, created_at: Math.floor(Date.now() / 1000) }
+      : data,
+    responseStatusCode: statusCode
   })
 }

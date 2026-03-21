@@ -8,7 +8,8 @@ import {
 } from './index'
 
 jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({ host: 'test.example.com' })
+  getConfig: jest.fn().mockReturnValue({ host: 'test.example.com' }),
+  getBaseURL: jest.fn().mockReturnValue('https://test.example.com')
 }))
 
 describe('wellknown services', () => {
@@ -17,16 +18,18 @@ describe('wellknown services', () => {
       const metadata = getOAuthAuthorizationServerMetadata()
 
       expect(metadata).toMatchObject({
-        issuer: 'https://test.example.com/',
-        authorization_endpoint: 'https://test.example.com/oauth/authorize',
+        issuer: 'https://test.example.com',
+        authorization_endpoint:
+          'https://test.example.com/api/auth/oauth2/authorize',
         token_endpoint: 'https://test.example.com/oauth/token',
-        revocation_endpoint: 'https://test.example.com/oauth/revoke',
+        revocation_endpoint: 'https://test.example.com/api/oauth/revoke',
+        jwks_uri: 'https://test.example.com/api/auth/jwks',
         response_types_supported: ['code'],
-        response_modes_supported: ['query', 'fragment', 'form_post'],
+        response_modes_supported: ['query'],
         grant_types_supported: [
           'authorization_code',
-          'password',
-          'client_credentials'
+          'client_credentials',
+          'refresh_token'
         ],
         token_endpoint_auth_methods_supported: [
           'client_secret_basic',

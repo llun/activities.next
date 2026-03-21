@@ -1,21 +1,17 @@
 import { z } from 'zod'
 
-import { GrantIdentifiers, Scope } from '@/lib/types/database/operations'
+import { Scope } from '@/lib/types/database/operations'
 
 export const Client = z.object({
   id: z.string(),
-  name: z.string(),
-  secret: z.string(),
+  clientId: z.string(),
+  clientSecret: z.string().nullable().optional(),
+  name: z.string().nullable().optional(),
   redirectUris: z.string().url().array().min(1),
-  scopes: Scope.array()
-    .default([Scope.enum.read])
-    .transform((value) => value.map((scope) => ({ name: scope }))),
-  allowedGrants: GrantIdentifiers.array().default([
-    'client_credentials',
-    'authorization_code',
-    'refresh_token'
-  ]),
-  website: z.string().optional(),
+  scopes: Scope.array().default([Scope.enum.read]),
+  website: z.string().nullable().optional(),
+  requirePKCE: z.boolean().default(false),
+  disabled: z.boolean().default(false),
 
   createdAt: z.number(),
   updatedAt: z.number()

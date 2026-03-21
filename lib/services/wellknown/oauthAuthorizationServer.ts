@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/config'
+import { getBaseURL } from '@/lib/config'
 import { UsableScopes } from '@/lib/types/database/operations'
 
 export interface OAuthAuthorizationServerMetadata {
@@ -6,6 +6,7 @@ export interface OAuthAuthorizationServerMetadata {
   authorization_endpoint: string
   token_endpoint: string
   revocation_endpoint: string
+  jwks_uri: string
   scopes_supported: readonly string[]
   response_types_supported: string[]
   response_modes_supported: string[]
@@ -18,19 +19,20 @@ export interface OAuthAuthorizationServerMetadata {
 
 export const getOAuthAuthorizationServerMetadata =
   (): OAuthAuthorizationServerMetadata => {
-    const config = getConfig()
+    const baseURL = getBaseURL()
     return {
-      issuer: `https://${config.host}/`,
-      authorization_endpoint: `https://${config.host}/oauth/authorize`,
-      token_endpoint: `https://${config.host}/oauth/token`,
-      revocation_endpoint: `https://${config.host}/oauth/revoke`,
+      issuer: baseURL,
+      authorization_endpoint: `${baseURL}/api/auth/oauth2/authorize`,
+      token_endpoint: `${baseURL}/oauth/token`,
+      revocation_endpoint: `${baseURL}/api/oauth/revoke`,
+      jwks_uri: `${baseURL}/api/auth/jwks`,
       scopes_supported: UsableScopes,
       response_types_supported: ['code'],
-      response_modes_supported: ['query', 'fragment', 'form_post'],
+      response_modes_supported: ['query'],
       grant_types_supported: [
         'authorization_code',
-        'password',
-        'client_credentials'
+        'client_credentials',
+        'refresh_token'
       ],
       token_endpoint_auth_methods_supported: [
         'client_secret_basic',
@@ -38,6 +40,6 @@ export const getOAuthAuthorizationServerMetadata =
       ],
       code_challenge_methods_supported: ['S256'],
       service_documentation: 'https://github.com/llun/activities.next',
-      app_registration_endpoint: `https://${config.host}/api/v1/apps`
+      app_registration_endpoint: `${baseURL}/api/v1/apps`
     }
   }

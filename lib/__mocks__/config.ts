@@ -8,3 +8,5 @@ export const getConfig = jest.fn().mockReturnValue({
   secretPhase: MOCK_SECRET_PHASES,
   auth: {}
 })
+
+export const getBaseURL = jest.fn().mockReturnValue(`https://${TEST_DOMAIN}`)

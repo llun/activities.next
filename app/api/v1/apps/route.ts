@@ -24,8 +24,11 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
   }
 
   const json = await getRequestBody(req)
-  const postRequest = PostRequest.parse(json)
-  const response = await createApplication(database, postRequest)
+  const parseResult = PostRequest.safeParse(json)
+  if (!parseResult.success) {
+    return apiErrorResponse(422)
+  }
+  const response = await createApplication(parseResult.data)
 
   const { type, ...rest } = response
   if (type === 'error') {

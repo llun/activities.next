@@ -2,8 +2,9 @@ import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { getDatabase } from '@/lib/database'
+import { getDatabase, getKnex } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { logger } from '@/lib/utils/logger'
 import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -53,6 +54,20 @@ export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
       },
       { status: HTTP_STATUS.BAD_REQUEST }
     )
+  }
+
+  // Update the better-auth session's actorId so OAuth consentReferenceId
+  // picks up the correct actor when minting access tokens.
+  const db = getKnex()
+  if (session?.session?.token) {
+    try {
+      await db('sessions')
+        .where('token', session.session.token)
+        .update({ actorId })
+    } catch (e) {
+      logger.error({ message: 'Failed to update session actorId', error: e })
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    }
   }
 
   // Set a cookie to track the selected actor

@@ -1,10 +1,9 @@
-import jwt from 'jsonwebtoken'
-import intersection from 'lodash/intersection'
+import { verifyAccessToken } from 'better-auth/oauth2'
+import crypto from 'crypto'
 import { NextRequest } from 'next/server'
-import { generate } from 'peggy'
 
-import { getConfig } from '@/lib/config'
-import { getDatabase } from '@/lib/database'
+import { getBaseURL } from '@/lib/config'
+import { getDatabase, getKnex } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -14,21 +13,40 @@ import { apiErrorResponse } from '@/lib/utils/response'
 
 import { AppRouterParams, AuthenticatedApiHandle } from './types'
 
-const BEARER_GRAMMAR = `
-value = "Bearer" " " token:base64 { return token }
-base64 = front:(alpha / digit / other)+ padding:"="* { return [front.join(''), padding.join('')].join('') }
-alpha = [a-zA-Z]
-digit = [0-9]
-other = [-._~+/]
-`
-const BEARER_PARSER = generate(BEARER_GRAMMAR)
+// better-auth stores tokens as SHA-256 base64url (matching its defaultHasher)
+const hashToken = (token: string): string => {
+  const hash = crypto.createHash('sha256').update(token).digest()
+  return hash
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
 
-export const getTokenFromHeader = (authorizationHeader: string | null) => {
-  try {
-    return BEARER_PARSER.parse(authorizationHeader ?? '')
-  } catch {
-    return null
+// JWTs have three dot-separated base64url segments (header.payload.signature)
+const isJwtFormat = (token: string): boolean => {
+  const parts = token.split('.')
+  return parts.length === 3 && parts.every((p) => p.length > 0)
+}
+
+const parseStoredScopes = (raw: string): string[] => {
+  if (raw.startsWith('[')) {
+    try {
+      return JSON.parse(raw) as string[]
+    } catch {
+      return []
+    }
   }
+  return raw.split(' ')
+}
+
+export const getTokenFromHeader = (
+  authorizationHeader: string | null
+): string | null => {
+  if (!authorizationHeader) return null
+  const parts = authorizationHeader.split(' ')
+  if (parts.length !== 2 || parts[0] !== 'Bearer') return null
+  return parts[1] || null
 }
 
 export const OAuthGuard =
@@ -52,56 +70,90 @@ export const OAuthGuard =
       return apiErrorResponse(401)
     }
 
+    const baseURL = getBaseURL()
+    const jwksUrl = `${baseURL}/api/auth/jwks`
+
+    // Distinguish JWT from opaque tokens by format: JWTs have three
+    // dot-separated segments. This prevents tampered/expired JWTs from
+    // falling through to the opaque DB lookup path.
+    let jwtPayload: Record<string, unknown> | null = null
+    if (isJwtFormat(token)) {
+      try {
+        jwtPayload = (await verifyAccessToken(token, {
+          jwksUrl,
+          scopes,
+          verifyOptions: {
+            issuer: baseURL,
+            audience: baseURL
+          }
+        })) as Record<string, unknown>
+      } catch {
+        // JWT verification failed (expired, invalid signature, wrong scope,
+        // etc.) — reject immediately, do NOT fall through to opaque lookup
+        return apiErrorResponse(401)
+      }
+
+      // Defense-in-depth: explicitly verify JWT scope claims in case
+      // verifyAccessToken's scope checking changes in a future version
+      const jwtScope = jwtPayload.scope as string | undefined
+      const jwtScopes = jwtScope ? jwtScope.split(' ') : []
+      for (const scope of scopes) {
+        if (!jwtScopes.includes(scope)) {
+          return apiErrorResponse(401)
+        }
+      }
+    }
+
     try {
-      const currentTime = Date.now()
-      const decoded = jwt.verify(
-        token,
-        getConfig().secretPhase
-      ) as jwt.JwtPayload
-      const accessToken = await database.getAccessToken({
-        accessToken: decoded.jti ?? ''
-      })
-      // This is guard for user access token
-      if (!accessToken || !accessToken.user) {
+      // Verify the token exists in DB (revocation check for JWTs,
+      // primary auth check for opaque tokens).
+      // better-auth's storeToken() hashes ALL token types (JWT and opaque)
+      // via defaultHasher (SHA-256 base64url) before storing in the
+      // oauthAccessToken.token column.
+      // See: @better-auth/oauth-provider/dist/utils-DgozotLg.mjs storeToken()
+      const db = getKnex()
+      const storedToken = await db('oauthAccessToken')
+        .where('token', hashToken(token))
+        .first()
+      if (!storedToken) {
         return apiErrorResponse(401)
       }
 
-      const tokenScopes = accessToken.scopes.map((scope) => scope.name)
-      if (
-        intersection(tokenScopes, scopes).length === 0 ||
-        accessToken.accessTokenExpiresAt.getTime() < currentTime
-      ) {
+      // For opaque tokens, check expiration and scopes manually
+      // (JWT verification already handles these for JWT tokens)
+      if (!jwtPayload) {
+        if (new Date(storedToken.expiresAt) < new Date()) {
+          return apiErrorResponse(401)
+        }
+        const storedScopes = parseStoredScopes(storedToken.scopes as string)
+        for (const scope of scopes) {
+          if (!storedScopes.includes(scope)) {
+            return apiErrorResponse(401)
+          }
+        }
+      }
+
+      // Extract actorId: from JWT claims or from stored referenceId (opaque)
+      const actorId = jwtPayload
+        ? (jwtPayload.actorId as string | null)
+        : (storedToken.referenceId as string | null)
+
+      if (!actorId) {
         return apiErrorResponse(401)
       }
 
-      // Sliding session: extend tokens when within 1 day of expiry
-      const ONE_DAY_MS = 24 * 60 * 60 * 1000
-      const timeUntilExpiry =
-        accessToken.accessTokenExpiresAt.getTime() - currentTime
-      if (timeUntilExpiry <= ONE_DAY_MS) {
-        const sevenDaysFromNow = currentTime + 7 * ONE_DAY_MS
-        const thirtyDaysFromNow = currentTime + 30 * ONE_DAY_MS
-        database
-          .touchAccessToken({
-            accessToken: decoded.jti ?? '',
-            accessTokenExpiresAt: sevenDaysFromNow,
-            refreshTokenExpiresAt: thirtyDaysFromNow
-          })
-          .catch(() => {}) // Fire-and-forget, don't block the request
+      const actor = await database.getActorFromId({ id: actorId })
+      if (!actor) {
+        return apiErrorResponse(401)
       }
 
       return handle(req, {
-        currentActor: Actor.parse(accessToken.user.actor),
+        currentActor: Actor.parse(actor),
         database,
         params: context.params
       })
     } catch (e) {
-      const nodeErr = e as NodeJS.ErrnoException
-      if (nodeErr.message === 'jwt expired') {
-        return apiErrorResponse(401)
-      }
-
-      logger.error(nodeErr)
+      logger.error(e as Error)
       return apiErrorResponse(500)
     }
   }

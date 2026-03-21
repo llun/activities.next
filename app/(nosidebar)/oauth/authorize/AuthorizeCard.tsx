@@ -45,6 +45,7 @@ export const AuthorizeCard: FC<Props> = ({
   const availabledScopes = intersection(UsableScopes, requestedScopes)
   const [selectedActorId, setSelectedActorId] = useState(currentActorId)
   const [isSwitching, setIsSwitching] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const selectedActor =
     actors.find((a) => a.id === selectedActorId) || actors[0]
@@ -69,8 +70,100 @@ export const AuthorizeCard: FC<Props> = ({
       if (response.ok) {
         setSelectedActorId(actorId)
       }
+    } catch {
+      // Network error — silently ignore; the UI remains on the current actor
     } finally {
       setIsSwitching(false)
+    }
+  }
+
+  const buildOAuthQuery = () => {
+    const oauthQuery = new URLSearchParams()
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (value !== undefined) oauthQuery.set(key, String(value))
+    }
+    return oauthQuery.toString()
+  }
+
+  const redirectWithError = (error: string) => {
+    const redirectUri = searchParams.redirect_uri
+    if (redirectUri) {
+      try {
+        const errorUrl = new URL(redirectUri)
+        errorUrl.searchParams.set('error', error)
+        if (searchParams.state) {
+          errorUrl.searchParams.set('state', searchParams.state)
+        }
+        window.location.href = errorUrl.toString()
+        return
+      } catch {
+        // Malformed redirect_uri — fall through to router push
+      }
+    }
+    router.push(client.website ?? '/')
+  }
+
+  const handleApprove = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      const formData = new FormData(e.currentTarget)
+      const selectedScopes = formData.getAll('scope') as string[]
+
+      const response = await fetch('/api/auth/oauth2/consent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accept: true,
+          scope: selectedScopes.join(' '),
+          oauth_query: buildOAuthQuery()
+        })
+      })
+
+      if (response.ok) {
+        const data = (await response.json()) as { redirect_uri?: string }
+        if (data.redirect_uri) {
+          window.location.href = data.redirect_uri
+          return
+        }
+      }
+
+      redirectWithError('server_error')
+    } catch {
+      redirectWithError('server_error')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleDeny = async () => {
+    setIsSubmitting(true)
+    try {
+      const response = await fetch('/api/auth/oauth2/consent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accept: false,
+          oauth_query: buildOAuthQuery()
+        })
+      })
+      if (response.ok) {
+        const data = (await response.json()) as { redirect_uri?: string }
+        if (data.redirect_uri) {
+          window.location.href = data.redirect_uri
+          return
+        }
+        // Denial processed but no redirect — use access_denied
+        redirectWithError('access_denied')
+        return
+      }
+      // Server returned non-ok — infrastructure failure
+      redirectWithError('server_error')
+    } catch {
+      redirectWithError('server_error')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -87,7 +180,7 @@ export const AuthorizeCard: FC<Props> = ({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form action="/api/oauth/authorize" method="post" className="space-y-6">
+        <form onSubmit={handleApprove} className="space-y-6">
           {actors.length > 1 && (
             <div className="space-y-2">
               <Label className="text-sm font-medium text-muted-foreground">
@@ -177,33 +270,20 @@ export const AuthorizeCard: FC<Props> = ({
             </div>
           </div>
 
-          <input
-            type="hidden"
-            name="client_id"
-            value={searchParams.client_id}
-          />
-          <input
-            type="hidden"
-            name="redirect_uri"
-            value={searchParams.redirect_uri}
-          />
-          <input
-            type="hidden"
-            name="response_type"
-            value={searchParams.response_type}
-          />
-
           <div className="flex gap-2">
-            <Button className="flex-1" type="submit">
-              Approve
+            <Button
+              className="flex-1"
+              type="submit"
+              disabled={isSubmitting || isSwitching}
+            >
+              {isSubmitting ? 'Approving...' : 'Approve'}
             </Button>
             <Button
               className="flex-1"
               variant="destructive"
               type="button"
-              onClick={() => {
-                router.push(client.website ?? '/')
-              }}
+              onClick={handleDeny}
+              disabled={isSubmitting || isSwitching}
             >
               Deny
             </Button>

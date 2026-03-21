@@ -1,30 +1,33 @@
-import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { getOAuth2Server } from '@/lib/services/oauth/server'
-import { User } from '@/lib/types/oauth2/user'
-import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { NextRequest } from 'next/server'
 
-export const POST = traceApiRoute(
-  'authorizeApp',
-  AuthenticatedGuard(async (req, context) => {
-    const { currentActor } = context
-    const server = await getOAuth2Server()
-    const form = await req.formData()
-    const query = {
-      ...Object.fromEntries(form.entries()),
-      scope: form.getAll('scope')
+import { getBaseURL } from '@/lib/config'
+import { logger } from '@/lib/utils/logger'
+
+// Redirect to better-auth's OAuth2 authorize endpoint for Mastodon compatibility
+// Mastodon clients may hit /api/oauth/authorize directly
+export const GET = (req: NextRequest) => {
+  const url = new URL('/api/auth/oauth2/authorize', getBaseURL())
+  url.search = req.nextUrl.search
+  return Response.redirect(url.toString(), 302)
+}
+
+export const POST = async (req: NextRequest) => {
+  const url = new URL('/api/auth/oauth2/authorize', getBaseURL())
+  // Merge query string params
+  req.nextUrl.searchParams.forEach((value, key) =>
+    url.searchParams.set(key, value)
+  )
+  // Merge form body params (application/x-www-form-urlencoded)
+  try {
+    const contentType = req.headers.get('content-type') ?? ''
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      const body = await req.text()
+      new URLSearchParams(body).forEach((value, key) =>
+        url.searchParams.set(key, value)
+      )
     }
-    const authRequest = await server.validateAuthorizationRequest({
-      headers: Object.fromEntries(req.headers.entries()),
-      query,
-      body: {}
-    })
-    authRequest.user = User.parse({
-      id: currentActor.id,
-      actor: currentActor,
-      account: currentActor.account
-    })
-    authRequest.isAuthorizationApproved = true
-    const oauthResponse = await server.completeAuthorizationRequest(authRequest)
-    return Response.redirect(oauthResponse.headers.location)
-  })
-)
+  } catch (e) {
+    logger.error({ message: 'Failed to parse authorize POST body', error: e })
+  }
+  return Response.redirect(url.toString(), 302)
+}

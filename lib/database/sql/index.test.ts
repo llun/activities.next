@@ -104,7 +104,7 @@ describe('getSQLDatabase', () => {
       createNotification: jest.fn()
     }
     const oauthDatabase = {
-      createClient: jest.fn()
+      getClientFromName: jest.fn()
     }
     const statusDatabase = {
       getStatus: jest.fn()
@@ -146,7 +146,6 @@ describe('getSQLDatabase', () => {
 
   it('wires mixin dependencies correctly', () => {
     const {
-      accountDatabase,
       actorDatabase,
       knexDatabase,
       likeDatabase,
@@ -161,11 +160,7 @@ describe('getSQLDatabase', () => {
     expect(likeMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(mediaMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(notificationMixinMock).toHaveBeenCalledWith(knexDatabase)
-    expect(oauthMixinMock).toHaveBeenCalledWith(
-      knexDatabase,
-      accountDatabase,
-      actorDatabase
-    )
+    expect(oauthMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(statusMixinMock).toHaveBeenCalledWith(
       knexDatabase,
       actorDatabase,
@@ -201,7 +196,7 @@ describe('getSQLDatabase', () => {
     expect(database.createNotification).toBe(
       notificationDatabase.createNotification
     )
-    expect(database.createClient).toBe(oauthDatabase.createClient)
+    expect(database.getClientFromName).toBe(oauthDatabase.getClientFromName)
     expect(database.getStatus).toBe(statusDatabase.getStatus)
     expect(database.getTimeline).toBe(timelineDatabase.getTimeline)
   })
