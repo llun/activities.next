@@ -5,7 +5,7 @@ import { FitnessFileManagement } from '@/lib/components/settings/FitnessFileMana
 import { FitnessImport } from '@/lib/components/settings/FitnessImport'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { getFitnessQuotaLimit } from '@/lib/services/fitness-files/quota'
+import { getQuotaLimit } from '@/lib/services/medias/quota'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -60,7 +60,7 @@ const Page = async ({
     })
   ])
 
-  const limit = getFitnessQuotaLimit()
+  const limit = getQuotaLimit()
   const used = mediaUsed + fitnessUsed
 
   return (

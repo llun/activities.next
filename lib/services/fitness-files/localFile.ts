@@ -10,11 +10,11 @@ import type { ReadableStream as WebReadableStream } from 'stream/web'
 
 import { FitnessStorageFileConfig } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
+import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
 import { QuotaExceededError } from './errors'
-import { checkFitnessQuotaAvailable } from './quota'
 import {
   FitnessFileUploadSchema,
   FitnessStorage,
@@ -110,7 +110,7 @@ export class LocalFileFitnessStorage implements FitnessStorage {
     const { file, description, importBatchId } = fitnessFile
 
     // Check quota before saving
-    const quotaCheck = await checkFitnessQuotaAvailable(
+    const quotaCheck = await checkQuotaAvailable(
       this._database,
       actor,
       file.size
