@@ -49,7 +49,11 @@ export const createApplication = async (
         // Always create a new client — per the Mastodon API spec, each POST
         // creates a new application with fresh credentials. Silent secret
         // rotation on re-registration would break existing configured clients.
-        // Create new client
+        //
+        // NOTE: This means popular apps (Ivory, Ice Cubes, etc.) that call
+        // POST /api/v1/apps on every login will accumulate orphaned client
+        // rows. Operators should periodically clean up stale oauthClient rows
+        // that have no associated active tokens or consents.
         const clientId = generateRandomString(32)
         const clientSecret = generateRandomString(32)
         const hashedSecret = hashClientSecret(clientSecret)

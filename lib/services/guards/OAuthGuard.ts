@@ -23,6 +23,16 @@ const hashToken = (token: string): string => {
     .replace(/=+$/, '')
 }
 
+// JWTs have three dot-separated base64url segments (header.payload.signature)
+const isJwtFormat = (token: string): boolean => {
+  const parts = token.split('.')
+  return parts.length === 3 && parts.every((p) => p.length > 0)
+}
+
+const parseStoredScopes = (raw: string): string[] => {
+  return raw.startsWith('[') ? (JSON.parse(raw) as string[]) : raw.split(' ')
+}
+
 export const getTokenFromHeader = (
   authorizationHeader: string | null
 ): string | null => {
@@ -56,20 +66,35 @@ export const OAuthGuard =
     const baseURL = getBaseURL()
     const jwksUrl = `${baseURL}/api/auth/jwks`
 
-    // Try JWT verification first (tokens issued with a resource/audience param).
-    // Falls back to opaque-token DB lookup when the token is not a JWT.
+    // Distinguish JWT from opaque tokens by format: JWTs have three
+    // dot-separated segments. This prevents tampered/expired JWTs from
+    // falling through to the opaque DB lookup path.
     let jwtPayload: Record<string, unknown> | null = null
-    try {
-      jwtPayload = (await verifyAccessToken(token, {
-        jwksUrl,
-        scopes,
-        verifyOptions: {
-          issuer: baseURL,
-          audience: baseURL
+    if (isJwtFormat(token)) {
+      try {
+        jwtPayload = (await verifyAccessToken(token, {
+          jwksUrl,
+          scopes,
+          verifyOptions: {
+            issuer: baseURL,
+            audience: baseURL
+          }
+        })) as Record<string, unknown>
+      } catch {
+        // JWT verification failed (expired, invalid signature, wrong scope,
+        // etc.) — reject immediately, do NOT fall through to opaque lookup
+        return apiErrorResponse(401)
+      }
+
+      // Defense-in-depth: explicitly verify JWT scope claims in case
+      // verifyAccessToken's scope checking changes in a future version
+      const jwtScope = jwtPayload.scope as string | undefined
+      const jwtScopes = jwtScope ? jwtScope.split(' ') : []
+      for (const scope of scopes) {
+        if (!jwtScopes.includes(scope)) {
+          return apiErrorResponse(401)
         }
-      })) as Record<string, unknown>
-    } catch {
-      // Not a JWT or JWT verification failed — fall through to opaque lookup
+      }
     }
 
     try {
@@ -89,10 +114,7 @@ export const OAuthGuard =
         if (new Date(storedToken.expiresAt) < new Date()) {
           return apiErrorResponse(401)
         }
-        const rawScopes = storedToken.scopes as string
-        const storedScopes = rawScopes.startsWith('[')
-          ? (JSON.parse(rawScopes) as string[])
-          : rawScopes.split(' ')
+        const storedScopes = parseStoredScopes(storedToken.scopes as string)
         for (const scope of scopes) {
           if (!storedScopes.includes(scope)) {
             return apiErrorResponse(401)

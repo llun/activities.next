@@ -35,7 +35,7 @@ export const getAuth = memoize(() => {
         loginPage: '/auth/signin',
         consentPage: '/oauth/authorize',
         scopes: ['read', 'write', 'follow', 'push'],
-        accessTokenExpiresIn: 30 * 24 * 60 * 60,
+        accessTokenExpiresIn: 7 * 24 * 60 * 60,
         refreshTokenExpiresIn: 30 * 24 * 60 * 60,
         codeExpiresIn: 10 * 60,
         grantTypes: [
