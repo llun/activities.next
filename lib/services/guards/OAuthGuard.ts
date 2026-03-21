@@ -107,6 +107,10 @@ export const OAuthGuard =
     try {
       // Verify the token exists in DB (revocation check for JWTs,
       // primary auth check for opaque tokens).
+      // better-auth's storeToken() hashes ALL token types (JWT and opaque)
+      // via defaultHasher (SHA-256 base64url) before storing in the
+      // oauthAccessToken.token column.
+      // See: @better-auth/oauth-provider/dist/utils-DgozotLg.mjs storeToken()
       const db = getKnex()
       const storedToken = await db('oauthAccessToken')
         .where('token', hashToken(token))
