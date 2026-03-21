@@ -3,11 +3,7 @@ import { NextRequest } from 'next/server'
 import { getAuth } from '@/lib/services/auth/auth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, codeMap, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -36,11 +32,21 @@ export const POST = traceApiRoute('revokeToken', async (req: NextRequest) => {
         message: 'Token revocation failed',
         status: revokeResponse.status
       })
-      return apiErrorResponse(500)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: codeMap[500],
+        responseStatusCode: 500
+      })
     }
   } catch (e) {
     logger.error({ message: 'Token revocation threw', error: e })
-    return apiErrorResponse(500)
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: codeMap[500],
+      responseStatusCode: 500
+    })
   }
 
   return apiResponse({
