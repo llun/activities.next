@@ -120,7 +120,7 @@ exports.up = async (knex) => {
       await trx('oauthClient').insert({
         id: crypto.randomUUID(),
         clientId: client.id,
-        clientSecret: hashClientSecret(client.secret),
+        clientSecret: client.secret ? hashClientSecret(client.secret) : null,
         name: client.name,
         scopes: JSON.stringify(scopes),
         redirectUris: JSON.stringify(redirectUris),

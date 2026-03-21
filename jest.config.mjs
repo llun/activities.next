@@ -25,7 +25,9 @@ const customJestConfig = {
   transform: {
     '\\.(js|mjs|jsx|ts|tsx)$': ['@swc/jest']
   },
-  transformIgnorePatterns: ['node_modules/(?!(marked|uuid|better-auth)/)'],
+  transformIgnorePatterns: [
+    'node_modules/(?!(marked|uuid|better-auth|@better-auth)/)'
+  ],
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^@/app/(.*)$': '<rootDir>/app/$1',

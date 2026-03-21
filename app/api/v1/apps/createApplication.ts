@@ -48,43 +48,9 @@ export const createApplication = async (
       const db = getKnex()
 
       try {
-        const existingClient = await database.getClientFromName({
-          name: request.client_name
-        })
-
-        if (existingClient) {
-          // Update the existing client's scopes and redirect URIs
-          const parsedScopes = scopes
-            .split(' ')
-            .map((scope) => Scope.parse(scope))
-          const redirectUris = request.redirect_uris
-            .split(' ')
-            .map((uri) => uri.trim())
-
-          // Generate a new secret since we can't retrieve the hashed one
-          const newSecret = generateRandomString(32)
-          const hashedSecret = await hashClientSecret(newSecret)
-
-          await db('oauthClient')
-            .where('clientId', existingClient.clientId)
-            .update({
-              scopes: JSON.stringify(parsedScopes),
-              redirectUris: JSON.stringify(redirectUris),
-              clientSecret: hashedSecret,
-              updatedAt: new Date()
-            })
-
-          return SuccessResponse.parse({
-            type: 'success',
-            id: existingClient.clientId,
-            client_id: existingClient.clientId,
-            client_secret: newSecret,
-            name: existingClient.name ?? request.client_name,
-            website: existingClient.website ?? undefined,
-            redirect_uri: redirectUris[0]
-          })
-        }
-
+        // Always create a new client — per the Mastodon API spec, each POST
+        // creates a new application with fresh credentials. Silent secret
+        // rotation on re-registration would break existing configured clients.
         // Create new client
         const clientId = generateRandomString(32)
         const clientSecret = generateRandomString(32)

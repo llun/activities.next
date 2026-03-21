@@ -55,7 +55,7 @@ describe('createApplication', () => {
     expect(response.id).toEqual(response.client_id)
   })
 
-  test('it returns existing application with rotated secret', async () => {
+  test('it always creates a new application even when one with the same name exists', async () => {
     const response = await createApplication(database, {
       client_name: 'existsClient',
       redirect_uris: 'https://test.llun.dev/apps/redirect',
@@ -68,7 +68,7 @@ describe('createApplication', () => {
       client_id: expect.toBeString(),
       client_secret: expect.toBeString(),
       name: 'existsClient',
-      website: 'https://exists.llun.dev',
+      website: 'https://test.llun.dev',
       redirect_uri: 'https://test.llun.dev/apps/redirect'
     })
   })

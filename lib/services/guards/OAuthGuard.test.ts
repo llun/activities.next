@@ -16,8 +16,17 @@ jest.mock('@/lib/services/auth/getSession', () => ({
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+// mockRevokedTokens controls which tokens the revocation-check query returns null for
+const mockRevokedTokens = new Set<string>()
+const mockKnexQueryBuilder = (token: string) => ({
+  first: () =>
+    Promise.resolve(mockRevokedTokens.has(token) ? null : { token })
+})
 jest.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase
+  getDatabase: () => mockDatabase,
+  getKnex: () => (_table: string) => ({
+    where: (_field: string, value: string) => mockKnexQueryBuilder(value)
+  })
 }))
 
 // Mock cookies from next/headers — controls which actor the cookie selects

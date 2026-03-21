@@ -75,6 +75,32 @@ export const AuthorizeCard: FC<Props> = ({
     }
   }
 
+  const buildOAuthQuery = () => {
+    const oauthQuery = new URLSearchParams()
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (value !== undefined) oauthQuery.set(key, String(value))
+    }
+    return oauthQuery.toString()
+  }
+
+  const redirectWithError = (error: string) => {
+    const redirectUri = searchParams.redirect_uri
+    if (redirectUri) {
+      try {
+        const errorUrl = new URL(redirectUri)
+        errorUrl.searchParams.set('error', error)
+        if (searchParams.state) {
+          errorUrl.searchParams.set('state', searchParams.state)
+        }
+        window.location.href = errorUrl.toString()
+        return
+      } catch {
+        // Fall through to router push
+      }
+    }
+    router.push(client.website ?? '/')
+  }
+
   const handleApprove = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -83,21 +109,13 @@ export const AuthorizeCard: FC<Props> = ({
       const formData = new FormData(e.currentTarget)
       const selectedScopes = formData.getAll('scope') as string[]
 
-      // Reconstruct the oauth_query from the original search params
-      const oauthQuery = new URLSearchParams()
-      for (const [key, value] of Object.entries(searchParams)) {
-        if (value !== undefined) {
-          oauthQuery.set(key, String(value))
-        }
-      }
-
       const response = await fetch('/api/auth/oauth2/consent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accept: true,
           scope: selectedScopes.join(' '),
-          oauth_query: oauthQuery.toString()
+          oauth_query: buildOAuthQuery()
         })
       })
 
@@ -109,37 +127,21 @@ export const AuthorizeCard: FC<Props> = ({
         }
       }
 
-      // If consent failed, try falling back to redirect_uri with error
-      const redirectUri = searchParams.redirect_uri
-      if (redirectUri) {
-        try {
-          const errorUrl = new URL(redirectUri)
-          errorUrl.searchParams.set('error', 'server_error')
-          if (searchParams.state) {
-            errorUrl.searchParams.set('state', searchParams.state)
-          }
-          window.location.href = errorUrl.toString()
-        } catch {
-          router.push(client.website ?? '/')
-        }
-      }
+      redirectWithError('server_error')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleDeny = async () => {
-    const oauthQuery = new URLSearchParams()
-    for (const [key, value] of Object.entries(searchParams)) {
-      if (value !== undefined) oauthQuery.set(key, String(value))
-    }
+    setIsSubmitting(true)
     try {
       const response = await fetch('/api/auth/oauth2/consent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accept: false,
-          oauth_query: oauthQuery.toString()
+          oauth_query: buildOAuthQuery()
         })
       })
       if (response.ok) {
@@ -152,21 +154,7 @@ export const AuthorizeCard: FC<Props> = ({
     } catch {
       // Fall through to client-side redirect
     }
-    const redirectUri = searchParams.redirect_uri
-    if (redirectUri) {
-      try {
-        const errorUrl = new URL(redirectUri)
-        errorUrl.searchParams.set('error', 'access_denied')
-        if (searchParams.state) {
-          errorUrl.searchParams.set('state', searchParams.state)
-        }
-        window.location.href = errorUrl.toString()
-      } catch {
-        router.push(client.website ?? '/')
-      }
-    } else {
-      router.push(client.website ?? '/')
-    }
+    redirectWithError('access_denied')
   }
 
   return (

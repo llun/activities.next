@@ -49,8 +49,9 @@ export const getAuth = memoize(() => {
           page: '/oauth/authorize',
           shouldRedirect: async () => false,
           consentReferenceId: async ({ session }) => {
-            const actorId = (session as Record<string, unknown>)
-              ?.actorId as string | undefined
+            const actorId = (session as Record<string, unknown>)?.actorId as
+              | string
+              | undefined
             if (actorId) return actorId
             if (!database || !session?.userId) return undefined
             const account = await database.getAccountFromId({

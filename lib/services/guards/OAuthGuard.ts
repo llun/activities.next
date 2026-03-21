@@ -2,7 +2,7 @@ import { verifyAccessToken } from 'better-auth/oauth2'
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { getDatabase } from '@/lib/database'
+import { getDatabase, getKnex } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -58,6 +58,15 @@ export const OAuthGuard =
           audience: baseURL
         }
       })
+
+      // Check the token has not been revoked (deleted from oauthAccessToken)
+      const db = getKnex()
+      const storedToken = await db('oauthAccessToken')
+        .where('token', token)
+        .first()
+      if (!storedToken) {
+        return apiErrorResponse(401)
+      }
 
       // Extract actorId from JWT claims
       const actorId = (payload as Record<string, unknown>).actorId as
