@@ -114,6 +114,7 @@ export const getAuth = memoize(() => {
       }
     },
     session: {
+      storeSessionInDatabase: true,
       modelName: 'sessions',
       fields: {
         userId: 'accountId',
