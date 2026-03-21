@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { LogoutButton } from '@/app/(timeline)/settings/LogoutButton'
+import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
@@ -36,9 +37,37 @@ const Page = async () => {
       <div>
         <h1 className="text-2xl font-semibold">Account Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Manage your email and password.
+          Manage your account details, email and password.
         </p>
       </div>
+
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">Full Name</h2>
+          <p className="text-sm text-muted-foreground">
+            Your account display name used across services.
+          </p>
+        </div>
+        <form
+          method="post"
+          action="/api/v1/accounts/name"
+          className="space-y-4"
+        >
+          <div className="space-y-2">
+            <Label htmlFor="inputName">Name</Label>
+            <Input
+              name="name"
+              type="text"
+              id="inputName"
+              defaultValue={account.name || ''}
+              placeholder="Your full name"
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button type="submit">Update name</Button>
+          </div>
+        </form>
+      </section>
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
         <div>

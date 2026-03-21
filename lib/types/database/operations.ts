@@ -159,6 +159,7 @@ export type IsUsernameExistsParams = { username: string; domain: string }
 export type CreateAccountParams = {
   email: string
   username: string
+  name?: string | null
   passwordHash: string
   verificationCode?: string | null
   domain: string
@@ -249,6 +250,10 @@ export type ChangePasswordParams = {
   accountId: string
   newPasswordHash: string
 }
+export type UpdateAccountNameParams = {
+  accountId: string
+  name: string
+}
 
 export interface AccountDatabase {
   isAccountExists(params: IsAccountExistsParams): Promise<boolean>
@@ -305,6 +310,7 @@ export interface AccountDatabase {
     params: ResetPasswordWithCodeParams
   ): Promise<Account | null>
   changePassword(params: ChangePasswordParams): Promise<void>
+  updateAccountName(params: UpdateAccountNameParams): Promise<void>
 }
 
 // ============================================================================
