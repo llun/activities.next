@@ -19,8 +19,7 @@ let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 // mockRevokedTokens controls which tokens the revocation-check query returns null for
 const mockRevokedTokens = new Set<string>()
 const mockKnexQueryBuilder = (token: string) => ({
-  first: () =>
-    Promise.resolve(mockRevokedTokens.has(token) ? null : { token })
+  first: () => Promise.resolve(mockRevokedTokens.has(token) ? null : { token })
 })
 jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
@@ -308,6 +307,28 @@ describe('#OAuthGuard', () => {
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(401)
+    })
+
+    test('returns 401 when token has been revoked', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+
+      mockVerifyAccessToken.mockResolvedValue({
+        sub: 'user-id',
+        scope: 'read',
+        actorId: primaryActor?.id
+      })
+      mockRevokedTokens.add('revoked-token')
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({ Authorization: 'Bearer revoked-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      mockRevokedTokens.delete('revoked-token')
     })
 
     test('returns 401 when token is expired', async () => {

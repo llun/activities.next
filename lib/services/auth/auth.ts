@@ -6,6 +6,7 @@ import memoize from 'lodash/memoize'
 
 import { getConfig } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
+import { logger } from '@/lib/utils/logger'
 
 import { knexAdapter } from './knexAdapter'
 
@@ -127,9 +128,16 @@ export const getAuth = memoize(() => {
         create: {
           before: async (session) => {
             if (!database) return
-            const account = await database.getAccountFromId({
-              id: session.userId
-            })
+            let account
+            try {
+              account = await database.getAccountFromId({ id: session.userId })
+            } catch (e) {
+              logger.error({
+                message: 'Failed to load account in session hook',
+                error: e
+              })
+              return false
+            }
             if (!account) return false
             if (!account.verifiedAt) return false
             return {

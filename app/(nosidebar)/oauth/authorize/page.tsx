@@ -38,6 +38,14 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return notFound()
   }
 
+  // Validate redirect_uri against registered URIs to prevent open redirect
+  if (
+    params.redirect_uri &&
+    !client.redirectUris.includes(params.redirect_uri)
+  ) {
+    return notFound()
+  }
+
   if (!actor || !actor.account) {
     const scheme =
       process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'

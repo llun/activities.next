@@ -2,8 +2,10 @@ import { NextRequest } from 'next/server'
 
 import { getAuth } from '@/lib/services/auth/auth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
+import { logger } from '@/lib/utils/logger'
 import {
   StatusCode,
+  apiErrorResponse,
   apiResponse,
   codeMap,
   defaultOptions
@@ -26,7 +28,13 @@ export const POST = async (req: NextRequest) => {
     duplex: 'half'
   })
 
-  const response = await auth.handler(proxyReq)
+  let response: Response
+  try {
+    response = await auth.handler(proxyReq)
+  } catch (e) {
+    logger.error({ message: 'Token endpoint handler threw', error: e })
+    return apiErrorResponse(500)
+  }
 
   let data: Record<string, unknown> = {}
   const contentType = response.headers.get('content-type') ?? ''

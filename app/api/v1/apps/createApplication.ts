@@ -1,7 +1,6 @@
 import crypto from 'crypto'
 
 import { getKnex } from '@/lib/database'
-import { Database } from '@/lib/database/types'
 import { Scope } from '@/lib/types/database/operations'
 import { getTracer } from '@/lib/utils/trace'
 
@@ -37,7 +36,6 @@ const generateRandomString = (length: number): string => {
 }
 
 export const createApplication = async (
-  database: Database,
   request: PostRequest
 ): Promise<PostResponse> => {
   return getTracer().startActiveSpan(

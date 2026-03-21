@@ -70,6 +70,8 @@ export const AuthorizeCard: FC<Props> = ({
       if (response.ok) {
         setSelectedActorId(actorId)
       }
+    } catch (e) {
+      console.error('Failed to switch actor', e)
     } finally {
       setIsSwitching(false)
     }
@@ -94,7 +96,8 @@ export const AuthorizeCard: FC<Props> = ({
         }
         window.location.href = errorUrl.toString()
         return
-      } catch {
+      } catch (e) {
+        console.error('Malformed redirect_uri in OAuth authorize', e)
         // Fall through to router push
       }
     }
@@ -127,6 +130,9 @@ export const AuthorizeCard: FC<Props> = ({
         }
       }
 
+      redirectWithError('server_error')
+    } catch (e) {
+      console.error('Failed to submit consent approval', e)
       redirectWithError('server_error')
     } finally {
       setIsSubmitting(false)

@@ -24,7 +24,7 @@ describe('createApplication', () => {
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
-    await createApplication(database, {
+    await createApplication({
       client_name: 'existsClient',
       redirect_uris: 'https://exists.llun.dev/apps/redirect',
       scopes: 'read write',
@@ -37,7 +37,7 @@ describe('createApplication', () => {
   })
 
   test('it generates secret and create application in database and returns application response', async () => {
-    const response = (await createApplication(database, {
+    const response = (await createApplication({
       redirect_uris: 'https://test.llun.dev/apps/redirect',
       client_name: 'client1',
       scopes: 'read write',
@@ -56,7 +56,7 @@ describe('createApplication', () => {
   })
 
   test('it always creates a new application even when one with the same name exists', async () => {
-    const response = await createApplication(database, {
+    const response = await createApplication({
       client_name: 'existsClient',
       redirect_uris: 'https://test.llun.dev/apps/redirect',
       scopes: 'read write',
@@ -74,10 +74,23 @@ describe('createApplication', () => {
   })
 
   test('it errors with message validation failed when scope is not valid', async () => {
-    const response = await createApplication(database, {
+    const response = await createApplication({
       client_name: 'newClient',
       redirect_uris: 'https://test.llun.dev/apps/redirect',
       scopes: 'read write something else',
+      website: 'https://test.llun.dev'
+    })
+    expect(response).toEqual({
+      type: 'error',
+      error: 'Failed to validate request'
+    })
+  })
+
+  test('it errors when redirect_uris is empty or whitespace-only', async () => {
+    const response = await createApplication({
+      client_name: 'noRedirectClient',
+      redirect_uris: '   ',
+      scopes: 'read write',
       website: 'https://test.llun.dev'
     })
     expect(response).toEqual({

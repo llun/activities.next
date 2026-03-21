@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
+import { logger } from '@/lib/utils/logger'
 
 // Redirect to better-auth's OAuth2 authorize endpoint for Mastodon compatibility
 // Mastodon clients may hit /api/oauth/authorize directly
@@ -32,8 +33,8 @@ export const POST = async (req: NextRequest) => {
         url.searchParams.set(key, value)
       )
     }
-  } catch {
-    // Ignore body parse errors; proceed with query params only
+  } catch (e) {
+    logger.error({ message: 'Failed to parse authorize POST body', error: e })
   }
   return Response.redirect(url.toString(), 302)
 }
