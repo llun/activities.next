@@ -45,12 +45,22 @@ export const getAuth = memoize(() => {
           'refresh_token'
         ],
         allowDynamicClientRegistration: false,
-        customAccessTokenClaims: async ({ user }) => {
-          if (!database || !user) return {}
-          const account = await database.getAccountFromId({ id: user.id })
-          return {
-            actorId: account?.defaultActorId || null
+        postLogin: {
+          page: '/oauth/authorize',
+          shouldRedirect: async () => false,
+          consentReferenceId: async ({ session }) => {
+            const actorId = (session as Record<string, unknown>)
+              ?.actorId as string | undefined
+            if (actorId) return actorId
+            if (!database || !session?.userId) return undefined
+            const account = await database.getAccountFromId({
+              id: session.userId as string
+            })
+            return account?.defaultActorId ?? undefined
           }
+        },
+        customAccessTokenClaims: async ({ referenceId }) => {
+          return { actorId: referenceId ?? null }
         }
       })
     ],
