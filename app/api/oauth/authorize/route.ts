@@ -6,7 +6,7 @@ import { getConfig } from '@/lib/config'
 // Mastodon clients may hit /api/oauth/authorize directly
 const getBaseURL = () => {
   const config = getConfig()
-  return config.host.startsWith('http')
+  return config.host.includes('://')
     ? config.host
     : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`
 }

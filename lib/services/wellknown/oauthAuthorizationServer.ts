@@ -21,7 +21,7 @@ export const getOAuthAuthorizationServerMetadata =
     const config = getConfig()
     const scheme =
       process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'
-    const baseURL = config.host.startsWith('http')
+    const baseURL = config.host.includes('://')
       ? config.host
       : `${scheme}://${config.host}`
     return {

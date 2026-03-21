@@ -17,7 +17,7 @@ export const getAuth = memoize(() => {
   const database = getDatabase()
   const db = getKnex()
 
-  const baseURL = config.host.startsWith('http')
+  const baseURL = config.host.includes('://')
     ? config.host
     : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`
 

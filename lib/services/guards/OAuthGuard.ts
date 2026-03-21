@@ -43,7 +43,7 @@ export const OAuthGuard =
     }
 
     const config = getConfig()
-    const baseURL = config.host.startsWith('http')
+    const baseURL = config.host.includes('://')
       ? config.host
       : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`
 

@@ -62,6 +62,12 @@ export const createApplication = async (
           .split(' ')
           .map((uri) => uri.trim())
           .filter(Boolean)
+        if (redirectUris.length === 0) {
+          return ErrorResponse.parse({
+            type: 'error',
+            error: 'Failed to validate request'
+          })
+        }
         const now = new Date()
 
         await db('oauthClient').insert({
