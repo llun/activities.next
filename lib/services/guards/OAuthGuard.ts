@@ -42,15 +42,17 @@ export const OAuthGuard =
       return apiErrorResponse(401)
     }
 
+    const config = getConfig()
+    const baseURL = config.host.startsWith('http')
+      ? config.host
+      : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`
+
+    const jwksUrl = `${baseURL}/api/auth/jwks`
+
+    // verifyAccessToken throws for any auth failure (expired, invalid, wrong scope, etc.)
+    let payload: unknown
     try {
-      const config = getConfig()
-      const baseURL = config.host.startsWith('http')
-        ? config.host
-        : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`
-
-      const jwksUrl = `${baseURL}/api/auth/jwks`
-
-      const payload = await verifyAccessToken(token, {
+      payload = await verifyAccessToken(token, {
         jwksUrl,
         scopes,
         verifyOptions: {
@@ -58,7 +60,11 @@ export const OAuthGuard =
           audience: baseURL
         }
       })
+    } catch {
+      return apiErrorResponse(401)
+    }
 
+    try {
       // Check the token has not been revoked (deleted from oauthAccessToken)
       const db = getKnex()
       const storedToken = await db('oauthAccessToken')
@@ -88,8 +94,7 @@ export const OAuthGuard =
         params: context.params
       })
     } catch (e) {
-      const err = e as Error
-      logger.error(err)
-      return apiErrorResponse(401)
+      logger.error(e as Error)
+      return apiErrorResponse(500)
     }
   }

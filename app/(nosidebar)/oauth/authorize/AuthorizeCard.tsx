@@ -153,6 +153,8 @@ export const AuthorizeCard: FC<Props> = ({
       }
     } catch {
       // Fall through to client-side redirect
+    } finally {
+      setIsSubmitting(false)
     }
     redirectWithError('access_denied')
   }
