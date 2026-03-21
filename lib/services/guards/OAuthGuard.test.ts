@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -16,10 +17,22 @@ jest.mock('@/lib/services/auth/getSession', () => ({
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-// mockRevokedTokens controls which tokens the revocation-check query returns null for
+// mockRevokedTokens stores hashed tokens (matching OAuthGuard's hashToken transform)
 const mockRevokedTokens = new Set<string>()
-const mockKnexQueryBuilder = (token: string) => ({
-  first: () => Promise.resolve(mockRevokedTokens.has(token) ? null : { token })
+const hashToken = (token: string) =>
+  crypto
+    .createHash('sha256')
+    .update(token)
+    .digest()
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+const mockKnexQueryBuilder = (hashedToken: string) => ({
+  first: () =>
+    Promise.resolve(
+      mockRevokedTokens.has(hashedToken) ? null : { token: hashedToken }
+    )
 })
 jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
@@ -321,14 +334,14 @@ describe('#OAuthGuard', () => {
         scope: 'read',
         actorId: primaryActor?.id
       })
-      mockRevokedTokens.add('revoked-token')
+      mockRevokedTokens.add(hashToken('revoked-token'))
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler)
       const req = createRequest({ Authorization: 'Bearer revoked-token' })
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(401)
-      mockRevokedTokens.delete('revoked-token')
+      mockRevokedTokens.delete(hashToken('revoked-token'))
     })
 
     test('returns 401 when token is expired', async () => {

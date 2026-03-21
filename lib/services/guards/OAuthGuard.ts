@@ -1,4 +1,5 @@
 import { verifyAccessToken } from 'better-auth/oauth2'
+import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
@@ -11,6 +12,16 @@ import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 import { AppRouterParams, AuthenticatedApiHandle } from './types'
+
+// better-auth stores tokens as SHA-256 base64url (matching its defaultHasher)
+const hashToken = (token: string): string => {
+  const hash = crypto.createHash('sha256').update(token).digest()
+  return hash
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
 
 export const getTokenFromHeader = (
   authorizationHeader: string | null
@@ -65,10 +76,11 @@ export const OAuthGuard =
     }
 
     try {
-      // Check the token has not been revoked (deleted from oauthAccessToken)
+      // Check the token has not been revoked (deleted from oauthAccessToken).
+      // better-auth stores tokens hashed, so we hash before lookup.
       const db = getKnex()
       const storedToken = await db('oauthAccessToken')
-        .where('token', token)
+        .where('token', hashToken(token))
         .first()
       if (!storedToken) {
         return apiErrorResponse(401)
