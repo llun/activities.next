@@ -12,16 +12,7 @@ export const POST = traceApiRoute(
   'updateAccountName',
   AuthenticatedGuard(async (req, context) => {
     const { database } = context
-    const account = context.currentActor.account
-    if (!account) {
-      return Response.redirect(
-        new URL(
-          '/auth/signin',
-          `https://${headerHost(req.headers)}`
-        ).toString(),
-        307
-      )
-    }
+    const account = context.currentActor.account!
 
     const body = await req.formData()
     const json = Object.fromEntries(body.entries())
