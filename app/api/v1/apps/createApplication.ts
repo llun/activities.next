@@ -71,11 +71,17 @@ export const createApplication = async (
           })
         }
         // RFC 8252 §7.1: native apps may use custom URI schemes (e.g. myapp://callback)
-        // or http://localhost for loopback redirect. new URL() already rejects
-        // javascript: and data: URIs.
+        // or http://localhost for loopback redirect.
+        const unsafeSchemes = new Set(['javascript:', 'data:', 'vbscript:'])
         for (const uri of redirectUris) {
           try {
-            new URL(uri)
+            const parsed = new URL(uri)
+            if (unsafeSchemes.has(parsed.protocol)) {
+              return ErrorResponse.parse({
+                type: 'error',
+                error: 'Failed to validate request'
+              })
+            }
           } catch {
             return ErrorResponse.parse({
               type: 'error',
