@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { getDatabase, getKnex } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { logger } from '@/lib/utils/logger'
 import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -59,9 +60,14 @@ export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
   // picks up the correct actor when minting access tokens.
   const db = getKnex()
   if (session?.session?.token) {
-    await db('sessions')
-      .where('token', session.session.token)
-      .update({ actorId })
+    try {
+      await db('sessions')
+        .where('token', session.session.token)
+        .update({ actorId })
+    } catch (e) {
+      logger.error({ message: 'Failed to update session actorId', error: e })
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    }
   }
 
   // Set a cookie to track the selected actor

@@ -39,7 +39,9 @@ const Page: FC<Props> = async ({ searchParams }) => {
   }
 
   if (!actor || !actor.account) {
-    const url = new URL('/auth/signin', `https://${getConfig().host}`)
+    const scheme =
+      process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'
+    const url = new URL('/auth/signin', `${scheme}://${getConfig().host}`)
     url.searchParams.append(
       'redirectBack',
       `/oauth/authorize?${new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][])}`

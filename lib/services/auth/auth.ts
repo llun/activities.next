@@ -47,6 +47,7 @@ export const getAuth = memoize(() => {
         allowDynamicClientRegistration: false,
         postLogin: {
           page: '/oauth/authorize',
+          // Consent is handled at /oauth/authorize; no additional redirect needed
           shouldRedirect: async () => false,
           consentReferenceId: async ({ session }) => {
             const actorId = (session as Record<string, unknown>)?.actorId as
