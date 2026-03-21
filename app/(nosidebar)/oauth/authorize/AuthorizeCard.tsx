@@ -261,7 +261,11 @@ export const AuthorizeCard: FC<Props> = ({
           </div>
 
           <div className="flex gap-2">
-            <Button className="flex-1" type="submit" disabled={isSubmitting}>
+            <Button
+              className="flex-1"
+              type="submit"
+              disabled={isSubmitting || isSwitching}
+            >
               {isSubmitting ? 'Approving...' : 'Approve'}
             </Button>
             <Button
@@ -269,7 +273,7 @@ export const AuthorizeCard: FC<Props> = ({
               variant="destructive"
               type="button"
               onClick={handleDeny}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isSwitching}
             >
               Deny
             </Button>

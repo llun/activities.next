@@ -89,11 +89,7 @@ export const OAuthGuard =
       })
     } catch (e) {
       const err = e as Error
-      if (err.message === 'token expired' || err.message === 'token invalid') {
-        return apiErrorResponse(401)
-      }
-
       logger.error(err)
-      return apiErrorResponse(500)
+      return apiErrorResponse(401)
     }
   }

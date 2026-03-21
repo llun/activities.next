@@ -4,14 +4,36 @@ import { getConfig } from '@/lib/config'
 
 // Redirect to better-auth's OAuth2 authorize endpoint for Mastodon compatibility
 // Mastodon clients may hit /api/oauth/authorize directly
-export const GET = (req: NextRequest) => {
+const getBaseURL = () => {
   const config = getConfig()
-  const baseURL = config.host.startsWith('http')
+  return config.host.startsWith('http')
     ? config.host
     : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`
-  const url = new URL('/api/auth/oauth2/authorize', baseURL)
+}
+
+export const GET = (req: NextRequest) => {
+  const url = new URL('/api/auth/oauth2/authorize', getBaseURL())
   url.search = req.nextUrl.search
   return Response.redirect(url.toString(), 302)
 }
 
-export const POST = GET
+export const POST = async (req: NextRequest) => {
+  const url = new URL('/api/auth/oauth2/authorize', getBaseURL())
+  // Merge query string params
+  req.nextUrl.searchParams.forEach((value, key) =>
+    url.searchParams.set(key, value)
+  )
+  // Merge form body params (application/x-www-form-urlencoded)
+  try {
+    const contentType = req.headers.get('content-type') ?? ''
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      const body = await req.text()
+      new URLSearchParams(body).forEach((value, key) =>
+        url.searchParams.set(key, value)
+      )
+    }
+  } catch {
+    // Ignore body parse errors; proceed with query params only
+  }
+  return Response.redirect(url.toString(), 302)
+}

@@ -58,7 +58,10 @@ export const createApplication = async (
         const parsedScopes = scopes
           .split(' ')
           .map((scope) => Scope.parse(scope))
-        const redirectUris = request.redirect_uris.split(' ')
+        const redirectUris = request.redirect_uris
+          .split(' ')
+          .map((uri) => uri.trim())
+          .filter(Boolean)
         const now = new Date()
 
         await db('oauthClient').insert({
