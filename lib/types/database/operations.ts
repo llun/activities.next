@@ -796,10 +796,21 @@ export interface NotificationDatabase {
 // OAuth Database
 // ============================================================================
 
-export const Scope = z.enum(['read', 'write', 'follow', 'push'])
+export const Scope = z.enum([
+  'openid',
+  'profile',
+  'email',
+  'read',
+  'write',
+  'follow',
+  'push'
+])
 export type Scope = z.infer<typeof Scope>
 
 export const UsableScopes = [
+  Scope.enum.openid,
+  Scope.enum.profile,
+  Scope.enum.email,
   Scope.enum.read,
   Scope.enum.write,
   Scope.enum.follow
