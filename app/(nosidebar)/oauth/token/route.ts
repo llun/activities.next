@@ -51,7 +51,11 @@ export const POST = async (req: NextRequest) => {
   }
 
   const statusCode = (
-    response.status in codeMap ? response.status : 500
+    response.status in codeMap
+      ? response.status
+      : response.status >= 500
+        ? 500
+        : 400
   ) as StatusCode
 
   return apiResponse({

@@ -30,7 +30,14 @@ const isJwtFormat = (token: string): boolean => {
 }
 
 const parseStoredScopes = (raw: string): string[] => {
-  return raw.startsWith('[') ? (JSON.parse(raw) as string[]) : raw.split(' ')
+  if (raw.startsWith('[')) {
+    try {
+      return JSON.parse(raw) as string[]
+    } catch {
+      return []
+    }
+  }
+  return raw.split(' ')
 }
 
 export const getTokenFromHeader = (

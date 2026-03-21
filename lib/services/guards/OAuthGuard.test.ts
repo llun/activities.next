@@ -371,9 +371,12 @@ describe('#OAuthGuard', () => {
 
       mockVerifyAccessToken.mockRejectedValue(new Error('token expired'))
       // Even with a valid DB row, expired JWT rejects immediately
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
       mockStoredTokens.set(hashToken(token), {
         token: hashToken(token),
-        referenceId: 'some-actor-id',
+        referenceId: primaryActor?.id,
         expiresAt: new Date(Date.now() + 3600000),
         scopes: JSON.stringify(['read'])
       })
