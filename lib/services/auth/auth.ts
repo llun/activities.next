@@ -28,7 +28,8 @@ export const getAuth = memoize(() => {
     baseURL,
     basePath: '/api/auth',
     database: knexAdapter(db),
-    disabledPaths: ['/token'],
+    disabledPaths: ['/token'], // Disable jwt plugin's /api/auth/token;
+    // OAuth tokens are issued via oauthProvider. JWKS stays enabled for OAuthGuard.
     plugins: [
       jwt(),
       oauthProvider({

@@ -70,6 +70,9 @@ export const createApplication = async (
             error: 'Failed to validate request'
           })
         }
+        // RFC 8252 §7.1: native apps may use custom URI schemes (e.g. myapp://callback)
+        // or http://localhost for loopback redirect. new URL() already rejects
+        // javascript: and data: URIs.
         for (const uri of redirectUris) {
           try {
             new URL(uri)
