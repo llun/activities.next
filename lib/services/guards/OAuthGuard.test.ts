@@ -64,7 +64,8 @@ jest.mock('@/lib/config', () => ({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'secret phases'
-  })
+  }),
+  getBaseURL: () => 'https://llun.test'
 }))
 
 // Mock verifyAccessToken from better-auth

@@ -8,7 +8,8 @@ import {
 } from './index'
 
 jest.mock('@/lib/config', () => ({
-  getConfig: jest.fn().mockReturnValue({ host: 'test.example.com' })
+  getConfig: jest.fn().mockReturnValue({ host: 'test.example.com' }),
+  getBaseURL: jest.fn().mockReturnValue('https://test.example.com')
 }))
 
 describe('wellknown services', () => {

@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/config'
+import { getBaseURL } from '@/lib/config'
 import { UsableScopes } from '@/lib/types/database/operations'
 
 export interface OAuthAuthorizationServerMetadata {
@@ -18,12 +18,7 @@ export interface OAuthAuthorizationServerMetadata {
 
 export const getOAuthAuthorizationServerMetadata =
   (): OAuthAuthorizationServerMetadata => {
-    const config = getConfig()
-    const scheme =
-      process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'
-    const baseURL = config.host.includes('://')
-      ? config.host
-      : `${scheme}://${config.host}`
+    const baseURL = getBaseURL()
     return {
       issuer: baseURL,
       authorization_endpoint: `${baseURL}/api/auth/oauth2/authorize`,

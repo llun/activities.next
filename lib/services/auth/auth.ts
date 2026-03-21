@@ -4,7 +4,7 @@ import { betterAuth } from 'better-auth'
 import { jwt } from 'better-auth/plugins'
 import memoize from 'lodash/memoize'
 
-import { getConfig } from '@/lib/config'
+import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
 import { logger } from '@/lib/utils/logger'
 
@@ -18,9 +18,7 @@ export const getAuth = memoize(() => {
   const database = getDatabase()
   const db = getKnex()
 
-  const baseURL = config.host.includes('://')
-    ? config.host
-    : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`
+  const baseURL = getBaseURL()
 
   return betterAuth({
     logger: {

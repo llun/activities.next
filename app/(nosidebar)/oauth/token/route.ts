@@ -5,7 +5,6 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import {
   StatusCode,
-  apiErrorResponse,
   apiResponse,
   codeMap,
   defaultOptions
@@ -33,7 +32,12 @@ export const POST = async (req: NextRequest) => {
     response = await auth.handler(proxyReq)
   } catch (e) {
     logger.error({ message: 'Token endpoint handler threw', error: e })
-    return apiErrorResponse(500)
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: codeMap[500],
+      responseStatusCode: 500
+    })
   }
 
   let data: Record<string, unknown> = {}

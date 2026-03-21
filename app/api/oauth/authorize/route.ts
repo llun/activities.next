@@ -1,17 +1,10 @@
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '@/lib/config'
+import { getBaseURL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
 
 // Redirect to better-auth's OAuth2 authorize endpoint for Mastodon compatibility
 // Mastodon clients may hit /api/oauth/authorize directly
-const getBaseURL = () => {
-  const config = getConfig()
-  return config.host.includes('://')
-    ? config.host
-    : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`
-}
-
 export const GET = (req: NextRequest) => {
   const url = new URL('/api/auth/oauth2/authorize', getBaseURL())
   url.search = req.nextUrl.search

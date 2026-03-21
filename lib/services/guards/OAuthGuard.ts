@@ -2,7 +2,7 @@ import { verifyAccessToken } from 'better-auth/oauth2'
 import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '@/lib/config'
+import { getBaseURL } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Scope } from '@/lib/types/database/operations'
@@ -53,11 +53,7 @@ export const OAuthGuard =
       return apiErrorResponse(401)
     }
 
-    const config = getConfig()
-    const baseURL = config.host.includes('://')
-      ? config.host
-      : `${process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'}://${config.host}`
-
+    const baseURL = getBaseURL()
     const jwksUrl = `${baseURL}/api/auth/jwks`
 
     // verifyAccessToken throws for any auth failure (expired, invalid, wrong scope, etc.)

@@ -11,7 +11,7 @@ import {
   SuccessResponse
 } from './types'
 
-const hashClientSecret = async (secret: string): Promise<string> => {
+const hashClientSecret = (secret: string): string => {
   const hash = crypto.createHash('sha256').update(secret).digest()
   return hash
     .toString('base64')
@@ -52,7 +52,7 @@ export const createApplication = async (
         // Create new client
         const clientId = generateRandomString(32)
         const clientSecret = generateRandomString(32)
-        const hashedSecret = await hashClientSecret(clientSecret)
+        const hashedSecret = hashClientSecret(clientSecret)
         const parsedScopes = scopes
           .split(' ')
           .map((scope) => Scope.parse(scope))

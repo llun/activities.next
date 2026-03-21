@@ -142,6 +142,10 @@ exports.up = async (knex) => {
 }
 
 /**
+ * WARNING: This rollback is destructive. Dropping the oauthClient table will
+ * permanently delete all OAuth client registrations and associated tokens.
+ * Data migrated from the legacy 'clients' table cannot be recovered.
+ *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
