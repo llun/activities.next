@@ -3,7 +3,12 @@ import { NextRequest } from 'next/server'
 import { getAuth } from '@/lib/services/auth/auth'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { apiResponse, codeMap, defaultOptions } from '@/lib/utils/response'
+import {
+  StatusCode,
+  apiResponse,
+  codeMap,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -25,18 +30,24 @@ export const POST = traceApiRoute('revokeToken', async (req: NextRequest) => {
 
   try {
     const revokeResponse = await auth.handler(proxyReq)
-    // Per RFC 7009 §2.2, return 200 for invalid/unknown tokens (treat as
-    // already revoked). For server-side failures (5xx), propagate the error.
-    if (revokeResponse.status >= 500) {
-      logger.error({
-        message: 'Token revocation failed',
-        status: revokeResponse.status
-      })
+    if (!revokeResponse.ok) {
+      if (revokeResponse.status >= 500) {
+        logger.error({
+          message: 'Token revocation failed',
+          status: revokeResponse.status
+        })
+      }
+      // RFC 7009 §2.2 + RFC 6749 §5.2: propagate 4xx (e.g. 401 for
+      // invalid client credentials, 400 for malformed requests) and 5xx.
+      const errData = await revokeResponse.json().catch(() => ({}))
+      const status = revokeResponse.status
+      const mappedStatus: StatusCode =
+        status in codeMap ? (status as StatusCode) : status >= 500 ? 500 : 400
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: codeMap[500],
-        responseStatusCode: 500
+        data: errData,
+        responseStatusCode: mappedStatus
       })
     }
   } catch (e) {
