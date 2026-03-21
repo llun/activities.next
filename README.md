@@ -137,16 +137,16 @@ For PostgreSQL or advanced Docker setups, see:
 
 ## 📚 Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Setup Guide](docs/setup.md) | General configuration and first-time setup |
-| [Architecture](docs/architecture.md) | System architecture, data flow, and design decisions |
-| [SQLite Setup](docs/sqlite-setup.md) | SQLite database configuration and Docker deployment |
-| [PostgreSQL Setup](docs/postgresql-setup.md) | PostgreSQL database configuration and Docker deployment |
-| [Environment Variables](docs/environment-variables.md) | Complete reference for all configuration options |
-| [Feature Roadmap](docs/features.md) | Current and planned features |
-| [Maintenance Scripts](docs/maintenance.md) | Admin scripts for media cleanup and user management |
-| [Contributing](CONTRIBUTING.md) | Guidelines for contributors |
+| Document                                               | Description                                             |
+| ------------------------------------------------------ | ------------------------------------------------------- |
+| [Setup Guide](docs/setup.md)                           | General configuration and first-time setup              |
+| [Architecture](docs/architecture.md)                   | System architecture, data flow, and design decisions    |
+| [SQLite Setup](docs/sqlite-setup.md)                   | SQLite database configuration and Docker deployment     |
+| [PostgreSQL Setup](docs/postgresql-setup.md)           | PostgreSQL database configuration and Docker deployment |
+| [Environment Variables](docs/environment-variables.md) | Complete reference for all configuration options        |
+| [Feature Roadmap](docs/features.md)                    | Current and planned features                            |
+| [Maintenance Scripts](docs/maintenance.md)             | Admin scripts for media cleanup and user management     |
+| [Contributing](CONTRIBUTING.md)                        | Guidelines for contributors                             |
 
 ## 🤝 Contributing
 

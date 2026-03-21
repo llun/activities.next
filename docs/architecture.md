@@ -116,30 +116,30 @@ User Action ──→ Service Layer ──→ Queue Job
 
 The frontend and API layer, organized using Next.js route groups:
 
-| Directory | Purpose |
-|-----------|---------|
-| `app/(timeline)/` | Main app pages with sidebar (home, profile, notifications, settings) |
-| `app/(nosidebar)/` | Authentication pages without sidebar (login, signup, OAuth consent) |
-| `app/api/auth/` | Authentication endpoints (better-auth) |
-| `app/api/v1/` | Mastodon-compatible API v1 (statuses, timelines, accounts, notifications) |
-| `app/api/v2/` | Mastodon-compatible API v2 (instance info, media, search) |
-| `app/api/users/` | ActivityPub actor endpoints (inbox, outbox, followers, following) |
-| `app/api/oauth/` | OAuth 2.0 provider endpoints (authorize, token, userinfo, revoke) |
-| `app/api/well-known/` | Federation discovery (WebFinger, NodeInfo, OAuth metadata) |
+| Directory             | Purpose                                                                   |
+| --------------------- | ------------------------------------------------------------------------- |
+| `app/(timeline)/`     | Main app pages with sidebar (home, profile, notifications, settings)      |
+| `app/(nosidebar)/`    | Authentication pages without sidebar (login, signup, OAuth consent)       |
+| `app/api/auth/`       | Authentication endpoints (better-auth)                                    |
+| `app/api/v1/`         | Mastodon-compatible API v1 (statuses, timelines, accounts, notifications) |
+| `app/api/v2/`         | Mastodon-compatible API v2 (instance info, media, search)                 |
+| `app/api/users/`      | ActivityPub actor endpoints (inbox, outbox, followers, following)         |
+| `app/api/oauth/`      | OAuth 2.0 provider endpoints (authorize, token, userinfo, revoke)         |
+| `app/api/well-known/` | Federation discovery (WebFinger, NodeInfo, OAuth metadata)                |
 
 ### `lib/` — Core Business Logic
 
-| Directory | Purpose |
-|-----------|---------|
-| `lib/activities/` | ActivityPub protocol — building and processing Activity objects |
-| `lib/services/` | Business logic services (auth, media, notifications, email, etc.) |
+| Directory              | Purpose                                                                     |
+| ---------------------- | --------------------------------------------------------------------------- |
+| `lib/activities/`      | ActivityPub protocol — building and processing Activity objects             |
+| `lib/services/`        | Business logic services (auth, media, notifications, email, etc.)           |
 | `lib/services/guards/` | Request authentication guards (session, OAuth token, ActivityPub signature) |
-| `lib/database/` | Database abstraction layer using Knex query builder |
-| `lib/jobs/` | Background job handlers (sending activities, processing uploads) |
-| `lib/components/` | Shared React components (posts, post-box, settings, UI primitives) |
-| `lib/config/` | Configuration loading and validation (Zod schemas) |
-| `lib/types/` | TypeScript type definitions (ActivityPub, Mastodon API, database, domain) |
-| `lib/utils/` | Utility functions (logger, API response helpers, text processing) |
+| `lib/database/`        | Database abstraction layer using Knex query builder                         |
+| `lib/jobs/`            | Background job handlers (sending activities, processing uploads)            |
+| `lib/components/`      | Shared React components (posts, post-box, settings, UI primitives)          |
+| `lib/config/`          | Configuration loading and validation (Zod schemas)                          |
+| `lib/types/`           | TypeScript type definitions (ActivityPub, Mastodon API, database, domain)   |
+| `lib/utils/`           | Utility functions (logger, API response helpers, text processing)           |
 
 ### `migrations/` — Database Schema
 
@@ -220,19 +220,19 @@ Other tables: sessions, notifications, medias, fitness_files,
 
 ## Technology Stack
 
-| Layer | Technology |
-|-------|------------|
-| **Runtime** | Node.js 24 |
-| **Framework** | Next.js 16 (App Router) |
-| **Language** | TypeScript (strict mode) |
-| **UI Library** | React 19 |
-| **Styling** | Tailwind CSS |
-| **UI Components** | Radix UI primitives |
-| **Database** | Knex.js (SQLite / PostgreSQL) |
-| **Authentication** | better-auth |
-| **Logging** | Pino |
-| **Testing** | Jest (with SWC transforms) |
-| **Code Quality** | ESLint + Prettier |
-| **Package Manager** | Yarn 4.12.0 |
-| **Containerization** | Docker (Alpine-based) |
-| **Observability** | OpenTelemetry (optional) |
+| Layer                | Technology                    |
+| -------------------- | ----------------------------- |
+| **Runtime**          | Node.js 24                    |
+| **Framework**        | Next.js 16 (App Router)       |
+| **Language**         | TypeScript (strict mode)      |
+| **UI Library**       | React 19                      |
+| **Styling**          | Tailwind CSS                  |
+| **UI Components**    | Radix UI primitives           |
+| **Database**         | Knex.js (SQLite / PostgreSQL) |
+| **Authentication**   | better-auth                   |
+| **Logging**          | Pino                          |
+| **Testing**          | Jest (with SWC transforms)    |
+| **Code Quality**     | ESLint + Prettier             |
+| **Package Manager**  | Yarn 4.12.0                   |
+| **Containerization** | Docker (Alpine-based)         |
+| **Observability**    | OpenTelemetry (optional)      |

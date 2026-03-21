@@ -189,7 +189,7 @@ logger.error({ message: 'Error occurred', error })
 - **Never** use `Response.json()` directly in API routes
 
 ```typescript
-import { apiResponse, apiErrorResponse, StatusCode } from '@/lib/utils/response'
+import { StatusCode, apiErrorResponse, apiResponse } from '@/lib/utils/response'
 
 return apiResponse({ data: result })
 return apiErrorResponse(StatusCode.NotFound)
