@@ -110,3 +110,11 @@ export const getConfig = memoize((): Config => {
 
   throw new Error('Fail to read Activities.next config')
 })
+
+export const getBaseURL = (): string => {
+  const config = getConfig()
+  if (config.host.includes('://')) return config.host
+  const scheme =
+    process.env.ACTIVITIES_INSECURE_AUTH === 'true' ? 'http' : 'https'
+  return `${scheme}://${config.host}`
+}

@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getConfig } from '@/lib/config'
+import { getBaseURL } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Actor } from '@/lib/types/domain/actor'
@@ -38,11 +38,19 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return notFound()
   }
 
+  // Validate redirect_uri against registered URIs to prevent open redirect
+  if (
+    params.redirect_uri &&
+    !client.redirectUris.includes(params.redirect_uri)
+  ) {
+    return notFound()
+  }
+
   if (!actor || !actor.account) {
-    const url = new URL('/auth/signin', `https://${getConfig().host}`)
+    const url = new URL('/auth/signin', getBaseURL())
     url.searchParams.append(
       'redirectBack',
-      `/oauth/authorize?${new URLSearchParams(Object.entries(params))}`
+      `/oauth/authorize?${new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][])}`
     )
     return redirect(url.toString())
   }
