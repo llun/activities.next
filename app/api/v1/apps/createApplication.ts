@@ -60,8 +60,9 @@ export const createApplication = async (
         const parsedScopes = scopes
           .split(' ')
           .map((scope) => Scope.parse(scope))
+        // Mastodon API: multiple redirect URIs are newline-separated
         const redirectUris = request.redirect_uris
-          .split(' ')
+          .split('\n')
           .map((uri) => uri.trim())
           .filter(Boolean)
         if (redirectUris.length === 0) {
@@ -91,8 +92,9 @@ export const createApplication = async (
         }
         const now = new Date()
 
+        const dbId = crypto.randomUUID()
         await db('oauthClient').insert({
-          id: crypto.randomUUID(),
+          id: dbId,
           clientId,
           clientSecret: hashedSecret,
           name: request.client_name,
@@ -114,7 +116,7 @@ export const createApplication = async (
 
         return SuccessResponse.parse({
           type: 'success',
-          id: clientId,
+          id: dbId,
           client_id: clientId,
           client_secret: clientSecret,
           name: request.client_name,

@@ -23,6 +23,7 @@ describe('wellknown services', () => {
           'https://test.example.com/api/auth/oauth2/authorize',
         token_endpoint: 'https://test.example.com/oauth/token',
         revocation_endpoint: 'https://test.example.com/api/oauth/revoke',
+        jwks_uri: 'https://test.example.com/api/auth/jwks',
         response_types_supported: ['code'],
         response_modes_supported: ['query'],
         grant_types_supported: [

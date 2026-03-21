@@ -52,7 +52,10 @@ describe('createApplication', () => {
       website: 'https://test.llun.dev',
       redirect_uri: 'https://test.llun.dev/apps/redirect'
     })
-    expect(response.id).toEqual(response.client_id)
+    expect(response.id).not.toEqual(response.client_id)
+    expect(response.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+    )
   })
 
   test('it always creates a new application even when one with the same name exists', async () => {
@@ -97,5 +100,17 @@ describe('createApplication', () => {
       type: 'error',
       error: 'Failed to validate request'
     })
+  })
+
+  test('it supports newline-separated redirect URIs per Mastodon API spec', async () => {
+    const response = (await createApplication({
+      redirect_uris:
+        'https://test.llun.dev/callback\nhttps://test.llun.dev/alt-callback',
+      client_name: 'multiRedirectClient',
+      scopes: 'read',
+      website: 'https://test.llun.dev'
+    })) as SuccessResponse
+    expect(response.type).toEqual('success')
+    expect(response.redirect_uri).toEqual('https://test.llun.dev/callback')
   })
 })
