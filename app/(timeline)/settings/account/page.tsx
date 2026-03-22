@@ -11,6 +11,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { ChangeEmailForm } from './ChangeEmailForm'
 import { ChangeNameForm } from './ChangeNameForm'
 import { ChangePasswordForm } from './ChangePasswordForm'
+import { PasskeyManager } from './PasskeyManager'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,6 +84,16 @@ const Page = async () => {
         </div>
 
         <ChangePasswordForm />
+      </section>
+
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">Passkeys</h2>
+          <p className="text-sm text-muted-foreground">
+            Use biometrics or a hardware key to sign in without a password.
+          </p>
+        </div>
+        <PasskeyManager />
       </section>
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
