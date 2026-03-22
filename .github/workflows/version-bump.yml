@@ -32,9 +32,9 @@ jobs:
         id: bump
         run: |
           # Skip if the push is a version bump commit from this workflow
-          HEAD_MSG=$(git log -1 --pretty=format:"%s")
-          if echo "$HEAD_MSG" | grep -qE '^Bump version to v'; then
-            echo "Skipping: head commit is a version bump."
+          HEAD_AUTHOR=$(git log -1 --pretty=format:"%ae")
+          if [ "$HEAD_AUTHOR" = "github-actions[bot]@users.noreply.github.com" ]; then
+            echo "Skipping: head commit is from github-actions[bot]."
             echo "new_version=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -69,7 +69,8 @@ jobs:
             BODY=$(git log -1 --pretty=format:"%b" "$hash")
 
             # Skip version bump commits from this workflow
-            if echo "$SUBJECT" | grep -qE '^Bump version to v'; then
+            AUTHOR_EMAIL=$(git log -1 --pretty=format:"%ae" "$hash")
+            if [ "$AUTHOR_EMAIL" = "github-actions[bot]@users.noreply.github.com" ]; then
               continue
             fi
 
@@ -85,8 +86,8 @@ jobs:
               break
             fi
 
-            # Check for new features (minor bump)
-            if echo "$SUBJECT" | grep -qE '^feat(\(.+\))?:'; then
+            # Check for new features (minor bump, only upgrade from patch)
+            if [ "$BUMP" != "minor" ] && echo "$SUBJECT" | grep -qE '^feat(\(.+\))?:'; then
               BUMP="minor"
             fi
           done <<< "$COMMIT_HASHES"
