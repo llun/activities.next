@@ -11,6 +11,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   version-bump:
@@ -31,10 +32,10 @@ jobs:
       - name: Determine version bump
         id: bump
         run: |
-          # Skip if the push is a version bump commit from this workflow
-          HEAD_AUTHOR=$(git log -1 --pretty=format:"%ae")
-          if [ "$HEAD_AUTHOR" = "github-actions[bot]@users.noreply.github.com" ]; then
-            echo "Skipping: head commit is from github-actions[bot]."
+          # Skip if the push is a version bump commit (from a merged version-bump PR)
+          HEAD_MSG=$(git log -1 --pretty=format:"%s")
+          if echo "$HEAD_MSG" | grep -qE '^Bump version to v'; then
+            echo "Skipping: version bump commit already on main."
             echo "new_version=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -68,9 +69,8 @@ jobs:
             SUBJECT=$(git log -1 --pretty=format:"%s" "$hash")
             BODY=$(git log -1 --pretty=format:"%b" "$hash")
 
-            # Skip version bump commits from this workflow
-            AUTHOR_EMAIL=$(git log -1 --pretty=format:"%ae" "$hash")
-            if [ "$AUTHOR_EMAIL" = "github-actions[bot]@users.noreply.github.com" ]; then
+            # Skip version bump commits
+            if echo "$SUBJECT" | grep -qE '^Bump version to v'; then
               continue
             fi
 
@@ -131,28 +131,38 @@ jobs:
         run: |
           npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version
 
-      - name: Commit, tag, and push
+      - name: Create branch, commit, and open PR with auto-merge
         if: steps.bump.outputs.new_version != ''
         env:
           NEW_VERSION: ${{ steps.bump.outputs.new_version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Pull latest remote to avoid non-fast-forward failures from queued runs
-          # Use --autostash to handle unstaged changes from npm version
-          git pull --rebase --autostash origin main
-          git add package.json
-          if git diff --cached --quiet; then
-            echo "No file changes, creating tag only."
-          else
-            git commit -m "Bump version to v${NEW_VERSION}"
-          fi
-          if git rev-parse "v${NEW_VERSION}" >/dev/null 2>&1; then
-            echo "Tag v${NEW_VERSION} already exists, skipping."
+          BRANCH="version-bump/v${NEW_VERSION}"
+
+          # Skip if the branch already exists on remote
+          if git ls-remote --heads origin "$BRANCH" | grep -q .; then
+            echo "Branch $BRANCH already exists, skipping."
             exit 0
           fi
-          git tag -a "v${NEW_VERSION}" -m "Version ${NEW_VERSION}"
-          git push origin main
-          if git ls-remote --tags origin "refs/tags/v${NEW_VERSION}" | grep -q .; then
-            echo "Tag v${NEW_VERSION} already exists on remote, skipping tag push."
-          else
-            git push origin "v${NEW_VERSION}"
+
+          git checkout -b "$BRANCH"
+          git add package.json
+          git commit -m "Bump version to v${NEW_VERSION}"
+          git push origin "$BRANCH"
+
+          # Skip if a PR for this branch already exists
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR already exists: #${EXISTING_PR}"
+            exit 0
           fi
+
+          PR_URL=$(gh pr create \
+            --title "Bump version to v${NEW_VERSION}" \
+            --body "Automated version bump to v${NEW_VERSION}." \
+            --base main \
+            --head "$BRANCH")
+
+          echo "Created PR: $PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
+          echo "Enabled auto-merge for $PR_URL"
