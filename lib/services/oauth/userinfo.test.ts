@@ -136,7 +136,28 @@ describe('#getUserInfo', () => {
     expect(userInfo).not.toHaveProperty('email_verified')
   })
 
-  it('returns email_verified false when emailVerifiedAt is null', () => {
+  it('returns email_verified true when verifiedAt is set', () => {
+    const now = Date.now()
+    const account: Account = {
+      id: 'account-3',
+      email: 'verified@example.com',
+      emailVerifiedAt: null,
+      verifiedAt: now,
+      createdAt: now,
+      updatedAt: now
+    }
+
+    const userInfo = getUserInfo({
+      actor: makeActor({ account }),
+      account,
+      scopes: ['openid', 'email']
+    })
+
+    expect(userInfo.email).toBe('verified@example.com')
+    expect(userInfo.email_verified).toBe(true)
+  })
+
+  it('returns email_verified false when neither verifiedAt nor emailVerifiedAt is set', () => {
     const now = Date.now()
     const account: Account = {
       id: 'account-2',

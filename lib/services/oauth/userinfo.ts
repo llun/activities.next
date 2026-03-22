@@ -49,7 +49,8 @@ export const getUserInfo = ({
     ...(includeEmail && email != null
       ? {
           email,
-          email_verified: account?.emailVerifiedAt != null
+          email_verified:
+            account?.verifiedAt != null || account?.emailVerifiedAt != null
         }
       : {})
   }
