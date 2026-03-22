@@ -2,7 +2,7 @@
 
 This document lists all environment variables supported by Activity.next.
 
-Configuration can be provided either through environment variables or a `config.json` file in the project root. When both are present, `config.json` values take precedence.
+Configuration can be provided either through environment variables or a `config.json` file in the project root. When a valid `config.json` is present, it is used exclusively and all environment variables are ignored — the two sources are **not** merged.
 
 ## Core Configuration
 
@@ -130,7 +130,6 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 
 | Variable                               | Description                                                |
 | -------------------------------------- | ---------------------------------------------------------- |
-| `ACTIVITIES_QUEUE`                     | Full queue configuration as a JSON string.                 |
 | `ACTIVITIES_QUEUE_TYPE`                | Queue backend: `qstash`.                                   |
 | `ACTIVITIES_QUEUE_URL`                 | Base URL for queue callbacks (your instance's public URL). |
 | `ACTIVITIES_QUEUE_TOKEN`               | QStash API token.                                          |
@@ -154,10 +153,9 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 
 ## Internal API
 
-| Variable                          | Description                                 |
-| --------------------------------- | ------------------------------------------- |
-| `ACTIVITIES_INTERNAL_API_ENABLED` | Set to `true` to enable the internal API.   |
-| `ACTIVITIES_INTERNAL_SHARED_KEY`  | Shared key for internal API authentication. |
+| Variable                         | Description                                                                                                            |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_INTERNAL_SHARED_KEY` | Shared key for internal API authentication. Setting any `ACTIVITIES_INTERNAL_API_*` variable enables the internal API. |
 
 ## Observability
 
@@ -207,13 +205,13 @@ All environment variables can alternatively be set in a `config.json` file. Here
   "email": {
     "type": "smtp",
     "serviceFromAddress": "noreply@social.example.com",
-    "smtp": {
-      "host": "smtp.example.com",
-      "port": 587,
+    "host": "smtp.example.com",
+    "port": 587,
+    "auth": {
       "user": "username",
-      "password": "password",
-      "secure": true
-    }
+      "pass": "password"
+    },
+    "secure": false
   },
   "mediaStorage": {
     "type": "s3",

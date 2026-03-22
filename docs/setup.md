@@ -18,7 +18,7 @@ Activity.next supports multiple SQL database backends. Choose the one that best 
 
 ## General Configuration
 
-Activity.next can be configured through a `config.json` file in the project root or through environment variables prefixed with `ACTIVITIES_`. Environment variables take the form `ACTIVITIES_<SECTION>_<KEY>`.
+Activity.next can be configured through a `config.json` file in the project root or through environment variables prefixed with `ACTIVITIES_`. Top-level options use `ACTIVITIES_<KEY>` (e.g., `ACTIVITIES_HOST`); nested options use `ACTIVITIES_<SECTION>_<KEY>` (e.g., `ACTIVITIES_AUTH_GITHUB_ID`).
 
 For a complete reference of all configuration options, see the [Environment Variables Guide](environment-variables.md).
 
@@ -152,7 +152,7 @@ ACTIVITIES_EMAIL_SMTP_HOST=smtp.example.com
 ACTIVITIES_EMAIL_SMTP_PORT=587
 ACTIVITIES_EMAIL_SMTP_USER=your-username
 ACTIVITIES_EMAIL_SMTP_PASSWORD=your-password
-ACTIVITIES_EMAIL_SMTP_SECURE=true
+ACTIVITIES_EMAIL_SMTP_SECURE=false
 ```
 
 #### Resend

@@ -114,7 +114,6 @@ To deploy Activity.next with SQLite using Docker:
 docker run -p 3000:3000 \
   -e ACTIVITIES_HOST=your.domain.tld \
   -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
-  -e ACTIVITIES_DATABASE_TYPE=sql \
   -e ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
   -e ACTIVITIES_DATABASE_SQLITE_FILENAME=/opt/activities.next/data.sqlite \
   -v /path/to/local/storage:/opt/activities.next \

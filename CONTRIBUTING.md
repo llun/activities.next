@@ -53,7 +53,7 @@ This project follows the standard open source code of conduct. Be respectful, in
    # Edit .env.local with your local configuration
    ```
 
-   At minimum, set `ACTIVITIES_HOST` and `ACTIVITIES_SECRET_PHASE`.
+   At minimum, set `ACTIVITIES_HOST`, `ACTIVITIES_SECRET_PHASE`, and a database configuration (e.g., `ACTIVITIES_DATABASE_CLIENT=better-sqlite3`).
 
 5. **Run database migrations**:
 
@@ -189,10 +189,17 @@ logger.error({ message: 'Error occurred', error })
 - **Never** use `Response.json()` directly in API routes
 
 ```typescript
-import { StatusCode, apiErrorResponse, apiResponse } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 
-return apiResponse({ data: result })
-return apiErrorResponse(StatusCode.NotFound)
+// Success response (requires req and allowedMethods for CORS headers)
+return apiResponse({ req, allowedMethods: ['GET'], data: result })
+
+// Error response
+return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
 ```
 
 ## Testing
@@ -246,10 +253,10 @@ describe('createNote', () => {
 Run all checks in order:
 
 ```bash
-yarn run prettier --write .   # Format code
-yarn lint                     # Lint — must pass with no errors
-yarn build                    # Build — must succeed
-yarn test                     # Tests — must pass
+yarn prettier                    # Format code
+yarn lint                        # Lint — must pass with no errors
+yarn build                       # Build — must succeed
+yarn test                        # Tests — must pass
 ```
 
 Also:

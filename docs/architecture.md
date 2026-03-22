@@ -162,7 +162,7 @@ Authentication is handled by [better-auth](https://www.better-auth.com/), which 
 - Local email/password authentication
 - GitHub OAuth sign-in
 - Session management stored in the database
-- JWT tokens for API access
+- OAuth 2.0 access tokens (JWT and opaque) for API access
 
 The application also acts as an **OAuth 2.0 provider** (using better-auth's OAuth provider plugin), allowing third-party applications to authenticate users and access the API.
 

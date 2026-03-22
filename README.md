@@ -89,7 +89,7 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
    # Edit .env.local with your configuration
    ```
 
-   At minimum, set `ACTIVITIES_HOST` and `ACTIVITIES_SECRET_PHASE`.
+   At minimum, set `ACTIVITIES_HOST`, `ACTIVITIES_SECRET_PHASE`, and a database configuration (e.g., `ACTIVITIES_DATABASE_CLIENT=better-sqlite3`).
 
 5. **Run database migrations:**
 
