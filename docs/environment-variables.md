@@ -32,17 +32,30 @@ Activity.next supports SQLite and PostgreSQL. See [SQLite Setup](sqlite-setup.md
 
 ### Individual Variables (PostgreSQL)
 
-| Variable                          | Description                        |
-| --------------------------------- | ---------------------------------- |
-| `ACTIVITIES_DATABASE_CLIENT`      | Set to `pg` for PostgreSQL.        |
-| `ACTIVITIES_DATABASE_PG_HOST`     | PostgreSQL host.                   |
-| `ACTIVITIES_DATABASE_PG_PORT`     | PostgreSQL port (default: `5432`). |
-| `ACTIVITIES_DATABASE_PG_USER`     | PostgreSQL username.               |
-| `ACTIVITIES_DATABASE_PG_PASSWORD` | PostgreSQL password.               |
-| `ACTIVITIES_DATABASE_PG_DATABASE` | PostgreSQL database name.          |
-| `ACTIVITIES_DATABASE_PG_SSL_MODE` | SSL mode (e.g., `require`).        |
-| `ACTIVITIES_DATABASE_PG_POOL_MIN` | Minimum connection pool size.      |
-| `ACTIVITIES_DATABASE_PG_POOL_MAX` | Maximum connection pool size.      |
+| Variable                          | Description                                                                                                                                                                                                                                                                                                      |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_DATABASE_CLIENT`      | Set to `pg` for PostgreSQL.                                                                                                                                                                                                                                                                                      |
+| `ACTIVITIES_DATABASE_PG_HOST`     | PostgreSQL host.                                                                                                                                                                                                                                                                                                 |
+| `ACTIVITIES_DATABASE_PG_PORT`     | PostgreSQL port (default: `5432`).                                                                                                                                                                                                                                                                               |
+| `ACTIVITIES_DATABASE_PG_USER`     | PostgreSQL username.                                                                                                                                                                                                                                                                                             |
+| `ACTIVITIES_DATABASE_PG_PASSWORD` | PostgreSQL password.                                                                                                                                                                                                                                                                                             |
+| `ACTIVITIES_DATABASE_PG_DATABASE` | PostgreSQL database name.                                                                                                                                                                                                                                                                                        |
+| `ACTIVITIES_DATABASE_PG_SSL_MODE` | PostgreSQL SSL mode: `disable`, `require`, `verify-ca`, or `verify-full`. When set to `require`, `allow`, or `prefer`, SSL is enabled without certificate verification. When set to `verify-ca` or `verify-full`, SSL is enabled with certificate verification. When set to `disable` or unset, SSL is not used. |
+| `ACTIVITIES_DATABASE_PG_POOL_MIN` | Minimum connection pool size.                                                                                                                                                                                                                                                                                    |
+| `ACTIVITIES_DATABASE_PG_POOL_MAX` | Maximum connection pool size.                                                                                                                                                                                                                                                                                    |
+
+### Individual Variables (MySQL)
+
+| Variable                             | Description                           |
+| ------------------------------------ | ------------------------------------- |
+| `ACTIVITIES_DATABASE_CLIENT`         | Set to `mysql` or `mysql2` for MySQL. |
+| `ACTIVITIES_DATABASE_MYSQL_HOST`     | MySQL host.                           |
+| `ACTIVITIES_DATABASE_MYSQL_PORT`     | MySQL port (default: `3306`).         |
+| `ACTIVITIES_DATABASE_MYSQL_USER`     | MySQL username.                       |
+| `ACTIVITIES_DATABASE_MYSQL_PASSWORD` | MySQL password.                       |
+| `ACTIVITIES_DATABASE_MYSQL_DATABASE` | MySQL database name.                  |
+| `ACTIVITIES_DATABASE_MYSQL_POOL_MIN` | Minimum connection pool size.         |
+| `ACTIVITIES_DATABASE_MYSQL_POOL_MAX` | Maximum connection pool size.         |
 
 ## Authentication
 

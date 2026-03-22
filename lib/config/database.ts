@@ -48,8 +48,17 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
             ...(process.env.ACTIVITIES_DATABASE_PG_DATABASE
               ? { database: process.env.ACTIVITIES_DATABASE_PG_DATABASE }
               : {}),
-            ...(process.env.ACTIVITIES_DATABASE_PG_SSL_MODE
-              ? { ssl: { rejectUnauthorized: false } }
+            ...(process.env.ACTIVITIES_DATABASE_PG_SSL_MODE &&
+            process.env.ACTIVITIES_DATABASE_PG_SSL_MODE !== 'disable'
+              ? {
+                  ssl: {
+                    rejectUnauthorized:
+                      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
+                        'verify-ca' ||
+                      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
+                        'verify-full'
+                  }
+                }
               : {})
           },
           pool: {

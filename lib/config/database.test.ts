@@ -78,7 +78,7 @@ describe('Database config', () => {
       expect(conn.user).toBe('user')
     })
 
-    it('builds pg-native config with ssl', () => {
+    it('builds pg-native config with ssl require', () => {
       process.env.ACTIVITIES_DATABASE_CLIENT = 'pg-native'
       process.env.ACTIVITIES_DATABASE_PG_SSL_MODE = 'require'
 
@@ -90,6 +90,43 @@ describe('Database config', () => {
         ssl: { rejectUnauthorized: boolean }
       }
       expect(conn.ssl.rejectUnauthorized).toBe(false)
+    })
+
+    it('builds pg config with ssl verify-full', () => {
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'pg'
+      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE = 'verify-full'
+
+      const config = getDatabaseConfig()
+
+      expect(config).not.toBeNull()
+      const conn = config?.database.connection as {
+        ssl: { rejectUnauthorized: boolean }
+      }
+      expect(conn.ssl.rejectUnauthorized).toBe(true)
+    })
+
+    it('builds pg config with ssl verify-ca', () => {
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'pg'
+      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE = 'verify-ca'
+
+      const config = getDatabaseConfig()
+
+      expect(config).not.toBeNull()
+      const conn = config?.database.connection as {
+        ssl: { rejectUnauthorized: boolean }
+      }
+      expect(conn.ssl.rejectUnauthorized).toBe(true)
+    })
+
+    it('builds pg config with ssl disable', () => {
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'pg'
+      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE = 'disable'
+
+      const config = getDatabaseConfig()
+
+      expect(config).not.toBeNull()
+      const conn = config?.database.connection as Record<string, unknown>
+      expect(conn.ssl).toBeUndefined()
     })
 
     it('builds mysql config from env vars', () => {
