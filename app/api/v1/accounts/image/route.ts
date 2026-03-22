@@ -1,17 +1,13 @@
-import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const UpdateImageRequest = z.object({
-  iconUrl: z
-    .string()
-    .trim()
-    .url()
-    .transform((v) => v || null)
-    .nullable()
-    .optional()
+  iconUrl: z.preprocess(
+    (val) => (val === '' ? null : val),
+    z.string().trim().url().max(255).nullable().optional()
+  )
 })
 
 export const POST = traceApiRoute(
@@ -22,11 +18,14 @@ export const POST = traceApiRoute(
 
     const formData = await req.formData()
     const parsed = UpdateImageRequest.safeParse({
-      iconUrl: formData.get('iconUrl') || null
+      iconUrl: formData.get('iconUrl') ?? null
     })
 
     if (!parsed.success) {
-      redirect('/settings/account')
+      return Response.redirect(
+        new URL('/settings/account?error=Invalid+image+URL', req.url),
+        303
+      )
     }
 
     await database.updateAccountImage({
@@ -34,6 +33,6 @@ export const POST = traceApiRoute(
       iconUrl: parsed.data.iconUrl ?? null
     })
 
-    redirect('/settings/account')
+    return Response.redirect(new URL('/settings/account', req.url), 303)
   })
 )

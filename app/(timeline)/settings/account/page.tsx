@@ -21,7 +21,11 @@ export const metadata: Metadata = {
   title: 'Activities.next: Account Settings'
 }
 
-const Page = async () => {
+const Page = async ({
+  searchParams
+}: {
+  searchParams: Promise<{ error?: string }>
+}) => {
   const database = getDatabase()
   if (!database) {
     throw new Error('Fail to load database')
@@ -34,6 +38,7 @@ const Page = async () => {
   }
 
   const account = actor.account
+  const { error } = await searchParams
 
   return (
     <div className="space-y-6">
@@ -54,14 +59,18 @@ const Page = async () => {
         <ChangeNameForm currentName={account.name || ''} />
       </section>
 
-      <form action="/api/v1/accounts/image" method="post">
-        <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold">Profile Image</h2>
-            <p className="text-sm text-muted-foreground">
-              Your account avatar used in admin and account lists.
-            </p>
-          </div>
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">Profile Image</h2>
+          <p className="text-sm text-muted-foreground">
+            Your account avatar used in admin and account lists.
+          </p>
+        </div>
+        <form
+          action="/api/v1/accounts/image"
+          method="post"
+          className="space-y-4"
+        >
           <ImageUploadField
             fieldName="iconUrl"
             currentUrl={account.iconUrl || null}
@@ -69,11 +78,12 @@ const Page = async () => {
             placeholder="https://example.com/avatar.jpg"
             previewType="thumbnail"
           />
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end">
             <Button type="submit">Update</Button>
           </div>
-        </section>
-      </form>
+        </form>
+      </section>
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
         <div>
