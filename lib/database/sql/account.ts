@@ -682,6 +682,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       .where('id', accountId)
       .update({
         iconUrl: iconUrl || null,
+        image: iconUrl || null,
         updatedAt: currentTime
       })
   }
