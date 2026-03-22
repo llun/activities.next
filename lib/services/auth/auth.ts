@@ -80,9 +80,8 @@ export const getAuth = memoize(() => {
         customAccessTokenClaims: async ({ referenceId }) => {
           return { actorId: referenceId ?? null }
         },
-        customIdTokenClaims: async ({ user, referenceId }) => {
+        customIdTokenClaims: async ({ user }) => {
           return {
-            actorId: referenceId ?? null,
             email: user?.email ?? null,
             email_verified: user?.emailVerified ?? false
           }

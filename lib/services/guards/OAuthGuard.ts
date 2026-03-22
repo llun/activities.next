@@ -49,7 +49,10 @@ export const getTokenFromHeader = (
   return parts[1] || null
 }
 
-export const OAuthGuard =
+type ScopeMatchMode = 'all' | 'any'
+
+const createOAuthGuard =
+  (matchMode: ScopeMatchMode) =>
   <P>(scopes: Scope[], handle: AuthenticatedApiHandle<P>) =>
   async (req: NextRequest, context: AppRouterParams<P>) => {
     const database = getDatabase()
@@ -77,11 +80,15 @@ export const OAuthGuard =
     // dot-separated segments. This prevents tampered/expired JWTs from
     // falling through to the opaque DB lookup path.
     let jwtPayload: Record<string, unknown> | null = null
+    let grantedScopes: string[] = []
+
     if (isJwtFormat(token)) {
       try {
         jwtPayload = (await verifyAccessToken(token, {
           jwksUrl,
-          scopes,
+          // For 'any' mode, skip scope checking in verifyAccessToken
+          // and do it manually below
+          scopes: matchMode === 'all' ? scopes : [],
           verifyOptions: {
             issuer: baseURL,
             audience: baseURL
@@ -93,12 +100,22 @@ export const OAuthGuard =
         return apiErrorResponse(401)
       }
 
-      // Defense-in-depth: explicitly verify JWT scope claims in case
-      // verifyAccessToken's scope checking changes in a future version
       const jwtScope = jwtPayload.scope as string | undefined
       const jwtScopes = jwtScope ? jwtScope.split(' ') : []
-      for (const scope of scopes) {
-        if (!jwtScopes.includes(scope)) {
+      grantedScopes = jwtScopes
+
+      if (matchMode === 'all') {
+        // Defense-in-depth: explicitly verify JWT scope claims in case
+        // verifyAccessToken's scope checking changes in a future version
+        for (const scope of scopes) {
+          if (!jwtScopes.includes(scope)) {
+            return apiErrorResponse(401)
+          }
+        }
+      } else {
+        // 'any' mode: at least one required scope must be present
+        const hasAny = scopes.some((scope) => jwtScopes.includes(scope))
+        if (!hasAny) {
           return apiErrorResponse(401)
         }
       }
@@ -126,8 +143,17 @@ export const OAuthGuard =
           return apiErrorResponse(401)
         }
         const storedScopes = parseStoredScopes(storedToken.scopes as string)
-        for (const scope of scopes) {
-          if (!storedScopes.includes(scope)) {
+        grantedScopes = storedScopes
+
+        if (matchMode === 'all') {
+          for (const scope of scopes) {
+            if (!storedScopes.includes(scope)) {
+              return apiErrorResponse(401)
+            }
+          }
+        } else {
+          const hasAny = scopes.some((scope) => storedScopes.includes(scope))
+          if (!hasAny) {
             return apiErrorResponse(401)
           }
         }
@@ -150,10 +176,21 @@ export const OAuthGuard =
       return handle(req, {
         currentActor: Actor.parse(actor),
         database,
-        params: context.params
+        params: context.params,
+        grantedScopes
       })
     } catch (e) {
       logger.error(e as Error)
       return apiErrorResponse(500)
     }
   }
+
+/**
+ * Requires ALL specified scopes to be present on the token.
+ */
+export const OAuthGuard = createOAuthGuard('all')
+
+/**
+ * Requires at least ONE of the specified scopes to be present on the token.
+ */
+export const OAuthGuardAnyScope = createOAuthGuard('any')

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getUserInfo } from '@/lib/services/oauth/userinfo'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -15,12 +15,16 @@ const CORS_HEADERS = [
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const handleUserInfo = OAuthGuard(
-  [Scope.enum.read],
+const respondWithUserInfo = OAuthGuardAnyScope(
+  [Scope.enum.openid, Scope.enum.read],
   async (req: NextRequest, context) => {
-    const { currentActor } = context
+    const { currentActor, grantedScopes } = context
 
-    const userInfo = getUserInfo(currentActor, currentActor.account)
+    const includeEmail = grantedScopes?.includes('email') ?? false
+    const userInfo = getUserInfo(
+      currentActor,
+      includeEmail ? currentActor.account : null
+    )
 
     return apiResponse({
       req,
@@ -30,6 +34,32 @@ const handleUserInfo = OAuthGuard(
   }
 )
 
-export const GET = traceApiRoute('getUserInfo', handleUserInfo)
+export const GET = traceApiRoute('getUserInfo', respondWithUserInfo)
 
-export const POST = traceApiRoute('postUserInfo', handleUserInfo)
+export const POST = traceApiRoute(
+  'postUserInfo',
+  async (req: NextRequest, context) => {
+    const authHeader = req.headers.get('authorization')
+
+    // OIDC Core §5.3.1: POST userinfo accepts access_token in form body
+    if (!authHeader) {
+      const contentType = req.headers.get('content-type') ?? ''
+      if (contentType.includes('application/x-www-form-urlencoded')) {
+        const formData = await req.clone().formData()
+        const accessToken = formData.get('access_token')
+
+        if (typeof accessToken === 'string' && accessToken.length > 0) {
+          const headers = new Headers(req.headers)
+          headers.set('authorization', `Bearer ${accessToken}`)
+          const requestWithAuth = new NextRequest(req.url, {
+            method: req.method,
+            headers
+          })
+          return respondWithUserInfo(requestWithAuth, context)
+        }
+      }
+    }
+
+    return respondWithUserInfo(req, context)
+  }
+)
