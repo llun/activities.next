@@ -80,13 +80,13 @@ jobs:
             fi
 
             # Check body for BREAKING CHANGE footer
-            if echo "$BODY" | grep -qE '^BREAKING CHANGE:'; then
+            if echo "$BODY" | grep -qE '^BREAKING[ -]CHANGE:'; then
               BUMP="major"
               break
             fi
 
             # Check for new features (minor bump)
-            if echo "$SUBJECT" | grep -qiE '^feat(\(.+\))?:'; then
+            if echo "$SUBJECT" | grep -qE '^feat(\(.+\))?:'; then
               BUMP="minor"
             fi
           done <<< "$COMMIT_HASHES"
