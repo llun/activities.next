@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: version-bump
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -27,45 +31,65 @@ jobs:
       - name: Determine version bump
         id: bump
         run: |
+          # Skip if the push is a version bump commit from this workflow
+          HEAD_MSG=$(git log -1 --pretty=format:"%s")
+          if echo "$HEAD_MSG" | grep -qE '^\[skip ci\] Bump version to v'; then
+            echo "Skipping: head commit is a version bump."
+            echo "new_version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # Get the latest version tag, default to v1.0.0 base if none exists
           LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
 
           if [ -z "$LATEST_TAG" ]; then
             echo "No existing version tag found. Will create v1.0.0."
-            echo "bump=none" >> "$GITHUB_OUTPUT"
+            echo "bump=initial" >> "$GITHUB_OUTPUT"
             echo "new_version=1.0.0" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "Latest tag: $LATEST_TAG"
 
-          # Get commits since last tag
-          COMMITS=$(git log "$LATEST_TAG"..HEAD --pretty=format:"%s" --no-merges)
+          # Get commit hashes since last tag (excluding merge commits and bot version bumps)
+          COMMIT_HASHES=$(git log "$LATEST_TAG"..HEAD --pretty=format:"%H" --no-merges)
 
-          if [ -z "$COMMITS" ]; then
+          if [ -z "$COMMIT_HASHES" ]; then
             echo "No new commits since $LATEST_TAG"
-            echo "bump=none" >> "$GITHUB_OUTPUT"
             echo "new_version=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "Commits since $LATEST_TAG:"
-          echo "$COMMITS"
-
           # Determine bump type from conventional commits
+          # Read both subject and body to detect BREAKING CHANGE footers
           BUMP="patch"
 
-          while IFS= read -r msg; do
-            # Check for breaking changes (major bump)
-            if echo "$msg" | grep -qiE '(BREAKING CHANGE|^[a-z]+(\(.+\))?!:)'; then
+          while IFS= read -r hash; do
+            SUBJECT=$(git log -1 --pretty=format:"%s" "$hash")
+            BODY=$(git log -1 --pretty=format:"%b" "$hash")
+
+            # Skip version bump commits from this workflow
+            if echo "$SUBJECT" | grep -qE '^\[skip ci\] Bump version to v'; then
+              continue
+            fi
+
+            # Check subject for breaking change marker (e.g. feat!: or fix(scope)!:)
+            if echo "$SUBJECT" | grep -qE '^[a-z]+(\(.+\))?!:'; then
               BUMP="major"
               break
             fi
+
+            # Check body for BREAKING CHANGE footer
+            if echo "$BODY" | grep -qE '^BREAKING CHANGE:'; then
+              BUMP="major"
+              break
+            fi
+
             # Check for new features (minor bump)
-            if echo "$msg" | grep -qiE '^feat(\(.+\))?:'; then
+            if echo "$SUBJECT" | grep -qiE '^feat(\(.+\))?:'; then
               BUMP="minor"
             fi
-          done <<< "$COMMITS"
+          done <<< "$COMMIT_HASHES"
 
           echo "Bump type: $BUMP"
 
@@ -101,13 +125,17 @@ jobs:
 
       - name: Update package.json version
         if: steps.bump.outputs.new_version != ''
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new_version }}
         run: |
-          npm version ${{ steps.bump.outputs.new_version }} --no-git-tag-version
+          npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Commit and tag
         if: steps.bump.outputs.new_version != ''
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new_version }}
         run: |
           git add package.json
-          git commit -m "Bump version to v${{ steps.bump.outputs.new_version }}"
-          git tag "v${{ steps.bump.outputs.new_version }}"
+          git commit -m "[skip ci] Bump version to v${NEW_VERSION}"
+          git tag "v${NEW_VERSION}"
           git push origin main --follow-tags
