@@ -664,9 +664,11 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     name
   }: UpdateAccountNameParams): Promise<void> {
     const currentTime = new Date()
-    await database('accounts').where('id', accountId).update({
-      name,
-      updatedAt: currentTime
-    })
+    await database('accounts')
+      .where('id', accountId)
+      .update({
+        name: name || null,
+        updatedAt: currentTime
+      })
   }
 })

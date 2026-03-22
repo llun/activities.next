@@ -2,7 +2,6 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { LogoutButton } from '@/app/(timeline)/settings/LogoutButton'
-import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
@@ -10,6 +9,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ChangeEmailForm } from './ChangeEmailForm'
+import { ChangeNameForm } from './ChangeNameForm'
 import { ChangePasswordForm } from './ChangePasswordForm'
 
 export const dynamic = 'force-dynamic'
@@ -48,25 +48,7 @@ const Page = async () => {
             Your account display name used across services.
           </p>
         </div>
-        <form
-          method="post"
-          action="/api/v1/accounts/name"
-          className="space-y-4"
-        >
-          <div className="space-y-2">
-            <Label htmlFor="inputName">Name</Label>
-            <Input
-              name="name"
-              type="text"
-              id="inputName"
-              defaultValue={account.name || ''}
-              placeholder="Your full name"
-            />
-          </div>
-          <div className="flex justify-end">
-            <Button type="submit">Update name</Button>
-          </div>
-        </form>
+        <ChangeNameForm currentName={account.name || ''} />
       </section>
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">

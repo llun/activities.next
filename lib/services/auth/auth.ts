@@ -1,6 +1,4 @@
-import { dash } from '@better-auth/infra'
 import { oauthProvider } from '@better-auth/oauth-provider'
-import { sso } from '@better-auth/sso'
 import bcrypt from 'bcrypt'
 import { betterAuth } from 'better-auth'
 import { jwt } from 'better-auth/plugins'
@@ -34,8 +32,6 @@ export const getAuth = memoize(() => {
     // OAuth tokens are issued via oauthProvider. JWKS stays enabled for OAuthGuard.
     plugins: [
       jwt(),
-      dash(),
-      sso(),
       oauthProvider({
         loginPage: '/auth/signin',
         consentPage: '/oauth/authorize',

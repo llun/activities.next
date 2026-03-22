@@ -252,7 +252,7 @@ export type ChangePasswordParams = {
 }
 export type UpdateAccountNameParams = {
   accountId: string
-  name: string
+  name: string | null
 }
 
 export interface AccountDatabase {
