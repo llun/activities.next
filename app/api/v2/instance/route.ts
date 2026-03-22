@@ -1,5 +1,5 @@
 import { getConfig } from '@/lib/config'
-import { VERSION } from '@/lib/constants'
+import { VERSION } from '@/lib/utils/version'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import {
   ACCEPTED_FILE_TYPES,

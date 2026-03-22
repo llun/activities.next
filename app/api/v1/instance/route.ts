@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { VERSION } from '@/lib/constants'
+import { VERSION } from '@/lib/utils/version'
 import {
   ACCEPTED_FILE_TYPES,
   MAX_FILE_SIZE
