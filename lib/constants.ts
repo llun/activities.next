@@ -1,3 +1,5 @@
+import 'server-only'
+
 import packageJson from '@/package.json'
 
 export const ACTIVITIES_HOST = 'x-activity-next-host'

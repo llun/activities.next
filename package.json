@@ -66,6 +66,7 @@
     "remark-breaks": "^4.0.0",
     "resend": "^6.9.3",
     "sanitize-html": "^2.17.1",
+    "server-only": "^0.0.1",
     "sharp": "^0.34.5",
     "tailwind-merge": "^3.5.0",
     "yauzl": "^3.2.1",
