@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { NODE_SOFTWARE } from '@/lib/constants'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { NODE_SOFTWARE } from '@/lib/utils/version'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 

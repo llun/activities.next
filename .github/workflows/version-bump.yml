@@ -1,0 +1,158 @@
+name: Version Bump
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: version-bump
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  version-bump:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine version bump
+        id: bump
+        run: |
+          # Skip if the push is a version bump commit from this workflow
+          HEAD_AUTHOR=$(git log -1 --pretty=format:"%ae")
+          if [ "$HEAD_AUTHOR" = "github-actions[bot]@users.noreply.github.com" ]; then
+            echo "Skipping: head commit is from github-actions[bot]."
+            echo "new_version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Get the latest version tag, default to v1.0.0 base if none exists
+          LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No existing version tag found. Will create v1.0.0."
+            echo "bump=initial" >> "$GITHUB_OUTPUT"
+            echo "new_version=1.0.0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Latest tag: $LATEST_TAG"
+
+          # Get commit hashes since last tag (excluding merge commits and bot version bumps)
+          COMMIT_HASHES=$(git log "$LATEST_TAG"..HEAD --pretty=format:"%H" --no-merges)
+
+          if [ -z "$COMMIT_HASHES" ]; then
+            echo "No new commits since $LATEST_TAG"
+            echo "new_version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Determine bump type from conventional commits
+          # Read both subject and body to detect BREAKING CHANGE footers
+          BUMP="patch"
+
+          while IFS= read -r hash; do
+            SUBJECT=$(git log -1 --pretty=format:"%s" "$hash")
+            BODY=$(git log -1 --pretty=format:"%b" "$hash")
+
+            # Skip version bump commits from this workflow
+            AUTHOR_EMAIL=$(git log -1 --pretty=format:"%ae" "$hash")
+            if [ "$AUTHOR_EMAIL" = "github-actions[bot]@users.noreply.github.com" ]; then
+              continue
+            fi
+
+            # Check subject for breaking change marker (e.g. feat!: or fix(scope)!:)
+            if echo "$SUBJECT" | grep -qE '^[a-z]+(\(.+\))?!:'; then
+              BUMP="major"
+              break
+            fi
+
+            # Check body for BREAKING CHANGE footer
+            if echo "$BODY" | grep -qE '^BREAKING[ -]CHANGE:'; then
+              BUMP="major"
+              break
+            fi
+
+            # Check for new features (minor bump, only upgrade from patch)
+            if [ "$BUMP" != "minor" ] && echo "$SUBJECT" | grep -qE '^feat(\(.+\))?:'; then
+              BUMP="minor"
+            fi
+          done <<< "$COMMIT_HASHES"
+
+          echo "Bump type: $BUMP"
+
+          # Parse current version from tag
+          CURRENT="${LATEST_TAG#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case "$BUMP" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "New version: $NEW_VERSION"
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Use Node.js 24
+        if: steps.bump.outputs.new_version != ''
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Update package.json version
+        if: steps.bump.outputs.new_version != ''
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new_version }}
+        run: |
+          npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Commit, tag, and push
+        if: steps.bump.outputs.new_version != ''
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new_version }}
+        run: |
+          # Pull latest remote to avoid non-fast-forward failures from queued runs
+          # Use --autostash to handle unstaged changes from npm version
+          git pull --rebase --autostash origin main
+          git add package.json
+          if git diff --cached --quiet; then
+            echo "No file changes, creating tag only."
+          else
+            git commit -m "Bump version to v${NEW_VERSION}"
+          fi
+          if git rev-parse "v${NEW_VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${NEW_VERSION} already exists, skipping."
+            exit 0
+          fi
+          git tag -a "v${NEW_VERSION}" -m "Version ${NEW_VERSION}"
+          git push origin main
+          if git ls-remote --tags origin "refs/tags/v${NEW_VERSION}" | grep -q .; then
+            echo "Tag v${NEW_VERSION} already exists on remote, skipping tag push."
+          else
+            git push origin "v${NEW_VERSION}"
+          fi

@@ -4,6 +4,7 @@ import {
   getHostMetaXML,
   getNodeInfoLinks,
   getOAuthAuthorizationServerMetadata,
+  getOpenIDConfiguration,
   getWebFingerResponse
 } from './index'
 
@@ -23,6 +24,7 @@ describe('wellknown services', () => {
           'https://test.example.com/api/auth/oauth2/authorize',
         token_endpoint: 'https://test.example.com/oauth/token',
         revocation_endpoint: 'https://test.example.com/api/oauth/revoke',
+        userinfo_endpoint: 'https://test.example.com/api/oauth/userinfo',
         jwks_uri: 'https://test.example.com/api/auth/jwks',
         response_types_supported: ['code'],
         response_modes_supported: ['query'],
@@ -44,9 +46,49 @@ describe('wellknown services', () => {
     it('includes supported scopes', () => {
       const metadata = getOAuthAuthorizationServerMetadata()
 
+      expect(metadata.scopes_supported).toContain('openid')
+      expect(metadata.scopes_supported).toContain('profile')
+      expect(metadata.scopes_supported).toContain('email')
       expect(metadata.scopes_supported).toContain('read')
       expect(metadata.scopes_supported).toContain('write')
       expect(metadata.scopes_supported).toContain('follow')
+    })
+  })
+
+  describe('#getOpenIDConfiguration', () => {
+    it('returns correct OpenID Connect discovery metadata', () => {
+      const config = getOpenIDConfiguration()
+
+      expect(config).toMatchObject({
+        issuer: 'https://test.example.com',
+        authorization_endpoint:
+          'https://test.example.com/api/auth/oauth2/authorize',
+        token_endpoint: 'https://test.example.com/oauth/token',
+        userinfo_endpoint: 'https://test.example.com/api/oauth/userinfo',
+        jwks_uri: 'https://test.example.com/api/auth/jwks',
+        revocation_endpoint: 'https://test.example.com/api/oauth/revoke',
+        response_types_supported: ['code'],
+        subject_types_supported: ['public'],
+        id_token_signing_alg_values_supported: ['RS256'],
+        token_endpoint_auth_methods_supported: [
+          'client_secret_basic',
+          'client_secret_post'
+        ],
+        code_challenge_methods_supported: ['S256']
+      })
+    })
+
+    it('includes OIDC scopes and claims', () => {
+      const config = getOpenIDConfiguration()
+
+      expect(config.scopes_supported).toContain('openid')
+      expect(config.scopes_supported).toContain('profile')
+      expect(config.scopes_supported).toContain('email')
+      expect(config.claims_supported).toContain('sub')
+      expect(config.claims_supported).toContain('name')
+      expect(config.claims_supported).toContain('email')
+      expect(config.claims_supported).toContain('email_verified')
+      expect(config.claims_supported).toContain('preferred_username')
     })
   })
 

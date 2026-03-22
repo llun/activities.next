@@ -37,7 +37,15 @@ export const getAuth = memoize(() => {
       oauthProvider({
         loginPage: '/auth/signin',
         consentPage: '/oauth/authorize',
-        scopes: ['read', 'write', 'follow', 'push'],
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'read',
+          'write',
+          'follow',
+          'push'
+        ],
         accessTokenExpiresIn: 7 * 24 * 60 * 60,
         refreshTokenExpiresIn: 30 * 24 * 60 * 60,
         codeExpiresIn: 10 * 60,
@@ -73,6 +81,12 @@ export const getAuth = memoize(() => {
         },
         customAccessTokenClaims: async ({ referenceId }) => {
           return { actorId: referenceId ?? null }
+        },
+        customIdTokenClaims: async ({ user }) => {
+          return {
+            email: user?.email ?? null,
+            email_verified: user?.emailVerified ?? false
+          }
         }
       }),
       dash()
