@@ -119,6 +119,7 @@ export const POST = traceApiRoute(
       domain,
       email: form.email,
       username: form.username,
+      name: form.name || null,
       privateKey: keyPair.privateKey,
       publicKey: keyPair.publicKey,
       passwordHash,
