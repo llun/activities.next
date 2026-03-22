@@ -149,7 +149,5 @@ jobs:
             exit 0
           fi
           git tag -a "v${NEW_VERSION}" -m "Version ${NEW_VERSION}"
-          git push origin main --follow-tags
-          # Explicitly push the tag in case --follow-tags skips it
-          # (e.g. when no new commits are transferred during bootstrap)
-          git push origin "v${NEW_VERSION}" 2>/dev/null || true
+          git push origin main
+          git push origin "v${NEW_VERSION}"

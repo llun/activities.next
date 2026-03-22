@@ -1,6 +1,6 @@
 import { trace } from '@opentelemetry/api'
 
-import { VERSION } from '@/lib/constants'
+import { VERSION } from '@/lib/utils/version'
 import { logger } from '@/lib/utils/logger'
 
 export const TRACE_APPLICATION_SCOPE = 'activities.next'
