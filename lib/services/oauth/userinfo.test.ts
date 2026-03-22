@@ -26,15 +26,14 @@ describe('#getUserInfo', () => {
   it('returns all claims when no scopes specified (legacy/session)', () => {
     const userInfo = getUserInfo({ actor: makeActor() })
 
-    expect(userInfo).toMatchObject({
-      sub: expect.toBeString(),
-      name: 'Test User',
-      preferred_username: 'testuser',
-      picture: 'https://example.com/avatar.png',
-      profile: 'https://example.com/users/testuser',
-      email: null,
-      email_verified: false
-    })
+    expect(userInfo.sub).toBeString()
+    expect(userInfo.name).toBe('Test User')
+    expect(userInfo.preferred_username).toBe('testuser')
+    expect(userInfo.picture).toBe('https://example.com/avatar.png')
+    expect(userInfo.profile).toBe('https://example.com/users/testuser')
+    // No account provided, so email claims are omitted
+    expect(userInfo).not.toHaveProperty('email')
+    expect(userInfo).not.toHaveProperty('email_verified')
   })
 
   it('returns only sub for openid-only scope', () => {
@@ -72,6 +71,18 @@ describe('#getUserInfo', () => {
 
     expect(userInfo.name).toBe('Test User')
     expect(userInfo.preferred_username).toBe('testuser')
+  })
+
+  it('omits name and picture when actor has null values', () => {
+    const userInfo = getUserInfo({
+      actor: makeActor({ name: null, iconUrl: null }),
+      scopes: ['openid', 'profile']
+    })
+
+    expect(userInfo).not.toHaveProperty('name')
+    expect(userInfo.preferred_username).toBe('testuser')
+    expect(userInfo).not.toHaveProperty('picture')
+    expect(userInfo.profile).toBe('https://example.com/users/testuser')
   })
 
   it('includes email claims when email scope is granted', () => {
@@ -115,6 +126,16 @@ describe('#getUserInfo', () => {
     expect(userInfo).not.toHaveProperty('email_verified')
   })
 
+  it('omits email claims when account has no email', () => {
+    const userInfo = getUserInfo({
+      actor: makeActor(),
+      scopes: ['openid', 'email']
+    })
+
+    expect(userInfo).not.toHaveProperty('email')
+    expect(userInfo).not.toHaveProperty('email_verified')
+  })
+
   it('returns email_verified false when emailVerifiedAt is null', () => {
     const now = Date.now()
     const account: Account = {
@@ -133,16 +154,6 @@ describe('#getUserInfo', () => {
 
     expect(userInfo.email).toBe('unverified@example.com')
     expect(userInfo.email_verified).toBe(false)
-  })
-
-  it('handles actor without name or icon', () => {
-    const userInfo = getUserInfo({
-      actor: makeActor({ name: null, iconUrl: null }),
-      scopes: ['openid', 'profile']
-    })
-
-    expect(userInfo.name).toBeNull()
-    expect(userInfo.picture).toBeNull()
   })
 
   it('encodes actor ID as sub claim', () => {

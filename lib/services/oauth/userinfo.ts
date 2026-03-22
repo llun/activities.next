@@ -7,14 +7,14 @@ export interface UserInfoBase {
 }
 
 export interface UserInfoProfile {
-  name: string | null
+  name: string
   preferred_username: string
-  picture: string | null
+  picture: string
   profile: string
 }
 
 export interface UserInfoEmail {
-  email: string | null
+  email: string
   email_verified: boolean
 }
 
@@ -33,24 +33,24 @@ export const getUserInfo = ({
   account,
   scopes
 }: GetUserInfoOptions): UserInfo => {
-  const result: UserInfo = {
-    sub: urlToId(actor.id)
-  }
+  const includeProfile =
+    !scopes || scopes.includes('profile') || scopes.includes('read')
+  const includeEmail = !scopes || scopes.includes('email')
+  const email = account?.email
 
-  // Include profile claims when profile or read scope is granted,
-  // or when no scopes are provided (legacy/session-based access)
-  if (!scopes || scopes.includes('profile') || scopes.includes('read')) {
-    result.name = actor.name ?? null
-    result.preferred_username = actor.username
-    result.picture = actor.iconUrl ?? null
-    result.profile = actor.id
+  return {
+    sub: urlToId(actor.id),
+    ...(includeProfile && {
+      ...(actor.name != null ? { name: actor.name } : {}),
+      preferred_username: actor.username,
+      ...(actor.iconUrl != null ? { picture: actor.iconUrl } : {}),
+      profile: actor.id
+    }),
+    ...(includeEmail && email != null
+      ? {
+          email,
+          email_verified: account?.emailVerifiedAt != null
+        }
+      : {})
   }
-
-  // Include email claims only when email scope is granted
-  if (!scopes || scopes.includes('email')) {
-    result.email = account?.email ?? null
-    result.email_verified = account?.emailVerifiedAt != null
-  }
-
-  return result
 }
