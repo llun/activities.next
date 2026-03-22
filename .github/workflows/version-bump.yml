@@ -123,13 +123,12 @@ jobs:
         with:
           node-version: 24
 
-      - name: Update version in source files
+      - name: Update package.json version
         if: steps.bump.outputs.new_version != ''
         env:
           NEW_VERSION: ${{ steps.bump.outputs.new_version }}
         run: |
           npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version
-          sed -i "s/^export const VERSION = '.*'/export const VERSION = '${NEW_VERSION}'/" lib/constants.ts
 
       - name: Commit, tag, and push
         if: steps.bump.outputs.new_version != ''
@@ -137,9 +136,9 @@ jobs:
           NEW_VERSION: ${{ steps.bump.outputs.new_version }}
         run: |
           # Pull latest remote to avoid non-fast-forward failures from queued runs
-          # Use --autostash to handle unstaged changes from npm version and sed
+          # Use --autostash to handle unstaged changes from npm version
           git pull --rebase --autostash origin main
-          git add package.json lib/constants.ts
+          git add package.json
           if git diff --cached --quiet; then
             echo "No file changes, creating tag only."
           else
