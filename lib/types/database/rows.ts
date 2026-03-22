@@ -44,6 +44,7 @@ export interface SQLAccount {
   id: string
   email: string
   name?: string | null
+  iconUrl?: string | null
   passwordHash?: string | null
   verificationCode?: string | null
   passwordResetCode?: string | null

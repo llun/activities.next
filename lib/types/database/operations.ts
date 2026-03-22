@@ -254,6 +254,10 @@ export type UpdateAccountNameParams = {
   accountId: string
   name: string | null
 }
+export type UpdateAccountImageParams = {
+  accountId: string
+  iconUrl: string | null
+}
 
 export interface AccountDatabase {
   isAccountExists(params: IsAccountExistsParams): Promise<boolean>
@@ -311,6 +315,7 @@ export interface AccountDatabase {
   ): Promise<Account | null>
   changePassword(params: ChangePasswordParams): Promise<void>
   updateAccountName(params: UpdateAccountNameParams): Promise<void>
+  updateAccountImage(params: UpdateAccountImageParams): Promise<void>
 }
 
 // ============================================================================

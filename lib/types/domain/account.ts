@@ -4,6 +4,7 @@ export const Account = z.object({
   id: z.string(),
   email: z.string(),
   name: z.string().nullish(),
+  iconUrl: z.string().nullish(),
   passwordHash: z.string().nullish(),
   verificationCode: z.string().nullish(),
   passwordResetCode: z.string().nullish(),
