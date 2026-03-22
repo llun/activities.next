@@ -187,6 +187,7 @@ logger.error({ message: 'Error occurred', error })
 
 - Always use `apiResponse` and `apiErrorResponse` from `@/lib/utils/response`
 - **Never** use `Response.json()` directly in API routes
+- On CORS-enabled endpoints (those that export `OPTIONS`), always use `apiResponse` for error responses too, so CORS headers are included
 
 ```typescript
 import {
@@ -198,9 +199,48 @@ import {
 // Success response (requires req and allowedMethods for CORS headers)
 return apiResponse({ req, allowedMethods: ['GET'], data: result })
 
-// Error response
+// Error response (non-CORS route)
 return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
 ```
+
+### Zod Validation
+
+- **Always use `safeParse`**, never `.parse()`, in API routes — `.parse()` throws an unhandled `ZodError` that produces a 500 instead of a proper 4xx
+- Add `.max(255)` to string schemas for `varchar(255)` database columns
+- Normalize empty strings to `null` with `.transform((v) => v || null)` for nullable columns
+- Keep create and update validation consistent (same normalization logic)
+
+```typescript
+const UpdateRequest = z.object({
+  name: z
+    .string()
+    .trim()
+    .max(255)
+    .transform((v) => v || null)
+})
+
+const parsed = UpdateRequest.safeParse(json)
+if (!parsed.success) {
+  return apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: { error: 'Invalid input' },
+    responseStatusCode: 422
+  })
+}
+```
+
+### Settings Forms
+
+- Settings forms (name, email, password, etc.) must be **client components** using `fetch()` with JSON bodies
+- Do **not** use plain HTML `<form method="post">` with server-side redirects — this breaks error feedback and can cause redirect bugs (307 re-POSTs instead of 303 GET)
+- Follow the pattern in `ChangeEmailForm`, `ChangePasswordForm`, `ChangeNameForm`: manage state with `useState`, show inline success/error messages
+
+### Better-auth Plugins
+
+- Do **not** register a better-auth plugin unless its required database tables exist in migrations
+- The custom `knexAdapter` does not auto-create tables; missing tables cause runtime errors
+- Admin/dashboard plugins (e.g. `dash()`) must have explicit access control configuration
 
 ## Testing
 
@@ -338,9 +378,9 @@ activities.next/
 ### Adding a New API Endpoint
 
 1. Create route in `app/api/v1/[endpoint]/route.ts`
-2. Define request/response types using Zod
+2. Define request/response types using Zod — use `safeParse` (not `parse`), add `.max()` for bounded columns
 3. Add authentication guard if needed (use guards from `lib/services/guards/`)
-4. Use `apiResponse`/`apiErrorResponse` for responses
+4. Use `apiResponse`/`apiErrorResponse` for responses (use `apiResponse` with req and allowedMethods on CORS-enabled endpoints)
 5. Add tests
 
 ### Adding a New Background Job

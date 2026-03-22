@@ -48,6 +48,7 @@
 
 - Always use `apiResponse` and `apiErrorResponse` from `@/lib/utils/response` for API route responses.
 - **Do NOT** use `Response.json()` directly in API routes.
+- On CORS-enabled endpoints (those that export `OPTIONS`), always use `apiResponse` — even for error responses — so CORS headers are included. Reserve `apiErrorResponse` for non-CORS routes or middleware.
 - Example usage:
 
   ```typescript
@@ -60,9 +61,59 @@
   // Success response
   return apiResponse({ req, allowedMethods: ['GET'], data: result })
 
-  // Error response
+  // Error response (non-CORS route)
   return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+
+  // Error response (CORS-enabled route — include req and allowedMethods)
+  return apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: { error: 'Bad Request' },
+    responseStatusCode: 400
+  })
   ```
+
+## Zod Validation in API Routes
+
+- **Always use `safeParse`**, never `.parse()`, in API route handlers. `.parse()` throws an unhandled `ZodError` that propagates as a 500; `safeParse` lets you return a proper 4xx response.
+- For string columns with a database size limit (e.g. `varchar(255)`), add a matching `.max(255)` constraint in the Zod schema to prevent runtime DB errors.
+- When a text column is nullable, use `.transform((v) => v || null)` to convert empty/whitespace-only strings to `null`. Keep this normalization consistent between create and update paths.
+
+  ```typescript
+  const UpdateNameRequest = z.object({
+    name: z
+      .string()
+      .trim()
+      .max(255)
+      .transform((v) => v || null)
+  })
+
+  const parsed = UpdateNameRequest.safeParse(json)
+  if (!parsed.success) {
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: { error: 'Invalid input' },
+      responseStatusCode: 422
+    })
+  }
+  ```
+
+## Settings Forms (Client Components)
+
+- Settings forms that update user data (name, email, password, etc.) **must be client components** using `fetch()` with JSON bodies — not plain HTML `<form method="post">` with server-side redirects.
+- This matches the pattern used by `ChangeEmailForm`, `ChangePasswordForm`, and `ChangeNameForm`.
+- Client component forms should:
+  - Call `fetch('/api/v1/...', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })`
+  - Show inline success and error messages (not raw error pages)
+  - Manage loading state with `useState`
+- The corresponding API route should return JSON via `apiResponse()`, not `Response.redirect()`.
+
+## Better-auth Plugin Guidelines
+
+- **Do not register a better-auth plugin unless its required database tables exist** in the Knex migrations. The custom `knexAdapter` does not auto-create tables; missing tables will cause runtime errors.
+- When adding a new plugin (e.g. `sso()`, `dash()`), first create the necessary migration with `yarn migrate:make <name>`, then register the plugin.
+- Plugins that expose admin or dashboard endpoints must be configured with explicit access control (e.g. `adminCredentials` or `adminRole`). Never register `dash()` without authentication gating.
 
 ## Testing Guidelines
 
