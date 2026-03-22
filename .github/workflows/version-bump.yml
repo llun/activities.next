@@ -135,7 +135,7 @@ jobs:
         if: steps.bump.outputs.new_version != ''
         env:
           NEW_VERSION: ${{ steps.bump.outputs.new_version }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           BRANCH="version-bump/v${NEW_VERSION}"
 
