@@ -27,6 +27,7 @@ import {
   SetDefaultActorParams,
   SetSessionActorParams,
   UnlinkAccountFromProviderParams,
+  UpdateAccountImageParams,
   UpdateAccountNameParams,
   UpdateAccountSessionParams,
   ValidatePasswordResetCodeParams,
@@ -668,6 +669,19 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       .where('id', accountId)
       .update({
         name: name || null,
+        updatedAt: currentTime
+      })
+  },
+
+  async updateAccountImage({
+    accountId,
+    iconUrl
+  }: UpdateAccountImageParams): Promise<void> {
+    const currentTime = new Date()
+    await database('accounts')
+      .where('id', accountId)
+      .update({
+        iconUrl: iconUrl || null,
         updatedAt: currentTime
       })
   }
