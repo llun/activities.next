@@ -139,16 +139,19 @@ jobs:
         run: |
           BRANCH="version-bump/v${NEW_VERSION}"
 
-          # Skip if the branch already exists on remote
+          # If the branch already exists, skip to PR creation/recovery
           if git ls-remote --heads origin "$BRANCH" | grep -q .; then
-            echo "Branch $BRANCH already exists, skipping."
-            exit 0
+            echo "Branch $BRANCH already exists, checking for PR."
+          else
+            git checkout -b "$BRANCH"
+            git add package.json
+            if git diff --cached --quiet; then
+              echo "No package.json changes to commit, skipping."
+              exit 0
+            fi
+            git commit -m "Bump version to v${NEW_VERSION}"
+            git push origin "$BRANCH"
           fi
-
-          git checkout -b "$BRANCH"
-          git add package.json
-          git commit -m "Bump version to v${NEW_VERSION}"
-          git push origin "$BRANCH"
 
           # Skip if a PR for this branch already exists
           EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number')
