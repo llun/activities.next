@@ -7,7 +7,12 @@ export type AppRouterParams<P> = { params: Promise<P> }
 
 export type AuthenticatedApiHandle<P> = (
   request: NextRequest,
-  context: { database: Database; currentActor: Actor; params: Promise<P> }
+  context: {
+    database: Database
+    currentActor: Actor
+    params: Promise<P>
+    grantedScopes?: string[]
+  }
 ) => Promise<Response> | Response
 
 export type ActivityPubVerifiedSenderHandle<P> = (

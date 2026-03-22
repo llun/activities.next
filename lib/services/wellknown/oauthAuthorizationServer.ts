@@ -6,6 +6,7 @@ export interface OAuthAuthorizationServerMetadata {
   authorization_endpoint: string
   token_endpoint: string
   revocation_endpoint: string
+  userinfo_endpoint: string
   jwks_uri: string
   scopes_supported: readonly string[]
   response_types_supported: string[]
@@ -25,6 +26,7 @@ export const getOAuthAuthorizationServerMetadata =
       authorization_endpoint: `${baseURL}/api/auth/oauth2/authorize`,
       token_endpoint: `${baseURL}/oauth/token`,
       revocation_endpoint: `${baseURL}/api/oauth/revoke`,
+      userinfo_endpoint: `${baseURL}/api/oauth/userinfo`,
       jwks_uri: `${baseURL}/api/auth/jwks`,
       scopes_supported: UsableScopes,
       response_types_supported: ['code'],
