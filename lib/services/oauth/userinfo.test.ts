@@ -3,27 +3,28 @@ import { Actor } from '@/lib/types/domain/actor'
 
 import { getUserInfo } from './userinfo'
 
-describe('#getUserInfo', () => {
-  it('returns correct OpenID Connect userinfo format', () => {
-    const actor: Actor = {
-      id: 'https://example.com/users/testuser',
-      username: 'testuser',
-      domain: 'example.com',
-      name: 'Test User',
-      iconUrl: 'https://example.com/avatar.png',
-      headerImageUrl: null,
-      summary: 'A test user',
-      followersUrl: 'https://example.com/users/testuser/followers',
-      inboxUrl: 'https://example.com/users/testuser/inbox',
-      sharedInboxUrl: 'https://example.com/inbox',
-      publicKey: 'public-key',
-      privateKey: 'private-key',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      account: null
-    }
+const makeActor = (overrides: Partial<Actor> = {}): Actor => ({
+  id: 'https://example.com/users/testuser',
+  username: 'testuser',
+  domain: 'example.com',
+  name: 'Test User',
+  iconUrl: 'https://example.com/avatar.png',
+  headerImageUrl: null,
+  summary: 'A test user',
+  followersUrl: 'https://example.com/users/testuser/followers',
+  inboxUrl: 'https://example.com/users/testuser/inbox',
+  sharedInboxUrl: 'https://example.com/inbox',
+  publicKey: 'public-key',
+  privateKey: 'private-key',
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  account: null,
+  ...overrides
+})
 
-    const userInfo = getUserInfo(actor)
+describe('#getUserInfo', () => {
+  it('returns all claims when no scopes specified (legacy/session)', () => {
+    const userInfo = getUserInfo({ actor: makeActor() })
 
     expect(userInfo).toMatchObject({
       sub: expect.toBeString(),
@@ -36,61 +37,44 @@ describe('#getUserInfo', () => {
     })
   })
 
-  it('handles actor without name', () => {
-    const actor: Actor = {
-      id: 'https://example.com/users/noname',
-      username: 'noname',
-      domain: 'example.com',
-      name: null,
-      iconUrl: null,
-      headerImageUrl: null,
-      summary: null,
-      followersUrl: 'https://example.com/users/noname/followers',
-      inboxUrl: 'https://example.com/users/noname/inbox',
-      sharedInboxUrl: 'https://example.com/inbox',
-      publicKey: 'public-key',
-      privateKey: 'private-key',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      account: null
-    }
+  it('returns only sub for openid-only scope', () => {
+    const userInfo = getUserInfo({
+      actor: makeActor(),
+      scopes: ['openid']
+    })
 
-    const userInfo = getUserInfo(actor)
-
-    expect(userInfo.name).toBeNull()
-    expect(userInfo.preferred_username).toBe('noname')
-    expect(userInfo.picture).toBeNull()
-    expect(userInfo.email).toBeNull()
-    expect(userInfo.email_verified).toBe(false)
-  })
-
-  it('encodes actor ID as sub claim', () => {
-    const actor: Actor = {
-      id: 'https://example.com/users/encoded',
-      username: 'encoded',
-      domain: 'example.com',
-      name: 'Encoded User',
-      iconUrl: null,
-      headerImageUrl: null,
-      summary: null,
-      followersUrl: 'https://example.com/users/encoded/followers',
-      inboxUrl: 'https://example.com/users/encoded/inbox',
-      sharedInboxUrl: 'https://example.com/inbox',
-      publicKey: 'public-key',
-      privateKey: 'private-key',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      account: null
-    }
-
-    const userInfo = getUserInfo(actor)
-
-    // sub should be URL-encoded ID
     expect(userInfo.sub).toBeTruthy()
-    expect(typeof userInfo.sub).toBe('string')
+    expect(userInfo).not.toHaveProperty('name')
+    expect(userInfo).not.toHaveProperty('preferred_username')
+    expect(userInfo).not.toHaveProperty('email')
+    expect(userInfo).not.toHaveProperty('email_verified')
   })
 
-  it('includes email and email_verified when account is provided', () => {
+  it('includes profile claims when profile scope is granted', () => {
+    const userInfo = getUserInfo({
+      actor: makeActor(),
+      scopes: ['openid', 'profile']
+    })
+
+    expect(userInfo.sub).toBeTruthy()
+    expect(userInfo.name).toBe('Test User')
+    expect(userInfo.preferred_username).toBe('testuser')
+    expect(userInfo.picture).toBe('https://example.com/avatar.png')
+    expect(userInfo.profile).toBe('https://example.com/users/testuser')
+    expect(userInfo).not.toHaveProperty('email')
+  })
+
+  it('includes profile claims when read scope is granted', () => {
+    const userInfo = getUserInfo({
+      actor: makeActor(),
+      scopes: ['read']
+    })
+
+    expect(userInfo.name).toBe('Test User')
+    expect(userInfo.preferred_username).toBe('testuser')
+  })
+
+  it('includes email claims when email scope is granted', () => {
     const now = Date.now()
     const account: Account = {
       id: 'account-1',
@@ -99,28 +83,36 @@ describe('#getUserInfo', () => {
       createdAt: now,
       updatedAt: now
     }
-    const actor: Actor = {
-      id: 'https://example.com/users/testuser',
-      username: 'testuser',
-      domain: 'example.com',
-      name: 'Test User',
-      iconUrl: null,
-      headerImageUrl: null,
-      summary: null,
-      followersUrl: 'https://example.com/users/testuser/followers',
-      inboxUrl: 'https://example.com/users/testuser/inbox',
-      sharedInboxUrl: 'https://example.com/inbox',
-      publicKey: 'public-key',
-      privateKey: 'private-key',
-      createdAt: now,
-      updatedAt: now,
-      account
-    }
 
-    const userInfo = getUserInfo(actor, account)
+    const userInfo = getUserInfo({
+      actor: makeActor({ account }),
+      account,
+      scopes: ['openid', 'email']
+    })
 
     expect(userInfo.email).toBe('test@example.com')
     expect(userInfo.email_verified).toBe(true)
+    expect(userInfo).not.toHaveProperty('name')
+  })
+
+  it('omits email claims when email scope is not granted', () => {
+    const now = Date.now()
+    const account: Account = {
+      id: 'account-1',
+      email: 'test@example.com',
+      emailVerifiedAt: now,
+      createdAt: now,
+      updatedAt: now
+    }
+
+    const userInfo = getUserInfo({
+      actor: makeActor({ account }),
+      account,
+      scopes: ['openid', 'profile']
+    })
+
+    expect(userInfo).not.toHaveProperty('email')
+    expect(userInfo).not.toHaveProperty('email_verified')
   })
 
   it('returns email_verified false when emailVerifiedAt is null', () => {
@@ -132,27 +124,31 @@ describe('#getUserInfo', () => {
       createdAt: now,
       updatedAt: now
     }
-    const actor: Actor = {
-      id: 'https://example.com/users/unverified',
-      username: 'unverified',
-      domain: 'example.com',
-      name: 'Unverified User',
-      iconUrl: null,
-      headerImageUrl: null,
-      summary: null,
-      followersUrl: 'https://example.com/users/unverified/followers',
-      inboxUrl: 'https://example.com/users/unverified/inbox',
-      sharedInboxUrl: 'https://example.com/inbox',
-      publicKey: 'public-key',
-      privateKey: 'private-key',
-      createdAt: now,
-      updatedAt: now,
-      account
-    }
 
-    const userInfo = getUserInfo(actor, account)
+    const userInfo = getUserInfo({
+      actor: makeActor({ account }),
+      account,
+      scopes: ['openid', 'email']
+    })
 
     expect(userInfo.email).toBe('unverified@example.com')
     expect(userInfo.email_verified).toBe(false)
+  })
+
+  it('handles actor without name or icon', () => {
+    const userInfo = getUserInfo({
+      actor: makeActor({ name: null, iconUrl: null }),
+      scopes: ['openid', 'profile']
+    })
+
+    expect(userInfo.name).toBeNull()
+    expect(userInfo.picture).toBeNull()
+  })
+
+  it('encodes actor ID as sub claim', () => {
+    const userInfo = getUserInfo({ actor: makeActor() })
+
+    expect(userInfo.sub).toBeTruthy()
+    expect(typeof userInfo.sub).toBe('string')
   })
 })

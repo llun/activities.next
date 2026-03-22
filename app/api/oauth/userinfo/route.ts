@@ -20,11 +20,11 @@ const respondWithUserInfo = OAuthGuardAnyScope(
   async (req: NextRequest, context) => {
     const { currentActor, grantedScopes } = context
 
-    const includeEmail = grantedScopes?.includes('email') ?? false
-    const userInfo = getUserInfo(
-      currentActor,
-      includeEmail ? currentActor.account : null
-    )
+    const userInfo = getUserInfo({
+      actor: currentActor,
+      account: currentActor.account,
+      scopes: grantedScopes
+    })
 
     return apiResponse({
       req,
