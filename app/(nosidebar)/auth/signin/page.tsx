@@ -17,6 +17,7 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
 import { CredentialForm } from './CredentialForm'
+import { PasskeySigninButton } from './PasskeySigninButton'
 import { SigninButton } from './SigninButton'
 
 export const dynamic = 'force-dynamic'
@@ -36,6 +37,7 @@ const Page: FC = async () => {
   const { auth, serviceName } = getConfig()
   const oauthProviders = auth?.github ? [{ id: 'github', name: 'GitHub' }] : []
   const credentialEnabled = auth?.enableCredential !== false
+  const hasAlternativeProviders = oauthProviders.length > 0
 
   return (
     <Card>
@@ -48,7 +50,7 @@ const Page: FC = async () => {
           <CredentialForm providerName={serviceName ?? 'credentials'} />
         )}
 
-        {oauthProviders.length > 0 && credentialEnabled && (
+        {credentialEnabled && (
           <div className="relative">
             <Separator />
             <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
@@ -57,13 +59,13 @@ const Page: FC = async () => {
           </div>
         )}
 
-        {oauthProviders.length > 0 && (
-          <div className="space-y-2">
-            {oauthProviders.map((provider) => (
+        <div className="space-y-2">
+          <PasskeySigninButton />
+          {hasAlternativeProviders &&
+            oauthProviders.map((provider) => (
               <SigninButton key={provider.id} provider={provider} />
             ))}
-          </div>
-        )}
+        </div>
       </CardContent>
       <CardFooter className="justify-center">
         <p className="text-sm text-muted-foreground">

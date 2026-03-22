@@ -1,4 +1,5 @@
 import { oauthProvider } from '@better-auth/oauth-provider'
+import { passkey } from '@better-auth/passkey'
 import bcrypt from 'bcrypt'
 import { betterAuth } from 'better-auth'
 import { jwt } from 'better-auth/plugins'
@@ -32,6 +33,11 @@ export const getAuth = memoize(() => {
     // OAuth tokens are issued via oauthProvider. JWKS stays enabled for OAuthGuard.
     plugins: [
       jwt(),
+      passkey({
+        rpID: new URL(baseURL).hostname,
+        rpName: config.serviceName ?? 'Activities.next',
+        origin: baseURL
+      }),
       oauthProvider({
         loginPage: '/auth/signin',
         consentPage: '/oauth/authorize',
