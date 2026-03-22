@@ -27,6 +27,7 @@ import {
   SetDefaultActorParams,
   SetSessionActorParams,
   UnlinkAccountFromProviderParams,
+  UpdateAccountNameParams,
   UpdateAccountSessionParams,
   ValidatePasswordResetCodeParams,
   VerifyAccountParams,
@@ -85,6 +86,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async createAccount({
     email,
     username,
+    name,
     passwordHash,
     verificationCode,
     domain,
@@ -105,6 +107,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       await trx('accounts').insert({
         id: accountId,
         email,
+        name: name || null,
         passwordHash,
         ...(verificationCode
           ? { verificationCode }
@@ -654,5 +657,18 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         .merge({ password: newPasswordHash, updatedAt: currentTime })
       await trx('sessions').where('accountId', accountId).delete()
     })
+  },
+
+  async updateAccountName({
+    accountId,
+    name
+  }: UpdateAccountNameParams): Promise<void> {
+    const currentTime = new Date()
+    await database('accounts')
+      .where('id', accountId)
+      .update({
+        name: name || null,
+        updatedAt: currentTime
+      })
   }
 })

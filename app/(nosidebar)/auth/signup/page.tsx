@@ -44,6 +44,15 @@ const Page: FC = async () => {
             <Input name="username" type="text" id="inputUsername" />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="inputName">Full name</Label>
+            <Input
+              name="name"
+              type="text"
+              id="inputName"
+              placeholder="Your display name"
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="inputEmail">Email</Label>
             <Input name="email" type="email" id="inputEmail" />
           </div>

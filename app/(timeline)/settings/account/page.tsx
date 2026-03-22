@@ -9,6 +9,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ChangeEmailForm } from './ChangeEmailForm'
+import { ChangeNameForm } from './ChangeNameForm'
 import { ChangePasswordForm } from './ChangePasswordForm'
 
 export const dynamic = 'force-dynamic'
@@ -36,9 +37,19 @@ const Page = async () => {
       <div>
         <h1 className="text-2xl font-semibold">Account Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Manage your email and password.
+          Manage your account details, email and password.
         </p>
       </div>
+
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">Full Name</h2>
+          <p className="text-sm text-muted-foreground">
+            Your account display name used across services.
+          </p>
+        </div>
+        <ChangeNameForm currentName={account.name || ''} />
+      </section>
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
         <div>
