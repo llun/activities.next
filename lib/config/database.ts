@@ -56,7 +56,11 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
                       process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
                         'verify-ca' ||
                       process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
-                        'verify-full'
+                        'verify-full',
+                    ...(process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
+                    'verify-ca'
+                      ? { checkServerIdentity: () => undefined }
+                      : {})
                   }
                 }
               : {})
@@ -89,7 +93,7 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
             ...(process.env.ACTIVITIES_DATABASE_MYSQL_USER
               ? { user: process.env.ACTIVITIES_DATABASE_MYSQL_USER }
               : {}),
-            ...(process.env.ACTIVITIES_DATABASE_MYSQL_PASSOWRD
+            ...(process.env.ACTIVITIES_DATABASE_MYSQL_PASSWORD
               ? { password: process.env.ACTIVITIES_DATABASE_MYSQL_PASSWORD }
               : {}),
             ...(process.env.ACTIVITIES_DATABASE_MYSQL_DATABASE

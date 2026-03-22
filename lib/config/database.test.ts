@@ -113,9 +113,13 @@ describe('Database config', () => {
 
       expect(config).not.toBeNull()
       const conn = config?.database.connection as {
-        ssl: { rejectUnauthorized: boolean }
+        ssl: {
+          rejectUnauthorized: boolean
+          checkServerIdentity: () => undefined
+        }
       }
       expect(conn.ssl.rejectUnauthorized).toBe(true)
+      expect(conn.ssl.checkServerIdentity()).toBeUndefined()
     })
 
     it('builds pg config with ssl disable', () => {
@@ -127,6 +131,32 @@ describe('Database config', () => {
       expect(config).not.toBeNull()
       const conn = config?.database.connection as Record<string, unknown>
       expect(conn.ssl).toBeUndefined()
+    })
+
+    it('builds pg config with ssl verify-full does not have checkServerIdentity', () => {
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'pg'
+      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE = 'verify-full'
+
+      const config = getDatabaseConfig()
+
+      expect(config).not.toBeNull()
+      const conn = config?.database.connection as {
+        ssl: { rejectUnauthorized: boolean; checkServerIdentity?: unknown }
+      }
+      expect(conn.ssl.rejectUnauthorized).toBe(true)
+      expect(conn.ssl.checkServerIdentity).toBeUndefined()
+    })
+
+    it('builds mysql config with password from env vars', () => {
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'mysql'
+      process.env.ACTIVITIES_DATABASE_MYSQL_HOST = 'localhost'
+      process.env.ACTIVITIES_DATABASE_MYSQL_PASSWORD = 'secret'
+
+      const config = getDatabaseConfig()
+
+      expect(config).not.toBeNull()
+      const conn = config?.database.connection as { password: string }
+      expect(conn.password).toBe('secret')
     })
 
     it('builds mysql config from env vars', () => {
