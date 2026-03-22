@@ -124,7 +124,7 @@ jobs:
         if: steps.check.outputs.ready == 'true'
         uses: actions/github-script@v8
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.PAT_TOKEN }}
           script: |
             await github.rest.repos.createDispatchEvent({
               owner: context.repo.owner,
