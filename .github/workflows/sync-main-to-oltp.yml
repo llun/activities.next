@@ -6,6 +6,7 @@ on:
       - sync-main-to-oltp
 
 permissions:
+  actions: write
   contents: write
   id-token: write
 
