@@ -13,6 +13,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Boost / Repost** — Share other users' posts (with undo)
 - ✅ **Like / Favorite** — React to posts (with undo)
 - ✅ **Polls** — Create, vote on, and view poll results (single and multiple choice)
+- ✅ **Multiple actors per account** — Create and switch between multiple handles under one account (e.g., `@user@domain.tld` and `@ride@domain.tld`)
 - ✅ **Multi-domain support** — Different domains for different actors
 
 ### Authentication & OAuth
@@ -36,7 +37,9 @@ This document tracks the implemented and planned features for Activity.next.
 
 - ✅ **SQL database support** — SQLite and PostgreSQL via Knex.js
 - ✅ **Media upload** — Upload images to local filesystem, S3, or S3-compatible object storage
+- ✅ **Media management** — Browse, view, and delete uploaded media from the settings page with storage usage display
 - ✅ **Fitness file storage** — Upload .fit, .gpx, and .tcx activity files
+- ✅ **Fitness activity display** — Show activity statistics (distance, duration, pace, elevation, device info) in posts
 - ✅ **Storage quotas** — Per-account file size and storage limits
 
 ### API Compatibility
@@ -61,10 +64,7 @@ This document tracks the implemented and planned features for Activity.next.
 
 ## Planned Features
 
-- [ ] Multiple actors under the same account (for different handles, e.g., `@ride@example.com`)
-- [ ] ActivityStreams extensions (e.g., for bicycle rides, running activities)
 - [ ] Streaming API for real-time updates
-- [ ] Media management improvements (gallery view, bulk delete)
 - [ ] Enhanced moderation tools
 - [ ] Federation controls and domain blocks
 - [ ] Tag following
