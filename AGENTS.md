@@ -52,16 +52,16 @@
 
   ```typescript
   import {
-    StatusCode,
+    HTTP_STATUS,
     apiErrorResponse,
     apiResponse
   } from '@/lib/utils/response'
 
   // Success response
-  return apiResponse({ data: result })
+  return apiResponse({ req, allowedMethods: ['GET'], data: result })
 
   // Error response
-  return apiErrorResponse(StatusCode.NotFound)
+  return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
   ```
 
 ## Testing Guidelines
