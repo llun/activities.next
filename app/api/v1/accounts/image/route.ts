@@ -4,10 +4,13 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const UpdateImageRequest = z.object({
-  iconUrl: z.preprocess(
-    (val) => (val === '' ? null : val),
-    z.string().trim().url().max(255).nullable().optional()
-  )
+  iconUrl: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      const trimmed = val.trim()
+      return trimmed === '' ? null : trimmed
+    }
+    return val
+  }, z.string().url().max(255).nullable().optional())
 })
 
 export const POST = traceApiRoute(
