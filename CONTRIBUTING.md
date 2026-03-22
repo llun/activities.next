@@ -119,7 +119,7 @@ The project uses:
 Run formatting and linting:
 
 ```bash
-yarn prettier
+yarn run prettier --write .
 yarn lint
 ```
 
@@ -253,7 +253,7 @@ describe('createNote', () => {
 Run all checks in order:
 
 ```bash
-yarn prettier                    # Format code
+yarn run prettier --write .       # Format code
 yarn lint                        # Lint — must pass with no errors
 yarn build                       # Build — must succeed
 yarn test                        # Tests — must pass

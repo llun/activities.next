@@ -151,12 +151,6 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 | `ACTIVITIES_REQUEST_RETRY`       | Number of retries for failed outgoing requests.                        |
 | `ACTIVITIES_REQUEST_RETRY_NOISE` | Random delay noise added between retries (in milliseconds).            |
 
-## Internal API
-
-| Variable                         | Description                                                                                                            |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_INTERNAL_SHARED_KEY` | Shared key for internal API authentication. Setting any `ACTIVITIES_INTERNAL_API_*` variable enables the internal API. |
-
 ## Observability
 
 | Variable                      | Description                                              |
