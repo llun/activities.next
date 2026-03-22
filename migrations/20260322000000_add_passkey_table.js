@@ -13,7 +13,7 @@ exports.up = async (knex) => {
       .references('id')
       .inTable('accounts')
       .onDelete('CASCADE')
-    table.string('credentialID').notNullable()
+    table.text('credentialID').notNullable()
     table.integer('counter').notNullable().defaultTo(0)
     table.string('deviceType').notNullable()
     table.boolean('backedUp').notNullable().defaultTo(false)
@@ -24,7 +24,7 @@ exports.up = async (knex) => {
       .notNullable()
       .defaultTo(knex.fn.now())
     table.index(['userId'])
-    table.index(['credentialID'])
+    table.unique(['credentialID'])
   })
 }
 

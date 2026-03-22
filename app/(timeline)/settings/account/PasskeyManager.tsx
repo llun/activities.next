@@ -14,6 +14,12 @@ interface PasskeyItem {
   backedUp: boolean
 }
 
+const getErrorMessage = (msg: unknown): string | undefined => {
+  if (typeof msg !== 'string') return undefined
+  if (msg.toLowerCase().includes('cancel')) return undefined
+  return msg
+}
+
 export const PasskeyManager: FC = () => {
   const [passkeys, setPasskeys] = useState<PasskeyItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -24,18 +30,21 @@ export const PasskeyManager: FC = () => {
 
   const loadPasskeys = async () => {
     setLoading(true)
+    setError(undefined)
     try {
       const res = await fetch('/api/auth/passkey/list-user-passkeys', {
         method: 'GET',
         credentials: 'include'
       })
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json().catch(() => [])
         setPasskeys(Array.isArray(data) ? data : [])
       } else {
+        setError('Failed to load passkeys')
         setPasskeys([])
       }
     } catch {
+      setError('Failed to load passkeys')
       setPasskeys([])
     }
     setLoading(false)
@@ -49,20 +58,20 @@ export const PasskeyManager: FC = () => {
     setError(undefined)
     setSuccess(undefined)
     setAdding(true)
-    const result = await authClient.passkey.addPasskey({
-      name: newName.trim() || undefined,
-      authenticatorAttachment: 'platform'
-    })
-    if (result?.error) {
-      const msg = result.error.message
-      const msgStr = typeof msg === 'string' ? msg : undefined
-      if (msgStr && !msgStr.toLowerCase().includes('cancel')) {
-        setError(msgStr)
+    try {
+      const result = await authClient.passkey.addPasskey({
+        name: newName.trim() || undefined
+      })
+      if (result?.error) {
+        const msg = getErrorMessage(result.error.message)
+        if (msg) setError(msg)
+      } else {
+        setSuccess('Passkey added successfully')
+        setNewName('')
+        await loadPasskeys()
       }
-    } else {
-      setSuccess('Passkey added successfully')
-      setNewName('')
-      await loadPasskeys()
+    } catch {
+      setError('Failed to add passkey. Please try again.')
     }
     setAdding(false)
   }
@@ -70,16 +79,18 @@ export const PasskeyManager: FC = () => {
   const handleDelete = async (id: string) => {
     setError(undefined)
     setSuccess(undefined)
-    const result = await authClient.passkey.deletePasskey({ id })
-    if (result?.error) {
-      const msg = result.error.message
-      setError(
-        (typeof msg === 'string' ? msg : undefined) ||
-          'Failed to delete passkey'
-      )
-    } else {
-      setSuccess('Passkey removed')
-      await loadPasskeys()
+    try {
+      const result = await authClient.passkey.deletePasskey({ id })
+      if (result?.error) {
+        setError(
+          getErrorMessage(result.error.message) ?? 'Failed to delete passkey'
+        )
+      } else {
+        setSuccess('Passkey removed')
+        await loadPasskeys()
+      }
+    } catch {
+      setError('Failed to remove passkey. Please try again.')
     }
   }
 

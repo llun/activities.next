@@ -22,9 +22,8 @@ export const PasskeySigninButton: FC = () => {
       const result = await authClient.signIn.passkey()
       if (!result || result.error) {
         const msg = result?.error?.message
-        const msgStr = typeof msg === 'string' ? msg : undefined
-        if (msgStr && !msgStr.toLowerCase().includes('cancel')) {
-          setError(msgStr)
+        if (typeof msg === 'string' && !msg.toLowerCase().includes('cancel')) {
+          setError(msg)
         }
         setLoading(false)
         return
