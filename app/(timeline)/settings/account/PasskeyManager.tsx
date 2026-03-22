@@ -14,10 +14,15 @@ interface PasskeyItem {
   backedUp: boolean
 }
 
-const getErrorMessage = (msg: unknown): string | undefined => {
-  if (typeof msg !== 'string') return undefined
-  if (msg.toLowerCase().includes('cancel')) return undefined
-  return msg
+const CANCEL_CODES = new Set(['AUTH_CANCELLED', 'ERROR_CEREMONY_ABORTED'])
+
+const getErrorMessage = (error: {
+  code?: string
+  message?: unknown
+}): string | undefined => {
+  if (error.code && CANCEL_CODES.has(error.code)) return undefined
+  if (typeof error.message !== 'string') return undefined
+  return error.message
 }
 
 export const PasskeyManager: FC = () => {
@@ -37,7 +42,7 @@ export const PasskeyManager: FC = () => {
         credentials: 'include'
       })
       if (res.ok) {
-        const data = await res.json().catch(() => [])
+        const data = await res.json()
         setPasskeys(Array.isArray(data) ? data : [])
       } else {
         setError('Failed to load passkeys')
@@ -63,7 +68,7 @@ export const PasskeyManager: FC = () => {
         name: newName.trim() || undefined
       })
       if (result?.error) {
-        const msg = getErrorMessage(result.error.message)
+        const msg = getErrorMessage(result.error)
         if (msg) setError(msg)
       } else {
         setSuccess('Passkey added successfully')
@@ -82,9 +87,7 @@ export const PasskeyManager: FC = () => {
     try {
       const result = await authClient.passkey.deletePasskey({ id })
       if (result?.error) {
-        setError(
-          getErrorMessage(result.error.message) ?? 'Failed to delete passkey'
-        )
+        setError(getErrorMessage(result.error) ?? 'Failed to delete passkey')
       } else {
         setSuccess('Passkey removed')
         await loadPasskeys()

@@ -36,7 +36,7 @@ export const getAuth = memoize(() => {
       passkey({
         rpID: new URL(baseURL).hostname,
         rpName: config.serviceName ?? 'Activities.next',
-        origin: baseURL
+        origin: new URL(baseURL).origin
       }),
       oauthProvider({
         loginPage: '/auth/signin',

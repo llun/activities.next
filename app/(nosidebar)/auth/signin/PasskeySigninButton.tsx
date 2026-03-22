@@ -19,15 +19,20 @@ export const PasskeySigninButton: FC = () => {
     const redirectBack =
       raw.startsWith('/') && !raw.startsWith('//') ? raw : '/'
     try {
-      const result = await authClient.signIn.passkey()
+      const result = await authClient.signIn.passkey({ autoFill: false })
       if (!result || result.error) {
-        const msg = result?.error?.message
-        if (typeof msg === 'string' && !msg.toLowerCase().includes('cancel')) {
+        const error = result?.error as
+          | { code?: string; message?: unknown }
+          | undefined
+        const code = error?.code
+        const msg = error?.message
+        if (code !== 'AUTH_CANCELLED' && typeof msg === 'string') {
           setError(msg)
         }
         setLoading(false)
         return
       }
+      setLoading(false)
       router.push(redirectBack)
     } catch {
       setError('Passkey sign in failed. Please try again.')
