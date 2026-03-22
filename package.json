@@ -1,6 +1,6 @@
 {
   "name": "activities.next",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "MIT",
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
