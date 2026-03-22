@@ -139,25 +139,36 @@ jobs:
         run: |
           BRANCH="version-bump/v${NEW_VERSION}"
 
-          # If the branch already exists, skip to PR creation/recovery
+          # If an open PR already exists for this version, ensure auto-merge
+          # is enabled (covers reruns where PR was created but auto-merge failed).
+          EXISTING_PR=$(gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} already exists; ensuring auto-merge is enabled."
+            gh pr merge --auto --squash "#${EXISTING_PR}"
+            exit 0
+          fi
+
+          # Create branch and commit if it doesn't exist yet
           if git ls-remote --heads origin "$BRANCH" | grep -q .; then
-            echo "Branch $BRANCH already exists, checking for PR."
+            echo "Branch $BRANCH exists without an open PR; will attempt PR creation."
           else
             git checkout -b "$BRANCH"
             git add package.json
             if git diff --cached --quiet; then
-              echo "No package.json changes to commit, skipping."
+              # package.json already has this version (e.g. bootstrap case where
+              # the repo has no tags but package.json is already at 1.0.0).
+              # Tag the current HEAD directly so tag-version.yml isn't needed.
+              echo "No package.json changes; creating tag v${NEW_VERSION} directly."
+              if git rev-parse "v${NEW_VERSION}" >/dev/null 2>&1; then
+                echo "Tag v${NEW_VERSION} already exists, skipping."
+                exit 0
+              fi
+              git tag -a "v${NEW_VERSION}" -m "Version ${NEW_VERSION}"
+              git push origin "v${NEW_VERSION}"
               exit 0
             fi
             git commit -m "Bump version to v${NEW_VERSION}"
             git push origin "$BRANCH"
-          fi
-
-          # Skip if a PR for this branch already exists
-          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number')
-          if [ -n "$EXISTING_PR" ]; then
-            echo "PR already exists: #${EXISTING_PR}"
-            exit 0
           fi
 
           PR_URL=$(gh pr create \
