@@ -15,7 +15,6 @@ import { AuthConfig, getAuthConfig } from './auth'
 import { getDatabaseConfig } from './database'
 import { getEmailConfig } from './email'
 import { FitnessStorageConfig, getFitnessStorageConfig } from './fitnessStorage'
-import { InternalApiConfig, getInternalApiConfig } from './internalApi'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
 import { QueueConfig, getQueueConfig } from './queue'
@@ -39,7 +38,6 @@ const Config = z.object({
   mediaStorage: MediaStorageConfig.optional(),
   fitnessStorage: FitnessStorageConfig.optional(),
   openTelemetry: OpenTelemetryConfig.optional(),
-  internalApi: InternalApiConfig.optional(),
   request: RequestConfig.optional()
 })
 export type Config = z.infer<typeof Config>
@@ -85,7 +83,6 @@ const getConfigFromEnvironment = () => {
       ...getMediaStorageConfig(),
       ...getFitnessStorageConfig(),
       ...getOtelConfig(),
-      ...getInternalApiConfig(),
       ...getRequestConfig(),
       ...getQueueConfig()
     })

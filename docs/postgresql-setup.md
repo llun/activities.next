@@ -4,7 +4,7 @@ This guide will help you set up Activity.next using PostgreSQL as your database 
 
 ## Prerequisites
 
-- Node.js 18+ and Yarn
+- Node.js 24 and Yarn (v4.12.0 via Corepack)
 - Git (to clone the repository)
 - PostgreSQL server (version 12+)
 
@@ -67,9 +67,10 @@ git clone https://github.com/llun/activities.next.git
 cd activities.next
 ```
 
-2. Install dependencies:
+2. Enable Corepack and install dependencies:
 
 ```bash
+corepack enable
 yarn install
 ```
 
@@ -82,18 +83,23 @@ Create a `config.json` file with the following content:
   "host": "your-domain.tld",
   "secretPhase": "your-random-secret-for-sessions",
   "allowEmails": ["your-email@example.com"],
-  "auth": {
-    "github": {
-      "id": "github-app-client-id",
-      "secret": "github-app-secret"
+  "database": {
+    "type": "sql",
+    "client": "pg",
+    "connection": {
+      "host": "localhost",
+      "user": "activitynext",
+      "password": "your_strong_password",
+      "database": "activitynext"
     }
   }
 }
 ```
 
-4. Run the development server:
+4. Run migrations and start the development server:
 
 ```bash
+yarn migrate
 yarn dev
 ```
 
@@ -150,21 +156,16 @@ To deploy Activity.next with PostgreSQL using Docker:
 docker run -p 3000:3000 \
   -e ACTIVITIES_HOST=your.domain.tld \
   -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
-  -e NEXTAUTH_URL=https://your.domain.tld \
-  -e NEXTAUTH_SECRET=session-secret \
-  -e ACTIVITIES_DATABASE_TYPE=sql \
-  -e ACTIVITIES_DATABASE_CLIENT=pg \
   -e ACTIVITIES_DATABASE='{"type":"sql","client":"pg","connection":{"host":"postgres-host","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext"},"pool":{"min":2,"max":10}}' \
   ghcr.io/llun/activities.next:latest
 ```
 
-For a complete setup with both PostgreSQL and Activity.next in Docker, you can use docker-compose:
+For a complete setup with both PostgreSQL and Activity.next in Docker, you can use Docker Compose:
 
 ```yaml
-version: '3'
 services:
   postgres:
-    image: postgres:15
+    image: postgres:17
     environment:
       POSTGRES_USER: activitynext
       POSTGRES_PASSWORD: your_strong_password
@@ -180,10 +181,6 @@ services:
     environment:
       ACTIVITIES_HOST: your.domain.tld
       ACTIVITIES_SECRET_PHASE: random-secret-for-cookie
-      NEXTAUTH_URL: https://your.domain.tld
-      NEXTAUTH_SECRET: session-secret
-      ACTIVITIES_DATABASE_TYPE: sql
-      ACTIVITIES_DATABASE_CLIENT: pg
       ACTIVITIES_DATABASE: '{"type":"sql","client":"pg","connection":{"host":"postgres","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext"},"pool":{"min":2,"max":10}}'
     ports:
       - '3000:3000'
@@ -193,4 +190,4 @@ volumes:
   postgres_data:
 ```
 
-Save this as `docker-compose.yml` and run with `docker-compose up -d`.
+Save this as `docker-compose.yml` and run with `docker compose up -d`.

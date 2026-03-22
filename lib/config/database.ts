@@ -48,8 +48,21 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
             ...(process.env.ACTIVITIES_DATABASE_PG_DATABASE
               ? { database: process.env.ACTIVITIES_DATABASE_PG_DATABASE }
               : {}),
-            ...(process.env.ACTIVITIES_DATABASE_PG_SSL_MODE
-              ? { ssl: { rejectUnauthorized: false } }
+            ...(process.env.ACTIVITIES_DATABASE_PG_SSL_MODE &&
+            process.env.ACTIVITIES_DATABASE_PG_SSL_MODE !== 'disable'
+              ? {
+                  ssl: {
+                    rejectUnauthorized:
+                      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
+                        'verify-ca' ||
+                      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
+                        'verify-full',
+                    ...(process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
+                    'verify-ca'
+                      ? { checkServerIdentity: () => undefined }
+                      : {})
+                  }
+                }
               : {})
           },
           pool: {
@@ -80,7 +93,7 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
             ...(process.env.ACTIVITIES_DATABASE_MYSQL_USER
               ? { user: process.env.ACTIVITIES_DATABASE_MYSQL_USER }
               : {}),
-            ...(process.env.ACTIVITIES_DATABASE_MYSQL_PASSOWRD
+            ...(process.env.ACTIVITIES_DATABASE_MYSQL_PASSWORD
               ? { password: process.env.ACTIVITIES_DATABASE_MYSQL_PASSWORD }
               : {}),
             ...(process.env.ACTIVITIES_DATABASE_MYSQL_DATABASE
