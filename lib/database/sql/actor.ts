@@ -655,6 +655,64 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     }
   },
 
+  async getNodeInfoStats() {
+    const now = new Date()
+    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000)
+
+    // Get all local actor IDs (actors with an account)
+    const localActors = await database('actors')
+      .whereNotNull('accountId')
+      .select<{ id: string; accountId: string }[]>('id', 'accountId')
+
+    const totalUsers = localActors.length
+
+    if (totalUsers === 0) {
+      return { totalUsers: 0, activeMonth: 0, activeHalfyear: 0, localPosts: 0 }
+    }
+
+    const localActorIds = localActors.map((a) => a.id)
+
+    // Use counters to get total local posts (sum of total-status counters for local actors)
+    const counterIds = localActorIds.map((id) => CounterKey.totalStatus(id))
+    const counterValues = await getCounterValues(database, counterIds)
+    const localPosts = Object.values(counterValues).reduce(
+      (sum, val) => sum + val,
+      0
+    )
+
+    // For active users, check if they have a status in the time window
+    // Since local actors is a small set, use EXISTS for efficiency
+    const activeMonthResult = await database('actors')
+      .whereIn('id', localActorIds)
+      .whereExists(function () {
+        this.select(database.raw('1'))
+          .from('statuses')
+          .whereColumn('statuses.actorId', 'actors.id')
+          .andWhere('statuses.createdAt', '>=', oneMonthAgo)
+      })
+      .count<{ count: string }>('* as count')
+      .first()
+
+    const activeHalfyearResult = await database('actors')
+      .whereIn('id', localActorIds)
+      .whereExists(function () {
+        this.select(database.raw('1'))
+          .from('statuses')
+          .whereColumn('statuses.actorId', 'actors.id')
+          .andWhere('statuses.createdAt', '>=', sixMonthsAgo)
+      })
+      .count<{ count: string }>('* as count')
+      .first()
+
+    return {
+      totalUsers,
+      activeMonth: parseInt(activeMonthResult?.count ?? '0', 10),
+      activeHalfyear: parseInt(activeHalfyearResult?.count ?? '0', 10),
+      localPosts
+    }
+  },
+
   async deleteActorData({ actorId }: DeleteActorDataParams) {
     await database.transaction(async (trx) => {
       const currentTime = new Date()

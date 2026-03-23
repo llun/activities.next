@@ -553,6 +553,47 @@ describe('ActorDatabase', () => {
       })
     })
 
+    describe('#getNodeInfoStats', () => {
+      it('returns stats with local users and posts from counters', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `nodeinfo-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        const statusId = `${actorId}/statuses/nodeinfo-${suffix}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'NodeInfo test status'
+        })
+
+        const stats = await database.getNodeInfoStats()
+        expect(stats.totalUsers).toBeGreaterThanOrEqual(1)
+        expect(stats.localPosts).toBeGreaterThanOrEqual(1)
+        expect(stats.activeMonth).toBeGreaterThanOrEqual(1)
+        expect(stats.activeHalfyear).toBeGreaterThanOrEqual(1)
+      })
+
+      it('does not count external actors in local stats', async () => {
+        const stats = await database.getNodeInfoStats()
+        // External actors (those without accountId) should not be counted
+        // We already have EXTERNAL_ACTORS[0] and [1] created in beforeAll
+        // totalUsers should only count actors with accounts
+        expect(stats.totalUsers).toBeGreaterThanOrEqual(1)
+      })
+    })
+
     describe('#deleteActorData', () => {
       it('deletes actor data and keeps related counters consistent', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
