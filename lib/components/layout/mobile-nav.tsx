@@ -1,17 +1,11 @@
 'use client'
 
-import { Activity, Bell, Home, Settings, Shield } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+import { buildNavItems } from '@/lib/components/layout/nav-items'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import { cn } from '@/lib/utils'
-
-const navItems = [
-  { href: '/', label: 'Timeline', icon: Home },
-  { href: '/notifications', label: 'Notifications', icon: Bell },
-  { href: '/settings', label: 'Settings', icon: Settings }
-]
 
 interface MobileNavProps {
   unreadCount?: number
@@ -25,25 +19,7 @@ export function MobileNav({
   isAdmin = false
 }: MobileNavProps) {
   const pathname = usePathname()
-
-  let allNavItems = fitnessUrl
-    ? [
-        ...navItems.slice(0, 1),
-        { href: fitnessUrl, label: 'Fitness', icon: Activity },
-        ...navItems.slice(1)
-      ]
-    : [...navItems]
-
-  if (isAdmin) {
-    const settingsIndex = allNavItems.findIndex(
-      (item) => item.href === '/settings'
-    )
-    allNavItems.splice(settingsIndex, 0, {
-      href: '/admin',
-      label: 'Admin',
-      icon: Shield
-    })
-  }
+  const allNavItems = buildNavItems({ fitnessUrl, isAdmin })
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/90 backdrop-blur md:hidden safe-area-pb">

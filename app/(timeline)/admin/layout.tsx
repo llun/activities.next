@@ -28,11 +28,11 @@ const Layout: FC<Props> = ({ children }) => {
   ]
 
   const activeTab =
-    tabs
-      .filter(
+    [...tabs]
+      .sort((a, b) => b.url.length - a.url.length)
+      .find(
         (tab) => pathname === tab.url || pathname.startsWith(`${tab.url}/`)
-      )
-      .sort((a, b) => b.url.length - a.url.length)[0] || tabs[0]
+      ) || tabs[0]
 
   return (
     <div className="space-y-6">

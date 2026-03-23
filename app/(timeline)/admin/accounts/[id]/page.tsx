@@ -32,6 +32,7 @@ const Page = async ({ params }: Props) => {
       <div className="flex items-center gap-3">
         <Link
           href="/admin/accounts"
+          aria-label="Back to accounts list"
           className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
