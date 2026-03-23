@@ -2,10 +2,15 @@
 /**
  * Script to add or remove admin role for an account by email
  * Usage:
- *   scripts/manageAdminRole add <email>
- *   scripts/manageAdminRole remove <email>
+ *   NODE_ENV=production scripts/manageAdminRole add <email>
+ *   NODE_ENV=production scripts/manageAdminRole remove <email>
  */
+import { loadEnvConfig } from '@next/env'
+
 import { getKnex } from '@/lib/database'
+
+const projectDir = process.cwd()
+loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
 async function manageAdminRole() {
   const args = process.argv.slice(2)
