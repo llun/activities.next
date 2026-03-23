@@ -8,13 +8,10 @@ import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { Textarea } from '@/lib/components/ui/textarea'
-import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
-import { AuthenticationProviders } from './AuthenticationProviders'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,13 +44,9 @@ const Page = async () => {
   }
 
   const profile = getActorProfile(actor)
-  const { auth } = getConfig()
-  const [nonCredentialsProviders, connectedProviders, actors] =
-    await Promise.all([
-      auth?.github ? [{ id: 'github', name: 'GitHub' }] : [],
-      database.getAccountProviders({ accountId: actor.account.id }),
-      database.getActorsForAccount({ accountId: actor.account.id })
-    ])
+  const actors = await database.getActorsForAccount({
+    accountId: actor.account.id
+  })
   return (
     <div className="space-y-6">
       <div>
@@ -193,21 +186,6 @@ const Page = async () => {
           <Button type="submit">Update</Button>
         </div>
       </form>
-
-      {nonCredentialsProviders.length > 0 && (
-        <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold">Connected Accounts</h2>
-            <p className="text-sm text-muted-foreground">
-              Manage login methods.
-            </p>
-          </div>
-          <AuthenticationProviders
-            nonCredentialsProviders={nonCredentialsProviders}
-            connectedProviders={connectedProviders}
-          />
-        </section>
-      )}
 
       <section className="space-y-4 rounded-2xl border border-destructive/20 bg-background/80 p-6 shadow-sm">
         <div>
