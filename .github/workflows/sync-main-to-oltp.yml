@@ -6,11 +6,12 @@ on:
       - sync-main-to-oltp
 
 permissions:
+  actions: write
   contents: write
   id-token: write
 
 concurrency:
-  group: sync-main-to-oltp-${{ github.event.client_payload.main_sha }}
+  group: sync-main-to-oltp
   cancel-in-progress: true
 
 env:
@@ -41,6 +42,7 @@ jobs:
         with:
           ref: oltp
           fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Enable corepack
         shell: bash
