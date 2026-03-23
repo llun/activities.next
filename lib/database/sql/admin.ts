@@ -2,41 +2,14 @@ import { Knex } from 'knex'
 
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
 import {
   AdminDatabase,
   GetAccountWithActorsParams,
   GetAllAccountsParams
 } from '@/lib/types/database/operations'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
-import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
-
-const toDomainAccount = (row: SQLAccount): Account =>
-  Account.parse({
-    ...row,
-    ...(row.verifiedAt
-      ? { verifiedAt: getCompatibleTime(row.verifiedAt) }
-      : null),
-    ...(row.emailVerifiedAt
-      ? { emailVerifiedAt: getCompatibleTime(row.emailVerifiedAt) }
-      : null),
-    ...(row.emailChangeCodeExpiresAt
-      ? {
-          emailChangeCodeExpiresAt: getCompatibleTime(
-            row.emailChangeCodeExpiresAt
-          )
-        }
-      : null),
-    ...(row.passwordResetCodeExpiresAt
-      ? {
-          passwordResetCodeExpiresAt: getCompatibleTime(
-            row.passwordResetCodeExpiresAt
-          )
-        }
-      : null),
-    createdAt: getCompatibleTime(row.createdAt),
-    updatedAt: getCompatibleTime(row.updatedAt)
-  })
 
 const toDomainActor = (row: SQLActor): Actor => {
   const settings = getCompatibleJSON<ActorSettings>(row.settings)
@@ -98,44 +71,47 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
   },
 
   async getServiceStats() {
-    const [accountsCount, actorsCount, statusesCount, mediaResult] =
-      await Promise.all([
-        database('accounts').count<{ count: string }>('id as count').first(),
-        database('actors')
-          .whereNotNull('accountId')
-          .count<{ count: string }>('id as count')
-          .first(),
-        database('statuses').count<{ count: string }>('id as count').first(),
-        database('counters')
-          .where('id', 'like', 'media-usage:%')
-          .sum<{ total: string }>('value as total')
-          .first()
-      ])
-
-    const [mediaFilesResult, fitnessResult, fitnessFilesResult] =
-      await Promise.all([
-        database('counters')
-          .where('id', 'like', 'total-media:%')
-          .sum<{ total: string }>('value as total')
-          .first(),
-        database('counters')
-          .where('id', 'like', 'fitness-usage:%')
-          .sum<{ total: string }>('value as total')
-          .first(),
-        database('counters')
-          .where('id', 'like', 'total-fitness:%')
-          .sum<{ total: string }>('value as total')
-          .first()
-      ])
+    const [
+      accountsCount,
+      actorsCount,
+      statusesCount,
+      mediaResult,
+      mediaFilesResult,
+      fitnessResult,
+      fitnessFilesResult
+    ] = await Promise.all([
+      database('accounts').count<{ count: string }>('id as count').first(),
+      database('actors')
+        .whereNotNull('accountId')
+        .count<{ count: string }>('id as count')
+        .first(),
+      database('statuses').count<{ count: string }>('id as count').first(),
+      database('counters')
+        .where('id', 'like', 'media-usage:%')
+        .sum<{ total: string }>('value as total')
+        .first(),
+      database('counters')
+        .where('id', 'like', 'total-media:%')
+        .sum<{ total: string }>('value as total')
+        .first(),
+      database('counters')
+        .where('id', 'like', 'fitness-usage:%')
+        .sum<{ total: string }>('value as total')
+        .first(),
+      database('counters')
+        .where('id', 'like', 'total-fitness:%')
+        .sum<{ total: string }>('value as total')
+        .first()
+    ])
 
     return {
       totalAccounts: parseInt(accountsCount?.count ?? '0', 10),
       totalActors: parseInt(actorsCount?.count ?? '0', 10),
       totalStatuses: parseInt(statusesCount?.count ?? '0', 10),
-      totalMediaBytes: parseInt(mediaResult?.total ?? '0', 10) || 0,
-      totalMediaFiles: parseInt(mediaFilesResult?.total ?? '0', 10) || 0,
-      totalFitnessBytes: parseInt(fitnessResult?.total ?? '0', 10) || 0,
-      totalFitnessFiles: parseInt(fitnessFilesResult?.total ?? '0', 10) || 0
+      totalMediaBytes: parseInt(mediaResult?.total ?? '0', 10),
+      totalMediaFiles: parseInt(mediaFilesResult?.total ?? '0', 10),
+      totalFitnessBytes: parseInt(fitnessResult?.total ?? '0', 10),
+      totalFitnessFiles: parseInt(fitnessFilesResult?.total ?? '0', 10)
     }
   }
 })

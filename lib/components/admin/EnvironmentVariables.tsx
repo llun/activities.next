@@ -7,27 +7,45 @@ import { Button } from '@/lib/components/ui/button'
 
 interface EnvVar {
   key: string
-  value: string
+  value: string | null
   isSensitive: boolean
 }
 
 interface Props {
   variables: EnvVar[]
+  revealEnvVar: (key: string) => Promise<string | null>
 }
 
-export const EnvironmentVariables: FC<Props> = ({ variables }) => {
-  const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set())
+export const EnvironmentVariables: FC<Props> = ({
+  variables,
+  revealEnvVar
+}) => {
+  const [revealedValues, setRevealedValues] = useState<
+    Record<string, string | null>
+  >({})
+  const [loading, setLoading] = useState<Set<string>>(new Set())
 
-  const toggleReveal = (key: string) => {
-    setRevealedKeys((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) {
+  const toggleReveal = async (key: string) => {
+    if (key in revealedValues) {
+      setRevealedValues((prev) => {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      })
+      return
+    }
+
+    setLoading((prev) => new Set(prev).add(key))
+    try {
+      const value = await revealEnvVar(key)
+      setRevealedValues((prev) => ({ ...prev, [key]: value }))
+    } finally {
+      setLoading((prev) => {
+        const next = new Set(prev)
         next.delete(key)
-      } else {
-        next.add(key)
-      }
-      return next
-    })
+        return next
+      })
+    }
   }
 
   return (
@@ -47,9 +65,11 @@ export const EnvironmentVariables: FC<Props> = ({ variables }) => {
                 {envVar.key}
               </p>
               <p className="text-sm font-mono text-muted-foreground truncate">
-                {envVar.isSensitive && !revealedKeys.has(envVar.key)
-                  ? '••••••••'
-                  : envVar.value}
+                {envVar.isSensitive
+                  ? envVar.key in revealedValues
+                    ? (revealedValues[envVar.key] ?? '')
+                    : '••••••••'
+                  : (envVar.value ?? '')}
               </p>
             </div>
             {envVar.isSensitive && (
@@ -57,9 +77,10 @@ export const EnvironmentVariables: FC<Props> = ({ variables }) => {
                 variant="ghost"
                 size="sm"
                 onClick={() => toggleReveal(envVar.key)}
+                disabled={loading.has(envVar.key)}
                 className="shrink-0"
               >
-                {revealedKeys.has(envVar.key) ? (
+                {envVar.key in revealedValues ? (
                   <EyeOff className="h-4 w-4" />
                 ) : (
                   <Eye className="h-4 w-4" />

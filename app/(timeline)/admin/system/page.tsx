@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 
+import { revealEnvVar } from '@/app/(timeline)/admin/system/actions'
 import { EnvironmentVariables } from '@/lib/components/admin/EnvironmentVariables'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -13,7 +14,9 @@ const SENSITIVE_PATTERNS = [
   'key',
   'token',
   'credential',
-  'private'
+  'private',
+  'database',
+  'auth'
 ]
 
 const isSensitiveKey = (key: string): boolean => {
@@ -33,13 +36,13 @@ const Page = async () => {
   const packageJson = require('@/package.json') as { version: string }
   const version = packageJson.version
 
-  // Collect ACTIVITIES_* environment variables
+  // Collect ACTIVITIES_* environment variables; mask sensitive values server-side
   const envVars = Object.entries(process.env)
     .filter(([key]) => key.startsWith('ACTIVITIES_'))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => ({
       key,
-      value: value ?? '',
+      value: isSensitiveKey(key) ? null : (value ?? ''),
       isSensitive: isSensitiveKey(key)
     }))
 
@@ -64,7 +67,7 @@ const Page = async () => {
           {envVars.length !== 1 ? 's' : ''}. Sensitive values are hidden by
           default.
         </p>
-        <EnvironmentVariables variables={envVars} />
+        <EnvironmentVariables variables={envVars} revealEnvVar={revealEnvVar} />
       </div>
     </div>
   )
