@@ -1,6 +1,6 @@
 name: Dev
 
-on: 
+on:
   push:
   pull_request:
 

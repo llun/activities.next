@@ -8,6 +8,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 interface LayoutProps {
   children: ReactNode
@@ -63,19 +64,21 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
       }
     : undefined
 
-  // Get unread notifications count and fitness data status
-  const [unreadCount, hasFitnessData] = await Promise.all([
+  // Get unread notifications count, fitness data status, and admin status
+  const [unreadCount, hasFitnessData, adminAccount] = await Promise.all([
     actor
       ? database.getNotificationsCount({
           actorId: actor.id,
           onlyUnread: true
         })
       : 0,
-    actor ? database.getActorHasFitnessData({ actorId: actor.id }) : false
+    actor ? database.getActorHasFitnessData({ actorId: actor.id }) : false,
+    getAdminFromSession(database, session)
   ])
 
   const fitnessUrl =
     hasFitnessData && user ? `/${user.handle}/fitness` : undefined
+  const isAdmin = Boolean(adminAccount)
 
   return (
     <div className="min-h-screen">
@@ -94,10 +97,15 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
           }))}
           unreadCount={unreadCount}
           fitnessUrl={fitnessUrl}
+          isAdmin={isAdmin}
         />
       )}
       {showNavigation && (
-        <MobileNav unreadCount={unreadCount} fitnessUrl={fitnessUrl} />
+        <MobileNav
+          unreadCount={unreadCount}
+          fitnessUrl={fitnessUrl}
+          isAdmin={isAdmin}
+        />
       )}
       <main
         className={cn(

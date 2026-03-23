@@ -1,6 +1,6 @@
 'use client'
 
-import { Activity, Bell, Home, Settings } from 'lucide-react'
+import { Activity, Bell, Home, Settings, Shield } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -38,6 +38,7 @@ interface SidebarProps {
   actors?: ActorInfo[]
   unreadCount?: number
   fitnessUrl?: string
+  isAdmin?: boolean
 }
 
 export function Sidebar({
@@ -45,17 +46,29 @@ export function Sidebar({
   currentActor,
   actors = [],
   unreadCount = 0,
-  fitnessUrl
+  fitnessUrl,
+  isAdmin = false
 }: SidebarProps) {
   const pathname = usePathname()
 
-  const allNavItems = fitnessUrl
+  let allNavItems = fitnessUrl
     ? [
         ...navItems.slice(0, 1),
         { href: fitnessUrl, label: 'Fitness', icon: Activity },
         ...navItems.slice(1)
       ]
-    : navItems
+    : [...navItems]
+
+  if (isAdmin) {
+    const settingsIndex = allNavItems.findIndex(
+      (item) => item.href === '/settings'
+    )
+    allNavItems.splice(settingsIndex, 0, {
+      href: '/admin',
+      label: 'Admin',
+      icon: Shield
+    })
+  }
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'
