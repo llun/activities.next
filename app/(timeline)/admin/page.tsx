@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
 
 const Page = async () => {
   const database = getDatabase()
-  if (!database) throw new Error('Fail to load database')
+  if (!database) throw new Error('Failed to load database')
 
   const session = await getServerAuthSession()
   const admin = await getAdminFromSession(database, session)

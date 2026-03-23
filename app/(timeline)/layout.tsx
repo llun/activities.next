@@ -8,7 +8,6 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 interface LayoutProps {
   children: ReactNode
@@ -17,7 +16,7 @@ interface LayoutProps {
 const Layout: FC<LayoutProps> = async ({ children }) => {
   const database = getDatabase()
   if (!database) {
-    throw new Error('Fail to load database')
+    throw new Error('Failed to load database')
   }
 
   const session = await getServerAuthSession()
@@ -64,21 +63,20 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
       }
     : undefined
 
-  // Get unread notifications count, fitness data status, and admin status
-  const [unreadCount, hasFitnessData, adminAccount] = await Promise.all([
+  // Get unread notifications count and fitness data status
+  const [unreadCount, hasFitnessData] = await Promise.all([
     actor
       ? database.getNotificationsCount({
           actorId: actor.id,
           onlyUnread: true
         })
       : 0,
-    actor ? database.getActorHasFitnessData({ actorId: actor.id }) : false,
-    getAdminFromSession(database, session)
+    actor ? database.getActorHasFitnessData({ actorId: actor.id }) : false
   ])
 
   const fitnessUrl =
     hasFitnessData && user ? `/${user.handle}/fitness` : undefined
-  const isAdmin = Boolean(adminAccount)
+  const isAdmin = actor?.account?.role === 'admin'
 
   return (
     <div className="min-h-screen">

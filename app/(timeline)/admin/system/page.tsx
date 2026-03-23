@@ -5,7 +5,6 @@ import { EnvironmentVariables } from '@/lib/components/admin/EnvironmentVariable
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
-import packageJson from '@/package.json'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,13 +26,13 @@ const isSensitiveKey = (key: string): boolean => {
 
 const Page = async () => {
   const database = getDatabase()
-  if (!database) throw new Error('Fail to load database')
+  if (!database) throw new Error('Failed to load database')
 
   const session = await getServerAuthSession()
   const admin = await getAdminFromSession(database, session)
   if (!admin) return redirect('/')
 
-  const version = packageJson.version
+  const version = (require('@/package.json') as { version: string }).version
 
   // Collect ACTIVITIES_* environment variables; mask sensitive values server-side
   const envVars = Object.entries(process.env)
