@@ -123,7 +123,7 @@
 
 ## Commit & Pull Request Guidelines
 
-- Commit messages are short and imperative (examples in history: “Fix build”, “Update dependencies”, “Bump …”).
+- Commit messages must start with a conventional commit prefix (`fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc.) followed by a short imperative description.
 - PRs should include a clear summary, linked issues (if any), test results, and notes for config/migrations.
 - Include screenshots or clips for UI changes.- **Before committing**, always run:
   1. `yarn run prettier --write .` to format all files.
