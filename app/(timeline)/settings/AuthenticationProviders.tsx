@@ -19,11 +19,13 @@ interface AuthenticationProvidersProps {
     createdAt: number
     updatedAt: number
   }[]
+  callbackURL?: string
 }
 
 export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({
   nonCredentialsProviders,
-  connectedProviders
+  connectedProviders,
+  callbackURL = '/settings'
 }) => {
   const router = useRouter()
   const [error, setError] = useState<string>()
@@ -80,7 +82,7 @@ export const AuthenticationProviders: FC<AuthenticationProvidersProps> = ({
                   provider: provider.id as Parameters<
                     typeof authClient.linkSocial
                   >[0]['provider'],
-                  callbackURL: '/settings',
+                  callbackURL,
                   fetchOptions: {
                     onError: () => {
                       setError(

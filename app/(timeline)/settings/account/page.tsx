@@ -43,7 +43,11 @@ const Page = async ({
   const { error } = await searchParams
   const { auth } = getConfig()
   const [nonCredentialsProviders, connectedProviders] = await Promise.all([
-    auth?.github ? [{ id: 'github', name: 'GitHub' }] : [],
+    [
+      auth?.github && { id: 'github', name: 'GitHub' }
+      // To add more providers in the future, add them here. For example:
+      // auth?.google && { id: 'google', name: 'Google' }
+    ].filter((provider): provider is { id: string; name: string } => !!provider),
     database.getAccountProviders({ accountId: account.id })
   ])
 
@@ -147,6 +151,7 @@ const Page = async ({
           <AuthenticationProviders
             nonCredentialsProviders={nonCredentialsProviders}
             connectedProviders={connectedProviders}
+            callbackURL="/settings/account"
           />
         </section>
       )}
