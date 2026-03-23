@@ -39,6 +39,8 @@ export const EnvironmentVariables: FC<Props> = ({
     try {
       const value = await revealEnvVar(key)
       setRevealedValues((prev) => ({ ...prev, [key]: value }))
+    } catch {
+      // Server action failed; leave the value hidden
     } finally {
       setLoading((prev) => {
         const next = new Set(prev)
@@ -79,6 +81,9 @@ export const EnvironmentVariables: FC<Props> = ({
                 onClick={() => toggleReveal(envVar.key)}
                 disabled={loading.has(envVar.key)}
                 className="shrink-0"
+                aria-label={
+                  envVar.key in revealedValues ? 'Hide value' : 'Reveal value'
+                }
               >
                 {envVar.key in revealedValues ? (
                   <EyeOff className="h-4 w-4" />

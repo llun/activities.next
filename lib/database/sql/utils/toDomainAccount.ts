@@ -5,20 +5,20 @@ import { Account } from '@/lib/types/domain/account'
 export const toDomainAccount = (row: SQLAccount): Account =>
   Account.parse({
     ...row,
-    ...(row.verifiedAt
+    ...(row.verifiedAt != null
       ? { verifiedAt: getCompatibleTime(row.verifiedAt) }
       : null),
-    ...(row.emailVerifiedAt
+    ...(row.emailVerifiedAt != null
       ? { emailVerifiedAt: getCompatibleTime(row.emailVerifiedAt) }
       : null),
-    ...(row.emailChangeCodeExpiresAt
+    ...(row.emailChangeCodeExpiresAt != null
       ? {
           emailChangeCodeExpiresAt: getCompatibleTime(
             row.emailChangeCodeExpiresAt
           )
         }
       : null),
-    ...(row.passwordResetCodeExpiresAt
+    ...(row.passwordResetCodeExpiresAt != null
       ? {
           passwordResetCodeExpiresAt: getCompatibleTime(
             row.passwordResetCodeExpiresAt

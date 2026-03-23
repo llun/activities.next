@@ -21,6 +21,7 @@ const toDomainActor = (row: SQLActor): Actor => {
     summary: row.summary,
     iconUrl: settings?.iconUrl,
     headerImageUrl: settings?.headerImageUrl,
+    manuallyApprovesFollowers: settings?.manuallyApprovesFollowers ?? true,
     followersUrl: settings?.followersUrl ?? '',
     inboxUrl: settings?.inboxUrl ?? '',
     sharedInboxUrl: settings?.sharedInboxUrl ?? '',
@@ -29,21 +30,30 @@ const toDomainActor = (row: SQLActor): Actor => {
     statusCount: 0,
     lastStatusAt: null,
     publicKey: row.publicKey,
-    privateKey: row.privateKey,
     createdAt: getCompatibleTime(row.createdAt),
     updatedAt: getCompatibleTime(row.updatedAt),
     deletionStatus: row.deletionStatus ?? null,
-    deletionScheduledAt: row.deletionScheduledAt
-      ? getCompatibleTime(row.deletionScheduledAt)
-      : null
+    deletionScheduledAt:
+      row.deletionScheduledAt != null
+        ? getCompatibleTime(row.deletionScheduledAt)
+        : null
   })
 }
 
 export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
   async getAllAccounts({ limit, offset }: GetAllAccountsParams) {
     const [rows, countResult] = await Promise.all([
-      database('accounts')
-        .select('*')
+      database<SQLAccount>('accounts')
+        .select(
+          'id',
+          'email',
+          'name',
+          'iconUrl',
+          'role',
+          'createdAt',
+          'updatedAt',
+          'verifiedAt'
+        )
         .orderBy('createdAt', 'desc')
         .limit(limit)
         .offset(offset),
@@ -57,10 +67,36 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
   },
 
   async getAccountWithActors({ accountId }: GetAccountWithActorsParams) {
-    const accountRow = await database('accounts').where('id', accountId).first()
+    const accountRow = await database<SQLAccount>('accounts')
+      .select(
+        'id',
+        'email',
+        'name',
+        'iconUrl',
+        'role',
+        'createdAt',
+        'updatedAt',
+        'verifiedAt'
+      )
+      .where('id', accountId)
+      .first()
     if (!accountRow) return null
 
-    const actorRows = await database('actors')
+    const actorRows = await database<SQLActor>('actors')
+      .select(
+        'id',
+        'username',
+        'domain',
+        'name',
+        'summary',
+        'accountId',
+        'publicKey',
+        'settings',
+        'deletionStatus',
+        'deletionScheduledAt',
+        'createdAt',
+        'updatedAt'
+      )
       .where('accountId', accountId)
       .orderBy('createdAt', 'asc')
 

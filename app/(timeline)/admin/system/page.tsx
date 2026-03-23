@@ -5,6 +5,7 @@ import { EnvironmentVariables } from '@/lib/components/admin/EnvironmentVariable
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
+import packageJson from '@/package.json'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,8 +33,6 @@ const Page = async () => {
   const admin = await getAdminFromSession(database, session)
   if (!admin) return redirect('/')
 
-  // Read version from package.json at build/runtime
-  const packageJson = require('@/package.json') as { version: string }
   const version = packageJson.version
 
   // Collect ACTIVITIES_* environment variables; mask sensitive values server-side
