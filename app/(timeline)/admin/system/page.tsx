@@ -4,6 +4,7 @@ import { revealEnvVar } from '@/app/(timeline)/admin/system/actions'
 import { EnvironmentVariables } from '@/lib/components/admin/EnvironmentVariables'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { ENV_VAR_PREFIX } from '@/lib/utils/adminConstants'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
@@ -36,13 +37,16 @@ const Page = async () => {
 
   // Collect ACTIVITIES_* environment variables; mask sensitive values server-side
   const envVars = Object.entries(process.env)
-    .filter(([key]) => key.startsWith('ACTIVITIES_'))
+    .filter(([key]) => key.startsWith(ENV_VAR_PREFIX))
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => ({
-      key,
-      value: isSensitiveKey(key) ? null : (value ?? ''),
-      isSensitive: isSensitiveKey(key)
-    }))
+    .map(([key, value]) => {
+      const isSensitive = isSensitiveKey(key)
+      return {
+        key,
+        value: isSensitive ? null : (value ?? ''),
+        isSensitive
+      }
+    })
 
   return (
     <div className="space-y-6">
