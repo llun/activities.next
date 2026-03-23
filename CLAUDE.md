@@ -6,6 +6,7 @@ Follow `AGENTS.md` and `AGENTS.override.md` for all project rules.
 ## Key reminders for this machine
 
 - Always use **Node.js 24** for all node/yarn commands.
+- Always use **`yarn`** for package management. Never use `npm install` or any other `npm` commands.
 - Always create a **new branch** for changes; commit to that branch.
 - Before committing, run in order:
   1. `yarn run prettier --write .`

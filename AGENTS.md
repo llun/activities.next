@@ -12,6 +12,7 @@
 ## Build, Test, and Development Commands
 
 - **Agents:** MUST use Node.js version 24 for running any node commands in this project.
+- **Always use `yarn` for all package management.** Never use `npm install`, `npm ci`, or any other `npm` commands to install or manage packages.
 - `yarn dev` runs the local Next.js development server.
 - `yarn build` builds the production app; `yarn start` serves it.
 - `yarn lint` runs ESLint across the workspace.
