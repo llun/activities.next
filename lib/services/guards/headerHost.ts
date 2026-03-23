@@ -20,11 +20,11 @@ export function headerHost(
       return standardHeaders.get(FORWARDED_HOST) as string
     }
 
-    if (standardHeaders.get('host')) {
-      return standardHeaders.get('host') as string
+    if (config.host) {
+      return config.host
     }
 
-    return config.host
+    return standardHeaders.get('host') ?? config.host
   }
 
   const nodeHeaders = headers as IncomingHttpHeaders
@@ -43,9 +43,9 @@ export function headerHost(
     return Array.isArray(value) ? value[0] : value
   }
 
-  if (normalizedHeaders.host) {
-    return normalizedHeaders.host
+  if (config.host) {
+    return config.host
   }
 
-  return config.host
+  return normalizedHeaders.host ?? config.host
 }
