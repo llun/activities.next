@@ -19,3 +19,4 @@ Follow `AGENTS.md` and `AGENTS.override.md` for all project rules.
 - Do **not** create test users.
 - Activity logs: `fediverse_local-activitynext-dev-1` container; DB: `postgres` container.
 - For major changes: commit → push → open PR to `main`.
+- When creating a PR, always prefix the PR title with `fix: `.
