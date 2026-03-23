@@ -30,7 +30,7 @@ const Page = async ({
 }) => {
   const database = getDatabase()
   if (!database) {
-    throw new Error('Fail to load database')
+    throw new Error('Failed to load database')
   }
 
   const session = await getServerAuthSession()
@@ -47,7 +47,9 @@ const Page = async ({
       auth?.github && { id: 'github', name: 'GitHub' }
       // To add more providers in the future, add them here. For example:
       // auth?.google && { id: 'google', name: 'Google' }
-    ].filter((provider): provider is { id: string; name: string } => !!provider),
+    ].filter(
+      (provider): provider is { id: string; name: string } => !!provider
+    ),
     database.getAccountProviders({ accountId: account.id })
   ])
 

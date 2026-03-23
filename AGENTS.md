@@ -133,13 +133,15 @@
 
 ### Version Bump Prefixes
 
+**Do NOT manually change the `version` field in `package.json`.** A CI workflow automatically bumps the version based on commit message prefixes after merge. Manual version changes in PRs will conflict with the automated workflow.
+
 The version-bump workflow reads commit prefixes to determine the next semver version. Use these prefixes to control version bumping:
 
-| Prefix | Version bump | When to use |
-|---|---|---|
-| `major:` | Major (`X.0.0`) | Breaking changes that require users to update configs, migrations, or integrations (e.g. removed API, changed auth flow, incompatible DB schema) |
-| `minor:` | Minor (`x.Y.0`) | New backwards-compatible features users can opt into (e.g. new endpoint, new UI page, new optional config) |
-| _(any other prefix)_ | Patch (`x.y.Z`) | Bug fixes, refactors, chores, docs, tests — anything that doesn't change the public-facing contract |
+| Prefix               | Version bump    | When to use                                                                                                                                      |
+| -------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `major:`             | Major (`X.0.0`) | Breaking changes that require users to update configs, migrations, or integrations (e.g. removed API, changed auth flow, incompatible DB schema) |
+| `minor:`             | Minor (`x.Y.0`) | New backwards-compatible features users can opt into (e.g. new endpoint, new UI page, new optional config)                                       |
+| _(any other prefix)_ | Patch (`x.y.Z`) | Bug fixes, refactors, chores, docs, tests — anything that doesn't change the public-facing contract                                              |
 
 Examples:
 

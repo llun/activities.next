@@ -53,6 +53,7 @@ export interface SQLAccount {
   emailChangeCode?: string | null
   emailChangeCodeExpiresAt?: number | Date | null
   emailVerifiedAt?: number | Date | null
+  role?: string | null
 
   createdAt: number | Date
   updatedAt: number | Date

@@ -16,7 +16,7 @@ interface LayoutProps {
 const Layout: FC<LayoutProps> = async ({ children }) => {
   const database = getDatabase()
   if (!database) {
-    throw new Error('Fail to load database')
+    throw new Error('Failed to load database')
   }
 
   const session = await getServerAuthSession()
@@ -76,6 +76,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
 
   const fitnessUrl =
     hasFitnessData && user ? `/${user.handle}/fitness` : undefined
+  const isAdmin = actor?.account?.role === 'admin'
 
   return (
     <div className="min-h-screen">
@@ -94,10 +95,15 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
           }))}
           unreadCount={unreadCount}
           fitnessUrl={fitnessUrl}
+          isAdmin={isAdmin}
         />
       )}
       {showNavigation && (
-        <MobileNav unreadCount={unreadCount} fitnessUrl={fitnessUrl} />
+        <MobileNav
+          unreadCount={unreadCount}
+          fitnessUrl={fitnessUrl}
+          isAdmin={isAdmin}
+        />
       )}
       <main
         className={cn(

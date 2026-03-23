@@ -14,6 +14,7 @@ export const Account = z.object({
   emailChangeCode: z.string().nullish(),
   emailChangeCodeExpiresAt: z.number().nullish(),
   emailVerifiedAt: z.number().nullish(),
+  role: z.string().nullish(),
 
   createdAt: z.number(),
   updatedAt: z.number(),
