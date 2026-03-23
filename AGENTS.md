@@ -133,6 +133,8 @@
 
 ### Version Bump Prefixes
 
+**Do NOT manually change the `version` field in `package.json`.** A CI workflow automatically bumps the version based on commit message prefixes after merge. Manual version changes in PRs will conflict with the automated workflow.
+
 The version-bump workflow reads commit prefixes to determine the next semver version. Use these prefixes to control version bumping:
 
 | Prefix               | Version bump    | When to use                                                                                                                                      |

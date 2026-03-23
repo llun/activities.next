@@ -1,6 +1,5 @@
 'use client'
 
-import { Activity, Bell, Home, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -9,6 +8,7 @@ import {
   ActorSwitcher
 } from '@/lib/components/actor-switcher/ActorSwitcher'
 import { Logo } from '@/lib/components/layout/logo'
+import { buildNavItems } from '@/lib/components/layout/nav-items'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
@@ -18,12 +18,6 @@ import {
   TooltipTrigger
 } from '@/lib/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-
-const navItems = [
-  { href: '/', label: 'Timeline', icon: Home },
-  { href: '/notifications', label: 'Notifications', icon: Bell },
-  { href: '/settings', label: 'Settings', icon: Settings }
-]
 
 interface User {
   name: string
@@ -38,6 +32,7 @@ interface SidebarProps {
   actors?: ActorInfo[]
   unreadCount?: number
   fitnessUrl?: string
+  isAdmin?: boolean
 }
 
 export function Sidebar({
@@ -45,17 +40,11 @@ export function Sidebar({
   currentActor,
   actors = [],
   unreadCount = 0,
-  fitnessUrl
+  fitnessUrl,
+  isAdmin = false
 }: SidebarProps) {
   const pathname = usePathname()
-
-  const allNavItems = fitnessUrl
-    ? [
-        ...navItems.slice(0, 1),
-        { href: fitnessUrl, label: 'Fitness', icon: Activity },
-        ...navItems.slice(1)
-      ]
-    : navItems
+  const allNavItems = buildNavItems({ fitnessUrl, isAdmin })
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'

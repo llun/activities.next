@@ -3,6 +3,7 @@ import { Knex } from 'knex'
 import { CounterKey, getCounterValues } from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
 import {
   AccountDatabase,
   ChangePasswordParams,
@@ -38,33 +39,6 @@ import { ActorSettings, SQLAccount } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
 import { Session } from '@/lib/types/domain/session'
-
-const toDomainAccount = (account: SQLAccount): Account =>
-  Account.parse({
-    ...account,
-    ...(account.verifiedAt
-      ? { verifiedAt: getCompatibleTime(account.verifiedAt) }
-      : null),
-    ...(account.emailVerifiedAt
-      ? { emailVerifiedAt: getCompatibleTime(account.emailVerifiedAt) }
-      : null),
-    ...(account.emailChangeCodeExpiresAt
-      ? {
-          emailChangeCodeExpiresAt: getCompatibleTime(
-            account.emailChangeCodeExpiresAt
-          )
-        }
-      : null),
-    ...(account.passwordResetCodeExpiresAt
-      ? {
-          passwordResetCodeExpiresAt: getCompatibleTime(
-            account.passwordResetCodeExpiresAt
-          )
-        }
-      : null),
-    createdAt: getCompatibleTime(account.createdAt),
-    updatedAt: getCompatibleTime(account.updatedAt)
-  })
 
 export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async isAccountExists({ email }: IsAccountExistsParams) {

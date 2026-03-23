@@ -863,3 +863,44 @@ export interface TimelineDatabase {
   }: GetTimelineParams): Promise<Status[]>
   createTimelineStatus(params: CreateTimelineStatusParams): Promise<void>
 }
+
+// ============================================================================
+// Admin Database
+// ============================================================================
+
+export type GetAllAccountsParams = {
+  limit: number
+  offset: number
+}
+
+export type GetAllAccountsResult = {
+  accounts: Account[]
+  total: number
+}
+
+export type GetAccountWithActorsParams = {
+  accountId: string
+}
+
+export type GetAccountWithActorsResult = {
+  account: Account
+  actors: Actor[]
+}
+
+export interface ServiceStats {
+  totalAccounts: number
+  totalActors: number
+  totalStatuses: number
+  totalMediaFiles: number
+  totalMediaBytes: number
+  totalFitnessFiles: number
+  totalFitnessBytes: number
+}
+
+export interface AdminDatabase {
+  getAllAccounts(params: GetAllAccountsParams): Promise<GetAllAccountsResult>
+  getAccountWithActors(
+    params: GetAccountWithActorsParams
+  ): Promise<GetAccountWithActorsResult | null>
+  getServiceStats(): Promise<ServiceStats>
+}

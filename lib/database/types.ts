@@ -4,6 +4,7 @@ import { StravaArchiveImportDatabase } from '@/lib/database/sql/stravaArchiveImp
 import {
   AccountDatabase,
   ActorDatabase,
+  AdminDatabase,
   BaseDatabase,
   FollowDatabase,
   LikeDatabase,
@@ -16,6 +17,7 @@ import {
 
 export type Database = AccountDatabase &
   ActorDatabase &
+  AdminDatabase &
   FitnessFileDatabase &
   FitnessSettingsDatabase &
   StravaArchiveImportDatabase &
