@@ -586,11 +586,42 @@ describe('ActorDatabase', () => {
       })
 
       it('does not count external actors in local stats', async () => {
-        const stats = await database.getNodeInfoStats()
-        // External actors (those without accountId) should not be counted
-        // We already have EXTERNAL_ACTORS[0] and [1] created in beforeAll
-        // totalUsers should only count actors with accounts
-        expect(stats.totalUsers).toBeGreaterThanOrEqual(1)
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const externalActorId = `https://external-${suffix}.example/users/ext`
+
+        // Create an additional external actor (no accountId)
+        await database.createActor({
+          actorId: externalActorId,
+          username: `ext-${suffix}`,
+          domain: `external-${suffix}.example`,
+          followersUrl: `${externalActorId}/followers`,
+          inboxUrl: `${externalActorId}/inbox`,
+          sharedInboxUrl: `${externalActorId}/inbox`,
+          publicKey: 'externalPublicKey',
+          createdAt: Date.now()
+        })
+
+        const statsBefore = await database.getNodeInfoStats()
+        const countBefore = statsBefore.totalUsers
+
+        // External actor should not have incremented totalUsers
+        expect(countBefore).toBeGreaterThanOrEqual(1)
+
+        // Create a second external actor and confirm count stays the same
+        const externalActorId2 = `https://external2-${suffix}.example/users/ext2`
+        await database.createActor({
+          actorId: externalActorId2,
+          username: `ext2-${suffix}`,
+          domain: `external2-${suffix}.example`,
+          followersUrl: `${externalActorId2}/followers`,
+          inboxUrl: `${externalActorId2}/inbox`,
+          sharedInboxUrl: `${externalActorId2}/inbox`,
+          publicKey: 'externalPublicKey2',
+          createdAt: Date.now()
+        })
+
+        const statsAfter = await database.getNodeInfoStats()
+        expect(statsAfter.totalUsers).toBe(countBefore)
       })
     })
 

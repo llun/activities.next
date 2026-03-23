@@ -11,6 +11,8 @@ import {
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { NODE_SOFTWARE } from '@/lib/utils/version'
 
+export const dynamic = 'force-dynamic'
+
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)

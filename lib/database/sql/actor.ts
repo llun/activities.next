@@ -660,55 +660,49 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
     const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000)
 
-    // Get all local actor IDs (actors with an account)
-    const localActors = await database('actors')
+    // Count local actors (those with an account) — no unbounded IN list
+    const totalUsersResult = await database('actors')
       .whereNotNull('accountId')
-      .select<{ id: string; accountId: string }[]>('id', 'accountId')
-
-    const totalUsers = localActors.length
+      .count<{ count: string }>('* as count')
+      .first()
+    const totalUsers = parseInt(totalUsersResult?.count ?? '0', 10)
 
     if (totalUsers === 0) {
       return { totalUsers: 0, activeMonth: 0, activeHalfyear: 0, localPosts: 0 }
     }
 
-    const localActorIds = localActors.map((a) => a.id)
-
-    // Use counters to get total local posts (sum of total-status counters for local actors)
-    const counterIds = localActorIds.map((id) => CounterKey.totalStatus(id))
-    const counterValues = await getCounterValues(database, counterIds)
-    const localPosts = Object.values(counterValues).reduce(
-      (sum, val) => sum + val,
-      0
-    )
-
-    // For active users, check if they have a status in the time window
-    // Since local actors is a small set, use EXISTS for efficiency
-    const activeMonthResult = await database('actors')
-      .whereIn('id', localActorIds)
-      .whereExists(function () {
-        this.select(database.raw('1'))
-          .from('statuses')
-          .whereColumn('statuses.actorId', 'actors.id')
-          .andWhere('statuses.createdAt', '>=', oneMonthAgo)
-      })
-      .count<{ count: string }>('* as count')
+    // Sum total-status counters for local actors via JOIN — avoids large IN list
+    const localPostsResult = await database('counters')
+      .join(
+        'actors',
+        database.raw('"counters"."id" = ? || "actors"."id"', ['total-status:'])
+      )
+      .whereNotNull('actors.accountId')
+      .sum<{ total: string | number | null }>('counters.value as total')
       .first()
+    const localPosts = parseCounterValue(localPostsResult?.total)
 
-    const activeHalfyearResult = await database('actors')
-      .whereIn('id', localActorIds)
-      .whereExists(function () {
-        this.select(database.raw('1'))
-          .from('statuses')
-          .whereColumn('statuses.actorId', 'actors.id')
-          .andWhere('statuses.createdAt', '>=', sixMonthsAgo)
-      })
-      .count<{ count: string }>('* as count')
-      .first()
+    // Single query for active users using JOIN — avoids large IN list
+    const activeCounts = await database('statuses')
+      .join('actors', 'statuses.actorId', 'actors.id')
+      .whereNotNull('actors.accountId')
+      .andWhere('statuses.createdAt', '>=', sixMonthsAgo)
+      .select(
+        database.raw(
+          'count(distinct case when "statuses"."createdAt" >= ? then "statuses"."actorId" end) as "activeMonth"',
+          [oneMonthAgo]
+        ),
+        database.raw('count(distinct "statuses"."actorId") as "activeHalfyear"')
+      )
+      .first<{
+        activeMonth: string | number
+        activeHalfyear: string | number
+      }>()
 
     return {
       totalUsers,
-      activeMonth: parseInt(activeMonthResult?.count ?? '0', 10),
-      activeHalfyear: parseInt(activeHalfyearResult?.count ?? '0', 10),
+      activeMonth: parseInt(String(activeCounts?.activeMonth ?? '0'), 10),
+      activeHalfyear: parseInt(String(activeCounts?.activeHalfyear ?? '0'), 10),
       localPosts
     }
   },
