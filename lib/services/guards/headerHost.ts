@@ -20,8 +20,9 @@ export function headerHost(
       return standardHeaders.get(FORWARDED_HOST) as string
     }
 
-    if (standardHeaders.get('host')) {
-      return standardHeaders.get('host') as string
+    const host = standardHeaders.get('host')
+    if (host && !host.startsWith('0.0.0.0')) {
+      return host
     }
 
     return config.host
@@ -43,8 +44,9 @@ export function headerHost(
     return Array.isArray(value) ? value[0] : value
   }
 
-  if (normalizedHeaders.host) {
-    return normalizedHeaders.host
+  const host = normalizedHeaders.host
+  if (host && !(Array.isArray(host) ? host[0] : host).startsWith('0.0.0.0')) {
+    return Array.isArray(host) ? host[0] : host
   }
 
   return config.host

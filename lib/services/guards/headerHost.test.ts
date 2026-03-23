@@ -9,6 +9,11 @@ describe('#headerHost', () => {
       expect(headerHost(headers)).toEqual('test.llun.dev')
     })
 
+    it('returns config host when host header is a bind address like 0.0.0.0', () => {
+      const headers = new Headers([['Host', '0.0.0.0']])
+      expect(headerHost(headers)).toEqual('test.llun.dev')
+    })
+
     it('returns X-Forwarded-Host if it is availbled instead of Host', () => {
       const headers = new Headers([
         ['Host', 'test.llun.dev'],
@@ -35,6 +40,13 @@ describe('#headerHost', () => {
     it('returns host value from Headers', () => {
       const headers = {
         Host: 'test.llun.dev'
+      } as IncomingHttpHeaders
+      expect(headerHost(headers)).toEqual('test.llun.dev')
+    })
+
+    it('returns config host when host header is a bind address like 0.0.0.0', () => {
+      const headers = {
+        Host: '0.0.0.0'
       } as IncomingHttpHeaders
       expect(headerHost(headers)).toEqual('test.llun.dev')
     })
