@@ -124,9 +124,33 @@
 
 ## Commit & Pull Request Guidelines
 
-- Commit messages must start with a conventional commit prefix (`fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc.) followed by a short imperative description.
+- Commit messages must start with one of these prefixes followed by a short imperative description:
+  - `major:` for breaking changes (major version bump)
+  - `minor:` for backwards-compatible new features (minor version bump)
+  - `fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc. for everything else (patch version bump)
 - PRs should include a clear summary, linked issues (if any), test results, and notes for config/migrations.
-- Include screenshots or clips for UI changes.- **Before committing**, always run:
+- Include screenshots or clips for UI changes.
+
+### Version Bump Prefixes
+
+The version-bump workflow reads commit prefixes to determine the next semver version. Use these prefixes to control version bumping:
+
+| Prefix | Version bump | When to use |
+|---|---|---|
+| `major:` | Major (`X.0.0`) | Breaking changes that require users to update configs, migrations, or integrations (e.g. removed API, changed auth flow, incompatible DB schema) |
+| `minor:` | Minor (`x.Y.0`) | New backwards-compatible features users can opt into (e.g. new endpoint, new UI page, new optional config) |
+| _(any other prefix)_ | Patch (`x.y.Z`) | Bug fixes, refactors, chores, docs, tests — anything that doesn't change the public-facing contract |
+
+Examples:
+
+```text
+major: remove legacy v1 API endpoints
+minor: add support for S3 media storage
+fix: correct timestamp parsing in ActivityPub inbox   ← patch
+chore: update dependencies                            ← patch
+```
+
+- **Before committing**, always run:
   1. `yarn run prettier --write .` to format all files.
   2. `yarn lint` to ensure no linting errors—**must be green before commit**.
   3. `yarn build` to ensure no build errors—**must be green before commit**.
