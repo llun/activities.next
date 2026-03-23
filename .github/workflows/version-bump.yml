@@ -81,7 +81,7 @@ jobs:
               break
             fi
 
-            # Check for minor: prefix (only upgrade from patch)
+            # Check for minor: prefix (promote to minor unless already major)
             if [ "$BUMP" != "major" ] && echo "$SUBJECT" | grep -qE '^minor:'; then
               BUMP="minor"
             fi
