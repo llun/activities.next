@@ -36,7 +36,7 @@ export const getSQLDatabase = (database: Knex): Database => {
 
   return {
     async migrate() {
-      await database.migrate.latest()
+      await database.migrate.latest({ disableTransactions: true })
     },
 
     async destroy() {

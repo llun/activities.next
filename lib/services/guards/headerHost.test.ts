@@ -4,7 +4,7 @@ import { headerHost } from './headerHost'
 
 describe('#headerHost', () => {
   describe('standard headers', () => {
-    it('returns config host instead of raw host header', () => {
+    it('returns host value from Headers', () => {
       const headers = new Headers([['Host', 'test.llun.dev']])
       expect(headerHost(headers)).toEqual('test.llun.dev')
     })
@@ -37,7 +37,7 @@ describe('#headerHost', () => {
   })
 
   describe('node headers', () => {
-    it('returns config host instead of raw host header', () => {
+    it('returns host value from Headers', () => {
       const headers = {
         Host: 'test.llun.dev'
       } as IncomingHttpHeaders
