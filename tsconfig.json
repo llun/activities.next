@@ -6,7 +6,7 @@
       "@/lib/*": ["lib/*"],
       "@/pages/*": ["pages/*"],
       "@/package.json": ["package.json"],
-      "knex": ["node_modules/knex/types/index.d.ts"]
+      "knex": ["node_modules/knex"]
     },
     "target": "ESNext",
     "lib": ["dom", "dom.iterable", "esnext"],
