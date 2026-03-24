@@ -7,10 +7,7 @@ import {
   getCounterValue,
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
-import {
-  decrementBucket,
-  incrementBucket
-} from '@/lib/database/sql/utils/counterBucket'
+import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   FitnessFile,
@@ -444,10 +441,6 @@ export const FitnessFileSQLDatabaseMixin = (
           CounterKey.totalFitness(actor.accountId),
           1
         )
-      }
-      await decrementBucket(trx, 'fitness-files', 1)
-      if (bytes > 0) {
-        await decrementBucket(trx, 'fitness-bytes', bytes)
       }
 
       return true

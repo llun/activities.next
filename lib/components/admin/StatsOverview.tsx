@@ -8,10 +8,11 @@ import {
   MessageSquare,
   Users
 } from 'lucide-react'
-import { FC, useState, useTransition } from 'react'
+import { ElementType, FC, useMemo, useState, useTransition } from 'react'
 
 import { getAllStatsBuckets } from '@/app/(timeline)/admin/actions'
 import {
+  ALL_COUNTER_TYPES,
   ServiceStatCounterType,
   ServiceStats,
   ServiceStatsBucket
@@ -29,6 +30,8 @@ const RANGES: { label: string; value: Range; ms: number }[] = [
   { label: '90d', value: '90d', ms: 90 * 24 * 60 * 60 * 1000 }
 ]
 
+const HOUR_MS = 60 * 60 * 1000
+
 type BucketsMap = Record<ServiceStatCounterType, ServiceStatsBucket[]>
 
 interface Props {
@@ -36,66 +39,121 @@ interface Props {
   initialBuckets: BucketsMap
 }
 
+/**
+ * Fill sparse bucket data with zeros for missing hours.
+ * This ensures sparklines show the full time window accurately.
+ */
+const normalizeBuckets = (
+  buckets: ServiceStatsBucket[],
+  rangeMs: number
+): ServiceStatsBucket[] => {
+  const endTime = Date.now()
+  const startTime = endTime - rangeMs
+
+  // For very long ranges, downsample to avoid thousands of points
+  const totalHours = Math.ceil(rangeMs / HOUR_MS)
+  const step = totalHours > 720 ? Math.ceil(totalHours / 360) : 1
+  const stepMs = step * HOUR_MS
+
+  const bucketMap = new Map<number, number>()
+  for (const b of buckets) {
+    // Round to step boundary
+    const key =
+      Math.floor((b.bucketHour - startTime) / stepMs) * stepMs + startTime
+    bucketMap.set(key, (bucketMap.get(key) ?? 0) + b.value)
+  }
+
+  const result: ServiceStatsBucket[] = []
+  for (
+    let t = Math.ceil(startTime / stepMs) * stepMs;
+    t <= endTime;
+    t += stepMs
+  ) {
+    result.push({ bucketHour: t, value: bucketMap.get(t) ?? 0 })
+  }
+  return result
+}
+
 export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
   const [range, setRange] = useState<Range>('7d')
   const [buckets, setBuckets] = useState<BucketsMap>(initialBuckets)
   const [isPending, startTransition] = useTransition()
 
+  const rangeMs = RANGES.find((r) => r.value === range)!.ms
+
   const handleRangeChange = (newRange: Range) => {
+    const prevRange = range
     setRange(newRange)
-    const rangeMs = RANGES.find((r) => r.value === newRange)!.ms
+    const ms = RANGES.find((r) => r.value === newRange)!.ms
     const endTime = Date.now()
-    const startTime = endTime - rangeMs
+    const startTime = endTime - ms
     startTransition(async () => {
-      const newBuckets = await getAllStatsBuckets(startTime, endTime)
-      setBuckets(newBuckets)
+      try {
+        const newBuckets = await getAllStatsBuckets(startTime, endTime)
+        setBuckets(newBuckets)
+      } catch {
+        setRange(prevRange)
+      }
     })
   }
 
-  const statCards = [
+  const statCards: {
+    label: string
+    value: string
+    icon: ElementType
+    counterType: ServiceStatCounterType
+  }[] = [
     {
       label: 'Total Accounts',
       value: stats.totalAccounts.toLocaleString(),
       icon: Users,
-      counterType: 'accounts' as ServiceStatCounterType
+      counterType: 'accounts'
     },
     {
       label: 'Total Actors',
       value: stats.totalActors.toLocaleString(),
       icon: DatabaseIcon,
-      counterType: 'actors' as ServiceStatCounterType
+      counterType: 'actors'
     },
     {
       label: 'Total Statuses',
       value: stats.totalStatuses.toLocaleString(),
       icon: MessageSquare,
-      counterType: 'statuses' as ServiceStatCounterType
+      counterType: 'statuses'
     },
     {
       label: 'Total Media Files',
       value: stats.totalMediaFiles.toLocaleString(),
       icon: Image,
-      counterType: 'media-files' as ServiceStatCounterType
+      counterType: 'media-files'
     },
     {
       label: 'Media Storage',
       value: formatFileSize(stats.totalMediaBytes),
       icon: HardDrive,
-      counterType: 'media-bytes' as ServiceStatCounterType
+      counterType: 'media-bytes'
     },
     {
       label: 'Total Fitness Files',
       value: stats.totalFitnessFiles.toLocaleString(),
       icon: Activity,
-      counterType: 'fitness-files' as ServiceStatCounterType
+      counterType: 'fitness-files'
     },
     {
       label: 'Fitness Storage',
       value: formatFileSize(stats.totalFitnessBytes),
       icon: HardDrive,
-      counterType: 'fitness-bytes' as ServiceStatCounterType
+      counterType: 'fitness-bytes'
     }
   ]
+
+  const normalizedBuckets = useMemo(() => {
+    const result: Partial<BucketsMap> = {}
+    for (const ct of ALL_COUNTER_TYPES) {
+      result[ct] = normalizeBuckets(buckets[ct] ?? [], rangeMs)
+    }
+    return result as BucketsMap
+  }, [buckets, rangeMs])
 
   return (
     <div className="space-y-6">
@@ -106,10 +164,16 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             Service usage statistics
           </p>
         </div>
-        <div className="flex items-center gap-1 rounded-lg border bg-background p-1">
+        <div
+          className="flex items-center gap-1 rounded-lg border bg-background p-1"
+          role="tablist"
+        >
           {RANGES.map((r) => (
             <button
               key={r.value}
+              role="tab"
+              aria-selected={range === r.value}
+              aria-pressed={range === r.value}
               onClick={() => handleRangeChange(r.value)}
               disabled={isPending}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
@@ -133,7 +197,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             label={card.label}
             value={card.value}
             icon={card.icon}
-            buckets={buckets[card.counterType] ?? []}
+            buckets={normalizedBuckets[card.counterType] ?? []}
           />
         ))}
       </div>

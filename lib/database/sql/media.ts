@@ -7,10 +7,7 @@ import {
   increaseCounterValue,
   parseCounterValue
 } from '@/lib/database/sql/utils/counter'
-import {
-  decrementBucket,
-  incrementBucket
-} from '@/lib/database/sql/utils/counterBucket'
+import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import {
   AttachmentWithMedia,
   CreateAttachmentParams,
@@ -407,11 +404,6 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           1
         )
       }
-      await decrementBucket(trx, 'media-files', 1)
-      if (usageDelta > 0) {
-        await decrementBucket(trx, 'media-bytes', usageDelta)
-      }
-
       return true
     })
   }

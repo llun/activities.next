@@ -21,8 +21,6 @@ exports.up = async function (knex) {
   const currentTime = new Date()
 
   // 2. Seed global service stat counters
-  console.log('Seeding global service stat counters...')
-
   const [accountsResult, actorsResult, statusesResult] = await Promise.all([
     knex('accounts').count('* as count').first(),
     knex('actors').whereNotNull('accountId').count('* as count').first(),
@@ -57,13 +55,7 @@ exports.up = async function (knex) {
       .merge({ value: counter.value, updatedAt: currentTime })
   }
 
-  console.log(
-    `  Seeded: accounts=${serviceTotals[0].value}, actors=${serviceTotals[1].value}, statuses=${serviceTotals[2].value}`
-  )
-
   // 3. Backfill hourly buckets from historical data
-  console.log('Backfilling hourly bucket counters...')
-
   const hourExpr = isPg
     ? `to_char(date_trunc('hour', "createdAt"), 'YYYYMMDDHH24')`
     : `strftime('%Y%m%d%H', createdAt)`
@@ -72,26 +64,35 @@ exports.up = async function (knex) {
     ? `date_trunc('hour', "createdAt")`
     : `strftime('%Y-%m-%dT%H:00:00.000Z', createdAt)`
 
-  // Helper to insert bucket rows
-  const insertBuckets = async (counterType, rows) => {
-    for (const row of rows) {
-      const hour = row.hour
-      if (!hour) continue
-      const bucketId = `bucket:${counterType}:${hour}`
-      const value = Math.max(0, parseInt(String(row.value ?? '0'), 10))
-      const bucketHour = new Date(row.bucketHour)
-      if (isNaN(bucketHour.getTime())) continue
+  const groupByExpr = `${hourExpr}, ${hourTruncExpr}`
 
-      await knex('counters')
-        .insert({
+  // Helper to insert bucket rows in chunks
+  const insertBuckets = async (counterType, rows) => {
+    const CHUNK_SIZE = 100
+    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + CHUNK_SIZE)
+      const inserts = []
+      for (const row of chunk) {
+        const hour = row.hour
+        if (!hour) continue
+        const bucketId = `bucket:${counterType}:${hour}`
+        const value = Math.max(0, parseInt(String(row.value ?? '0'), 10))
+        const bucketHour = new Date(row.bucketHour)
+        if (isNaN(bucketHour.getTime())) continue
+        inserts.push({
           id: bucketId,
           value,
           bucketHour,
           createdAt: currentTime,
           updatedAt: currentTime
         })
-        .onConflict('id')
-        .merge({ value, bucketHour, updatedAt: currentTime })
+      }
+      if (inserts.length > 0) {
+        await knex('counters')
+          .insert(inserts)
+          .onConflict('id')
+          .merge(['value', 'bucketHour', 'updatedAt'])
+      }
     }
   }
 
@@ -102,9 +103,8 @@ exports.up = async function (knex) {
       knex.raw(`${hourTruncExpr} as "bucketHour"`),
       knex.raw('count(*) as value')
     )
-    .groupByRaw(hourExpr)
+    .groupByRaw(groupByExpr)
   await insertBuckets('accounts', accountBuckets)
-  console.log(`  accounts: ${accountBuckets.length} buckets`)
 
   // actors buckets
   const actorBuckets = await knex('actors')
@@ -114,9 +114,8 @@ exports.up = async function (knex) {
       knex.raw(`${hourTruncExpr} as "bucketHour"`),
       knex.raw('count(*) as value')
     )
-    .groupByRaw(hourExpr)
+    .groupByRaw(groupByExpr)
   await insertBuckets('actors', actorBuckets)
-  console.log(`  actors: ${actorBuckets.length} buckets`)
 
   // statuses buckets
   const statusBuckets = await knex('statuses')
@@ -125,9 +124,8 @@ exports.up = async function (knex) {
       knex.raw(`${hourTruncExpr} as "bucketHour"`),
       knex.raw('count(*) as value')
     )
-    .groupByRaw(hourExpr)
+    .groupByRaw(groupByExpr)
   await insertBuckets('statuses', statusBuckets)
-  console.log(`  statuses: ${statusBuckets.length} buckets`)
 
   // media-files and media-bytes buckets
   const mediaBuckets = await knex('medias')
@@ -139,7 +137,7 @@ exports.up = async function (knex) {
         'coalesce(sum(cast(coalesce("originalBytes",0) as bigint) + cast(coalesce("thumbnailBytes",0) as bigint)), 0) as bytes'
       )
     )
-    .groupByRaw(hourExpr)
+    .groupByRaw(groupByExpr)
 
   const mediaFileRows = mediaBuckets.map((r) => ({
     hour: r.hour,
@@ -153,18 +151,16 @@ exports.up = async function (knex) {
   }))
   await insertBuckets('media-files', mediaFileRows)
   await insertBuckets('media-bytes', mediaByteRows)
-  console.log(`  media: ${mediaBuckets.length} buckets`)
 
   // fitness-files and fitness-bytes buckets
   const fitnessBuckets = await knex('fitness_files')
-    .whereNull('deletedAt')
     .select(
       knex.raw(`${hourExpr} as hour`),
       knex.raw(`${hourTruncExpr} as "bucketHour"`),
       knex.raw('count(*) as files'),
       knex.raw('coalesce(sum(cast(coalesce("bytes",0) as bigint)), 0) as bytes')
     )
-    .groupByRaw(hourExpr)
+    .groupByRaw(groupByExpr)
 
   const fitnessFileRows = fitnessBuckets.map((r) => ({
     hour: r.hour,
@@ -178,9 +174,6 @@ exports.up = async function (knex) {
   }))
   await insertBuckets('fitness-files', fitnessFileRows)
   await insertBuckets('fitness-bytes', fitnessByteRows)
-  console.log(`  fitness: ${fitnessBuckets.length} buckets`)
-
-  console.log('Done backfilling bucket counters.')
 }
 
 /**

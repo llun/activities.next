@@ -3,20 +3,13 @@ import { redirect } from 'next/navigation'
 import { StatsOverview } from '@/lib/components/admin/StatsOverview'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { ServiceStatCounterType } from '@/lib/types/database/operations'
+import {
+  ALL_COUNTER_TYPES,
+  ServiceStatCounterType
+} from '@/lib/types/database/operations'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
-
-const COUNTER_TYPES: ServiceStatCounterType[] = [
-  'accounts',
-  'actors',
-  'statuses',
-  'media-files',
-  'media-bytes',
-  'fitness-files',
-  'fitness-bytes'
-]
 
 const Page = async () => {
   const database = getDatabase()
@@ -31,13 +24,13 @@ const Page = async () => {
 
   const [stats, ...bucketResults] = await Promise.all([
     database.getServiceStats(),
-    ...COUNTER_TYPES.map((counterType) =>
+    ...ALL_COUNTER_TYPES.map((counterType) =>
       database.getServiceStatsBuckets({ counterType, startTime, endTime })
     )
   ])
 
   const initialBuckets = Object.fromEntries(
-    COUNTER_TYPES.map((counterType, i) => [counterType, bucketResults[i]])
+    ALL_COUNTER_TYPES.map((counterType, i) => [counterType, bucketResults[i]])
   ) as Record<ServiceStatCounterType, (typeof bucketResults)[0]>
 
   return <StatsOverview stats={stats} initialBuckets={initialBuckets} />

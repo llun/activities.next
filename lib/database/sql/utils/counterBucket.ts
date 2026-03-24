@@ -1,10 +1,6 @@
 import { Knex } from 'knex'
 
-import {
-  CounterKey,
-  decreaseCounterValue,
-  increaseCounterValue
-} from './counter'
+import { CounterKey, increaseCounterValue } from './counter'
 
 export type SQLDatabase = Knex | Knex.Transaction
 
@@ -30,48 +26,31 @@ export const truncateToHour = (date: Date): Date => {
 }
 
 /**
- * Adjust a bucket counter by delta (positive or negative) for the hour
- * containing currentTime. Also sets the bucketHour column on the row.
+ * Increment a bucket counter for the hour containing currentTime.
+ * Buckets are increment-only — they track creation activity per hour.
+ * Deletions are handled by the global service counters, not buckets.
  */
-export const adjustBucket = async (
+export const incrementBucket = async (
   database: SQLDatabase,
   counterType: string,
-  delta: number,
+  amount = 1,
   currentTime = new Date()
 ): Promise<void> => {
-  if (delta === 0) return
+  if (amount <= 0) return
 
   const bucketHour = truncateToHour(currentTime)
   const hour = formatBucketHour(bucketHour)
   const id = CounterKey.bucketKey(counterType, hour)
 
-  if (delta > 0) {
-    await increaseCounterValue(database, id, delta, currentTime)
-  } else {
-    await decreaseCounterValue(database, id, Math.abs(delta), currentTime)
-  }
+  await increaseCounterValue(database, id, amount, currentTime)
 
   // Ensure the bucketHour column is set (it's NULL for rows created by the
-  // generic counter helpers). Use a targeted update so we don't overwrite value.
-  await (database as Knex)('counters')
+  // generic counter helpers).
+  await database('counters')
     .where('id', id)
     .whereNull('bucketHour')
-    .update({ bucketHour })
+    .update({ bucketHour, updatedAt: currentTime })
 }
-
-export const incrementBucket = (
-  database: SQLDatabase,
-  counterType: string,
-  amount = 1,
-  currentTime = new Date()
-): Promise<void> => adjustBucket(database, counterType, amount, currentTime)
-
-export const decrementBucket = (
-  database: SQLDatabase,
-  counterType: string,
-  amount = 1,
-  currentTime = new Date()
-): Promise<void> => adjustBucket(database, counterType, -amount, currentTime)
 
 export interface BucketStatRow {
   bucketHour: Date

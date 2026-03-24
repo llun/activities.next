@@ -22,10 +22,14 @@ const buildChartData = (buckets: ServiceStatsBucket[]): number[] => {
 const calcTrend = (buckets: ServiceStatsBucket[]): number | null => {
   if (buckets.length < 2) return null
   const half = Math.floor(buckets.length / 2)
-  const first = buckets.slice(0, half).reduce((s, b) => s + b.value, 0)
-  const second = buckets.slice(half).reduce((s, b) => s + b.value, 0)
-  if (first === 0) return second > 0 ? 100 : 0
-  return Math.round(((second - first) / first) * 100)
+  const firstSlice = buckets.slice(0, half)
+  const secondSlice = buckets.slice(buckets.length - half)
+  const firstAvg =
+    firstSlice.reduce((s, b) => s + b.value, 0) / firstSlice.length
+  const secondAvg =
+    secondSlice.reduce((s, b) => s + b.value, 0) / secondSlice.length
+  if (firstAvg === 0) return secondAvg > 0 ? 100 : 0
+  return Math.round(((secondAvg - firstAvg) / firstAvg) * 100)
 }
 
 export const StatCard: FC<Props> = ({

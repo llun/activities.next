@@ -917,6 +917,19 @@ export type ServiceStatCounterType =
   | 'fitness-files'
   | 'fitness-bytes'
 
+export const ALL_COUNTER_TYPES: ServiceStatCounterType[] = [
+  'accounts',
+  'actors',
+  'statuses',
+  'media-files',
+  'media-bytes',
+  'fitness-files',
+  'fitness-bytes'
+]
+
+/** Max allowed time window for bucket queries (91 days) */
+export const MAX_STATS_WINDOW_MS = 91 * 24 * 60 * 60 * 1000
+
 export interface GetServiceStatsBucketsParams {
   counterType: ServiceStatCounterType
   startTime: number
