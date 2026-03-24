@@ -56,12 +56,13 @@ exports.up = async function (knex) {
   }
 
   // 3. Backfill hourly buckets from historical data
+  // Use UTC explicitly so bucket ids match counterBucket.ts (which uses UTC)
   const hourExpr = isPg
-    ? `to_char(date_trunc('hour', "createdAt"), 'YYYYMMDDHH24')`
+    ? `to_char(date_trunc('hour', "createdAt" AT TIME ZONE 'UTC'), 'YYYYMMDDHH24')`
     : `strftime('%Y%m%d%H', createdAt)`
 
   const hourTruncExpr = isPg
-    ? `date_trunc('hour', "createdAt")`
+    ? `date_trunc('hour', "createdAt" AT TIME ZONE 'UTC')`
     : `strftime('%Y-%m-%dT%H:00:00.000Z', createdAt)`
 
   const groupByExpr = `${hourExpr}, ${hourTruncExpr}`
@@ -152,8 +153,9 @@ exports.up = async function (knex) {
   await insertBuckets('media-files', mediaFileRows)
   await insertBuckets('media-bytes', mediaByteRows)
 
-  // fitness-files and fitness-bytes buckets
+  // fitness-files and fitness-bytes buckets (only non-deleted, since buckets are increment-only)
   const fitnessBuckets = await knex('fitness_files')
+    .whereNull('deletedAt')
     .select(
       knex.raw(`${hourExpr} as hour`),
       knex.raw(`${hourTruncExpr} as "bucketHour"`),

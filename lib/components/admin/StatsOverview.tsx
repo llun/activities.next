@@ -55,20 +55,19 @@ const normalizeBuckets = (
   const step = totalHours > 720 ? Math.ceil(totalHours / 360) : 1
   const stepMs = step * HOUR_MS
 
+  // Align to epoch-zero multiples of stepMs so bucketing and rendering
+  // use the same grid. Without this, the two grids differ by
+  // startTime % stepMs and bucketMap lookups always miss.
+  const alignedStart = Math.floor(startTime / stepMs) * stepMs
+
   const bucketMap = new Map<number, number>()
   for (const b of buckets) {
-    // Round to step boundary
-    const key =
-      Math.floor((b.bucketHour - startTime) / stepMs) * stepMs + startTime
+    const key = Math.floor(b.bucketHour / stepMs) * stepMs
     bucketMap.set(key, (bucketMap.get(key) ?? 0) + b.value)
   }
 
   const result: ServiceStatsBucket[] = []
-  for (
-    let t = Math.ceil(startTime / stepMs) * stepMs;
-    t <= endTime;
-    t += stepMs
-  ) {
+  for (let t = alignedStart; t <= endTime; t += stepMs) {
     result.push({ bucketHour: t, value: bucketMap.get(t) ?? 0 })
   }
   return result
