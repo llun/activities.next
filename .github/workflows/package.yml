@@ -92,7 +92,7 @@ jobs:
       packages: write
     steps:
       - name: Download GHCR digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: /tmp/digests/ghcr
           pattern: digests-ghcr-*
@@ -125,7 +125,7 @@ jobs:
       contents: read
     steps:
       - name: Download Docker Hub digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: /tmp/digests/dockerhub
           pattern: digests-dockerhub-*
