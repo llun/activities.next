@@ -656,33 +656,40 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   },
 
   async getNodeInfoStats() {
-    const now = new Date()
-    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-    const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000)
+    const now = Date.now()
+    const ACTIVE_USERS_TTL_MS = 60 * 60 * 1000 // 1 hour
 
-    // Count local actors (those with an account) — no unbounded IN list
-    const totalUsersResult = await database('actors')
-      .whereNotNull('accountId')
-      .count<{ count: string }>('* as count')
-      .first()
-    const totalUsers = parseInt(totalUsersResult?.count ?? '0', 10)
+    const totalUsers = await getCounterValue(
+      database,
+      CounterKey.nodeinfoTotalUsers()
+    )
+    const localPosts = await getCounterValue(
+      database,
+      CounterKey.nodeinfoLocalPosts()
+    )
 
-    if (totalUsers === 0) {
-      return { totalUsers: 0, activeMonth: 0, activeHalfyear: 0, localPosts: 0 }
+    const computedAt = await getCounterValue(
+      database,
+      CounterKey.nodeinfoComputedAt()
+    )
+    const isStale = computedAt === 0 || now - computedAt > ACTIVE_USERS_TTL_MS
+
+    if (!isStale) {
+      const activeMonth = await getCounterValue(
+        database,
+        CounterKey.nodeinfoActiveMonth()
+      )
+      const activeHalfyear = await getCounterValue(
+        database,
+        CounterKey.nodeinfoActiveHalfyear()
+      )
+      return { totalUsers, activeMonth, activeHalfyear, localPosts }
     }
 
-    // Sum total-status counters for local actors via JOIN — avoids large IN list
-    const localPostsResult = await database('counters')
-      .join(
-        'actors',
-        database.raw('"counters"."id" = ? || "actors"."id"', ['total-status:'])
-      )
-      .whereNotNull('actors.accountId')
-      .sum<{ total: string | number | null }>('counters.value as total')
-      .first()
-    const localPosts = parseCounterValue(localPostsResult?.total)
+    // Recompute active user counts
+    const oneMonthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000)
+    const sixMonthsAgo = new Date(now - 180 * 24 * 60 * 60 * 1000)
 
-    // Single query for active users using JOIN — avoids large IN list
     const activeCounts = await database('statuses')
       .join('actors', 'statuses.actorId', 'actors.id')
       .whereNotNull('actors.accountId')
@@ -699,12 +706,33 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         activeHalfyear: string | number
       }>()
 
-    return {
-      totalUsers,
-      activeMonth: parseInt(String(activeCounts?.activeMonth ?? '0'), 10),
-      activeHalfyear: parseInt(String(activeCounts?.activeHalfyear ?? '0'), 10),
-      localPosts
-    }
+    const activeMonth = parseInt(String(activeCounts?.activeMonth ?? '0'), 10)
+    const activeHalfyear = parseInt(
+      String(activeCounts?.activeHalfyear ?? '0'),
+      10
+    )
+
+    const currentTime = new Date(now)
+    await setCounterValue(
+      database,
+      CounterKey.nodeinfoActiveMonth(),
+      activeMonth,
+      currentTime
+    )
+    await setCounterValue(
+      database,
+      CounterKey.nodeinfoActiveHalfyear(),
+      activeHalfyear,
+      currentTime
+    )
+    await setCounterValue(
+      database,
+      CounterKey.nodeinfoComputedAt(),
+      now,
+      currentTime
+    )
+
+    return { totalUsers, activeMonth, activeHalfyear, localPosts }
   },
 
   async deleteActorData({ actorId }: DeleteActorDataParams) {
@@ -944,6 +972,23 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       await deleteCounterValue(trx, CounterKey.totalStatus(actorId))
       await deleteCounterValue(trx, CounterKey.totalFollowers(actorId))
       await deleteCounterValue(trx, CounterKey.totalFollowing(actorId))
+
+      if (persistedActor?.accountId) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.nodeinfoTotalUsers(),
+          1,
+          currentTime
+        )
+        if (actorStatuses.length > 0) {
+          await decreaseCounterValue(
+            trx,
+            CounterKey.nodeinfoLocalPosts(),
+            actorStatuses.length,
+            currentTime
+          )
+        }
+      }
 
       for (const statusId of statusIds) {
         await deleteCounterValue(trx, CounterKey.totalLike(statusId))

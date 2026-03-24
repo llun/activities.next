@@ -74,6 +74,13 @@ describe('counter utils', () => {
       expect(CounterKey.totalMedia('account')).toBe('total-media:account')
       expect(CounterKey.fitnessUsage('account')).toBe('fitness-usage:account')
       expect(CounterKey.totalFitness('account')).toBe('total-fitness:account')
+      expect(CounterKey.nodeinfoTotalUsers()).toBe('nodeinfo:total-users')
+      expect(CounterKey.nodeinfoLocalPosts()).toBe('nodeinfo:local-posts')
+      expect(CounterKey.nodeinfoActiveMonth()).toBe('nodeinfo:active-month')
+      expect(CounterKey.nodeinfoActiveHalfyear()).toBe(
+        'nodeinfo:active-halfyear'
+      )
+      expect(CounterKey.nodeinfoComputedAt()).toBe('nodeinfo:computed-at')
     })
   })
 

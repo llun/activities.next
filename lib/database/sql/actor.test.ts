@@ -554,7 +554,9 @@ describe('ActorDatabase', () => {
     })
 
     describe('#getNodeInfoStats', () => {
-      it('returns stats with local users and posts from counters', async () => {
+      it('increments totalUsers and localPosts counters on create', async () => {
+        const statsBefore = await database.getNodeInfoStats()
+
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `nodeinfo-${suffix}`
         const actorId = `https://${TEST_DOMAIN}/users/${username}`
@@ -578,18 +580,17 @@ describe('ActorDatabase', () => {
           text: 'NodeInfo test status'
         })
 
-        const stats = await database.getNodeInfoStats()
-        expect(stats.totalUsers).toBeGreaterThanOrEqual(1)
-        expect(stats.localPosts).toBeGreaterThanOrEqual(1)
-        expect(stats.activeMonth).toBeGreaterThanOrEqual(1)
-        expect(stats.activeHalfyear).toBeGreaterThanOrEqual(1)
+        const statsAfter = await database.getNodeInfoStats()
+        expect(statsAfter.totalUsers).toBe(statsBefore.totalUsers + 1)
+        expect(statsAfter.localPosts).toBe(statsBefore.localPosts + 1)
       })
 
       it('does not count external actors in local stats', async () => {
+        const statsBefore = await database.getNodeInfoStats()
+
         const suffix = crypto.randomUUID().slice(0, 8)
         const externalActorId = `https://external-${suffix}.example/users/ext`
 
-        // Create an additional external actor (no accountId)
         await database.createActor({
           actorId: externalActorId,
           username: `ext-${suffix}`,
@@ -601,27 +602,39 @@ describe('ActorDatabase', () => {
           createdAt: Date.now()
         })
 
+        const statsAfter = await database.getNodeInfoStats()
+        expect(statsAfter.totalUsers).toBe(statsBefore.totalUsers)
+        expect(statsAfter.localPosts).toBe(statsBefore.localPosts)
+      })
+
+      it('does not count external actor posts in local stats', async () => {
         const statsBefore = await database.getNodeInfoStats()
-        const countBefore = statsBefore.totalUsers
 
-        // External actor should not have incremented totalUsers
-        expect(countBefore).toBeGreaterThanOrEqual(1)
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const externalActorId = `https://ext-post-${suffix}.example/users/ext`
 
-        // Create a second external actor and confirm count stays the same
-        const externalActorId2 = `https://external2-${suffix}.example/users/ext2`
         await database.createActor({
-          actorId: externalActorId2,
-          username: `ext2-${suffix}`,
-          domain: `external2-${suffix}.example`,
-          followersUrl: `${externalActorId2}/followers`,
-          inboxUrl: `${externalActorId2}/inbox`,
-          sharedInboxUrl: `${externalActorId2}/inbox`,
-          publicKey: 'externalPublicKey2',
+          actorId: externalActorId,
+          username: `ext-post-${suffix}`,
+          domain: `ext-post-${suffix}.example`,
+          followersUrl: `${externalActorId}/followers`,
+          inboxUrl: `${externalActorId}/inbox`,
+          sharedInboxUrl: `${externalActorId}/inbox`,
+          publicKey: 'externalPublicKey',
           createdAt: Date.now()
         })
 
+        await database.createNote({
+          id: `${externalActorId}/statuses/ext-${suffix}`,
+          url: `${externalActorId}/statuses/ext-${suffix}`,
+          actorId: externalActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'External post'
+        })
+
         const statsAfter = await database.getNodeInfoStats()
-        expect(statsAfter.totalUsers).toBe(countBefore)
+        expect(statsAfter.localPosts).toBe(statsBefore.localPosts)
       })
     })
 
@@ -715,14 +728,16 @@ describe('ActorDatabase', () => {
           beforeLikes,
           beforeReblogs,
           beforeReplies,
-          beforeMediaUsage
+          beforeMediaUsage,
+          beforeNodeInfo
         ] = await Promise.all([
           database.getActorFollowersCount({ actorId: peerActorId }),
           database.getActorFollowingCount({ actorId: peerActorId }),
           database.getLikeCount({ statusId: targetStatusId }),
           database.getStatusReblogsCount({ statusId: targetStatusId }),
           database.getStatusRepliesCount({ statusId: targetStatusId }),
-          database.getStorageUsageForAccount({ accountId: accountId! })
+          database.getStorageUsageForAccount({ accountId: accountId! }),
+          database.getNodeInfoStats()
         ])
 
         await database.deleteActorData({ actorId })
@@ -736,14 +751,16 @@ describe('ActorDatabase', () => {
           afterLikes,
           afterReblogs,
           afterReplies,
-          afterMediaUsage
+          afterMediaUsage,
+          afterNodeInfo
         ] = await Promise.all([
           database.getActorFollowersCount({ actorId: peerActorId }),
           database.getActorFollowingCount({ actorId: peerActorId }),
           database.getLikeCount({ statusId: targetStatusId }),
           database.getStatusReblogsCount({ statusId: targetStatusId }),
           database.getStatusRepliesCount({ statusId: targetStatusId }),
-          database.getStorageUsageForAccount({ accountId: accountId! })
+          database.getStorageUsageForAccount({ accountId: accountId! }),
+          database.getNodeInfoStats()
         ])
 
         expect(afterFollowers).toBe(beforeFollowers - 1)
@@ -752,6 +769,8 @@ describe('ActorDatabase', () => {
         expect(afterReblogs).toBe(beforeReblogs - 1)
         expect(afterReplies).toBe(beforeReplies - 1)
         expect(afterMediaUsage).toBe(beforeMediaUsage - 1700)
+        expect(afterNodeInfo.totalUsers).toBe(beforeNodeInfo.totalUsers - 1)
+        expect(afterNodeInfo.localPosts).toBe(beforeNodeInfo.localPosts - 2)
       })
     })
   })
