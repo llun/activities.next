@@ -68,7 +68,7 @@
     "rehype-sanitize": "^6.0.0",
     "remark-breaks": "^4.0.0",
     "resend": "^6.9.3",
-    "sanitize-html": "^2.17.1",
+    "sanitize-html": "^2.17.2",
     "sharp": "^0.34.5",
     "tailwind-merge": "^3.5.0",
     "yauzl": "^3.2.1",
