@@ -52,7 +52,7 @@
     "framer-motion": "^12.38.0",
     "got": "^14.6.6",
     "html-react-parser": "^5.2.17",
-    "knex": "^3.1.0",
+    "knex": "^3.2.5",
     "lodash": "^4.17.23",
     "lucide-react": "^0.577.0",
     "marked": "^17.0.4",
