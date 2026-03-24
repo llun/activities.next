@@ -7,6 +7,10 @@ import {
   getCounterValue,
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
+import {
+  decrementBucket,
+  incrementBucket
+} from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorDatabase } from '@/lib/types/database/operations'
@@ -166,6 +170,12 @@ export const StatusSQLDatabaseMixin = (
       step === 'increment' ? increaseCounterValue : decreaseCounterValue
 
     await adjust(trx, CounterKey.totalStatus(actorId), 1, currentTime)
+    await adjust(trx, CounterKey.serviceTotalStatuses(), 1, currentTime)
+    if (step === 'increment') {
+      await incrementBucket(trx, 'statuses', 1, currentTime)
+    } else {
+      await decrementBucket(trx, 'statuses', 1, currentTime)
+    }
 
     const actor = await trx('actors')
       .where('id', actorId)

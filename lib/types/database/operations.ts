@@ -903,10 +903,33 @@ export interface ServiceStats {
   totalFitnessBytes: number
 }
 
+export interface ServiceStatsBucket {
+  bucketHour: number
+  value: number
+}
+
+export type ServiceStatCounterType =
+  | 'accounts'
+  | 'actors'
+  | 'statuses'
+  | 'media-files'
+  | 'media-bytes'
+  | 'fitness-files'
+  | 'fitness-bytes'
+
+export interface GetServiceStatsBucketsParams {
+  counterType: ServiceStatCounterType
+  startTime: number
+  endTime: number
+}
+
 export interface AdminDatabase {
   getAllAccounts(params: GetAllAccountsParams): Promise<GetAllAccountsResult>
   getAccountWithActors(
     params: GetAccountWithActorsParams
   ): Promise<GetAccountWithActorsResult | null>
   getServiceStats(): Promise<ServiceStats>
+  getServiceStatsBuckets(
+    params: GetServiceStatsBucketsParams
+  ): Promise<ServiceStatsBucket[]>
 }

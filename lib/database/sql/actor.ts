@@ -10,6 +10,7 @@ import {
   parseCounterValue,
   setCounterValue
 } from '@/lib/database/sql/utils/counter'
+import { decrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { Mastodon } from '@/lib/types/activitypub'
@@ -791,6 +792,22 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           actorStatuses.length,
           currentTime
         )
+        await decreaseCounterValue(
+          trx,
+          CounterKey.serviceTotalStatuses(),
+          actorStatuses.length,
+          currentTime
+        )
+      }
+
+      if (persistedActor?.accountId) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.serviceTotalActors(),
+          1,
+          currentTime
+        )
+        await decrementBucket(trx, 'actors', 1, currentTime)
       }
 
       const reblogCounterChanges: Record<string, number> = {}

@@ -8,6 +8,10 @@ import {
   parseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import {
+  decrementBucket,
+  incrementBucket
+} from '@/lib/database/sql/utils/counterBucket'
+import {
   AttachmentWithMedia,
   CreateAttachmentParams,
   CreateMediaParams,
@@ -78,6 +82,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           CounterKey.totalMedia(actor.accountId),
           1
         )
+      }
+      await incrementBucket(trx, 'media-files', 1)
+      if (usageDelta > 0) {
+        await incrementBucket(trx, 'media-bytes', usageDelta)
       }
 
       return {
@@ -398,6 +406,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           CounterKey.totalMedia(actor.accountId),
           1
         )
+      }
+      await decrementBucket(trx, 'media-files', 1)
+      if (usageDelta > 0) {
+        await decrementBucket(trx, 'media-bytes', usageDelta)
       }
 
       return true
