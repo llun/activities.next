@@ -14,8 +14,16 @@ exports.up = async function (knex) {
   if (!hasBucketHour) {
     await knex.schema.alterTable('counters', (table) => {
       table.timestamp('bucketHour', { useTz: true }).nullable().defaultTo(null)
+    })
+  }
+
+  // 2. Create index independently so reruns can repair a partial first run
+  try {
+    await knex.schema.alterTable('counters', (table) => {
       table.index(['bucketHour'], 'counters_bucket_hour_index')
     })
+  } catch {
+    // Index already exists — safe to ignore
   }
 
   const currentTime = new Date()
@@ -153,9 +161,10 @@ exports.up = async function (knex) {
   await insertBuckets('media-files', mediaFileRows)
   await insertBuckets('media-bytes', mediaByteRows)
 
-  // fitness-files and fitness-bytes buckets (only non-deleted, since buckets are increment-only)
+  // fitness-files and fitness-bytes buckets — include all rows (even soft-deleted)
+  // because buckets are increment-only and track creation activity per hour.
+  // Deleted files were still created at those hours.
   const fitnessBuckets = await knex('fitness_files')
-    .whereNull('deletedAt')
     .select(
       knex.raw(`${hourExpr} as hour`),
       knex.raw(`${hourTruncExpr} as "bucketHour"`),
@@ -189,11 +198,19 @@ exports.down = async function (knex) {
     .orWhere('id', 'like', 'servicestat:%')
     .delete()
 
-  // Drop bucketHour column and its index
+  // Drop index independently so partial states don't block rollback
+  try {
+    await knex.schema.alterTable('counters', (table) => {
+      table.dropIndex(['bucketHour'], 'counters_bucket_hour_index')
+    })
+  } catch {
+    // Index may not exist if the up migration partially failed
+  }
+
+  // Drop bucketHour column
   const hasBucketHour = await knex.schema.hasColumn('counters', 'bucketHour')
   if (hasBucketHour) {
     await knex.schema.alterTable('counters', (table) => {
-      table.dropIndex(['bucketHour'], 'counters_bucket_hour_index')
       table.dropColumn('bucketHour')
     })
   }
