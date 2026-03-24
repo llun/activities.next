@@ -656,8 +656,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   },
 
   async getNodeInfoStats() {
-    const now = Date.now()
-    const ACTIVE_USERS_TTL_MS = 60 * 60 * 1000 // 1 hour
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    const ACTIVE_USERS_TTL_SECONDS = 60 * 60 // 1 hour
 
     const totalUsers = await getCounterValue(
       database,
@@ -672,7 +672,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       database,
       CounterKey.nodeinfoComputedAt()
     )
-    const isStale = computedAt === 0 || now - computedAt > ACTIVE_USERS_TTL_MS
+    const isStale =
+      computedAt === 0 || nowSeconds - computedAt > ACTIVE_USERS_TTL_SECONDS
 
     if (!isStale) {
       const activeMonth = await getCounterValue(
@@ -687,6 +688,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     }
 
     // Recompute active user counts
+    const now = Date.now()
     const oneMonthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000)
     const sixMonthsAgo = new Date(now - 180 * 24 * 60 * 60 * 1000)
 
@@ -695,11 +697,16 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .whereNotNull('actors.accountId')
       .andWhere('statuses.createdAt', '>=', sixMonthsAgo)
       .select(
-        database.raw(
-          'count(distinct case when "statuses"."createdAt" >= ? then "statuses"."actorId" end) as "activeMonth"',
-          [oneMonthAgo]
-        ),
-        database.raw('count(distinct "statuses"."actorId") as "activeHalfyear"')
+        database.raw('count(distinct case when ?? >= ? then ?? end) as ??', [
+          'statuses.createdAt',
+          oneMonthAgo,
+          'statuses.actorId',
+          'activeMonth'
+        ]),
+        database.raw('count(distinct ??) as ??', [
+          'statuses.actorId',
+          'activeHalfyear'
+        ])
       )
       .first<{
         activeMonth: string | number
@@ -728,7 +735,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     await setCounterValue(
       database,
       CounterKey.nodeinfoComputedAt(),
-      now,
+      nowSeconds,
       currentTime
     )
 

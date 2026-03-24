@@ -34,6 +34,7 @@ exports.up = async function (knex) {
 
   // Compute active user counts
   const now = Date.now()
+  const nowSeconds = Math.floor(now / 1000)
   const oneMonthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000)
   const sixMonthsAgo = new Date(now - 180 * 24 * 60 * 60 * 1000)
 
@@ -42,11 +43,16 @@ exports.up = async function (knex) {
     .whereNotNull('actors.accountId')
     .andWhere('statuses.createdAt', '>=', sixMonthsAgo)
     .select(
-      knex.raw(
-        'count(distinct case when "statuses"."createdAt" >= ? then "statuses"."actorId" end) as "activeMonth"',
-        [oneMonthAgo]
-      ),
-      knex.raw('count(distinct "statuses"."actorId") as "activeHalfyear"')
+      knex.raw('count(distinct case when ?? >= ? then ?? end) as ??', [
+        'statuses.createdAt',
+        oneMonthAgo,
+        'statuses.actorId',
+        'activeMonth'
+      ]),
+      knex.raw('count(distinct ??) as ??', [
+        'statuses.actorId',
+        'activeHalfyear'
+      ])
     )
     .first()
 
@@ -56,13 +62,13 @@ exports.up = async function (knex) {
     10
   )
 
-  // Upsert all nodeinfo counters
+  // Upsert all nodeinfo counters (use seconds for computed-at to fit in 32-bit integer)
   const counters = [
     { id: 'nodeinfo:total-users', value: totalUsers },
     { id: 'nodeinfo:local-posts', value: localPosts },
     { id: 'nodeinfo:active-month', value: activeMonth },
     { id: 'nodeinfo:active-halfyear', value: activeHalfyear },
-    { id: 'nodeinfo:computed-at', value: now }
+    { id: 'nodeinfo:computed-at', value: nowSeconds }
   ]
 
   for (const counter of counters) {
