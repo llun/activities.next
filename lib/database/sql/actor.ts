@@ -655,6 +655,93 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     }
   },
 
+  async getNodeInfoStats() {
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    const ACTIVE_USERS_TTL_SECONDS = 60 * 60 // 1 hour
+
+    const totalUsers = await getCounterValue(
+      database,
+      CounterKey.nodeinfoTotalUsers()
+    )
+    const localPosts = await getCounterValue(
+      database,
+      CounterKey.nodeinfoLocalPosts()
+    )
+
+    const computedAt = await getCounterValue(
+      database,
+      CounterKey.nodeinfoComputedAt()
+    )
+    const isStale =
+      computedAt === 0 || nowSeconds - computedAt > ACTIVE_USERS_TTL_SECONDS
+
+    if (!isStale) {
+      const activeMonth = await getCounterValue(
+        database,
+        CounterKey.nodeinfoActiveMonth()
+      )
+      const activeHalfyear = await getCounterValue(
+        database,
+        CounterKey.nodeinfoActiveHalfyear()
+      )
+      return { totalUsers, activeMonth, activeHalfyear, localPosts }
+    }
+
+    // Recompute active user counts
+    const now = Date.now()
+    const oneMonthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000)
+    const sixMonthsAgo = new Date(now - 180 * 24 * 60 * 60 * 1000)
+
+    const activeCounts = await database('statuses')
+      .join('actors', 'statuses.actorId', 'actors.id')
+      .whereNotNull('actors.accountId')
+      .andWhere('statuses.createdAt', '>=', sixMonthsAgo)
+      .select(
+        database.raw('count(distinct case when ?? >= ? then ?? end) as ??', [
+          'statuses.createdAt',
+          oneMonthAgo,
+          'statuses.actorId',
+          'activeMonth'
+        ]),
+        database.raw('count(distinct ??) as ??', [
+          'statuses.actorId',
+          'activeHalfyear'
+        ])
+      )
+      .first<{
+        activeMonth: string | number
+        activeHalfyear: string | number
+      }>()
+
+    const activeMonth = parseInt(String(activeCounts?.activeMonth ?? '0'), 10)
+    const activeHalfyear = parseInt(
+      String(activeCounts?.activeHalfyear ?? '0'),
+      10
+    )
+
+    const currentTime = new Date(now)
+    await setCounterValue(
+      database,
+      CounterKey.nodeinfoActiveMonth(),
+      activeMonth,
+      currentTime
+    )
+    await setCounterValue(
+      database,
+      CounterKey.nodeinfoActiveHalfyear(),
+      activeHalfyear,
+      currentTime
+    )
+    await setCounterValue(
+      database,
+      CounterKey.nodeinfoComputedAt(),
+      nowSeconds,
+      currentTime
+    )
+
+    return { totalUsers, activeMonth, activeHalfyear, localPosts }
+  },
+
   async deleteActorData({ actorId }: DeleteActorDataParams) {
     await database.transaction(async (trx) => {
       const currentTime = new Date()
@@ -892,6 +979,23 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       await deleteCounterValue(trx, CounterKey.totalStatus(actorId))
       await deleteCounterValue(trx, CounterKey.totalFollowers(actorId))
       await deleteCounterValue(trx, CounterKey.totalFollowing(actorId))
+
+      if (persistedActor?.accountId) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.nodeinfoTotalUsers(),
+          1,
+          currentTime
+        )
+        if (actorStatuses.length > 0) {
+          await decreaseCounterValue(
+            trx,
+            CounterKey.nodeinfoLocalPosts(),
+            actorStatuses.length,
+            currentTime
+          )
+        }
+      }
 
       for (const statusId of statusIds) {
         await deleteCounterValue(trx, CounterKey.totalLike(statusId))

@@ -36,7 +36,12 @@ export const CounterKey = {
   mediaUsage: (accountId: string) => `media-usage:${accountId}`,
   totalMedia: (accountId: string) => `total-media:${accountId}`,
   fitnessUsage: (accountId: string) => `fitness-usage:${accountId}`,
-  totalFitness: (accountId: string) => `total-fitness:${accountId}`
+  totalFitness: (accountId: string) => `total-fitness:${accountId}`,
+  nodeinfoTotalUsers: () => 'nodeinfo:total-users',
+  nodeinfoLocalPosts: () => 'nodeinfo:local-posts',
+  nodeinfoActiveMonth: () => 'nodeinfo:active-month',
+  nodeinfoActiveHalfyear: () => 'nodeinfo:active-halfyear',
+  nodeinfoComputedAt: () => 'nodeinfo:computed-at'
 }
 
 type SQLDatabase = Knex | Knex.Transaction

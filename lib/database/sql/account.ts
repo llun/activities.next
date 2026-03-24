@@ -1,6 +1,10 @@
 import { Knex } from 'knex'
 
-import { CounterKey, getCounterValues } from '@/lib/database/sql/utils/counter'
+import {
+  CounterKey,
+  getCounterValues,
+  increaseCounterValue
+} from '@/lib/database/sql/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
@@ -110,6 +114,12 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         createdAt: currentTime,
         updatedAt: currentTime
       })
+      await increaseCounterValue(
+        trx,
+        CounterKey.nodeinfoTotalUsers(),
+        1,
+        currentTime
+      )
     })
 
     return accountId

@@ -167,6 +167,13 @@ export const StatusSQLDatabaseMixin = (
 
     await adjust(trx, CounterKey.totalStatus(actorId), 1, currentTime)
 
+    const actor = await trx('actors')
+      .where('id', actorId)
+      .first<{ accountId: string | null }>('accountId')
+    if (actor?.accountId) {
+      await adjust(trx, CounterKey.nodeinfoLocalPosts(), 1, currentTime)
+    }
+
     if (type === StatusType.enum.Announce) {
       const originalStatusId = getOriginalStatusIdFromAnnounceContent(content)
       if (originalStatusId) {

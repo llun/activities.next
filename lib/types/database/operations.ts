@@ -148,6 +148,12 @@ export interface ActorDatabase {
   getActorSettings(
     params: GetActorSettingsParams
   ): Promise<ActorSettings | undefined>
+  getNodeInfoStats(): Promise<{
+    totalUsers: number
+    activeMonth: number
+    activeHalfyear: number
+    localPosts: number
+  }>
 }
 
 // ============================================================================

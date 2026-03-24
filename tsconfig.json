@@ -5,7 +5,8 @@
       "@/app/*": ["app/*"],
       "@/lib/*": ["lib/*"],
       "@/pages/*": ["pages/*"],
-      "@/package.json": ["package.json"]
+      "@/package.json": ["package.json"],
+      "knex": ["node_modules/knex"]
     },
     "target": "ESNext",
     "lib": ["dom", "dom.iterable", "esnext"],
