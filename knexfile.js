@@ -2,6 +2,9 @@ import dotenvFlow from 'dotenv-flow'
 
 dotenvFlow.config()
 
+const isSQLiteClient = (client) =>
+  client === 'better-sqlite3' || client === 'sqlite3'
+
 const DEFAULT_DEV_DATABASE = {
   client: 'better-sqlite3',
   useNullAsDefault: true,
@@ -13,13 +16,16 @@ const DEFAULT_DEV_DATABASE = {
 }
 
 const getDatabaseConfig = () => {
+  const client = process.env.ACTIVITIES_DATABASE_CLIENT
+
   if (
     Object.keys(process.env).some((key) =>
       key.startsWith('ACTIVITIES_DATABASE_')
     )
   ) {
     return {
-      client: process.env.ACTIVITIES_DATABASE_CLIENT,
+      client,
+      ...(isSQLiteClient(client) ? { useNullAsDefault: true } : {}),
       connection: {
         host:
           process.env.ACTIVITIES_DATABASE_PG_HOST ||
