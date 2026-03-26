@@ -7,6 +7,7 @@ import {
   getCounterValue,
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
+import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   FitnessFile,
@@ -278,6 +279,10 @@ export const FitnessFileSQLDatabaseMixin = (
           1
         )
       }
+      await incrementBucket(trx, 'fitness-files', 1)
+      if (params.bytes > 0) {
+        await incrementBucket(trx, 'fitness-bytes', params.bytes)
+      }
 
       return parseSQLFitnessFile(data)
     })
@@ -424,8 +429,8 @@ export const FitnessFileSQLDatabaseMixin = (
       })
 
       // Update counters
+      const bytes = normalizeBytes(file.bytes)
       if (actor?.accountId) {
-        const bytes = normalizeBytes(file.bytes)
         await decreaseCounterValue(
           trx,
           CounterKey.fitnessUsage(actor.accountId),

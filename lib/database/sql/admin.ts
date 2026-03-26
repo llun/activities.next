@@ -1,12 +1,19 @@
 import { Knex } from 'knex'
 
+import {
+  CounterKey,
+  getCounterValues,
+  parseCounterValue
+} from '@/lib/database/sql/utils/counter'
+import { getBucketStats } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
 import {
   AdminDatabase,
   GetAccountWithActorsParams,
-  GetAllAccountsParams
+  GetAllAccountsParams,
+  GetServiceStatsBucketsParams
 } from '@/lib/types/database/operations'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Actor } from '@/lib/types/domain/actor'
@@ -108,46 +115,70 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
 
   async getServiceStats() {
     const [
-      accountsCount,
-      actorsCount,
-      statusesCount,
+      counterMap,
       mediaResult,
       mediaFilesResult,
       fitnessResult,
       fitnessFilesResult
     ] = await Promise.all([
-      database('accounts').count<{ count: string }>('id as count').first(),
-      database('actors')
-        .whereNotNull('accountId')
-        .count<{ count: string }>('id as count')
-        .first(),
-      database('statuses').count<{ count: string }>('id as count').first(),
+      getCounterValues(database, [
+        CounterKey.serviceTotalAccounts(),
+        CounterKey.serviceTotalActors(),
+        CounterKey.serviceTotalStatuses()
+      ]),
       database('counters')
         .where('id', 'like', 'media-usage:%')
+        .whereNull('bucketHour')
         .sum<{ total: string }>('value as total')
         .first(),
       database('counters')
         .where('id', 'like', 'total-media:%')
+        .whereNull('bucketHour')
         .sum<{ total: string }>('value as total')
         .first(),
       database('counters')
         .where('id', 'like', 'fitness-usage:%')
+        .whereNull('bucketHour')
         .sum<{ total: string }>('value as total')
         .first(),
       database('counters')
         .where('id', 'like', 'total-fitness:%')
+        .whereNull('bucketHour')
         .sum<{ total: string }>('value as total')
         .first()
     ])
 
     return {
-      totalAccounts: parseInt(accountsCount?.count ?? '0', 10),
-      totalActors: parseInt(actorsCount?.count ?? '0', 10),
-      totalStatuses: parseInt(statusesCount?.count ?? '0', 10),
+      totalAccounts: parseCounterValue(
+        counterMap[CounterKey.serviceTotalAccounts()]
+      ),
+      totalActors: parseCounterValue(
+        counterMap[CounterKey.serviceTotalActors()]
+      ),
+      totalStatuses: parseCounterValue(
+        counterMap[CounterKey.serviceTotalStatuses()]
+      ),
       totalMediaBytes: parseInt(mediaResult?.total ?? '0', 10),
       totalMediaFiles: parseInt(mediaFilesResult?.total ?? '0', 10),
       totalFitnessBytes: parseInt(fitnessResult?.total ?? '0', 10),
       totalFitnessFiles: parseInt(fitnessFilesResult?.total ?? '0', 10)
     }
+  },
+
+  async getServiceStatsBuckets({
+    counterType,
+    startTime,
+    endTime
+  }: GetServiceStatsBucketsParams) {
+    const rows = await getBucketStats(
+      database,
+      counterType,
+      new Date(startTime),
+      new Date(endTime)
+    )
+    return rows.map((row) => ({
+      bucketHour: row.bucketHour.getTime(),
+      value: row.value
+    }))
   }
 })

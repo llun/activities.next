@@ -5,6 +5,7 @@ import {
   getCounterValues,
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
+import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
@@ -120,6 +121,20 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         1,
         currentTime
       )
+      await increaseCounterValue(
+        trx,
+        CounterKey.serviceTotalAccounts(),
+        1,
+        currentTime
+      )
+      await increaseCounterValue(
+        trx,
+        CounterKey.serviceTotalActors(),
+        1,
+        currentTime
+      )
+      await incrementBucket(trx, 'accounts', 1, currentTime)
+      await incrementBucket(trx, 'actors', 1, currentTime)
     })
 
     return accountId
@@ -371,6 +386,13 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       createdAt: currentTime,
       updatedAt: currentTime
     })
+    await increaseCounterValue(
+      database,
+      CounterKey.serviceTotalActors(),
+      1,
+      currentTime
+    )
+    await incrementBucket(database, 'actors', 1, currentTime)
 
     return actorId
   },
