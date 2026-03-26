@@ -67,41 +67,69 @@ jobs:
           fi
 
           # Determine bump type from explicit commit prefixes.
-          # `none:` is a no-release override and wins over all other commits.
-          BUMP="patch"
+          # `none:` and `.github/`-only commits count as no-bump for that commit.
+          # Release precedence across commits is: major > minor > patch > none.
+          BUMP="none"
 
           while IFS= read -r hash; do
             SUBJECT=$(git log -1 --pretty=format:"%s" "$hash")
+            COMMIT_BUMP="patch"
 
             # Skip version bump commits
             if echo "$SUBJECT" | grep -qE '^Bump version to v'; then
               continue
             fi
 
-            # `none:` suppresses the entire release, regardless of other commits.
-            if echo "$SUBJECT" | grep -qE '^none:'; then
-              echo "Skipping: no-bump override found in commit '$SUBJECT'."
+            # Explicit commit prefixes take precedence for this commit.
+            if echo "$SUBJECT" | grep -qE '^major:'; then
+              COMMIT_BUMP="major"
+            elif echo "$SUBJECT" | grep -qE '^minor:'; then
+              COMMIT_BUMP="minor"
+            elif echo "$SUBJECT" | grep -qE '^none:'; then
+              COMMIT_BUMP="none"
+            else
+              CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r --root "$hash")
+              if [ -n "$CHANGED_FILES" ] && ! echo "$CHANGED_FILES" | grep -qvE '^(\.github/|$)'; then
+                COMMIT_BUMP="none"
+              fi
+            fi
+
+            case "$COMMIT_BUMP" in
+              major)
+                BUMP="major"
+                break
+                ;;
+              minor)
+                if [ "$BUMP" = "none" ] || [ "$BUMP" = "patch" ]; then
+                  BUMP="minor"
+                fi
+                ;;
+              patch)
+                if [ "$BUMP" = "none" ]; then
+                  BUMP="patch"
+                fi
+                ;;
+            esac
+          done <<< "$COMMIT_HASHES"
+
+          if [ "$INITIAL_RELEASE" = true ]; then
+            if [ "$BUMP" = "none" ]; then
+              echo "Skipping: no releasable commits found for initial release."
               echo "bump=none" >> "$GITHUB_OUTPUT"
               echo "new_version=" >> "$GITHUB_OUTPUT"
               exit 0
             fi
 
-            # Check for major: prefix
-            if echo "$SUBJECT" | grep -qE '^major:'; then
-              BUMP="major"
-              continue
-            fi
-
-            # Check for minor: prefix (promote to minor unless already major)
-            if [ "$BUMP" = "patch" ] && echo "$SUBJECT" | grep -qE '^minor:'; then
-              BUMP="minor"
-            fi
-          done <<< "$COMMIT_HASHES"
-
-          if [ "$INITIAL_RELEASE" = true ]; then
             echo "Will create v1.0.0."
             echo "bump=initial" >> "$GITHUB_OUTPUT"
             echo "new_version=1.0.0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$BUMP" = "none" ]; then
+            echo "Skipping: no releasable commits found since $LATEST_TAG."
+            echo "bump=none" >> "$GITHUB_OUTPUT"
+            echo "new_version=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
