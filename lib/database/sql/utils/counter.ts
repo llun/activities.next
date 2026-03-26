@@ -41,7 +41,12 @@ export const CounterKey = {
   nodeinfoLocalPosts: () => 'nodeinfo:local-posts',
   nodeinfoActiveMonth: () => 'nodeinfo:active-month',
   nodeinfoActiveHalfyear: () => 'nodeinfo:active-halfyear',
-  nodeinfoComputedAt: () => 'nodeinfo:computed-at'
+  nodeinfoComputedAt: () => 'nodeinfo:computed-at',
+  serviceTotalAccounts: () => 'servicestat:total-accounts',
+  serviceTotalActors: () => 'servicestat:total-actors',
+  serviceTotalStatuses: () => 'servicestat:total-statuses',
+  bucketKey: (counterType: string, hour: string) =>
+    `bucket:${counterType}:${hour}`
 }
 
 type SQLDatabase = Knex | Knex.Transaction

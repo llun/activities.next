@@ -7,6 +7,7 @@ import {
   increaseCounterValue,
   parseCounterValue
 } from '@/lib/database/sql/utils/counter'
+import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import {
   AttachmentWithMedia,
   CreateAttachmentParams,
@@ -78,6 +79,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           CounterKey.totalMedia(actor.accountId),
           1
         )
+      }
+      await incrementBucket(trx, 'media-files', 1)
+      if (usageDelta > 0) {
+        await incrementBucket(trx, 'media-bytes', usageDelta)
       }
 
       return {
@@ -399,7 +404,6 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           1
         )
       }
-
       return true
     })
   }

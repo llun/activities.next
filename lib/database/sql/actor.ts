@@ -791,6 +791,21 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           actorStatuses.length,
           currentTime
         )
+        await decreaseCounterValue(
+          trx,
+          CounterKey.serviceTotalStatuses(),
+          actorStatuses.length,
+          currentTime
+        )
+      }
+
+      if (persistedActor?.accountId) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.serviceTotalActors(),
+          1,
+          currentTime
+        )
       }
 
       const reblogCounterChanges: Record<string, number> = {}
