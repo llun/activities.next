@@ -45,23 +45,19 @@ jobs:
           LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
 
           if [ -z "$LATEST_TAG" ]; then
-            echo "No existing version tag found."
-            COMMIT_HASHES=$(git log HEAD --pretty=format:"%H" --no-merges)
-            INITIAL_RELEASE=true
-          else
-            echo "Latest tag: $LATEST_TAG"
-
-            # Get commit hashes since last tag (excluding merge commits and bot version bumps)
-            COMMIT_HASHES=$(git log "$LATEST_TAG"..HEAD --pretty=format:"%H" --no-merges)
-            INITIAL_RELEASE=false
+            echo "No existing version tag found. Will create v1.0.0."
+            echo "bump=initial" >> "$GITHUB_OUTPUT"
+            echo "new_version=1.0.0" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
+          echo "Latest tag: $LATEST_TAG"
+
+          # Get commit hashes since last tag (excluding merge commits and bot version bumps)
+          COMMIT_HASHES=$(git log "$LATEST_TAG"..HEAD --pretty=format:"%H" --no-merges)
+
           if [ -z "$COMMIT_HASHES" ]; then
-            if [ "$INITIAL_RELEASE" = true ]; then
-              echo "No commits found to inspect."
-            else
-              echo "No new commits since $LATEST_TAG"
-            fi
+            echo "No new commits since $LATEST_TAG"
             echo "new_version=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -111,20 +107,6 @@ jobs:
                 ;;
             esac
           done <<< "$COMMIT_HASHES"
-
-          if [ "$INITIAL_RELEASE" = true ]; then
-            if [ "$BUMP" = "none" ]; then
-              echo "Skipping: no releasable commits found for initial release."
-              echo "bump=none" >> "$GITHUB_OUTPUT"
-              echo "new_version=" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-
-            echo "Will create v1.0.0."
-            echo "bump=initial" >> "$GITHUB_OUTPUT"
-            echo "new_version=1.0.0" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
 
           if [ "$BUMP" = "none" ]; then
             echo "Skipping: no releasable commits found since $LATEST_TAG."

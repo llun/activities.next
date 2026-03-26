@@ -140,12 +140,13 @@ The version-bump workflow reads commit prefixes to determine the next semver ver
 
 | Prefix               | Version bump    | When to use                                                                                                                                      |
 | -------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `none:`              | None            | Internal-only changes that should not cut a release. This marks that commit as no-bump, but `major:` or `minor:` in another commit still wins    |
+| `none:`              | None            | For internal-only changes that do not require a release (e.g. documentation, CI configuration)                                                   |
 | `major:`             | Major (`X.0.0`) | Breaking changes that require users to update configs, migrations, or integrations (e.g. removed API, changed auth flow, incompatible DB schema) |
 | `minor:`             | Minor (`x.Y.0`) | New backwards-compatible features users can opt into (e.g. new endpoint, new UI page, new optional config)                                       |
 | _(any other prefix)_ | Patch (`x.y.Z`) | Bug fixes, refactors, chores, docs, tests — anything that doesn't change the public-facing contract                                              |
 
 Commits that change only files under `.github/` are also treated as no-bump by default, unless the commit message explicitly uses `major:` or `minor:`.
+When the repository has no version tag yet, the workflow still bootstraps `v1.0.0` regardless of commit history.
 
 Examples:
 
