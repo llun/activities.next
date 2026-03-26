@@ -22,8 +22,11 @@ exports.up = async function (knex) {
     await knex.schema.alterTable('counters', (table) => {
       table.index(['bucketHour'], 'counters_bucket_hour_index')
     })
-  } catch {
-    // Index already exists — safe to ignore
+  } catch (err) {
+    const msg = String(err?.message ?? '').toLowerCase()
+    if (!msg.includes('already exists') && !msg.includes('duplicate')) {
+      throw err
+    }
   }
 
   const currentTime = new Date()
@@ -70,7 +73,7 @@ exports.up = async function (knex) {
     : `strftime('%Y%m%d%H', createdAt)`
 
   const hourTruncExpr = isPg
-    ? `date_trunc('hour', "createdAt" AT TIME ZONE 'UTC')`
+    ? `date_trunc('hour', "createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`
     : `strftime('%Y-%m-%dT%H:00:00.000Z', createdAt)`
 
   const groupByExpr = `${hourExpr}, ${hourTruncExpr}`
@@ -203,8 +206,11 @@ exports.down = async function (knex) {
     await knex.schema.alterTable('counters', (table) => {
       table.dropIndex(['bucketHour'], 'counters_bucket_hour_index')
     })
-  } catch {
-    // Index may not exist if the up migration partially failed
+  } catch (err) {
+    const msg = String(err?.message ?? '').toLowerCase()
+    if (!msg.includes('does not exist') && !msg.includes('no such index')) {
+      throw err
+    }
   }
 
   // Drop bucketHour column
