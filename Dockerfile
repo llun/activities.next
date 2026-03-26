@@ -25,7 +25,7 @@ ADD --chown=app:app . /opt/activities.next/
 RUN yarn config set -H enableGlobalCache true
 RUN yarn install --immutable
 RUN yarn dedupe
-RUN yarn migrate
+RUN yarn knex migrate:latest --disable-transactions
 RUN BUILD_STANDALONE=true yarn build
 
 FROM base AS output

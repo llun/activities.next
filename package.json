@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "test": "jest",
     "prettier": "prettier --write app migrations lib",
-    "migrate": "knex migrate:latest --disable-transactions",
+    "migrate": "knex migrate:latest",
     "migrate:make": "knex migrate:make",
     "prepare": "husky"
   },
