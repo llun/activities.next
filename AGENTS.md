@@ -125,6 +125,7 @@
 ## Commit & Pull Request Guidelines
 
 - Commit messages must start with one of these prefixes followed by a short imperative description:
+  - `none:` to skip creating a release entirely (overrides any bump if present since the last version tag)
   - `major:` for breaking changes (major version bump)
   - `minor:` for backwards-compatible new features (minor version bump)
   - `fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc. for everything else (patch version bump)
@@ -137,15 +138,17 @@
 
 The version-bump workflow reads commit prefixes to determine the next semver version. Use these prefixes to control version bumping:
 
-| Prefix               | Version bump    | When to use                                                                                                                                      |
-| -------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `major:`             | Major (`X.0.0`) | Breaking changes that require users to update configs, migrations, or integrations (e.g. removed API, changed auth flow, incompatible DB schema) |
-| `minor:`             | Minor (`x.Y.0`) | New backwards-compatible features users can opt into (e.g. new endpoint, new UI page, new optional config)                                       |
-| _(any other prefix)_ | Patch (`x.y.Z`) | Bug fixes, refactors, chores, docs, tests — anything that doesn't change the public-facing contract                                              |
+| Prefix               | Version bump    | When to use                                                                                                                                          |
+| -------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `none:`              | None            | Internal-only changes that should not cut a release. If any commit since the last version tag uses this prefix, the workflow skips the bump entirely |
+| `major:`             | Major (`X.0.0`) | Breaking changes that require users to update configs, migrations, or integrations (e.g. removed API, changed auth flow, incompatible DB schema)     |
+| `minor:`             | Minor (`x.Y.0`) | New backwards-compatible features users can opt into (e.g. new endpoint, new UI page, new optional config)                                           |
+| _(any other prefix)_ | Patch (`x.y.Z`) | Bug fixes, refactors, chores, docs, tests — anything that doesn't change the public-facing contract                                                  |
 
 Examples:
 
 ```text
+none: update internal CI docs without cutting a release
 major: remove legacy v1 API endpoints
 minor: add support for S3 media storage
 fix: correct timestamp parsing in ActivityPub inbox   ← patch

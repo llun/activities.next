@@ -45,47 +45,65 @@ jobs:
           LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
 
           if [ -z "$LATEST_TAG" ]; then
-            echo "No existing version tag found. Will create v1.0.0."
-            echo "bump=initial" >> "$GITHUB_OUTPUT"
-            echo "new_version=1.0.0" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "No existing version tag found."
+            COMMIT_HASHES=$(git log HEAD --pretty=format:"%H" --no-merges)
+            INITIAL_RELEASE=true
+          else
+            echo "Latest tag: $LATEST_TAG"
+
+            # Get commit hashes since last tag (excluding merge commits and bot version bumps)
+            COMMIT_HASHES=$(git log "$LATEST_TAG"..HEAD --pretty=format:"%H" --no-merges)
+            INITIAL_RELEASE=false
           fi
 
-          echo "Latest tag: $LATEST_TAG"
-
-          # Get commit hashes since last tag (excluding merge commits and bot version bumps)
-          COMMIT_HASHES=$(git log "$LATEST_TAG"..HEAD --pretty=format:"%H" --no-merges)
-
           if [ -z "$COMMIT_HASHES" ]; then
-            echo "No new commits since $LATEST_TAG"
+            if [ "$INITIAL_RELEASE" = true ]; then
+              echo "No commits found to inspect."
+            else
+              echo "No new commits since $LATEST_TAG"
+            fi
             echo "new_version=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Determine bump type from conventional commits
-          # Read both subject and body to detect BREAKING CHANGE footers
+          # Determine bump type from explicit commit prefixes.
+          # `none:` is a no-release override and wins over all other commits.
           BUMP="patch"
 
           while IFS= read -r hash; do
             SUBJECT=$(git log -1 --pretty=format:"%s" "$hash")
-            BODY=$(git log -1 --pretty=format:"%b" "$hash")
 
             # Skip version bump commits
             if echo "$SUBJECT" | grep -qE '^Bump version to v'; then
               continue
             fi
 
+            # `none:` suppresses the entire release, regardless of other commits.
+            if echo "$SUBJECT" | grep -qE '^none:'; then
+              echo "Skipping: no-bump override found in commit '$SUBJECT'."
+              echo "bump=none" >> "$GITHUB_OUTPUT"
+              echo "new_version=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
             # Check for major: prefix
             if echo "$SUBJECT" | grep -qE '^major:'; then
               BUMP="major"
-              break
+              continue
             fi
 
             # Check for minor: prefix (promote to minor unless already major)
-            if [ "$BUMP" != "major" ] && echo "$SUBJECT" | grep -qE '^minor:'; then
+            if [ "$BUMP" = "patch" ] && echo "$SUBJECT" | grep -qE '^minor:'; then
               BUMP="minor"
             fi
           done <<< "$COMMIT_HASHES"
+
+          if [ "$INITIAL_RELEASE" = true ]; then
+            echo "Will create v1.0.0."
+            echo "bump=initial" >> "$GITHUB_OUTPUT"
+            echo "new_version=1.0.0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           echo "Bump type: $BUMP"
 

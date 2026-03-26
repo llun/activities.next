@@ -21,5 +21,5 @@ Follow `AGENTS.md` and `AGENTS.override.md` for all project rules.
 - Activity logs: `fediverse_local-activitynext-dev-1` container; DB: `postgres` container.
 - For major changes: commit → push → open PR to `main`.
 - Every commit message must start with a conventional commit prefix: `fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc.
-- Use `major:` prefix for breaking changes (bumps major version), `minor:` for new backwards-compatible features (bumps minor version). All other prefixes result in a patch bump. See `AGENTS.md` for the full version bump guide.
+- Use `none:` to skip creating a release entirely, `major:` for breaking changes, and `minor:` for new backwards-compatible features. All other prefixes result in a patch bump. See `AGENTS.md` for the full version bump guide.
 - **Do NOT** manually change the `version` in `package.json`. A CI workflow handles version bumps automatically based on commit prefixes.
