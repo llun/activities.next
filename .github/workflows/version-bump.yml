@@ -62,30 +62,58 @@ jobs:
             exit 0
           fi
 
-          # Determine bump type from conventional commits
-          # Read both subject and body to detect BREAKING CHANGE footers
-          BUMP="patch"
+          # Determine bump type from explicit commit prefixes.
+          # `none:` and `.github/`-only commits count as no-bump for that commit.
+          # Release precedence across commits is: major > minor > patch > none.
+          BUMP="none"
 
           while IFS= read -r hash; do
             SUBJECT=$(git log -1 --pretty=format:"%s" "$hash")
-            BODY=$(git log -1 --pretty=format:"%b" "$hash")
+            COMMIT_BUMP="patch"
 
             # Skip version bump commits
             if echo "$SUBJECT" | grep -qE '^Bump version to v'; then
               continue
             fi
 
-            # Check for major: prefix
+            # Explicit commit prefixes take precedence for this commit.
             if echo "$SUBJECT" | grep -qE '^major:'; then
-              BUMP="major"
-              break
+              COMMIT_BUMP="major"
+            elif echo "$SUBJECT" | grep -qE '^minor:'; then
+              COMMIT_BUMP="minor"
+            elif echo "$SUBJECT" | grep -qE '^none:'; then
+              COMMIT_BUMP="none"
+            else
+              CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r --root "$hash")
+              if [ -n "$CHANGED_FILES" ] && ! echo "$CHANGED_FILES" | grep -qvE '^(\.github/|$)'; then
+                COMMIT_BUMP="none"
+              fi
             fi
 
-            # Check for minor: prefix (promote to minor unless already major)
-            if [ "$BUMP" != "major" ] && echo "$SUBJECT" | grep -qE '^minor:'; then
-              BUMP="minor"
-            fi
+            case "$COMMIT_BUMP" in
+              major)
+                BUMP="major"
+                break
+                ;;
+              minor)
+                if [ "$BUMP" = "none" ] || [ "$BUMP" = "patch" ]; then
+                  BUMP="minor"
+                fi
+                ;;
+              patch)
+                if [ "$BUMP" = "none" ]; then
+                  BUMP="patch"
+                fi
+                ;;
+            esac
           done <<< "$COMMIT_HASHES"
+
+          if [ "$BUMP" = "none" ]; then
+            echo "Skipping: no releasable commits found since $LATEST_TAG."
+            echo "bump=none" >> "$GITHUB_OUTPUT"
+            echo "new_version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           echo "Bump type: $BUMP"
 
