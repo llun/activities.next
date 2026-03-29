@@ -197,7 +197,6 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
               key={r.value}
               role="tab"
               aria-selected={range === r.value}
-              aria-pressed={range === r.value}
               onClick={() => handleRangeChange(r.value)}
               disabled={isPending}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
