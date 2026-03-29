@@ -53,7 +53,7 @@ export const MiniChart: FC<Props> = ({
     return (
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
+        className="h-full w-full"
         preserveAspectRatio="none"
       />
     )
@@ -62,7 +62,7 @@ export const MiniChart: FC<Props> = ({
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      className="w-full"
+      className="h-full w-full"
       preserveAspectRatio="none"
     >
       <path d={areaPath} fill={color} fillOpacity={0.15} stroke="none" />
