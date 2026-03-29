@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  ChevronDown,
   Database as DatabaseIcon,
   HardDrive,
   Image,
@@ -19,7 +20,7 @@ import {
 } from '@/lib/types/database/operations'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
-import { StatCard } from './StatCard'
+import { MiniChart } from './MiniChart'
 
 type Range = '24h' | '7d' | '30d' | '90d'
 
@@ -73,10 +74,25 @@ const normalizeBuckets = (
   return result
 }
 
+const calcTrend = (buckets: ServiceStatsBucket[]): number | undefined => {
+  if (buckets.length < 2) return undefined
+  const midPoint = Math.ceil(buckets.length / 2)
+  const firstSlice = buckets.slice(0, midPoint)
+  const secondSlice = buckets.slice(midPoint)
+  const firstAvg =
+    firstSlice.reduce((s, b) => s + b.value, 0) / firstSlice.length
+  const secondAvg =
+    secondSlice.reduce((s, b) => s + b.value, 0) / secondSlice.length
+  if (firstAvg === 0) return secondAvg > 0 ? 100 : 0
+  return Math.round(((secondAvg - firstAvg) / firstAvg) * 100)
+}
+
 export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
   const [range, setRange] = useState<Range>('7d')
   const [buckets, setBuckets] = useState<BucketsMap>(initialBuckets)
   const [isPending, startTransition] = useTransition()
+  const [selectedCounter, setSelectedCounter] =
+    useState<ServiceStatCounterType>('statuses')
 
   const rangeMs = RANGES.find((r) => r.value === range)!.ms
 
@@ -154,6 +170,15 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
     return result as BucketsMap
   }, [buckets, rangeMs])
 
+  const selectedCard = statCards.find(
+    (c) => c.counterType === selectedCounter
+  )!
+  const selectedBuckets = normalizedBuckets[selectedCounter] ?? []
+  const selectedChartData = selectedBuckets.map((b) => b.value)
+  const selectedTrend = calcTrend(selectedBuckets)
+  const hasActivity = selectedChartData.some((v) => v > 0)
+  const SelectedIcon = selectedCard.icon
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -172,7 +197,6 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
               key={r.value}
               role="tab"
               aria-selected={range === r.value}
-              aria-pressed={range === r.value}
               onClick={() => handleRangeChange(r.value)}
               disabled={isPending}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
@@ -188,17 +212,88 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
       </div>
 
       <div
-        className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 transition-opacity ${isPending ? 'opacity-60' : 'opacity-100'}`}
+        className={`transition-opacity ${isPending ? 'opacity-60' : 'opacity-100'}`}
       >
-        {statCards.map((card) => (
-          <StatCard
-            key={card.label}
-            label={card.label}
-            value={card.value}
-            icon={card.icon}
-            buckets={normalizedBuckets[card.counterType] ?? []}
-          />
-        ))}
+        <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="relative">
+              <select
+                value={selectedCounter}
+                onChange={(e) =>
+                  setSelectedCounter(e.target.value as ServiceStatCounterType)
+                }
+                aria-label="Select statistic type"
+                className="appearance-none rounded-lg border bg-background py-1.5 pl-3 pr-8 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {statCards.map((card) => (
+                  <option key={card.counterType} value={card.counterType}>
+                    {card.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            </div>
+            {selectedTrend !== undefined && (
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                  selectedTrend >= 0
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                }`}
+              >
+                {selectedTrend >= 0 ? '+' : ''}
+                {selectedTrend}%
+              </span>
+            )}
+          </div>
+          <div className="mb-4 flex items-center gap-3">
+            <div className="rounded-lg bg-primary/10 p-2">
+              <SelectedIcon className="h-5 w-5 text-primary" />
+            </div>
+            <p className="text-3xl font-bold">{selectedCard.value}</p>
+          </div>
+          {hasActivity ? (
+            <div className="h-[200px] w-full text-primary">
+              <MiniChart data={selectedChartData} height={200} />
+            </div>
+          ) : (
+            <div className="flex h-[200px] items-center justify-center">
+              <span className="text-sm text-muted-foreground">
+                No activity in period
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {statCards.map((card) => {
+            const CardIcon = card.icon
+            const isSelected = card.counterType === selectedCounter
+            return (
+              <button
+                key={card.counterType}
+                type="button"
+                onClick={() => setSelectedCounter(card.counterType)}
+                aria-pressed={isSelected}
+                className={`rounded-xl border p-4 text-left transition-colors hover:bg-muted/50 ${
+                  isSelected
+                    ? 'border-primary bg-primary/5'
+                    : 'bg-background/80'
+                }`}
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <div
+                    className={`rounded-md p-1.5 ${isSelected ? 'bg-primary/20' : 'bg-primary/10'}`}
+                  >
+                    <CardIcon className="h-4 w-4 text-primary" />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">{card.label}</p>
+                <p className="mt-0.5 text-base font-semibold">{card.value}</p>
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
