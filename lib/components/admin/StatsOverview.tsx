@@ -74,11 +74,11 @@ const normalizeBuckets = (
   return result
 }
 
-const calcTrend = (buckets: ServiceStatsBucket[]): number | null => {
-  if (buckets.length < 2) return null
-  const half = Math.floor(buckets.length / 2)
-  const firstSlice = buckets.slice(0, half)
-  const secondSlice = buckets.slice(buckets.length - half)
+const calcTrend = (buckets: ServiceStatsBucket[]): number | undefined => {
+  if (buckets.length < 2) return undefined
+  const midPoint = Math.ceil(buckets.length / 2)
+  const firstSlice = buckets.slice(0, midPoint)
+  const secondSlice = buckets.slice(midPoint)
   const firstAvg =
     firstSlice.reduce((s, b) => s + b.value, 0) / firstSlice.length
   const secondAvg =
@@ -223,6 +223,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
                 onChange={(e) =>
                   setSelectedCounter(e.target.value as ServiceStatCounterType)
                 }
+                aria-label="Select statistic type"
                 className="appearance-none rounded-lg border bg-background py-1.5 pl-3 pr-8 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 {statCards.map((card) => (
@@ -233,7 +234,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             </div>
-            {selectedTrend !== null && (
+            {selectedTrend !== undefined && (
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                   selectedTrend >= 0
@@ -272,7 +273,9 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             return (
               <button
                 key={card.counterType}
+                type="button"
                 onClick={() => setSelectedCounter(card.counterType)}
+                aria-pressed={isSelected}
                 className={`rounded-xl border p-4 text-left transition-colors hover:bg-muted/50 ${
                   isSelected
                     ? 'border-primary bg-primary/5'
