@@ -53,7 +53,7 @@ export const MiniChart: FC<Props> = ({
     return (
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
+        className="h-full w-full"
         preserveAspectRatio="none"
       />
     )
