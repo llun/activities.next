@@ -179,6 +179,14 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
   const hasActivity = selectedChartData.some((v) => v > 0)
   const SelectedIcon = selectedCard.icon
 
+  const isByteCounter =
+    selectedCounter === 'media-bytes' || selectedCounter === 'fitness-bytes'
+  const rangeSum = selectedBuckets.reduce((s, b) => s + b.value, 0)
+  const rangeSumFormatted = isByteCounter
+    ? formatFileSize(rangeSum)
+    : rangeSum.toLocaleString()
+  const rangeLabel = RANGES.find((r) => r.value === range)!.label
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -250,7 +258,12 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             <div className="rounded-lg bg-primary/10 p-2">
               <SelectedIcon className="h-5 w-5 text-primary" />
             </div>
-            <p className="text-3xl font-bold">{selectedCard.value}</p>
+            <div>
+              <p className="text-3xl font-bold">{rangeSumFormatted}</p>
+              <p className="text-xs text-muted-foreground">
+                in last {rangeLabel} — {selectedCard.value} total
+              </p>
+            </div>
           </div>
           {hasActivity ? (
             <div className="h-[200px] w-full text-primary">
@@ -269,6 +282,17 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
           {statCards.map((card) => {
             const CardIcon = card.icon
             const isSelected = card.counterType === selectedCounter
+            const cardBuckets = normalizedBuckets[card.counterType] ?? []
+            const cardRangeSum = cardBuckets.reduce(
+              (s, b) => s + b.value,
+              0
+            )
+            const isBytes =
+              card.counterType === 'media-bytes' ||
+              card.counterType === 'fitness-bytes'
+            const cardRangeSumFormatted = isBytes
+              ? formatFileSize(cardRangeSum)
+              : cardRangeSum.toLocaleString()
             return (
               <button
                 key={card.counterType}
@@ -289,7 +313,12 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">{card.label}</p>
-                <p className="mt-0.5 text-base font-semibold">{card.value}</p>
+                <p className="mt-0.5 text-base font-semibold">
+                  {cardRangeSumFormatted}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {card.value} total
+                </p>
               </button>
             )
           })}
