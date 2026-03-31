@@ -96,9 +96,10 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
 
   const rangeMs = RANGES.find((r) => r.value === range)!.ms
 
+  const [pendingRange, setPendingRange] = useState<Range | null>(null)
+
   const handleRangeChange = (newRange: Range) => {
-    const prevRange = range
-    setRange(newRange)
+    setPendingRange(newRange)
     const ms = RANGES.find((r) => r.value === newRange)!.ms
     const endTime = Date.now()
     const startTime = endTime - ms
@@ -106,8 +107,11 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
       try {
         const newBuckets = await getAllStatsBuckets(startTime, endTime)
         setBuckets(newBuckets)
+        setRange(newRange)
       } catch {
-        setRange(prevRange)
+        // keep previous range on failure
+      } finally {
+        setPendingRange(null)
       }
     })
   }
@@ -216,11 +220,11 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             <button
               key={r.value}
               role="tab"
-              aria-selected={range === r.value}
+              aria-selected={(pendingRange ?? range) === r.value}
               onClick={() => handleRangeChange(r.value)}
               disabled={isPending}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                range === r.value
+                (pendingRange ?? range) === r.value
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               } disabled:opacity-50`}
@@ -273,7 +277,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             <div>
               <p className="text-3xl font-bold">{rangeSumFormatted}</p>
               <p className="text-xs text-muted-foreground">
-                activity in last {rangeLabel} — {selectedCard.value} all-time
+                activity in last {rangeLabel} — {selectedCard.value} current total
               </p>
             </div>
           </div>
@@ -322,7 +326,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
                   {cardRangeSumFormatted}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {card.value} all-time
+                  {card.value} current total
                 </p>
               </button>
             )
