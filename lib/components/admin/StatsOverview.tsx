@@ -99,6 +99,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
   const [pendingRange, setPendingRange] = useState<Range | null>(null)
 
   const handleRangeChange = (newRange: Range) => {
+    if (newRange === range) return
     setPendingRange(newRange)
     const ms = RANGES.find((r) => r.value === newRange)!.ms
     const endTime = Date.now()
