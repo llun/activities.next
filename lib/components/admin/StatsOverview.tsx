@@ -9,7 +9,7 @@ import {
   MessageSquare,
   Users
 } from 'lucide-react'
-import { ElementType, FC, useMemo, useState, useTransition } from 'react'
+import { ElementType, FC, useCallback, useMemo, useState, useTransition } from 'react'
 
 import { getAllStatsBuckets } from '@/app/(timeline)/admin/actions'
 import {
@@ -170,6 +170,20 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
     return result as BucketsMap
   }, [buckets, rangeMs])
 
+  const formatValue = useCallback(
+    (val: number, type: ServiceStatCounterType) =>
+      type.endsWith('-bytes') ? formatFileSize(val) : val.toLocaleString(),
+    []
+  )
+
+  const bucketSums = useMemo(() => {
+    const sums: Partial<Record<ServiceStatCounterType, number>> = {}
+    for (const ct of ALL_COUNTER_TYPES) {
+      sums[ct] = (buckets[ct] ?? []).reduce((s, b) => s + b.value, 0)
+    }
+    return sums as Record<ServiceStatCounterType, number>
+  }, [buckets])
+
   const selectedCard = statCards.find(
     (c) => c.counterType === selectedCounter
   )!
@@ -179,12 +193,10 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
   const hasActivity = selectedChartData.some((v) => v > 0)
   const SelectedIcon = selectedCard.icon
 
-  const isByteCounter =
-    selectedCounter === 'media-bytes' || selectedCounter === 'fitness-bytes'
-  const rangeSum = selectedBuckets.reduce((s, b) => s + b.value, 0)
-  const rangeSumFormatted = isByteCounter
-    ? formatFileSize(rangeSum)
-    : rangeSum.toLocaleString()
+  const rangeSumFormatted = formatValue(
+    bucketSums[selectedCounter],
+    selectedCounter
+  )
   const rangeLabel = RANGES.find((r) => r.value === range)!.label
 
   return (
@@ -261,7 +273,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             <div>
               <p className="text-3xl font-bold">{rangeSumFormatted}</p>
               <p className="text-xs text-muted-foreground">
-                in last {rangeLabel} — {selectedCard.value} total
+                activity in last {rangeLabel} — {selectedCard.value} all-time
               </p>
             </div>
           </div>
@@ -282,17 +294,10 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
           {statCards.map((card) => {
             const CardIcon = card.icon
             const isSelected = card.counterType === selectedCounter
-            const cardBuckets = normalizedBuckets[card.counterType] ?? []
-            const cardRangeSum = cardBuckets.reduce(
-              (s, b) => s + b.value,
-              0
+            const cardRangeSumFormatted = formatValue(
+              bucketSums[card.counterType],
+              card.counterType
             )
-            const isBytes =
-              card.counterType === 'media-bytes' ||
-              card.counterType === 'fitness-bytes'
-            const cardRangeSumFormatted = isBytes
-              ? formatFileSize(cardRangeSum)
-              : cardRangeSum.toLocaleString()
             return (
               <button
                 key={card.counterType}
@@ -317,7 +322,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
                   {cardRangeSumFormatted}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {card.value} total
+                  {card.value} all-time
                 </p>
               </button>
             )
