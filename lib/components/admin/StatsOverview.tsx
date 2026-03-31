@@ -9,7 +9,7 @@ import {
   MessageSquare,
   Users
 } from 'lucide-react'
-import { ElementType, FC, useMemo, useState, useTransition } from 'react'
+import { ElementType, FC, useCallback, useMemo, useState, useTransition } from 'react'
 
 import { getAllStatsBuckets } from '@/app/(timeline)/admin/actions'
 import {
@@ -96,9 +96,11 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
 
   const rangeMs = RANGES.find((r) => r.value === range)!.ms
 
+  const [pendingRange, setPendingRange] = useState<Range | null>(null)
+
   const handleRangeChange = (newRange: Range) => {
-    const prevRange = range
-    setRange(newRange)
+    if (newRange === range) return
+    setPendingRange(newRange)
     const ms = RANGES.find((r) => r.value === newRange)!.ms
     const endTime = Date.now()
     const startTime = endTime - ms
@@ -106,8 +108,11 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
       try {
         const newBuckets = await getAllStatsBuckets(startTime, endTime)
         setBuckets(newBuckets)
+        setRange(newRange)
       } catch {
-        setRange(prevRange)
+        // keep previous range on failure
+      } finally {
+        setPendingRange(null)
       }
     })
   }
@@ -170,6 +175,20 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
     return result as BucketsMap
   }, [buckets, rangeMs])
 
+  const formatValue = useCallback(
+    (val: number, type: ServiceStatCounterType) =>
+      type.endsWith('-bytes') ? formatFileSize(val) : val.toLocaleString(),
+    []
+  )
+
+  const bucketSums = useMemo(() => {
+    const sums: Partial<Record<ServiceStatCounterType, number>> = {}
+    for (const ct of ALL_COUNTER_TYPES) {
+      sums[ct] = (buckets[ct] ?? []).reduce((s, b) => s + b.value, 0)
+    }
+    return sums as Record<ServiceStatCounterType, number>
+  }, [buckets])
+
   const selectedCard = statCards.find(
     (c) => c.counterType === selectedCounter
   )!
@@ -178,6 +197,12 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
   const selectedTrend = calcTrend(selectedBuckets)
   const hasActivity = selectedChartData.some((v) => v > 0)
   const SelectedIcon = selectedCard.icon
+
+  const rangeSumFormatted = formatValue(
+    bucketSums[selectedCounter],
+    selectedCounter
+  )
+  const rangeLabel = RANGES.find((r) => r.value === range)!.label
 
   return (
     <div className="space-y-6">
@@ -196,11 +221,11 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             <button
               key={r.value}
               role="tab"
-              aria-selected={range === r.value}
+              aria-selected={(pendingRange ?? range) === r.value}
               onClick={() => handleRangeChange(r.value)}
               disabled={isPending}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                range === r.value
+                (pendingRange ?? range) === r.value
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               } disabled:opacity-50`}
@@ -250,7 +275,12 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             <div className="rounded-lg bg-primary/10 p-2">
               <SelectedIcon className="h-5 w-5 text-primary" />
             </div>
-            <p className="text-3xl font-bold">{selectedCard.value}</p>
+            <div>
+              <p className="text-3xl font-bold">{rangeSumFormatted}</p>
+              <p className="text-xs text-muted-foreground">
+                activity in last {rangeLabel} — {selectedCard.value} current total
+              </p>
+            </div>
           </div>
           {hasActivity ? (
             <div className="h-[200px] w-full text-primary">
@@ -269,6 +299,10 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
           {statCards.map((card) => {
             const CardIcon = card.icon
             const isSelected = card.counterType === selectedCounter
+            const cardRangeSumFormatted = formatValue(
+              bucketSums[card.counterType],
+              card.counterType
+            )
             return (
               <button
                 key={card.counterType}
@@ -289,7 +323,12 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">{card.label}</p>
-                <p className="mt-0.5 text-base font-semibold">{card.value}</p>
+                <p className="mt-0.5 text-base font-semibold">
+                  {cardRangeSumFormatted}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {card.value} current total
+                </p>
               </button>
             )
           })}
