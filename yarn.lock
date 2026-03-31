@@ -6494,7 +6494,7 @@ __metadata:
     tailwindcss: "npm:^4.2.1"
     tw-animate-css: "npm:^1.4.0"
     typescript: "npm:^5.9.3"
-    yauzl: "npm:^3.2.1"
+    yauzl: "npm:^3.3.0"
     zod: "npm:^4.3.6"
   languageName: unknown
   linkType: soft
@@ -14977,13 +14977,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yauzl@npm:^3.2.1":
-  version: 3.2.1
-  resolution: "yauzl@npm:3.2.1"
+"yauzl@npm:^3.3.0":
+  version: 3.3.0
+  resolution: "yauzl@npm:3.3.0"
   dependencies:
     buffer-crc32: "npm:~0.2.3"
     pend: "npm:~1.2.0"
-  checksum: 10c0/fe1997a8ee53c42556789ca61a28278e9ea2ca8f68cae1ae9904edaf3b5fbbc5d5537a3fb8623ac82c2bd0bd9d67233ce593f1acaadfb8718489d9f06d1bb3d0
+  checksum: 10c0/935e32054171104bdf8a4091180f61b5698d8b90ee64552bb643c2176f815d4215d0764e3f41e0d9a1e4525b37602bf145ec5fd39dd014f0be7290851ce3acce
   languageName: node
   linkType: hard
 
