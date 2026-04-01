@@ -9,7 +9,14 @@ import {
   MessageSquare,
   Users
 } from 'lucide-react'
-import { ElementType, FC, useCallback, useMemo, useState, useTransition } from 'react'
+import {
+  ElementType,
+  FC,
+  useCallback,
+  useMemo,
+  useState,
+  useTransition
+} from 'react'
 
 import { getAllStatsBuckets } from '@/app/(timeline)/admin/actions'
 import {
@@ -189,9 +196,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
     return sums as Record<ServiceStatCounterType, number>
   }, [buckets])
 
-  const selectedCard = statCards.find(
-    (c) => c.counterType === selectedCounter
-  )!
+  const selectedCard = statCards.find((c) => c.counterType === selectedCounter)!
   const selectedBuckets = normalizedBuckets[selectedCounter] ?? []
   const selectedChartData = selectedBuckets.map((b) => b.value)
   const selectedTrend = calcTrend(selectedBuckets)
@@ -278,7 +283,8 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             <div>
               <p className="text-3xl font-bold">{rangeSumFormatted}</p>
               <p className="text-xs text-muted-foreground">
-                activity in last {rangeLabel} — {selectedCard.value} current total
+                activity in last {rangeLabel} — {selectedCard.value} current
+                total
               </p>
             </div>
           </div>
