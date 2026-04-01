@@ -69,19 +69,17 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
         {children}
       </div>
       {needsCollapse && (
-        <div
-          className="absolute bottom-0 left-0 right-0 flex items-end justify-center bg-gradient-to-t from-background to-transparent pt-8 pb-0 cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation()
-            setIsExpanded(true)
-          }}
-        >
+        <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center bg-gradient-to-t from-background to-transparent pt-8 pb-0">
           <button
             type="button"
-            aria-expanded={false}
+            aria-expanded={isExpanded}
             aria-controls={contentId}
             aria-label="Show more content"
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm px-2 py-0.5 rounded-full border border-border/60"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm px-2 py-0.5 rounded-full border border-border/60 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsExpanded(true)
+            }}
           >
             <span>Show more</span>
             <ChevronDown className="size-3" />
