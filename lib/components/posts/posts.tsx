@@ -93,6 +93,7 @@ export const Posts: FC<Props> = ({
               status={status}
               showActions={showActions}
               editable={currentActor?.id === status.actorId}
+              collapsible
               onReply={handleReply}
               onEdit={onEdit}
               onPostDeleted={onPostDeleted}

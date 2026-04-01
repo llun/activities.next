@@ -89,6 +89,7 @@ export const StatusBox: FC<Props> = ({
           currentTime={currentTime}
           status={status}
           showActions={variant === 'detail'}
+          collapsible={variant === 'comment'}
           onReply={
             variant === 'detail' && currentActor
               ? (s) => setReplyTarget(s)

@@ -22,6 +22,7 @@ import { BrandedDeviceLink } from './BrandedDeviceLink'
 import { Actions } from './actions/actions'
 import { ActorAvatar, ActorInfo } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
+import { CollapsibleContent } from './collapsible-content'
 import { Poll } from './poll'
 import { RetryFitnessButton } from './retry-fitness-button'
 
@@ -36,6 +37,7 @@ export interface PostProps {
   onEdit?: (status: EditableStatus) => void
   onPostDeleted?: (status: Status) => void
   onShowAttachment: OnMediaSelectedHandle
+  collapsible?: boolean
 }
 
 interface BoostStatusProps {
@@ -53,7 +55,7 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
 }
 
 export const Post: FC<PostProps> = (props) => {
-  const { host, status, onShowAttachment } = props
+  const { host, status, onShowAttachment, collapsible } = props
   const actualStatus = getActualStatus(status)
   const externalStatusUrl = actualStatus.url || actualStatus.id
   const showExternalLink =
@@ -124,9 +126,15 @@ export const Post: FC<PostProps> = (props) => {
             )}
           </div>
 
-          <div className="mt-1 text-sm leading-relaxed break-words markdown-content">
-            {processedAndCleanedText}
-          </div>
+          {collapsible ? (
+            <CollapsibleContent className="mt-1 text-sm leading-relaxed break-words markdown-content">
+              {processedAndCleanedText}
+            </CollapsibleContent>
+          ) : (
+            <div className="mt-1 text-sm leading-relaxed break-words markdown-content">
+              {processedAndCleanedText}
+            </div>
+          )}
           {fitnessFile ? (
             <div className="mt-2 max-w-full rounded-md border bg-muted/30 px-3 py-2 text-xs">
               <div className="flex max-w-full items-center gap-2">
