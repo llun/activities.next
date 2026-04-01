@@ -1,7 +1,15 @@
 'use client'
 
 import { ChevronDown } from 'lucide-react'
-import { FC, ReactNode, useEffect, useRef, useState } from 'react'
+import {
+  FC,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState
+} from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -19,8 +27,9 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   const contentRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+  const contentId = useId()
 
-  useEffect(() => {
+  const checkOverflow = useCallback(() => {
     const el = contentRef.current
     if (!el) return
 
@@ -28,13 +37,29 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
       MAX_HEIGHT_REM *
       parseFloat(getComputedStyle(document.documentElement).fontSize)
     setIsOverflowing(el.scrollHeight > maxHeightPx + 2) // 2px tolerance
-  }, [children])
+  }, [])
+
+  useEffect(() => {
+    checkOverflow()
+  }, [children, checkOverflow])
+
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+
+    const observer = new ResizeObserver(() => {
+      checkOverflow()
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [checkOverflow])
 
   const needsCollapse = isOverflowing && !isExpanded
 
   return (
     <div className="relative">
       <div
+        id={contentId}
         ref={contentRef}
         className={cn(className, needsCollapse && 'overflow-hidden')}
         style={
@@ -53,6 +78,9 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
         >
           <button
             type="button"
+            aria-expanded={false}
+            aria-controls={contentId}
+            aria-label="Show more content"
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm px-2 py-0.5 rounded-full border border-border/60"
           >
             <span>Show more</span>
