@@ -44,6 +44,7 @@ const Page = async () => {
   }
 
   const profile = getActorProfile(actor)
+  const settings = await database.getActorSettings({ actorId: actor.id })
   const actors = await database.getActorsForAccount({
     accountId: actor.account.id
   })
@@ -87,6 +88,34 @@ const Page = async () => {
       </section>
 
       <form action="/api/v1/accounts/profile" method="post">
+        <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+          <div>
+            <h2 className="text-lg font-semibold">Appearance</h2>
+            <p className="text-sm text-muted-foreground">
+              Customize how posts appear on your timeline.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="postLineLimitInput">Post line limit</Label>
+            <select
+              id="postLineLimitInput"
+              name="postLineLimit"
+              defaultValue={String(settings?.postLineLimit ?? 5)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="5">5 lines</option>
+              <option value="10">10 lines</option>
+              <option value="0">No limit</option>
+            </select>
+            <p className="text-[0.8rem] text-muted-foreground">
+              Number of lines to show before a &quot;Show more&quot; button
+              appears. Set to &quot;No limit&quot; to always show full post
+              content.
+            </p>
+          </div>
+        </section>
+
         <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
           <div>
             <h2 className="text-lg font-semibold">Profile</h2>

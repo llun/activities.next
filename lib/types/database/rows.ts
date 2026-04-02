@@ -1,5 +1,7 @@
 // SQL row types - Types returned directly from database queries
 
+export type PostLineLimit = 5 | 10 | 0
+
 export interface ActorSettings {
   iconUrl?: string
   headerImageUrl?: string
@@ -7,6 +9,7 @@ export interface ActorSettings {
   inboxUrl: string
   sharedInboxUrl: string
   manuallyApprovesFollowers?: boolean
+  postLineLimit?: PostLineLimit
   emailNotifications?: {
     follow_request?: boolean
     follow?: boolean

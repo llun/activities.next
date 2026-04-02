@@ -21,6 +21,7 @@ interface Props {
   currentTime: Date
   statuses: Status[]
   isMediaUploadEnabled?: boolean
+  postLineLimit?: number
   onReply?: (status: Status) => void
   onReplyCreated?: (status: Status, attachments: Attachment[]) => void
   onEdit?: (status: EditableStatus) => void
@@ -35,6 +36,7 @@ export const Posts: FC<Props> = ({
   currentTime,
   statuses,
   isMediaUploadEnabled,
+  postLineLimit,
   onReply,
   onReplyCreated,
   onEdit,
@@ -94,6 +96,7 @@ export const Posts: FC<Props> = ({
               showActions={showActions}
               editable={currentActor?.id === status.actorId}
               collapsible
+              postLineLimit={postLineLimit}
               onReply={handleReply}
               onEdit={onEdit}
               onPostDeleted={onPostDeleted}

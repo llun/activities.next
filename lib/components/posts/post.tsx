@@ -38,6 +38,7 @@ export interface PostProps {
   onPostDeleted?: (status: Status) => void
   onShowAttachment: OnMediaSelectedHandle
   collapsible?: boolean
+  postLineLimit?: number
 }
 
 interface BoostStatusProps {
@@ -55,7 +56,7 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
 }
 
 export const Post: FC<PostProps> = (props) => {
-  const { host, status, onShowAttachment, collapsible } = props
+  const { host, status, onShowAttachment, collapsible, postLineLimit } = props
   const actualStatus = getActualStatus(status)
   const externalStatusUrl = actualStatus.url || actualStatus.id
   const showExternalLink =
@@ -126,8 +127,11 @@ export const Post: FC<PostProps> = (props) => {
             )}
           </div>
 
-          {collapsible ? (
-            <CollapsibleContent className="mt-1 text-sm leading-relaxed break-words markdown-content">
+          {collapsible && postLineLimit !== 0 ? (
+            <CollapsibleContent
+              className="mt-1 text-sm leading-relaxed break-words markdown-content"
+              maxLines={postLineLimit}
+            >
               {processedAndCleanedText}
             </CollapsibleContent>
           ) : (

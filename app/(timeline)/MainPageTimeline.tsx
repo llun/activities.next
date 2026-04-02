@@ -35,13 +35,15 @@ interface MainPageTimelineProps {
   profile: ActorProfile
   isMediaUploadEnabled: boolean
   statuses: Status[]
+  postLineLimit?: number
 }
 
 export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   host,
   profile,
   isMediaUploadEnabled,
-  statuses
+  statuses,
+  postLineLimit
 }) => {
   const [currentTab, setCurrentTab] = useState<Tab>(TIMELINES_TABS[0])
   const [statusActionState, dispatchStatusAction] = useReducer(
@@ -233,6 +235,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
                 currentActor={profile}
                 showActions
                 isMediaUploadEnabled={isMediaUploadEnabled}
+                postLineLimit={postLineLimit}
                 onReplyCreated={onReplyCreated}
                 onEdit={onEdit}
                 onPostDeleted={onPostDeleted}
