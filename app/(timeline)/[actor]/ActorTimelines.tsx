@@ -9,6 +9,7 @@ import {
   TabsList,
   TabsTrigger
 } from '@/lib/components/ui/tabs'
+import { PostLineLimit } from '@/lib/types/database/rows'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
@@ -19,6 +20,7 @@ interface Props {
   actorId: string
   statuses: Status[]
   attachments: Attachment[]
+  postLineLimit?: PostLineLimit
 }
 
 const isReply = (status: Status) => {
@@ -37,7 +39,8 @@ export const ActorTimelines: FC<Props> = ({
   host,
   actorId,
   statuses,
-  attachments
+  attachments,
+  postLineLimit
 }) => {
   const currentTime = new Date()
 
@@ -73,6 +76,7 @@ export const ActorTimelines: FC<Props> = ({
             className="mt-0"
             currentTime={currentTime}
             statuses={postStatuses}
+            postLineLimit={postLineLimit}
           />
         ) : (
           <p className="p-8 text-center text-muted-foreground">No posts yet</p>
@@ -85,6 +89,7 @@ export const ActorTimelines: FC<Props> = ({
           className="mt-0"
           currentTime={currentTime}
           statuses={statuses}
+          postLineLimit={postLineLimit}
         />
       </TabsContent>
 

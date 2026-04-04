@@ -370,6 +370,28 @@ describe('ActorDatabase', () => {
           manuallyApprovesFollowers: false
         })
       })
+
+      it('persists and returns postLineLimit setting', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+
+        await database.updateActor({ actorId, postLineLimit: 10 })
+        let settings = await database.getActorSettings({ actorId })
+        expect(settings?.postLineLimit).toBe(10)
+
+        await database.updateActor({ actorId, postLineLimit: 0 })
+        settings = await database.getActorSettings({ actorId })
+        expect(settings?.postLineLimit).toBe(0)
+
+        await database.updateActor({ actorId, postLineLimit: 5 })
+        settings = await database.getActorSettings({ actorId })
+        expect(settings?.postLineLimit).toBe(5)
+      })
+
+      it('returns undefined postLineLimit for actors without the setting', async () => {
+        const actorId = EXTERNAL_ACTORS[0].id
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings?.postLineLimit).toBeUndefined()
+      })
     })
 
     describe('#deleteActor', () => {

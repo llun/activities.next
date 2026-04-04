@@ -3,6 +3,7 @@ import _ from 'lodash'
 import { Activity, ExternalLink, LoaderCircle, Repeat2 } from 'lucide-react'
 import { FC } from 'react'
 
+import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
 import {
@@ -38,6 +39,7 @@ export interface PostProps {
   onPostDeleted?: (status: Status) => void
   onShowAttachment: OnMediaSelectedHandle
   collapsible?: boolean
+  postLineLimit?: PostLineLimit
 }
 
 interface BoostStatusProps {
@@ -55,7 +57,7 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
 }
 
 export const Post: FC<PostProps> = (props) => {
-  const { host, status, onShowAttachment, collapsible } = props
+  const { host, status, onShowAttachment, collapsible, postLineLimit } = props
   const actualStatus = getActualStatus(status)
   const externalStatusUrl = actualStatus.url || actualStatus.id
   const showExternalLink =
@@ -126,8 +128,11 @@ export const Post: FC<PostProps> = (props) => {
             )}
           </div>
 
-          {collapsible ? (
-            <CollapsibleContent className="mt-1 text-sm leading-relaxed break-words markdown-content">
+          {collapsible && postLineLimit !== 0 ? (
+            <CollapsibleContent
+              className="mt-1 text-sm leading-relaxed break-words markdown-content"
+              maxLines={postLineLimit}
+            >
               {processedAndCleanedText}
             </CollapsibleContent>
           ) : (

@@ -29,6 +29,7 @@ const Page = async () => {
     return redirect('/auth/signin')
   }
 
+  const settings = await database.getActorSettings({ actorId: actor.id })
   const statuses = await database.getTimeline({
     timeline: Timeline.MAIN,
     actorId: actor.id
@@ -39,6 +40,7 @@ const Page = async () => {
       statuses={statuses.map((item) => cleanJson(item))}
       profile={getActorProfile(actor)}
       isMediaUploadEnabled={Boolean(mediaStorage)}
+      postLineLimit={settings?.postLineLimit}
     />
   )
 }

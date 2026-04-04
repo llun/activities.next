@@ -16,28 +16,32 @@ import { cn } from '@/lib/utils'
 interface CollapsibleContentProps {
   children: ReactNode
   className?: string
+  maxLines?: number
 }
 
-const MAX_HEIGHT_REM = 5.75 // ~4 lines of text-sm leading-relaxed
+const LINE_HEIGHT_REM = 1.4375 // ~line height for text-sm leading-relaxed
 
 export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   children,
-  className
+  className,
+  maxLines = 5
 }) => {
   const contentRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const contentId = useId()
 
+  const maxHeightRem = maxLines * LINE_HEIGHT_REM
+
   const checkOverflow = useCallback(() => {
     const el = contentRef.current
     if (!el) return
 
     const maxHeightPx =
-      MAX_HEIGHT_REM *
+      maxHeightRem *
       parseFloat(getComputedStyle(document.documentElement).fontSize)
     setIsOverflowing(el.scrollHeight > maxHeightPx + 2) // 2px tolerance
-  }, [])
+  }, [maxHeightRem])
 
   useEffect(() => {
     checkOverflow()
@@ -62,9 +66,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
         id={contentId}
         ref={contentRef}
         className={cn(className, needsCollapse && 'overflow-hidden')}
-        style={
-          needsCollapse ? { maxHeight: `${MAX_HEIGHT_REM}rem` } : undefined
-        }
+        style={needsCollapse ? { maxHeight: `${maxHeightRem}rem` } : undefined}
       >
         {children}
       </div>
