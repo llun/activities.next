@@ -3,6 +3,7 @@ import _ from 'lodash'
 import { Activity, ExternalLink, LoaderCircle, Repeat2 } from 'lucide-react'
 import { FC } from 'react'
 
+import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
 import {
@@ -38,7 +39,7 @@ export interface PostProps {
   onPostDeleted?: (status: Status) => void
   onShowAttachment: OnMediaSelectedHandle
   collapsible?: boolean
-  postLineLimit?: number
+  postLineLimit?: PostLineLimit
 }
 
 interface BoostStatusProps {

@@ -2,7 +2,10 @@ import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { PostLineLimit } from '@/lib/types/database/rows'
+import {
+  POST_LINE_LIMIT_VALUES,
+  PostLineLimit
+} from '@/lib/types/database/rows'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const ProfileRequest = z.object({
@@ -48,10 +51,13 @@ export const POST = traceApiRoute(
     }
 
     let postLineLimit: PostLineLimit | undefined
-    if (rawPostLineLimit !== undefined) {
-      const numValue = Number(rawPostLineLimit)
-      if (numValue === 0 || numValue === 5 || numValue === 10) {
-        postLineLimit = numValue
+    if (rawPostLineLimit !== undefined && rawPostLineLimit !== '') {
+      const numValue = parseInt(rawPostLineLimit, 10)
+      if (
+        !isNaN(numValue) &&
+        POST_LINE_LIMIT_VALUES.includes(numValue as PostLineLimit)
+      ) {
+        postLineLimit = numValue as PostLineLimit
       }
     }
 

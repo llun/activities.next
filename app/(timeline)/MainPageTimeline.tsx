@@ -14,6 +14,7 @@ import {
   TabsTrigger
 } from '@/lib/components/ui/tabs'
 import { Timeline } from '@/lib/services/timelines/types'
+import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, Status } from '@/lib/types/domain/status'
 
@@ -35,7 +36,7 @@ interface MainPageTimelineProps {
   profile: ActorProfile
   isMediaUploadEnabled: boolean
   statuses: Status[]
-  postLineLimit?: number
+  postLineLimit?: PostLineLimit
 }
 
 export const MainPageTimeline: FC<MainPageTimelineProps> = ({

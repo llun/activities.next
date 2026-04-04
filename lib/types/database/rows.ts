@@ -1,6 +1,7 @@
 // SQL row types - Types returned directly from database queries
 
-export type PostLineLimit = 5 | 10 | 0
+export const POST_LINE_LIMIT_VALUES = [5, 10, 0] as const
+export type PostLineLimit = (typeof POST_LINE_LIMIT_VALUES)[number]
 
 export interface ActorSettings {
   iconUrl?: string

@@ -9,6 +9,7 @@ import {
   TabsList,
   TabsTrigger
 } from '@/lib/components/ui/tabs'
+import { PostLineLimit } from '@/lib/types/database/rows'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
@@ -19,7 +20,7 @@ interface Props {
   actorId: string
   statuses: Status[]
   attachments: Attachment[]
-  postLineLimit?: number
+  postLineLimit?: PostLineLimit
 }
 
 const isReply = (status: Status) => {
