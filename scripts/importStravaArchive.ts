@@ -1,18 +1,11 @@
 #!/usr/bin/env -S node -r @swc-node/register
 /**
  * Imports a Strava archive ZIP locally without a queue worker.
- *
- * Usage:
- *   NODE_ENV=production scripts/importStravaArchive.ts \
- *     --archive-path /path/to/export.zip \
- *     --actor-id https://yourdomain.com/users/username \
- *     [--visibility public|unlisted|private|direct]
- *
- * Set NODE_ENV=production to load .env.production; omit for dev env files.
+ * Run with --help to see usage.
  */
 import { loadEnvConfig } from '@next/env'
 import crypto from 'crypto'
-import fs from 'fs'
+import fs from 'fs/promises'
 import path from 'path'
 import { z } from 'zod'
 
@@ -165,11 +158,19 @@ async function importStravaArchive(args = process.argv.slice(2)) {
     let activitiesToProcess = archiveActivities
 
     if (input.retryFile) {
+      let retryFileContent: string
+      try {
+        retryFileContent = await fs.readFile(input.retryFile, 'utf8')
+      } catch (error) {
+        throw new Error(
+          `Retry file not found or unreadable: ${input.retryFile}`,
+          { cause: error }
+        )
+      }
       const retryIds = new Set(
-        fs
-          .readFileSync(input.retryFile, 'utf8')
-          .trim()
-          .split('\n')
+        retryFileContent
+          .split(/\r?\n/)
+          .map((id) => id.trim())
           .filter(Boolean)
       )
       activitiesToProcess = archiveActivities.filter((a) =>
@@ -184,6 +185,8 @@ async function importStravaArchive(args = process.argv.slice(2)) {
         `Skipping first ${input.skipToIndex} activities (--skip-to-index)`
       )
     }
+
+    const totalToProcess = activitiesToProcess.length
 
     for (const activity of activitiesToProcess) {
       try {
@@ -230,14 +233,14 @@ async function importStravaArchive(args = process.argv.slice(2)) {
 
         savedCount += 1
         console.log(
-          `  [${savedCount + failedCount}/${totalActivities}] ✓ Saved activity ${activity.activityId}`
+          `  [${savedCount + failedCount}/${totalToProcess}] ✓ Saved activity ${activity.activityId}`
         )
       } catch (error) {
         const nodeError = error as Error
         failedCount += 1
         failedActivityIds.push(activity.activityId)
         console.warn(
-          `  [${savedCount + failedCount}/${totalActivities}] ✗ Failed activity ${activity.activityId}: ${nodeError.message}`
+          `  [${savedCount + failedCount}/${totalToProcess}] ✗ Failed activity ${activity.activityId}: ${nodeError.message}`
         )
       }
     }
@@ -245,16 +248,25 @@ async function importStravaArchive(args = process.argv.slice(2)) {
     console.log(`\nPhase 2 done: ${savedCount} saved, ${failedCount} failed`)
 
     if (failedActivityIds.length > 0) {
-      fs.writeFileSync(
-        input.failedOutput,
-        failedActivityIds.join('\n') + '\n'
-      )
-      console.log(
-        `\nFailed activity IDs written to: ${input.failedOutput}`
-      )
-      console.log(
-        `Retry with: --retry-file ${input.failedOutput}`
-      )
+      try {
+        await fs.writeFile(
+          input.failedOutput,
+          failedActivityIds.join('\n') + '\n'
+        )
+        console.log(`\nFailed activity IDs written to: ${input.failedOutput}`)
+        console.log(`Retry with: --retry-file ${input.failedOutput}`)
+      } catch (error) {
+        const nodeError = error as Error
+        console.warn(
+          `\nWarning: could not write retry file ${input.failedOutput}: ${nodeError.message}`
+        )
+      }
+    } else if (input.retryFile) {
+      try {
+        await fs.writeFile(input.failedOutput, '')
+      } catch {
+        // clearing the file is best-effort
+      }
     }
 
     // Phase 3: create statuses and process fitness files inline
