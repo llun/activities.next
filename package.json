@@ -1,6 +1,6 @@
 {
   "name": "activities.next",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "license": "MIT",
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
@@ -73,7 +73,7 @@
     "got": "^14.6.6",
     "html-react-parser": "^5.2.17",
     "knex": "^3.2.5",
-    "lodash": "^4.17.23",
+    "lodash": "^4.18.1",
     "lucide-react": "^0.577.0",
     "marked": "^17.0.4",
     "mime-types": "^3.0.2",
