@@ -114,8 +114,9 @@ async function importStravaArchive(args = process.argv.slice(2)) {
   try {
     input = parseArgs(args)
   } catch (error) {
-    const nodeError = error as Error
-    console.error(nodeError.message)
+    if (!(error instanceof z.ZodError)) {
+      console.error((error as Error).message)
+    }
     console.error(USAGE)
     return 1
   }
