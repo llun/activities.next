@@ -46,6 +46,9 @@ const Page: FC<Props> = async ({ params }) => {
 
   // Get current actor first so we can use it to sign requests for remote actors
   const currentActor = await getActorFromSession(database, session)
+  const actorSettings = currentActor
+    ? await database.getActorSettings({ actorId: currentActor.id })
+    : undefined
 
   const actorProfile = await getProfileData(
     database,
@@ -163,6 +166,7 @@ const Page: FC<Props> = async ({ params }) => {
           actorId={person.id}
           statuses={statuses}
           attachments={attachments}
+          postLineLimit={actorSettings?.postLineLimit}
         />
       </section>
     </div>

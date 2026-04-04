@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
+import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { EditableStatus, Status } from '@/lib/types/domain/status'
@@ -21,6 +22,7 @@ interface Props {
   currentTime: Date
   statuses: Status[]
   isMediaUploadEnabled?: boolean
+  postLineLimit?: PostLineLimit
   onReply?: (status: Status) => void
   onReplyCreated?: (status: Status, attachments: Attachment[]) => void
   onEdit?: (status: EditableStatus) => void
@@ -35,6 +37,7 @@ export const Posts: FC<Props> = ({
   currentTime,
   statuses,
   isMediaUploadEnabled,
+  postLineLimit,
   onReply,
   onReplyCreated,
   onEdit,
@@ -94,6 +97,7 @@ export const Posts: FC<Props> = ({
               showActions={showActions}
               editable={currentActor?.id === status.actorId}
               collapsible
+              postLineLimit={postLineLimit}
               onReply={handleReply}
               onEdit={onEdit}
               onPostDeleted={onPostDeleted}

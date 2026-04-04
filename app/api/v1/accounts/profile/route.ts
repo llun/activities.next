@@ -2,6 +2,10 @@ import { z } from 'zod'
 
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import {
+  POST_LINE_LIMIT_VALUES,
+  PostLineLimit
+} from '@/lib/types/database/rows'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const ProfileRequest = z.object({
@@ -10,6 +14,7 @@ const ProfileRequest = z.object({
   iconUrl: z.string().optional(),
   headerImageUrl: z.string().optional(),
   manuallyApprovesFollowers: z.string().optional(),
+  postLineLimit: z.string().optional(),
 
   publicKey: z.string().optional(),
 
@@ -32,7 +37,11 @@ export const POST = traceApiRoute(
     // 3. If missing and marker is missing, it's a partial update -> undefined (don't update)
 
     // Extract raw value to avoid passing string "on" to updateActor which expects boolean
-    const { manuallyApprovesFollowers: rawValue, ...safeParsed } = parsed
+    const {
+      manuallyApprovesFollowers: rawValue,
+      postLineLimit: rawPostLineLimit,
+      ...safeParsed
+    } = parsed
 
     let manuallyApprovesFollowers: boolean | undefined
     if (rawValue === 'on') {
@@ -41,12 +50,24 @@ export const POST = traceApiRoute(
       manuallyApprovesFollowers = false
     }
 
+    let postLineLimit: PostLineLimit | undefined
+    if (rawPostLineLimit !== undefined && rawPostLineLimit !== '') {
+      const numValue = parseInt(rawPostLineLimit, 10)
+      if (
+        !isNaN(numValue) &&
+        POST_LINE_LIMIT_VALUES.includes(numValue as PostLineLimit)
+      ) {
+        postLineLimit = numValue as PostLineLimit
+      }
+    }
+
     await database.updateActor({
       actorId: currentActor.id,
       ...safeParsed,
       ...(manuallyApprovesFollowers !== undefined
         ? { manuallyApprovesFollowers }
-        : null)
+        : null),
+      ...(postLineLimit !== undefined ? { postLineLimit } : null)
     })
 
     const host = headerHost(req.headers)

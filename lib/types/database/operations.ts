@@ -3,7 +3,7 @@
 import { z } from 'zod'
 
 import { Timeline } from '@/lib/services/timelines/types'
-import { ActorSettings } from '@/lib/types/database/rows'
+import { ActorSettings, PostLineLimit } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -61,6 +61,7 @@ export type UpdateActorParams = {
   iconUrl?: string
   headerImageUrl?: string
   manuallyApprovesFollowers?: boolean
+  postLineLimit?: PostLineLimit
   emailNotifications?: {
     follow_request?: boolean
     follow?: boolean
