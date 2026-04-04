@@ -129,7 +129,7 @@
     "node": "24.x"
   },
   "resolutions": {
-    "preact": "10.28.2"
+    "fast-xml-parser": ">=5.5.7"
   },
   "packageManager": "yarn@4.12.0"
 }
