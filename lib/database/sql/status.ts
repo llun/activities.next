@@ -900,7 +900,7 @@ export const StatusSQLDatabaseMixin = (
     const normalizedName = `#${hashtag.toLowerCase()}`
     let query = database('tags')
       .distinct('tags.statusId')
-      .select('statuses.createdAt')
+      .select('statuses.id', 'statuses.createdAt')
       .innerJoin('statuses', 'tags.statusId', 'statuses.id')
       .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
       .where('tags.type', 'hashtag')
