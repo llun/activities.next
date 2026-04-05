@@ -49,8 +49,12 @@ describe('POST /api/v1/push/subscribe', () => {
         id: 'account1',
         email: 'test@example.com'
       }),
-      getActorsForAccount: jest.fn().mockResolvedValue([seedActor1]),
-      getActorFromId: jest.fn().mockResolvedValue(seedActor1),
+      getActorsForAccount: jest
+        .fn()
+        .mockResolvedValue([{ ...seedActor1, id: ACTOR1_ID }]),
+      getActorFromId: jest
+        .fn()
+        .mockResolvedValue({ ...seedActor1, id: ACTOR1_ID }),
       createPushSubscription: jest.fn().mockResolvedValue({
         id: 'sub1',
         actorId: ACTOR1_ID,
@@ -101,8 +105,12 @@ describe('DELETE /api/v1/push/subscribe', () => {
         id: 'account1',
         email: 'test@example.com'
       }),
-      getActorsForAccount: jest.fn().mockResolvedValue([seedActor1]),
-      getActorFromId: jest.fn().mockResolvedValue(seedActor1),
+      getActorsForAccount: jest
+        .fn()
+        .mockResolvedValue([{ ...seedActor1, id: ACTOR1_ID }]),
+      getActorFromId: jest
+        .fn()
+        .mockResolvedValue({ ...seedActor1, id: ACTOR1_ID }),
       createPushSubscription: jest.fn(),
       deletePushSubscription: jest.fn().mockResolvedValue(undefined)
     }
@@ -133,7 +141,8 @@ describe('DELETE /api/v1/push/subscribe', () => {
     const body = await res.json()
     expect(body.status).toBe('OK')
     expect(mockDatabase!.deletePushSubscription).toHaveBeenCalledWith({
-      endpoint
+      endpoint,
+      actorId: ACTOR1_ID
     })
   })
 })

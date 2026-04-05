@@ -42,14 +42,17 @@ export const POST = traceApiRoute(
 
 export const DELETE = traceApiRoute(
   'pushUnsubscribe',
-  AuthenticatedGuard(async (req, { database }) => {
+  AuthenticatedGuard(async (req, { currentActor, database }) => {
     const body = await req.json()
     const parsed = UnsubscribeRequest.safeParse(body)
     if (!parsed.success) {
       return apiErrorResponse(400)
     }
 
-    await database.deletePushSubscription({ endpoint: parsed.data.endpoint })
+    await database.deletePushSubscription({
+      endpoint: parsed.data.endpoint,
+      actorId: currentActor.id
+    })
 
     return apiResponse({
       req,

@@ -60,9 +60,10 @@ export const PushSubscriptionSQLDatabaseMixin = (
   },
 
   async deletePushSubscription({
-    endpoint
+    endpoint,
+    actorId
   }: DeletePushSubscriptionParams): Promise<void> {
-    await database('push_subscriptions').where({ endpoint }).delete()
+    await database('push_subscriptions').where({ endpoint, actorId }).delete()
   },
 
   async getPushSubscriptionsForActor({

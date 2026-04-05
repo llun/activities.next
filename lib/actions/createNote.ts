@@ -298,43 +298,48 @@ export const createNoteFromUserInput = async ({
     await Promise.all(notificationPromises)
   }
 
-  // Send push notifications (best-effort)
+  // Send push notifications (best-effort, concurrent)
+  const pushTargets: { actorId: string; type: NotificationType }[] = []
+
   if (replyStatus && replyStatus.actorId !== currentActor.id) {
-    try {
-      await sendPushNotification({
-        database,
-        actorId: replyStatus.actorId,
-        type: NotificationType.enum.reply,
-        sourceActor: currentActor,
-        statusId
-      })
-    } catch (error) {
-      logger.error({
-        message: 'Failed to send reply push notification',
-        err: error
+    pushTargets.push({
+      actorId: replyStatus.actorId,
+      type: NotificationType.enum.reply
+    })
+  }
+
+  const seenActorIds = new Set<string>(pushTargets.map((t) => t.actorId))
+  for (const mention of mentions) {
+    const mentionedActorId = mention.href
+    if (
+      mentionedActorId !== currentActor.id &&
+      !seenActorIds.has(mentionedActorId)
+    ) {
+      seenActorIds.add(mentionedActorId)
+      pushTargets.push({
+        actorId: mentionedActorId,
+        type: NotificationType.enum.mention
       })
     }
   }
 
-  for (const mention of mentions) {
-    const mentionedActorId = mention.href
-    if (mentionedActorId !== currentActor.id) {
-      try {
-        await sendPushNotification({
-          database,
-          actorId: mentionedActorId,
-          type: NotificationType.enum.mention,
-          sourceActor: currentActor,
-          statusId
-        })
-      } catch (error) {
+  await Promise.allSettled(
+    pushTargets.map(({ actorId: targetActorId, type }) =>
+      sendPushNotification({
+        database,
+        actorId: targetActorId,
+        type,
+        sourceActor: currentActor,
+        statusId
+      }).catch((error) =>
         logger.error({
-          message: 'Failed to send mention push notification',
+          message: 'Failed to send push notification',
+          type,
           err: error
         })
-      }
-    }
-  }
+      )
+    )
+  )
 
   const status = (await database.getStatus({
     statusId,

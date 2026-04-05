@@ -8,6 +8,22 @@ import { logger } from '@/lib/utils/logger'
 
 import { shouldSendPushForNotification } from './pushNotificationSettings'
 
+let vapidInitialized = false
+const initVapid = () => {
+  if (vapidInitialized) return
+  const config = getConfig()
+  if (!config.push) return
+  const email = config.push.vapidEmail.startsWith('mailto:')
+    ? config.push.vapidEmail
+    : `mailto:${config.push.vapidEmail}`
+  webpush.setVapidDetails(
+    email,
+    config.push.vapidPublicKey,
+    config.push.vapidPrivateKey
+  )
+  vapidInitialized = true
+}
+
 interface PushNotificationPayload {
   title: string
   body: string
@@ -88,11 +104,7 @@ export const sendPushNotification = async (params: {
   const subscriptions = await database.getPushSubscriptionsForActor({ actorId })
   if (subscriptions.length === 0) return
 
-  webpush.setVapidDetails(
-    `mailto:${config.push.vapidEmail}`,
-    config.push.vapidPublicKey,
-    config.push.vapidPrivateKey
-  )
+  initVapid()
 
   const payload = JSON.stringify(getNotificationContent(type, sourceActor))
 
@@ -113,7 +125,10 @@ export const sendPushNotification = async (params: {
           webPushError.statusCode === 410 ||
           webPushError.statusCode === 404
         ) {
-          await database.deletePushSubscription({ endpoint: sub.endpoint })
+          await database.deletePushSubscription({
+            endpoint: sub.endpoint,
+            actorId
+          })
         }
         logger.error({
           message: 'Failed to send push notification',

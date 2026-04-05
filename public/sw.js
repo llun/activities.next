@@ -3,12 +3,18 @@
 self.addEventListener('push', (event) => {
   if (!event.data) return
 
-  const data = event.data.json()
+  let data
+  try {
+    data = event.data.json()
+  } catch {
+    data = { body: event.data.text() }
+  }
+
   const title = data.title || 'Activities'
   const options = {
     body: data.body || '',
-    icon: '/activities/icon-192.png',
-    badge: '/activities/icon-192.png',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     data: { url: data.url || '/notifications' }
   }
 
@@ -17,14 +23,17 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const url = event.notification.data?.url || '/notifications'
+  const url = new URL(
+    event.notification.data?.url || '/notifications',
+    self.location.origin
+  ).href
 
   event.waitUntil(
     clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
         for (const client of clientList) {
-          if ('focus' in client) {
+          if (client.url === url && 'focus' in client) {
             return client.focus()
           }
         }

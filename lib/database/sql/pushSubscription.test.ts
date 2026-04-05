@@ -87,7 +87,7 @@ describe('PushSubscription Database', () => {
           auth: 'auth'
         })
 
-        await database.deletePushSubscription({ endpoint })
+        await database.deletePushSubscription({ endpoint, actorId: actor1Id })
 
         const subs = await database.getPushSubscriptionsForActor({
           actorId: actor1Id

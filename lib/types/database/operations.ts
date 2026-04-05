@@ -845,6 +845,7 @@ export type CreatePushSubscriptionParams = {
 
 export type DeletePushSubscriptionParams = {
   endpoint: string
+  actorId: string
 }
 
 export type GetPushSubscriptionsForActorParams = {

@@ -77,8 +77,7 @@ export const PushNotificationSettings: FC<Props> = ({
           return
         }
 
-        const registration =
-          await navigator.serviceWorker.getRegistration('/sw.js')
+        const registration = await navigator.serviceWorker.getRegistration('/')
         if (!registration) {
           setPushState('disabled')
           return
@@ -116,7 +115,7 @@ export const PushNotificationSettings: FC<Props> = ({
       })
 
       const subJson = sub.toJSON()
-      await fetch('/api/v1/push/subscribe', {
+      const res = await fetch('/api/v1/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,6 +123,12 @@ export const PushNotificationSettings: FC<Props> = ({
           keys: subJson.keys
         })
       })
+
+      if (!res.ok) {
+        await sub.unsubscribe()
+        setPushState('error')
+        return
+      }
 
       setSubscription(sub)
       setPushState('enabled')
