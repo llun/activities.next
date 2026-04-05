@@ -906,6 +906,7 @@ export const StatusSQLDatabaseMixin = (
       .where('tags.type', 'hashtag')
       .where('tags.nameNormalized', normalizedName)
       .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+      .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
       .orderBy('statuses.createdAt', 'desc')
       .orderBy('statuses.id', 'desc')
       .limit(limit)
