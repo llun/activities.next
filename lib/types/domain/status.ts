@@ -253,7 +253,9 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       cc: status.cc,
       inReplyTo: status.reply || null,
       content: status.text,
-      tag: status.tags.map((tag) => getMentionFromTag(tag)),
+      tag: status.tags
+        .map((tag) => getMentionFromTag(tag))
+        .filter((tag) => tag !== null),
 
       oneOf: [],
       replies: {
@@ -288,7 +290,9 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     attachment: originalStatus.attachments
       .filter((attachment) => !isFitnessAttachment(attachment))
       .map((attachment) => getDocumentFromAttachment(attachment)),
-    tag: originalStatus.tags.map((tag) => getMentionFromTag(tag)),
+    tag: originalStatus.tags
+      .map((tag) => getMentionFromTag(tag))
+      .filter((tag) => tag !== null),
     replies: {
       id: `${originalStatus.id}/replies`,
       type: 'Collection',

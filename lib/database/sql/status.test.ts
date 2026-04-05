@@ -858,6 +858,94 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('getStatusesByHashtag', () => {
+      it('returns statuses with a given hashtag', async () => {
+        const statusId = `${primaryActorId}/statuses/hashtag-test-${Date.now()}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Hello #testing'
+        })
+        await database.createTag({
+          statusId,
+          name: '#testing',
+          value: `https://${actors.primary.domain}/tags/testing`,
+          type: 'hashtag'
+        })
+
+        const results = await database.getStatusesByHashtag({
+          hashtag: 'testing'
+        })
+        const ids = results.map((s) => s.id)
+        expect(ids).toContain(statusId)
+      })
+
+      it('returns empty array for unknown hashtag', async () => {
+        const results = await database.getStatusesByHashtag({
+          hashtag: 'nonexistent_tag_xyz'
+        })
+        expect(results).toHaveLength(0)
+      })
+    })
+
+    describe('hashtag counters', () => {
+      it('increments and reads hashtag counter', async () => {
+        const tag = `counter_test_${Date.now()}`
+        await database.increaseHashtagCounter({ hashtag: tag })
+        await database.increaseHashtagCounter({ hashtag: tag })
+        const count = await database.getHashtagCounter({ hashtag: tag })
+        expect(count).toBe(2)
+      })
+
+      it('decrements hashtag counter', async () => {
+        const tag = `dec_test_${Date.now()}`
+        await database.increaseHashtagCounter({ hashtag: tag })
+        await database.increaseHashtagCounter({ hashtag: tag })
+        await database.decreaseHashtagCounter({ hashtag: tag })
+        const count = await database.getHashtagCounter({ hashtag: tag })
+        expect(count).toBe(1)
+      })
+
+      it('handles hashtag with # prefix', async () => {
+        const tag = `prefix_test_${Date.now()}`
+        await database.increaseHashtagCounter({ hashtag: `#${tag}` })
+        const count = await database.getHashtagCounter({ hashtag: tag })
+        expect(count).toBe(1)
+      })
+
+      it('decreases hashtag counter when status with hashtag is deleted', async () => {
+        const tag = `delete_counter_test_${Date.now()}`
+        const statusId = `${primaryActorId}/statuses/hashtag-delete-${Date.now()}`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: `Hello #${tag}`
+        })
+        await database.createTag({
+          statusId,
+          name: `#${tag}`,
+          value: `https://${actors.primary.domain}/tags/${tag}`,
+          type: 'hashtag'
+        })
+        await database.increaseHashtagCounter({ hashtag: tag })
+
+        const beforeCount = await database.getHashtagCounter({ hashtag: tag })
+        expect(beforeCount).toBe(1)
+
+        await database.deleteStatus({ statusId })
+
+        const afterCount = await database.getHashtagCounter({ hashtag: tag })
+        expect(afterCount).toBe(0)
+      })
+    })
+
     describe('deleteStatus', () => {
       it('deletes a status', async () => {
         const beforeDeleteCount = await database.getActorStatusesCount({

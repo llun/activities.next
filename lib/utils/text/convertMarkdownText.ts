@@ -18,7 +18,33 @@ export const MENTION_GLOBAL_REGEX = new RegExp(
   `(^|\\s+)?${MENTION_REGEX.source}($|\\s+)?`,
   'g'
 )
+export const HASHTAG_TOKENIZER_REGEX = /^#([a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*)/
+
 export const LINK_BODY_LIMIT = 30
+
+const hashtag: TokenizerAndRendererExtension = {
+  name: 'hashtag',
+  level: 'inline',
+  start(src) {
+    const match = src.match(/(^|\s+)#[a-zA-Z0-9_]/)
+    if (!match) return
+    return (match.index ?? 0) + match[1].length
+  },
+  tokenizer(src) {
+    const match = HASHTAG_TOKENIZER_REGEX.exec(src)
+    if (match) {
+      return {
+        type: 'hashtag',
+        raw: match[0],
+        tag: match[1]
+      }
+    }
+  },
+  renderer(token) {
+    const tagLower = token.tag.toLowerCase()
+    return `<a href="/tags/${tagLower}" class="hashtag" rel="tag">#<span>${token.tag}</span></a>`
+  }
+}
 
 const mention: (host: string) => TokenizerAndRendererExtension = (host) => ({
   name: 'mention',
@@ -103,7 +129,7 @@ export const convertMarkdownText = (host: string) => (text: string) =>
       gfm: true,
       breaks: true,
       async: false,
-      extensions: [mention(host)],
+      extensions: [mention(host), hashtag],
       renderer: SHARED_RENDERER,
       tokenizer: SHARED_TOKENIZER
     }).parse(text) as string

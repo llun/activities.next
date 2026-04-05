@@ -30,6 +30,7 @@ import {
   GetStatusReblogsCountParams,
   GetStatusRepliesCountParams,
   GetStatusRepliesParams,
+  GetStatusesByHashtagParams,
   GetStatusesByIdsParams,
   GetTagsParams,
   HasActorAnnouncedStatusParams,
@@ -50,6 +51,7 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -800,6 +802,22 @@ export const StatusSQLDatabaseMixin = (
       trx,
       currentTime: new Date()
     })
+    const hashtagTags = await trx('tags')
+      .where('statusId', statusId)
+      .where('type', 'hashtag')
+    if (hashtagTags.length > 0) {
+      await Promise.all(
+        hashtagTags.map((tag: { name: string }) => {
+          const tagName = tag.name.startsWith('#')
+            ? tag.name.slice(1)
+            : tag.name
+          return decreaseCounterValue(
+            trx,
+            CounterKey.totalHashtag(tagName.toLowerCase())
+          )
+        })
+      )
+    }
     await Promise.all([
       trx('statuses').where('id', statusId).delete(),
       trx('recipients').where('statusId', statusId).delete(),
@@ -854,6 +872,9 @@ export const StatusSQLDatabaseMixin = (
     })
     await database('tags').insert({
       ...data,
+      ...(type === 'hashtag'
+        ? { nameNormalized: name.toLowerCase() }
+        : undefined),
       createdAt: currentTime,
       updatedAt: currentTime
     })
@@ -869,6 +890,76 @@ export const StatusSQLDatabaseMixin = (
         updatedAt: getCompatibleTime(item.updatedAt)
       })
     )
+  }
+
+  async function getStatusesByHashtag({
+    hashtag,
+    limit = PER_PAGE_LIMIT,
+    maxStatusId
+  }: GetStatusesByHashtagParams): Promise<Status[]> {
+    const normalizedName = `#${hashtag.toLowerCase()}`
+    let query = database('tags')
+      .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+      .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+      .where('tags.type', 'hashtag')
+      .where('tags.nameNormalized', normalizedName)
+      .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+      .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+      .select('statuses.id', 'statuses.createdAt')
+      .distinct()
+      .orderBy('statuses.createdAt', 'desc')
+      .orderBy('statuses.id', 'desc')
+      .limit(limit)
+
+    if (maxStatusId) {
+      const cursor = await database('statuses')
+        .where('id', maxStatusId)
+        .select('createdAt')
+        .first<{ createdAt: Date }>()
+      if (cursor) {
+        query = query.where((wb) => {
+          wb.where('statuses.createdAt', '<', cursor.createdAt).orWhere(
+            (wb2) => {
+              wb2
+                .where('statuses.createdAt', '=', cursor.createdAt)
+                .where('statuses.id', '<', maxStatusId)
+            }
+          )
+        })
+      }
+    }
+
+    const rows = await query
+    const statusIds = rows.map((row: { id: string }) => row.id)
+    if (statusIds.length === 0) return []
+    return getStatusesByIds({ statusIds })
+  }
+
+  async function getHashtagCounter({
+    hashtag
+  }: {
+    hashtag: string
+  }): Promise<number> {
+    const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    return getCounterValue(database, CounterKey.totalHashtag(tagName))
+  }
+
+  async function increaseHashtagCounter({
+    hashtag
+  }: {
+    hashtag: string
+  }): Promise<void> {
+    const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    await increaseCounterValue(database, CounterKey.totalHashtag(tagName))
+  }
+
+  async function decreaseHashtagCounter({
+    hashtag
+  }: {
+    hashtag: string
+  }): Promise<void> {
+    const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    await decreaseCounterValue(database, CounterKey.totalHashtag(tagName))
   }
 
   // Private
@@ -1273,6 +1364,10 @@ export const StatusSQLDatabaseMixin = (
     getFavouritedBy,
     createTag,
     getTags,
+    getStatusesByHashtag,
+    getHashtagCounter,
+    increaseHashtagCounter,
+    decreaseHashtagCounter,
     getStatusReblogsCount,
     getStatusRepliesCount,
     createPollAnswer,
