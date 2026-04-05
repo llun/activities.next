@@ -8,7 +8,9 @@ import {
   getTextContent
 } from '@/lib/services/email/templates/like'
 import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
+import { sendPushNotification } from '@/lib/services/notifications/pushNotification'
 import { NotificationType } from '@/lib/types/database/operations'
+import { logger } from '@/lib/utils/logger'
 
 interface LikeRequestParams {
   activity: LikeStatus
@@ -73,9 +75,31 @@ export const likeRequest = async ({
           }
         }
       } catch (error) {
-        // Log error but don't fail the like operation
-        console.error('Failed to send like notification email:', error)
+        logger.error({
+          message: 'Failed to send like notification email',
+          err: error
+        })
       }
     }
+
+    // Send push notification (best-effort, fire-and-forget)
+    database
+      .getActorFromId({ id: request.actor })
+      .then((sourceActor) => {
+        if (!sourceActor) return
+        return sendPushNotification({
+          database,
+          actorId: status.actorId,
+          type: NotificationType.enum.like,
+          sourceActor,
+          statusId: status.id
+        })
+      })
+      .catch((error) =>
+        logger.error({
+          message: 'Failed to send like push notification',
+          err: error
+        })
+      )
   }
 }

@@ -20,6 +20,15 @@ export interface ActorSettings {
     reblog?: boolean
     activity_import?: boolean
   }
+  pushNotifications?: {
+    follow_request?: boolean
+    follow?: boolean
+    like?: boolean
+    mention?: boolean
+    reply?: boolean
+    reblog?: boolean
+    activity_import?: boolean
+  }
 }
 
 export type ActorDeletionStatus = 'scheduled' | 'deleting' | null

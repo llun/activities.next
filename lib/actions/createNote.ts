@@ -5,6 +5,7 @@ import {
   PROCESS_FITNESS_FILE_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { sendPushNotification } from '@/lib/services/notifications/pushNotification'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
@@ -18,6 +19,7 @@ import {
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { logger } from '@/lib/utils/logger'
 import { getHashtags } from '@/lib/utils/text/getHashtags'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
@@ -295,6 +297,50 @@ export const createNoteFromUserInput = async ({
   if (notificationPromises.length > 0) {
     await Promise.all(notificationPromises)
   }
+
+  // Send push notifications (best-effort, concurrent)
+  const pushTargets: { actorId: string; type: NotificationType }[] = []
+
+  if (replyStatus && replyStatus.actorId !== currentActor.id) {
+    pushTargets.push({
+      actorId: replyStatus.actorId,
+      type: NotificationType.enum.reply
+    })
+  }
+
+  const seenActorIds = new Set<string>(pushTargets.map((t) => t.actorId))
+  for (const mention of mentions) {
+    const mentionedActorId = mention.href
+    if (
+      mentionedActorId !== currentActor.id &&
+      !seenActorIds.has(mentionedActorId)
+    ) {
+      seenActorIds.add(mentionedActorId)
+      pushTargets.push({
+        actorId: mentionedActorId,
+        type: NotificationType.enum.mention
+      })
+    }
+  }
+
+  // Fire-and-forget: don't await so push delivery doesn't block the response
+  Promise.allSettled(
+    pushTargets.map(({ actorId: targetActorId, type }) =>
+      sendPushNotification({
+        database,
+        actorId: targetActorId,
+        type,
+        sourceActor: currentActor,
+        statusId
+      }).catch((error) =>
+        logger.error({
+          message: 'Failed to send push notification',
+          type,
+          err: error
+        })
+      )
+    )
+  )
 
   const status = (await database.getStatus({
     statusId,

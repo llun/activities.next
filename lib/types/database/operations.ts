@@ -71,6 +71,15 @@ export type UpdateActorParams = {
     reblog?: boolean
     activity_import?: boolean
   }
+  pushNotifications?: {
+    follow_request?: boolean
+    follow?: boolean
+    like?: boolean
+    mention?: boolean
+    reply?: boolean
+    reblog?: boolean
+    activity_import?: boolean
+  }
   fitness?: {
     strava?: {
       clientId: string
@@ -811,6 +820,47 @@ export type UpdateNotificationParams = {
   notificationId: string
   isRead?: boolean
   readAt?: number
+}
+
+// ============================================================================
+// Push Subscription Database
+// ============================================================================
+
+export interface PushSubscription {
+  id: string
+  actorId: string
+  endpoint: string
+  p256dh: string
+  auth: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type CreatePushSubscriptionParams = {
+  actorId: string
+  endpoint: string
+  p256dh: string
+  auth: string
+}
+
+export type DeletePushSubscriptionParams = {
+  endpoint: string
+  actorId: string
+}
+
+export type GetPushSubscriptionsForActorParams = {
+  actorId: string
+}
+
+export interface PushSubscriptionDatabase {
+  createPushSubscription(
+    params: CreatePushSubscriptionParams
+  ): Promise<PushSubscription>
+  deletePushSubscription(params: DeletePushSubscriptionParams): Promise<void>
+  getPushSubscriptionsForActor(
+    params: GetPushSubscriptionsForActorParams
+  ): Promise<PushSubscription[]>
+  deletePushSubscriptionsForActor(params: { actorId: string }): Promise<void>
 }
 
 export interface NotificationDatabase {
