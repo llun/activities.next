@@ -84,9 +84,32 @@ jobs:
             elif echo "$SUBJECT" | grep -qE '^none:'; then
               COMMIT_BUMP="none"
             else
-              CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r --root "$hash")
-              if [ -n "$CHANGED_FILES" ] && ! echo "$CHANGED_FILES" | grep -qvE '^(\.github/|$)'; then
-                COMMIT_BUMP="none"
+              # For squash-merged PRs the individual commit messages live in the
+              # body (typically as "* prefix: ..." bullet points).  Scan the body
+              # for the highest-precedence prefix before falling back to the
+              # default patch/none logic.
+              BODY=$(git log -1 --pretty=format:"%b" "$hash")
+              BODY_BUMP=""
+              if [ -n "$BODY" ]; then
+                while IFS= read -r line; do
+                  # Strip optional leading "* " added by GitHub squash-merge
+                  clean_line="${line#\* }"
+                  if echo "$clean_line" | grep -qE '^major:'; then
+                    BODY_BUMP="major"
+                    break
+                  elif echo "$clean_line" | grep -qE '^minor:'; then
+                    BODY_BUMP="minor"
+                  fi
+                done <<< "$BODY"
+              fi
+
+              if [ -n "$BODY_BUMP" ]; then
+                COMMIT_BUMP="$BODY_BUMP"
+              else
+                CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r --root "$hash")
+                if [ -n "$CHANGED_FILES" ] && ! echo "$CHANGED_FILES" | grep -qvE '^(\.github/|$)'; then
+                  COMMIT_BUMP="none"
+                fi
               fi
             fi
 
