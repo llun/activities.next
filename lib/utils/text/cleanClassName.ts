@@ -58,11 +58,12 @@ export const cleanClassName = (text: string) => {
           replacingNode.attribs.href = `/tags/${tagName}`
         } else {
           replacingNode.attribs.target = '_blank'
-          const existingRel = replacingNode.attribs.rel ?? ''
-          const relTokens = existingRel.split(/\s+/).filter(Boolean)
-          if (!relTokens.includes('noopener')) relTokens.push('noopener')
-          if (!relTokens.includes('noreferrer')) relTokens.push('noreferrer')
-          replacingNode.attribs.rel = relTokens.join(' ')
+          const relTokens = new Set(
+            (replacingNode.attribs.rel ?? '').split(/\s+/).filter(Boolean)
+          )
+          relTokens.add('noopener')
+          relTokens.add('noreferrer')
+          replacingNode.attribs.rel = [...relTokens].join(' ')
         }
 
         // Return a React element with onClick handler to stop propagation
