@@ -91,6 +91,7 @@ const Page = async ({ searchParams }: PageProps) => {
 
   return (
     <NotificationSettings
+      key={selectedActor.id}
       actorId={selectedActor.id}
       accountEmail={actor.account.email}
       actors={actors}

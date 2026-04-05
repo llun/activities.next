@@ -65,35 +65,36 @@ export const userAnnounce = async ({
         groupKey: `reblog:${originalStatus.id}`
       })
 
-      const targetActor = await database.getActorFromId({
-        id: originalStatus.actorId
-      })
-
-      const editableStatus =
-        originalStatus.type === 'Announce'
-          ? originalStatus.originalStatus
-          : originalStatus
-
-      sendNotificationAlerts({
-        database,
-        actorId: originalStatus.actorId,
-        sourceActorId: currentActor.id,
-        sourceActor: currentActor,
-        statusId: originalStatus.id,
-        events: [
-          {
-            type: NotificationType.enum.reblog,
-            emailContent: targetActor?.account
-              ? {
-                  recipientEmail: targetActor.account.email,
-                  subject: getSubject(currentActor),
-                  text: getTextContent(currentActor, editableStatus),
-                  html: getHTMLContent(currentActor, editableStatus)
-                }
-              : undefined
-          }
-        ]
-      })
+      // Fire-and-forget: notification delivery must not fail the announce action
+      database
+        .getActorFromId({ id: originalStatus.actorId })
+        .catch(() => null)
+        .then((targetActor) => {
+          const editableStatus =
+            originalStatus.type === 'Announce'
+              ? originalStatus.originalStatus
+              : originalStatus
+          sendNotificationAlerts({
+            database,
+            actorId: originalStatus.actorId,
+            sourceActorId: currentActor.id,
+            sourceActor: currentActor,
+            statusId: originalStatus.id,
+            events: [
+              {
+                type: NotificationType.enum.reblog,
+                emailContent: targetActor?.account
+                  ? {
+                      recipientEmail: targetActor.account.email,
+                      subject: getSubject(currentActor),
+                      text: getTextContent(currentActor, editableStatus),
+                      html: getHTMLContent(currentActor, editableStatus)
+                    }
+                  : undefined
+              }
+            ]
+          })
+        })
     }
 
     await getQueue().publish({

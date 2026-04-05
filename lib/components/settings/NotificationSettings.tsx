@@ -411,6 +411,7 @@ export const NotificationSettings: FC<Props> = ({
                   <td className="py-3 px-4 text-center">
                     <Switch
                       id={`email-${nt.key}`}
+                      aria-label={`${nt.label} email notifications`}
                       checked={
                         emailMasterEnabled && emailSettings[nt.key] !== false
                       }
@@ -423,6 +424,7 @@ export const NotificationSettings: FC<Props> = ({
                   <td className="py-3 px-4 text-center">
                     <Switch
                       id={`push-${nt.key}`}
+                      aria-label={`${nt.label} push notifications`}
                       checked={pushEnabled && pushSettings[nt.key] !== false}
                       disabled={!pushEnabled || pushSaving}
                       onCheckedChange={(checked) =>

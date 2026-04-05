@@ -324,6 +324,7 @@ export const createNoteFromUserInput = async ({
     seenActorIds.add(replyStatus.actorId)
     database
       .getActorFromId({ id: replyStatus.actorId })
+      .catch(() => null)
       .then((targetActor) => {
         sendNotificationAlerts({
           database,
@@ -346,7 +347,6 @@ export const createNoteFromUserInput = async ({
           ]
         })
       })
-      .catch(() => undefined)
   }
 
   for (const mention of mentions) {
@@ -358,6 +358,7 @@ export const createNoteFromUserInput = async ({
       seenActorIds.add(mentionedActorId)
       database
         .getActorFromId({ id: mentionedActorId })
+        .catch(() => null)
         .then((targetActor) => {
           sendNotificationAlerts({
             database,
@@ -380,7 +381,6 @@ export const createNoteFromUserInput = async ({
             ]
           })
         })
-        .catch(() => undefined)
     }
   }
 

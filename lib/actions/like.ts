@@ -37,35 +37,36 @@ export const likeRequest = async ({
       groupKey: `like:${status.id}`
     })
 
-    const [targetActor, sourceActor] = await Promise.all([
+    // Fire-and-forget: notification delivery must not fail the like action
+    Promise.all([
       database.getActorFromId({ id: status.actorId }),
       database.getActorFromId({ id: request.actor })
     ])
-
-    if (sourceActor) {
-      const editableStatus =
-        status.type === 'Announce' ? status.originalStatus : status
-
-      sendNotificationAlerts({
-        database,
-        actorId: status.actorId,
-        sourceActorId: request.actor,
-        sourceActor,
-        statusId: status.id,
-        events: [
-          {
-            type: NotificationType.enum.like,
-            emailContent: targetActor?.account
-              ? {
-                  recipientEmail: targetActor.account.email,
-                  subject: getSubject(sourceActor),
-                  text: getTextContent(sourceActor, editableStatus),
-                  html: getHTMLContent(sourceActor, editableStatus)
-                }
-              : undefined
-          }
-        ]
+      .then(([targetActor, sourceActor]) => {
+        if (!sourceActor) return
+        const editableStatus =
+          status.type === 'Announce' ? status.originalStatus : status
+        sendNotificationAlerts({
+          database,
+          actorId: status.actorId,
+          sourceActorId: request.actor,
+          sourceActor,
+          statusId: status.id,
+          events: [
+            {
+              type: NotificationType.enum.like,
+              emailContent: targetActor?.account
+                ? {
+                    recipientEmail: targetActor.account.email,
+                    subject: getSubject(sourceActor),
+                    text: getTextContent(sourceActor, editableStatus),
+                    html: getHTMLContent(sourceActor, editableStatus)
+                  }
+                : undefined
+            }
+          ]
+        })
       })
-    }
+      .catch(() => undefined)
   }
 }

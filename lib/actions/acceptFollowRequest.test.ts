@@ -1,6 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { acceptFollowRequest } from '@/lib/actions//acceptFollowRequest'
+import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import {
