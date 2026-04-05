@@ -50,9 +50,9 @@ export const sendNotificationAlerts = (
   const { database, actorId, sourceActorId, statusId, events } = params
   if (events.length === 0) return
 
-  const resolveSourceActor = (): Promise<Actor | undefined | null> => {
-    if (params.sourceActor) return Promise.resolve(params.sourceActor)
-    return database.getActorFromId({ id: sourceActorId })
+  const resolveSourceActor = async (): Promise<Actor | undefined> => {
+    if (params.sourceActor) return params.sourceActor
+    return (await database.getActorFromId({ id: sourceActorId })) ?? undefined
   }
 
   // --- Push notification ---
@@ -72,7 +72,8 @@ export const sendNotificationAlerts = (
             actorId,
             type: event.type,
             sourceActor,
-            statusId
+            statusId,
+            skipSettingsCheck: true
           })
           return
         }
