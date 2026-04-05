@@ -453,6 +453,20 @@ export type CreateTagParams = {
 export type GetTagsParams = {
   statusId: string
 }
+export type GetStatusesByHashtagParams = {
+  hashtag: string
+  limit?: number
+  maxStatusId?: string
+}
+export type GetHashtagCounterParams = {
+  hashtag: string
+}
+export type IncreaseHashtagCounterParams = {
+  hashtag: string
+}
+export type DecreaseHashtagCounterParams = {
+  hashtag: string
+}
 export type GetStatusReblogsCountParams = {
   statusId: string
 }
@@ -514,6 +528,10 @@ export interface StatusDatabase {
   getFavouritedBy(params: GetFavouritedByParams): Promise<Actor[]>
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>
+  getStatusesByHashtag(params: GetStatusesByHashtagParams): Promise<Status[]>
+  getHashtagCounter(params: GetHashtagCounterParams): Promise<number>
+  increaseHashtagCounter(params: IncreaseHashtagCounterParams): Promise<void>
+  decreaseHashtagCounter(params: DecreaseHashtagCounterParams): Promise<void>
   getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
   getStatusRepliesCount(params: GetStatusRepliesCountParams): Promise<number>
   createPollAnswer(params: CreatePollAnswerParams): Promise<void>

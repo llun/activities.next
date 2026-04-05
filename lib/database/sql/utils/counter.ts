@@ -45,6 +45,7 @@ export const CounterKey = {
   serviceTotalAccounts: () => 'servicestat:total-accounts',
   serviceTotalActors: () => 'servicestat:total-actors',
   serviceTotalStatuses: () => 'servicestat:total-statuses',
+  totalHashtag: (hashtag: string) => `total-hashtag:${hashtag.toLowerCase()}`,
   bucketKey: (counterType: string, hour: string) =>
     `bucket:${counterType}:${hour}`
 }

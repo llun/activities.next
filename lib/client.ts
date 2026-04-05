@@ -454,6 +454,30 @@ export const getTimeline = async ({
   return data.statuses as Status[]
 }
 
+interface GetHashtagTimelineParams {
+  tag: string
+  maxStatusId?: string
+}
+export const getHashtagTimeline = async ({
+  tag,
+  maxStatusId
+}: GetHashtagTimelineParams) => {
+  const path = `/api/v1/tags/${encodeURIComponent(tag)}?format=${TimelineFormat.enum.activities_next}`
+  const url = new URL(`${window.origin}${path}`)
+  if (maxStatusId) {
+    url.searchParams.append('max_id', urlToId(maxStatusId))
+  }
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) return []
+  const data = await response.json()
+  return data.statuses as Status[]
+}
+
 interface DeleteSessionParams {
   token: string
 }

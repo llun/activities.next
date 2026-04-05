@@ -390,4 +390,63 @@ describe('createNoteJob', () => {
       height: 1080
     })
   })
+
+  it('stores hashtag tags with correct type', async () => {
+    const noteId = `https://${actor1!.domain}/notes/hashtag-test-${Date.now()}`
+    const note = MockMastodonActivityPubNote({
+      id: noteId,
+      content: '<p>Hello #testing</p>',
+      tags: [
+        {
+          type: 'Hashtag',
+          href: 'https://somewhere.test/tags/testing',
+          name: '#testing'
+        }
+      ]
+    })
+    await createNoteJob(database, {
+      id: 'id-hashtag',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    const tags = await database.getTags({ statusId: noteId })
+    const hashtagTags = tags.filter((t) => t.type === 'hashtag')
+    expect(hashtagTags).toHaveLength(1)
+    expect(hashtagTags[0].name).toEqual('#testing')
+    expect(hashtagTags[0].value).toEqual('https://somewhere.test/tags/testing')
+  })
+
+  it('stores mention tags separately from hashtag tags', async () => {
+    const noteId = `https://${actor1!.domain}/notes/mixed-tag-test-${Date.now()}`
+    const note = MockMastodonActivityPubNote({
+      id: noteId,
+      content: '<p>Hello @someone #topic</p>',
+      tags: [
+        {
+          type: 'Mention',
+          href: 'https://somewhere.test/users/someone',
+          name: '@someone'
+        },
+        {
+          type: 'Hashtag',
+          href: 'https://somewhere.test/tags/topic',
+          name: '#topic'
+        }
+      ]
+    })
+    await createNoteJob(database, {
+      id: 'id-mixed-tags',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    const tags = await database.getTags({ statusId: noteId })
+    const mentionTags = tags.filter((t) => t.type === 'mention')
+    const hashtagTags = tags.filter((t) => t.type === 'hashtag')
+    expect(mentionTags).toHaveLength(1)
+    expect(hashtagTags).toHaveLength(1)
+    expect(mentionTags[0].name).toEqual('@someone')
+    expect(hashtagTags[0].name).toEqual('#topic')
+  })
 })
