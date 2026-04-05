@@ -26,8 +26,11 @@ export const POST = traceApiRoute(
 
     const targetActorId = parsed.data.actorId || currentActor.id
 
-    // Verify the user has access to this actor
-    if (currentActor.account) {
+    if (targetActorId !== currentActor.id) {
+      if (!currentActor.account) {
+        return apiErrorResponse(403)
+      }
+
       const actors = await database.getActorsForAccount({
         accountId: currentActor.account.id
       })

@@ -1,4 +1,5 @@
 import { Knex } from 'knex'
+import { randomUUID } from 'node:crypto'
 
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
@@ -36,7 +37,7 @@ export const PushSubscriptionSQLDatabaseMixin = (
     p256dh,
     auth
   }: CreatePushSubscriptionParams): Promise<PushSubscription> {
-    const id = crypto.randomUUID()
+    const id = randomUUID()
     const now = new Date()
 
     await database('push_subscriptions')
