@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
@@ -19,13 +20,17 @@ export const generateMetadata = async ({
   params
 }: PageProps): Promise<Metadata> => {
   const { tag } = await params
+  if (!/^[a-zA-Z0-9_]+$/.test(tag)) return { title: 'Not Found' }
   return {
     title: `#${tag} - Activities.next`
   }
 }
 
+const TAG_REGEX = /^[a-zA-Z0-9_]+$/
+
 const Page = async ({ params }: PageProps) => {
   const { tag } = await params
+  if (!TAG_REGEX.test(tag)) return notFound()
   const { host } = getConfig()
   const database = getDatabase()
   if (!database) {
