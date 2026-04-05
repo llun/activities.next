@@ -30,6 +30,7 @@ import {
   GetStatusReblogsCountParams,
   GetStatusRepliesCountParams,
   GetStatusRepliesParams,
+  GetStatusesByHashtagParams,
   GetStatusesByIdsParams,
   GetTagsParams,
   HasActorAnnouncedStatusParams,
@@ -800,6 +801,18 @@ export const StatusSQLDatabaseMixin = (
       trx,
       currentTime: new Date()
     })
+    const hashtagTags = await trx('tags')
+      .where('statusId', statusId)
+      .where('type', 'hashtag')
+    await Promise.all(
+      hashtagTags.map((tag: { name: string }) => {
+        const tagName = tag.name.startsWith('#') ? tag.name.slice(1) : tag.name
+        return decreaseCounterValue(
+          trx,
+          CounterKey.totalHashtag(tagName.toLowerCase())
+        )
+      })
+    )
     await Promise.all([
       trx('statuses').where('id', statusId).delete(),
       trx('recipients').where('statusId', statusId).delete(),
@@ -869,6 +882,66 @@ export const StatusSQLDatabaseMixin = (
         updatedAt: getCompatibleTime(item.updatedAt)
       })
     )
+  }
+
+  async function getStatusesByHashtag({
+    hashtag,
+    limit = PER_PAGE_LIMIT,
+    maxStatusId
+  }: GetStatusesByHashtagParams): Promise<Status[]> {
+    const normalizedName = `#${hashtag.toLowerCase()}`
+    let query = database('tags')
+      .select('tags.statusId')
+      .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+      .where('tags.type', 'hashtag')
+      .whereRaw('LOWER(tags.name) = ?', [normalizedName])
+      .orderBy('statuses.createdAt', 'desc')
+      .limit(limit)
+
+    if (maxStatusId) {
+      const cursor = await database('statuses')
+        .where('id', maxStatusId)
+        .select('createdAt')
+        .first<{ createdAt: Date }>()
+      if (cursor) {
+        query = query.where('statuses.createdAt', '<', cursor.createdAt)
+      }
+    }
+
+    const rows = await query
+    const statuses = await Promise.all(
+      rows.map((row: { statusId: string }) =>
+        getStatus({ statusId: row.statusId, withReplies: false })
+      )
+    )
+    return statuses.filter((s): s is Status => s !== null)
+  }
+
+  async function getHashtagCounter({
+    hashtag
+  }: {
+    hashtag: string
+  }): Promise<number> {
+    const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    return getCounterValue(database, CounterKey.totalHashtag(tagName))
+  }
+
+  async function increaseHashtagCounter({
+    hashtag
+  }: {
+    hashtag: string
+  }): Promise<void> {
+    const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    await increaseCounterValue(database, CounterKey.totalHashtag(tagName))
+  }
+
+  async function decreaseHashtagCounter({
+    hashtag
+  }: {
+    hashtag: string
+  }): Promise<void> {
+    const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    await decreaseCounterValue(database, CounterKey.totalHashtag(tagName))
   }
 
   // Private
@@ -1273,6 +1346,10 @@ export const StatusSQLDatabaseMixin = (
     getFavouritedBy,
     createTag,
     getTags,
+    getStatusesByHashtag,
+    getHashtagCounter,
+    increaseHashtagCounter,
+    decreaseHashtagCounter,
     getStatusReblogsCount,
     getStatusRepliesCount,
     createPollAnswer,

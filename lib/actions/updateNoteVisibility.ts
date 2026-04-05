@@ -6,6 +6,7 @@ import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { Mention } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { getMentionFromTag } from '@/lib/types/domain/tag'
@@ -39,7 +40,7 @@ export const updateNoteVisibilityFromUserInput = async ({
 
   const mentions = status.tags
     .filter((tag) => tag.type === 'mention')
-    .map((tag) => getMentionFromTag(tag))
+    .map((tag) => getMentionFromTag(tag) as Mention)
 
   const replyStatus = status.reply
     ? await database.getStatus({ statusId: status.reply, withReplies: false })

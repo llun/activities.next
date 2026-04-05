@@ -87,7 +87,7 @@ export const createPollJob = createJobHandle(
     const tags = getTags(question as unknown as Note)
     await Promise.all([
       addStatusToTimelines(database, status),
-      ...tags.map((item) => {
+      ...tags.map(async (item) => {
         if (item.type === 'Emoji') {
           return database.createTag({
             statusId: question.id,
@@ -95,6 +95,19 @@ export const createPollJob = createJobHandle(
             value: item.icon.url,
             type: 'emoji'
           })
+        }
+        if (item.type === 'Hashtag') {
+          await database.createTag({
+            statusId: question.id,
+            name: item.name || '',
+            value: item.href,
+            type: 'hashtag'
+          })
+          const tagName = (item.name || '').startsWith('#')
+            ? item.name.slice(1)
+            : item.name || ''
+          await database.increaseHashtagCounter({ hashtag: tagName })
+          return
         }
         return database.createTag({
           statusId: question.id,

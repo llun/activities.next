@@ -50,4 +50,29 @@ describe('#convertMarkdownText', () => {
       )
     ).toEqual(`<p>Invalid is in the middle @something@ of the text</p>`)
   })
+
+  it('detect hashtag and convert to link', () => {
+    expect(convertMarkdownText(TEST_DOMAIN)('Hello #world')).toEqual(
+      '<p>Hello <a href="/tags/world" class="hashtag" rel="tag">#<span>world</span></a></p>'
+    )
+  })
+
+  it('links multiple hashtags', () => {
+    const message = convertMarkdownText(TEST_DOMAIN)('#hello and #world tags')
+    expect(message).toEqual(
+      '<p><a href="/tags/hello" class="hashtag" rel="tag">#<span>hello</span></a> and <a href="/tags/world" class="hashtag" rel="tag">#<span>world</span></a> tags</p>'
+    )
+  })
+
+  it('lowercases hashtag URLs', () => {
+    expect(convertMarkdownText(TEST_DOMAIN)('#CamelCase')).toEqual(
+      '<p><a href="/tags/camelcase" class="hashtag" rel="tag">#<span>CamelCase</span></a></p>'
+    )
+  })
+
+  it('handles mention and hashtag together', () => {
+    const message = convertMarkdownText(TEST_DOMAIN)('@user@example.com #topic')
+    expect(message).toContain('class="u-url mention"')
+    expect(message).toContain('class="hashtag"')
+  })
 })

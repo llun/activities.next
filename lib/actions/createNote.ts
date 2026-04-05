@@ -18,6 +18,7 @@ import {
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { getHashtags } from '@/lib/utils/text/getHashtags'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
 
@@ -217,16 +218,26 @@ export const createNoteFromUserInput = async ({
 
   // Tags must be persisted before timeline rules run so that
   // mentionTimelineRule can verify mentions via tags rather than text content.
-  await Promise.all(
-    mentions.map((mention) =>
+  const hashtags = getHashtags(text, currentActor.domain)
+  await Promise.all([
+    ...mentions.map((mention) =>
       database.createTag({
         statusId,
         name: mention.name || '',
         value: mention.href,
         type: 'mention'
       })
-    )
-  )
+    ),
+    ...hashtags.map(async (hashtag) => {
+      await database.createTag({
+        statusId,
+        name: hashtag.name,
+        value: hashtag.value,
+        type: 'hashtag'
+      })
+      await database.increaseHashtagCounter({ hashtag: hashtag.name })
+    })
+  ])
 
   await Promise.all([
     addStatusToTimelines(database, createdStatus),
