@@ -5,7 +5,17 @@ import {
   PROCESS_FITNESS_FILE_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
-import { sendPushNotification } from '@/lib/services/notifications/pushNotification'
+import {
+  getHTMLContent as getMentionHTMLContent,
+  getSubject as getMentionSubject,
+  getTextContent as getMentionTextContent
+} from '@/lib/services/email/templates/mention'
+import {
+  getHTMLContent as getReplyHTMLContent,
+  getSubject as getReplySubject,
+  getTextContent as getReplyTextContent
+} from '@/lib/services/email/templates/reply'
+import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
@@ -19,7 +29,6 @@ import {
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
-import { logger } from '@/lib/utils/logger'
 import { getHashtags } from '@/lib/utils/text/getHashtags'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
@@ -298,50 +307,6 @@ export const createNoteFromUserInput = async ({
     await Promise.all(notificationPromises)
   }
 
-  // Send push notifications (best-effort, concurrent)
-  const pushTargets: { actorId: string; type: NotificationType }[] = []
-
-  if (replyStatus && replyStatus.actorId !== currentActor.id) {
-    pushTargets.push({
-      actorId: replyStatus.actorId,
-      type: NotificationType.enum.reply
-    })
-  }
-
-  const seenActorIds = new Set<string>(pushTargets.map((t) => t.actorId))
-  for (const mention of mentions) {
-    const mentionedActorId = mention.href
-    if (
-      mentionedActorId !== currentActor.id &&
-      !seenActorIds.has(mentionedActorId)
-    ) {
-      seenActorIds.add(mentionedActorId)
-      pushTargets.push({
-        actorId: mentionedActorId,
-        type: NotificationType.enum.mention
-      })
-    }
-  }
-
-  // Fire-and-forget: don't await so push delivery doesn't block the response
-  Promise.allSettled(
-    pushTargets.map(({ actorId: targetActorId, type }) =>
-      sendPushNotification({
-        database,
-        actorId: targetActorId,
-        type,
-        sourceActor: currentActor,
-        statusId
-      }).catch((error) =>
-        logger.error({
-          message: 'Failed to send push notification',
-          type,
-          err: error
-        })
-      )
-    )
-  )
-
   const status = (await database.getStatus({
     statusId,
     withReplies: false
@@ -349,6 +314,74 @@ export const createNoteFromUserInput = async ({
   if (!status) {
     span.end()
     return null
+  }
+
+  // Dispatch notification alerts (push + email) per target, fire-and-forget.
+  // Uses the fetched status (with actor info) to build email content.
+  const seenActorIds = new Set<string>()
+
+  if (replyStatus && replyStatus.actorId !== currentActor.id) {
+    seenActorIds.add(replyStatus.actorId)
+    database
+      .getActorFromId({ id: replyStatus.actorId })
+      .catch(() => null)
+      .then((targetActor) => {
+        sendNotificationAlerts({
+          database,
+          actorId: replyStatus.actorId,
+          sourceActorId: currentActor.id,
+          sourceActor: currentActor,
+          statusId,
+          events: [
+            {
+              type: NotificationType.enum.reply,
+              emailContent: targetActor?.account
+                ? {
+                    recipientEmail: targetActor.account.email,
+                    subject: getReplySubject(currentActor),
+                    text: getReplyTextContent(status),
+                    html: getReplyHTMLContent(status)
+                  }
+                : undefined
+            }
+          ]
+        })
+      })
+  }
+
+  for (const mention of mentions) {
+    const mentionedActorId = mention.href
+    if (
+      mentionedActorId !== currentActor.id &&
+      !seenActorIds.has(mentionedActorId)
+    ) {
+      seenActorIds.add(mentionedActorId)
+      database
+        .getActorFromId({ id: mentionedActorId })
+        .catch(() => null)
+        .then((targetActor) => {
+          sendNotificationAlerts({
+            database,
+            actorId: mentionedActorId,
+            sourceActorId: currentActor.id,
+            sourceActor: currentActor,
+            statusId,
+            events: [
+              {
+                type: NotificationType.enum.mention,
+                emailContent: targetActor?.account
+                  ? {
+                      recipientEmail: targetActor.account.email,
+                      subject: getMentionSubject(currentActor),
+                      text: getMentionTextContent(status),
+                      html: getMentionHTMLContent(status)
+                    }
+                  : undefined
+              }
+            ]
+          })
+        })
+    }
   }
 
   if (fitnessFile) {
