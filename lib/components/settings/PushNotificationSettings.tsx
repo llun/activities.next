@@ -139,11 +139,16 @@ export const PushNotificationSettings: FC<Props> = ({
     if (!subscription) return
 
     try {
-      await fetch('/api/v1/push/subscribe', {
+      const res = await fetch('/api/v1/push/subscribe', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: subscription.endpoint })
       })
+
+      if (!res.ok) {
+        setPushState('error')
+        return
+      }
 
       await subscription.unsubscribe()
 
