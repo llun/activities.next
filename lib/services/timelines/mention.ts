@@ -1,19 +1,19 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
 import { getConfig } from '@/lib/config'
-import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/mention'
-import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
-import { sendPushNotification } from '@/lib/services/notifications/pushNotification'
+import {
+  NotificationEvent,
+  sendNotificationAlerts
+} from '@/lib/services/notifications/sendNotificationAlerts'
 import { NotificationType } from '@/lib/types/database/operations'
 import { getActorURL } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { TagType } from '@/lib/types/domain/tag'
-import { logger } from '@/lib/utils/logger'
 import { getTracer } from '@/lib/utils/trace'
 
 import { MentionTimelineRule, Timeline } from './types'
@@ -44,9 +44,9 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
       }
 
       let addToTimeline = false
-      let pushSent = false
+      const alertEvents: NotificationEvent[] = []
 
-      // Check if this is a reply to current actor's post from a remote actor
+      // --- Reply detection ---
       if (status.reply && !status.isLocalActor) {
         try {
           const repliedStatus = await database.getStatus({
@@ -62,27 +62,7 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
               statusId: status.id,
               groupKey: `reply:${status.id}`
             })
-
-            // Fire-and-forget push notification for reply
-            pushSent = true
-            database
-              .getActorFromId({ id: status.actorId })
-              .then((sourceActor) => {
-                if (!sourceActor) return
-                return sendPushNotification({
-                  database,
-                  actorId: currentActor.id,
-                  type: NotificationType.enum.reply,
-                  sourceActor,
-                  statusId: status.id
-                })
-              })
-              .catch((error) =>
-                logger.error({
-                  message: 'Failed to send reply push notification',
-                  err: error
-                })
-              )
+            alertEvents.push({ type: NotificationType.enum.reply })
           }
         } catch (error) {
           span.setStatus({
@@ -95,6 +75,7 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         }
       }
 
+      // --- Mention detection ---
       const mentionTags = await database.getTags({ statusId: status.id })
       const isMentioned = mentionTags.some(
         (tag) =>
@@ -128,61 +109,30 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
             )
           }
 
-          // Fire-and-forget push notification for mention.
-          // Skip if reply push was already sent to avoid duplicate browser
-          // notifications for the same status.
-          if (!pushSent) {
-            database
-              .getActorFromId({ id: status.actorId })
-              .then((sourceActor) => {
-                if (!sourceActor) return
-                return sendPushNotification({
-                  database,
-                  actorId: currentActor.id,
-                  type: NotificationType.enum.mention,
-                  sourceActor,
-                  statusId: status.id
-                })
-              })
-              .catch((error) =>
-                logger.error({
-                  message: 'Failed to send mention push notification',
-                  err: error
-                })
-              )
+          const mentionEvent: NotificationEvent = {
+            type: NotificationType.enum.mention
           }
-        }
-
-        if (config.email && account && status.actor) {
-          // Error is recorded but not re-thrown: email delivery failure is
-          // best-effort and should not affect the notification DB write above.
-          try {
-            const shouldSendEmail = await shouldSendEmailForNotification(
-              database,
-              currentActor.id,
-              NotificationType.enum.mention
-            )
-            if (shouldSendEmail) {
-              await sendMail({
-                from: config.email.serviceFromAddress,
-                to: [account.email],
-                subject: getSubject(status.actor),
-                content: {
-                  text: getTextContent(status),
-                  html: getHTMLContent(status)
-                }
-              })
+          if (config.email && account && status.actor) {
+            mentionEvent.emailContent = {
+              recipientEmail: account.email,
+              subject: getSubject(status.actor),
+              text: getTextContent(status),
+              html: getHTMLContent(status)
             }
-          } catch (error) {
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: 'Failed to send mention notification email'
-            })
-            span.recordException(
-              error instanceof Error ? error : new Error(String(error))
-            )
           }
+          alertEvents.push(mentionEvent)
         }
+      }
+
+      // --- Dispatch all notification channels (push, email, …) ---
+      if (alertEvents.length > 0) {
+        sendNotificationAlerts({
+          database,
+          actorId: currentActor.id,
+          sourceActorId: status.actorId,
+          statusId: status.id,
+          events: alertEvents
+        })
       }
 
       span.end()

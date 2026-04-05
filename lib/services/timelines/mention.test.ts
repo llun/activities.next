@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
-import { sendPushNotification } from '@/lib/services/notifications/pushNotification'
+import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -20,12 +20,12 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { mentionTimelineRule } from './mention'
 import { Timeline } from './types'
 
-jest.mock('@/lib/services/notifications/pushNotification', () => ({
-  sendPushNotification: jest.fn().mockResolvedValue(undefined)
+jest.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: jest.fn()
 }))
 
-const mockSendPush = sendPushNotification as jest.MockedFunction<
-  typeof sendPushNotification
+const mockSendAlerts = sendNotificationAlerts as jest.MockedFunction<
+  typeof sendNotificationAlerts
 >
 
 const createNote = async (
@@ -61,10 +61,6 @@ const createMentionTag = async (
   })
 }
 
-// Wait for fire-and-forget promise chains (database.getActorFromId → sendPushNotification)
-const flushPromises = () =>
-  new Promise<void>((resolve) => setImmediate(resolve))
-
 describe('#mentionTimelineRule', () => {
   const database = getTestSQLDatabase()
 
@@ -81,7 +77,7 @@ describe('#mentionTimelineRule', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-    mockSendPush.mockClear()
+    mockSendAlerts.mockClear()
   })
 
   it('returns null for Announce status', async () => {
@@ -240,7 +236,7 @@ describe('#mentionTimelineRule', () => {
     expect(notifications.find((n) => n.statusId === status.id)).toBeUndefined()
   })
 
-  it('sends push notification for remote mention', async () => {
+  it('sends notification alerts for remote mention', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const status = await createNote(
       database,
@@ -256,18 +252,20 @@ describe('#mentionTimelineRule', () => {
     )
 
     await mentionTimelineRule({ database, currentActor: actor, status })
-    await flushPromises()
 
-    expect(mockSendPush).toHaveBeenCalledWith(
+    expect(mockSendAlerts).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: actor.id,
-        type: NotificationType.enum.mention,
-        statusId: status.id
+        sourceActorId: EXTERNAL_ACTOR1,
+        statusId: status.id,
+        events: [
+          expect.objectContaining({ type: NotificationType.enum.mention })
+        ]
       })
     )
   })
 
-  it('does NOT send push notification for local actor mention', async () => {
+  it('does NOT send notification alerts for local actor mention', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const status = await createNote(
       database,
@@ -283,9 +281,8 @@ describe('#mentionTimelineRule', () => {
     )
 
     await mentionTimelineRule({ database, currentActor: actor, status })
-    await flushPromises()
 
-    expect(mockSendPush).not.toHaveBeenCalled()
+    expect(mockSendAlerts).not.toHaveBeenCalled()
   })
 
   it('creates reply notification and returns MENTION for remote reply to own post', async () => {
@@ -324,7 +321,7 @@ describe('#mentionTimelineRule', () => {
     expect(replyNotif?.sourceActorId).toBe(EXTERNAL_ACTOR1)
   })
 
-  it('sends push notification for remote reply', async () => {
+  it('sends notification alerts for remote reply', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const originalPost = await createNote(
       database,
@@ -345,13 +342,15 @@ describe('#mentionTimelineRule', () => {
       currentActor: actor,
       status: replyStatus
     })
-    await flushPromises()
 
-    expect(mockSendPush).toHaveBeenCalledWith(
+    expect(mockSendAlerts).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: actor.id,
-        type: NotificationType.enum.reply,
-        statusId: replyStatus.id
+        sourceActorId: EXTERNAL_ACTOR1,
+        statusId: replyStatus.id,
+        events: [
+          expect.objectContaining({ type: NotificationType.enum.reply })
+        ]
       })
     )
   })
@@ -392,7 +391,7 @@ describe('#mentionTimelineRule', () => {
     ).toBeUndefined()
   })
 
-  it('sends only reply push when status is both reply and mention', async () => {
+  it('sends reply event first when status is both reply and mention', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const originalPost = await createNote(
       database,
@@ -420,7 +419,6 @@ describe('#mentionTimelineRule', () => {
       currentActor: actor,
       status: replyMentionStatus
     })
-    await flushPromises()
 
     // Both notifications should be created in DB
     const notifications = await database.getNotifications({
@@ -438,13 +436,13 @@ describe('#mentionTimelineRule', () => {
       )
     ).toBeDefined()
 
-    // Only one push notification should be sent (reply, not mention)
-    expect(mockSendPush).toHaveBeenCalledTimes(1)
-    expect(mockSendPush).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: NotificationType.enum.reply
-      })
-    )
+    // sendNotificationAlerts called once with reply event first (push priority)
+    // and mention event second (carries email content)
+    expect(mockSendAlerts).toHaveBeenCalledTimes(1)
+    const { events } = mockSendAlerts.mock.calls[0][0]
+    expect(events).toHaveLength(2)
+    expect(events[0].type).toBe(NotificationType.enum.reply)
+    expect(events[1].type).toBe(NotificationType.enum.mention)
   })
 
   it('returns null for remote reply to another actor post', async () => {
