@@ -4,7 +4,9 @@ import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_404,
+  ERROR_422,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -24,7 +26,13 @@ export const POST = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiErrorResponse(404)
+    if (!encodedStatusId)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     const statusId = idToUrl(encodedStatusId)
 
@@ -35,7 +43,12 @@ export const POST = traceApiRoute(
     })
 
     if (!undoStatus) {
-      return apiErrorResponse(422)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
     }
 
     const mastodonStatus = await getMastodonStatus(
@@ -43,7 +56,13 @@ export const POST = traceApiRoute(
       undoStatus,
       currentActor.id
     )
-    if (!mastodonStatus) return apiErrorResponse(500)
+    if (!mastodonStatus)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
 
     return apiResponse({
       req,

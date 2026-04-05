@@ -7,7 +7,10 @@ import { AppRouterParams } from '@/lib/services/guards/types'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_401,
+  ERROR_403,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -34,39 +37,74 @@ export const GET = traceApiRoute(
   async (req: NextRequest, params: AppRouterParams<Params>) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(500)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
 
     const session = await getServerAuthSession()
     if (!session?.user?.email) {
-      return apiErrorResponse(401)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_401,
+        responseStatusCode: 401
+      })
     }
 
     const currentActor = await getActorFromSession(database, session)
     if (!currentActor) {
-      return apiErrorResponse(401)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_401,
+        responseStatusCode: 401
+      })
     }
 
     const { id: encodedAccountId } = await params.params
     if (!encodedAccountId) {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
     const id = idToUrl(encodedAccountId)
 
     if (currentActor.id !== id) {
-      return apiErrorResponse(403)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
+      })
     }
 
     const url = new URL(req.url)
     const queryParams = Object.fromEntries(url.searchParams.entries())
     const parsed = FitnessSummaryQueryParams.safeParse(queryParams)
     if (!parsed.success) {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
 
     const { start_date: startDate, end_date: endDate } = parsed.data
     if (endDate - startDate < MIN_DATE_RANGE_MS) {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
 
     const summary = await database.getFitnessActivitySummary({
@@ -75,11 +113,7 @@ export const GET = traceApiRoute(
       endDate
     })
 
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: summary
-    })
+    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: summary })
   },
   {
     addAttributes: async (_req, context) => {

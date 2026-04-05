@@ -3,7 +3,8 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -18,14 +19,24 @@ export const POST = traceApiRoute(
   OAuthGuard([Scope.enum.write], async (req, { currentActor }) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(500)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
 
     const body = await req.json()
     const notificationIds = body.notification_ids || []
 
     if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
 
     // Verify all notifications belong to the current actor
@@ -41,9 +52,7 @@ export const POST = traceApiRoute(
       .map((n) => n.id)
 
     if (validIds.length > 0) {
-      await database.markNotificationsRead({
-        notificationIds: validIds
-      })
+      await database.markNotificationsRead({ notificationIds: validIds })
     }
 
     return apiResponse({

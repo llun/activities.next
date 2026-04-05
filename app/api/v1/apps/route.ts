@@ -4,7 +4,8 @@ import { getDatabase } from '@/lib/database'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import {
-  apiErrorResponse,
+  ERROR_422,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -20,19 +21,34 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
   const database = getDatabase()
   if (!database) {
-    return apiErrorResponse(500)
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: ERROR_500,
+      responseStatusCode: 500
+    })
   }
 
   const json = await getRequestBody(req)
   const parseResult = PostRequest.safeParse(json)
   if (!parseResult.success) {
-    return apiErrorResponse(422)
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: ERROR_422,
+      responseStatusCode: 422
+    })
   }
   const response = await createApplication(parseResult.data)
 
   const { type, ...rest } = response
   if (type === 'error') {
-    return apiErrorResponse(422)
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: ERROR_422,
+      responseStatusCode: 422
+    })
   }
 
   return apiResponse({ req, allowedMethods: CORS_HEADERS, data: rest })

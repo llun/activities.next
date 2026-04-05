@@ -7,11 +7,7 @@ import { getMastodonNotification } from '@/lib/services/notifications/getMastodo
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { NotificationType, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -49,7 +45,12 @@ export const GET = traceApiRoute(
   OAuthGuard([Scope.enum.read], async (req, { currentActor }) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(500)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
 
     const url = new URL(req.url)
@@ -192,7 +193,12 @@ export const POST = traceApiRoute(
   OAuthGuard([Scope.enum.write], async (req, { currentActor }) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(500)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
 
     // Delete all notifications in batches
@@ -221,10 +227,6 @@ export const POST = traceApiRoute(
       }
     }
 
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: {}
-    })
+    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
   })
 )

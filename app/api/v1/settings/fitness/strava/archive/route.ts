@@ -18,8 +18,13 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import {
+  ERROR_400,
+  ERROR_403,
+  ERROR_404,
+  ERROR_413,
+  ERROR_422,
+  ERROR_500,
   HTTP_STATUS,
-  apiErrorResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -204,7 +209,12 @@ export const POST = traceApiRoute(
           await req.json().catch(() => null)
         )
         if (!bodyResult.success) {
-          return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_400,
+            responseStatusCode: 400
+          })
         }
 
         const { fitnessFileId, archiveId, visibility } = bodyResult.data
@@ -213,7 +223,12 @@ export const POST = traceApiRoute(
           id: fitnessFileId
         })
         if (!fitnessFile || fitnessFile.actorId !== currentActor.id) {
-          return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_403,
+            responseStatusCode: 403
+          })
         }
 
         const sourceBatchId = getStravaArchiveSourceBatchId(archiveId)
@@ -221,7 +236,12 @@ export const POST = traceApiRoute(
           fitnessFile.fileType !== 'zip' ||
           fitnessFile.importBatchId !== sourceBatchId
         ) {
-          return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
         }
 
         const batchId = getStravaArchiveImportBatchId(archiveId)
@@ -271,21 +291,41 @@ export const POST = traceApiRoute(
       const visibilityResult = Visibility.safeParse(visibilityRaw)
 
       if (!visibilityResult.success) {
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
       }
 
       if (!(archiveRaw instanceof File) || archiveRaw.size <= 0) {
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
       }
 
       if (!isZipArchiveFile(archiveRaw)) {
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
       }
 
       // Archive import is intentionally restricted to the actor in the current
       // session, matching the settings UI.
       if (actorIdRaw.length > 0 && actorIdRaw !== currentActor.id) {
-        return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_403,
+          responseStatusCode: 403
+        })
       }
 
       const archiveId = crypto.randomUUID()
@@ -396,10 +436,20 @@ export const POST = traceApiRoute(
       })
 
       if (nodeError instanceof QuotaExceededError) {
-        return apiErrorResponse(HTTP_STATUS.PAYLOAD_TOO_LARGE)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_413,
+          responseStatusCode: 413
+        })
       }
 
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
   })
 )
@@ -414,14 +464,24 @@ export const PATCH = traceApiRoute(
     }
     const actionResult = ArchiveImportAction.safeParse(payload.action)
     if (!actionResult.success) {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
 
     const activeImport = await database.getActiveStravaArchiveImportByActor({
       actorId: currentActor.id
     })
     if (!activeImport) {
-      return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     }
 
     if (actionResult.data === 'retry') {
@@ -515,7 +575,12 @@ export const PATCH = traceApiRoute(
           error: nodeError.message
         })
 
-        return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
       }
 
       const refreshedImport =
@@ -551,7 +616,12 @@ export const PATCH = traceApiRoute(
           archiveImportId: activeImport.id,
           archiveFitnessFileId: archiveFile.id
         })
-        return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
       }
     }
 

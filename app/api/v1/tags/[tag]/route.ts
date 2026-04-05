@@ -8,7 +8,8 @@ import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -31,11 +32,23 @@ export const GET = traceApiRoute(
   'getHashtagTimeline',
   async (req: NextRequest, context: { params: Promise<RouteParams> }) => {
     const database = getDatabase()
-    if (!database) return apiErrorResponse(500)
+    if (!database)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
 
     const params = await context.params
     const parseResult = Params.safeParse(params)
-    if (!parseResult.success) return apiErrorResponse(400)
+    if (!parseResult.success)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
 
     const { tag } = parseResult.data
     const url = new URL(req.url)
@@ -59,9 +72,7 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: {
-          statuses: statuses.map((item) => cleanJson(item))
-        }
+        data: { statuses: statuses.map((item) => cleanJson(item)) }
       })
     }
 

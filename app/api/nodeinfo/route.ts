@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { NODE_SOFTWARE } from '@/lib/utils/version'
 
@@ -18,7 +18,7 @@ export const GET = traceApiRoute('getNodeInfo', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Internal Server Error' },
+      data: ERROR_500,
       responseStatusCode: 500
     })
   }

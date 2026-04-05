@@ -15,8 +15,9 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import {
-  HTTP_STATUS,
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_413,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -41,7 +42,12 @@ export const POST = traceApiRoute(
       const visibilityParsed = Visibility.safeParse(visibilityValue)
 
       if (!visibilityParsed.success) {
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
       }
 
       const filesRaw = formData.getAll('files')
@@ -54,7 +60,12 @@ export const POST = traceApiRoute(
           message: 'Invalid fitness import request, missing files',
           actorId: currentActor.id
         })
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
       }
 
       const invalidFile = files.find(
@@ -66,7 +77,12 @@ export const POST = traceApiRoute(
           actorId: currentActor.id,
           fileName: invalidFile.name
         })
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
       }
 
       batchId = crypto.randomUUID()
@@ -129,10 +145,20 @@ export const POST = traceApiRoute(
       })
 
       if (nodeError instanceof QuotaExceededError) {
-        return apiErrorResponse(HTTP_STATUS.PAYLOAD_TOO_LARGE)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_413,
+          responseStatusCode: 413
+        })
       }
 
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
   })
 )

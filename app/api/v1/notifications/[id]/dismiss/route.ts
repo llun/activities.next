@@ -3,7 +3,8 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_404,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -24,7 +25,12 @@ export const POST = traceApiRoute(
     async (req, { currentActor, params }) => {
       const database = getDatabase()
       if (!database) {
-        return apiErrorResponse(500)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
       }
 
       const id = (await params).id
@@ -37,16 +43,17 @@ export const POST = traceApiRoute(
       })
 
       if (notifications.length === 0) {
-        return apiErrorResponse(404)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
       }
 
       await database.deleteNotification(id)
 
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: {}
-      })
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
   )
 )

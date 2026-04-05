@@ -7,8 +7,9 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
 import {
-  HTTP_STATUS,
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_413,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -30,7 +31,12 @@ export const POST = traceApiRoute(
 
       if (!file || !(file instanceof File)) {
         logger.warn({ message: 'No file provided in fitness file upload' })
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
       }
 
       // Validate file
@@ -40,7 +46,12 @@ export const POST = traceApiRoute(
           message: 'Invalid fitness file',
           errors: validationResult.error.issues
         })
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
       }
 
       // Save fitness file
@@ -51,7 +62,12 @@ export const POST = traceApiRoute(
 
       if (!result) {
         logger.error({ message: 'Failed to save fitness file' })
-        return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
       }
 
       return apiResponse({
@@ -67,10 +83,20 @@ export const POST = traceApiRoute(
       })
 
       if (err instanceof QuotaExceededError) {
-        return apiErrorResponse(HTTP_STATUS.PAYLOAD_TOO_LARGE)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_413,
+          responseStatusCode: 413
+        })
       }
 
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
   })
 )
