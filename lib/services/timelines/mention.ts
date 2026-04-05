@@ -8,10 +8,12 @@ import {
   getTextContent
 } from '@/lib/services/email/templates/mention'
 import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
+import { sendPushNotification } from '@/lib/services/notifications/pushNotification'
 import { NotificationType } from '@/lib/types/database/operations'
 import { getActorURL } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { TagType } from '@/lib/types/domain/tag'
+import { logger } from '@/lib/utils/logger'
 import { getTracer } from '@/lib/utils/trace'
 
 import { MentionTimelineRule, Timeline } from './types'
@@ -41,6 +43,58 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         return Timeline.MENTION
       }
 
+      let addToTimeline = false
+      let pushSent = false
+
+      // Check if this is a reply to current actor's post from a remote actor
+      if (status.reply && !status.isLocalActor) {
+        try {
+          const repliedStatus = await database.getStatus({
+            statusId: status.reply,
+            withReplies: false
+          })
+          if (repliedStatus && repliedStatus.actorId === currentActor.id) {
+            addToTimeline = true
+            await database.createNotification({
+              actorId: currentActor.id,
+              type: NotificationType.enum.reply,
+              sourceActorId: status.actorId,
+              statusId: status.id,
+              groupKey: `reply:${status.id}`
+            })
+
+            // Fire-and-forget push notification for reply
+            pushSent = true
+            database
+              .getActorFromId({ id: status.actorId })
+              .then((sourceActor) => {
+                if (!sourceActor) return
+                return sendPushNotification({
+                  database,
+                  actorId: currentActor.id,
+                  type: NotificationType.enum.reply,
+                  sourceActor,
+                  statusId: status.id
+                })
+              })
+              .catch((error) =>
+                logger.error({
+                  message: 'Failed to send reply push notification',
+                  err: error
+                })
+              )
+          }
+        } catch (error) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: 'Failed to create reply notification record'
+          })
+          span.recordException(
+            error instanceof Error ? error : new Error(String(error))
+          )
+        }
+      }
+
       const mentionTags = await database.getTags({ statusId: status.id })
       const isMentioned = mentionTags.some(
         (tag) =>
@@ -50,6 +104,7 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
       )
 
       if (isMentioned) {
+        addToTimeline = true
         const account = currentActor.account
 
         if (!status.isLocalActor) {
@@ -71,6 +126,30 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
             span.recordException(
               error instanceof Error ? error : new Error(String(error))
             )
+          }
+
+          // Fire-and-forget push notification for mention.
+          // Skip if reply push was already sent to avoid duplicate browser
+          // notifications for the same status.
+          if (!pushSent) {
+            database
+              .getActorFromId({ id: status.actorId })
+              .then((sourceActor) => {
+                if (!sourceActor) return
+                return sendPushNotification({
+                  database,
+                  actorId: currentActor.id,
+                  type: NotificationType.enum.mention,
+                  sourceActor,
+                  statusId: status.id
+                })
+              })
+              .catch((error) =>
+                logger.error({
+                  message: 'Failed to send mention push notification',
+                  err: error
+                })
+              )
           }
         }
 
@@ -104,12 +183,9 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
             )
           }
         }
-
-        span.end()
-        return Timeline.MENTION
       }
 
       span.end()
-      return null
+      return addToTimeline ? Timeline.MENTION : null
     }
   )
