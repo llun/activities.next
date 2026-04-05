@@ -899,14 +899,14 @@ export const StatusSQLDatabaseMixin = (
   }: GetStatusesByHashtagParams): Promise<Status[]> {
     const normalizedName = `#${hashtag.toLowerCase()}`
     let query = database('tags')
-      .distinct('tags.statusId')
-      .select('statuses.id', 'statuses.createdAt')
       .innerJoin('statuses', 'tags.statusId', 'statuses.id')
       .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
       .where('tags.type', 'hashtag')
       .where('tags.nameNormalized', normalizedName)
       .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+      .select('statuses.id', 'statuses.createdAt')
+      .distinct()
       .orderBy('statuses.createdAt', 'desc')
       .orderBy('statuses.id', 'desc')
       .limit(limit)
@@ -930,7 +930,7 @@ export const StatusSQLDatabaseMixin = (
     }
 
     const rows = await query
-    const statusIds = rows.map((row: { statusId: string }) => row.statusId)
+    const statusIds = rows.map((row: { id: string }) => row.id)
     if (statusIds.length === 0) return []
     return getStatusesByIds({ statusIds })
   }

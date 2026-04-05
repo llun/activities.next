@@ -92,6 +92,7 @@ export const createNoteJob = createJobHandle(
 
     // Tags must be persisted before timeline rules run so that
     // mentionTimelineRule can verify mentions via tags rather than text content.
+    const seenHashtags = new Set<string>()
     await Promise.all(
       tags.map(async (item) => {
         if (item.type === 'Emoji') {
@@ -106,6 +107,9 @@ export const createNoteJob = createJobHandle(
           const hashtagName = (item.name || '').trim()
           const hashtagHref = (item.href || '').trim()
           if (!hashtagName || !hashtagHref) return
+          const normalizedKey = hashtagName.toLowerCase()
+          if (seenHashtags.has(normalizedKey)) return
+          seenHashtags.add(normalizedKey)
 
           await database.createTag({
             statusId: note.id,

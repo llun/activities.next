@@ -85,6 +85,7 @@ export const createPollJob = createJobHandle(
     ])
 
     const tags = getTags(question as unknown as Note)
+    const seenHashtags = new Set<string>()
     await Promise.all([
       addStatusToTimelines(database, status),
       ...tags.map(async (item) => {
@@ -100,6 +101,9 @@ export const createPollJob = createJobHandle(
           const hashtagName = (item.name || '').trim()
           const hashtagHref = (item.href || '').trim()
           if (!hashtagName || !hashtagHref) return
+          const normalizedKey = hashtagName.toLowerCase()
+          if (seenHashtags.has(normalizedKey)) return
+          seenHashtags.add(normalizedKey)
 
           await database.createTag({
             statusId: question.id,
