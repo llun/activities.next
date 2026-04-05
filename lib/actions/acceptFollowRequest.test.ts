@@ -3,23 +3,24 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 import { acceptFollowRequest } from '@/lib/actions//acceptFollowRequest'
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/follow'
+import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockFollowRequestResponse } from '@/lib/stub/followRequest'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
+import { NotificationType } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
 enableFetchMocks()
 
-jest.mock('@/lib/services/email', () => ({
-  sendMail: jest.fn()
+jest.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: jest.fn()
 }))
 
 describe('Accept follow action', () => {
@@ -38,6 +39,7 @@ describe('Accept follow action', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    jest.clearAllMocks()
   })
 
   describe('#acceptFollow', () => {
@@ -67,7 +69,7 @@ describe('Accept follow action', () => {
       expect(acceptedRequest?.status).toEqual(FollowStatus.enum.Accepted)
     })
 
-    it('sends email when target actor is local account', async () => {
+    it('calls sendNotificationAlerts with email content when target actor is local account', async () => {
       const followRequest = await database.getAcceptedOrRequestedFollow({
         actorId: ACTOR5_ID,
         targetActorId: ACTOR1_ID
@@ -92,15 +94,24 @@ describe('Accept follow action', () => {
       const actor5 = await database.getActorFromId({ id: ACTOR5_ID })
       if (!actor5) fail('Actor5 should be exists')
       expect(acceptedRequest?.status).toEqual(FollowStatus.enum.Accepted)
-      expect(sendMail).toHaveBeenCalledWith({
-        from: 'test@llun.dev',
-        to: ['test1@llun.test'],
-        subject: getSubject(actor5),
-        content: {
-          text: getTextContent(actor5),
-          html: getHTMLContent(actor5)
-        }
-      })
+
+      expect(sendNotificationAlerts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR1_ID,
+          sourceActorId: ACTOR5_ID,
+          events: [
+            {
+              type: NotificationType.enum.follow,
+              emailContent: expect.objectContaining({
+                recipientEmail: 'test1@llun.test',
+                subject: getSubject(actor5),
+                text: getTextContent(actor5),
+                html: getHTMLContent(actor5)
+              })
+            }
+          ]
+        })
+      )
     })
 
     it('returns null when follow request is not found', async () => {
