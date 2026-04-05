@@ -95,11 +95,13 @@ describe('cleanClassName', () => {
       expect(output).not.toContain('target="_blank"')
     })
 
-    it('preserves remote href for unsupported non-ASCII tags', () => {
+    it('preserves remote href with target="_blank" for unsupported non-ASCII tags', () => {
       const html =
         '<a href="https://mastodon.social/tags/caf%C3%A9" class="hashtag" rel="tag">#<span>café</span></a>'
       const output = renderToHtml(html)
       expect(output).toContain('href="https://mastodon.social/tags/caf%C3%A9"')
+      expect(output).toContain('target="_blank"')
+      expect(output).toContain('noopener')
     })
 
     it('does not match class substrings like "not-hashtag"', () => {

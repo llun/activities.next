@@ -50,12 +50,12 @@ export const cleanClassName = (text: string) => {
         const isHashtag =
           hasToken(replacingNode.attribs.class, 'hashtag') &&
           hasToken(replacingNode.attribs.rel, 'tag')
+        const tagName = isHashtag
+          ? extractTagFromHref(replacingNode.attribs.href)
+          : undefined
 
-        if (isHashtag) {
-          const tagName = extractTagFromHref(replacingNode.attribs.href)
-          if (tagName) {
-            replacingNode.attribs.href = `/tags/${tagName}`
-          }
+        if (tagName) {
+          replacingNode.attribs.href = `/tags/${tagName}`
         } else {
           replacingNode.attribs.target = '_blank'
           const existingRel = replacingNode.attribs.rel ?? ''
