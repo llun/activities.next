@@ -1,0 +1,29 @@
+lib/services/notifications/pushNotification.test.ts
+  b0ef2344c9bd125f 1-160
+lib/components/settings/PushNotificationSettings.tsx
+  b0ef2344c9bd125f 142,148-151
+app/api/v1/accounts/push-notifications/route.test.ts
+  b0ef2344c9bd125f 1-155
+lib/actions/like.ts
+  b0ef2344c9bd125f 90,97-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "a8fd6a76eb65d2f99addc2f38e65e45dbe9e87dd",
+  "prompts": {
+    "b0ef2344c9bd125f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "02641ee0-4844-4eb9-a165-87c2f74e4e36",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 362,
+      "total_deletions": 43,
+      "accepted_lines": 328,
+      "overriden_lines": 0
+    }
+  }
+}
