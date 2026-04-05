@@ -17,6 +17,7 @@ import { getEmailConfig } from './email'
 import { FitnessStorageConfig, getFitnessStorageConfig } from './fitnessStorage'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
+import { PushConfig, getPushConfig } from './push'
 import { QueueConfig, getQueueConfig } from './queue'
 import { RequestConfig, getRequestConfig } from './request'
 
@@ -27,6 +28,7 @@ const Config = z.object({
   languages: z.string().array().default(['en']),
   database: z.custom<Knex.Config>(),
   queue: QueueConfig.optional(),
+  push: PushConfig.optional(),
   allowEmails: z.string().array(),
   secretPhase: z.string(),
   allowMediaDomains: z.string().array().optional(),
@@ -84,7 +86,8 @@ const getConfigFromEnvironment = () => {
       ...getFitnessStorageConfig(),
       ...getOtelConfig(),
       ...getRequestConfig(),
-      ...getQueueConfig()
+      ...getQueueConfig(),
+      ...getPushConfig()
     })
   } catch (error) {
     if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {

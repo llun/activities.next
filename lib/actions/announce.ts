@@ -10,12 +10,14 @@ import {
   getTextContent
 } from '@/lib/services/email/templates/reblog'
 import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
+import { sendPushNotification } from '@/lib/services/notifications/pushNotification'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 import { getTracer } from '@/lib/utils/trace'
 
 interface UserAnnounceParams {
@@ -102,9 +104,27 @@ export const userAnnounce = async ({
             }
           }
         } catch (error) {
-          // Log error but don't fail the reblog operation
-          console.error('Failed to send reblog notification email:', error)
+          logger.error({
+            message: 'Failed to send reblog notification email',
+            err: error
+          })
         }
+      }
+
+      // Send push notification (best-effort)
+      try {
+        await sendPushNotification({
+          database,
+          actorId: originalStatus.actorId,
+          type: NotificationType.enum.reblog,
+          sourceActor: currentActor,
+          statusId: originalStatus.id
+        })
+      } catch (error) {
+        logger.error({
+          message: 'Failed to send reblog push notification',
+          err: error
+        })
       }
     }
 

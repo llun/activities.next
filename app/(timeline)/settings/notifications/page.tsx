@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { ActorSelector } from '@/lib/components/settings/ActorSelector'
+import { PushNotificationSettings } from '@/lib/components/settings/PushNotificationSettings'
 import { Button } from '@/lib/components/ui/button'
 import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
@@ -85,11 +86,12 @@ const Page = async ({ searchParams }: PageProps) => {
   const selectedActorId = params.actorId || actor.id
   const selectedActor = actors.find((a) => a.id === selectedActorId) || actor
 
-  // Get current email notification settings
+  // Get current notification settings
   const settings = await database.getActorSettings({
     actorId: selectedActor.id
   })
   const emailNotifications = settings?.emailNotifications || {}
+  const pushNotifications = settings?.pushNotifications || {}
 
   return (
     <div className="space-y-6">
@@ -159,6 +161,12 @@ const Page = async ({ searchParams }: PageProps) => {
           <Button type="submit">Save Settings</Button>
         </div>
       </form>
+
+      <PushNotificationSettings
+        actorId={selectedActor.id}
+        pushNotifications={pushNotifications}
+        notificationTypes={notificationTypes}
+      />
     </div>
   )
 }

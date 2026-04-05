@@ -5,6 +5,7 @@ import {
   PROCESS_FITNESS_FILE_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { sendPushNotification } from '@/lib/services/notifications/pushNotification'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
@@ -18,6 +19,7 @@ import {
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { logger } from '@/lib/utils/logger'
 import { getHashtags } from '@/lib/utils/text/getHashtags'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
@@ -294,6 +296,44 @@ export const createNoteFromUserInput = async ({
 
   if (notificationPromises.length > 0) {
     await Promise.all(notificationPromises)
+  }
+
+  // Send push notifications (best-effort)
+  if (replyStatus && replyStatus.actorId !== currentActor.id) {
+    try {
+      await sendPushNotification({
+        database,
+        actorId: replyStatus.actorId,
+        type: NotificationType.enum.reply,
+        sourceActor: currentActor,
+        statusId
+      })
+    } catch (error) {
+      logger.error({
+        message: 'Failed to send reply push notification',
+        err: error
+      })
+    }
+  }
+
+  for (const mention of mentions) {
+    const mentionedActorId = mention.href
+    if (mentionedActorId !== currentActor.id) {
+      try {
+        await sendPushNotification({
+          database,
+          actorId: mentionedActorId,
+          type: NotificationType.enum.mention,
+          sourceActor: currentActor,
+          statusId
+        })
+      } catch (error) {
+        logger.error({
+          message: 'Failed to send mention push notification',
+          err: error
+        })
+      }
+    }
   }
 
   const status = (await database.getStatus({
