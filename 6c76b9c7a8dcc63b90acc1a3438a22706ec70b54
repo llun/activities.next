@@ -1,0 +1,75 @@
+lib/database/sql/index.ts
+  b0ef2344c9bd125f 29,59
+lib/actions/createFollower.ts
+  b0ef2344c9bd125f 5,8,54-68,89-103
+lib/database/sql/pushSubscription.test.ts
+  b0ef2344c9bd125f 1-122
+app/api/v1/push/subscribe/route.test.ts
+  b0ef2344c9bd125f 1-139
+lib/database/sql/actor.ts
+  b0ef2344c9bd125f 481,505
+lib/components/settings/PushNotificationSettings.tsx
+  b0ef2344c9bd125f 1-304
+lib/services/notifications/pushNotificationSettings.ts
+  b0ef2344c9bd125f 1-27
+lib/services/notifications/pushNotification.ts
+  b0ef2344c9bd125f 1-126
+lib/database/sql/pushSubscription.ts
+  b0ef2344c9bd125f 1-84
+public/sw.js
+  b0ef2344c9bd125f 1-34
+app/(timeline)/settings/notifications/page.tsx
+  b0ef2344c9bd125f 94,164-169
+lib/actions/like.ts
+  b0ef2344c9bd125f 11,13,78-81,84-101
+lib/actions/createNote.ts
+  b0ef2344c9bd125f 22,301-338
+app/api/v1/push/subscribe/route.ts
+  b0ef2344c9bd125f 1-60
+next.config.ts
+  b0ef2344c9bd125f 25-26
+migrations/20260406120000_add_push_subscriptions.js
+  b0ef2344c9bd125f 1-28
+app/(timeline)/admin/system/page.tsx
+  b0ef2344c9bd125f 38-43,72-105
+lib/types/database/operations.ts
+  b0ef2344c9bd125f 74-82,825-864
+app/api/v1/push/vapid-key/route.test.ts
+  b0ef2344c9bd125f 1-37
+app/api/v1/accounts/push-notifications/route.ts
+  b0ef2344c9bd125f 1-66
+lib/config/push.ts
+  b0ef2344c9bd125f 1-22
+lib/types/database/rows.ts
+  b0ef2344c9bd125f 23-28
+app/api/v1/push/vapid-key/route.ts
+  b0ef2344c9bd125f 1-16
+lib/services/notifications/pushNotificationSettings.test.ts
+  b0ef2344c9bd125f 1-101
+lib/database/types.ts
+  b0ef2344c9bd125f 14,30
+lib/config/index.ts
+  b0ef2344c9bd125f 20,31,89-90
+lib/actions/announce.ts
+  b0ef2344c9bd125f 13,20,107-110,113-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "6c76b9c7a8dcc63b90acc1a3438a22706ec70b54",
+  "prompts": {
+    "b0ef2344c9bd125f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "02641ee0-4844-4eb9-a165-87c2f74e4e36",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 1396,
+      "total_deletions": 24,
+      "accepted_lines": 1402,
+      "overriden_lines": 0
+    }
+  }
+}
