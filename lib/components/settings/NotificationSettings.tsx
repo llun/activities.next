@@ -55,7 +55,9 @@ export const NotificationSettings: FC<Props> = ({
       return settings
     }
   )
-  const [emailMasterEnabled, setEmailMasterEnabled] = useState(true)
+  const [emailMasterEnabled, setEmailMasterEnabled] = useState(() =>
+    notificationTypes.some((nt) => emailNotifications?.[nt.key] !== false)
+  )
   const [emailSaving, setEmailSaving] = useState(false)
   const [emailStatusMessage, setEmailStatusMessage] = useState<string | null>(
     null
