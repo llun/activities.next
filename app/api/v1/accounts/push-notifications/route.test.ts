@@ -66,7 +66,7 @@ describe('POST /api/v1/accounts/push-notifications', () => {
     mockDb.getActorsForAccount.mockResolvedValue([actor])
     mockDb.getActorFromId.mockResolvedValue(actor)
     mockDb.getActorSettings.mockResolvedValue(null)
-    mockDb.updateActor.mockResolvedValue(actor as never)
+    mockDb.updateActor.mockResolvedValue(undefined as never)
   })
 
   it('returns 400 for invalid JSON body', async () => {

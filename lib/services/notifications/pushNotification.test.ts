@@ -9,7 +9,6 @@ jest.mock('web-push')
 const mockWebpush = webpush as jest.Mocked<typeof webpush>
 
 jest.mock('@/lib/config')
-import('@/lib/config').then(() => {})
 const { getConfig } = jest.requireMock<{ getConfig: jest.Mock }>('@/lib/config')
 
 jest.mock('./pushNotificationSettings', () => ({
