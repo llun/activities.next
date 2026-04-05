@@ -63,4 +63,21 @@ describe('#getHashtags', () => {
       { name: '#tag', value: 'https://test.llun.dev/tags/tag' }
     ])
   })
+
+  it('does not match purely numeric hashtags', () => {
+    expect(getHashtags('#123', host)).toEqual([])
+    expect(getHashtags('#456789', host)).toEqual([])
+  })
+
+  it('matches hashtags with numbers and at least one letter', () => {
+    expect(getHashtags('#2024election', host)).toEqual([
+      {
+        name: '#2024election',
+        value: 'https://test.llun.dev/tags/2024election'
+      }
+    ])
+    expect(getHashtags('#covid19', host)).toEqual([
+      { name: '#covid19', value: 'https://test.llun.dev/tags/covid19' }
+    ])
+  })
 })

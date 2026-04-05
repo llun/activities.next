@@ -18,7 +18,7 @@ export const MENTION_GLOBAL_REGEX = new RegExp(
   `(^|\\s+)?${MENTION_REGEX.source}($|\\s+)?`,
   'g'
 )
-export const HASHTAG_TOKENIZER_REGEX = /^#([a-zA-Z0-9_]+)/
+export const HASHTAG_TOKENIZER_REGEX = /^#([a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*)/
 
 export const LINK_BODY_LIMIT = 30
 

@@ -16,6 +16,7 @@ interface HashtagTimelineProps {
   host: string
   statuses: Status[]
   postCount: number
+  currentTime: number
   currentActor?: ActorProfile
   postLineLimit?: PostLineLimit
 }
@@ -25,6 +26,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
   host,
   statuses,
   postCount,
+  currentTime,
   currentActor,
   postLineLimit
 }) => {
@@ -125,7 +127,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
           <Posts
             host={host}
             className="mt-0"
-            currentTime={new Date()}
+            currentTime={new Date(currentTime)}
             statuses={currentStatuses}
             currentActor={currentActor}
             showActions={Boolean(currentActor)}

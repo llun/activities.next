@@ -84,4 +84,15 @@ describe('#convertMarkdownText', () => {
       '<a href="/tags/tag" class="hashtag" rel="tag">#<span>tag</span></a>.'
     )
   })
+
+  it('does not link purely numeric hashtags', () => {
+    const result = convertMarkdownText(TEST_DOMAIN)('#123')
+    expect(result).not.toContain('class="hashtag"')
+  })
+
+  it('links hashtags with numbers and at least one letter', () => {
+    expect(convertMarkdownText(TEST_DOMAIN)('#covid19')).toContain(
+      '<a href="/tags/covid19" class="hashtag" rel="tag">#<span>covid19</span></a>'
+    )
+  })
 })

@@ -20,13 +20,14 @@ export const generateMetadata = async ({
   params
 }: PageProps): Promise<Metadata> => {
   const { tag } = await params
-  if (!/^[a-zA-Z0-9_]+$/.test(tag)) return { title: 'Not Found' }
+  if (!/^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/.test(tag))
+    return { title: 'Not Found' }
   return {
     title: `#${tag} - Activities.next`
   }
 }
 
-const TAG_REGEX = /^[a-zA-Z0-9_]+$/
+const TAG_REGEX = /^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/
 
 const Page = async ({ params }: PageProps) => {
   const { tag } = await params
@@ -56,6 +57,7 @@ const Page = async ({ params }: PageProps) => {
       host={host}
       statuses={statuses.map((item) => cleanJson(item))}
       postCount={postCount}
+      currentTime={Date.now()}
       currentActor={actor ? getActorProfile(actor) : undefined}
       postLineLimit={settings?.postLineLimit}
     />

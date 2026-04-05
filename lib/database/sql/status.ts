@@ -802,25 +802,27 @@ export const StatusSQLDatabaseMixin = (
       trx,
       currentTime: new Date()
     })
-    const isPublic = await trx('recipients')
+    const hashtagTags = await trx('tags')
       .where('statusId', statusId)
-      .where('actorId', ACTIVITY_STREAM_PUBLIC)
-      .first()
-    if (isPublic) {
-      const hashtagTags = await trx('tags')
+      .where('type', 'hashtag')
+    if (hashtagTags.length > 0) {
+      const isPublic = await trx('recipients')
         .where('statusId', statusId)
-        .where('type', 'hashtag')
-      await Promise.all(
-        hashtagTags.map((tag: { name: string }) => {
-          const tagName = tag.name.startsWith('#')
-            ? tag.name.slice(1)
-            : tag.name
-          return decreaseCounterValue(
-            trx,
-            CounterKey.totalHashtag(tagName.toLowerCase())
-          )
-        })
-      )
+        .where('actorId', ACTIVITY_STREAM_PUBLIC)
+        .first()
+      if (isPublic) {
+        await Promise.all(
+          hashtagTags.map((tag: { name: string }) => {
+            const tagName = tag.name.startsWith('#')
+              ? tag.name.slice(1)
+              : tag.name
+            return decreaseCounterValue(
+              trx,
+              CounterKey.totalHashtag(tagName.toLowerCase())
+            )
+          })
+        )
+      }
     }
     await Promise.all([
       trx('statuses').where('id', statusId).delete(),
@@ -908,6 +910,7 @@ export const StatusSQLDatabaseMixin = (
       .whereRaw('LOWER(tags.name) = ?', [normalizedName])
       .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
       .orderBy('statuses.createdAt', 'desc')
+      .orderBy('statuses.id', 'desc')
       .limit(limit)
 
     if (maxStatusId) {
