@@ -13,6 +13,17 @@ interface replacingNode {
   }
 }
 
+export const extractTagFromHref = (href: string | undefined): string | null => {
+  if (!href) return null
+  try {
+    const pathname = href.startsWith('http') ? new URL(href).pathname : href
+    const match = pathname.match(/\/tags\/([^/?#]+)/)
+    return match ? decodeURIComponent(match[1]).toLowerCase() : null
+  } catch {
+    return null
+  }
+}
+
 export const cleanClassName = (text: string) => {
   const options: HTMLReactParserOptions = {
     replace: (node: DOMNode) => {
@@ -27,7 +38,19 @@ export const cleanClassName = (text: string) => {
       }
       if (replacingNode.attribs && replacingNode.name === 'a') {
         const anchorElement = node as Element
-        replacingNode.attribs.target = '_blank'
+        const isHashtag =
+          replacingNode.attribs.class?.includes('hashtag') &&
+          replacingNode.attribs.rel?.includes('tag')
+
+        if (isHashtag) {
+          const tagName = extractTagFromHref(replacingNode.attribs.href)
+          if (tagName) {
+            replacingNode.attribs.href = `/tags/${tagName}`
+          }
+        } else {
+          replacingNode.attribs.target = '_blank'
+        }
+
         // Return a React element with onClick handler to stop propagation
         // Pass options to domToReact to preserve child transformations
         const { class: className, ...restAttribs } = replacingNode.attribs
