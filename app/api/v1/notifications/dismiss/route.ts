@@ -5,7 +5,9 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_404,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -15,22 +17,30 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-const DismissBody = z.object({
-  id: z.string()
-})
+const DismissBody = z.object({ id: z.string() })
 
 export const POST = traceApiRoute(
   'dismissNotificationByBody',
   OAuthGuard([Scope.enum.write], async (req, { currentActor }) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(500)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
 
     const body = await req.json()
     const parsed = DismissBody.safeParse(body)
     if (!parsed.success) {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
 
     const { id } = parsed.data
@@ -43,15 +53,16 @@ export const POST = traceApiRoute(
     })
 
     if (notifications.length === 0) {
-      return apiErrorResponse(404)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     }
 
     await database.deleteNotification(id)
 
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: {}
-    })
+    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
   })
 )

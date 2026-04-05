@@ -8,11 +8,7 @@ import { sendMail } from '@/lib/services/email'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { generateKeyPair } from '@/lib/utils/signature'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -30,7 +26,12 @@ export const POST = traceApiRoute(
     const config = getConfig()
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(500)
+      return apiResponse({
+        req: request,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
 
     const { host: domain, allowEmails } = config
@@ -81,19 +82,13 @@ export const POST = traceApiRoute(
     } = {}
     if (isAccountExists) {
       errorDetails.email = [
-        {
-          error: 'ERR_TAKEN',
-          description: 'Email is already taken'
-        }
+        { error: 'ERR_TAKEN', description: 'Email is already taken' }
       ]
     }
 
     if (isUsernameExists) {
       errorDetails.username = [
-        {
-          error: 'ERR_TAKEN',
-          description: 'Username is already taken'
-        }
+        { error: 'ERR_TAKEN', description: 'Username is already taken' }
       ]
     }
     if (Object.keys(errorDetails).length > 0) {

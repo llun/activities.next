@@ -8,7 +8,7 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
-  apiErrorResponse,
+  ERROR_404,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -31,7 +31,13 @@ export const POST = traceApiRoute(
     const body = await req.json()
     const { statusId } = LikeStatusRequest.parse(body)
     const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status) return apiErrorResponse(404)
+    if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     await database.createLike({ actorId: currentActor.id, statusId })
     await sendLike({ currentActor, status })
@@ -46,7 +52,13 @@ export const DELETE = traceApiRoute(
     const body = await req.json()
     const { statusId } = LikeStatusRequest.parse(body)
     const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status) return apiErrorResponse(404)
+    if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     await database.deleteLike({ actorId: currentActor.id, statusId })
     await sendUndoLike({ currentActor, status })

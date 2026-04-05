@@ -4,7 +4,8 @@ import { getDatabase } from '@/lib/database'
 import { getWebFingerResponse } from '@/lib/services/wellknown'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_404,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -19,10 +20,22 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 export const GET = traceApiRoute('webfinger', async (req: NextRequest) => {
   const url = new URL(req.url)
   const resource = url.searchParams.get('resource')
-  if (!resource) return apiErrorResponse(404)
+  if (!resource)
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: ERROR_404,
+      responseStatusCode: 404
+    })
 
   const database = getDatabase()
-  if (!database) return apiErrorResponse(500)
+  if (!database)
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: ERROR_500,
+      responseStatusCode: 500
+    })
 
   const firstResource = Array.isArray(resource) ? resource[0] : resource
   const response = await getWebFingerResponse({
@@ -30,11 +43,13 @@ export const GET = traceApiRoute('webfinger', async (req: NextRequest) => {
     resource: firstResource
   })
 
-  if (!response) return apiErrorResponse(404)
+  if (!response)
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: ERROR_404,
+      responseStatusCode: 404
+    })
 
-  return apiResponse({
-    req,
-    allowedMethods: CORS_HEADERS,
-    data: response
-  })
+  return apiResponse({ req, allowedMethods: CORS_HEADERS, data: response })
 })

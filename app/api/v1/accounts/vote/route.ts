@@ -3,7 +3,8 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_404,
+  ERROR_422,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -24,11 +25,21 @@ export const POST = traceApiRoute(
 
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status || status.type !== StatusType.enum.Poll) {
-      return apiErrorResponse(404)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     }
 
     if (Date.now() > status.endAt) {
-      return apiErrorResponse(422)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
     }
 
     const hasVoted = await database.hasActorVoted({
@@ -37,11 +48,21 @@ export const POST = traceApiRoute(
     })
 
     if (status.pollType === 'oneOf' && hasVoted) {
-      return apiErrorResponse(422)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
     }
 
     if (status.pollType === 'oneOf' && choices.length > 1) {
-      return apiErrorResponse(422)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
     }
 
     await Promise.all(
@@ -56,10 +77,7 @@ export const POST = traceApiRoute(
 
     await Promise.all(
       choices.map((choiceIndex) =>
-        database.incrementPollChoiceVotes({
-          statusId,
-          choiceIndex
-        })
+        database.incrementPollChoiceVotes({ statusId, choiceIndex })
       )
     )
 

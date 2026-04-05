@@ -8,8 +8,9 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import {
-  HTTP_STATUS,
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_404,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -24,12 +25,22 @@ export const GET = traceApiRoute(
   async (req: NextRequest) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
 
     const statusId = req.nextUrl.searchParams.get('statusId')
     if (!statusId) {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
 
     try {
@@ -41,7 +52,12 @@ export const GET = traceApiRoute(
         withReplies: false
       })
       if (!status) {
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
       }
 
       const visibility = getVisibility(status.to, status.cc)
@@ -72,7 +88,12 @@ export const GET = traceApiRoute(
       }
 
       if (!hasAccess) {
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
       }
 
       const files = await database.getFitnessFilesByStatus({ statusId })
@@ -108,7 +129,12 @@ export const GET = traceApiRoute(
         statusId,
         error: nodeError.message
       })
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
   }
 )

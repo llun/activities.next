@@ -6,7 +6,9 @@ import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_422,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -41,14 +43,26 @@ export const POST = traceApiRoute(
         attachments: [],
         database
       })
-      if (!status) return apiErrorResponse(422)
+      if (!status)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
 
       const mastodonStatus = await getMastodonStatus(
         database,
         status,
         currentActor.id
       )
-      if (!mastodonStatus) return apiErrorResponse(500)
+      if (!mastodonStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
 
       return apiResponse({
         req,
@@ -56,7 +70,12 @@ export const POST = traceApiRoute(
         data: mastodonStatus
       })
     } catch {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
   })
 )

@@ -6,7 +6,8 @@ import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_404,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -26,13 +27,25 @@ export const POST = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedAccountId = (await params).id
-    if (!encodedAccountId) return apiErrorResponse(400)
+    if (!encodedAccountId)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
 
     const targetActorId = idToUrl(encodedAccountId)
 
     // Check if target actor exists
     const person = await getActorPerson({ actorId: targetActorId })
-    if (!person) return apiErrorResponse(404)
+    if (!person)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     // Check if already following
     const existingFollow = await database.getAcceptedOrRequestedFollow({

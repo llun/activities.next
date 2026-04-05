@@ -3,7 +3,8 @@ import { getMastodonNotification } from '@/lib/services/notifications/getMastodo
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_404,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -27,7 +28,12 @@ export const GET = traceApiRoute(
     [Scope.enum.read],
     async (req, { currentActor, database, params }) => {
       if (!database) {
-        return apiErrorResponse(500)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
       }
 
       const id = (await params).id
@@ -39,7 +45,12 @@ export const GET = traceApiRoute(
       })
 
       if (notifications.length === 0) {
-        return apiErrorResponse(404)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
       }
 
       const mastodonNotification = await getMastodonNotification(
@@ -49,7 +60,12 @@ export const GET = traceApiRoute(
       )
 
       if (!mastodonNotification) {
-        return apiErrorResponse(404)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
       }
 
       return apiResponse({
@@ -67,7 +83,12 @@ export const POST = traceApiRoute(
     [Scope.enum.write],
     async (req, { currentActor, database, params }) => {
       if (!database) {
-        return apiErrorResponse(500)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
       }
 
       const id = (await params).id
@@ -80,16 +101,17 @@ export const POST = traceApiRoute(
       })
 
       if (notifications.length === 0) {
-        return apiErrorResponse(404)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
       }
 
       await database.deleteNotification(id)
 
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: {}
-      })
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
   )
 )

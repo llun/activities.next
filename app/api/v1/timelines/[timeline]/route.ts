@@ -8,7 +8,8 @@ import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_404,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -39,14 +40,30 @@ export const GET = traceApiRoute(
 
     const { database, currentActor, params } = context
     const { timeline } = await params
-    if (!timeline) return apiErrorResponse(400)
+    if (!timeline)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
 
     if (!isTimeline(timeline)) {
-      return apiErrorResponse(404)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     }
 
     if (UNSUPPORTED_TIMELINE.includes(timeline)) {
-      return apiErrorResponse(404)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     }
 
     const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
@@ -63,9 +80,7 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: {
-          statuses: statuses.map((item) => cleanJson(item))
-        }
+        data: { statuses: statuses.map((item) => cleanJson(item)) }
       })
     }
 

@@ -10,8 +10,9 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import {
-  HTTP_STATUS,
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_404,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -248,7 +249,12 @@ export const GET = traceApiRoute(
     const { currentActor, database } = context
 
     if (!batchId) {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
 
     const archiveImport =
@@ -267,7 +273,12 @@ export const GET = traceApiRoute(
         database
       })
       if (!hasArchiveAccess) {
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
       }
     }
 
@@ -282,7 +293,12 @@ export const GET = traceApiRoute(
     }
     if (files.length === 0) {
       if (!archiveImport) {
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
       }
 
       const summary = summarizeArchiveImport(archiveImport)
@@ -311,7 +327,12 @@ export const GET = traceApiRoute(
       database
     })
     if (!hasAccess) {
-      return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     }
 
     const fileSummary = summarizeBatch(files)
@@ -359,17 +380,32 @@ export const POST = traceApiRoute(
     const { currentActor, database } = context
 
     if (!batchId) {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
 
     const files = await database.getFitnessFilesByBatchId({ batchId })
     if (files.length === 0) {
-      return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     }
 
     const batchActorId = getSingleBatchActorId(files)
     if (!batchActorId) {
-      return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     }
 
     const hasAccess = await isBatchOwnedByCurrentAccount({
@@ -379,7 +415,12 @@ export const POST = traceApiRoute(
       database
     })
     if (!hasAccess) {
-      return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     }
 
     const parsed = (await req.json().catch(() => ({}))) as {
@@ -389,7 +430,12 @@ export const POST = traceApiRoute(
 
     const visibilityParsed = Visibility.safeParse(visibility)
     if (!visibilityParsed.success) {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
 
     const retriableFiles = files
@@ -472,7 +518,12 @@ export const POST = traceApiRoute(
         error: nodeError.message
       })
 
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
 
     logger.info({

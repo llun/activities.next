@@ -9,7 +9,11 @@ import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_403,
+  ERROR_404,
+  ERROR_422,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -34,18 +38,36 @@ export const GET = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiErrorResponse(404)
+    if (!encodedStatusId)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
     const statusId = idToUrl(encodedStatusId)
 
     const status = await database.getStatus({ statusId })
-    if (!status) return apiErrorResponse(404)
+    if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     const mastodonStatus = await getMastodonStatus(
       database,
       status,
       currentActor.id
     )
-    if (!mastodonStatus) return apiErrorResponse(404)
+    if (!mastodonStatus)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     return apiResponse({
       req,
@@ -66,7 +88,13 @@ export const PUT = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { params } = context
     const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiErrorResponse(404)
+    if (!encodedStatusId)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     const { database, currentActor } = context
     const statusId = idToUrl(encodedStatusId)
@@ -91,12 +119,28 @@ export const PUT = traceApiRoute(
           database
         })
       } else {
-        return apiErrorResponse(422)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
       }
 
-      if (!updatedNote) return apiErrorResponse(403)
+      if (!updatedNote)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_403,
+          responseStatusCode: 403
+        })
       if (updatedNote.type === StatusType.enum.Announce) {
-        return apiErrorResponse(500)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
       }
 
       const mastodonStatus = await getMastodonStatus(
@@ -104,7 +148,13 @@ export const PUT = traceApiRoute(
         updatedNote,
         currentActor.id
       )
-      if (!mastodonStatus) return apiErrorResponse(500)
+      if (!mastodonStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
 
       return apiResponse({
         req,
@@ -112,7 +162,12 @@ export const PUT = traceApiRoute(
         data: mastodonStatus
       })
     } catch {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
     }
   })
 )
@@ -122,15 +177,32 @@ export const DELETE = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiErrorResponse(404)
+    if (!encodedStatusId)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     const statusId = idToUrl(encodedStatusId)
     const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status) return apiErrorResponse(404)
+    if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     // Only owner can delete
     if (status.actorId !== currentActor.id) {
-      return apiErrorResponse(403)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
+      })
     }
 
     // Get the status for return before deletion
@@ -141,11 +213,7 @@ export const DELETE = traceApiRoute(
     )
 
     // Delete the status and send Delete activity
-    await deleteStatusFromUserInput({
-      currentActor,
-      statusId,
-      database
-    })
+    await deleteStatusFromUserInput({ currentActor, statusId, database })
 
     return apiResponse({
       req,

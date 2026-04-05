@@ -2,7 +2,8 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
-  apiErrorResponse,
+  ERROR_400,
+  ERROR_404,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -21,12 +22,22 @@ export const DELETE = traceApiRoute(
   AuthenticatedGuard<Params>(async (req, context) => {
     const { database, currentActor, params } = context
     const { token } = (await params) ?? { token: undefined }
-    if (!token) return apiErrorResponse(400)
+    if (!token)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
 
-    const accountSession = await database.getAccountSession({
-      token
-    })
-    if (!accountSession) return apiErrorResponse(404)
+    const accountSession = await database.getAccountSession({ token })
+    if (!accountSession)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     if (accountSession.account.id !== currentActor.account?.id) {
       throw new Error('Invalid token')

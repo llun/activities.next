@@ -6,7 +6,10 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import {
-  apiErrorResponse,
+  ERROR_403,
+  ERROR_404,
+  ERROR_422,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -26,14 +29,31 @@ export const POST = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiErrorResponse(404)
+    if (!encodedStatusId)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     const statusId = idToUrl(encodedStatusId)
     const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status) return apiErrorResponse(404)
+    if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
 
     if (status.actorId !== currentActor.id) {
-      return apiErrorResponse(403)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
+      })
     }
 
     const files = await database.getFitnessFilesByStatus({ statusId })
@@ -42,7 +62,12 @@ export const POST = traceApiRoute(
     )
 
     if (retriableFiles.length === 0) {
-      return apiErrorResponse(422)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: 422
+      })
     }
 
     const retryTimestamp = Date.now()
@@ -93,7 +118,12 @@ export const POST = traceApiRoute(
       })
 
       if (publishedFileIds.length === 0) {
-        return apiErrorResponse(500)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
       }
     }
 

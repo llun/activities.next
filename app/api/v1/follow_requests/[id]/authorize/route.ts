@@ -4,7 +4,8 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
-  apiErrorResponse,
+  ERROR_404,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -19,7 +20,12 @@ export const POST = traceApiRoute(
   AuthenticatedGuard<{ id: string }>(
     async (req, { currentActor, database, params }) => {
       if (!database) {
-        return apiErrorResponse(500)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
       }
 
       const { id } = await params
@@ -32,7 +38,12 @@ export const POST = traceApiRoute(
       })
 
       if (!follow || follow.status !== FollowStatus.enum.Requested) {
-        return apiErrorResponse(404)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
       }
 
       // Get the follower actor for sending Accept activity
@@ -40,7 +51,12 @@ export const POST = traceApiRoute(
         id: follow.actorId
       })
       if (!followerActor) {
-        return apiErrorResponse(404)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
       }
 
       // Update status to Accepted
