@@ -3,11 +3,7 @@ import { FollowRequest } from '@/lib/activities/followAction'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -19,7 +15,12 @@ export const POST = traceApiRoute(
   AuthenticatedGuard<{ id: string }>(
     async (req, { currentActor, database, params }) => {
       if (!database) {
-        return apiErrorResponse(500)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Internal Server Error' },
+          responseStatusCode: 500
+        })
       }
 
       const { id } = await params
@@ -32,7 +33,12 @@ export const POST = traceApiRoute(
       })
 
       if (!follow || follow.status !== FollowStatus.enum.Requested) {
-        return apiErrorResponse(404)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Not Found' },
+          responseStatusCode: 404
+        })
       }
 
       // Get the follower actor for sending Accept activity
@@ -40,7 +46,12 @@ export const POST = traceApiRoute(
         id: follow.actorId
       })
       if (!followerActor) {
-        return apiErrorResponse(404)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Not Found' },
+          responseStatusCode: 404
+        })
       }
 
       // Update status to Accepted

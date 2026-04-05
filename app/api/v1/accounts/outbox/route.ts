@@ -10,12 +10,7 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { toActivityPubObject } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import {
-  DEFAULT_202,
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { DEFAULT_202, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { DeleteStatusRequest, PostRequest } from './types'
@@ -53,7 +48,13 @@ export const POST = traceApiRoute(
             visibility,
             database
           })
-          if (!status) return apiErrorResponse(404)
+          if (!status)
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: 'Not Found' },
+              responseStatusCode: 404
+            })
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
@@ -91,13 +92,23 @@ export const POST = traceApiRoute(
           })
         }
         default: {
-          return apiErrorResponse(404)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: 'Not Found' },
+            responseStatusCode: 404
+          })
         }
       }
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException
       logger.error(nodeError)
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
     }
   })
 )
@@ -120,7 +131,12 @@ export const DELETE = traceApiRoute(
         data: DEFAULT_202
       })
     } catch {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
     }
   })
 )

@@ -7,11 +7,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
@@ -31,11 +27,23 @@ export const GET = traceApiRoute(
   'getHashtagTimeline',
   async (req: NextRequest, context: { params: Promise<RouteParams> }) => {
     const database = getDatabase()
-    if (!database) return apiErrorResponse(500)
+    if (!database)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Internal Server Error' },
+        responseStatusCode: 500
+      })
 
     const params = await context.params
     const parseResult = Params.safeParse(params)
-    if (!parseResult.success) return apiErrorResponse(400)
+    if (!parseResult.success)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
 
     const { tag } = parseResult.data
     const url = new URL(req.url)
@@ -59,9 +67,7 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: {
-          statuses: statuses.map((item) => cleanJson(item))
-        }
+        data: { statuses: statuses.map((item) => cleanJson(item)) }
       })
     }
 

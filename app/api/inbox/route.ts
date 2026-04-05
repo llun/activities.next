@@ -2,12 +2,7 @@ import { StatusActivity } from '@/lib/activities/statusAction'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  DEFAULT_202,
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { DEFAULT_202, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { getJobMessage } from './getJobMessage'
@@ -28,12 +23,22 @@ export const POST = traceApiRoute(
       typeof body.id !== 'string' ||
       typeof body.type !== 'string'
     ) {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req: request,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
     }
     const activity = body as unknown as StatusActivity
     const jobMessage = getJobMessage(activity)
     if (!jobMessage) {
-      return apiErrorResponse(404)
+      return apiResponse({
+        req: request,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
     }
 
     await getQueue().publish(jobMessage)

@@ -3,11 +3,7 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -24,7 +20,13 @@ export const POST = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiErrorResponse(404)
+    if (!encodedStatusId)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
 
     const statusId = idToUrl(encodedStatusId)
 
@@ -35,7 +37,12 @@ export const POST = traceApiRoute(
     })
 
     if (!announceStatus) {
-      return apiErrorResponse(422)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Unprocessable entity' },
+        responseStatusCode: 422
+      })
     }
 
     const mastodonStatus = await getMastodonStatus(
@@ -43,7 +50,13 @@ export const POST = traceApiRoute(
       announceStatus,
       currentActor.id
     )
-    if (!mastodonStatus) return apiErrorResponse(500)
+    if (!mastodonStatus)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Internal Server Error' },
+        responseStatusCode: 500
+      })
 
     return apiResponse({
       req,

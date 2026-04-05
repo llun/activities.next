@@ -1,11 +1,7 @@
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
@@ -22,15 +18,32 @@ export const GET = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.read], async (req, context) => {
     const { database, params } = context
     const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiErrorResponse(404)
+    if (!encodedStatusId)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
 
     const statusId = idToUrl(encodedStatusId)
     const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status) return apiErrorResponse(404)
+    if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
 
     // Only note and poll statuses have text content
     if (status.type === 'Announce') {
-      return apiErrorResponse(404)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
     }
 
     return apiResponse({

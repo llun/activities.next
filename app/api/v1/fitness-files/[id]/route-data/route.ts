@@ -22,12 +22,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
-import {
-  HTTP_STATUS,
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 interface Params {
@@ -164,7 +159,12 @@ export const GET = traceApiRoute(
   async (req: NextRequest, context: { params: Promise<Params> }) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Internal Server Error' },
+        responseStatusCode: 500
+      })
     }
 
     const { id } = await context.params
@@ -180,7 +180,12 @@ export const GET = traceApiRoute(
           message: 'Fitness file not found',
           fileId: id
         })
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Not Found' },
+          responseStatusCode: 404
+        })
       }
 
       const fileActor = await database.getActorFromId({
@@ -200,7 +205,12 @@ export const GET = traceApiRoute(
             actorId: currentActor?.id ?? null,
             accountId: currentAccountId ?? null
           })
-          return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: 'Not Found' },
+            responseStatusCode: 404
+          })
         }
 
         const status = await database.getStatus({
@@ -243,7 +253,12 @@ export const GET = traceApiRoute(
             accountId: currentAccountId ?? null,
             visibility
           })
-          return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: 'Not Found' },
+            responseStatusCode: 404
+          })
         }
       }
 
@@ -257,10 +272,20 @@ export const GET = traceApiRoute(
           message: 'Fitness file not found',
           fileId: id
         })
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Not Found' },
+          responseStatusCode: 404
+        })
       }
       if (!isParseableFitnessFileType(fileMetadata.fileType)) {
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Bad Request' },
+          responseStatusCode: 400
+        })
       }
 
       const activityData = await parseFitnessFile({
@@ -321,7 +346,12 @@ export const GET = traceApiRoute(
         fileId: id,
         error: err.message
       })
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Internal Server Error' },
+        responseStatusCode: 500
+      })
     }
   }
 )

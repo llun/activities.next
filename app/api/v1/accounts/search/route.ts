@@ -4,11 +4,7 @@ import { getConfig } from '@/lib/config'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -42,17 +38,18 @@ export const GET = traceApiRoute(
 
     const parsedParams = SearchParams.safeParse(queryParams)
     if (!parsedParams.success) {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
     }
 
     const { q, limit = 40 } = parsedParams.data
 
     if (!q || q.trim().length === 0) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: []
-      })
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
     }
 
     const query = q.trim()

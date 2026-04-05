@@ -2,11 +2,7 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
@@ -27,7 +23,12 @@ export const GET = traceApiRoute(
     [Scope.enum.read],
     async (req, { currentActor, database, params }) => {
       if (!database) {
-        return apiErrorResponse(500)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Internal Server Error' },
+          responseStatusCode: 500
+        })
       }
 
       const id = (await params).id
@@ -39,7 +40,12 @@ export const GET = traceApiRoute(
       })
 
       if (notifications.length === 0) {
-        return apiErrorResponse(404)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Not Found' },
+          responseStatusCode: 404
+        })
       }
 
       const mastodonNotification = await getMastodonNotification(
@@ -49,7 +55,12 @@ export const GET = traceApiRoute(
       )
 
       if (!mastodonNotification) {
-        return apiErrorResponse(404)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Not Found' },
+          responseStatusCode: 404
+        })
       }
 
       return apiResponse({
@@ -67,7 +78,12 @@ export const POST = traceApiRoute(
     [Scope.enum.write],
     async (req, { currentActor, database, params }) => {
       if (!database) {
-        return apiErrorResponse(500)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Internal Server Error' },
+          responseStatusCode: 500
+        })
       }
 
       const id = (await params).id
@@ -80,16 +96,17 @@ export const POST = traceApiRoute(
       })
 
       if (notifications.length === 0) {
-        return apiErrorResponse(404)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Not Found' },
+          responseStatusCode: 404
+        })
       }
 
       await database.deleteNotification(id)
 
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: {}
-      })
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
   )
 )

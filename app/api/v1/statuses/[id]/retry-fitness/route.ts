@@ -5,11 +5,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -26,14 +22,31 @@ export const POST = traceApiRoute(
   OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
     const { database, currentActor, params } = context
     const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiErrorResponse(404)
+    if (!encodedStatusId)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
 
     const statusId = idToUrl(encodedStatusId)
     const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status) return apiErrorResponse(404)
+    if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
 
     if (status.actorId !== currentActor.id) {
-      return apiErrorResponse(403)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Forbidden' },
+        responseStatusCode: 403
+      })
     }
 
     const files = await database.getFitnessFilesByStatus({ statusId })
@@ -42,7 +55,12 @@ export const POST = traceApiRoute(
     )
 
     if (retriableFiles.length === 0) {
-      return apiErrorResponse(422)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Unprocessable entity' },
+        responseStatusCode: 422
+      })
     }
 
     const retryTimestamp = Date.now()
@@ -93,7 +111,12 @@ export const POST = traceApiRoute(
       })
 
       if (publishedFileIds.length === 0) {
-        return apiErrorResponse(500)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Internal Server Error' },
+          responseStatusCode: 500
+        })
       }
     }
 

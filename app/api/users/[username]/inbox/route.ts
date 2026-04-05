@@ -11,12 +11,7 @@ import { UndoLike } from '@/lib/activities/undoLike'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { Accept, Follow, Like, Reject, Undo } from '@/lib/types/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  DEFAULT_202,
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { DEFAULT_202, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -31,11 +26,14 @@ export const POST = traceApiRoute(
       const activity = Activity.parse(await req.json())
       switch (activity.type) {
         case 'Accept': {
-          const follow = await acceptFollowRequest({
-            activity,
-            database
-          })
-          if (!follow) return apiErrorResponse(404)
+          const follow = await acceptFollowRequest({ activity, database })
+          if (!follow)
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: 'Not Found' },
+              responseStatusCode: 404
+            })
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
@@ -44,11 +42,14 @@ export const POST = traceApiRoute(
           })
         }
         case 'Reject': {
-          const follow = await rejectFollowRequest({
-            activity,
-            database
-          })
-          if (!follow) return apiErrorResponse(404)
+          const follow = await rejectFollowRequest({ activity, database })
+          if (!follow)
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: 'Not Found' },
+              responseStatusCode: 404
+            })
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
@@ -61,7 +62,13 @@ export const POST = traceApiRoute(
             followRequest: activity as FollowRequest,
             database
           })
-          if (!follow) return apiErrorResponse(404)
+          if (!follow)
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: 'Not Found' },
+              responseStatusCode: 404
+            })
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
@@ -86,7 +93,13 @@ export const POST = traceApiRoute(
                 database,
                 request: undoRequest as UndoFollow
               })
-              if (result) return apiErrorResponse(404)
+              if (result)
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: { error: 'Not Found' },
+                  responseStatusCode: 404
+                })
               return apiResponse({
                 req,
                 allowedMethods: CORS_HEADERS,
@@ -128,7 +141,12 @@ export const POST = traceApiRoute(
           })
       }
     } catch {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
     }
   })
 )

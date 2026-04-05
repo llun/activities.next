@@ -11,7 +11,6 @@ import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
   HTTP_STATUS,
-  apiErrorResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -34,7 +33,13 @@ export const GET = traceApiRoute(
     const { database, currentActor } = context
     const params = new URL(req.url).searchParams
     const targetActorId = params.get('targetActorId')
-    if (!targetActorId) return apiErrorResponse(404)
+    if (!targetActorId)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
 
     const follow = await database.getAcceptedOrRequestedFollow({
       actorId: currentActor.id,
@@ -51,7 +56,13 @@ export const POST = traceApiRoute(
     const body = await req.json()
     const { target } = FollowRequest.parse(body)
     const person = await getActorPerson({ actorId: target })
-    if (!person) return apiErrorResponse(404)
+    if (!person)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
     const followItem = await database.createFollow({
       actorId: currentActor.id,
       targetActorId: target,
@@ -79,7 +90,13 @@ export const DELETE = traceApiRoute(
       actorId: currentActor.id,
       targetActorId: target
     })
-    if (!follow) return apiErrorResponse(404)
+    if (!follow)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
     await Promise.all([
       unfollow(currentActor, follow),
       database.updateFollowStatus({

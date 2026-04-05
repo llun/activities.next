@@ -7,12 +7,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
-import {
-  HTTP_STATUS,
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -24,12 +19,22 @@ export const GET = traceApiRoute(
   async (req: NextRequest) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Internal Server Error' },
+        responseStatusCode: 500
+      })
     }
 
     const statusId = req.nextUrl.searchParams.get('statusId')
     if (!statusId) {
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
     }
 
     try {
@@ -41,7 +46,12 @@ export const GET = traceApiRoute(
         withReplies: false
       })
       if (!status) {
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Not Found' },
+          responseStatusCode: 404
+        })
       }
 
       const visibility = getVisibility(status.to, status.cc)
@@ -72,7 +82,12 @@ export const GET = traceApiRoute(
       }
 
       if (!hasAccess) {
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Not Found' },
+          responseStatusCode: 404
+        })
       }
 
       const files = await database.getFitnessFilesByStatus({ statusId })
@@ -108,7 +123,12 @@ export const GET = traceApiRoute(
         statusId,
         error: nodeError.message
       })
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Internal Server Error' },
+        responseStatusCode: 500
+      })
     }
   }
 )

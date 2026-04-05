@@ -14,12 +14,7 @@ import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import {
-  HTTP_STATUS,
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -41,7 +36,12 @@ export const POST = traceApiRoute(
       const visibilityParsed = Visibility.safeParse(visibilityValue)
 
       if (!visibilityParsed.success) {
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Bad Request' },
+          responseStatusCode: 400
+        })
       }
 
       const filesRaw = formData.getAll('files')
@@ -54,7 +54,12 @@ export const POST = traceApiRoute(
           message: 'Invalid fitness import request, missing files',
           actorId: currentActor.id
         })
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Bad Request' },
+          responseStatusCode: 400
+        })
       }
 
       const invalidFile = files.find(
@@ -66,7 +71,12 @@ export const POST = traceApiRoute(
           actorId: currentActor.id,
           fileName: invalidFile.name
         })
-        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Bad Request' },
+          responseStatusCode: 400
+        })
       }
 
       batchId = crypto.randomUUID()
@@ -129,10 +139,20 @@ export const POST = traceApiRoute(
       })
 
       if (nodeError instanceof QuotaExceededError) {
-        return apiErrorResponse(HTTP_STATUS.PAYLOAD_TOO_LARGE)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Payload Too Large' },
+          responseStatusCode: 413
+        })
       }
 
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Internal Server Error' },
+        responseStatusCode: 500
+      })
     }
   })
 )

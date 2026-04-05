@@ -7,11 +7,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
@@ -39,14 +35,30 @@ export const GET = traceApiRoute(
 
     const { database, currentActor, params } = context
     const { timeline } = await params
-    if (!timeline) return apiErrorResponse(400)
+    if (!timeline)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
 
     if (!isTimeline(timeline)) {
-      return apiErrorResponse(404)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
     }
 
     if (UNSUPPORTED_TIMELINE.includes(timeline)) {
-      return apiErrorResponse(404)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
     }
 
     const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
@@ -63,9 +75,7 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: {
-          statuses: statuses.map((item) => cleanJson(item))
-        }
+        data: { statuses: statuses.map((item) => cleanJson(item)) }
       })
     }
 

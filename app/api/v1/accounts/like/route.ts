@@ -6,12 +6,7 @@
 import { sendLike, sendUndoLike } from '@/lib/activities'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  DEFAULT_202,
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { DEFAULT_202, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { LikeStatusRequest } from './types'
@@ -31,7 +26,13 @@ export const POST = traceApiRoute(
     const body = await req.json()
     const { statusId } = LikeStatusRequest.parse(body)
     const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status) return apiErrorResponse(404)
+    if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
 
     await database.createLike({ actorId: currentActor.id, statusId })
     await sendLike({ currentActor, status })
@@ -46,7 +47,13 @@ export const DELETE = traceApiRoute(
     const body = await req.json()
     const { statusId } = LikeStatusRequest.parse(body)
     const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status) return apiErrorResponse(404)
+    if (!status)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
 
     await database.deleteLike({ actorId: currentActor.id, statusId })
     await sendUndoLike({ currentActor, status })

@@ -2,11 +2,7 @@ import { getDatabase } from '@/lib/database'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -18,17 +14,18 @@ export const GET = traceApiRoute(
   OAuthGuard([Scope.enum.read], async (req, { currentActor }) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(500)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Internal Server Error' },
+        responseStatusCode: 500
+      })
     }
 
     const count = await database.getFollowRequestsCount({
       targetActorId: currentActor.id
     })
 
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: { count }
-    })
+    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: { count } })
   })
 )

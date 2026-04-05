@@ -4,11 +4,7 @@ import { getDatabase } from '@/lib/database'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { Follow } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -27,21 +23,34 @@ export const GET = traceApiRoute(
   async (req: NextRequest, params: AppRouterParams<Params>) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(500)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Internal Server Error' },
+        responseStatusCode: 500
+      })
     }
 
     const { id: encodedAccountId } = await params.params
     if (!encodedAccountId) {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
     }
 
     const id = idToUrl(encodedAccountId)
-    const actor = await database.getActorFromId({
-      id
-    })
+    const actor = await database.getActorFromId({ id })
 
     if (!actor) {
-      return apiErrorResponse(404)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
     }
 
     const url = new URL(req.url)

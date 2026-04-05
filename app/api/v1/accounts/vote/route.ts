@@ -2,11 +2,7 @@ import { sendPollVotes } from '@/lib/activities'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { VotePollRequest } from './types'
@@ -24,11 +20,21 @@ export const POST = traceApiRoute(
 
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status || status.type !== StatusType.enum.Poll) {
-      return apiErrorResponse(404)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
     }
 
     if (Date.now() > status.endAt) {
-      return apiErrorResponse(422)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Unprocessable entity' },
+        responseStatusCode: 422
+      })
     }
 
     const hasVoted = await database.hasActorVoted({
@@ -37,11 +43,21 @@ export const POST = traceApiRoute(
     })
 
     if (status.pollType === 'oneOf' && hasVoted) {
-      return apiErrorResponse(422)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Unprocessable entity' },
+        responseStatusCode: 422
+      })
     }
 
     if (status.pollType === 'oneOf' && choices.length > 1) {
-      return apiErrorResponse(422)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Unprocessable entity' },
+        responseStatusCode: 422
+      })
     }
 
     await Promise.all(
@@ -56,10 +72,7 @@ export const POST = traceApiRoute(
 
     await Promise.all(
       choices.map((choiceIndex) =>
-        database.incrementPollChoiceVotes({
-          statusId,
-          choiceIndex
-        })
+        database.incrementPollChoiceVotes({ statusId, choiceIndex })
       )
     )
 

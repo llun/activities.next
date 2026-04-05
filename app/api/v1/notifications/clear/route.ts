@@ -2,11 +2,7 @@ import { getDatabase } from '@/lib/database'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -18,7 +14,12 @@ export const POST = traceApiRoute(
   OAuthGuard([Scope.enum.write], async (req, { currentActor }) => {
     const database = getDatabase()
     if (!database) {
-      return apiErrorResponse(500)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Internal Server Error' },
+        responseStatusCode: 500
+      })
     }
 
     // Delete all notifications in batches
@@ -47,10 +48,6 @@ export const POST = traceApiRoute(
       }
     }
 
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: {}
-    })
+    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
   })
 )

@@ -5,11 +5,7 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -41,14 +37,26 @@ export const POST = traceApiRoute(
         attachments: [],
         database
       })
-      if (!status) return apiErrorResponse(422)
+      if (!status)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Unprocessable entity' },
+          responseStatusCode: 422
+        })
 
       const mastodonStatus = await getMastodonStatus(
         database,
         status,
         currentActor.id
       )
-      if (!mastodonStatus) return apiErrorResponse(500)
+      if (!mastodonStatus)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Internal Server Error' },
+          responseStatusCode: 500
+        })
 
       return apiResponse({
         req,
@@ -56,7 +64,12 @@ export const POST = traceApiRoute(
         data: mastodonStatus
       })
     } catch {
-      return apiErrorResponse(400)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
     }
   })
 )

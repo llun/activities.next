@@ -1,11 +1,6 @@
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import {
-  DEFAULT_202,
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { DEFAULT_202, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.DELETE]
@@ -21,12 +16,22 @@ export const DELETE = traceApiRoute(
   AuthenticatedGuard<Params>(async (req, context) => {
     const { database, currentActor, params } = context
     const { token } = (await params) ?? { token: undefined }
-    if (!token) return apiErrorResponse(400)
+    if (!token)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
 
-    const accountSession = await database.getAccountSession({
-      token
-    })
-    if (!accountSession) return apiErrorResponse(404)
+    const accountSession = await database.getAccountSession({ token })
+    if (!accountSession)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Not Found' },
+        responseStatusCode: 404
+      })
 
     if (accountSession.account.id !== currentActor.account?.id) {
       throw new Error('Invalid token')

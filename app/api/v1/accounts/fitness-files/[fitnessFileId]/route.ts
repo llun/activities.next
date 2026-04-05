@@ -2,12 +2,7 @@ import { deleteFitnessFile as deleteFitnessFileFromStorage } from '@/lib/service
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import {
-  HTTP_STATUS,
-  apiErrorResponse,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 interface Params {
@@ -29,12 +24,22 @@ export const DELETE = traceApiRoute(
       logger.warn({
         message: 'Unauthorized delete fitness file request - no account'
       })
-      return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Unauthorized' },
+        responseStatusCode: 401
+      })
     }
 
     if (!fitnessFileId) {
       logger.warn({ message: 'Bad request - missing fitnessFileId' })
-      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Bad Request' },
+        responseStatusCode: 400
+      })
     }
 
     try {
@@ -45,7 +50,12 @@ export const DELETE = traceApiRoute(
           fitnessFileId,
           accountId: account.id
         })
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Not Found' },
+          responseStatusCode: 404
+        })
       }
 
       const fitnessFileActor = await database.getActorFromId({
@@ -57,7 +67,12 @@ export const DELETE = traceApiRoute(
           fitnessFileId,
           accountId: account.id
         })
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Not Found' },
+          responseStatusCode: 404
+        })
       }
 
       const deleted = await deleteFitnessFileFromStorage(
@@ -71,7 +86,12 @@ export const DELETE = traceApiRoute(
           fitnessFileId,
           accountId: account.id
         })
-        return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Internal Server Error' },
+          responseStatusCode: 500
+        })
       }
 
       logger.info({
@@ -93,7 +113,12 @@ export const DELETE = traceApiRoute(
         accountId: account.id,
         error: err.message
       })
-      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Internal Server Error' },
+        responseStatusCode: 500
+      })
     }
   }),
   {
