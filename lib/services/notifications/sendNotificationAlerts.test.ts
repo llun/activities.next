@@ -1,16 +1,21 @@
 import { Database } from '@/lib/database/types'
-import { Actor } from '@/lib/types/domain/actor'
 import { NotificationType } from '@/lib/types/database/operations'
+import { Actor } from '@/lib/types/domain/actor'
 
-import { sendNotificationAlerts } from './sendNotificationAlerts'
-import { sendPushNotification } from './pushNotification'
 import { shouldSendEmailForNotification } from './emailNotificationSettings'
+import { sendPushNotification } from './pushNotification'
+import { shouldSendPushForNotification } from './pushNotificationSettings'
+import { sendNotificationAlerts } from './sendNotificationAlerts'
 
 jest.mock('@/lib/config')
 const { getConfig } = jest.requireMock<{ getConfig: jest.Mock }>('@/lib/config')
 
 jest.mock('./pushNotification', () => ({
   sendPushNotification: jest.fn().mockResolvedValue(undefined)
+}))
+
+jest.mock('./pushNotificationSettings', () => ({
+  shouldSendPushForNotification: jest.fn().mockResolvedValue(true)
 }))
 
 jest.mock('./emailNotificationSettings', () => ({
@@ -26,6 +31,9 @@ const { sendMail } = jest.requireMock<{ sendMail: jest.Mock }>(
 
 const mockSendPush = sendPushNotification as jest.MockedFunction<
   typeof sendPushNotification
+>
+const mockShouldSendPush = shouldSendPushForNotification as jest.MockedFunction<
+  typeof shouldSendPushForNotification
 >
 const mockShouldSendEmail =
   shouldSendEmailForNotification as jest.MockedFunction<
@@ -293,6 +301,48 @@ describe('sendNotificationAlerts', () => {
       actorId: 'actor1',
       sourceActorId: 'source1',
       events: [{ type: NotificationType.enum.like }]
+    })
+    await flushPromises()
+
+    expect(mockSendPush).not.toHaveBeenCalled()
+  })
+
+  it('falls back to next event when first event push is disabled', async () => {
+    // User disabled reply push but enabled mention push
+    mockShouldSendPush
+      .mockResolvedValueOnce(false) // reply → disabled
+      .mockResolvedValueOnce(true) // mention → enabled
+    const db = makeDb()
+    sendNotificationAlerts({
+      database: db,
+      actorId: 'actor1',
+      sourceActorId: 'source1',
+      statusId: 'status1',
+      events: [
+        { type: NotificationType.enum.reply },
+        { type: NotificationType.enum.mention }
+      ]
+    })
+    await flushPromises()
+
+    expect(mockShouldSendPush).toHaveBeenCalledTimes(2)
+    expect(mockSendPush).toHaveBeenCalledTimes(1)
+    expect(mockSendPush).toHaveBeenCalledWith(
+      expect.objectContaining({ type: NotificationType.enum.mention })
+    )
+  })
+
+  it('sends no push when all event types are disabled', async () => {
+    mockShouldSendPush.mockResolvedValue(false)
+    const db = makeDb()
+    sendNotificationAlerts({
+      database: db,
+      actorId: 'actor1',
+      sourceActorId: 'source1',
+      events: [
+        { type: NotificationType.enum.reply },
+        { type: NotificationType.enum.mention }
+      ]
     })
     await flushPromises()
 

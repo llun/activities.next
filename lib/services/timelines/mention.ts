@@ -60,14 +60,14 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
               type: NotificationType.enum.reply,
               sourceActorId: status.actorId,
               statusId: status.id,
-              groupKey: `reply:${status.id}`
+              groupKey: `reply:${repliedStatus.id}`
             })
             alertEvents.push({ type: NotificationType.enum.reply })
           }
         } catch (error) {
           span.setStatus({
             code: SpanStatusCode.ERROR,
-            message: 'Failed to create reply notification record'
+            message: 'Failed to handle reply notification'
           })
           span.recordException(
             error instanceof Error ? error : new Error(String(error))

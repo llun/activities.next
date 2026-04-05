@@ -348,9 +348,7 @@ describe('#mentionTimelineRule', () => {
         actorId: actor.id,
         sourceActorId: EXTERNAL_ACTOR1,
         statusId: replyStatus.id,
-        events: [
-          expect.objectContaining({ type: NotificationType.enum.reply })
-        ]
+        events: [expect.objectContaining({ type: NotificationType.enum.reply })]
       })
     )
   })

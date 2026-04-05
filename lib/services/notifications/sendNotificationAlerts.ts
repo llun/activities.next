@@ -7,6 +7,7 @@ import { logger } from '@/lib/utils/logger'
 
 import { shouldSendEmailForNotification } from './emailNotificationSettings'
 import { sendPushNotification } from './pushNotification'
+import { shouldSendPushForNotification } from './pushNotificationSettings'
 
 export interface EmailContent {
   recipientEmail: string
@@ -35,8 +36,9 @@ export interface SendNotificationAlertsParams {
  * Callers provide one or more {@link NotificationEvent} items in priority
  * order.  The function fans out to every configured channel:
  *
- * - **Push** – one browser push for the *first* event (highest priority) to
- *   avoid duplicate pop-ups when a status triggers both reply and mention.
+ * - **Push** – tries events in priority order, sends one browser push for the
+ *   first event whose push setting is enabled.  This avoids duplicate pop-ups
+ *   while still falling back (e.g. reply disabled → try mention).
  * - **Email** – one email per event that carries {@link EmailContent}.
  * - *(future: phone, SMS, webhook …)*
  *
@@ -53,22 +55,32 @@ export const sendNotificationAlerts = (
     return database.getActorFromId({ id: sourceActorId })
   }
 
-  // --- Push notification (one per call, using the first / highest-priority event) ---
-  const pushEvent = events[0]
+  // --- Push notification ---
+  // Try events in priority order; send for the first type the user has enabled.
   resolveSourceActor()
-    .then((sourceActor) => {
+    .then(async (sourceActor) => {
       if (!sourceActor) return
-      return sendPushNotification({
-        database,
-        actorId,
-        type: pushEvent.type,
-        sourceActor,
-        statusId
-      })
+      for (const event of events) {
+        const shouldSend = await shouldSendPushForNotification(
+          database,
+          actorId,
+          event.type
+        )
+        if (shouldSend) {
+          await sendPushNotification({
+            database,
+            actorId,
+            type: event.type,
+            sourceActor,
+            statusId
+          })
+          return
+        }
+      }
     })
     .catch((error) =>
       logger.error({
-        message: `Failed to send ${pushEvent.type} push notification`,
+        message: 'Failed to send push notification',
         err: error
       })
     )
