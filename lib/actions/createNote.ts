@@ -235,7 +235,12 @@ export const createNoteFromUserInput = async ({
         value: hashtag.value,
         type: 'hashtag'
       })
-      await database.increaseHashtagCounter({ hashtag: hashtag.name })
+      if (
+        effectiveVisibility === 'public' ||
+        effectiveVisibility === 'unlisted'
+      ) {
+        await database.increaseHashtagCounter({ hashtag: hashtag.name })
+      }
     })
   ])
 

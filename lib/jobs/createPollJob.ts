@@ -8,6 +8,7 @@ import {
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/types/activitypub'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_JOB_NAME } from './names'
@@ -85,6 +86,11 @@ export const createPollJob = createJobHandle(
     ])
 
     const tags = getTags(question as unknown as Note)
+    const allRecipients = [
+      ...(Array.isArray(question.to) ? question.to : [question.to]),
+      ...(Array.isArray(question.cc) ? question.cc : [question.cc])
+    ].filter((item): item is string => typeof item === 'string')
+    const isPublic = allRecipients.includes(ACTIVITY_STREAM_PUBLIC)
     await Promise.all([
       addStatusToTimelines(database, status),
       ...tags.map(async (item) => {
@@ -110,7 +116,9 @@ export const createPollJob = createJobHandle(
           const tagName = hashtagName.startsWith('#')
             ? hashtagName.slice(1)
             : hashtagName
-          await database.increaseHashtagCounter({ hashtag: tagName })
+          if (isPublic) {
+            await database.increaseHashtagCounter({ hashtag: tagName })
+          }
           return
         }
         return database.createTag({

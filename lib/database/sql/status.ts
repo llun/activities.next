@@ -802,18 +802,26 @@ export const StatusSQLDatabaseMixin = (
       trx,
       currentTime: new Date()
     })
-    const hashtagTags = await trx('tags')
+    const isPublic = await trx('recipients')
       .where('statusId', statusId)
-      .where('type', 'hashtag')
-    await Promise.all(
-      hashtagTags.map((tag: { name: string }) => {
-        const tagName = tag.name.startsWith('#') ? tag.name.slice(1) : tag.name
-        return decreaseCounterValue(
-          trx,
-          CounterKey.totalHashtag(tagName.toLowerCase())
-        )
-      })
-    )
+      .where('actorId', ACTIVITY_STREAM_PUBLIC)
+      .first()
+    if (isPublic) {
+      const hashtagTags = await trx('tags')
+        .where('statusId', statusId)
+        .where('type', 'hashtag')
+      await Promise.all(
+        hashtagTags.map((tag: { name: string }) => {
+          const tagName = tag.name.startsWith('#')
+            ? tag.name.slice(1)
+            : tag.name
+          return decreaseCounterValue(
+            trx,
+            CounterKey.totalHashtag(tagName.toLowerCase())
+          )
+        })
+      )
+    }
     await Promise.all([
       trx('statuses').where('id', statusId).delete(),
       trx('recipients').where('statusId', statusId).delete(),
@@ -908,7 +916,15 @@ export const StatusSQLDatabaseMixin = (
         .select('createdAt')
         .first<{ createdAt: Date }>()
       if (cursor) {
-        query = query.where('statuses.createdAt', '<', cursor.createdAt)
+        query = query.where((wb) => {
+          wb.where('statuses.createdAt', '<', cursor.createdAt).orWhere(
+            (wb2) => {
+              wb2
+                .where('statuses.createdAt', '=', cursor.createdAt)
+                .where('statuses.id', '<', maxStatusId)
+            }
+          )
+        })
       }
     }
 

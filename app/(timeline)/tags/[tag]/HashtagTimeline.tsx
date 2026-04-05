@@ -42,7 +42,10 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
   )
 
   const onPostDeleted = (status: Status) => {
-    const statusIndex = currentStatuses.indexOf(status)
+    const statusIndex = currentStatuses.findIndex(
+      (item) => item.id === status.id
+    )
+    if (statusIndex === -1) return
     const newStatuses = [
       ...currentStatuses.slice(0, statusIndex),
       ...currentStatuses.slice(statusIndex + 1)

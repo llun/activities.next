@@ -26,7 +26,9 @@ const hashtag: TokenizerAndRendererExtension = {
   name: 'hashtag',
   level: 'inline',
   start(src) {
-    return src.match(/(^|\s+)#[a-zA-Z0-9_]/)?.index
+    const match = src.match(/(^|\s+)#[a-zA-Z0-9_]/)
+    if (!match) return
+    return (match.index ?? 0) + match[1].length
   },
   tokenizer(src) {
     const match = HASHTAG_TOKENIZER_REGEX.exec(src)

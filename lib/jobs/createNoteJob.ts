@@ -19,6 +19,7 @@ import {
 } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_NOTE_JOB_NAME } from './names'
@@ -89,6 +90,11 @@ export const createNoteJob = createJobHandle(
     ])
 
     const tags = getTags(note)
+    const allRecipients = [
+      ...(Array.isArray(note.to) ? note.to : [note.to]),
+      ...(Array.isArray(note.cc) ? note.cc : [note.cc])
+    ].filter((item): item is string => typeof item === 'string')
+    const isPublic = allRecipients.includes(ACTIVITY_STREAM_PUBLIC)
 
     // Tags must be persisted before timeline rules run so that
     // mentionTimelineRule can verify mentions via tags rather than text content.
@@ -116,7 +122,9 @@ export const createNoteJob = createJobHandle(
           const tagName = hashtagName.startsWith('#')
             ? hashtagName.slice(1)
             : hashtagName
-          await database.increaseHashtagCounter({ hashtag: tagName })
+          if (isPublic) {
+            await database.increaseHashtagCounter({ hashtag: tagName })
+          }
           return
         }
         return database.createTag({
