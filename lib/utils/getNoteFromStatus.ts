@@ -31,7 +31,8 @@ export const getNoteFromStatus = (status: Status): Note | null => {
       .map((attachment) => getDocumentFromAttachment(attachment)),
     tag: actualStatus.tags
       .filter((tag) => tag.type !== 'emoji')
-      .map((tag) => getMentionFromTag(tag)),
+      .map((tag) => getMentionFromTag(tag))
+      .filter((tag) => tag !== null),
     replies: {
       id: `${actualStatus.id}/replies`,
       type: 'Collection',

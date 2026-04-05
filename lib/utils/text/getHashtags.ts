@@ -1,4 +1,4 @@
-export const HASHTAG_REGEX = /#([a-zA-Z0-9_]+)/g
+export const HASHTAG_REGEX = /(?:^|[\s>])#([a-zA-Z0-9_]+)/g
 
 interface ExtractedHashtag {
   name: string

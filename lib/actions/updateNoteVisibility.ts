@@ -40,7 +40,8 @@ export const updateNoteVisibilityFromUserInput = async ({
 
   const mentions = status.tags
     .filter((tag) => tag.type === 'mention')
-    .map((tag) => getMentionFromTag(tag) as Mention)
+    .map((tag) => getMentionFromTag(tag))
+    .filter((tag): tag is Mention => tag !== null)
 
   const replyStatus = status.reply
     ? await database.getStatus({ statusId: status.reply, withReplies: false })

@@ -47,4 +47,20 @@ describe('#getHashtags', () => {
       { name: '#last', value: 'https://test.llun.dev/tags/last' }
     ])
   })
+
+  it('does not match hash fragments in URLs', () => {
+    expect(
+      getHashtags('Check https://example.com/page#section here', host)
+    ).toEqual([])
+  })
+
+  it('does not match hex color codes', () => {
+    expect(getHashtags('color:#ff0000', host)).toEqual([])
+  })
+
+  it('extracts hashtag after newline', () => {
+    expect(getHashtags('line one\n#tag', host)).toEqual([
+      { name: '#tag', value: 'https://test.llun.dev/tags/tag' }
+    ])
+  })
 })

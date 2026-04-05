@@ -22,17 +22,19 @@ export const Tag = z.object({
 
 export type Tag = z.infer<typeof Tag>
 
-export const getMentionFromTag = (tag: Tag): ActivityPubTag => {
+export const getMentionFromTag = (tag: Tag): ActivityPubTag | null => {
   if (tag.type === 'hashtag') {
-    return HashTag.parse({
+    const result = HashTag.safeParse({
       type: 'Hashtag',
-      name: tag.name,
+      name: tag.name.startsWith('#') ? tag.name : `#${tag.name}`,
       href: tag.value
     })
+    return result.success ? result.data : null
   }
-  return Mention.parse({
+  const result = Mention.safeParse({
     type: 'Mention',
     name: tag.name,
     href: tag.value
   })
+  return result.success ? result.data : null
 }

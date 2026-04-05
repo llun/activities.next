@@ -20,7 +20,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const Params = z.object({
-  tag: z.string().min(1)
+  tag: z.string().regex(/^[a-zA-Z0-9_]+$/)
 })
 
 interface RouteParams {

@@ -891,7 +891,8 @@ export const StatusSQLDatabaseMixin = (
   }: GetStatusesByHashtagParams): Promise<Status[]> {
     const normalizedName = `#${hashtag.toLowerCase()}`
     let query = database('tags')
-      .select('tags.statusId')
+      .distinct('tags.statusId')
+      .select('statuses.createdAt')
       .innerJoin('statuses', 'tags.statusId', 'statuses.id')
       .where('tags.type', 'hashtag')
       .whereRaw('LOWER(tags.name) = ?', [normalizedName])
