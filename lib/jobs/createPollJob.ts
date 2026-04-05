@@ -97,15 +97,19 @@ export const createPollJob = createJobHandle(
           })
         }
         if (item.type === 'Hashtag') {
+          const hashtagName = (item.name || '').trim()
+          const hashtagHref = (item.href || '').trim()
+          if (!hashtagName || !hashtagHref) return
+
           await database.createTag({
             statusId: question.id,
-            name: item.name || '',
-            value: item.href,
+            name: hashtagName,
+            value: hashtagHref,
             type: 'hashtag'
           })
-          const tagName = (item.name || '').startsWith('#')
-            ? item.name.slice(1)
-            : item.name || ''
+          const tagName = hashtagName.startsWith('#')
+            ? hashtagName.slice(1)
+            : hashtagName
           await database.increaseHashtagCounter({ hashtag: tagName })
           return
         }

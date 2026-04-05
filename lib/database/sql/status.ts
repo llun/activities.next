@@ -51,6 +51,7 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -894,8 +895,10 @@ export const StatusSQLDatabaseMixin = (
       .distinct('tags.statusId')
       .select('statuses.createdAt')
       .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+      .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
       .where('tags.type', 'hashtag')
       .whereRaw('LOWER(tags.name) = ?', [normalizedName])
+      .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
       .orderBy('statuses.createdAt', 'desc')
       .limit(limit)
 
@@ -910,12 +913,9 @@ export const StatusSQLDatabaseMixin = (
     }
 
     const rows = await query
-    const statuses = await Promise.all(
-      rows.map((row: { statusId: string }) =>
-        getStatus({ statusId: row.statusId, withReplies: false })
-      )
-    )
-    return statuses.filter((s): s is Status => s !== null)
+    const statusIds = rows.map((row: { statusId: string }) => row.statusId)
+    if (statusIds.length === 0) return []
+    return getStatusesByIds({ statusIds })
   }
 
   async function getHashtagCounter({

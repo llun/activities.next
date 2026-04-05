@@ -18,7 +18,7 @@ export const MENTION_GLOBAL_REGEX = new RegExp(
   `(^|\\s+)?${MENTION_REGEX.source}($|\\s+)?`,
   'g'
 )
-export const HASHTAG_TOKENIZER_REGEX = /^#([a-zA-Z0-9_]+)(\s+|$)/
+export const HASHTAG_TOKENIZER_REGEX = /^#([a-zA-Z0-9_]+)/
 
 export const LINK_BODY_LIMIT = 30
 
@@ -33,7 +33,7 @@ const hashtag: TokenizerAndRendererExtension = {
     if (match) {
       return {
         type: 'hashtag',
-        raw: match[0].trimEnd(),
+        raw: match[0],
         tag: match[1]
       }
     }

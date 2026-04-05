@@ -40,12 +40,18 @@ export const GET = traceApiRoute(
     const { tag } = parseResult.data
     const url = new URL(req.url)
     const maxStatusIdParam = url.searchParams.get('max_id')
-    const limit = url.searchParams.get('limit')
+    const limitParam = url.searchParams.get('limit')
     const format = url.searchParams.get('format')
+
+    const parsedLimit = limitParam ? parseInt(limitParam, 10) : PER_PAGE_LIMIT
+    const effectiveLimit =
+      Number.isSafeInteger(parsedLimit) && parsedLimit >= 1
+        ? Math.min(parsedLimit, PER_PAGE_LIMIT)
+        : PER_PAGE_LIMIT
 
     const statuses = await database.getStatusesByHashtag({
       hashtag: tag,
-      limit: limit ? parseInt(limit, 10) : PER_PAGE_LIMIT,
+      limit: effectiveLimit,
       maxStatusId: maxStatusIdParam ? idToUrl(maxStatusIdParam) : undefined
     })
 
@@ -60,15 +66,12 @@ export const GET = traceApiRoute(
     }
 
     const host = headerHost(req.headers)
+    const encodedTag = encodeURIComponent(tag)
     const nextLink =
       statuses.length > 0
-        ? `<https://${host}/api/v1/tags/${tag}?limit=20&max_id=${urlToId(statuses[statuses.length - 1].id)}>; rel="next"`
+        ? `<https://${host}/api/v1/tags/${encodedTag}?limit=${effectiveLimit}&max_id=${urlToId(statuses[statuses.length - 1].id)}>; rel="next"`
         : null
-    const prevLink =
-      statuses.length > 0
-        ? `<https://${host}/api/v1/tags/${tag}?limit=20&min_id=${urlToId(statuses[0].id)}>; rel="prev"`
-        : null
-    const links = [nextLink, prevLink].filter(Boolean).join(', ')
+    const links = [nextLink].filter(Boolean).join(', ')
     const mastodonStatuses = await Promise.all(
       statuses.map((item) => getMastodonStatus(database, item))
     )

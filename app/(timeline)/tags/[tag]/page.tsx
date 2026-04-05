@@ -29,7 +29,7 @@ const Page = async ({ params }: PageProps) => {
   const { host } = getConfig()
   const database = getDatabase()
   if (!database) {
-    throw new Error('Fail to load database')
+    throw new Error('Failed to load database')
   }
 
   const session = await getServerAuthSession()

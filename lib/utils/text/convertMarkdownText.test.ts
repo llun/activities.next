@@ -75,4 +75,13 @@ describe('#convertMarkdownText', () => {
     expect(message).toContain('class="u-url mention"')
     expect(message).toContain('class="hashtag"')
   })
+
+  it('links hashtag followed by punctuation', () => {
+    expect(convertMarkdownText(TEST_DOMAIN)('#tag, and more')).toContain(
+      '<a href="/tags/tag" class="hashtag" rel="tag">#<span>tag</span></a>, and more'
+    )
+    expect(convertMarkdownText(TEST_DOMAIN)('#tag.')).toContain(
+      '<a href="/tags/tag" class="hashtag" rel="tag">#<span>tag</span></a>.'
+    )
+  })
 })
