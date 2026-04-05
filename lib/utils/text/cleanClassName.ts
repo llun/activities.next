@@ -13,6 +13,26 @@ interface replacingNode {
   }
 }
 
+const TAG_REGEX = /^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/
+
+export const extractTagFromHref = (
+  href: string | undefined
+): string | undefined => {
+  if (!href) return undefined
+  try {
+    const pathname = href.startsWith('http') ? new URL(href).pathname : href
+    const match = pathname.match(/\/tags\/([^/?#]+)/)
+    if (!match) return undefined
+    const tag = decodeURIComponent(match[1]).toLowerCase()
+    return TAG_REGEX.test(tag) ? tag : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const hasToken = (value: string | undefined, token: string): boolean =>
+  value?.split(/\s+/).includes(token) ?? false
+
 export const cleanClassName = (text: string) => {
   const options: HTMLReactParserOptions = {
     replace: (node: DOMNode) => {
@@ -27,7 +47,25 @@ export const cleanClassName = (text: string) => {
       }
       if (replacingNode.attribs && replacingNode.name === 'a') {
         const anchorElement = node as Element
-        replacingNode.attribs.target = '_blank'
+        const isHashtag =
+          hasToken(replacingNode.attribs.class, 'hashtag') &&
+          hasToken(replacingNode.attribs.rel, 'tag')
+        const tagName = isHashtag
+          ? extractTagFromHref(replacingNode.attribs.href)
+          : undefined
+
+        if (tagName) {
+          replacingNode.attribs.href = `/tags/${tagName}`
+        } else {
+          replacingNode.attribs.target = '_blank'
+          const relTokens = new Set(
+            (replacingNode.attribs.rel ?? '').split(/\s+/).filter(Boolean)
+          )
+          relTokens.add('noopener')
+          relTokens.add('noreferrer')
+          replacingNode.attribs.rel = [...relTokens].join(' ')
+        }
+
         // Return a React element with onClick handler to stop propagation
         // Pass options to domToReact to preserve child transformations
         const { class: className, ...restAttribs } = replacingNode.attribs
