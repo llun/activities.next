@@ -3,7 +3,13 @@ import { NextRequest } from 'next/server'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_400,
+  ERROR_404,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -16,7 +22,7 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Internal Server Error' },
+      data: ERROR_500,
       responseStatusCode: 500
     })
 
@@ -27,7 +33,7 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Bad Request' },
+      data: ERROR_400,
       responseStatusCode: 400
     })
 
@@ -40,7 +46,7 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Bad Request' },
+      data: ERROR_400,
       responseStatusCode: 400
     })
 
@@ -50,7 +56,7 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Not Found' },
+      data: ERROR_404,
       responseStatusCode: 404
     })
 
@@ -59,7 +65,7 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Not Found' },
+      data: ERROR_404,
       responseStatusCode: 404
     })
 

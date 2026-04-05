@@ -10,7 +10,13 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { toActivityPubObject } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { DEFAULT_202, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  DEFAULT_202,
+  ERROR_400,
+  ERROR_404,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { DeleteStatusRequest, PostRequest } from './types'
@@ -52,7 +58,7 @@ export const POST = traceApiRoute(
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,
-              data: { error: 'Not Found' },
+              data: ERROR_404,
               responseStatusCode: 404
             })
           return apiResponse({
@@ -95,7 +101,7 @@ export const POST = traceApiRoute(
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
-            data: { error: 'Not Found' },
+            data: ERROR_404,
             responseStatusCode: 404
           })
         }
@@ -106,7 +112,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Bad Request' },
+        data: ERROR_400,
         responseStatusCode: 400
       })
     }
@@ -134,7 +140,7 @@ export const DELETE = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Bad Request' },
+        data: ERROR_400,
         responseStatusCode: 400
       })
     }

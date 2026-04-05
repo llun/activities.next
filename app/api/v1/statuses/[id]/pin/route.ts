@@ -2,7 +2,13 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_403,
+  ERROR_404,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -23,7 +29,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Not Found' },
+        data: ERROR_404,
         responseStatusCode: 404
       })
 
@@ -33,7 +39,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Not Found' },
+        data: ERROR_404,
         responseStatusCode: 404
       })
 
@@ -42,7 +48,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Forbidden' },
+        data: ERROR_403,
         responseStatusCode: 403
       })
     }
@@ -59,7 +65,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Internal Server Error' },
+        data: ERROR_500,
         responseStatusCode: 500
       })
 

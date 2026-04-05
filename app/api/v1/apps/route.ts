@@ -3,7 +3,12 @@ import { NextRequest } from 'next/server'
 import { getDatabase } from '@/lib/database'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_422,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { createApplication } from './createApplication'
@@ -19,7 +24,7 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Internal Server Error' },
+      data: ERROR_500,
       responseStatusCode: 500
     })
   }
@@ -30,7 +35,7 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Unprocessable entity' },
+      data: ERROR_422,
       responseStatusCode: 422
     })
   }
@@ -41,7 +46,7 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Unprocessable entity' },
+      data: ERROR_422,
       responseStatusCode: 422
     })
   }

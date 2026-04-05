@@ -8,7 +8,7 @@ import { sendMail } from '@/lib/services/email'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { generateKeyPair } from '@/lib/utils/signature'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -29,7 +29,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Internal Server Error' },
+        data: ERROR_500,
         responseStatusCode: 500
       })
     }

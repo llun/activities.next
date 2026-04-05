@@ -11,7 +11,13 @@ import { UndoLike } from '@/lib/activities/undoLike'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { Accept, Follow, Like, Reject, Undo } from '@/lib/types/activitypub'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { DEFAULT_202, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  DEFAULT_202,
+  ERROR_400,
+  ERROR_404,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -31,7 +37,7 @@ export const POST = traceApiRoute(
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,
-              data: { error: 'Not Found' },
+              data: ERROR_404,
               responseStatusCode: 404
             })
           return apiResponse({
@@ -47,7 +53,7 @@ export const POST = traceApiRoute(
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,
-              data: { error: 'Not Found' },
+              data: ERROR_404,
               responseStatusCode: 404
             })
           return apiResponse({
@@ -66,7 +72,7 @@ export const POST = traceApiRoute(
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,
-              data: { error: 'Not Found' },
+              data: ERROR_404,
               responseStatusCode: 404
             })
           return apiResponse({
@@ -93,11 +99,11 @@ export const POST = traceApiRoute(
                 database,
                 request: undoRequest as UndoFollow
               })
-              if (result)
+              if (!result)
                 return apiResponse({
                   req,
                   allowedMethods: CORS_HEADERS,
-                  data: { error: 'Not Found' },
+                  data: ERROR_404,
                   responseStatusCode: 404
                 })
               return apiResponse({
@@ -144,7 +150,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Bad Request' },
+        data: ERROR_400,
         responseStatusCode: 400
       })
     }

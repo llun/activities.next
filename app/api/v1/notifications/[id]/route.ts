@@ -2,7 +2,12 @@ import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_404,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
@@ -26,7 +31,7 @@ export const GET = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Internal Server Error' },
+          data: ERROR_500,
           responseStatusCode: 500
         })
       }
@@ -43,7 +48,7 @@ export const GET = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Not Found' },
+          data: ERROR_404,
           responseStatusCode: 404
         })
       }
@@ -58,7 +63,7 @@ export const GET = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Not Found' },
+          data: ERROR_404,
           responseStatusCode: 404
         })
       }
@@ -81,7 +86,7 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Internal Server Error' },
+          data: ERROR_500,
           responseStatusCode: 500
         })
       }
@@ -99,7 +104,7 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Not Found' },
+          data: ERROR_404,
           responseStatusCode: 404
         })
       }

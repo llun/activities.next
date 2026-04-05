@@ -8,7 +8,7 @@ import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { sendMail } from '@/lib/services/email'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PasswordResetRequest = z.object({ email: z.string().email() })
@@ -27,7 +27,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Internal Server Error' },
+        data: ERROR_500,
         responseStatusCode: 500
       })
     }

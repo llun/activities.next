@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const ResetPasswordRequest = z.object({
@@ -25,7 +25,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Internal Server Error' },
+        data: ERROR_500,
         responseStatusCode: 500
       })
     }

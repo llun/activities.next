@@ -2,7 +2,12 @@ import { sendPollVotes } from '@/lib/activities'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_404,
+  ERROR_422,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { VotePollRequest } from './types'
@@ -23,7 +28,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Not Found' },
+        data: ERROR_404,
         responseStatusCode: 404
       })
     }
@@ -32,7 +37,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Unprocessable entity' },
+        data: ERROR_422,
         responseStatusCode: 422
       })
     }
@@ -46,7 +51,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Unprocessable entity' },
+        data: ERROR_422,
         responseStatusCode: 422
       })
     }
@@ -55,7 +60,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Unprocessable entity' },
+        data: ERROR_422,
         responseStatusCode: 422
       })
     }

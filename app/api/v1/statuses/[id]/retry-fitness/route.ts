@@ -5,7 +5,14 @@ import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_403,
+  ERROR_404,
+  ERROR_422,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -26,7 +33,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Not Found' },
+        data: ERROR_404,
         responseStatusCode: 404
       })
 
@@ -36,7 +43,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Not Found' },
+        data: ERROR_404,
         responseStatusCode: 404
       })
 
@@ -44,7 +51,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Forbidden' },
+        data: ERROR_403,
         responseStatusCode: 403
       })
     }
@@ -58,7 +65,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Unprocessable entity' },
+        data: ERROR_422,
         responseStatusCode: 422
       })
     }
@@ -114,7 +121,7 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Internal Server Error' },
+          data: ERROR_500,
           responseStatusCode: 500
         })
       }

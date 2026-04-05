@@ -17,7 +17,17 @@ import { StravaArchiveImport } from '@/lib/types/database/stravaArchiveImport'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { HTTP_STATUS, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_400,
+  ERROR_403,
+  ERROR_404,
+  ERROR_413,
+  ERROR_422,
+  ERROR_500,
+  HTTP_STATUS,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
@@ -202,7 +212,7 @@ export const POST = traceApiRoute(
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
-            data: { error: 'Bad Request' },
+            data: ERROR_400,
             responseStatusCode: 400
           })
         }
@@ -216,7 +226,7 @@ export const POST = traceApiRoute(
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
-            data: { error: 'Forbidden' },
+            data: ERROR_403,
             responseStatusCode: 403
           })
         }
@@ -229,7 +239,7 @@ export const POST = traceApiRoute(
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
-            data: { error: 'Unprocessable entity' },
+            data: ERROR_422,
             responseStatusCode: 422
           })
         }
@@ -284,7 +294,7 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Bad Request' },
+          data: ERROR_400,
           responseStatusCode: 400
         })
       }
@@ -293,7 +303,7 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Bad Request' },
+          data: ERROR_400,
           responseStatusCode: 400
         })
       }
@@ -302,7 +312,7 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Bad Request' },
+          data: ERROR_400,
           responseStatusCode: 400
         })
       }
@@ -313,7 +323,7 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Forbidden' },
+          data: ERROR_403,
           responseStatusCode: 403
         })
       }
@@ -429,7 +439,7 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Payload Too Large' },
+          data: ERROR_413,
           responseStatusCode: 413
         })
       }
@@ -437,7 +447,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Internal Server Error' },
+        data: ERROR_500,
         responseStatusCode: 500
       })
     }
@@ -457,7 +467,7 @@ export const PATCH = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Bad Request' },
+        data: ERROR_400,
         responseStatusCode: 400
       })
     }
@@ -469,7 +479,7 @@ export const PATCH = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Not Found' },
+        data: ERROR_404,
         responseStatusCode: 404
       })
     }
@@ -568,7 +578,7 @@ export const PATCH = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Internal Server Error' },
+          data: ERROR_500,
           responseStatusCode: 500
         })
       }
@@ -609,7 +619,7 @@ export const PATCH = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Internal Server Error' },
+          data: ERROR_500,
           responseStatusCode: 500
         })
       }

@@ -10,6 +10,7 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import {
   DEFAULT_202,
+  ERROR_404,
   HTTP_STATUS,
   apiResponse,
   defaultOptions
@@ -37,7 +38,7 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Not Found' },
+        data: ERROR_404,
         responseStatusCode: 404
       })
 
@@ -60,7 +61,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Not Found' },
+        data: ERROR_404,
         responseStatusCode: 404
       })
     const followItem = await database.createFollow({
@@ -94,7 +95,7 @@ export const DELETE = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Not Found' },
+        data: ERROR_404,
         responseStatusCode: 404
       })
     await Promise.all([

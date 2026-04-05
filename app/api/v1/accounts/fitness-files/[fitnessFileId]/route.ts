@@ -2,7 +2,14 @@ import { deleteFitnessFile as deleteFitnessFileFromStorage } from '@/lib/service
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
 import { logger } from '@/lib/utils/logger'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_400,
+  ERROR_401,
+  ERROR_404,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 interface Params {
@@ -27,7 +34,7 @@ export const DELETE = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Unauthorized' },
+        data: ERROR_401,
         responseStatusCode: 401
       })
     }
@@ -37,7 +44,7 @@ export const DELETE = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Bad Request' },
+        data: ERROR_400,
         responseStatusCode: 400
       })
     }
@@ -53,7 +60,7 @@ export const DELETE = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Not Found' },
+          data: ERROR_404,
           responseStatusCode: 404
         })
       }
@@ -70,7 +77,7 @@ export const DELETE = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Not Found' },
+          data: ERROR_404,
           responseStatusCode: 404
         })
       }
@@ -89,7 +96,7 @@ export const DELETE = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Internal Server Error' },
+          data: ERROR_500,
           responseStatusCode: 500
         })
       }
@@ -116,7 +123,7 @@ export const DELETE = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Internal Server Error' },
+        data: ERROR_500,
         responseStatusCode: 500
       })
     }

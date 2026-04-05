@@ -2,7 +2,13 @@ import { StatusActivity } from '@/lib/activities/statusAction'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { DEFAULT_202, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  DEFAULT_202,
+  ERROR_400,
+  ERROR_404,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { getJobMessage } from './getJobMessage'
@@ -26,7 +32,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Bad Request' },
+        data: ERROR_400,
         responseStatusCode: 400
       })
     }
@@ -36,7 +42,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Not Found' },
+        data: ERROR_404,
         responseStatusCode: 404
       })
     }

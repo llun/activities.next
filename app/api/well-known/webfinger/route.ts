@@ -3,7 +3,12 @@ import { type NextRequest } from 'next/server'
 import { getDatabase } from '@/lib/database'
 import { getWebFingerResponse } from '@/lib/services/wellknown'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_404,
+  ERROR_500,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 export const dynamic = 'force-dynamic'
@@ -19,7 +24,7 @@ export const GET = traceApiRoute('webfinger', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Not Found' },
+      data: ERROR_404,
       responseStatusCode: 404
     })
 
@@ -28,7 +33,7 @@ export const GET = traceApiRoute('webfinger', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Internal Server Error' },
+      data: ERROR_500,
       responseStatusCode: 500
     })
 
@@ -42,7 +47,7 @@ export const GET = traceApiRoute('webfinger', async (req: NextRequest) => {
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Not Found' },
+      data: ERROR_404,
       responseStatusCode: 404
     })
 
