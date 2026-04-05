@@ -3,6 +3,13 @@
 import Link from 'next/link'
 import { FC, useCallback, useEffect, useState } from 'react'
 
+import {
+  getVapidKey,
+  subscribePushNotifications,
+  unsubscribePushNotifications,
+  updateEmailNotifications,
+  updatePushNotifications
+} from '@/lib/client'
 import { ActorSelector } from '@/lib/components/settings/ActorSelector'
 import { Label } from '@/lib/components/ui/label'
 import { Switch } from '@/lib/components/ui/switch'
@@ -89,14 +96,13 @@ export const NotificationSettings: FC<Props> = ({
       return
     }
 
-    fetch('/api/v1/push/vapid-key')
-      .then(async (res) => {
-        if (!res.ok) {
+    getVapidKey()
+      .then(async (vapidKey) => {
+        if (!vapidKey) {
           setPushState('not_configured')
           return
         }
-        const data = await res.json()
-        setVapidPublicKey(data.vapidPublicKey)
+        setVapidPublicKey(vapidKey)
 
         if (Notification.permission === 'denied') {
           setPushState('permission_denied')
@@ -125,16 +131,8 @@ export const NotificationSettings: FC<Props> = ({
       setEmailSaving(true)
       setEmailStatusMessage(null)
       try {
-        const res = await fetch('/api/v1/accounts/email-notifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ actorId, ...settings })
-        })
-        if (res.ok) {
-          setEmailStatusMessage('Saved')
-        } else {
-          setEmailStatusMessage('Failed to save')
-        }
+        const ok = await updateEmailNotifications(actorId, settings)
+        setEmailStatusMessage(ok ? 'Saved' : 'Failed to save')
       } catch {
         setEmailStatusMessage('Failed to save')
       } finally {
@@ -190,16 +188,12 @@ export const NotificationSettings: FC<Props> = ({
       })
 
       const subJson = sub.toJSON()
-      const res = await fetch('/api/v1/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          endpoint: subJson.endpoint,
-          keys: subJson.keys
-        })
-      })
+      const ok = await subscribePushNotifications(
+        subJson.endpoint!,
+        subJson.keys as { p256dh: string; auth: string }
+      )
 
-      if (!res.ok) {
+      if (!ok) {
         await sub.unsubscribe()
         setPushState('error')
         return
@@ -216,13 +210,9 @@ export const NotificationSettings: FC<Props> = ({
     if (!subscription) return
 
     try {
-      const res = await fetch('/api/v1/push/subscribe', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: subscription.endpoint })
-      })
+      const ok = await unsubscribePushNotifications(subscription.endpoint)
 
-      if (!res.ok) {
+      if (!ok) {
         setPushState('error')
         return
       }
@@ -243,16 +233,8 @@ export const NotificationSettings: FC<Props> = ({
       setPushStatusMessage(null)
 
       try {
-        const res = await fetch('/api/v1/accounts/push-notifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ actorId, ...updated })
-        })
-        if (res.ok) {
-          setPushStatusMessage('Saved')
-        } else {
-          setPushStatusMessage('Failed to save')
-        }
+        const ok = await updatePushNotifications(actorId, updated)
+        setPushStatusMessage(ok ? 'Saved' : 'Failed to save')
       } catch {
         setPushStatusMessage('Failed to save')
       } finally {

@@ -100,6 +100,13 @@
   }
   ```
 
+## Client-Side API Calls
+
+- **Never call `fetch()` directly inside React components.** All API calls from client components must go through `lib/client.ts`.
+- Add a named, exported function to `lib/client.ts` for every new API endpoint the UI needs to call. The function should encapsulate the `fetch` call, method, headers, body serialization, and return a typed result.
+- Import those functions in components: `import { myApiCall } from '@/lib/client'`.
+- This keeps all network logic in one place, makes it easy to find every client→server call, and lets components stay focused on UI state.
+
 ## Settings Forms (Client Components)
 
 - Settings forms that update user data (name, email, password, etc.) **must be client components** using `fetch()` with JSON bodies — not plain HTML `<form method="post">` with server-side redirects.
