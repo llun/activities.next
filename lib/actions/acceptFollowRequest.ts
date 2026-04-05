@@ -1,13 +1,11 @@
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
-import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/follow'
-import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
+import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { NotificationType } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
@@ -22,7 +20,6 @@ export const acceptFollowRequest = async ({
 }: AcceptFollowRequestParams) => {
   const followRequestId = new URL(activity.object.id)
   const followId = followRequestId.pathname.slice(1)
-  const config = getConfig()
   const follow = await database.getFollowFromId({ followId })
   if (!follow) return null
   await database.updateFollowStatus({
@@ -30,32 +27,29 @@ export const acceptFollowRequest = async ({
     status: FollowStatus.enum.Accepted
   })
 
-  if (config.email) {
-    const [actor, targetActor] = await Promise.all([
-      database.getActorFromId({ id: follow.actorId }),
-      database.getActorFromId({ id: follow.targetActorId })
-    ])
+  const [actor, targetActor] = await Promise.all([
+    database.getActorFromId({ id: follow.actorId }),
+    database.getActorFromId({ id: follow.targetActorId })
+  ])
 
-    if (targetActor?.account && actor) {
-      // Check if email notifications are enabled for this notification type
-      const shouldSendEmail = await shouldSendEmailForNotification(
-        database,
-        targetActor.id,
-        NotificationType.enum.follow
-      )
-
-      if (shouldSendEmail) {
-        await sendMail({
-          from: config.email.serviceFromAddress,
-          to: [targetActor.account.email],
-          subject: getSubject(actor),
-          content: {
+  if (actor && targetActor?.account) {
+    sendNotificationAlerts({
+      database,
+      actorId: targetActor.id,
+      sourceActorId: actor.id,
+      sourceActor: actor,
+      events: [
+        {
+          type: NotificationType.enum.follow,
+          emailContent: {
+            recipientEmail: targetActor.account.email,
+            subject: getSubject(actor),
             text: getTextContent(actor),
             html: getHTMLContent(actor)
           }
-        })
-      }
-    }
+        }
+      ]
+    })
   }
 
   return follow
