@@ -145,6 +145,20 @@ The version-bump workflow reads commit prefixes to determine the next semver ver
 | `minor:`             | Minor (`x.Y.0`) | New backwards-compatible features users can opt into (e.g. new endpoint, new UI page, new optional config)                                       |
 | _(any other prefix)_ | Patch (`x.y.Z`) | Bug fixes, refactors, chores, docs, tests — anything that doesn't change the public-facing contract                                              |
 
+#### Squash-merge and PR titles
+
+PRs are **squash-merged**, so the **PR title becomes the commit subject** on `main`. The workflow checks the commit subject first, then falls back to scanning the commit body (which contains the individual commit messages).
+
+**To ensure a `minor` or `major` version bump, the PR title MUST start with `minor:` or `major:`.** For example:
+
+```text
+minor: add hashtag timeline support        ← PR title → minor bump
+major: remove legacy v1 API endpoints      ← PR title → major bump
+feat: fix button alignment                 ← PR title → patch bump (default)
+```
+
+If the PR title uses a generic prefix (e.g. `feat:`) but an individual commit inside the PR uses `minor:`, the workflow will also detect it from the squash-merge body. However, **setting the PR title is the most reliable approach** since it is always the commit subject.
+
 Commits that change only files under `.github/` are also treated as no-bump by default, unless the commit message explicitly uses `major:` or `minor:`.
 When the repository has no version tag yet, the workflow still bootstraps `v1.0.0` regardless of commit history.
 
