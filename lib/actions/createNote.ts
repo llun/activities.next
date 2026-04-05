@@ -323,7 +323,8 @@ export const createNoteFromUserInput = async ({
     }
   }
 
-  await Promise.allSettled(
+  // Fire-and-forget: don't await so push delivery doesn't block the response
+  Promise.allSettled(
     pushTargets.map(({ actorId: targetActorId, type }) =>
       sendPushNotification({
         database,

@@ -82,23 +82,21 @@ export const likeRequest = async ({
       }
     }
 
-    // Send push notification (best-effort)
-    try {
-      const sourceActor = await database.getActorFromId({ id: request.actor })
-      if (sourceActor) {
-        await sendPushNotification({
-          database,
-          actorId: status.actorId,
-          type: NotificationType.enum.like,
-          sourceActor,
-          statusId: status.id
+    // Send push notification (best-effort, fire-and-forget)
+    database.getActorFromId({ id: request.actor }).then((sourceActor) => {
+      if (!sourceActor) return
+      sendPushNotification({
+        database,
+        actorId: status.actorId,
+        type: NotificationType.enum.like,
+        sourceActor,
+        statusId: status.id
+      }).catch((error) =>
+        logger.error({
+          message: 'Failed to send like push notification',
+          err: error
         })
-      }
-    } catch (error) {
-      logger.error({
-        message: 'Failed to send like push notification',
-        err: error
-      })
-    }
+      )
+    })
   }
 }

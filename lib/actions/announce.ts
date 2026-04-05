@@ -111,21 +111,19 @@ export const userAnnounce = async ({
         }
       }
 
-      // Send push notification (best-effort)
-      try {
-        await sendPushNotification({
-          database,
-          actorId: originalStatus.actorId,
-          type: NotificationType.enum.reblog,
-          sourceActor: currentActor,
-          statusId: originalStatus.id
-        })
-      } catch (error) {
+      // Send push notification (best-effort, fire-and-forget)
+      sendPushNotification({
+        database,
+        actorId: originalStatus.actorId,
+        type: NotificationType.enum.reblog,
+        sourceActor: currentActor,
+        statusId: originalStatus.id
+      }).catch((error) =>
         logger.error({
           message: 'Failed to send reblog push notification',
           err: error
         })
-      }
+      )
     }
 
     await getQueue().publish({

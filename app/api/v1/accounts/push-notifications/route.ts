@@ -18,7 +18,13 @@ const PushNotificationSettingsRequest = z.object({
 export const POST = traceApiRoute(
   'updatePushNotifications',
   AuthenticatedGuard(async (req, { currentActor, database }) => {
-    const body = await req.json()
+    let body
+    try {
+      body = await req.json()
+    } catch {
+      return apiErrorResponse(400)
+    }
+
     const parsed = PushNotificationSettingsRequest.safeParse(body)
     if (!parsed.success) {
       return apiErrorResponse(400)
@@ -40,24 +46,20 @@ export const POST = traceApiRoute(
       }
     }
 
-    const { actorId: _actorId, ...pushNotifications } = parsed.data
+    const { actorId: _actorId, ...updates } = parsed.data
 
-    // Filter out undefined values
-    const filteredNotifications = Object.fromEntries(
-      Object.entries(pushNotifications).filter(([, v]) => v !== undefined)
-    ) as {
-      follow_request?: boolean
-      follow?: boolean
-      like?: boolean
-      mention?: boolean
-      reply?: boolean
-      reblog?: boolean
-      activity_import?: boolean
-    }
+    const filteredUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([, v]) => v !== undefined)
+    )
+
+    const settings = await database.getActorSettings({ actorId: targetActorId })
 
     await database.updateActor({
       actorId: targetActorId,
-      pushNotifications: filteredNotifications
+      pushNotifications: {
+        ...settings?.pushNotifications,
+        ...filteredUpdates
+      }
     })
 
     return apiResponse({

@@ -19,7 +19,13 @@ const UnsubscribeRequest = z.object({
 export const POST = traceApiRoute(
   'pushSubscribe',
   AuthenticatedGuard(async (req, { currentActor, database }) => {
-    const body = await req.json()
+    let body
+    try {
+      body = await req.json()
+    } catch {
+      return apiErrorResponse(400)
+    }
+
     const parsed = SubscribeRequest.safeParse(body)
     if (!parsed.success) {
       return apiErrorResponse(400)
@@ -43,7 +49,13 @@ export const POST = traceApiRoute(
 export const DELETE = traceApiRoute(
   'pushUnsubscribe',
   AuthenticatedGuard(async (req, { currentActor, database }) => {
-    const body = await req.json()
+    let body
+    try {
+      body = await req.json()
+    } catch {
+      return apiErrorResponse(400)
+    }
+
     const parsed = UnsubscribeRequest.safeParse(body)
     if (!parsed.success) {
       return apiErrorResponse(400)

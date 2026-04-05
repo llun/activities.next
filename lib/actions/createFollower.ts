@@ -52,20 +52,18 @@ export const createFollower = async ({
       followId: follow.id
     })
 
-    // Send push notification (best-effort)
-    try {
-      await sendPushNotification({
-        database,
-        actorId: targetActor.id,
-        type: NotificationType.enum.follow_request,
-        sourceActor: followerActor
-      })
-    } catch (error) {
+    // Send push notification (best-effort, fire-and-forget)
+    sendPushNotification({
+      database,
+      actorId: targetActor.id,
+      type: NotificationType.enum.follow_request,
+      sourceActor: followerActor
+    }).catch((error) =>
       logger.error({
         message: 'Failed to send follow_request push notification',
         err: error
       })
-    }
+    )
   } else {
     // Auto-accept: create follow with Accepted status and send Accept activity
     const follow = await database.createFollow({
@@ -87,20 +85,18 @@ export const createFollower = async ({
       })
     ])
 
-    // Send push notification (best-effort)
-    try {
-      await sendPushNotification({
-        database,
-        actorId: targetActor.id,
-        type: NotificationType.enum.follow,
-        sourceActor: followerActor
-      })
-    } catch (error) {
+    // Send push notification (best-effort, fire-and-forget)
+    sendPushNotification({
+      database,
+      actorId: targetActor.id,
+      type: NotificationType.enum.follow,
+      sourceActor: followerActor
+    }).catch((error) =>
       logger.error({
         message: 'Failed to send follow push notification',
         err: error
       })
-    }
+    )
   }
 
   return followRequest
