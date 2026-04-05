@@ -88,18 +88,21 @@ export const sendPushNotification = async (params: {
   type: NotificationType
   sourceActor: Actor
   statusId?: string
+  skipSettingsCheck?: boolean
 }): Promise<void> => {
-  const { database, actorId, type, sourceActor } = params
+  const { database, actorId, type, sourceActor, skipSettingsCheck } = params
 
   const config = getConfig()
   if (!config.push) return
 
-  const shouldSend = await shouldSendPushForNotification(
-    database,
-    actorId,
-    type
-  )
-  if (!shouldSend) return
+  if (!skipSettingsCheck) {
+    const shouldSend = await shouldSendPushForNotification(
+      database,
+      actorId,
+      type
+    )
+    if (!shouldSend) return
+  }
 
   const subscriptions = await database.getPushSubscriptionsForActor({ actorId })
   if (subscriptions.length === 0) return

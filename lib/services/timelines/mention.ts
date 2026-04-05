@@ -1,13 +1,15 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
 import { getConfig } from '@/lib/config'
-import { sendMail } from '@/lib/services/email'
 import {
   getHTMLContent,
   getSubject,
   getTextContent
 } from '@/lib/services/email/templates/mention'
-import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
+import {
+  NotificationEvent,
+  sendNotificationAlerts
+} from '@/lib/services/notifications/sendNotificationAlerts'
 import { NotificationType } from '@/lib/types/database/operations'
 import { getActorURL } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
@@ -41,6 +43,39 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         return Timeline.MENTION
       }
 
+      let addToTimeline = false
+      const alertEvents: NotificationEvent[] = []
+
+      // --- Reply detection ---
+      if (status.reply && !status.isLocalActor) {
+        try {
+          const repliedStatus = await database.getStatus({
+            statusId: status.reply,
+            withReplies: false
+          })
+          if (repliedStatus && repliedStatus.actorId === currentActor.id) {
+            addToTimeline = true
+            await database.createNotification({
+              actorId: currentActor.id,
+              type: NotificationType.enum.reply,
+              sourceActorId: status.actorId,
+              statusId: status.id,
+              groupKey: `reply:${repliedStatus.id}`
+            })
+            alertEvents.push({ type: NotificationType.enum.reply })
+          }
+        } catch (error) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: 'Failed to handle reply notification'
+          })
+          span.recordException(
+            error instanceof Error ? error : new Error(String(error))
+          )
+        }
+      }
+
+      // --- Mention detection ---
       const mentionTags = await database.getTags({ statusId: status.id })
       const isMentioned = mentionTags.some(
         (tag) =>
@@ -50,6 +85,7 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
       )
 
       if (isMentioned) {
+        addToTimeline = true
         const account = currentActor.account
 
         if (!status.isLocalActor) {
@@ -72,44 +108,34 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
               error instanceof Error ? error : new Error(String(error))
             )
           }
-        }
 
-        if (config.email && account && status.actor) {
-          // Error is recorded but not re-thrown: email delivery failure is
-          // best-effort and should not affect the notification DB write above.
-          try {
-            const shouldSendEmail = await shouldSendEmailForNotification(
-              database,
-              currentActor.id,
-              NotificationType.enum.mention
-            )
-            if (shouldSendEmail) {
-              await sendMail({
-                from: config.email.serviceFromAddress,
-                to: [account.email],
-                subject: getSubject(status.actor),
-                content: {
-                  text: getTextContent(status),
-                  html: getHTMLContent(status)
-                }
-              })
-            }
-          } catch (error) {
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: 'Failed to send mention notification email'
-            })
-            span.recordException(
-              error instanceof Error ? error : new Error(String(error))
-            )
+          const mentionEvent: NotificationEvent = {
+            type: NotificationType.enum.mention
           }
+          if (config.email && account && status.actor) {
+            mentionEvent.emailContent = {
+              recipientEmail: account.email,
+              subject: getSubject(status.actor),
+              text: getTextContent(status),
+              html: getHTMLContent(status)
+            }
+          }
+          alertEvents.push(mentionEvent)
         }
+      }
 
-        span.end()
-        return Timeline.MENTION
+      // --- Dispatch all notification channels (push, email, …) ---
+      if (alertEvents.length > 0) {
+        sendNotificationAlerts({
+          database,
+          actorId: currentActor.id,
+          sourceActorId: status.actorId,
+          statusId: status.id,
+          events: alertEvents
+        })
       }
 
       span.end()
-      return null
+      return addToTimeline ? Timeline.MENTION : null
     }
   )
