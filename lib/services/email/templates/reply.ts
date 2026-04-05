@@ -8,10 +8,13 @@ export const getSubject = (actor: ActorProfile) =>
   `@${actor.username} replied to your post in ${getConfig().host}`
 
 const getLocalStatusUrl = (status: EditableStatus): string => {
+  const config = getConfig()
+  if (status.url.startsWith(`https://${config.host}`)) {
+    return status.url
+  }
   if (!status.actor) {
     return status.url
   }
-  const config = getConfig()
   const actorMention = getMention(status.actor, true)
   const encodedStatusId = encodeURIComponent(status.id)
   return `https://${config.host}/${actorMention}/${encodedStatusId}`
