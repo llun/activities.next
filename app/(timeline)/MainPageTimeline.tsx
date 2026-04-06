@@ -1,5 +1,6 @@
 'use client'
 
+import { RefreshCw } from 'lucide-react'
 import { FC, useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
@@ -140,6 +141,27 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     }
   }, [loadMoreStatuses])
 
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+
+  const refreshTimeline = useCallback(async () => {
+    if (isRefreshing) return
+
+    setIsRefreshing(true)
+    setCurrentStatuses([])
+    setHasMoreStatuses(true)
+    lastStatusIdRef.current = null
+
+    try {
+      const statuses = await getTimeline({ timeline: currentTab.timeline })
+      setCurrentStatuses(statuses)
+      setHasMoreStatuses(statuses.length > 0)
+      lastStatusIdRef.current =
+        statuses.length > 0 ? statuses[statuses.length - 1].id : null
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [currentTab.timeline, isRefreshing])
+
   const onTabChange = async (value: string) => {
     const tab = TIMELINES_TABS.find((t) => t.timeline === value)
     if (!tab) return
@@ -174,11 +196,22 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
-      <div>
-        <h1 className="text-2xl font-semibold">Timeline</h1>
-        <p className="text-sm text-muted-foreground">
-          Latest posts from your network.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Timeline</h1>
+          <p className="text-sm text-muted-foreground">
+            Latest posts from your network.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={refreshTimeline}
+          disabled={isRefreshing}
+          aria-label="Refresh timeline"
+        >
+          <RefreshCw className={isRefreshing ? 'animate-spin' : ''} />
+        </Button>
       </div>
 
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
