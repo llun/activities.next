@@ -5,7 +5,14 @@ import { downsamplePrivacySegments } from '@/lib/services/fitness-files/privacy'
 import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
 import { logger } from '@/lib/utils/logger'
 
-import { FitnessCoordinate } from './parseFitnessFile'
+import type { FitnessCoordinate } from './mapUtils'
+import {
+  TILE_SIZE,
+  calculateBounds,
+  fetchOsmTile,
+  getZoomLevel,
+  project
+} from './mapUtils'
 
 export interface GenerateMapImageParams {
   coordinates: FitnessCoordinate[]
@@ -16,32 +23,6 @@ export interface GenerateMapImageParams {
 
 const DEFAULT_WIDTH = 800
 const DEFAULT_HEIGHT = 600
-const TILE_SIZE = 256
-const MIN_LATITUDE = -85.05112878
-const MAX_LATITUDE = 85.05112878
-
-const clampLatitude = (latitude: number) =>
-  Math.min(MAX_LATITUDE, Math.max(MIN_LATITUDE, latitude))
-
-const normalizeLongitude = (longitude: number) => {
-  if (longitude > 180) return longitude - 360
-  if (longitude < -180) return longitude + 360
-  return longitude
-}
-
-const project = (coordinate: FitnessCoordinate, zoom: number) => {
-  const scale = 2 ** zoom * TILE_SIZE
-  const lng = normalizeLongitude(coordinate.lng)
-  const lat = clampLatitude(coordinate.lat)
-
-  const x = ((lng + 180) / 360) * scale
-  const latRad = (lat * Math.PI) / 180
-  const y =
-    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) *
-    scale
-
-  return { x, y }
-}
 
 const flattenRouteSegments = (routeSegments: FitnessCoordinate[][]) => {
   return routeSegments.flat()
@@ -66,27 +47,6 @@ const normalizeRouteSegments = ({
   }
 
   return []
-}
-
-const calculateBounds = (coordinates: FitnessCoordinate[]) => {
-  let minLat = Number.POSITIVE_INFINITY
-  let maxLat = Number.NEGATIVE_INFINITY
-  let minLng = Number.POSITIVE_INFINITY
-  let maxLng = Number.NEGATIVE_INFINITY
-
-  for (const coordinate of coordinates) {
-    minLat = Math.min(minLat, coordinate.lat)
-    maxLat = Math.max(maxLat, coordinate.lat)
-    minLng = Math.min(minLng, coordinate.lng)
-    maxLng = Math.max(maxLng, coordinate.lng)
-  }
-
-  return {
-    minLat,
-    maxLat,
-    minLng,
-    maxLng
-  }
 }
 
 const downsampleRouteSegments = (
@@ -164,76 +124,6 @@ const buildMapboxUrl = ({
     `geojson(${encodedGeoJson})/auto/${width}x${height}` +
     `?padding=48&access_token=${encodeURIComponent(accessToken)}`
   )
-}
-
-const getZoomLevel = ({
-  coordinates,
-  width,
-  height,
-  padding
-}: {
-  coordinates: FitnessCoordinate[]
-  width: number
-  height: number
-  padding: number
-}) => {
-  for (let zoom = 18; zoom >= 2; zoom -= 1) {
-    const projected = coordinates.map((coordinate) => project(coordinate, zoom))
-    const xValues = projected.map((point) => point.x)
-    const yValues = projected.map((point) => point.y)
-
-    const minX = Math.min(...xValues)
-    const maxX = Math.max(...xValues)
-    const minY = Math.min(...yValues)
-    const maxY = Math.max(...yValues)
-
-    if (
-      maxX - minX <= width - padding * 2 &&
-      maxY - minY <= height - padding * 2
-    ) {
-      return zoom
-    }
-  }
-
-  return 2
-}
-
-const fetchOsmTile = async (
-  zoom: number,
-  tileX: number,
-  tileY: number
-): Promise<Buffer> => {
-  const worldSize = 2 ** zoom
-
-  if (tileY < 0 || tileY >= worldSize) {
-    return sharp({
-      create: {
-        width: TILE_SIZE,
-        height: TILE_SIZE,
-        channels: 4,
-        background: '#e5e7eb'
-      }
-    })
-      .png()
-      .toBuffer()
-  }
-
-  const wrappedX = ((tileX % worldSize) + worldSize) % worldSize
-  const url = `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${tileY}.png`
-
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'activities.next/fitness-map'
-    }
-  })
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch OSM tile ${zoom}/${wrappedX}/${tileY}: ${response.status}`
-    )
-  }
-
-  return Buffer.from(await response.arrayBuffer())
 }
 
 const renderOsmMap = async ({

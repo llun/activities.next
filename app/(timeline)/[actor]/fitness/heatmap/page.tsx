@@ -1,4 +1,4 @@
-import { ArrowLeft, Flame } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -9,7 +9,7 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { ActorFitnessDashboard } from '../ActorFitnessDashboard'
+import { FitnessHeatmapView } from './FitnessHeatmapView'
 
 interface Props {
   params: Promise<{ actor: string }>
@@ -20,7 +20,7 @@ export const generateMetadata = async ({
 }: Props): Promise<Metadata> => {
   const { actor } = await params
   return {
-    title: `Activities.next: ${decodeURIComponent(actor)} Fitness`
+    title: `Activities.next: ${decodeURIComponent(actor)} Fitness Heatmap`
   }
 }
 
@@ -62,29 +62,19 @@ const Page: FC<Props> = async ({ params }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-3">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href={`/@${currentActor.username}@${actorDomain}`}>
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-semibold">Fitness</h1>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" asChild>
-          <Link
-            href={`/@${currentActor.username}@${actorDomain}/fitness/heatmap`}
-          >
-            <Flame className="mr-1.5 h-4 w-4" />
-            Heatmap
+      <div className="flex items-start gap-3">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href={`/@${currentActor.username}@${actorDomain}/fitness`}>
+            <ArrowLeft className="h-5 w-5" />
           </Link>
         </Button>
+        <div>
+          <h1 className="text-2xl font-semibold">Fitness Heatmap</h1>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <ActorFitnessDashboard actorId={currentActor.id} />
+        <FitnessHeatmapView actorId={currentActor.id} />
       </div>
     </div>
   )
