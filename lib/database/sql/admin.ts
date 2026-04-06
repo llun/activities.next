@@ -20,6 +20,7 @@ import {
 } from '@/lib/types/database/operations'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Actor } from '@/lib/types/domain/actor'
+import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const toDomainActor = (row: SQLActor): Actor => {
@@ -193,12 +194,11 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
         .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
         .where('tags.type', 'hashtag')
         .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
         .groupBy('tags.nameNormalized')
-        .select(
-          'tags.nameNormalized',
-          database.raw('count(distinct tags."statusId") as "postCount"'),
-          database.raw('max(statuses."createdAt") as "latestPostAt"')
-        )
+        .select('tags.nameNormalized')
+        .countDistinct({ postCount: 'tags.statusId' })
+        .max({ latestPostAt: 'statuses.createdAt' })
 
     const orderColumn: Record<HashtagSortOrder, [string, string]> = {
       alphabetical: ['tags.nameNormalized', 'asc'],
@@ -210,8 +210,12 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     const [rows, countResult] = await Promise.all([
       baseQuery().orderBy(col, dir).limit(limit).offset(offset),
       database('tags')
-        .where('type', 'hashtag')
-        .countDistinct<{ count: string }>('nameNormalized as count')
+        .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+        .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+        .where('tags.type', 'hashtag')
+        .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+        .countDistinct<{ count: string }>('tags.nameNormalized as count')
         .first()
     ])
 
@@ -225,7 +229,7 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
       name: row.nameNormalized.startsWith('#')
         ? row.nameNormalized.slice(1)
         : row.nameNormalized,
-      postCount: parseInt(row.postCount, 10),
+      postCount: parseInt(String(row.postCount), 10),
       latestPostAt:
         row.latestPostAt != null ? new Date(row.latestPostAt).getTime() : null
     }))

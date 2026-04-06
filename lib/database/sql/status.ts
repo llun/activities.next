@@ -950,7 +950,8 @@ export const StatusSQLDatabaseMixin = (
     limit,
     offset
   }: GetHashtagStatusesPageParams) {
-    const normalizedName = `#${hashtag.toLowerCase()}`
+    const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    const normalizedName = `#${tagName.toLowerCase()}`
     const baseQuery = () =>
       database('tags')
         .innerJoin('statuses', 'tags.statusId', 'statuses.id')
@@ -959,21 +960,15 @@ export const StatusSQLDatabaseMixin = (
         .where('tags.nameNormalized', normalizedName)
         .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
         .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
-        .distinct('statuses.id', 'statuses.createdAt')
 
     const [rows, countResult] = await Promise.all([
       baseQuery()
+        .distinct('statuses.id', 'statuses.createdAt')
         .orderBy('statuses.createdAt', 'desc')
         .orderBy('statuses.id', 'desc')
         .limit(limit)
         .offset(offset),
-      database('tags')
-        .innerJoin('statuses', 'tags.statusId', 'statuses.id')
-        .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
-        .where('tags.type', 'hashtag')
-        .where('tags.nameNormalized', normalizedName)
-        .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
-        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+      baseQuery()
         .countDistinct<{ count: string }>('statuses.id as count')
         .first()
     ])

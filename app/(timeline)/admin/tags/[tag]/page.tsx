@@ -2,17 +2,17 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Hash } from 'lucide-react'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 
-import { Posts } from '@/lib/components/posts/posts'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
+import { AdminHashtagPosts } from './AdminHashtagPosts'
+
 export const dynamic = 'force-dynamic'
 
 const ITEMS_PER_PAGE = 20
-const TAG_REGEX = /^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/
 
 interface Props {
   params: Promise<{ tag: string }>
@@ -21,7 +21,7 @@ interface Props {
 
 const Page = async ({ params, searchParams }: Props) => {
   const { tag } = await params
-  if (!TAG_REGEX.test(tag)) return notFound()
+  if (!tag || tag.length === 0) return notFound()
 
   const database = getDatabase()
   if (!database) throw new Error('Failed to load database')
@@ -71,11 +71,10 @@ const Page = async ({ params, searchParams }: Props) => {
         </div>
       ) : (
         <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-          <Posts
+          <AdminHashtagPosts
             host={host}
-            currentTime={new Date()}
             statuses={statuses.map((s) => cleanJson(s))}
-            showActions={false}
+            currentTime={Date.now()}
           />
         </section>
       )}
@@ -84,7 +83,7 @@ const Page = async ({ params, searchParams }: Props) => {
         <div className="flex items-center justify-center gap-2">
           {page > 1 ? (
             <Link
-              href={`/admin/tags/${tag}?page=${page - 1}`}
+              href={`/admin/tags/${encodeURIComponent(tag)}?page=${page - 1}`}
               className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -101,7 +100,7 @@ const Page = async ({ params, searchParams }: Props) => {
           </span>
           {page < totalPages ? (
             <Link
-              href={`/admin/tags/${tag}?page=${page + 1}`}
+              href={`/admin/tags/${encodeURIComponent(tag)}?page=${page + 1}`}
               className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
               Next
