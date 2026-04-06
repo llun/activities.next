@@ -198,7 +198,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         await database.updateFitnessHeatmapStatus({
           id: heatmapId,
           status: 'completed',
-          activityCount: matchingFiles.length,
+          activityCount: allRouteSegments.length,
           imagePath: null
         })
         return
@@ -223,7 +223,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         id: heatmapId,
         status: 'completed',
         imagePath,
-        activityCount: matchingFiles.length
+        activityCount: allRouteSegments.length
       })
 
       logger.info({
@@ -231,7 +231,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         actorId,
         periodType,
         periodKey,
-        activityCount: matchingFiles.length
+        activityCount: allRouteSegments.length
       })
     } catch (error) {
       const nodeError = error as Error

@@ -86,9 +86,14 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   )
   const [calendarDays, setCalendarDays] = useState<FitnessCalendarDay[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getDistinctFitnessActivityTypes({ actorId }).then(setActivityTypes)
+    getDistinctFitnessActivityTypes({ actorId })
+      .then(setActivityTypes)
+      .catch(() => {
+        // Activity types are non-critical, just use empty list
+      })
   }, [actorId])
 
   const effectivePeriodKey = useMemo(() => {
@@ -99,31 +104,37 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
 
   const fetchData = useCallback(async () => {
     setIsLoading(true)
+    setError(null)
 
-    const activityType = selectedType || undefined
-    const { startDate, endDate } = getCalendarDateRange(
-      periodType,
-      effectivePeriodKey
-    )
-
-    const [heatmap, calendar] = await Promise.all([
-      getFitnessHeatmap({
-        actorId,
-        activityType,
+    try {
+      const activityType = selectedType || undefined
+      const { startDate, endDate } = getCalendarDateRange(
         periodType,
-        periodKey: effectivePeriodKey
-      }),
-      getFitnessCalendarData({
-        actorId,
-        startDate,
-        endDate,
-        activityType
-      })
-    ])
+        effectivePeriodKey
+      )
 
-    setHeatmapData(heatmap)
-    setCalendarDays(calendar)
-    setIsLoading(false)
+      const [heatmap, calendar] = await Promise.all([
+        getFitnessHeatmap({
+          actorId,
+          activityType,
+          periodType,
+          periodKey: effectivePeriodKey
+        }),
+        getFitnessCalendarData({
+          actorId,
+          startDate,
+          endDate,
+          activityType
+        })
+      ])
+
+      setHeatmapData(heatmap)
+      setCalendarDays(calendar)
+    } catch {
+      setError('Failed to load heatmap data. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }, [actorId, selectedType, periodType, effectivePeriodKey])
 
   useEffect(() => {
@@ -232,6 +243,12 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
 
       {isLoading && (
         <p className="text-center text-muted-foreground">Loading...</p>
+      )}
+
+      {error && (
+        <p className="text-center text-sm text-red-600 dark:text-red-400">
+          {error}
+        </p>
       )}
 
       {!isLoading && (

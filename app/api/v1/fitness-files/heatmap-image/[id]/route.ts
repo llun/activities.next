@@ -27,11 +27,6 @@ export const GET = traceApiRoute(
     const { id } = await context.params
 
     try {
-      const heatmap = await database.getFitnessHeatmap({ id })
-      if (!heatmap || !heatmap.imagePath) {
-        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
-      }
-
       const session = await getServerAuthSession()
       if (!session?.user?.email) {
         return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
@@ -40,6 +35,11 @@ export const GET = traceApiRoute(
       const currentActor = await getActorFromSession(database, session)
       if (!currentActor) {
         return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
+      }
+
+      const heatmap = await database.getFitnessHeatmap({ id })
+      if (!heatmap || !heatmap.imagePath) {
+        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
       }
 
       if (currentActor.id !== heatmap.actorId) {
