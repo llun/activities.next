@@ -52,27 +52,37 @@ export const calculateBounds = (coordinates: FitnessCoordinate[]) => {
   }
 }
 
+export type CoordinateBounds = ReturnType<typeof calculateBounds>
+
 export const getZoomLevel = ({
   coordinates,
+  bounds: precomputedBounds,
   width,
   height,
   padding
 }: {
-  coordinates: FitnessCoordinate[]
+  coordinates?: FitnessCoordinate[]
+  bounds?: CoordinateBounds
   width: number
   height: number
   padding: number
 }) => {
-  if (coordinates.length === 0) return 2
+  const bounds =
+    precomputedBounds ??
+    (coordinates && coordinates.length > 0
+      ? calculateBounds(coordinates)
+      : null)
 
-  const bounds = calculateBounds(coordinates)
+  if (!bounds) return 2
+
   for (let zoom = 18; zoom >= 2; zoom -= 1) {
+    // Web Mercator: x increases with lng, y decreases with increasing lat
     const p1 = project({ lat: bounds.minLat, lng: bounds.minLng }, zoom)
     const p2 = project({ lat: bounds.maxLat, lng: bounds.maxLng }, zoom)
-    const minX = Math.min(p1.x, p2.x)
-    const maxX = Math.max(p1.x, p2.x)
-    const minY = Math.min(p1.y, p2.y)
-    const maxY = Math.max(p1.y, p2.y)
+    const minX = p1.x
+    const maxX = p2.x
+    const minY = p2.y
+    const maxY = p1.y
 
     if (
       maxX - minX <= width - padding * 2 &&

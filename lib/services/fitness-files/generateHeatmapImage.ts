@@ -70,17 +70,12 @@ export const generateHeatmapImage = async ({
   }
 
   const padding = 64
-  const zoom = getZoomLevel({
-    coordinates: allCoordinates,
-    width,
-    height,
-    padding
-  })
+  const zoom = getZoomLevel({ bounds, width, height, padding })
 
   const p1 = project({ lat: bounds.minLat, lng: bounds.minLng }, zoom)
   const p2 = project({ lat: bounds.maxLat, lng: bounds.maxLng }, zoom)
-  const centerX = (Math.min(p1.x, p2.x) + Math.max(p1.x, p2.x)) / 2
-  const centerY = (Math.min(p1.y, p2.y) + Math.max(p1.y, p2.y)) / 2
+  const centerX = (p1.x + p2.x) / 2
+  const centerY = (p1.y + p2.y) / 2
   const topLeftX = centerX - width / 2
   const topLeftY = centerY - height / 2
 
