@@ -64,14 +64,17 @@ export const getZoomLevel = ({
   padding: number
 }) => {
   for (let zoom = 18; zoom >= 2; zoom -= 1) {
-    const projected = coordinates.map((coordinate) => project(coordinate, zoom))
-    const xValues = projected.map((point) => point.x)
-    const yValues = projected.map((point) => point.y)
-
-    const minX = Math.min(...xValues)
-    const maxX = Math.max(...xValues)
-    const minY = Math.min(...yValues)
-    const maxY = Math.max(...yValues)
+    let minX = Infinity
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+    for (const coordinate of coordinates) {
+      const { x, y } = project(coordinate, zoom)
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+    }
 
     if (
       maxX - minX <= width - padding * 2 &&

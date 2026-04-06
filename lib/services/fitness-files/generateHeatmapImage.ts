@@ -77,12 +77,20 @@ export const generateHeatmapImage = async ({
     padding
   })
 
-  const projected = allCoordinates.map((c) => project(c, zoom))
-  const xValues = projected.map((p) => p.x)
-  const yValues = projected.map((p) => p.y)
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const c of allCoordinates) {
+    const { x, y } = project(c, zoom)
+    if (x < minX) minX = x
+    if (x > maxX) maxX = x
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+  }
 
-  const centerX = (Math.min(...xValues) + Math.max(...xValues)) / 2
-  const centerY = (Math.min(...yValues) + Math.max(...yValues)) / 2
+  const centerX = (minX + maxX) / 2
+  const centerY = (minY + maxY) / 2
   const topLeftX = centerX - width / 2
   const topLeftY = centerY - height / 2
 
