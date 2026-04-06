@@ -86,7 +86,11 @@ async function fixAttachmentUrls(args = process.argv.slice(2)) {
   }
 
   const config = getConfig()
-  const correctHost = input.correctHost ?? config.host
+  // Normalize correctHost: strip any scheme (e.g. "https://example.com" → "example.com")
+  // and trailing slashes so URL construction is always consistent.
+  const correctHost = (input.correctHost ?? config.host)
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '')
   console.log(`Wrong host:   ${input.wrongHost}`)
   console.log(`Correct host: ${correctHost}`)
   if (input.dryRun) {
@@ -95,41 +99,55 @@ async function fixAttachmentUrls(args = process.argv.slice(2)) {
 
   const db = knex(config.database)
 
+  const BATCH_SIZE = 100
+
   try {
-    // Find all attachments whose URL contains the wrong host
     const wrongHttpUrl = `http://${input.wrongHost}/%`
     const wrongHttpsUrl = `https://${input.wrongHost}/%`
 
-    const affected = await db<AttachmentRow>('attachments')
-      .where('url', 'like', wrongHttpUrl)
-      .orWhere('url', 'like', wrongHttpsUrl)
-      .select('id', 'url')
+    let offset = 0
+    let totalFound = 0
+    let fixedCount = 0
 
-    if (affected.length === 0) {
+    while (true) {
+      const batch = await db<AttachmentRow>('attachments')
+        .where('url', 'like', wrongHttpUrl)
+        .orWhere('url', 'like', wrongHttpsUrl)
+        .select('id', 'url')
+        .limit(BATCH_SIZE)
+        .offset(offset)
+
+      if (batch.length === 0) break
+      totalFound += batch.length
+
+      for (const row of batch) {
+        // Preserve the original protocol; only replace the host portion.
+        const parsed = new URL(row.url)
+        parsed.host = correctHost
+        const newUrl = parsed.toString()
+
+        console.log(`  ${row.id}`)
+        console.log(`    before: ${row.url}`)
+        console.log(`    after:  ${newUrl}`)
+
+        if (!input.dryRun) {
+          await db('attachments')
+            .where('id', row.id)
+            .update({ url: newUrl, updatedAt: new Date() })
+          fixedCount += 1
+        }
+      }
+
+      offset += BATCH_SIZE
+    }
+
+    if (totalFound === 0) {
       console.log('\nNo attachments found with the wrong host. Nothing to fix.')
       return 0
     }
 
-    console.log(`\nFound ${affected.length} attachment(s) to fix:`)
-
-    let fixedCount = 0
-    for (const row of affected) {
-      const newUrl = row.url.replace(
-        /^https?:\/\/[^/]+/,
-        `https://${correctHost}`
-      )
-      console.log(`  ${row.id}`)
-      console.log(`    before: ${row.url}`)
-      console.log(`    after:  ${newUrl}`)
-
-      if (!input.dryRun) {
-        await db('attachments').where('id', row.id).update({ url: newUrl })
-        fixedCount += 1
-      }
-    }
-
     if (input.dryRun) {
-      console.log(`\nDry-run complete. Would fix ${affected.length} attachment(s).`)
+      console.log(`\nDry-run complete. Would fix ${totalFound} attachment(s).`)
     } else {
       console.log(`\nFixed ${fixedCount} attachment(s).`)
     }
