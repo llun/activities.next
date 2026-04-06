@@ -143,12 +143,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   }, [loadMoreStatuses])
 
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
-  const isRefreshingRef = useRef<boolean>(false)
 
   const refreshTimeline = useCallback(async () => {
-    if (isRefreshingRef.current) return
+    if (isLoadingRef.current) return
 
-    isRefreshingRef.current = true
+    isLoadingRef.current = true
     const requestId = ++tabRequestId.current
     setIsRefreshing(true)
     setLoadingMoreStatuses(true)
@@ -166,7 +165,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       if (requestId === tabRequestId.current) {
         setLoadingMoreStatuses(false)
       }
-      isRefreshingRef.current = false
+      isLoadingRef.current = false
       setIsRefreshing(false)
     }
   }, [currentTab.timeline])
