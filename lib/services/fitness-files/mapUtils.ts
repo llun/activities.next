@@ -63,18 +63,16 @@ export const getZoomLevel = ({
   height: number
   padding: number
 }) => {
+  if (coordinates.length === 0) return 2
+
+  const bounds = calculateBounds(coordinates)
   for (let zoom = 18; zoom >= 2; zoom -= 1) {
-    let minX = Infinity
-    let maxX = -Infinity
-    let minY = Infinity
-    let maxY = -Infinity
-    for (const coordinate of coordinates) {
-      const { x, y } = project(coordinate, zoom)
-      if (x < minX) minX = x
-      if (x > maxX) maxX = x
-      if (y < minY) minY = y
-      if (y > maxY) maxY = y
-    }
+    const p1 = project({ lat: bounds.minLat, lng: bounds.minLng }, zoom)
+    const p2 = project({ lat: bounds.maxLat, lng: bounds.maxLng }, zoom)
+    const minX = Math.min(p1.x, p2.x)
+    const maxX = Math.max(p1.x, p2.x)
+    const minY = Math.min(p1.y, p2.y)
+    const maxY = Math.max(p1.y, p2.y)
 
     if (
       maxX - minX <= width - padding * 2 &&
