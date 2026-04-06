@@ -332,6 +332,7 @@ describe('generateFitnessHeatmapJob', () => {
 
     expect(heatmap).toBeDefined()
     expect(heatmap?.status).toBe('completed')
+    expect(heatmap?.activityCount).toBe(1)
     // Only the running file should be counted, not cycling
     expect(mockGenerateHeatmapImage).toHaveBeenCalled()
 

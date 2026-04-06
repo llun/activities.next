@@ -204,16 +204,13 @@ export const FitnessCalendarHeatmap: FC<Props> = ({
   return (
     <div className="overflow-x-auto">
       <div className="inline-flex flex-col gap-0.5">
-        {/* Month labels */}
-        <div className="flex gap-0.5 pl-8">
+        {/* Month labels — absolute positioning so labels align with week columns */}
+        <div className="relative h-4" style={{ marginLeft: '30px' }}>
           {grid.monthLabels.map((ml, i) => (
             <span
               key={i}
-              className="text-xs text-muted-foreground"
-              style={{
-                position: 'relative',
-                left: `${ml.weekIndex * 14}px`
-              }}
+              className="absolute top-0 text-xs text-muted-foreground"
+              style={{ left: `${ml.weekIndex * 14}px` }}
             >
               {ml.label}
             </span>
