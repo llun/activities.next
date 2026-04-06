@@ -151,10 +151,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     isRefreshingRef.current = true
     const requestId = ++tabRequestId.current
     setIsRefreshing(true)
-    setCurrentStatuses([])
-    setHasMoreStatuses(true)
     setLoadingMoreStatuses(true)
-    lastStatusIdRef.current = null
 
     try {
       const statuses = await getTimeline({ timeline: currentTab.timeline })
@@ -163,6 +160,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       setHasMoreStatuses(statuses.length > 0)
       lastStatusIdRef.current =
         statuses.length > 0 ? statuses[statuses.length - 1].id : null
+    } catch (_error) {
+      // Error refreshing - existing posts remain visible, user can retry
     } finally {
       if (requestId === tabRequestId.current) {
         setLoadingMoreStatuses(false)
