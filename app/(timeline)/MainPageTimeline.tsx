@@ -18,6 +18,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, Status } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 
 import { clearAction, editAction, statusActionReducer } from './reducer'
 
@@ -142,25 +143,34 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   }, [loadMoreStatuses])
 
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+  const isRefreshingRef = useRef<boolean>(false)
 
   const refreshTimeline = useCallback(async () => {
-    if (isRefreshing) return
+    if (isRefreshingRef.current) return
 
+    isRefreshingRef.current = true
+    const requestId = ++tabRequestId.current
     setIsRefreshing(true)
     setCurrentStatuses([])
     setHasMoreStatuses(true)
+    setLoadingMoreStatuses(true)
     lastStatusIdRef.current = null
 
     try {
       const statuses = await getTimeline({ timeline: currentTab.timeline })
+      if (requestId !== tabRequestId.current) return
       setCurrentStatuses(statuses)
       setHasMoreStatuses(statuses.length > 0)
       lastStatusIdRef.current =
         statuses.length > 0 ? statuses[statuses.length - 1].id : null
     } finally {
+      if (requestId === tabRequestId.current) {
+        setLoadingMoreStatuses(false)
+      }
+      isRefreshingRef.current = false
       setIsRefreshing(false)
     }
-  }, [currentTab.timeline, isRefreshing])
+  }, [currentTab.timeline])
 
   const onTabChange = async (value: string) => {
     const tab = TIMELINES_TABS.find((t) => t.timeline === value)
@@ -210,7 +220,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           disabled={isRefreshing}
           aria-label="Refresh timeline"
         >
-          <RefreshCw className={isRefreshing ? 'animate-spin' : ''} />
+          <RefreshCw className={cn('size-4', isRefreshing && 'animate-spin')} />
         </Button>
       </div>
 
@@ -274,7 +284,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
                 onEdit={onEdit}
                 onPostDeleted={onPostDeleted}
               />
-            ) : isLoadingMoreStatuses ? (
+            ) : isLoadingMoreStatuses || isRefreshing ? (
               <div className="p-8 text-center text-muted-foreground">
                 <p className="text-sm font-medium">Loading timeline...</p>
               </div>
