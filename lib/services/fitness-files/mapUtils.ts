@@ -76,11 +76,13 @@ export const getZoomLevel = ({
   if (!bounds) return 2
 
   for (let zoom = 18; zoom >= 2; zoom -= 1) {
-    // Web Mercator: x increases with lng, y decreases with increasing lat
     const p1 = project({ lat: bounds.minLat, lng: bounds.minLng }, zoom)
     const p2 = project({ lat: bounds.maxLat, lng: bounds.maxLng }, zoom)
-    const minX = p1.x
-    const maxX = p2.x
+    // Use Math.min/max for x: normalizeLongitude can flip ordering when
+    // longitudes cross the ±180 boundary (e.g. minLng=170, maxLng=190).
+    // y is safe for direct assignment since latitude is clamped to [-85,85].
+    const minX = Math.min(p1.x, p2.x)
+    const maxX = Math.max(p1.x, p2.x)
     const minY = p2.y
     const maxY = p1.y
 
