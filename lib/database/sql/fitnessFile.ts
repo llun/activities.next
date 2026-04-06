@@ -638,14 +638,14 @@ export const FitnessFileSQLDatabaseMixin = (
       .select(
         'activityType',
         database.raw('COUNT(*) as count'),
-        database.raw(
-          'COALESCE(SUM("totalDistanceMeters"), 0) as "totalDistanceMeters"'
-        ),
-        database.raw(
-          'COALESCE(SUM("totalDurationSeconds"), 0) as "totalDurationSeconds"'
-        ),
-        database.raw(
-          'COALESCE(SUM("elevationGainMeters"), 0) as "totalElevationGainMeters"'
+        ...(
+          [
+            ['totalDistanceMeters', 'totalDistanceMeters'],
+            ['totalDurationSeconds', 'totalDurationSeconds'],
+            ['elevationGainMeters', 'totalElevationGainMeters']
+          ] as [string, string][]
+        ).map(([col, alias]) =>
+          database.raw('COALESCE(SUM(??), 0) as ??', [col, alias])
         )
       )
 
