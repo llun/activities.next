@@ -1,8 +1,9 @@
 import got, { Headers, Method } from 'got'
 
 import { getConfig } from '@/lib/config'
+import packageJson from '@/package.json'
 
-const USER_AGENT = 'activities.next/0.2'
+const USER_AGENT = `activities.next/${packageJson.version}`
 const DEFAULT_RESPONSE_TIMEOUT = 10000
 const MAX_RETRY_LIMIT = 1
 
