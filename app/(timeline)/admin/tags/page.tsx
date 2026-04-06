@@ -95,7 +95,9 @@ const Page = async ({ searchParams }: Props) => {
             >
               <div className="flex items-center gap-2 min-w-0">
                 <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="font-medium truncate">{hashtag.name}</span>
+                <span className="font-medium truncate">
+                  {hashtag.name.replace(/^#+/, '')}
+                </span>
               </div>
               <div className="flex items-center gap-4 ml-4 shrink-0 text-sm text-muted-foreground">
                 <span>
@@ -103,7 +105,7 @@ const Page = async ({ searchParams }: Props) => {
                 </span>
                 {hashtag.latestPostAt != null && (
                   <span className="hidden sm:inline">
-                    {new Date(hashtag.latestPostAt).toLocaleDateString()}
+                    {new Date(hashtag.latestPostAt).toISOString().split('T')[0]}
                   </span>
                 )}
               </div>

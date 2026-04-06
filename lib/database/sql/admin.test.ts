@@ -119,9 +119,10 @@ describe('AdminDatabase', () => {
           offset: 0,
           sort: 'alphabetical'
         })
-        const a = hashtags.find((h) => h.name === tagA)
-        const b = hashtags.find((h) => h.name === tagB)
-        const c = hashtags.find((h) => h.name === tagC)
+        // name now equals nameNormalized (includes the '#' prefix)
+        const a = hashtags.find((h) => h.name === `#${tagA}`)
+        const b = hashtags.find((h) => h.name === `#${tagB}`)
+        const c = hashtags.find((h) => h.name === `#${tagC}`)
 
         expect(a?.postCount).toBe(3)
         expect(b?.postCount).toBe(1)
@@ -191,7 +192,7 @@ describe('AdminDatabase', () => {
           sort: 'recent'
         })
         const ourTags = hashtags.filter((h) =>
-          [tagA, tagB, tagC].includes(h.name)
+          [`#${tagA}`, `#${tagB}`, `#${tagC}`].includes(h.name)
         )
         ourTags.forEach((h) => {
           expect(h.latestPostAt).not.toBeNull()

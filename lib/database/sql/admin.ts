@@ -188,6 +188,8 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
   },
 
   async getAllHashtags({ limit, offset, sort }: GetAllHashtagsParams) {
+    // baseQuery holds only the shared joins and filters; aggregations are
+    // applied separately so the count query doesn't duplicate this logic.
     const baseQuery = () =>
       database('tags')
         .innerJoin('statuses', 'tags.statusId', 'statuses.id')
@@ -195,10 +197,6 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
         .where('tags.type', 'hashtag')
         .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
         .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
-        .groupBy('tags.nameNormalized')
-        .select('tags.nameNormalized')
-        .countDistinct({ postCount: 'tags.statusId' })
-        .max({ latestPostAt: 'statuses.createdAt' })
 
     const orderColumns: Record<
       HashtagSortOrder,
@@ -216,13 +214,15 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     }
 
     const [rows, countResult] = await Promise.all([
-      baseQuery().orderBy(orderColumns[sort]).limit(limit).offset(offset),
-      database('tags')
-        .innerJoin('statuses', 'tags.statusId', 'statuses.id')
-        .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
-        .where('tags.type', 'hashtag')
-        .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
-        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+      baseQuery()
+        .groupBy('tags.nameNormalized')
+        .select('tags.nameNormalized')
+        .countDistinct({ postCount: 'tags.statusId' })
+        .max({ latestPostAt: 'statuses.createdAt' })
+        .orderBy(orderColumns[sort])
+        .limit(limit)
+        .offset(offset),
+      baseQuery()
         .countDistinct<{ count: string }>({ count: 'tags.nameNormalized' })
         .first()
     ])
@@ -234,9 +234,9 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
         latestPostAt: Date | string | number | null
       }[]
     ).map((row) => ({
-      name: row.nameNormalized.startsWith('#')
-        ? row.nameNormalized.slice(1)
-        : row.nameNormalized,
+      // Preserve the full nameNormalized value as `name` so that routing
+      // is fully reversible. The display layer strips the leading '#'.
+      name: row.nameNormalized,
       postCount: parseInt(String(row.postCount), 10),
       latestPostAt:
         row.latestPostAt != null ? new Date(row.latestPostAt).getTime() : null

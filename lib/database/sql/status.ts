@@ -893,12 +893,19 @@ export const StatusSQLDatabaseMixin = (
     )
   }
 
+  // Normalise a caller-supplied hashtag value to the form stored in
+  // tags.nameNormalized: strip any leading '#' then re-add exactly one.
+  function normalizeHashtagName(hashtag: string): string {
+    const bare = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    return `#${bare.toLowerCase()}`
+  }
+
   async function getStatusesByHashtag({
     hashtag,
     limit = PER_PAGE_LIMIT,
     maxStatusId
   }: GetStatusesByHashtagParams): Promise<Status[]> {
-    const normalizedName = `#${hashtag.toLowerCase()}`
+    const normalizedName = normalizeHashtagName(hashtag)
     let query = database('tags')
       .innerJoin('statuses', 'tags.statusId', 'statuses.id')
       .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
@@ -950,8 +957,7 @@ export const StatusSQLDatabaseMixin = (
     limit,
     offset
   }: GetHashtagStatusesPageParams) {
-    const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
-    const normalizedName = `#${tagName.toLowerCase()}`
+    const normalizedName = normalizeHashtagName(hashtag)
     const baseQuery = () =>
       database('tags')
         .innerJoin('statuses', 'tags.statusId', 'statuses.id')

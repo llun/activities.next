@@ -57,7 +57,7 @@ const Page = async ({ params, searchParams }: Props) => {
         <div>
           <div className="flex items-center gap-2">
             <Hash className="h-5 w-5 text-muted-foreground" />
-            <h1 className="text-2xl font-bold">{tag}</h1>
+            <h1 className="text-2xl font-bold">{tag.replace(/^#+/, '')}</h1>
           </div>
           <p className="text-sm text-muted-foreground">
             {total} public post{total !== 1 ? 's' : ''}
@@ -67,7 +67,7 @@ const Page = async ({ params, searchParams }: Props) => {
 
       {statuses.length === 0 ? (
         <div className="rounded-xl border border-dashed p-6 text-center text-muted-foreground">
-          No public posts with #{tag}
+          No public posts with #{tag.replace(/^#+/, '')}
         </div>
       ) : (
         <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
