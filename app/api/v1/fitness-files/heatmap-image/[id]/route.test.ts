@@ -159,7 +159,7 @@ describe('GET /api/v1/fitness-files/heatmap-image/[id]', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('image/png')
-    expect(response.headers.get('Cache-Control')).toBe('private, max-age=3600')
+    expect(response.headers.get('Cache-Control')).toBe('private, no-cache')
     expect(mockGetMedia).toHaveBeenCalledWith(
       expect.anything(),
       'heatmaps/owner-image.png'
