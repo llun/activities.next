@@ -467,6 +467,15 @@ export type GetStatusesByHashtagParams = {
   limit?: number
   maxStatusId?: string
 }
+export type GetHashtagStatusesPageParams = {
+  hashtag: string
+  limit: number
+  offset: number
+}
+export type GetHashtagStatusesPageResult = {
+  statuses: Status[]
+  total: number
+}
 export type GetHashtagCounterParams = {
   hashtag: string
 }
@@ -538,6 +547,9 @@ export interface StatusDatabase {
   createTag(params: CreateTagParams): Promise<Tag>
   getTags(params: GetTagsParams): Promise<Tag[]>
   getStatusesByHashtag(params: GetStatusesByHashtagParams): Promise<Status[]>
+  getHashtagStatusesPage(
+    params: GetHashtagStatusesPageParams
+  ): Promise<GetHashtagStatusesPageResult>
   getHashtagCounter(params: GetHashtagCounterParams): Promise<number>
   increaseHashtagCounter(params: IncreaseHashtagCounterParams): Promise<void>
   decreaseHashtagCounter(params: DecreaseHashtagCounterParams): Promise<void>
@@ -1005,6 +1017,25 @@ export interface GetServiceStatsBucketsParams {
   endTime: number
 }
 
+export type HashtagSortOrder = 'alphabetical' | 'recent' | 'count'
+
+export interface AdminHashtag {
+  name: string
+  postCount: number
+  latestPostAt: number | null
+}
+
+export interface GetAllHashtagsParams {
+  limit: number
+  offset: number
+  sort: HashtagSortOrder
+}
+
+export interface GetAllHashtagsResult {
+  hashtags: AdminHashtag[]
+  total: number
+}
+
 export interface AdminDatabase {
   getAllAccounts(params: GetAllAccountsParams): Promise<GetAllAccountsResult>
   getAccountWithActors(
@@ -1014,4 +1045,5 @@ export interface AdminDatabase {
   getServiceStatsBuckets(
     params: GetServiceStatsBucketsParams
   ): Promise<ServiceStatsBucket[]>
+  getAllHashtags(params: GetAllHashtagsParams): Promise<GetAllHashtagsResult>
 }

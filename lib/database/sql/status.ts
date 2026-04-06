@@ -24,6 +24,7 @@ import {
   GetActorStatusesCountParams,
   GetActorStatusesParams,
   GetFavouritedByParams,
+  GetHashtagStatusesPageParams,
   GetStatusFromUrlHashParams,
   GetStatusFromUrlParams,
   GetStatusParams,
@@ -944,6 +945,48 @@ export const StatusSQLDatabaseMixin = (
     return getCounterValue(database, CounterKey.totalHashtag(tagName))
   }
 
+  async function getHashtagStatusesPage({
+    hashtag,
+    limit,
+    offset
+  }: GetHashtagStatusesPageParams) {
+    const normalizedName = `#${hashtag.toLowerCase()}`
+    const baseQuery = () =>
+      database('tags')
+        .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+        .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+        .where('tags.type', 'hashtag')
+        .where('tags.nameNormalized', normalizedName)
+        .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+        .distinct('statuses.id', 'statuses.createdAt')
+
+    const [rows, countResult] = await Promise.all([
+      baseQuery()
+        .orderBy('statuses.createdAt', 'desc')
+        .orderBy('statuses.id', 'desc')
+        .limit(limit)
+        .offset(offset),
+      database('tags')
+        .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+        .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+        .where('tags.type', 'hashtag')
+        .where('tags.nameNormalized', normalizedName)
+        .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+        .countDistinct<{ count: string }>('statuses.id as count')
+        .first()
+    ])
+
+    const statusIds = (rows as { id: string }[]).map((row) => row.id)
+    const statuses =
+      statusIds.length > 0 ? await getStatusesByIds({ statusIds }) : []
+    return {
+      statuses,
+      total: parseInt(countResult?.count ?? '0', 10)
+    }
+  }
+
   async function increaseHashtagCounter({
     hashtag
   }: {
@@ -1365,6 +1408,7 @@ export const StatusSQLDatabaseMixin = (
     createTag,
     getTags,
     getStatusesByHashtag,
+    getHashtagStatusesPage,
     getHashtagCounter,
     increaseHashtagCounter,
     decreaseHashtagCounter,

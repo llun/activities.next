@@ -11,12 +11,16 @@ import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
 import {
   AdminDatabase,
+  AdminHashtag,
   GetAccountWithActorsParams,
   GetAllAccountsParams,
-  GetServiceStatsBucketsParams
+  GetAllHashtagsParams,
+  GetServiceStatsBucketsParams,
+  HashtagSortOrder
 } from '@/lib/types/database/operations'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Actor } from '@/lib/types/domain/actor'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const toDomainActor = (row: SQLActor): Actor => {
   const settings = getCompatibleJSON<ActorSettings>(row.settings)
@@ -180,5 +184,55 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
       bucketHour: row.bucketHour.getTime(),
       value: row.value
     }))
+  },
+
+  async getAllHashtags({ limit, offset, sort }: GetAllHashtagsParams) {
+    const baseQuery = () =>
+      database('tags')
+        .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+        .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+        .where('tags.type', 'hashtag')
+        .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+        .groupBy('tags.nameNormalized')
+        .select(
+          'tags.nameNormalized',
+          database.raw('count(distinct tags."statusId") as "postCount"'),
+          database.raw('max(statuses."createdAt") as "latestPostAt"')
+        )
+
+    const orderColumn: Record<HashtagSortOrder, [string, string]> = {
+      alphabetical: ['tags.nameNormalized', 'asc'],
+      recent: ['latestPostAt', 'desc'],
+      count: ['postCount', 'desc']
+    }
+    const [col, dir] = orderColumn[sort]
+
+    const [rows, countResult] = await Promise.all([
+      baseQuery().orderBy(col, dir).limit(limit).offset(offset),
+      database('tags')
+        .where('type', 'hashtag')
+        .countDistinct<{ count: string }>('nameNormalized as count')
+        .first()
+    ])
+
+    const hashtags: AdminHashtag[] = (
+      rows as {
+        nameNormalized: string
+        postCount: string
+        latestPostAt: Date | string | number | null
+      }[]
+    ).map((row) => ({
+      name: row.nameNormalized.startsWith('#')
+        ? row.nameNormalized.slice(1)
+        : row.nameNormalized,
+      postCount: parseInt(row.postCount, 10),
+      latestPostAt:
+        row.latestPostAt != null ? new Date(row.latestPostAt).getTime() : null
+    }))
+
+    return {
+      hashtags,
+      total: parseInt(countResult?.count ?? '0', 10)
+    }
   }
 })

@@ -24,6 +24,7 @@ const Layout: FC<Props> = ({ children }) => {
   const tabs = [
     { name: 'Overview', url: '/admin' },
     { name: 'Accounts', url: '/admin/accounts' },
+    { name: 'Hashtags', url: '/admin/tags' },
     { name: 'System', url: '/admin/system' }
   ]
 
