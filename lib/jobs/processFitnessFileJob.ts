@@ -340,7 +340,7 @@ export const processFitnessFileJob = createJobHandle(
       }
 
       const queue = getQueue()
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         heatmapVariants.map((variant) => {
           const heatmapId = getHashFromString(
             actorId +
@@ -358,6 +358,16 @@ export const processFitnessFileJob = createJobHandle(
           })
         })
       )
+
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          logger.warn({
+            message: 'Failed to publish heatmap generation job',
+            actorId,
+            error: (result.reason as Error).message
+          })
+        }
+      }
     } catch (error) {
       const nodeError = error as Error
       logger.error({
