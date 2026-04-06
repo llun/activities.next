@@ -90,7 +90,7 @@ const Page = async ({ searchParams }: Props) => {
           {hashtags.map((hashtag) => (
             <Link
               key={hashtag.name}
-              href={`/admin/tags/${encodeURIComponent(hashtag.name)}`}
+              href={`/admin/tags/${encodeURIComponent(hashtag.name.replace(/^#+/, ''))}`}
               className="flex items-center justify-between rounded-xl border bg-background/80 p-4 shadow-sm transition-colors hover:bg-muted"
             >
               <div className="flex items-center gap-2 min-w-0">
