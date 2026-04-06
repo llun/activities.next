@@ -7,6 +7,7 @@ import { createPollVoteJob } from './createPollVoteJob'
 import { deleteActorJob } from './deleteActorJob'
 import { deleteObjectJob } from './deleteObjectJob'
 import { fetchRemoteStatusJob } from './fetchRemoteStatusJob'
+import { generateFitnessHeatmapJob } from './generateFitnessHeatmapJob'
 import { importFitnessFilesJob } from './importFitnessFilesJob'
 import { importStravaActivityJob } from './importStravaActivityJob'
 import { importStravaArchiveJob } from './importStravaArchiveJob'
@@ -18,6 +19,7 @@ import {
   DELETE_ACTOR_JOB_NAME,
   DELETE_OBJECT_JOB_NAME,
   FETCH_REMOTE_STATUS_JOB_NAME,
+  GENERATE_FITNESS_HEATMAP_JOB_NAME,
   IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   IMPORT_STRAVA_ARCHIVE_JOB_NAME,
@@ -52,6 +54,7 @@ export const JOBS: Record<string, JobHandle> = {
   [DELETE_OBJECT_JOB_NAME]: deleteObjectJob,
   [DELETE_ACTOR_JOB_NAME]: deleteActorJob,
   [SEND_ANNOUNCE_JOB_NAME]: sendAnnounceJob,
+  [GENERATE_FITNESS_HEATMAP_JOB_NAME]: generateFitnessHeatmapJob,
   [PROCESS_FITNESS_FILE_JOB_NAME]: processFitnessFileJob,
   [REGENERATE_FITNESS_MAPS_JOB_NAME]: regenerateFitnessMapsJob,
   [IMPORT_FITNESS_FILES_JOB_NAME]: importFitnessFilesJob,

@@ -1118,3 +1118,96 @@ export const updatePushNotifications = async (
   })
   return response.ok
 }
+
+// Fitness Heatmap
+
+export interface FitnessHeatmapData {
+  id: string
+  activityType?: string
+  periodType: string
+  periodKey: string
+  status: string
+  imagePath?: string
+  activityCount: number
+}
+
+export interface FitnessCalendarDay {
+  date: string
+  count: number
+  totalDistanceMeters: number
+  totalDurationSeconds: number
+}
+
+export const getFitnessHeatmap = async ({
+  actorId,
+  activityType,
+  periodType,
+  periodKey
+}: {
+  actorId: string
+  activityType?: string
+  periodType: string
+  periodKey: string
+}): Promise<FitnessHeatmapData | null> => {
+  const encodedId = urlToId(actorId)
+  const url = new URL(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-heatmap`
+  )
+  url.searchParams.append('period_type', periodType)
+  url.searchParams.append('period_key', periodKey)
+  if (activityType) {
+    url.searchParams.append('activity_type', activityType)
+  }
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (response.status === 404) return null
+  if (!response.ok) return null
+  return response.json()
+}
+
+export const getFitnessCalendarData = async ({
+  actorId,
+  startDate,
+  endDate,
+  activityType
+}: {
+  actorId: string
+  startDate: number
+  endDate: number
+  activityType?: string
+}): Promise<FitnessCalendarDay[]> => {
+  const encodedId = urlToId(actorId)
+  const url = new URL(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-calendar`
+  )
+  url.searchParams.append('start_date', `${startDate}`)
+  url.searchParams.append('end_date', `${endDate}`)
+  if (activityType) {
+    url.searchParams.append('activity_type', activityType)
+  }
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (!response.ok) return []
+  return response.json()
+}
+
+export const getDistinctFitnessActivityTypes = async ({
+  actorId
+}: {
+  actorId: string
+}): Promise<string[]> => {
+  const encodedId = urlToId(actorId)
+  const response = await fetch(
+    `/api/v1/accounts/${encodedId}/fitness-activity-types`,
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json' }
+    }
+  )
+  if (!response.ok) return []
+  return response.json()
+}
