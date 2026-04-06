@@ -969,7 +969,7 @@ export const StatusSQLDatabaseMixin = (
         .limit(limit)
         .offset(offset),
       baseQuery()
-        .countDistinct<{ count: string }>('statuses.id as count')
+        .countDistinct<{ count: string }>({ count: 'statuses.id' })
         .first()
     ])
 
@@ -978,7 +978,7 @@ export const StatusSQLDatabaseMixin = (
       statusIds.length > 0 ? await getStatusesByIds({ statusIds }) : []
     return {
       statuses,
-      total: parseInt(countResult?.count ?? '0', 10)
+      total: parseInt(String(countResult?.count ?? '0'), 10)
     }
   }
 

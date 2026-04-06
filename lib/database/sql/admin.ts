@@ -200,22 +200,30 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
         .countDistinct({ postCount: 'tags.statusId' })
         .max({ latestPostAt: 'statuses.createdAt' })
 
-    const orderColumn: Record<HashtagSortOrder, [string, string]> = {
-      alphabetical: ['tags.nameNormalized', 'asc'],
-      recent: ['latestPostAt', 'desc'],
-      count: ['postCount', 'desc']
+    const orderColumns: Record<
+      HashtagSortOrder,
+      { column: string; order: string }[]
+    > = {
+      alphabetical: [{ column: 'tags.nameNormalized', order: 'asc' }],
+      recent: [
+        { column: 'latestPostAt', order: 'desc' },
+        { column: 'tags.nameNormalized', order: 'asc' }
+      ],
+      count: [
+        { column: 'postCount', order: 'desc' },
+        { column: 'tags.nameNormalized', order: 'asc' }
+      ]
     }
-    const [col, dir] = orderColumn[sort]
 
     const [rows, countResult] = await Promise.all([
-      baseQuery().orderBy(col, dir).limit(limit).offset(offset),
+      baseQuery().orderBy(orderColumns[sort]).limit(limit).offset(offset),
       database('tags')
         .innerJoin('statuses', 'tags.statusId', 'statuses.id')
         .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
         .where('tags.type', 'hashtag')
         .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
         .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
-        .countDistinct<{ count: string }>('tags.nameNormalized as count')
+        .countDistinct<{ count: string }>({ count: 'tags.nameNormalized' })
         .first()
     ])
 
@@ -236,7 +244,7 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
 
     return {
       hashtags,
-      total: parseInt(countResult?.count ?? '0', 10)
+      total: parseInt(String(countResult?.count ?? '0'), 10)
     }
   }
 })
