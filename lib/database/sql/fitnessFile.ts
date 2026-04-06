@@ -718,7 +718,10 @@ export const FitnessFileSQLDatabaseMixin = (
           'activityStartTime',
           'date'
         ])
-      : database.raw('DATE(??) as ??', ['activityStartTime', 'date'])
+      : database.raw("TO_CHAR(DATE(??), 'YYYY-MM-DD') as ??", [
+          'activityStartTime',
+          'date'
+        ])
 
     const rows = await query
       .groupBy(dateExpr)
