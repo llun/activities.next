@@ -11,12 +11,17 @@ import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
 import {
   AdminDatabase,
+  AdminHashtag,
   GetAccountWithActorsParams,
   GetAllAccountsParams,
-  GetServiceStatsBucketsParams
+  GetAllHashtagsParams,
+  GetServiceStatsBucketsParams,
+  HashtagSortOrder
 } from '@/lib/types/database/operations'
 import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
 import { Actor } from '@/lib/types/domain/actor'
+import { StatusType } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const toDomainActor = (row: SQLActor): Actor => {
   const settings = getCompatibleJSON<ActorSettings>(row.settings)
@@ -180,5 +185,66 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
       bucketHour: row.bucketHour.getTime(),
       value: row.value
     }))
+  },
+
+  async getAllHashtags({ limit, offset, sort }: GetAllHashtagsParams) {
+    // baseQuery holds only the shared joins and filters; aggregations are
+    // applied separately so the count query doesn't duplicate this logic.
+    const baseQuery = () =>
+      database('tags')
+        .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+        .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+        .where('tags.type', 'hashtag')
+        .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+
+    const orderColumns: Record<
+      HashtagSortOrder,
+      { column: string; order: string }[]
+    > = {
+      alphabetical: [{ column: 'tags.nameNormalized', order: 'asc' }],
+      recent: [
+        { column: 'latestPostAt', order: 'desc' },
+        { column: 'tags.nameNormalized', order: 'asc' }
+      ],
+      count: [
+        { column: 'postCount', order: 'desc' },
+        { column: 'tags.nameNormalized', order: 'asc' }
+      ]
+    }
+
+    const [rows, countResult] = await Promise.all([
+      baseQuery()
+        .groupBy('tags.nameNormalized')
+        .select('tags.nameNormalized')
+        .countDistinct({ postCount: 'tags.statusId' })
+        .max({ latestPostAt: 'statuses.createdAt' })
+        .orderBy(orderColumns[sort])
+        .limit(limit)
+        .offset(offset),
+      baseQuery()
+        .countDistinct<{ count: string }>({ count: 'tags.nameNormalized' })
+        .first()
+    ])
+
+    const hashtags: AdminHashtag[] = (
+      rows as {
+        nameNormalized: string
+        postCount: string
+        latestPostAt: Date | string | number | null
+      }[]
+    ).map((row) => ({
+      // Preserve the full nameNormalized value as `name` so that routing
+      // is fully reversible. The display layer strips the leading '#'.
+      name: row.nameNormalized,
+      postCount: parseInt(String(row.postCount), 10),
+      latestPostAt:
+        row.latestPostAt != null ? new Date(row.latestPostAt).getTime() : null
+    }))
+
+    return {
+      hashtags,
+      total: parseInt(String(countResult?.count ?? '0'), 10)
+    }
   }
 })

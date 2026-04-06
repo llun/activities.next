@@ -100,6 +100,13 @@
   }
   ```
 
+## Date Serialization in Server Components
+
+- **Never pass `new Date()` as a prop from a Server Component to a Client Component.** `Date` objects are not safely serializable across the server/client boundary and can cause hydration mismatches.
+- Always pass timestamps as `number` (e.g. `Date.now()`) from Server Components.
+- Client Components should accept `currentTime: number` and construct `new Date(currentTime)` internally before use.
+- This pattern is already used throughout the codebase (e.g. `HashtagTimeline` accepts `currentTime: number` and converts it before passing to `<Posts>`).
+
 ## Client-Side API Calls
 
 - **Never call `fetch()` directly inside React components.** All API calls from client components must go through `lib/client.ts`.
