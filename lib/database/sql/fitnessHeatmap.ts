@@ -27,6 +27,7 @@ export interface GetFitnessHeatmapByKeyParams {
   activityType?: string | null
   periodType: FitnessHeatmapPeriodType
   periodKey: string
+  includeDeleted?: boolean
 }
 
 export interface GetFitnessHeatmapsForActorParams {
@@ -41,6 +42,7 @@ export interface UpdateFitnessHeatmapStatusParams {
   imagePath?: string | null
   error?: string | null
   activityCount?: number
+  clearDeleted?: boolean
 }
 
 export interface GetDistinctActivityTypesParams {
@@ -128,13 +130,17 @@ export const FitnessHeatmapSQLDatabaseMixin = (
     actorId,
     activityType,
     periodType,
-    periodKey
+    periodKey,
+    includeDeleted
   }: GetFitnessHeatmapByKeyParams) {
     let query = database<SQLFitnessHeatmap>('fitness_heatmaps')
       .where('actorId', actorId)
       .where('periodType', periodType)
       .where('periodKey', periodKey)
-      .whereNull('deletedAt')
+
+    if (!includeDeleted) {
+      query = query.whereNull('deletedAt')
+    }
 
     if (activityType) {
       query = query.where('activityType', activityType)
@@ -177,7 +183,8 @@ export const FitnessHeatmapSQLDatabaseMixin = (
     status,
     imagePath,
     error,
-    activityCount
+    activityCount,
+    clearDeleted
   }: UpdateFitnessHeatmapStatusParams) {
     const updateData: Record<string, unknown> = {
       status,
@@ -193,11 +200,15 @@ export const FitnessHeatmapSQLDatabaseMixin = (
     if (activityCount !== undefined) {
       updateData.activityCount = activityCount
     }
+    if (clearDeleted) {
+      updateData.deletedAt = null
+    }
 
-    const result = await database('fitness_heatmaps')
-      .where('id', id)
-      .whereNull('deletedAt')
-      .update(updateData)
+    const query = database('fitness_heatmaps').where('id', id)
+    if (!clearDeleted) {
+      query.whereNull('deletedAt')
+    }
+    const result = await query.update(updateData)
 
     return result > 0
   },

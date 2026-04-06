@@ -94,14 +94,16 @@ export const generateFitnessHeatmapJob = createJobHandle(
         actorId,
         activityType,
         periodType,
-        periodKey
+        periodKey,
+        includeDeleted: true
       })
 
       if (existing) {
         heatmapId = existing.id
         await database.updateFitnessHeatmapStatus({
           id: existing.id,
-          status: 'generating'
+          status: 'generating',
+          clearDeleted: true
         })
       } else {
         const created = await database.createFitnessHeatmap({

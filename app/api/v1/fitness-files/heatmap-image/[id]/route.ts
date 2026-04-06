@@ -59,7 +59,7 @@ export const GET = traceApiRoute(
 
       return new Response(result.buffer as BodyInit, {
         headers: {
-          'Content-Type': 'image/png',
+          'Content-Type': result.contentType || 'image/png',
           'Cache-Control': 'private, max-age=3600'
         }
       })

@@ -711,16 +711,16 @@ export const FitnessFileSQLDatabaseMixin = (
     const isSQLite = client === 'better-sqlite3' || client === 'sqlite3'
     const dateExpr = isSQLite
       ? database.raw("DATE(?? / 1000, 'unixepoch')", ['activityStartTime'])
-      : database.raw('DATE(??)', ['activityStartTime'])
+      : database.raw("DATE(?? AT TIME ZONE 'UTC')", ['activityStartTime'])
     const dateSelectExpr = isSQLite
       ? database.raw("DATE(?? / 1000, 'unixepoch') as ??", [
           'activityStartTime',
           'date'
         ])
-      : database.raw("TO_CHAR(DATE(??), 'YYYY-MM-DD') as ??", [
-          'activityStartTime',
-          'date'
-        ])
+      : database.raw(
+          "TO_CHAR(DATE(?? AT TIME ZONE 'UTC'), 'YYYY-MM-DD') as ??",
+          ['activityStartTime', 'date']
+        )
 
     const rows = await query
       .groupBy(dateExpr)
