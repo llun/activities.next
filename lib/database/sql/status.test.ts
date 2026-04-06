@@ -1048,5 +1048,106 @@ describe('StatusDatabase', () => {
         expect(afterDeleteReblogsCount).toBe(beforeReblogsCount)
       })
     })
+
+    describe('getHashtagStatusesPage', () => {
+      const tag = `pagetag_${Date.now()}`
+
+      beforeAll(async () => {
+        // Create 3 public posts with the tag and 1 non-public post
+        for (let i = 1; i <= 3; i++) {
+          const id = `${primaryActorId}/statuses/page-hashtag-${tag}-${i}`
+          await database.createNote({
+            id,
+            url: id,
+            actorId: primaryActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: `Post #${tag} number ${i}`
+          })
+          await database.createTag({
+            statusId: id,
+            name: `#${tag}`,
+            value: `https://${actors.primary.domain}/tags/${tag}`,
+            type: 'hashtag'
+          })
+        }
+        // Non-public post (followers-only) — should not appear
+        const privateId = `${primaryActorId}/statuses/page-hashtag-${tag}-private`
+        await database.createNote({
+          id: privateId,
+          url: privateId,
+          actorId: primaryActorId,
+          to: [`${primaryActorId}/followers`],
+          cc: [],
+          text: `Private post #${tag}`
+        })
+        await database.createTag({
+          statusId: privateId,
+          name: `#${tag}`,
+          value: `https://${actors.primary.domain}/tags/${tag}`,
+          type: 'hashtag'
+        })
+      })
+
+      it('returns paginated public statuses for a hashtag', async () => {
+        const { statuses: page1, total } =
+          await database.getHashtagStatusesPage({
+            hashtag: tag,
+            limit: 2,
+            offset: 0
+          })
+        expect(total).toBe(3)
+        expect(page1).toHaveLength(2)
+      })
+
+      it('respects limit and offset', async () => {
+        const { statuses: page2 } = await database.getHashtagStatusesPage({
+          hashtag: tag,
+          limit: 2,
+          offset: 2
+        })
+        expect(page2).toHaveLength(1)
+      })
+
+      it('orders results newest first', async () => {
+        const { statuses } = await database.getHashtagStatusesPage({
+          hashtag: tag,
+          limit: 10,
+          offset: 0
+        })
+        const times = statuses.map((s) => s.createdAt as number)
+        expect(times).toEqual([...times].sort((a, b) => b - a))
+      })
+
+      it('excludes non-public posts from results and total', async () => {
+        const { statuses, total } = await database.getHashtagStatusesPage({
+          hashtag: tag,
+          limit: 10,
+          offset: 0
+        })
+        expect(total).toBe(3)
+        const texts = statuses.map((s) => (s as { text?: string }).text ?? '')
+        expect(texts.some((t) => t.includes('Private'))).toBe(false)
+      })
+
+      it('handles a # prefix in the hashtag argument', async () => {
+        const { statuses } = await database.getHashtagStatusesPage({
+          hashtag: `#${tag}`,
+          limit: 10,
+          offset: 0
+        })
+        expect(statuses.length).toBe(3)
+      })
+
+      it('returns empty results and zero total for unknown hashtag', async () => {
+        const { statuses, total } = await database.getHashtagStatusesPage({
+          hashtag: 'totally_unknown_tag_xyz',
+          limit: 10,
+          offset: 0
+        })
+        expect(statuses).toHaveLength(0)
+        expect(total).toBe(0)
+      })
+    })
   })
 })

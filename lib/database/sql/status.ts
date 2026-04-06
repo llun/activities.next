@@ -24,6 +24,7 @@ import {
   GetActorStatusesCountParams,
   GetActorStatusesParams,
   GetFavouritedByParams,
+  GetHashtagStatusesPageParams,
   GetStatusFromUrlHashParams,
   GetStatusFromUrlParams,
   GetStatusParams,
@@ -892,12 +893,19 @@ export const StatusSQLDatabaseMixin = (
     )
   }
 
+  // Normalise a caller-supplied hashtag value to the form stored in
+  // tags.nameNormalized: strip any leading '#' then re-add exactly one.
+  function normalizeHashtagName(hashtag: string): string {
+    const bare = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
+    return `#${bare.toLowerCase()}`
+  }
+
   async function getStatusesByHashtag({
     hashtag,
     limit = PER_PAGE_LIMIT,
     maxStatusId
   }: GetStatusesByHashtagParams): Promise<Status[]> {
-    const normalizedName = `#${hashtag.toLowerCase()}`
+    const normalizedName = normalizeHashtagName(hashtag)
     let query = database('tags')
       .innerJoin('statuses', 'tags.statusId', 'statuses.id')
       .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
@@ -942,6 +950,42 @@ export const StatusSQLDatabaseMixin = (
   }): Promise<number> {
     const tagName = hashtag.startsWith('#') ? hashtag.slice(1) : hashtag
     return getCounterValue(database, CounterKey.totalHashtag(tagName))
+  }
+
+  async function getHashtagStatusesPage({
+    hashtag,
+    limit,
+    offset
+  }: GetHashtagStatusesPageParams) {
+    const normalizedName = normalizeHashtagName(hashtag)
+    const baseQuery = () =>
+      database('tags')
+        .innerJoin('statuses', 'tags.statusId', 'statuses.id')
+        .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
+        .where('tags.type', 'hashtag')
+        .where('tags.nameNormalized', normalizedName)
+        .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
+
+    const [rows, countResult] = await Promise.all([
+      baseQuery()
+        .distinct('statuses.id', 'statuses.createdAt')
+        .orderBy('statuses.createdAt', 'desc')
+        .orderBy('statuses.id', 'desc')
+        .limit(limit)
+        .offset(offset),
+      baseQuery()
+        .countDistinct<{ count: string }>({ count: 'statuses.id' })
+        .first()
+    ])
+
+    const statusIds = (rows as { id: string }[]).map((row) => row.id)
+    const statuses =
+      statusIds.length > 0 ? await getStatusesByIds({ statusIds }) : []
+    return {
+      statuses,
+      total: parseInt(String(countResult?.count ?? '0'), 10)
+    }
   }
 
   async function increaseHashtagCounter({
@@ -1365,6 +1409,7 @@ export const StatusSQLDatabaseMixin = (
     createTag,
     getTags,
     getStatusesByHashtag,
+    getHashtagStatusesPage,
     getHashtagCounter,
     increaseHashtagCounter,
     decreaseHashtagCounter,
