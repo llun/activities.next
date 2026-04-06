@@ -291,26 +291,17 @@ export const processFitnessFileJob = createJobHandle(
       }
 
       const activityDate = activityData.startTime ?? new Date()
-      const year = activityDate.getFullYear().toString()
-      const month = `${year}-${String(activityDate.getMonth() + 1).padStart(2, '0')}`
+      const year = activityDate.getUTCFullYear().toString()
+      const month = `${year}-${String(activityDate.getUTCMonth() + 1).padStart(2, '0')}`
       const actType = activityData.activityType ?? null
 
-      const heatmapVariants = [
-        {
-          activityType: actType,
-          periodType: 'all_time' as const,
-          periodKey: 'all'
-        },
-        {
-          activityType: actType,
-          periodType: 'yearly' as const,
-          periodKey: year
-        },
-        {
-          activityType: actType,
-          periodType: 'monthly' as const,
-          periodKey: month
-        },
+      // Build variants: always include "all activities" (null) variants.
+      // Only add type-specific variants if activity has a type (to avoid duplicates).
+      const heatmapVariants: Array<{
+        activityType: string | null
+        periodType: string
+        periodKey: string
+      }> = [
         {
           activityType: null,
           periodType: 'all_time' as const,
@@ -328,17 +319,45 @@ export const processFitnessFileJob = createJobHandle(
         }
       ]
 
-      const queue = getQueue()
-      for (const variant of heatmapVariants) {
-        const heatmapId = getHashFromString(
-          `${actorId}:heatmap:${variant.activityType ?? 'all'}:${variant.periodType}:${variant.periodKey}`
+      if (actType !== null) {
+        heatmapVariants.push(
+          {
+            activityType: actType,
+            periodType: 'all_time' as const,
+            periodKey: 'all'
+          },
+          {
+            activityType: actType,
+            periodType: 'yearly' as const,
+            periodKey: year
+          },
+          {
+            activityType: actType,
+            periodType: 'monthly' as const,
+            periodKey: month
+          }
         )
-        await queue.publish({
-          id: heatmapId,
-          name: GENERATE_FITNESS_HEATMAP_JOB_NAME,
-          data: { actorId, ...variant }
-        })
       }
+
+      const queue = getQueue()
+      await Promise.allSettled(
+        heatmapVariants.map((variant) => {
+          const heatmapId = getHashFromString(
+            actorId +
+              ':heatmap:' +
+              (variant.activityType ?? 'all') +
+              ':' +
+              variant.periodType +
+              ':' +
+              variant.periodKey
+          )
+          return queue.publish({
+            id: heatmapId,
+            name: GENERATE_FITNESS_HEATMAP_JOB_NAME,
+            data: { actorId, ...variant }
+          })
+        })
+      )
     } catch (error) {
       const nodeError = error as Error
       logger.error({

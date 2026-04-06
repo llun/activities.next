@@ -465,7 +465,7 @@ describe('processFitnessFileJob', () => {
       ([msg]: [{ name: string }]) =>
         msg.name === GENERATE_FITNESS_HEATMAP_JOB_NAME
     )
-    expect(heatmapCalls).toHaveLength(6)
+    expect(heatmapCalls).toHaveLength(3)
 
     const heatmapPayloads = heatmapCalls.map(
       ([msg]: [{ data: object }]) => msg.data

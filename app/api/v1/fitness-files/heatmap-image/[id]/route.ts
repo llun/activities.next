@@ -1,12 +1,8 @@
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '@/lib/config'
-import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
-import { S3FitnessStorage } from '@/lib/services/fitness-files/S3StorageFile'
-import { LocalFileFitnessStorage } from '@/lib/services/fitness-files/localFile'
+import { getMedia } from '@/lib/services/medias'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { logger } from '@/lib/utils/logger'
 import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
@@ -46,29 +42,7 @@ export const GET = traceApiRoute(
         return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
       }
 
-      const { host } = getConfig()
-      const fitnessStorage = getEffectiveFitnessStorageConfig()
-      let result = null
-
-      switch (fitnessStorage?.type) {
-        case FitnessStorageType.LocalFile: {
-          result = await LocalFileFitnessStorage.getStorage(
-            fitnessStorage,
-            host,
-            database
-          ).getFile(heatmap.imagePath)
-          break
-        }
-        case FitnessStorageType.S3Storage:
-        case FitnessStorageType.ObjectStorage: {
-          result = await S3FitnessStorage.getStorage(
-            fitnessStorage,
-            host,
-            database
-          ).getFile(heatmap.imagePath)
-          break
-        }
-      }
+      const result = await getMedia(database, heatmap.imagePath)
 
       if (!result) {
         logger.warn({

@@ -77,9 +77,9 @@ interface CalendarGrid {
 }
 
 const formatDate = (date: Date): string => {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
+  const y = date.getUTCFullYear()
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(date.getUTCDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
 }
 
@@ -92,9 +92,9 @@ const buildGrid = (
   const monthLabels: CalendarGrid['monthLabels'] = []
 
   const current = new Date(startDate)
-  const dayOfWeek = current.getDay()
+  const dayOfWeek = current.getUTCDay()
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-  current.setDate(current.getDate() + mondayOffset)
+  current.setUTCDate(current.getUTCDate() + mondayOffset)
 
   let lastMonth = -1
 
@@ -114,15 +114,15 @@ const buildGrid = (
         week.push(null)
       }
 
-      if (current.getMonth() !== lastMonth && inRange) {
-        lastMonth = current.getMonth()
+      if (current.getUTCMonth() !== lastMonth && inRange) {
+        lastMonth = current.getUTCMonth()
         monthLabels.push({
           label: MONTH_NAMES[lastMonth],
           weekIndex: weeks.length
         })
       }
 
-      current.setDate(current.getDate() + 1)
+      current.setUTCDate(current.getUTCDate() + 1)
     }
 
     weeks.push(week)
@@ -138,8 +138,8 @@ const getDateRange = (
   if (periodType === 'yearly') {
     const year = parseInt(periodKey, 10)
     return {
-      start: new Date(year, 0, 1),
-      end: new Date(year, 11, 31)
+      start: new Date(Date.UTC(year, 0, 1)),
+      end: new Date(Date.UTC(year, 11, 31))
     }
   }
 
@@ -148,13 +148,15 @@ const getDateRange = (
     const year = parseInt(yearStr, 10)
     const month = parseInt(monthStr, 10) - 1
     return {
-      start: new Date(year, month, 1),
-      end: new Date(year, month + 1, 0)
+      start: new Date(Date.UTC(year, month, 1)),
+      end: new Date(Date.UTC(year, month + 1, 0))
     }
   }
 
   const now = new Date()
-  const start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+  const start = new Date(
+    Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth(), now.getUTCDate())
+  )
   return { start, end: now }
 }
 

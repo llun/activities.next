@@ -418,6 +418,17 @@ export async function generateFitnessHeatmaps(args = process.argv.slice(2)) {
     return 1
   }
 
+  if (
+    (input.periodType && !input.periodKey) ||
+    (!input.periodType && input.periodKey)
+  ) {
+    console.error(
+      'Error: --period-type and --period-key must be provided together'
+    )
+    console.log(USAGE)
+    return 1
+  }
+
   const database = getDatabase()
   if (!database) {
     console.error('Error: Database is not available')

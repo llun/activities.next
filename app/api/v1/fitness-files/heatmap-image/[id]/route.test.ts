@@ -24,20 +24,9 @@ jest.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-const mockGetFile = jest.fn()
-jest.mock('@/lib/services/fitness-files', () => ({
-  getEffectiveFitnessStorageConfig: jest.fn().mockReturnValue({
-    type: 'fs',
-    path: '/fake/storage'
-  })
-}))
-
-jest.mock('@/lib/services/fitness-files/localFile', () => ({
-  LocalFileFitnessStorage: {
-    getStorage: () => ({
-      getFile: (...args: unknown[]) => mockGetFile(...args)
-    })
-  }
+const mockGetMedia = jest.fn()
+jest.mock('@/lib/services/medias', () => ({
+  getMedia: (...args: unknown[]) => mockGetMedia(...args)
 }))
 
 jest.mock('next/headers', () => ({
@@ -61,7 +50,7 @@ describe('GET /api/v1/fitness-files/heatmap-image/[id]', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockGetFile.mockResolvedValue({
+    mockGetMedia.mockResolvedValue({
       type: 'buffer',
       contentType: 'image/png',
       buffer: Buffer.from('fake-png-data')
@@ -171,14 +160,17 @@ describe('GET /api/v1/fitness-files/heatmap-image/[id]', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('image/png')
     expect(response.headers.get('Cache-Control')).toBe('private, max-age=3600')
-    expect(mockGetFile).toHaveBeenCalledWith('heatmaps/owner-image.png')
+    expect(mockGetMedia).toHaveBeenCalledWith(
+      expect.anything(),
+      'heatmaps/owner-image.png'
+    )
   })
 
   it('returns 404 when storage file is missing', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
-    mockGetFile.mockResolvedValue(null)
+    mockGetMedia.mockResolvedValue(null)
 
     const heatmap = await database.createFitnessHeatmap({
       actorId: ACTOR1_ID,

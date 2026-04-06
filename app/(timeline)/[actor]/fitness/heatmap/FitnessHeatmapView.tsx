@@ -26,7 +26,7 @@ const METRIC_LABELS: Record<CalendarMetric, string> = {
   duration: 'Duration'
 }
 
-const currentYear = new Date().getFullYear()
+const currentYear = new Date().getUTCFullYear()
 
 const getCalendarDateRange = (
   periodType: PeriodType,
@@ -35,8 +35,8 @@ const getCalendarDateRange = (
   if (periodType === 'yearly') {
     const year = parseInt(periodKey, 10)
     return {
-      startDate: new Date(year, 0, 1).getTime(),
-      endDate: new Date(year + 1, 0, 1).getTime()
+      startDate: Date.UTC(year, 0, 1),
+      endDate: Date.UTC(year + 1, 0, 1)
     }
   }
 
@@ -45,15 +45,19 @@ const getCalendarDateRange = (
     const year = parseInt(yearStr, 10)
     const month = parseInt(monthStr, 10) - 1
     return {
-      startDate: new Date(year, month, 1).getTime(),
-      endDate: new Date(year, month + 1, 1).getTime()
+      startDate: Date.UTC(year, month, 1),
+      endDate: Date.UTC(year, month + 1, 1)
     }
   }
 
   // all_time: last 12 months
   const now = new Date()
-  const start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
-  return { startDate: start.getTime(), endDate: now.getTime() }
+  const start = Date.UTC(
+    now.getUTCFullYear() - 1,
+    now.getUTCMonth(),
+    now.getUTCDate()
+  )
+  return { startDate: start, endDate: now.getTime() }
 }
 
 const generateYearOptions = (): number[] => {
@@ -66,7 +70,8 @@ const generateYearOptions = (): number[] => {
 
 const generateMonthOptions = (year: number): string[] => {
   const months: string[] = []
-  const maxMonth = year === currentYear ? new Date().getMonth() : 11
+  const now = new Date()
+  const maxMonth = year === now.getUTCFullYear() ? now.getUTCMonth() : 11
   for (let m = maxMonth; m >= 0; m--) {
     months.push(`${year}-${String(m + 1).padStart(2, '0')}`)
   }
@@ -154,7 +159,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     } else if (newType === 'yearly') {
       setPeriodKey(`${selectedYear}`)
     } else {
-      const month = String(new Date().getMonth() + 1).padStart(2, '0')
+      const month = String(new Date().getUTCMonth() + 1).padStart(2, '0')
       setPeriodKey(`${selectedYear}-${month}`)
     }
   }
@@ -164,7 +169,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     if (periodType === 'yearly') {
       setPeriodKey(`${year}`)
     } else if (periodType === 'monthly') {
-      const month = String(new Date().getMonth() + 1).padStart(2, '0')
+      const month = String(new Date().getUTCMonth() + 1).padStart(2, '0')
       setPeriodKey(`${year}-${month}`)
     }
   }

@@ -699,7 +699,6 @@ export const FitnessFileSQLDatabaseMixin = (
       .whereNull('deletedAt')
       .where('processingStatus', 'completed')
       .where('isPrimary', true)
-      .whereNotNull('activityType')
       .whereNotNull('activityStartTime')
       .where('activityStartTime', '>=', new Date(startDate))
       .where('activityStartTime', '<', new Date(endDate))

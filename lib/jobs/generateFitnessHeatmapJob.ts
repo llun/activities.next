@@ -119,11 +119,22 @@ export const generateFitnessHeatmapJob = createJobHandle(
         })
       }
 
-      const allFiles = await database.getFitnessFilesByActor({
-        actorId,
-        limit: 10_000,
-        offset: 0
-      })
+      const PAGE_SIZE = 10_000
+      const allFiles: Awaited<
+        ReturnType<typeof database.getFitnessFilesByActor>
+      > = []
+      let offset = 0
+
+      while (true) {
+        const page = await database.getFitnessFilesByActor({
+          actorId,
+          limit: PAGE_SIZE,
+          offset
+        })
+        allFiles.push(...page)
+        if (page.length < PAGE_SIZE) break
+        offset += PAGE_SIZE
+      }
 
       const matchingFiles = allFiles.filter((file) => {
         if (file.processingStatus !== 'completed') return false
