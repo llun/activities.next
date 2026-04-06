@@ -1,5 +1,6 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import {
+  GENERATE_FITNESS_HEATMAP_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
@@ -209,7 +210,6 @@ describe('processFitnessFileJob', () => {
       url: 'https://llun.test/api/v1/files/medias/route-map.webp'
     })
 
-    expect(getQueue().publish).toHaveBeenCalledTimes(1)
     expect(getQueue().publish).toHaveBeenCalledWith({
       id: getHashFromString(`${statusId}:send-note`),
       name: SEND_NOTE_JOB_NAME,
@@ -217,6 +217,53 @@ describe('processFitnessFileJob', () => {
         actorId: actor.id,
         statusId
       }
+    })
+
+    const publishCalls = (getQueue().publish as jest.Mock).mock.calls
+    const heatmapCalls = publishCalls.filter(
+      ([msg]: [{ name: string }]) =>
+        msg.name === GENERATE_FITNESS_HEATMAP_JOB_NAME
+    )
+    expect(heatmapCalls).toHaveLength(6)
+
+    const heatmapPayloads = heatmapCalls.map(
+      ([msg]: [{ data: object }]) => msg.data
+    )
+    expect(heatmapPayloads).toContainEqual({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'all_time',
+      periodKey: 'all'
+    })
+    expect(heatmapPayloads).toContainEqual({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'yearly',
+      periodKey: '2026'
+    })
+    expect(heatmapPayloads).toContainEqual({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-01'
+    })
+    expect(heatmapPayloads).toContainEqual({
+      actorId: actor.id,
+      activityType: null,
+      periodType: 'all_time',
+      periodKey: 'all'
+    })
+    expect(heatmapPayloads).toContainEqual({
+      actorId: actor.id,
+      activityType: null,
+      periodType: 'yearly',
+      periodKey: '2026'
+    })
+    expect(heatmapPayloads).toContainEqual({
+      actorId: actor.id,
+      activityType: null,
+      periodType: 'monthly',
+      periodKey: '2026-01'
     })
   })
 
@@ -251,7 +298,7 @@ describe('processFitnessFileJob', () => {
 
     expect(mockGenerateMapImage).not.toHaveBeenCalled()
     expect(mockSaveMedia).not.toHaveBeenCalled()
-    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    expect(getQueue().publish).toHaveBeenCalledTimes(7)
   })
 
   it('continues federation when map generation fails', async () => {
@@ -277,7 +324,7 @@ describe('processFitnessFileJob', () => {
     expect(updatedFitnessFile?.mapImagePath).toBeUndefined()
 
     expect(mockSaveMedia).not.toHaveBeenCalled()
-    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    expect(getQueue().publish).toHaveBeenCalledTimes(7)
     expect(getQueue().publish).toHaveBeenCalledWith({
       id: getHashFromString(`${statusId}:send-note`),
       name: SEND_NOTE_JOB_NAME,
@@ -380,6 +427,93 @@ describe('processFitnessFileJob', () => {
       id: fitnessFileId
     })
     expect(updatedFitnessFile?.processingStatus).toBe('completed')
-    expect(getQueue().publish).not.toHaveBeenCalled()
+
+    const publishCalls = (getQueue().publish as jest.Mock).mock.calls
+    const sendNoteCalls = publishCalls.filter(
+      ([msg]: [{ name: string }]) => msg.name === SEND_NOTE_JOB_NAME
+    )
+    expect(sendNoteCalls).toHaveLength(0)
+
+    const heatmapCalls = publishCalls.filter(
+      ([msg]: [{ name: string }]) =>
+        msg.name === GENERATE_FITNESS_HEATMAP_JOB_NAME
+    )
+    expect(heatmapCalls).toHaveLength(6)
+  })
+
+  it('queues heatmap jobs with null activityType when activity has no type', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: 'No type workout'
+    })
+
+    mockParseFitnessFile.mockResolvedValue({
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 1_000,
+      totalDurationSeconds: 600,
+      startTime: new Date('2025-03-15T10:00:00.000Z')
+    })
+
+    await processFitnessFileJob(database, {
+      id: 'job-id-no-type',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+
+    const publishCalls = (getQueue().publish as jest.Mock).mock.calls
+    const heatmapCalls = publishCalls.filter(
+      ([msg]: [{ name: string }]) =>
+        msg.name === GENERATE_FITNESS_HEATMAP_JOB_NAME
+    )
+    expect(heatmapCalls).toHaveLength(3)
+
+    const heatmapPayloads = heatmapCalls.map(
+      ([msg]: [{ data: object }]) => msg.data
+    )
+    for (const payload of heatmapPayloads) {
+      expect(payload).toMatchObject({
+        actorId: actor.id,
+        activityType: null
+      })
+    }
+
+    expect(heatmapPayloads).toContainEqual({
+      actorId: actor.id,
+      activityType: null,
+      periodType: 'yearly',
+      periodKey: '2025'
+    })
+    expect(heatmapPayloads).toContainEqual({
+      actorId: actor.id,
+      activityType: null,
+      periodType: 'monthly',
+      periodKey: '2025-03'
+    })
+  })
+
+  it('does not queue heatmap jobs when processing fails', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: 'Will fail for heatmap test'
+    })
+
+    mockParseFitnessFile.mockRejectedValue(new Error('parse failure'))
+
+    await processFitnessFileJob(database, {
+      id: 'job-id-fail-heatmap',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+
+    const updatedFitnessFile = await database.getFitnessFile({
+      id: fitnessFileId
+    })
+    expect(updatedFitnessFile?.processingStatus).toBe('failed')
+
+    const publishCalls = (getQueue().publish as jest.Mock).mock.calls
+    const heatmapCalls = publishCalls.filter(
+      ([msg]: [{ name: string }]) =>
+        msg.name === GENERATE_FITNESS_HEATMAP_JOB_NAME
+    )
+    expect(heatmapCalls).toHaveLength(0)
   })
 })

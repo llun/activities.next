@@ -51,6 +51,11 @@ export interface GetFitnessFilesByActorParams {
   actorId: string
   limit?: number
   offset?: number
+  processingStatus?: string
+  isPrimary?: boolean
+  activityType?: string | null
+  startDate?: Date
+  endDate?: Date
 }
 
 export interface GetFitnessFilesByIdsParams {
@@ -97,6 +102,20 @@ export interface GetFitnessActivitySummaryParams {
   actorId: string
   startDate: number
   endDate: number
+}
+
+export interface FitnessCalendarDay {
+  date: string
+  count: number
+  totalDistanceMeters: number
+  totalDurationSeconds: number
+}
+
+export interface GetFitnessActivityCalendarDataParams {
+  actorId: string
+  startDate: number
+  endDate: number
+  activityType?: string
 }
 
 export interface GetActorHasFitnessDataParams {
@@ -169,6 +188,9 @@ export interface FitnessFileDatabase {
     params: GetFitnessActivitySummaryParams
   ): Promise<FitnessActivitySummary[]>
   getActorHasFitnessData(params: GetActorHasFitnessDataParams): Promise<boolean>
+  getFitnessActivityCalendarData(
+    params: GetFitnessActivityCalendarDataParams
+  ): Promise<FitnessCalendarDay[]>
 }
 
 // Helper function to normalize bytes from database which can be number, string, or bigint
@@ -319,11 +341,38 @@ export const FitnessFileSQLDatabaseMixin = (
   async getFitnessFilesByActor({
     actorId,
     limit = 25,
-    offset = 0
+    offset = 0,
+    processingStatus,
+    isPrimary,
+    activityType,
+    startDate,
+    endDate
   }: GetFitnessFilesByActorParams) {
-    const rows = await database<SQLFitnessFile>('fitness_files')
+    let query = database<SQLFitnessFile>('fitness_files')
       .where('actorId', actorId)
       .whereNull('deletedAt')
+
+    if (processingStatus) {
+      query = query.where('processingStatus', processingStatus)
+    }
+    if (isPrimary !== undefined) {
+      query = query.where('isPrimary', isPrimary)
+    }
+    if (activityType !== undefined) {
+      if (activityType === null) {
+        query = query.whereNull('activityType')
+      } else {
+        query = query.where('activityType', activityType)
+      }
+    }
+    if (startDate) {
+      query = query.where('activityStartTime', '>=', startDate)
+    }
+    if (endDate) {
+      query = query.where('activityStartTime', '<=', endDate)
+    }
+
+    const rows = await query
       .orderBy('createdAt', 'desc')
       .limit(limit)
       .offset(offset)
@@ -669,5 +718,63 @@ export const FitnessFileSQLDatabaseMixin = (
       .select(database.raw('1'))
       .first()
     return Boolean(row)
+  },
+
+  async getFitnessActivityCalendarData({
+    actorId,
+    startDate,
+    endDate,
+    activityType
+  }: GetFitnessActivityCalendarDataParams): Promise<FitnessCalendarDay[]> {
+    let query = database('fitness_files')
+      .where('actorId', actorId)
+      .whereNull('deletedAt')
+      .where('processingStatus', 'completed')
+      .where('isPrimary', true)
+      .whereNotNull('activityStartTime')
+      .where('activityStartTime', '>=', new Date(startDate))
+      .where('activityStartTime', '<', new Date(endDate))
+
+    if (activityType) {
+      query = query.where('activityType', activityType)
+    }
+
+    const client = String(database.client.config.client)
+    const isSQLite = client === 'better-sqlite3' || client === 'sqlite3'
+    const dateExpr = isSQLite
+      ? database.raw("DATE(?? / 1000, 'unixepoch')", ['activityStartTime'])
+      : database.raw("DATE(?? AT TIME ZONE 'UTC')", ['activityStartTime'])
+    const dateSelectExpr = isSQLite
+      ? database.raw("DATE(?? / 1000, 'unixepoch') as ??", [
+          'activityStartTime',
+          'date'
+        ])
+      : database.raw(
+          "TO_CHAR(DATE(?? AT TIME ZONE 'UTC'), 'YYYY-MM-DD') as ??",
+          ['activityStartTime', 'date']
+        )
+
+    const rows = await query
+      .groupBy(dateExpr)
+      .select(
+        dateSelectExpr,
+        database.raw('COUNT(*) as count'),
+        ...(
+          [
+            ['totalDistanceMeters', 'totalDistanceMeters'],
+            ['totalDurationSeconds', 'totalDurationSeconds']
+          ] as [string, string][]
+        ).map(([col, alias]) =>
+          database.raw('COALESCE(SUM(??), 0) as ??', [col, alias])
+        )
+      )
+      .orderBy('date', 'asc')
+
+    return rows.map((row: Record<string, unknown>) => ({
+      date: String(row.date),
+      count: Number(row.count),
+      totalDistanceMeters: Number(row.totalDistanceMeters),
+      totalDurationSeconds: Number(row.totalDurationSeconds)
+    }))
   }
 })

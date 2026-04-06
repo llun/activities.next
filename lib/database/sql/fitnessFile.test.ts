@@ -620,6 +620,162 @@ describe('FitnessFileDatabase', () => {
       })
     })
 
+    describe('getFitnessActivityCalendarData', () => {
+      it('returns per-day aggregates grouped by date', async () => {
+        const day1a = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/cal-day1a.fit',
+          fileName: 'cal-day1a.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 512
+        })
+        const day1b = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/cal-day1b.fit',
+          fileName: 'cal-day1b.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 512
+        })
+        const day2 = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/cal-day2.fit',
+          fileName: 'cal-day2.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 512
+        })
+
+        await database.updateFitnessFileActivityData(day1a!.id, {
+          activityType: 'running',
+          activityStartTime: new Date('2027-03-10T08:00:00.000Z'),
+          totalDistanceMeters: 5000,
+          totalDurationSeconds: 1800
+        })
+        await database.updateFitnessFileProcessingStatus(day1a!.id, 'completed')
+
+        await database.updateFitnessFileActivityData(day1b!.id, {
+          activityType: 'cycling',
+          activityStartTime: new Date('2027-03-10T17:00:00.000Z'),
+          totalDistanceMeters: 15000,
+          totalDurationSeconds: 3600
+        })
+        await database.updateFitnessFileProcessingStatus(day1b!.id, 'completed')
+
+        await database.updateFitnessFileActivityData(day2!.id, {
+          activityType: 'running',
+          activityStartTime: new Date('2027-03-12T09:00:00.000Z'),
+          totalDistanceMeters: 8000,
+          totalDurationSeconds: 2400
+        })
+        await database.updateFitnessFileProcessingStatus(day2!.id, 'completed')
+
+        const result = await database.getFitnessActivityCalendarData({
+          actorId: actors.extra.id,
+          startDate: new Date('2027-03-01T00:00:00.000Z').getTime(),
+          endDate: new Date('2027-04-01T00:00:00.000Z').getTime()
+        })
+
+        expect(result).toHaveLength(2)
+        expect(result[0]).toMatchObject({
+          date: '2027-03-10',
+          count: 2,
+          totalDistanceMeters: 20000,
+          totalDurationSeconds: 5400
+        })
+        expect(result[1]).toMatchObject({
+          date: '2027-03-12',
+          count: 1,
+          totalDistanceMeters: 8000,
+          totalDurationSeconds: 2400
+        })
+      })
+
+      it('returns empty array when no data in range', async () => {
+        const result = await database.getFitnessActivityCalendarData({
+          actorId: actors.extra.id,
+          startDate: new Date('2010-01-01T00:00:00.000Z').getTime(),
+          endDate: new Date('2010-02-01T00:00:00.000Z').getTime()
+        })
+
+        expect(result).toEqual([])
+      })
+
+      it('filters by activityType when provided', async () => {
+        const result = await database.getFitnessActivityCalendarData({
+          actorId: actors.extra.id,
+          startDate: new Date('2027-03-01T00:00:00.000Z').getTime(),
+          endDate: new Date('2027-04-01T00:00:00.000Z').getTime(),
+          activityType: 'running'
+        })
+
+        expect(result).toHaveLength(2)
+        expect(result[0]).toMatchObject({
+          date: '2027-03-10',
+          count: 1,
+          totalDistanceMeters: 5000,
+          totalDurationSeconds: 1800
+        })
+        expect(result[1]).toMatchObject({
+          date: '2027-03-12',
+          count: 1,
+          totalDistanceMeters: 8000,
+          totalDurationSeconds: 2400
+        })
+      })
+
+      it('excludes deleted and non-primary files', async () => {
+        const deleted = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/cal-deleted.fit',
+          fileName: 'cal-deleted.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 512
+        })
+        await database.updateFitnessFileActivityData(deleted!.id, {
+          activityType: 'running',
+          activityStartTime: new Date('2027-04-05T08:00:00.000Z'),
+          totalDistanceMeters: 3000,
+          totalDurationSeconds: 900
+        })
+        await database.updateFitnessFileProcessingStatus(
+          deleted!.id,
+          'completed'
+        )
+        await database.deleteFitnessFile({ id: deleted!.id })
+
+        const nonPrimary = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/cal-nonprimary.fit',
+          fileName: 'cal-nonprimary.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 512
+        })
+        await database.updateFitnessFileActivityData(nonPrimary!.id, {
+          activityType: 'running',
+          activityStartTime: new Date('2027-04-06T08:00:00.000Z'),
+          totalDistanceMeters: 4000,
+          totalDurationSeconds: 1200
+        })
+        await database.updateFitnessFileProcessingStatus(
+          nonPrimary!.id,
+          'completed'
+        )
+        await database.updateFitnessFilePrimary(nonPrimary!.id, false)
+
+        const result = await database.getFitnessActivityCalendarData({
+          actorId: actors.extra.id,
+          startDate: new Date('2027-04-01T00:00:00.000Z').getTime(),
+          endDate: new Date('2027-05-01T00:00:00.000Z').getTime()
+        })
+
+        expect(result).toEqual([])
+      })
+    })
+
     describe('deleteFitnessFile', () => {
       it('soft deletes a file and updates usage counters', async () => {
         const actor = await database.getActorFromId({ id: actors.extra.id })
