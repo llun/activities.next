@@ -51,6 +51,11 @@ export interface GetFitnessFilesByActorParams {
   actorId: string
   limit?: number
   offset?: number
+  processingStatus?: string
+  isPrimary?: boolean
+  activityType?: string | null
+  startDate?: Date
+  endDate?: Date
 }
 
 export interface GetFitnessFilesByIdsParams {
@@ -336,11 +341,38 @@ export const FitnessFileSQLDatabaseMixin = (
   async getFitnessFilesByActor({
     actorId,
     limit = 25,
-    offset = 0
+    offset = 0,
+    processingStatus,
+    isPrimary,
+    activityType,
+    startDate,
+    endDate
   }: GetFitnessFilesByActorParams) {
-    const rows = await database<SQLFitnessFile>('fitness_files')
+    let query = database<SQLFitnessFile>('fitness_files')
       .where('actorId', actorId)
       .whereNull('deletedAt')
+
+    if (processingStatus) {
+      query = query.where('processingStatus', processingStatus)
+    }
+    if (isPrimary !== undefined) {
+      query = query.where('isPrimary', isPrimary)
+    }
+    if (activityType !== undefined) {
+      if (activityType === null) {
+        query = query.whereNull('activityType')
+      } else {
+        query = query.where('activityType', activityType)
+      }
+    }
+    if (startDate) {
+      query = query.where('activityStartTime', '>=', startDate)
+    }
+    if (endDate) {
+      query = query.where('activityStartTime', '<=', endDate)
+    }
+
+    const rows = await query
       .orderBy('createdAt', 'desc')
       .limit(limit)
       .offset(offset)

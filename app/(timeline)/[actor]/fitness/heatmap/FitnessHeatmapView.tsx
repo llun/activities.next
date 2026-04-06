@@ -169,8 +169,10 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     if (periodType === 'yearly') {
       setPeriodKey(`${year}`)
     } else if (periodType === 'monthly') {
-      const month = String(new Date().getUTCMonth() + 1).padStart(2, '0')
-      setPeriodKey(`${year}-${month}`)
+      const currentMonth = periodKey.split('-')[1] ?? '01'
+      const newKey = `${year}-${currentMonth}`
+      const options = generateMonthOptions(year)
+      setPeriodKey(options.includes(newKey) ? newKey : options[0])
     }
   }
 

@@ -9,7 +9,7 @@ import {
   parseFitnessFile
 } from '@/lib/services/fitness-files/parseFitnessFile'
 import type { FitnessCoordinate } from '@/lib/services/fitness-files/parseFitnessFile'
-import { saveMedia } from '@/lib/services/medias'
+import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { logger } from '@/lib/utils/logger'
 
@@ -83,6 +83,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
     const { periodStart, periodEnd } = getPeriodRange(periodType, periodKey)
 
     let heatmapId: string | undefined
+    let previousImagePath: string | undefined
 
     try {
       const actor = await database.getActorFromId({ id: actorId })
@@ -100,6 +101,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
 
       if (existing) {
         heatmapId = existing.id
+        previousImagePath = existing.imagePath
         await database.updateFitnessHeatmapStatus({
           id: existing.id,
           status: 'generating',
@@ -122,43 +124,31 @@ export const generateFitnessHeatmapJob = createJobHandle(
       }
 
       const PAGE_SIZE = 10_000
-      const allFiles: Awaited<
+      const matchingFiles: Awaited<
         ReturnType<typeof database.getFitnessFilesByActor>
       > = []
       let offset = 0
 
+      const queryFilters = {
+        actorId,
+        processingStatus: 'completed' as const,
+        isPrimary: true,
+        ...(activityType !== null ? { activityType } : {}),
+        ...(periodType !== 'all_time'
+          ? { startDate: periodStart, endDate: periodEnd }
+          : {})
+      }
+
       while (true) {
         const page = await database.getFitnessFilesByActor({
-          actorId,
+          ...queryFilters,
           limit: PAGE_SIZE,
           offset
         })
-        allFiles.push(...page)
+        matchingFiles.push(...page)
         if (page.length < PAGE_SIZE) break
         offset += PAGE_SIZE
       }
-
-      const matchingFiles = allFiles.filter((file) => {
-        if (file.processingStatus !== 'completed') return false
-        if (!file.isPrimary) return false
-        if (file.deletedAt) return false
-
-        if (file.activityStartTime) {
-          const startTime = file.activityStartTime
-          if (
-            startTime < periodStart.getTime() ||
-            startTime > periodEnd.getTime()
-          ) {
-            return false
-          }
-        }
-
-        if (activityType !== null && file.activityType !== activityType) {
-          return false
-        }
-
-        return true
-      })
 
       const allRouteSegments: FitnessCoordinate[][] = []
 
@@ -238,6 +228,17 @@ export const generateFitnessHeatmapJob = createJobHandle(
         imagePath,
         activityCount: allRouteSegments.length
       })
+
+      // Clean up previous heatmap image to avoid orphaned files
+      if (previousImagePath && previousImagePath !== imagePath) {
+        await deleteMediaFile(database, previousImagePath).catch((err) => {
+          logger.warn({
+            message: 'Failed to delete previous heatmap image',
+            previousImagePath,
+            error: (err as Error).message
+          })
+        })
+      }
 
       logger.info({
         message: 'Fitness heatmap generated successfully',

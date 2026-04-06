@@ -28,7 +28,8 @@ jest.mock('@/lib/services/fitness-files/generateHeatmapImage', () => ({
 }))
 
 jest.mock('@/lib/services/medias', () => ({
-  saveMedia: jest.fn()
+  saveMedia: jest.fn(),
+  deleteMediaFile: jest.fn().mockResolvedValue(true)
 }))
 
 const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
