@@ -52,26 +52,39 @@ export const calculateBounds = (coordinates: FitnessCoordinate[]) => {
   }
 }
 
+export type CoordinateBounds = ReturnType<typeof calculateBounds>
+
 export const getZoomLevel = ({
   coordinates,
+  bounds: precomputedBounds,
   width,
   height,
   padding
 }: {
-  coordinates: FitnessCoordinate[]
+  coordinates?: FitnessCoordinate[]
+  bounds?: CoordinateBounds
   width: number
   height: number
   padding: number
 }) => {
-  for (let zoom = 18; zoom >= 2; zoom -= 1) {
-    const projected = coordinates.map((coordinate) => project(coordinate, zoom))
-    const xValues = projected.map((point) => point.x)
-    const yValues = projected.map((point) => point.y)
+  const bounds =
+    precomputedBounds ??
+    (coordinates && coordinates.length > 0
+      ? calculateBounds(coordinates)
+      : null)
 
-    const minX = Math.min(...xValues)
-    const maxX = Math.max(...xValues)
-    const minY = Math.min(...yValues)
-    const maxY = Math.max(...yValues)
+  if (!bounds) return 2
+
+  for (let zoom = 18; zoom >= 2; zoom -= 1) {
+    const p1 = project({ lat: bounds.minLat, lng: bounds.minLng }, zoom)
+    const p2 = project({ lat: bounds.maxLat, lng: bounds.maxLng }, zoom)
+    // Use Math.min/max for x: normalizeLongitude can flip ordering when
+    // longitudes cross the ±180 boundary (e.g. minLng=170, maxLng=190).
+    // y is safe for direct assignment since latitude is clamped to [-85,85].
+    const minX = Math.min(p1.x, p2.x)
+    const maxX = Math.max(p1.x, p2.x)
+    const minY = p2.y
+    const maxY = p1.y
 
     if (
       maxX - minX <= width - padding * 2 &&
