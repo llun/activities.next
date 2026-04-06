@@ -1,5 +1,6 @@
 'use client'
 
+import { RefreshCw } from 'lucide-react'
 import { FC, useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
@@ -17,6 +18,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, Status } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 
 import { clearAction, editAction, statusActionReducer } from './reducer'
 
@@ -140,6 +142,34 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     }
   }, [loadMoreStatuses])
 
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+
+  const refreshTimeline = useCallback(async () => {
+    if (isLoadingRef.current) return
+
+    isLoadingRef.current = true
+    const requestId = ++tabRequestId.current
+    setIsRefreshing(true)
+    setLoadingMoreStatuses(true)
+
+    try {
+      const statuses = await getTimeline({ timeline: currentTab.timeline })
+      if (requestId !== tabRequestId.current) return
+      setCurrentStatuses(statuses)
+      setHasMoreStatuses(statuses.length > 0)
+      lastStatusIdRef.current =
+        statuses.length > 0 ? statuses[statuses.length - 1].id : null
+    } catch (_error) {
+      // Error refreshing - existing posts remain visible, user can retry
+    } finally {
+      if (requestId === tabRequestId.current) {
+        setLoadingMoreStatuses(false)
+      }
+      isLoadingRef.current = false
+      setIsRefreshing(false)
+    }
+  }, [currentTab.timeline])
+
   const onTabChange = async (value: string) => {
     const tab = TIMELINES_TABS.find((t) => t.timeline === value)
     if (!tab) return
@@ -174,11 +204,22 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
-      <div>
-        <h1 className="text-2xl font-semibold">Timeline</h1>
-        <p className="text-sm text-muted-foreground">
-          Latest posts from your network.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Timeline</h1>
+          <p className="text-sm text-muted-foreground">
+            Latest posts from your network.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={refreshTimeline}
+          disabled={isRefreshing}
+          aria-label="Refresh timeline"
+        >
+          <RefreshCw className={cn('size-4', isRefreshing && 'animate-spin')} />
+        </Button>
       </div>
 
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
@@ -241,7 +282,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
                 onEdit={onEdit}
                 onPostDeleted={onPostDeleted}
               />
-            ) : isLoadingMoreStatuses ? (
+            ) : isLoadingMoreStatuses || isRefreshing ? (
               <div className="p-8 text-center text-muted-foreground">
                 <p className="text-sm font-medium">Loading timeline...</p>
               </div>
