@@ -152,6 +152,41 @@ describe('GET /api/v1/accounts/[id]/fitness-summary', () => {
     })
   })
 
+  it('returns 200 with empty array when no activities in range', async () => {
+    mockDb.getFitnessActivitySummary.mockResolvedValue([])
+
+    const request = new NextRequest(
+      `${baseUrl}?start_date=${sevenDaysAgo}&end_date=${now}`
+    )
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toEqual([])
+  })
+
+  it('returns 400 when start_date is not a number', async () => {
+    const request = new NextRequest(
+      `${baseUrl}?start_date=invalid&end_date=${now}`
+    )
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+    expect(response.status).toBe(400)
+  })
+
+  it('returns 400 when end_date is not a number', async () => {
+    const request = new NextRequest(
+      `${baseUrl}?start_date=${sevenDaysAgo}&end_date=invalid`
+    )
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+    expect(response.status).toBe(400)
+  })
+
   it('returns 500 when database is not available', async () => {
     mockDatabase = null
 
