@@ -124,6 +124,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
       }
 
       const PAGE_SIZE = 10_000
+      const MAX_PAGES = 100
       const matchingFiles: Awaited<
         ReturnType<typeof database.getFitnessFilesByActor>
       > = []
@@ -139,7 +140,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
           : {})
       }
 
-      while (true) {
+      for (let pageNum = 0; pageNum < MAX_PAGES; pageNum++) {
         const page = await database.getFitnessFilesByActor({
           ...queryFilters,
           limit: PAGE_SIZE,
@@ -184,6 +185,16 @@ export const generateFitnessHeatmapJob = createJobHandle(
           imagePath: null
         })
 
+        if (previousImagePath) {
+          await deleteMediaFile(database, previousImagePath).catch((err) => {
+            logger.warn({
+              message: 'Failed to delete previous heatmap image',
+              previousImagePath,
+              error: (err as Error).message
+            })
+          })
+        }
+
         logger.info({
           message: 'No route data found for heatmap; marked completed',
           actorId,
@@ -204,6 +215,16 @@ export const generateFitnessHeatmapJob = createJobHandle(
           activityCount: allRouteSegments.length,
           imagePath: null
         })
+
+        if (previousImagePath) {
+          await deleteMediaFile(database, previousImagePath).catch((err) => {
+            logger.warn({
+              message: 'Failed to delete previous heatmap image',
+              previousImagePath,
+              error: (err as Error).message
+            })
+          })
+        }
         return
       }
 
