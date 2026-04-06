@@ -639,13 +639,13 @@ export const FitnessFileSQLDatabaseMixin = (
         'activityType',
         database.raw('COUNT(*) as count'),
         database.raw(
-          'COALESCE(SUM(totalDistanceMeters), 0) as totalDistanceMeters'
+          'COALESCE(SUM("totalDistanceMeters"), 0) as "totalDistanceMeters"'
         ),
         database.raw(
-          'COALESCE(SUM(totalDurationSeconds), 0) as totalDurationSeconds'
+          'COALESCE(SUM("totalDurationSeconds"), 0) as "totalDurationSeconds"'
         ),
         database.raw(
-          'COALESCE(SUM(elevationGainMeters), 0) as totalElevationGainMeters'
+          'COALESCE(SUM("elevationGainMeters"), 0) as "totalElevationGainMeters"'
         )
       )
 
