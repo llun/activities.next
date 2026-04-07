@@ -3,6 +3,10 @@ import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import {
+  HEATMAP_REGION_MAP,
+  serializeRegions
+} from '@/lib/services/fitness-files/regions'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/getCORSHeaders'
@@ -26,10 +30,25 @@ interface Params {
   id: string
 }
 
+const validRegionIds = Array.from(HEATMAP_REGION_MAP.keys())
+
 const FitnessHeatmapQueryParams = z.object({
   activity_type: z.string().optional(),
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
-  period_key: z.string()
+  period_key: z.string(),
+  /**
+   * Comma-separated list of region IDs, e.g. "singapore,netherlands".
+   * Empty or absent means worldwide (no region filter).
+   */
+  regions: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val) return ''
+      const ids = val.split(',').filter(Boolean)
+      const valid = ids.filter((id) => validRegionIds.includes(id))
+      return serializeRegions(valid)
+    })
 })
 
 export const GET = traceApiRoute(
@@ -100,14 +119,16 @@ export const GET = traceApiRoute(
     const {
       activity_type: activityType,
       period_type: periodType,
-      period_key: periodKey
+      period_key: periodKey,
+      regions
     } = parsed.data
 
     const heatmap = await database.getFitnessHeatmapByKey({
       actorId: id,
       activityType: activityType ?? null,
       periodType,
-      periodKey
+      periodKey,
+      regions
     })
 
     if (!heatmap) {
@@ -127,6 +148,7 @@ export const GET = traceApiRoute(
         activityType: heatmap.activityType,
         periodType: heatmap.periodType,
         periodKey: heatmap.periodKey,
+        regions: heatmap.regions,
         status: heatmap.status,
         imagePath: heatmap.imagePath,
         activityCount: heatmap.activityCount

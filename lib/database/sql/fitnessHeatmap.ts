@@ -14,6 +14,8 @@ export interface CreateFitnessHeatmapParams {
   activityType?: string | null
   periodType: FitnessHeatmapPeriodType
   periodKey: string
+  /** Sorted comma-separated region IDs. Empty string means worldwide. */
+  regions?: string
   periodStart?: Date | null
   periodEnd?: Date | null
 }
@@ -27,6 +29,8 @@ export interface GetFitnessHeatmapByKeyParams {
   activityType?: string | null
   periodType: FitnessHeatmapPeriodType
   periodKey: string
+  /** Sorted comma-separated region IDs. Empty string means worldwide. */
+  regions?: string
   includeDeleted?: boolean
 }
 
@@ -77,6 +81,7 @@ const parseSQLFitnessHeatmap = (row: SQLFitnessHeatmap): FitnessHeatmap => ({
   activityType: row.activityType ?? undefined,
   periodType: row.periodType as FitnessHeatmapPeriodType,
   periodKey: row.periodKey,
+  regions: row.regions ?? '',
   periodStart: row.periodStart ? getCompatibleTime(row.periodStart) : undefined,
   periodEnd: row.periodEnd ? getCompatibleTime(row.periodEnd) : undefined,
   imagePath: row.imagePath ?? undefined,
@@ -101,6 +106,7 @@ export const FitnessHeatmapSQLDatabaseMixin = (
       activityType: params.activityType ?? null,
       periodType: params.periodType,
       periodKey: params.periodKey,
+      regions: params.regions ?? '',
       periodStart: params.periodStart ?? null,
       periodEnd: params.periodEnd ?? null,
       imagePath: null,
@@ -131,12 +137,14 @@ export const FitnessHeatmapSQLDatabaseMixin = (
     activityType,
     periodType,
     periodKey,
+    regions,
     includeDeleted
   }: GetFitnessHeatmapByKeyParams) {
     let query = database<SQLFitnessHeatmap>('fitness_heatmaps')
       .where('actorId', actorId)
       .where('periodType', periodType)
       .where('periodKey', periodKey)
+      .where('regions', regions ?? '')
 
     if (!includeDeleted) {
       query = query.whereNull('deletedAt')

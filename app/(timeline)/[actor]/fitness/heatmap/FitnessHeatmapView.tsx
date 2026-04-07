@@ -13,6 +13,10 @@ import {
   CalendarMetric,
   FitnessCalendarHeatmap
 } from '@/lib/components/fitness/FitnessCalendarHeatmap'
+import {
+  HEATMAP_REGIONS,
+  serializeRegions
+} from '@/lib/services/fitness-files/regions'
 
 type PeriodType = 'all_time' | 'yearly' | 'monthly'
 
@@ -85,6 +89,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   const [periodKey, setPeriodKey] = useState<string>('all')
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   const [calendarMetric, setCalendarMetric] = useState<CalendarMetric>('count')
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([])
 
   const [heatmapData, setHeatmapData] = useState<FitnessHeatmapData | null>(
     null
@@ -107,6 +112,11 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     return periodKey
   }, [periodType, selectedYear, periodKey])
 
+  const serializedRegions = useMemo(
+    () => serializeRegions(selectedRegions),
+    [selectedRegions]
+  )
+
   const fetchData = useCallback(async () => {
     setIsLoading(true)
     setError(null)
@@ -123,7 +133,8 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
           actorId,
           activityType,
           periodType,
-          periodKey: effectivePeriodKey
+          periodKey: effectivePeriodKey,
+          regions: serializedRegions || undefined
         }),
         getFitnessCalendarData({
           actorId,
@@ -140,7 +151,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     } finally {
       setIsLoading(false)
     }
-  }, [actorId, selectedType, periodType, effectivePeriodKey])
+  }, [actorId, selectedType, periodType, effectivePeriodKey, serializedRegions])
 
   useEffect(() => {
     fetchData()
@@ -175,6 +186,19 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
       setPeriodKey(options.includes(newKey) ? newKey : options[0])
     }
   }
+
+  const addRegion = (regionId: string) => {
+    if (!regionId || selectedRegions.includes(regionId)) return
+    setSelectedRegions((prev) => [...prev, regionId])
+  }
+
+  const removeRegion = (regionId: string) => {
+    setSelectedRegions((prev) => prev.filter((r) => r !== regionId))
+  }
+
+  const availableRegions = HEATMAP_REGIONS.filter(
+    (r) => !selectedRegions.includes(r.id)
+  )
 
   return (
     <div className="space-y-6 p-2 sm:p-4">
@@ -248,6 +272,63 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
         )}
       </div>
 
+      {/* Region filter */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Region</span>
+          <select
+            value=""
+            onChange={(e) => {
+              addRegion(e.target.value)
+              e.target.value = ''
+            }}
+            className="rounded border bg-background px-2 py-1 text-sm"
+          >
+            <option value="">
+              {selectedRegions.length === 0
+                ? 'Worldwide (add region...)'
+                : 'Add region...'}
+            </option>
+            {availableRegions.map((region) => (
+              <option key={region.id} value={region.id}>
+                {region.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedRegions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {selectedRegions.map((regionId) => {
+              const region = HEATMAP_REGIONS.find((r) => r.id === regionId)
+              return (
+                <span
+                  key={regionId}
+                  className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
+                >
+                  {region?.label ?? regionId}
+                  <button
+                    type="button"
+                    onClick={() => removeRegion(regionId)}
+                    className="ml-0.5 rounded-full p-0.5 hover:bg-primary/20"
+                    aria-label={`Remove ${region?.label ?? regionId}`}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 14 14"
+                      fill="currentColor"
+                      className="h-3 w-3"
+                    >
+                      <path d="M10.95 3.05a.75.75 0 0 0-1.06 0L7 5.94 4.11 3.05A.75.75 0 0 0 3.05 4.11L5.94 7l-2.89 2.89a.75.75 0 1 0 1.06 1.06L7 8.06l2.89 2.89a.75.75 0 0 0 1.06-1.06L8.06 7l2.89-2.89a.75.75 0 0 0 0-1.06Z" />
+                    </svg>
+                  </button>
+                </span>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {isLoading && (
         <p className="text-center text-muted-foreground">Loading...</p>
       )}
@@ -301,7 +382,8 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
               heatmapData.status === 'completed' &&
               !heatmapData.imagePath && (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  No route data available for this period.
+                  No route data available for this period
+                  {selectedRegions.length > 0 ? ' and region' : ''}.
                 </p>
               )}
           </div>

@@ -9,6 +9,12 @@ import {
   parseFitnessFile
 } from '@/lib/services/fitness-files/parseFitnessFile'
 import type { FitnessCoordinate } from '@/lib/services/fitness-files/parseFitnessFile'
+import {
+  filterCoordinatesToBounds,
+  getRegionBounds,
+  parseRegionsString,
+  serializeRegions
+} from '@/lib/services/fitness-files/regions'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { logger } from '@/lib/utils/logger'
@@ -19,7 +25,9 @@ const JobData = z.object({
   actorId: z.string(),
   activityType: z.string().nullable(),
   periodType: z.enum(['all_time', 'yearly', 'monthly']),
-  periodKey: z.string()
+  periodKey: z.string(),
+  /** Sorted comma-separated region IDs. Empty string means worldwide. */
+  regions: z.string().optional().default('')
 })
 
 const getPeriodRange = (
@@ -76,9 +84,12 @@ const getFitnessFileBuffer = async (
 export const generateFitnessHeatmapJob = createJobHandle(
   GENERATE_FITNESS_HEATMAP_JOB_NAME,
   async (database, message) => {
-    const { actorId, activityType, periodType, periodKey } = JobData.parse(
-      message.data
-    )
+    const { actorId, activityType, periodType, periodKey, regions } =
+      JobData.parse(message.data)
+
+    const normalizedRegions = serializeRegions(parseRegionsString(regions))
+    const regionIds = parseRegionsString(normalizedRegions)
+    const regionBounds = getRegionBounds(regionIds)
 
     const { periodStart, periodEnd } = getPeriodRange(periodType, periodKey)
 
@@ -96,6 +107,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         activityType,
         periodType,
         periodKey,
+        regions: normalizedRegions,
         includeDeleted: true
       })
 
@@ -113,6 +125,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
           activityType,
           periodType,
           periodKey,
+          regions: normalizedRegions,
           periodStart,
           periodEnd
         })
@@ -177,7 +190,12 @@ export const generateFitnessHeatmapJob = createJobHandle(
         }
       }
 
-      if (allRouteSegments.length === 0) {
+      // When regions are selected, filter to only keep coordinates within bounds
+      const filteredSegments = regionBounds
+        ? filterCoordinatesToBounds(allRouteSegments, regionBounds)
+        : allRouteSegments
+
+      if (filteredSegments.length === 0) {
         await database.updateFitnessHeatmapStatus({
           id: heatmapId,
           status: 'completed',
@@ -205,14 +223,15 @@ export const generateFitnessHeatmapJob = createJobHandle(
       }
 
       const imageBuffer = await generateHeatmapImage({
-        routeSegments: allRouteSegments
+        routeSegments: filteredSegments,
+        ...(regionBounds ? { regionBounds } : {})
       })
 
       if (!imageBuffer) {
         await database.updateFitnessHeatmapStatus({
           id: heatmapId,
           status: 'completed',
-          activityCount: allRouteSegments.length,
+          activityCount: filteredSegments.length,
           imagePath: null
         })
 
@@ -230,7 +249,8 @@ export const generateFitnessHeatmapJob = createJobHandle(
 
       const imageBytes = new Uint8Array(imageBuffer)
       const activityTypePath = activityType ?? 'all'
-      const fileName = `heatmap-${activityTypePath}-${periodType}_${periodKey}.png`
+      const regionsSuffix = normalizedRegions ? `-${normalizedRegions}` : ''
+      const fileName = `heatmap-${activityTypePath}-${periodType}_${periodKey}${regionsSuffix}.png`
 
       const storedMedia = await saveMedia(database, actor, {
         file: new File([imageBytes], fileName, { type: 'image/png' }),
@@ -247,7 +267,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         id: heatmapId,
         status: 'completed',
         imagePath,
-        activityCount: allRouteSegments.length
+        activityCount: filteredSegments.length
       })
 
       // Clean up previous heatmap image to avoid orphaned files

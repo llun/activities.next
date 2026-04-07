@@ -3,7 +3,7 @@ import sharp from 'sharp'
 import { downsamplePrivacySegments } from '@/lib/services/fitness-files/privacy'
 import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
 
-import type { FitnessCoordinate } from './mapUtils'
+import type { CoordinateBounds, FitnessCoordinate } from './mapUtils'
 import {
   TILE_SIZE,
   calculateBounds,
@@ -16,6 +16,11 @@ export interface GenerateHeatmapImageParams {
   routeSegments: FitnessCoordinate[][]
   width?: number
   height?: number
+  /**
+   * When provided, the map viewport is forced to these bounds instead of
+   * being auto-fitted to the route data. Used for region-based heatmaps.
+   */
+  regionBounds?: CoordinateBounds
 }
 
 const DEFAULT_WIDTH = 1200
@@ -51,7 +56,8 @@ const downsampleRoute = (
 export const generateHeatmapImage = async ({
   routeSegments,
   width = DEFAULT_WIDTH,
-  height = DEFAULT_HEIGHT
+  height = DEFAULT_HEIGHT,
+  regionBounds
 }: GenerateHeatmapImageParams): Promise<Buffer | null> => {
   const validRoutes = routeSegments.filter((route) => route.length >= 2)
   if (validRoutes.length === 0) return null
@@ -59,7 +65,7 @@ export const generateHeatmapImage = async ({
   const allCoordinates = validRoutes.flat()
   if (allCoordinates.length < 2) return null
 
-  const bounds = calculateBounds(allCoordinates)
+  const bounds = regionBounds ?? calculateBounds(allCoordinates)
   if (
     !Number.isFinite(bounds.minLat) ||
     !Number.isFinite(bounds.maxLat) ||

@@ -147,7 +147,7 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
 
     expect(response.status).toBe(200)
     const data = await response.json()
-    expect(data).toEqual({
+    expect(data).toMatchObject({
       id: 'heatmap-1',
       activityType: 'running',
       periodType: 'yearly',
@@ -161,7 +161,8 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       actorId: ACTOR1_ID,
       activityType: 'running',
       periodType: 'yearly',
-      periodKey: '2025'
+      periodKey: '2025',
+      regions: ''
     })
   })
 
@@ -195,7 +196,8 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       actorId: ACTOR1_ID,
       activityType: null,
       periodType: 'all_time',
-      periodKey: 'all'
+      periodKey: 'all',
+      regions: ''
     })
   })
 

@@ -11,6 +11,7 @@ export interface SQLFitnessHeatmap {
   activityType: string | null
   periodType: string
   periodKey: string
+  regions: string
   periodStart: Date | string | number | null
   periodEnd: Date | string | number | null
   imagePath: string | null
@@ -28,6 +29,8 @@ export interface FitnessHeatmap {
   activityType?: string
   periodType: FitnessHeatmapPeriodType
   periodKey: string
+  /** Sorted comma-separated region IDs. Empty string means worldwide (no filter). */
+  regions: string
   periodStart?: number
   periodEnd?: number
   imagePath?: string
