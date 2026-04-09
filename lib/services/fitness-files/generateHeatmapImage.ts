@@ -1,5 +1,6 @@
 import sharp from 'sharp'
 
+import type { RegionBounds } from '@/lib/fitness/regions'
 import { downsamplePrivacySegments } from '@/lib/services/fitness-files/privacy'
 import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
 
@@ -14,12 +15,80 @@ import {
 
 export interface GenerateHeatmapImageParams {
   routeSegments: FitnessCoordinate[][]
+  /**
+   * When provided, coordinates are filtered to any of these bounding boxes and
+   * the output image is cropped to the union of those bounds.
+   *
+   * Per PR #556: an OR check is applied across each individual bounds object so
+   * that selecting Netherlands + Singapore does NOT include the sea in between.
+   * Routes are also split at region boundaries (no artificial straight lines
+   * across excluded areas).
+   */
+  regionBounds?: RegionBounds[]
   width?: number
   height?: number
 }
 
 const DEFAULT_WIDTH = 1200
 const DEFAULT_HEIGHT = 900
+
+/**
+ * Returns true when the coordinate falls inside at least one of the provided
+ * bounding boxes (OR logic — addresses PR #556 multi-region envelope issue).
+ */
+const isPointInAnyBounds = (
+  point: FitnessCoordinate,
+  bounds: RegionBounds[]
+): boolean =>
+  bounds.some(
+    (b) =>
+      point.lat >= b.minLat &&
+      point.lat <= b.maxLat &&
+      point.lng >= b.minLng &&
+      point.lng <= b.maxLng
+  )
+
+/**
+ * Filter a single route segment to only the portions that lie within the given
+ * region bounds.  Addresses PR #556: when a route exits and re-enters a region
+ * the gap is represented as a segment break rather than a straight connecting
+ * line.
+ */
+const splitRouteByBounds = (
+  route: FitnessCoordinate[],
+  bounds: RegionBounds[]
+): FitnessCoordinate[][] => {
+  const segments: FitnessCoordinate[][] = []
+  let current: FitnessCoordinate[] = []
+
+  for (const point of route) {
+    if (isPointInAnyBounds(point, bounds)) {
+      current.push(point)
+    } else {
+      if (current.length >= 2) {
+        segments.push(current)
+      }
+      current = []
+    }
+  }
+
+  if (current.length >= 2) {
+    segments.push(current)
+  }
+
+  return segments
+}
+
+/**
+ * Compute the union bounding box of all provided individual region bounds.
+ * Used to set the heatmap image viewport when regions are selected.
+ */
+const mergeRegionBounds = (bounds: RegionBounds[]): RegionBounds => ({
+  minLat: Math.min(...bounds.map((b) => b.minLat)),
+  maxLat: Math.max(...bounds.map((b) => b.maxLat)),
+  minLng: Math.min(...bounds.map((b) => b.minLng)),
+  maxLng: Math.max(...bounds.map((b) => b.maxLng))
+})
 
 const downsampleRoute = (
   route: FitnessCoordinate[],
@@ -50,16 +119,30 @@ const downsampleRoute = (
 
 export const generateHeatmapImage = async ({
   routeSegments,
+  regionBounds,
   width = DEFAULT_WIDTH,
   height = DEFAULT_HEIGHT
 }: GenerateHeatmapImageParams): Promise<Buffer | null> => {
-  const validRoutes = routeSegments.filter((route) => route.length >= 2)
+  const hasRegions = regionBounds && regionBounds.length > 0
+
+  // When regions are specified, split each route at region boundaries (OR logic
+  // per PR #556) so routes that exit and re-enter a region don't get connected
+  // with an artificial straight line.
+  const filteredSegments: FitnessCoordinate[][] = hasRegions
+    ? routeSegments.flatMap((route) => splitRouteByBounds(route, regionBounds))
+    : routeSegments
+
+  const validRoutes = filteredSegments.filter((route) => route.length >= 2)
   if (validRoutes.length === 0) return null
 
   const allCoordinates = validRoutes.flat()
   if (allCoordinates.length < 2) return null
 
-  const bounds = calculateBounds(allCoordinates)
+  // Use the union of the selected region bounds as the viewport; fall back to
+  // auto-fitting around the actual coordinate data.
+  const bounds = hasRegions
+    ? mergeRegionBounds(regionBounds)
+    : calculateBounds(allCoordinates)
   if (
     !Number.isFinite(bounds.minLat) ||
     !Number.isFinite(bounds.maxLat) ||

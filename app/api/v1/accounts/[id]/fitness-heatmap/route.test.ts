@@ -152,6 +152,7 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       activityType: 'running',
       periodType: 'yearly',
       periodKey: '2025',
+      region: null,
       status: 'completed',
       imagePath: 'heatmaps/actor1/yearly_2025.png',
       activityCount: 42
@@ -161,7 +162,8 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       actorId: ACTOR1_ID,
       activityType: 'running',
       periodType: 'yearly',
-      periodKey: '2025'
+      periodKey: '2025',
+      region: null
     })
   })
 
@@ -195,7 +197,8 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       actorId: ACTOR1_ID,
       activityType: null,
       periodType: 'all_time',
-      periodKey: 'all'
+      periodKey: 'all',
+      region: null
     })
   })
 

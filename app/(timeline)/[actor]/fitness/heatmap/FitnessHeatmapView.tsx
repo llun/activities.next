@@ -13,6 +13,8 @@ import {
   CalendarMetric,
   FitnessCalendarHeatmap
 } from '@/lib/components/fitness/FitnessCalendarHeatmap'
+import { RegionSelector } from '@/lib/components/fitness/RegionSelector'
+import { serializeRegions } from '@/lib/fitness/regions'
 
 type PeriodType = 'all_time' | 'yearly' | 'monthly'
 
@@ -85,6 +87,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   const [periodKey, setPeriodKey] = useState<string>('all')
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   const [calendarMetric, setCalendarMetric] = useState<CalendarMetric>('count')
+  const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([])
 
   const [heatmapData, setHeatmapData] = useState<FitnessHeatmapData | null>(
     null
@@ -107,6 +110,13 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     return periodKey
   }, [periodType, selectedYear, periodKey])
 
+  // Serialize selected regions to a canonical string (sorted, deduped).
+  const serializedRegion = useMemo(
+    () =>
+      selectedRegionIds.length > 0 ? serializeRegions(selectedRegionIds) : null,
+    [selectedRegionIds]
+  )
+
   const fetchData = useCallback(async () => {
     setIsLoading(true)
     setError(null)
@@ -123,7 +133,8 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
           actorId,
           activityType,
           periodType,
-          periodKey: effectivePeriodKey
+          periodKey: effectivePeriodKey,
+          region: serializedRegion
         }),
         getFitnessCalendarData({
           actorId,
@@ -140,7 +151,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     } finally {
       setIsLoading(false)
     }
-  }, [actorId, selectedType, periodType, effectivePeriodKey])
+  }, [actorId, selectedType, periodType, effectivePeriodKey, serializedRegion])
 
   useEffect(() => {
     fetchData()
@@ -179,7 +190,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   return (
     <div className="space-y-6 p-2 sm:p-4">
       {/* Selectors */}
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           Activity
           <select
@@ -246,6 +257,17 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
             </select>
           </label>
         )}
+
+        {/* Region filter */}
+        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+          <span className="mt-1.5 shrink-0">Region</span>
+          <div className="w-64">
+            <RegionSelector
+              selectedIds={selectedRegionIds}
+              onChange={setSelectedRegionIds}
+            />
+          </div>
+        </div>
       </div>
 
       {isLoading && (
@@ -265,8 +287,10 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
             <h2 className="text-lg font-medium">Route Heatmap</h2>
             {!heatmapData && (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                No heatmap generated yet. Run the generation script or wait for
-                new activities to be processed.
+                No heatmap generated yet for this{' '}
+                {selectedRegionIds.length > 0 ? 'region selection' : 'period'}.
+                Run the generation script or wait for new activities to be
+                processed.
               </p>
             )}
             {heatmapData && heatmapData.status === 'generating' && (
@@ -285,7 +309,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
                 <div className="overflow-hidden rounded-lg border">
                   <img
                     src={`/api/v1/fitness-files/heatmap-image/${heatmapData.id}`}
-                    alt={`Route heatmap for ${selectedType || 'all activities'}`}
+                    alt={`Route heatmap for ${selectedType || 'all activities'}${selectedRegionIds.length > 0 ? ` in selected region` : ''}`}
                     className="h-auto w-full"
                   />
                   <div className="border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -301,7 +325,8 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
               heatmapData.status === 'completed' &&
               !heatmapData.imagePath && (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  No route data available for this period.
+                  No route data available for this period
+                  {selectedRegionIds.length > 0 ? ' and region selection' : ''}.
                 </p>
               )}
           </div>
