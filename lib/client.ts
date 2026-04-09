@@ -1126,6 +1126,7 @@ export interface FitnessHeatmapData {
   activityType?: string
   periodType: string
   periodKey: string
+  region?: string | null
   status: string
   imagePath?: string
   activityCount: number
@@ -1142,12 +1143,15 @@ export const getFitnessHeatmap = async ({
   actorId,
   activityType,
   periodType,
-  periodKey
+  periodKey,
+  region
 }: {
   actorId: string
   activityType?: string
   periodType: string
   periodKey: string
+  /** Serialized sorted region IDs, e.g. "netherlands,singapore". Omit for world-wide. */
+  region?: string | null
 }): Promise<FitnessHeatmapData | null> => {
   const encodedId = urlToId(actorId)
   const url = new URL(
@@ -1157,6 +1161,9 @@ export const getFitnessHeatmap = async ({
   url.searchParams.append('period_key', periodKey)
   if (activityType) {
     url.searchParams.append('activity_type', activityType)
+  }
+  if (region) {
+    url.searchParams.append('region', region)
   }
   const response = await fetch(url.toString(), {
     method: 'GET',

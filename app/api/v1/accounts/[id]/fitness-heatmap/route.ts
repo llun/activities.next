@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { serializeRegions } from '@/lib/fitness/regions'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -29,7 +30,9 @@ interface Params {
 const FitnessHeatmapQueryParams = z.object({
   activity_type: z.string().optional(),
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
-  period_key: z.string()
+  period_key: z.string(),
+  /** Comma-separated region IDs, e.g. "netherlands,singapore". Omit for world-wide. */
+  region: z.string().optional()
 })
 
 export const GET = traceApiRoute(
@@ -100,14 +103,20 @@ export const GET = traceApiRoute(
     const {
       activity_type: activityType,
       period_type: periodType,
-      period_key: periodKey
+      period_key: periodKey,
+      region: rawRegion
     } = parsed.data
+
+    // Normalize the region: sort + deduplicate IDs so the same set of regions
+    // always maps to the same DB key regardless of input order.
+    const region = rawRegion ? serializeRegions(rawRegion.split(',')) : null
 
     const heatmap = await database.getFitnessHeatmapByKey({
       actorId: id,
       activityType: activityType ?? null,
       periodType,
-      periodKey
+      periodKey,
+      region
     })
 
     if (!heatmap) {
@@ -127,6 +136,7 @@ export const GET = traceApiRoute(
         activityType: heatmap.activityType,
         periodType: heatmap.periodType,
         periodKey: heatmap.periodKey,
+        region: heatmap.region ?? null,
         status: heatmap.status,
         imagePath: heatmap.imagePath,
         activityCount: heatmap.activityCount

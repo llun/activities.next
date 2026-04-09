@@ -14,6 +14,8 @@ export interface CreateFitnessHeatmapParams {
   activityType?: string | null
   periodType: FitnessHeatmapPeriodType
   periodKey: string
+  /** Serialized sorted comma-separated region IDs. Null = world-wide. */
+  region?: string | null
   periodStart?: Date | null
   periodEnd?: Date | null
 }
@@ -27,6 +29,8 @@ export interface GetFitnessHeatmapByKeyParams {
   activityType?: string | null
   periodType: FitnessHeatmapPeriodType
   periodKey: string
+  /** Serialized sorted comma-separated region IDs. Null = world-wide. */
+  region?: string | null
   includeDeleted?: boolean
 }
 
@@ -34,6 +38,7 @@ export interface GetFitnessHeatmapsForActorParams {
   actorId: string
   activityType?: string | null
   periodType?: FitnessHeatmapPeriodType
+  region?: string | null
 }
 
 export interface UpdateFitnessHeatmapStatusParams {
@@ -77,6 +82,7 @@ const parseSQLFitnessHeatmap = (row: SQLFitnessHeatmap): FitnessHeatmap => ({
   activityType: row.activityType ?? undefined,
   periodType: row.periodType as FitnessHeatmapPeriodType,
   periodKey: row.periodKey,
+  region: row.region ?? undefined,
   periodStart: row.periodStart ? getCompatibleTime(row.periodStart) : undefined,
   periodEnd: row.periodEnd ? getCompatibleTime(row.periodEnd) : undefined,
   imagePath: row.imagePath ?? undefined,
@@ -101,6 +107,7 @@ export const FitnessHeatmapSQLDatabaseMixin = (
       activityType: params.activityType ?? null,
       periodType: params.periodType,
       periodKey: params.periodKey,
+      region: params.region ?? null,
       periodStart: params.periodStart ?? null,
       periodEnd: params.periodEnd ?? null,
       imagePath: null,
@@ -131,6 +138,7 @@ export const FitnessHeatmapSQLDatabaseMixin = (
     activityType,
     periodType,
     periodKey,
+    region,
     includeDeleted
   }: GetFitnessHeatmapByKeyParams) {
     let query = database<SQLFitnessHeatmap>('fitness_heatmaps')
@@ -148,6 +156,12 @@ export const FitnessHeatmapSQLDatabaseMixin = (
       query = query.whereNull('activityType')
     }
 
+    if (region) {
+      query = query.where('region', region)
+    } else {
+      query = query.whereNull('region')
+    }
+
     const row = await query.first()
     if (!row) return null
     return parseSQLFitnessHeatmap(row)
@@ -156,7 +170,8 @@ export const FitnessHeatmapSQLDatabaseMixin = (
   async getFitnessHeatmapsForActor({
     actorId,
     activityType,
-    periodType
+    periodType,
+    region
   }: GetFitnessHeatmapsForActorParams) {
     let query = database<SQLFitnessHeatmap>('fitness_heatmaps')
       .where('actorId', actorId)
@@ -172,6 +187,14 @@ export const FitnessHeatmapSQLDatabaseMixin = (
 
     if (periodType) {
       query = query.where('periodType', periodType)
+    }
+
+    if (region !== undefined) {
+      if (region) {
+        query = query.where('region', region)
+      } else {
+        query = query.whereNull('region')
+      }
     }
 
     const rows = await query.orderBy('periodKey', 'desc')
