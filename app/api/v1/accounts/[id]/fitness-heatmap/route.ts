@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { serializeRegions } from '@/lib/fitness/regions'
+import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -107,9 +107,12 @@ export const GET = traceApiRoute(
       region: rawRegion
     } = parsed.data
 
-    // Normalize the region: sort + deduplicate IDs so the same set of regions
-    // always maps to the same DB key regardless of input order.
-    const region = rawRegion ? serializeRegions(rawRegion.split(',')) : null
+    // Normalize: parse IDs through deserializeRegions to drop unknown/empty
+    // entries, then re-serialize so the DB key is always canonical
+    // (sorted, deduped, lowercase). Unknown IDs silently map to world-wide ('').
+    const region = rawRegion
+      ? serializeRegions(deserializeRegions(rawRegion))
+      : ''
 
     const heatmap = await database.getFitnessHeatmapByKey({
       actorId: id,
@@ -136,7 +139,7 @@ export const GET = traceApiRoute(
         activityType: heatmap.activityType,
         periodType: heatmap.periodType,
         periodKey: heatmap.periodKey,
-        region: heatmap.region ?? null,
+        region: heatmap.region,
         status: heatmap.status,
         imagePath: heatmap.imagePath,
         activityCount: heatmap.activityCount

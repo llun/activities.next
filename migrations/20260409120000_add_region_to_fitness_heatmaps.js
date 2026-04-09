@@ -3,13 +3,25 @@
  * @returns { Promise<void> }
  */
 exports.up = async function (knex) {
+  // Add the region column as nullable first so we can backfill.
   await knex.schema.alterTable('fitness_heatmaps', function (table) {
-    // Serialized sorted comma-separated region IDs, e.g. "netherlands,singapore"
-    // NULL means no region filter (world-wide heatmap).
-    table.string('region').nullable().defaultTo(null)
+    // Empty string '' = world-wide (no region filter).
+    // Non-empty value = serialized sorted comma-separated region IDs.
+    // We use '' rather than NULL so the column participates normally in the
+    // UNIQUE constraint (both PostgreSQL and SQLite treat NULL as distinct,
+    // which would allow duplicate world-wide rows when region IS NULL).
+    table.string('region').nullable().defaultTo('')
   })
 
-  // Replace the old unique constraint (without region) with one that includes region.
+  // Backfill any existing rows that got NULL instead of ''
+  await knex('fitness_heatmaps').whereNull('region').update({ region: '' })
+
+  // Make non-nullable now that all rows have a value.
+  await knex.schema.alterTable('fitness_heatmaps', function (table) {
+    table.string('region').notNullable().defaultTo('').alter()
+  })
+
+  // Replace old unique constraint (without region) with one that includes region.
   await knex.schema.alterTable('fitness_heatmaps', function (table) {
     table.dropUnique(['actorId', 'activityType', 'periodType', 'periodKey'])
     table.unique([

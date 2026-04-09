@@ -11,8 +11,13 @@ export interface SQLFitnessHeatmap {
   activityType: string | null
   periodType: string
   periodKey: string
-  /** Serialized sorted comma-separated region IDs, e.g. "netherlands,singapore". NULL = world-wide. */
-  region: string | null
+  /**
+   * Serialized sorted comma-separated region IDs, e.g. "netherlands,singapore".
+   * Empty string '' means world-wide (no region filter).
+   * We use '' instead of NULL so the column participates in the UNIQUE constraint
+   * correctly on both PostgreSQL (NULL != NULL) and SQLite.
+   */
+  region: string
   periodStart: Date | string | number | null
   periodEnd: Date | string | number | null
   imagePath: string | null
@@ -30,8 +35,11 @@ export interface FitnessHeatmap {
   activityType?: string
   periodType: FitnessHeatmapPeriodType
   periodKey: string
-  /** Serialized sorted comma-separated region IDs. Undefined/null = world-wide. */
-  region?: string
+  /**
+   * Serialized sorted comma-separated region IDs, e.g. "netherlands,singapore".
+   * Empty string '' or undefined means world-wide (no region filter).
+   */
+  region: string
   periodStart?: number
   periodEnd?: number
   imagePath?: string

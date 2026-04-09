@@ -5,11 +5,17 @@ import {
   KeyboardEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState
 } from 'react'
 
-import { ALL_REGIONS, MapRegion, RegionType } from '@/lib/fitness/regions'
+import {
+  ALL_REGIONS,
+  MapRegion,
+  REGION_MAP,
+  RegionType
+} from '@/lib/fitness/regions'
 
 interface Props {
   /** Currently selected region IDs */
@@ -33,9 +39,10 @@ const groupRegions = (regions: MapRegion[]): [RegionType, MapRegion[]][] => {
   for (const region of regions) {
     groups.get(region.type)?.push(region)
   }
-  return TYPE_ORDER.map(
-    (type): [RegionType, MapRegion[]] => [type, groups.get(type) ?? []]
-  ).filter(([, items]) => items.length > 0)
+  return TYPE_ORDER.map((type): [RegionType, MapRegion[]] => [
+    type,
+    groups.get(type) ?? []
+  ]).filter(([, items]) => items.length > 0)
 }
 
 export const RegionSelector: FC<Props> = ({ selectedIds, onChange }) => {
@@ -46,14 +53,38 @@ export const RegionSelector: FC<Props> = ({ selectedIds, onChange }) => {
   const listRef = useRef<HTMLUListElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const selectedSet = new Set(selectedIds)
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
-  const filteredRegions = ALL_REGIONS.filter((r) => {
-    if (!query.trim()) return true
-    return r.name.toLowerCase().includes(query.trim().toLowerCase())
-  })
+  const filteredRegions = useMemo(
+    () =>
+      ALL_REGIONS.filter((r) => {
+        if (!query.trim()) return true
+        return r.name.toLowerCase().includes(query.trim().toLowerCase())
+      }),
+    [query]
+  )
 
-  const flatList = filteredRegions
+  const grouped = useMemo(
+    () => groupRegions(filteredRegions),
+    [filteredRegions]
+  )
+
+  /** Flat ordered list of region IDs, matching DOM order in the dropdown. */
+  const indexMap = useMemo<string[]>(() => {
+    const ids: string[] = []
+    for (const [, items] of grouped) {
+      for (const item of items) {
+        ids.push(item.id)
+      }
+    }
+    return ids
+  }, [grouped])
+
+  /** O(1) id → flat index lookup (replaces O(n) indexOf calls per render). */
+  const indexByIdMap = useMemo(
+    () => new Map<string, number>(indexMap.map((id, i) => [id, i])),
+    [indexMap]
+  )
 
   const toggle = useCallback(
     (id: string) => {
@@ -87,45 +118,32 @@ export const RegionSelector: FC<Props> = ({ selectedIds, onChange }) => {
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setFocusedIndex((i) => Math.min(i + 1, flatList.length - 1))
+      setFocusedIndex((i) => Math.min(i + 1, indexMap.length - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setFocusedIndex((i) => Math.max(i - 1, 0))
     } else if (e.key === 'Enter' && focusedIndex >= 0) {
       e.preventDefault()
-      const region = flatList[focusedIndex]
-      if (region) toggle(region.id)
+      const id = indexMap[focusedIndex]
+      if (id) toggle(id)
     } else if (e.key === 'Escape') {
       setOpen(false)
     }
   }
 
-  // Scroll focused item into view
+  // Scroll focused option into view using querySelectorAll so grouping wrappers
+  // don't skew the index (fixes broken scroll when list is grouped).
   useEffect(() => {
     if (!listRef.current || focusedIndex < 0) return
-    const item = listRef.current.children[focusedIndex] as
-      | HTMLElement
-      | undefined
-    item?.scrollIntoView?.({ block: 'nearest' })
+    const options =
+      listRef.current.querySelectorAll<HTMLElement>('[role="option"]')
+    options[focusedIndex]?.scrollIntoView?.({ block: 'nearest' })
   }, [focusedIndex])
 
-  // Reset focus when filtered list changes
+  // Reset focus when the filtered list changes
   useEffect(() => {
     setFocusedIndex(-1)
   }, [query])
-
-  const grouped = groupRegions(filteredRegions)
-
-  // Flat index map: maps flat index → region id (for keyboard nav)
-  let flatIdx = 0
-  const indexMap: string[] = []
-  for (const [, items] of grouped) {
-    for (const item of items) {
-      indexMap.push(item.id)
-      flatIdx++
-    }
-  }
-  void flatIdx
 
   return (
     <div ref={containerRef} className="relative">
@@ -138,7 +156,8 @@ export const RegionSelector: FC<Props> = ({ selectedIds, onChange }) => {
         }}
       >
         {selectedIds.map((id) => {
-          const region = ALL_REGIONS.find((r) => r.id === id)
+          // Use REGION_MAP for O(1) lookup instead of ALL_REGIONS.find (O(n)).
+          const region = REGION_MAP.get(id)
           if (!region) return null
           return (
             <span
@@ -152,7 +171,7 @@ export const RegionSelector: FC<Props> = ({ selectedIds, onChange }) => {
                   e.stopPropagation()
                   removeTag(id)
                 }}
-                className="ml-0.5 rounded-full hover:text-foreground text-muted-foreground leading-none"
+                className="ml-0.5 rounded-full text-muted-foreground leading-none hover:text-foreground"
                 aria-label={`Remove ${region.name}`}
               >
                 ×
@@ -179,7 +198,9 @@ export const RegionSelector: FC<Props> = ({ selectedIds, onChange }) => {
         />
       </div>
 
-      {/* Dropdown */}
+      {/* Dropdown — flat listbox with role="presentation" group headers so
+          role="option" elements are direct logical children of the listbox,
+          satisfying ARIA 1.1 listbox pattern. */}
       {open && (
         <ul
           ref={listRef}
@@ -189,47 +210,55 @@ export const RegionSelector: FC<Props> = ({ selectedIds, onChange }) => {
           className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded border bg-background shadow-md"
         >
           {filteredRegions.length === 0 && (
-            <li className="px-3 py-2 text-sm text-muted-foreground">
+            <li
+              role="presentation"
+              className="px-3 py-2 text-sm text-muted-foreground"
+            >
               No regions match &ldquo;{query}&rdquo;
             </li>
           )}
           {grouped.map(([type, items]) => (
-            <li key={type}>
-              <div className="sticky top-0 bg-muted/80 px-3 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <>
+              {/* Group header — role="presentation" keeps it out of the
+                  accessibility tree for option navigation. */}
+              <li
+                key={`${type}-header`}
+                role="presentation"
+                aria-hidden="true"
+                className="sticky top-0 bg-muted/80 px-3 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground"
+              >
                 {TYPE_LABELS[type]}
-              </div>
-              <ul>
-                {items.map((region) => {
-                  const flatI = indexMap.indexOf(region.id)
-                  const isSelected = selectedSet.has(region.id)
-                  const isFocused = flatI === focusedIndex
-                  return (
-                    <li
-                      key={region.id}
-                      role="option"
-                      aria-selected={isSelected}
-                      data-focused={isFocused}
-                      onMouseEnter={() => setFocusedIndex(flatI)}
-                      onClick={() => toggle(region.id)}
-                      className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm ${
-                        isFocused ? 'bg-accent' : ''
+              </li>
+              {items.map((region) => {
+                const flatI = indexByIdMap.get(region.id) ?? -1
+                const isSelected = selectedSet.has(region.id)
+                const isFocused = flatI === focusedIndex
+                return (
+                  <li
+                    key={region.id}
+                    role="option"
+                    aria-selected={isSelected}
+                    data-focused={isFocused}
+                    onMouseEnter={() => setFocusedIndex(flatI)}
+                    onClick={() => toggle(region.id)}
+                    className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm ${
+                      isFocused ? 'bg-accent' : ''
+                    }`}
+                  >
+                    <span
+                      className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm border text-xs ${
+                        isSelected
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-input'
                       }`}
                     >
-                      <span
-                        className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm border text-xs ${
-                          isSelected
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-input'
-                        }`}
-                      >
-                        {isSelected && '✓'}
-                      </span>
-                      {region.name}
-                    </li>
-                  )
-                })}
-              </ul>
-            </li>
+                      {isSelected && '✓'}
+                    </span>
+                    {region.name}
+                  </li>
+                )
+              })}
+            </>
           ))}
         </ul>
       )}
