@@ -972,29 +972,38 @@ export const REGION_MAP = new Map<string, MapRegion>(
 
 /**
  * Serialize an array of region IDs to a canonical string suitable for storage.
- * IDs are lowercased, trimmed, deduplicated, and sorted.
+ * IDs are lowercased, trimmed, empty entries are dropped, deduplicated, and sorted.
+ * Returns an empty string when no valid IDs remain (treated as world-wide).
  */
 export const serializeRegions = (regionIds: string[]): string =>
-  [...new Set(regionIds.map((id) => id.trim().toLowerCase()))].sort().join(',')
+  [
+    ...new Set(
+      regionIds.map((id) => id.trim().toLowerCase()).filter((id) => id !== '')
+    )
+  ]
+    .sort()
+    .join(',')
 
 /**
  * Deserialize a stored region string back into an array of valid region IDs.
- * Unknown IDs are silently dropped.
+ * Unknown IDs are silently dropped. Empty string or blank input returns [].
  */
 export const deserializeRegions = (serialized: string): string[] => {
   if (!serialized || serialized.trim() === '') return []
   return serialized
     .split(',')
     .map((id) => id.trim().toLowerCase())
-    .filter((id) => REGION_MAP.has(id))
+    .filter((id) => id !== '' && REGION_MAP.has(id))
 }
 
 /**
- * Given a list of region IDs, return the union of all valid bounding boxes.
- * Returns null when no valid regions are provided.
+ * Given a list of region IDs, return the bounding box for each valid region.
+ * Unknown IDs are silently dropped.
+ * Returns an empty array when no valid regions are provided.
  *
- * Addresses PR #556 feedback: returns individual per-region bounds rather than
- * a single merged envelope, so callers can apply OR filtering correctly.
+ * Returns individual per-region bounds rather than a single merged envelope,
+ * so callers can apply OR filtering correctly (selecting Netherlands + Singapore
+ * does not include the sea between them).
  */
 export const getRegionBounds = (regionIds: string[]): RegionBounds[] =>
   regionIds

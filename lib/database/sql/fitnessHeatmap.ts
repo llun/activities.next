@@ -14,8 +14,11 @@ export interface CreateFitnessHeatmapParams {
   activityType?: string | null
   periodType: FitnessHeatmapPeriodType
   periodKey: string
-  /** Serialized sorted comma-separated region IDs. Null = world-wide. */
-  region?: string | null
+  /**
+   * Serialized sorted comma-separated region IDs, e.g. "netherlands,singapore".
+   * Empty string '' (default) means world-wide (no region filter).
+   */
+  region?: string
   periodStart?: Date | null
   periodEnd?: Date | null
 }
@@ -29,8 +32,11 @@ export interface GetFitnessHeatmapByKeyParams {
   activityType?: string | null
   periodType: FitnessHeatmapPeriodType
   periodKey: string
-  /** Serialized sorted comma-separated region IDs. Null = world-wide. */
-  region?: string | null
+  /**
+   * Serialized sorted comma-separated region IDs.
+   * Empty string '' or omitted means world-wide.
+   */
+  region?: string
   includeDeleted?: boolean
 }
 
@@ -38,7 +44,11 @@ export interface GetFitnessHeatmapsForActorParams {
   actorId: string
   activityType?: string | null
   periodType?: FitnessHeatmapPeriodType
-  region?: string | null
+  /**
+   * When provided, filters to this region value.
+   * Pass '' for world-wide heatmaps, leave undefined to get all regions.
+   */
+  region?: string
 }
 
 export interface UpdateFitnessHeatmapStatusParams {
@@ -82,7 +92,7 @@ const parseSQLFitnessHeatmap = (row: SQLFitnessHeatmap): FitnessHeatmap => ({
   activityType: row.activityType ?? undefined,
   periodType: row.periodType as FitnessHeatmapPeriodType,
   periodKey: row.periodKey,
-  region: row.region ?? undefined,
+  region: row.region,
   periodStart: row.periodStart ? getCompatibleTime(row.periodStart) : undefined,
   periodEnd: row.periodEnd ? getCompatibleTime(row.periodEnd) : undefined,
   imagePath: row.imagePath ?? undefined,
@@ -107,7 +117,7 @@ export const FitnessHeatmapSQLDatabaseMixin = (
       activityType: params.activityType ?? null,
       periodType: params.periodType,
       periodKey: params.periodKey,
-      region: params.region ?? null,
+      region: params.region ?? '',
       periodStart: params.periodStart ?? null,
       periodEnd: params.periodEnd ?? null,
       imagePath: null,
@@ -138,13 +148,14 @@ export const FitnessHeatmapSQLDatabaseMixin = (
     activityType,
     periodType,
     periodKey,
-    region,
+    region = '',
     includeDeleted
   }: GetFitnessHeatmapByKeyParams) {
     let query = database<SQLFitnessHeatmap>('fitness_heatmaps')
       .where('actorId', actorId)
       .where('periodType', periodType)
       .where('periodKey', periodKey)
+      .where('region', region)
 
     if (!includeDeleted) {
       query = query.whereNull('deletedAt')
@@ -154,12 +165,6 @@ export const FitnessHeatmapSQLDatabaseMixin = (
       query = query.where('activityType', activityType)
     } else {
       query = query.whereNull('activityType')
-    }
-
-    if (region) {
-      query = query.where('region', region)
-    } else {
-      query = query.whereNull('region')
     }
 
     const row = await query.first()
@@ -190,11 +195,7 @@ export const FitnessHeatmapSQLDatabaseMixin = (
     }
 
     if (region !== undefined) {
-      if (region) {
-        query = query.where('region', region)
-      } else {
-        query = query.whereNull('region')
-      }
+      query = query.where('region', region)
     }
 
     const rows = await query.orderBy('periodKey', 'desc')

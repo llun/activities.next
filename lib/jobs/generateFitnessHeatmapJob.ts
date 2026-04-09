@@ -82,10 +82,13 @@ export const generateFitnessHeatmapJob = createJobHandle(
     const { actorId, activityType, periodType, periodKey, region } =
       JobData.parse(message.data)
 
-    const normalizedRegion = region ?? null
-    const regionBounds = normalizedRegion
-      ? getRegionBounds(deserializeRegions(normalizedRegion))
-      : []
+    // '' = world-wide; non-empty = serialized region IDs.
+    // Trim + falsy-coerce to prevent empty-string bleed through.
+    const normalizedRegion = region?.trim() || ''
+    const regionBounds =
+      normalizedRegion !== ''
+        ? getRegionBounds(deserializeRegions(normalizedRegion))
+        : []
 
     const { periodStart, periodEnd } = getPeriodRange(periodType, periodKey)
 
