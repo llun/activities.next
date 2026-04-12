@@ -301,6 +301,7 @@ export const processFitnessFileJob = createJobHandle(
         activityType: string | null
         periodType: string
         periodKey: string
+        region?: string
       }> = [
         {
           activityType: null,
@@ -339,9 +340,30 @@ export const processFitnessFileJob = createJobHandle(
         )
       }
 
+      // Also re-enqueue any existing region-specific heatmap variants so new
+      // activities automatically refresh region-filtered views. We query the
+      // distinct non-empty regions already stored for this actor and create
+      // matching period variants for each.
+      const existingHeatmaps = await database.getFitnessHeatmapsForActor({
+        actorId
+      })
+      const distinctRegions = [
+        ...new Set(
+          existingHeatmaps
+            .map((h) => h.region)
+            .filter((r): r is string => typeof r === 'string' && r !== '')
+        )
+      ]
+
+      const regionVariants = distinctRegions.flatMap((region) =>
+        heatmapVariants.map((v) => ({ ...v, region }))
+      )
+
+      const allVariants = [...heatmapVariants, ...regionVariants]
+
       const queue = getQueue()
       const results = await Promise.allSettled(
-        heatmapVariants.map((variant) => {
+        allVariants.map((variant) => {
           const heatmapId = getHashFromString(
             actorId +
               ':heatmap:' +
@@ -349,7 +371,9 @@ export const processFitnessFileJob = createJobHandle(
               ':' +
               variant.periodType +
               ':' +
-              variant.periodKey
+              variant.periodKey +
+              ':' +
+              (variant.region ?? '')
           )
           return queue.publish({
             id: heatmapId,

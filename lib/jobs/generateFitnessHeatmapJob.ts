@@ -1,6 +1,11 @@
 import { z } from 'zod'
 
 import { Database } from '@/lib/database/types'
+import {
+  type RegionBounds,
+  deserializeRegions,
+  getRegionBounds
+} from '@/lib/fitness/regions'
 import { GENERATE_FITNESS_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateHeatmapImage } from '@/lib/services/fitness-files/generateHeatmapImage'
@@ -15,11 +20,36 @@ import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 
+/**
+ * Count how many route segments have at least one coordinate within any of the
+ * given region bounding boxes. When no bounds are provided (world-wide) all
+ * segments are counted.
+ */
+const countSegmentsInRegion = (
+  segments: FitnessCoordinate[][],
+  bounds: RegionBounds[]
+): number => {
+  if (bounds.length === 0) return segments.length
+  return segments.filter((segment) =>
+    segment.some((coord) =>
+      bounds.some(
+        (b) =>
+          coord.lat >= b.minLat &&
+          coord.lat <= b.maxLat &&
+          coord.lng >= b.minLng &&
+          coord.lng <= b.maxLng
+      )
+    )
+  ).length
+}
+
 const JobData = z.object({
   actorId: z.string(),
   activityType: z.string().nullable(),
   periodType: z.enum(['all_time', 'yearly', 'monthly']),
-  periodKey: z.string()
+  periodKey: z.string(),
+  /** Serialized sorted region IDs, e.g. "netherlands,singapore". Null = world-wide. */
+  region: z.string().nullable().optional()
 })
 
 const getPeriodRange = (
@@ -76,9 +106,16 @@ const getFitnessFileBuffer = async (
 export const generateFitnessHeatmapJob = createJobHandle(
   GENERATE_FITNESS_HEATMAP_JOB_NAME,
   async (database, message) => {
-    const { actorId, activityType, periodType, periodKey } = JobData.parse(
-      message.data
-    )
+    const { actorId, activityType, periodType, periodKey, region } =
+      JobData.parse(message.data)
+
+    // '' = world-wide; non-empty = serialized region IDs.
+    // Trim + falsy-coerce to prevent empty-string bleed through.
+    const normalizedRegion = region?.trim() || ''
+    const regionBounds =
+      normalizedRegion !== ''
+        ? getRegionBounds(deserializeRegions(normalizedRegion))
+        : []
 
     const { periodStart, periodEnd } = getPeriodRange(periodType, periodKey)
 
@@ -96,6 +133,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         activityType,
         periodType,
         periodKey,
+        region: normalizedRegion,
         includeDeleted: true
       })
 
@@ -113,6 +151,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
           activityType,
           periodType,
           periodKey,
+          region: normalizedRegion,
           periodStart,
           periodEnd
         })
@@ -205,14 +244,15 @@ export const generateFitnessHeatmapJob = createJobHandle(
       }
 
       const imageBuffer = await generateHeatmapImage({
-        routeSegments: allRouteSegments
+        routeSegments: allRouteSegments,
+        regionBounds: regionBounds.length > 0 ? regionBounds : undefined
       })
 
       if (!imageBuffer) {
         await database.updateFitnessHeatmapStatus({
           id: heatmapId,
           status: 'completed',
-          activityCount: allRouteSegments.length,
+          activityCount: countSegmentsInRegion(allRouteSegments, regionBounds),
           imagePath: null
         })
 
@@ -229,12 +269,15 @@ export const generateFitnessHeatmapJob = createJobHandle(
       }
 
       const imageBytes = new Uint8Array(imageBuffer)
-      const activityTypePath = activityType ?? 'all'
-      const fileName = `heatmap-${activityTypePath}-${periodType}_${periodKey}.png`
+      // Use the heatmap ID in the filename to avoid exceeding filesystem path
+      // limits when multiple regions are selected (PR #556).
+      const safeHeatmapId = heatmapId ?? 'unknown'
+      const fileName = `heatmap-${safeHeatmapId}.png`
 
+      const activityLabel = activityType ?? 'all'
       const storedMedia = await saveMedia(database, actor, {
         file: new File([imageBytes], fileName, { type: 'image/png' }),
-        description: `Fitness heatmap: ${activityTypePath} ${periodType} ${periodKey}`
+        description: `Fitness heatmap: ${activityLabel} ${periodType} ${periodKey}`
       })
 
       if (!storedMedia) {
@@ -247,7 +290,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         id: heatmapId,
         status: 'completed',
         imagePath,
-        activityCount: allRouteSegments.length
+        activityCount: countSegmentsInRegion(allRouteSegments, regionBounds)
       })
 
       // Clean up previous heatmap image to avoid orphaned files
@@ -266,7 +309,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         actorId,
         periodType,
         periodKey,
-        activityCount: allRouteSegments.length
+        activityCount: countSegmentsInRegion(allRouteSegments, regionBounds)
       })
     } catch (error) {
       const nodeError = error as Error

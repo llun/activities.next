@@ -1126,6 +1126,7 @@ export interface FitnessHeatmapData {
   activityType?: string
   periodType: string
   periodKey: string
+  region?: string | null
   status: string
   imagePath?: string
   activityCount: number
@@ -1142,12 +1143,15 @@ export const getFitnessHeatmap = async ({
   actorId,
   activityType,
   periodType,
-  periodKey
+  periodKey,
+  region
 }: {
   actorId: string
   activityType?: string
   periodType: string
   periodKey: string
+  /** Serialized sorted region IDs, e.g. "netherlands,singapore". Omit for world-wide. */
+  region?: string | null
 }): Promise<FitnessHeatmapData | null> => {
   const encodedId = urlToId(actorId)
   const url = new URL(
@@ -1158,6 +1162,9 @@ export const getFitnessHeatmap = async ({
   if (activityType) {
     url.searchParams.append('activity_type', activityType)
   }
+  if (region) {
+    url.searchParams.append('region', region)
+  }
   const response = await fetch(url.toString(), {
     method: 'GET',
     headers: { Accept: 'application/json' }
@@ -1165,6 +1172,36 @@ export const getFitnessHeatmap = async ({
   if (response.status === 404) return null
   if (!response.ok) return null
   return response.json()
+}
+
+export const triggerFitnessHeatmap = async ({
+  actorId,
+  activityType,
+  periodType,
+  periodKey,
+  region
+}: {
+  actorId: string
+  activityType?: string
+  periodType: string
+  periodKey: string
+  region?: string | null
+}): Promise<boolean> => {
+  const encodedId = urlToId(actorId)
+  const response = await fetch(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-heatmap`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        period_type: periodType,
+        period_key: periodKey,
+        ...(activityType ? { activity_type: activityType } : {}),
+        ...(region ? { region } : {})
+      })
+    }
+  )
+  return response.ok
 }
 
 export const getFitnessCalendarData = async ({
