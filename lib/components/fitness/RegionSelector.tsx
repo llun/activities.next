@@ -193,6 +193,7 @@ export const RegionSelector: FC<Props> = ({ selectedIds, onChange }) => {
           aria-label="Search regions"
           aria-expanded={open}
           aria-haspopup="listbox"
+          aria-controls={open ? 'region-listbox' : undefined}
           role="combobox"
           aria-autocomplete="list"
         />
@@ -203,6 +204,7 @@ export const RegionSelector: FC<Props> = ({ selectedIds, onChange }) => {
           satisfying ARIA 1.1 listbox pattern. */}
       {open && (
         <ul
+          id="region-listbox"
           ref={listRef}
           role="listbox"
           aria-label="Regions"

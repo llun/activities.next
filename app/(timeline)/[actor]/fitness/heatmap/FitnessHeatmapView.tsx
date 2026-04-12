@@ -1,13 +1,14 @@
 'use client'
 
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   FitnessCalendarDay,
   FitnessHeatmapData,
   getDistinctFitnessActivityTypes,
   getFitnessCalendarData,
-  getFitnessHeatmap
+  getFitnessHeatmap,
+  triggerFitnessHeatmap
 } from '@/lib/client'
 import {
   CalendarMetric,
@@ -95,6 +96,10 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   const [calendarDays, setCalendarDays] = useState<FitnessCalendarDay[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [generationPending, setGenerationPending] = useState(false)
+  // Tracks the combination of params for which generation was triggered so we
+  // don't fire duplicate POST requests on every fetchData re-run.
+  const generationKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     getDistinctFitnessActivityTypes({ actorId })
@@ -146,6 +151,25 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
 
       setHeatmapData(heatmap)
       setCalendarDays(calendar)
+
+      // If no heatmap exists yet and a region filter is active, trigger
+      // on-demand generation (only once per unique param combination).
+      if (heatmap === null && serializedRegion) {
+        const genKey = `${actorId}:${activityType ?? ''}:${periodType}:${effectivePeriodKey}:${serializedRegion}`
+        if (generationKeyRef.current !== genKey) {
+          generationKeyRef.current = genKey
+          setGenerationPending(true)
+          triggerFitnessHeatmap({
+            actorId,
+            activityType,
+            periodType,
+            periodKey: effectivePeriodKey,
+            region: serializedRegion
+          }).catch(() => {
+            // Non-fatal — user can retry manually
+          })
+        }
+      }
     } catch {
       setError('Failed to load heatmap data. Please try again.')
     } finally {
@@ -156,6 +180,41 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Poll every 5 s while a generation job is in flight (either we triggered it
+  // ourselves, or the server already has it in "generating" status).
+  useEffect(() => {
+    if (!generationPending && heatmapData?.status !== 'generating') return
+
+    const id = setInterval(() => {
+      getFitnessHeatmap({
+        actorId,
+        activityType: selectedType || undefined,
+        periodType,
+        periodKey: effectivePeriodKey,
+        region: serializedRegion
+      })
+        .then((heatmap) => {
+          setHeatmapData(heatmap)
+          if (heatmap !== null && heatmap.status !== 'generating') {
+            setGenerationPending(false)
+          }
+        })
+        .catch(() => {
+          // Ignore transient poll errors
+        })
+    }, 5000)
+
+    return () => clearInterval(id)
+  }, [
+    generationPending,
+    heatmapData?.status,
+    actorId,
+    selectedType,
+    periodType,
+    effectivePeriodKey,
+    serializedRegion
+  ])
 
   const yearOptions = useMemo(() => generateYearOptions(), [])
   const monthOptions = useMemo(
@@ -285,12 +344,18 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
           {/* Geographic Heatmap */}
           <div className="space-y-2">
             <h2 className="text-lg font-medium">Route Heatmap</h2>
-            {!heatmapData && (
+            {!heatmapData && generationPending && (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Generating heatmap for the selected region...
+              </p>
+            )}
+            {!heatmapData && !generationPending && (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 No heatmap generated yet for this{' '}
                 {selectedRegionIds.length > 0 ? 'region selection' : 'period'}.
-                Run the generation script or wait for new activities to be
-                processed.
+                {selectedRegionIds.length === 0
+                  ? ' Wait for new activities to be processed.'
+                  : ''}
               </p>
             )}
             {heatmapData && heatmapData.status === 'generating' && (

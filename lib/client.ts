@@ -1174,6 +1174,36 @@ export const getFitnessHeatmap = async ({
   return response.json()
 }
 
+export const triggerFitnessHeatmap = async ({
+  actorId,
+  activityType,
+  periodType,
+  periodKey,
+  region
+}: {
+  actorId: string
+  activityType?: string
+  periodType: string
+  periodKey: string
+  region?: string | null
+}): Promise<boolean> => {
+  const encodedId = urlToId(actorId)
+  const response = await fetch(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-heatmap`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        period_type: periodType,
+        period_key: periodKey,
+        ...(activityType ? { activity_type: activityType } : {}),
+        ...(region ? { region } : {})
+      })
+    }
+  )
+  return response.ok
+}
+
 export const getFitnessCalendarData = async ({
   actorId,
   startDate,

@@ -1,7 +1,11 @@
 import { z } from 'zod'
 
 import { Database } from '@/lib/database/types'
-import { deserializeRegions, getRegionBounds } from '@/lib/fitness/regions'
+import {
+  type RegionBounds,
+  deserializeRegions,
+  getRegionBounds
+} from '@/lib/fitness/regions'
 import { GENERATE_FITNESS_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateHeatmapImage } from '@/lib/services/fitness-files/generateHeatmapImage'
@@ -15,6 +19,29 @@ import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
+
+/**
+ * Count how many route segments have at least one coordinate within any of the
+ * given region bounding boxes. When no bounds are provided (world-wide) all
+ * segments are counted.
+ */
+const countSegmentsInRegion = (
+  segments: FitnessCoordinate[][],
+  bounds: RegionBounds[]
+): number => {
+  if (bounds.length === 0) return segments.length
+  return segments.filter((segment) =>
+    segment.some((coord) =>
+      bounds.some(
+        (b) =>
+          coord.lat >= b.minLat &&
+          coord.lat <= b.maxLat &&
+          coord.lng >= b.minLng &&
+          coord.lng <= b.maxLng
+      )
+    )
+  ).length
+}
 
 const JobData = z.object({
   actorId: z.string(),
@@ -225,7 +252,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         await database.updateFitnessHeatmapStatus({
           id: heatmapId,
           status: 'completed',
-          activityCount: allRouteSegments.length,
+          activityCount: countSegmentsInRegion(allRouteSegments, regionBounds),
           imagePath: null
         })
 
@@ -263,7 +290,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         id: heatmapId,
         status: 'completed',
         imagePath,
-        activityCount: allRouteSegments.length
+        activityCount: countSegmentsInRegion(allRouteSegments, regionBounds)
       })
 
       // Clean up previous heatmap image to avoid orphaned files
@@ -282,7 +309,7 @@ export const generateFitnessHeatmapJob = createJobHandle(
         actorId,
         periodType,
         periodKey,
-        activityCount: allRouteSegments.length
+        activityCount: countSegmentsInRegion(allRouteSegments, regionBounds)
       })
     } catch (error) {
       const nodeError = error as Error
