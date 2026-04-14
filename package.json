@@ -47,7 +47,7 @@
     "clsx": "^2.1.1",
     "content-type": "^1.0.5",
     "date-fns": "^4.1.0",
-    "fast-xml-parser": "^5.5.10",
+    "fast-xml-parser": "^5.5.12",
     "fit-file-parser": "^2.3.3",
     "framer-motion": "^12.38.0",
     "got": "^15.0.0",

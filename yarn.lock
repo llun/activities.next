@@ -6630,7 +6630,7 @@ __metadata:
     eslint-plugin-n: "npm:^17.24.0"
     eslint-plugin-promise: "npm:^7.2.1"
     eslint-plugin-unused-imports: "npm:^4.4.1"
-    fast-xml-parser: "npm:^5.5.10"
+    fast-xml-parser: "npm:^5.5.12"
     fit-file-parser: "npm:^2.3.3"
     framer-motion: "npm:^12.38.0"
     globals: "npm:^17.4.0"
