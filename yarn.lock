@@ -166,9 +166,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-s3@npm:3.1026.0":
-  version: 3.1026.0
-  resolution: "@aws-sdk/client-s3@npm:3.1026.0"
+"@aws-sdk/client-s3@npm:3.1030.0":
+  version: 3.1030.0
+  resolution: "@aws-sdk/client-s3@npm:3.1030.0"
   dependencies:
     "@aws-crypto/sha1-browser": "npm:5.2.0"
     "@aws-crypto/sha256-browser": "npm:5.2.0"
@@ -225,7 +225,7 @@ __metadata:
     "@smithy/util-utf8": "npm:^4.2.2"
     "@smithy/util-waiter": "npm:^4.2.15"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/2cf9d08b4dfb2d45447076ebbafad894c54024535f4429304eeadb0122d76bf4218ecab475826fd2117abfa89e863aefdf7274a66a9984f895030a8d602c2b21
+  checksum: 10c0/5f7b93f130383997eca898e502c87bb909e449d7af1ae5ccba98510804c3a58675d97be5eac1e5986034f9640f4c7968f1d8022ac220c5809c62b1787897022a
   languageName: node
   linkType: hard
 
@@ -1087,11 +1087,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/s3-presigned-post@npm:^3.1026.0":
-  version: 3.1026.0
-  resolution: "@aws-sdk/s3-presigned-post@npm:3.1026.0"
+"@aws-sdk/s3-presigned-post@npm:^3.1030.0":
+  version: 3.1030.0
+  resolution: "@aws-sdk/s3-presigned-post@npm:3.1030.0"
   dependencies:
-    "@aws-sdk/client-s3": "npm:3.1026.0"
+    "@aws-sdk/client-s3": "npm:3.1030.0"
     "@aws-sdk/types": "npm:^3.973.7"
     "@aws-sdk/util-format-url": "npm:^3.972.9"
     "@smithy/middleware-endpoint": "npm:^4.4.29"
@@ -1100,7 +1100,7 @@ __metadata:
     "@smithy/util-hex-encoding": "npm:^4.2.2"
     "@smithy/util-utf8": "npm:^4.2.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/d0636382bd602d256abb8657cdcc7177391bdf29552476eebdae3b578d156c73936441e63bb776a8850cc1d870c3287aa5bb69694c233ae1ee243b1ae3b8c3bd
+  checksum: 10c0/79a22525d3d26246e57f90a0b97caa2db1e34859646c16213fbb0381bff84149a4436d4d71c685440f93593ca3e1e7fcbcce4d81e478c68c3e363b76c64070ab
   languageName: node
   linkType: hard
 
@@ -6562,7 +6562,7 @@ __metadata:
     "@aws-sdk/client-lambda": "npm:^3.1024.0"
     "@aws-sdk/client-s3": "npm:^3.1024.0"
     "@aws-sdk/client-ses": "npm:^3.1026.0"
-    "@aws-sdk/s3-presigned-post": "npm:^3.1026.0"
+    "@aws-sdk/s3-presigned-post": "npm:^3.1030.0"
     "@aws-sdk/s3-request-presigner": "npm:3.1024.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@better-auth/oauth-provider": "npm:^1.6.0"
