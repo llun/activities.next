@@ -60,7 +60,6 @@ const customJestConfig = {
 }
 
 const esmPackages = [
-  'marked',
   'uuid',
   'better-auth',
   '@better-auth',
@@ -79,8 +78,10 @@ const baseConfig = createJestConfig(customJestConfig)
 export default async () => {
   const config = await baseConfig()
   config.transformIgnorePatterns = [
-    `node_modules/(?!(${esmPackages})/)`,
-    '^.+\\.module\\.(css|sass|scss)$'
+    ...(config.transformIgnorePatterns ?? []).filter(
+      (p) => !String(p).includes('node_modules')
+    ),
+    `node_modules/(?!(${esmPackages})/)`
   ]
   return config
 }
