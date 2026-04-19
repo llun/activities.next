@@ -290,13 +290,19 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
 
   const handleRetry = useCallback(
     async (h: FitnessHeatmapData) => {
-      await triggerFitnessHeatmap({
-        actorId,
-        activityType: h.activityType,
-        periodType: h.periodType as PeriodType,
-        periodKey: h.periodKey,
-        region: h.region || null
-      })
+      setGenerationPending(true)
+      try {
+        await triggerFitnessHeatmap({
+          actorId,
+          activityType: h.activityType,
+          periodType: h.periodType as PeriodType,
+          periodKey: h.periodKey,
+          region: h.region || null
+        })
+      } catch {
+        setGenerationPending(false)
+        throw new Error('Failed to enqueue retry. Please try again.')
+      }
       getFitnessHeatmaps({ actorId })
         .then(setHeatmaps)
         .catch(() => {})
