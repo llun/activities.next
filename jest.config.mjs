@@ -25,9 +25,6 @@ const customJestConfig = {
   transform: {
     '\\.(js|mjs|jsx|ts|tsx)$': ['@swc/jest']
   },
-  transformIgnorePatterns: [
-    'node_modules/(?!(marked|uuid|better-auth|@better-auth)/)'
-  ],
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^@/app/(.*)$': '<rootDir>/app/$1',
@@ -62,4 +59,29 @@ const customJestConfig = {
   verbose: true
 }
 
-export default createJestConfig(customJestConfig)
+const esmPackages = [
+  'uuid',
+  'better-auth',
+  '@better-auth',
+  'html-react-parser',
+  'html-dom-parser',
+  'htmlparser2',
+  'domhandler',
+  'domelementtype',
+  'dom-serializer',
+  'domutils',
+  'entities'
+].join('|')
+
+const baseConfig = createJestConfig(customJestConfig)
+
+export default async () => {
+  const config = await baseConfig()
+  config.transformIgnorePatterns = [
+    ...(config.transformIgnorePatterns ?? []).filter(
+      (p) => !String(p).includes('node_modules')
+    ),
+    `node_modules/(?!(${esmPackages})/)`
+  ]
+  return config
+}
