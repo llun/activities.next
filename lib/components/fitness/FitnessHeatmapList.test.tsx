@@ -102,8 +102,8 @@ describe('FitnessHeatmapList', () => {
       />
     )
 
-    // Click the row — it's a div[role=button] containing "All · 2025"
-    const rowButton = screen.getByText('All · 2025').closest('[role="button"]')
+    // Click the row — it's a button containing "All · 2025"
+    const rowButton = screen.getByText('All · 2025').closest('button')
     expect(rowButton).not.toBeNull()
     fireEvent.click(rowButton!)
 

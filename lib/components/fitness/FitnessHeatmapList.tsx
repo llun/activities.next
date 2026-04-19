@@ -65,8 +65,9 @@ const RetryButton: FC<RetryButtonProps> = ({ heatmap, onRetry }) => {
           try {
             await onRetry(heatmap)
           } catch {
-            setIsRetrying(false)
             setError('Retry failed. Please try again.')
+          } finally {
+            setIsRetrying(false)
           }
         }}
       >
@@ -132,37 +133,31 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
   })()
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      className="w-full text-left p-2 rounded hover:bg-muted flex flex-col gap-1 cursor-pointer"
-      onClick={() => onSelect(heatmap)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onSelect(heatmap)
-        }
-      }}
-    >
-      <div className="flex items-center gap-1.5 text-xs">
-        {statusIcon}
-        {statusLabel}
-        <span className="text-muted-foreground ml-auto">
-          {formatRelativeTime(currentTime - heatmap.updatedAt)}
-        </span>
-      </div>
-      <div className="text-sm">
-        {formatActivityType(heatmap.activityType)} ·{' '}
-        {formatPeriod(heatmap.periodType, heatmap.periodKey)}
-      </div>
-      {regionLabel && (
-        <span className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-          {regionLabel}
-        </span>
-      )}
-      {heatmap.status === 'failed' && heatmap.error && (
-        <p className="text-xs text-destructive">{heatmap.error}</p>
-      )}
+    <div className="flex items-start gap-2 rounded p-2 hover:bg-muted">
+      <button
+        className="flex flex-1 flex-col gap-1 text-left"
+        onClick={() => onSelect(heatmap)}
+      >
+        <div className="flex items-center gap-1.5 text-xs">
+          {statusIcon}
+          {statusLabel}
+          <span className="ml-auto text-muted-foreground">
+            {formatRelativeTime(currentTime - heatmap.updatedAt)}
+          </span>
+        </div>
+        <div className="text-sm">
+          {formatActivityType(heatmap.activityType)} ·{' '}
+          {formatPeriod(heatmap.periodType, heatmap.periodKey)}
+        </div>
+        {regionLabel && (
+          <span className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+            {regionLabel}
+          </span>
+        )}
+        {heatmap.status === 'failed' && heatmap.error && (
+          <p className="text-xs text-destructive">{heatmap.error}</p>
+        )}
+      </button>
       {heatmap.status === 'failed' && (
         <RetryButton heatmap={heatmap} onRetry={onRetry} />
       )}

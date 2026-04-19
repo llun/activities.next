@@ -106,6 +106,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
 
   const [heatmaps, setHeatmaps] = useState<FitnessHeatmapData[]>([])
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
+  const [isDetailRetrying, setIsDetailRetrying] = useState(false)
 
   useEffect(() => {
     const id = setInterval(() => setCurrentTime(Date.now()), 60_000)
@@ -194,13 +195,23 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     fetchData()
   }, [fetchData])
 
+  // Stable boolean: true when any list entry is still in-flight.
+  // Using a derived primitive prevents the polling effect from tearing down
+  // its interval on every setHeatmaps call.
+  const hasAnyListInFlight = useMemo(
+    () =>
+      heatmaps.some((h) => h.status === 'generating' || h.status === 'pending'),
+    [heatmaps]
+  )
+
   // Poll every 5 s while a generation job is in flight (either we triggered it
-  // ourselves, or the server already has it in "generating" status).
+  // ourselves, or the server already has it in "generating"/"pending" status).
   useEffect(() => {
     const hasInFlight =
       generationPending ||
       heatmapData?.status === 'generating' ||
-      heatmaps.some((h) => h.status === 'generating' || h.status === 'pending')
+      heatmapData?.status === 'pending' ||
+      hasAnyListInFlight
     if (!hasInFlight) return
 
     const id = setInterval(() => {
@@ -229,7 +240,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   }, [
     generationPending,
     heatmapData?.status,
-    heatmaps,
+    hasAnyListInFlight,
     actorId,
     selectedType,
     periodType,
@@ -432,10 +443,20 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
                   </p>
                 )}
                 <button
-                  onClick={() => handleRetry(heatmapData)}
-                  className="mt-2 inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-muted"
+                  disabled={isDetailRetrying}
+                  onClick={async () => {
+                    setIsDetailRetrying(true)
+                    try {
+                      await handleRetry(heatmapData)
+                    } finally {
+                      setIsDetailRetrying(false)
+                    }
+                  }}
+                  className="mt-2 inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
                 >
-                  <RefreshCw className="size-3" />
+                  <RefreshCw
+                    className={`size-3${isDetailRetrying ? ' animate-spin' : ''}`}
+                  />
                   Retry
                 </button>
               </div>
