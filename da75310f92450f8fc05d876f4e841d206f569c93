@@ -1,0 +1,23 @@
+app/(timeline)/[actor]/fitness/heatmap/FitnessHeatmapView.tsx
+  8e51d3e31fcf665a 293-305
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "da75310f92450f8fc05d876f4e841d206f569c93",
+  "prompts": {
+    "8e51d3e31fcf665a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "88bed09c-4d9a-45fc-8532-07d2e36c73b5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 7,
+      "accepted_lines": 538,
+      "overriden_lines": 2
+    }
+  }
+}
