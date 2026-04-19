@@ -292,16 +292,21 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     async (h: FitnessHeatmapData) => {
       setGenerationPending(true)
       try {
-        await triggerFitnessHeatmap({
+        const success = await triggerFitnessHeatmap({
           actorId,
           activityType: h.activityType,
           periodType: h.periodType as PeriodType,
           periodKey: h.periodKey,
-          region: h.region || null
+          region: h.region || undefined
         })
-      } catch {
+        if (!success) {
+          throw new Error('Failed to enqueue retry. Please try again.')
+        }
+      } catch (err) {
         setGenerationPending(false)
-        throw new Error('Failed to enqueue retry. Please try again.')
+        throw err instanceof Error
+          ? err
+          : new Error('Failed to enqueue retry. Please try again.')
       }
       getFitnessHeatmaps({ actorId })
         .then(setHeatmaps)
@@ -454,6 +459,10 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
                     setIsDetailRetrying(true)
                     try {
                       await handleRetry(heatmapData)
+                    } catch (err) {
+                      setError(
+                        err instanceof Error ? err.message : 'Retry failed.'
+                      )
                     } finally {
                       setIsDetailRetrying(false)
                     }

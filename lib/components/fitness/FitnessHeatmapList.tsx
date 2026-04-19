@@ -138,24 +138,26 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
         className="flex flex-1 flex-col gap-1 text-left"
         onClick={() => onSelect(heatmap)}
       >
-        <div className="flex items-center gap-1.5 text-xs">
+        <span className="flex items-center gap-1.5 text-xs">
           {statusIcon}
           {statusLabel}
           <span className="ml-auto text-muted-foreground">
             {formatRelativeTime(currentTime - heatmap.updatedAt)}
           </span>
-        </div>
-        <div className="text-sm">
+        </span>
+        <span className="text-sm">
           {formatActivityType(heatmap.activityType)} ·{' '}
           {formatPeriod(heatmap.periodType, heatmap.periodKey)}
-        </div>
+        </span>
         {regionLabel && (
           <span className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
             {regionLabel}
           </span>
         )}
         {heatmap.status === 'failed' && heatmap.error && (
-          <p className="text-xs text-destructive">{heatmap.error}</p>
+          <span className="block text-xs text-destructive">
+            {heatmap.error}
+          </span>
         )}
       </button>
       {heatmap.status === 'failed' && (
