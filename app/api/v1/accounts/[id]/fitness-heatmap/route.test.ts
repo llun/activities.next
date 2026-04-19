@@ -129,6 +129,7 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       activityType: 'running',
       periodType: 'yearly' as const,
       periodKey: '2025',
+      region: '',
       status: 'completed' as const,
       imagePath: 'heatmaps/actor1/yearly_2025.png',
       activityCount: 42,
@@ -152,6 +153,7 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       activityType: 'running',
       periodType: 'yearly',
       periodKey: '2025',
+      region: '',
       status: 'completed',
       imagePath: 'heatmaps/actor1/yearly_2025.png',
       activityCount: 42
@@ -161,7 +163,8 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       actorId: ACTOR1_ID,
       activityType: 'running',
       periodType: 'yearly',
-      periodKey: '2025'
+      periodKey: '2025',
+      region: ''
     })
   })
 
@@ -171,6 +174,7 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       actorId: ACTOR1_ID,
       periodType: 'all_time' as const,
       periodKey: 'all',
+      region: '',
       status: 'completed' as const,
       imagePath: 'heatmaps/actor1/all_time_all.png',
       activityCount: 100,
@@ -195,7 +199,79 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       actorId: ACTOR1_ID,
       activityType: null,
       periodType: 'all_time',
-      periodKey: 'all'
+      periodKey: 'all',
+      region: ''
+    })
+  })
+
+  it('normalizes region param: sorts and deduplicates IDs', async () => {
+    const heatmapData = {
+      id: 'heatmap-3',
+      actorId: ACTOR1_ID,
+      activityType: null,
+      periodType: 'all_time' as const,
+      periodKey: 'all',
+      region: 'netherlands,singapore',
+      status: 'completed' as const,
+      imagePath: 'heatmaps/actor1/all_time_all_nl_sg.png',
+      activityCount: 10,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+
+    mockDb.getFitnessHeatmapByKey.mockResolvedValue(heatmapData)
+
+    // Pass IDs in reverse order with a duplicate — the route must normalize them
+    const request = new NextRequest(
+      `${baseUrl}?period_type=all_time&period_key=all&region=singapore,netherlands,singapore`
+    )
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(200)
+    // DB must be queried with the canonical (sorted, deduped) form
+    expect(mockDb.getFitnessHeatmapByKey).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID,
+      activityType: null,
+      periodType: 'all_time',
+      periodKey: 'all',
+      region: 'netherlands,singapore'
+    })
+  })
+
+  it('falls back to world-wide (empty string) when all region IDs are unknown', async () => {
+    const heatmapData = {
+      id: 'heatmap-4',
+      actorId: ACTOR1_ID,
+      activityType: null,
+      periodType: 'yearly' as const,
+      periodKey: '2025',
+      region: '',
+      status: 'completed' as const,
+      imagePath: null,
+      activityCount: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+
+    mockDb.getFitnessHeatmapByKey.mockResolvedValue(heatmapData)
+
+    const request = new NextRequest(
+      `${baseUrl}?period_type=yearly&period_key=2025&region=unknown-region-xyz`
+    )
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(200)
+    // Unknown IDs must be silently dropped; result is world-wide ('')
+    expect(mockDb.getFitnessHeatmapByKey).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID,
+      activityType: null,
+      periodType: 'yearly',
+      periodKey: '2025',
+      region: ''
     })
   })
 

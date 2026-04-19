@@ -1,18 +1,21 @@
 'use client'
 
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   FitnessCalendarDay,
   FitnessHeatmapData,
   getDistinctFitnessActivityTypes,
   getFitnessCalendarData,
-  getFitnessHeatmap
+  getFitnessHeatmap,
+  triggerFitnessHeatmap
 } from '@/lib/client'
 import {
   CalendarMetric,
   FitnessCalendarHeatmap
 } from '@/lib/components/fitness/FitnessCalendarHeatmap'
+import { RegionSelector } from '@/lib/components/fitness/RegionSelector'
+import { serializeRegions } from '@/lib/fitness/regions'
 
 type PeriodType = 'all_time' | 'yearly' | 'monthly'
 
@@ -85,6 +88,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   const [periodKey, setPeriodKey] = useState<string>('all')
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   const [calendarMetric, setCalendarMetric] = useState<CalendarMetric>('count')
+  const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([])
 
   const [heatmapData, setHeatmapData] = useState<FitnessHeatmapData | null>(
     null
@@ -92,6 +96,10 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   const [calendarDays, setCalendarDays] = useState<FitnessCalendarDay[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [generationPending, setGenerationPending] = useState(false)
+  // Tracks the combination of params for which generation was triggered so we
+  // don't fire duplicate POST requests on every fetchData re-run.
+  const generationKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     getDistinctFitnessActivityTypes({ actorId })
@@ -106,6 +114,13 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     if (periodType === 'yearly') return `${selectedYear}`
     return periodKey
   }, [periodType, selectedYear, periodKey])
+
+  // Serialize selected regions to a canonical string (sorted, deduped).
+  const serializedRegion = useMemo(
+    () =>
+      selectedRegionIds.length > 0 ? serializeRegions(selectedRegionIds) : null,
+    [selectedRegionIds]
+  )
 
   const fetchData = useCallback(async () => {
     setIsLoading(true)
@@ -123,7 +138,8 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
           actorId,
           activityType,
           periodType,
-          periodKey: effectivePeriodKey
+          periodKey: effectivePeriodKey,
+          region: serializedRegion
         }),
         getFitnessCalendarData({
           actorId,
@@ -135,16 +151,70 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
 
       setHeatmapData(heatmap)
       setCalendarDays(calendar)
+
+      // If no heatmap exists yet and a region filter is active, trigger
+      // on-demand generation (only once per unique param combination).
+      if (heatmap === null && serializedRegion) {
+        const genKey = `${actorId}:${activityType ?? ''}:${periodType}:${effectivePeriodKey}:${serializedRegion}`
+        if (generationKeyRef.current !== genKey) {
+          generationKeyRef.current = genKey
+          setGenerationPending(true)
+          triggerFitnessHeatmap({
+            actorId,
+            activityType,
+            periodType,
+            periodKey: effectivePeriodKey,
+            region: serializedRegion
+          }).catch(() => {
+            // Non-fatal — user can retry manually
+          })
+        }
+      }
     } catch {
       setError('Failed to load heatmap data. Please try again.')
     } finally {
       setIsLoading(false)
     }
-  }, [actorId, selectedType, periodType, effectivePeriodKey])
+  }, [actorId, selectedType, periodType, effectivePeriodKey, serializedRegion])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Poll every 5 s while a generation job is in flight (either we triggered it
+  // ourselves, or the server already has it in "generating" status).
+  useEffect(() => {
+    if (!generationPending && heatmapData?.status !== 'generating') return
+
+    const id = setInterval(() => {
+      getFitnessHeatmap({
+        actorId,
+        activityType: selectedType || undefined,
+        periodType,
+        periodKey: effectivePeriodKey,
+        region: serializedRegion
+      })
+        .then((heatmap) => {
+          setHeatmapData(heatmap)
+          if (heatmap !== null && heatmap.status !== 'generating') {
+            setGenerationPending(false)
+          }
+        })
+        .catch(() => {
+          // Ignore transient poll errors
+        })
+    }, 5000)
+
+    return () => clearInterval(id)
+  }, [
+    generationPending,
+    heatmapData?.status,
+    actorId,
+    selectedType,
+    periodType,
+    effectivePeriodKey,
+    serializedRegion
+  ])
 
   const yearOptions = useMemo(() => generateYearOptions(), [])
   const monthOptions = useMemo(
@@ -179,7 +249,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   return (
     <div className="space-y-6 p-2 sm:p-4">
       {/* Selectors */}
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           Activity
           <select
@@ -246,6 +316,17 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
             </select>
           </label>
         )}
+
+        {/* Region filter */}
+        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+          <span className="mt-1.5 shrink-0">Region</span>
+          <div className="w-64">
+            <RegionSelector
+              selectedIds={selectedRegionIds}
+              onChange={setSelectedRegionIds}
+            />
+          </div>
+        </div>
       </div>
 
       {isLoading && (
@@ -263,10 +344,18 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
           {/* Geographic Heatmap */}
           <div className="space-y-2">
             <h2 className="text-lg font-medium">Route Heatmap</h2>
-            {!heatmapData && (
+            {!heatmapData && generationPending && (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                No heatmap generated yet. Run the generation script or wait for
-                new activities to be processed.
+                Generating heatmap for the selected region...
+              </p>
+            )}
+            {!heatmapData && !generationPending && (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No heatmap generated yet for this{' '}
+                {selectedRegionIds.length > 0 ? 'region selection' : 'period'}.
+                {selectedRegionIds.length === 0
+                  ? ' Wait for new activities to be processed.'
+                  : ''}
               </p>
             )}
             {heatmapData && heatmapData.status === 'generating' && (
@@ -285,7 +374,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
                 <div className="overflow-hidden rounded-lg border">
                   <img
                     src={`/api/v1/fitness-files/heatmap-image/${heatmapData.id}`}
-                    alt={`Route heatmap for ${selectedType || 'all activities'}`}
+                    alt={`Route heatmap for ${selectedType || 'all activities'}${selectedRegionIds.length > 0 ? ` in selected region` : ''}`}
                     className="h-auto w-full"
                   />
                   <div className="border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -301,7 +390,8 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
               heatmapData.status === 'completed' &&
               !heatmapData.imagePath && (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  No route data available for this period.
+                  No route data available for this period
+                  {selectedRegionIds.length > 0 ? ' and region selection' : ''}.
                 </p>
               )}
           </div>
