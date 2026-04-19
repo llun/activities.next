@@ -149,7 +149,10 @@ export const GET = traceApiRoute(
         region: heatmap.region,
         status: heatmap.status,
         imagePath: heatmap.imagePath,
-        activityCount: heatmap.activityCount
+        activityCount: heatmap.activityCount,
+        error: heatmap.error ?? null,
+        createdAt: heatmap.createdAt,
+        updatedAt: heatmap.updatedAt
       }
     })
   },

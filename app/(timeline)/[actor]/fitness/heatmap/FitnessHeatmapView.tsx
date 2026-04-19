@@ -1,5 +1,6 @@
 'use client'
 
+import { RefreshCw } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
@@ -8,14 +9,16 @@ import {
   getDistinctFitnessActivityTypes,
   getFitnessCalendarData,
   getFitnessHeatmap,
+  getFitnessHeatmaps,
   triggerFitnessHeatmap
 } from '@/lib/client'
 import {
   CalendarMetric,
   FitnessCalendarHeatmap
 } from '@/lib/components/fitness/FitnessCalendarHeatmap'
+import { FitnessHeatmapList } from '@/lib/components/fitness/FitnessHeatmapList'
 import { RegionSelector } from '@/lib/components/fitness/RegionSelector'
-import { serializeRegions } from '@/lib/fitness/regions'
+import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
 
 type PeriodType = 'all_time' | 'yearly' | 'monthly'
 
@@ -101,6 +104,15 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
   // don't fire duplicate POST requests on every fetchData re-run.
   const generationKeyRef = useRef<string | null>(null)
 
+  const [heatmaps, setHeatmaps] = useState<FitnessHeatmapData[]>([])
+  const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
+  const [isDetailRetrying, setIsDetailRetrying] = useState(false)
+
+  useEffect(() => {
+    const id = setInterval(() => setCurrentTime(Date.now()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
   useEffect(() => {
     getDistinctFitnessActivityTypes({ actorId })
       .then(setActivityTypes)
@@ -133,7 +145,7 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
         effectivePeriodKey
       )
 
-      const [heatmap, calendar] = await Promise.all([
+      const [heatmap, calendar, allHeatmaps] = await Promise.all([
         getFitnessHeatmap({
           actorId,
           activityType,
@@ -146,11 +158,13 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
           startDate,
           endDate,
           activityType
-        })
+        }),
+        getFitnessHeatmaps({ actorId })
       ])
 
       setHeatmapData(heatmap)
       setCalendarDays(calendar)
+      setHeatmaps(allHeatmaps)
 
       // If no heatmap exists yet and a region filter is active, trigger
       // on-demand generation (only once per unique param combination).
@@ -181,10 +195,24 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
     fetchData()
   }, [fetchData])
 
+  // Stable boolean: true when any list entry is still in-flight.
+  // Using a derived primitive prevents the polling effect from tearing down
+  // its interval on every setHeatmaps call.
+  const hasAnyListInFlight = useMemo(
+    () =>
+      heatmaps.some((h) => h.status === 'generating' || h.status === 'pending'),
+    [heatmaps]
+  )
+
   // Poll every 5 s while a generation job is in flight (either we triggered it
-  // ourselves, or the server already has it in "generating" status).
+  // ourselves, or the server already has it in "generating"/"pending" status).
   useEffect(() => {
-    if (!generationPending && heatmapData?.status !== 'generating') return
+    const hasInFlight =
+      generationPending ||
+      heatmapData?.status === 'generating' ||
+      heatmapData?.status === 'pending' ||
+      hasAnyListInFlight
+    if (!hasInFlight) return
 
     const id = setInterval(() => {
       getFitnessHeatmap({
@@ -203,12 +231,16 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
         .catch(() => {
           // Ignore transient poll errors
         })
+      getFitnessHeatmaps({ actorId })
+        .then(setHeatmaps)
+        .catch(() => {})
     }, 5000)
 
     return () => clearInterval(id)
   }, [
     generationPending,
     heatmapData?.status,
+    hasAnyListInFlight,
     actorId,
     selectedType,
     periodType,
@@ -245,6 +277,43 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
       setPeriodKey(options.includes(newKey) ? newKey : options[0])
     }
   }
+
+  const handleSelectHeatmap = useCallback((h: FitnessHeatmapData) => {
+    setSelectedType(h.activityType ?? '')
+    setPeriodType(h.periodType as PeriodType)
+    setPeriodKey(h.periodKey)
+    if (h.periodType === 'yearly') setSelectedYear(parseInt(h.periodKey, 10))
+    if (h.periodType === 'monthly')
+      setSelectedYear(parseInt(h.periodKey.split('-')[0], 10))
+    setSelectedRegionIds(h.region ? deserializeRegions(h.region) : [])
+  }, [])
+
+  const handleRetry = useCallback(
+    async (h: FitnessHeatmapData) => {
+      setGenerationPending(true)
+      try {
+        const success = await triggerFitnessHeatmap({
+          actorId,
+          activityType: h.activityType,
+          periodType: h.periodType as PeriodType,
+          periodKey: h.periodKey,
+          region: h.region || undefined
+        })
+        if (!success) {
+          throw new Error('Failed to enqueue retry. Please try again.')
+        }
+      } catch (err) {
+        setGenerationPending(false)
+        throw err instanceof Error
+          ? err
+          : new Error('Failed to enqueue retry. Please try again.')
+      }
+      getFitnessHeatmaps({ actorId })
+        .then(setHeatmaps)
+        .catch(() => {})
+    },
+    [actorId]
+  )
 
   return (
     <div className="space-y-6 p-2 sm:p-4">
@@ -329,6 +398,17 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
         </div>
       </div>
 
+      {/* Heatmap list */}
+      <div className="space-y-2">
+        <h2 className="text-lg font-medium">Heatmaps</h2>
+        <FitnessHeatmapList
+          heatmaps={heatmaps}
+          onSelect={handleSelectHeatmap}
+          onRetry={handleRetry}
+          currentTime={currentTime}
+        />
+      </div>
+
       {isLoading && (
         <p className="text-center text-muted-foreground">Loading...</p>
       )}
@@ -364,9 +444,37 @@ export const FitnessHeatmapView: FC<Props> = ({ actorId }) => {
               </p>
             )}
             {heatmapData && heatmapData.status === 'failed' && (
-              <p className="py-8 text-center text-sm text-red-600 dark:text-red-400">
-                Heatmap generation failed. Try regenerating.
-              </p>
+              <div className="py-4 text-center text-sm">
+                <p className="text-red-600 dark:text-red-400">
+                  Heatmap generation failed.
+                </p>
+                {heatmapData.error && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {heatmapData.error}
+                  </p>
+                )}
+                <button
+                  disabled={isDetailRetrying}
+                  onClick={async () => {
+                    setIsDetailRetrying(true)
+                    try {
+                      await handleRetry(heatmapData)
+                    } catch (err) {
+                      setError(
+                        err instanceof Error ? err.message : 'Retry failed.'
+                      )
+                    } finally {
+                      setIsDetailRetrying(false)
+                    }
+                  }}
+                  className="mt-2 inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={`size-3${isDetailRetrying ? ' animate-spin' : ''}`}
+                  />
+                  Retry
+                </button>
+              </div>
             )}
             {heatmapData &&
               heatmapData.status === 'completed' &&

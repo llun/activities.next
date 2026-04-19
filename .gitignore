@@ -89,3 +89,6 @@ backups/
 .gemini
 .playwright-mcp
 AGENTS.override.md
+
+# Git worktrees
+.worktrees/
