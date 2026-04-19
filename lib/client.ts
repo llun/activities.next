@@ -1130,6 +1130,9 @@ export interface FitnessHeatmapData {
   status: string
   imagePath?: string
   activityCount: number
+  error?: string | null
+  createdAt: number
+  updatedAt: number
 }
 
 export interface FitnessCalendarDay {
@@ -1202,6 +1205,24 @@ export const triggerFitnessHeatmap = async ({
     }
   )
   return response.ok
+}
+
+export const getFitnessHeatmaps = async ({
+  actorId
+}: {
+  actorId: string
+}): Promise<FitnessHeatmapData[]> => {
+  const encodedId = urlToId(actorId)
+  const response = await fetch(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-heatmaps`,
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json' }
+    }
+  )
+  if (!response.ok) return []
+  const json = await response.json()
+  return json.heatmaps as FitnessHeatmapData[]
 }
 
 export const getFitnessCalendarData = async ({
