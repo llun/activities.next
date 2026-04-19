@@ -123,6 +123,8 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
   })
 
   it('returns 200 with heatmap data for valid request', async () => {
+    const createdTime = Date.now()
+    const updatedTime = Date.now() + 1000
     const heatmapData = {
       id: 'heatmap-1',
       actorId: ACTOR1_ID,
@@ -133,8 +135,8 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       status: 'completed' as const,
       imagePath: 'heatmaps/actor1/yearly_2025.png',
       activityCount: 42,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      createdAt: createdTime,
+      updatedAt: updatedTime
     }
 
     mockDb.getFitnessHeatmapByKey.mockResolvedValue(heatmapData)
@@ -156,7 +158,10 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
       region: '',
       status: 'completed',
       imagePath: 'heatmaps/actor1/yearly_2025.png',
-      activityCount: 42
+      activityCount: 42,
+      error: null,
+      createdAt: createdTime,
+      updatedAt: updatedTime
     })
 
     expect(mockDb.getFitnessHeatmapByKey).toHaveBeenCalledWith({
@@ -287,5 +292,35 @@ describe('GET /api/v1/accounts/[id]/fitness-heatmap', () => {
     expect(response.status).toBe(500)
 
     mockDatabase = mockDb
+  })
+
+  it('returns error message from failed heatmap', async () => {
+    const heatmapData = {
+      id: 'heatmap-5',
+      actorId: ACTOR1_ID,
+      activityType: 'running',
+      periodType: 'yearly' as const,
+      periodKey: '2025',
+      region: '',
+      status: 'failed' as const,
+      imagePath: null,
+      activityCount: 0,
+      error: 'OOM while rendering',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+
+    mockDb.getFitnessHeatmapByKey.mockResolvedValue(heatmapData)
+
+    const request = new NextRequest(
+      `${baseUrl}?period_type=yearly&period_key=2025&activity_type=running`
+    )
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.error).toBe('OOM while rendering')
   })
 })
