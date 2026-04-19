@@ -1,0 +1,23 @@
+lib/client.ts
+  8e51d3e31fcf665a 1133-1135,1210-1227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "9f7e89494668ead6856bfb5dc18f0f1e2ae4f4b9",
+  "prompts": {
+    "8e51d3e31fcf665a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "88bed09c-4d9a-45fc-8532-07d2e36c73b5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 0,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    }
+  }
+}
