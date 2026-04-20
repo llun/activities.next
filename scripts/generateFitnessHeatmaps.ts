@@ -18,6 +18,11 @@ import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
+import {
+  deserializeRegions,
+  getRegionBounds,
+  serializeRegions
+} from '@/lib/fitness/regions'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateHeatmapImage } from '@/lib/services/fitness-files/generateHeatmapImage'
 import {
@@ -38,7 +43,8 @@ const CliArgs = z.object({
   actorId: z.string().min(1),
   activityType: z.string().optional(),
   periodType: z.enum(['all_time', 'yearly', 'monthly']).optional(),
-  periodKey: z.string().optional()
+  periodKey: z.string().optional(),
+  region: z.string().optional()
 })
 
 const USAGE = `Usage:
@@ -49,7 +55,11 @@ const USAGE = `Usage:
     NODE_ENV=production scripts/generateFitnessHeatmaps.ts --actor-id <id> --activity-type running
 
   Generate a specific period:
-    NODE_ENV=production scripts/generateFitnessHeatmaps.ts --actor-id <id> --period-type yearly --period-key 2024`
+    NODE_ENV=production scripts/generateFitnessHeatmaps.ts --actor-id <id> --period-type yearly --period-key 2024
+
+  Generate for a specific region (comma-separated region IDs):
+    NODE_ENV=production scripts/generateFitnessHeatmaps.ts --actor-id <id> --region netherlands
+    NODE_ENV=production scripts/generateFitnessHeatmaps.ts --actor-id <id> --region netherlands,singapore`
 
 const parseArgs = (args: string[]) => {
   const parsed: Record<string, string> = {}
@@ -81,7 +91,8 @@ const parseArgs = (args: string[]) => {
     actorId: parsed['actor-id'],
     activityType: parsed['activity-type'],
     periodType: parsed['period-type'],
-    periodKey: parsed['period-key']
+    periodKey: parsed['period-key'],
+    region: parsed['region']
   })
 }
 
@@ -195,11 +206,13 @@ interface HeatmapVariant {
   activityType: string | null
   periodType: FitnessHeatmapPeriodType
   periodKey: string
+  region: string
 }
 
 const collectVariants = (
   files: FitnessFile[],
   activityTypes: (string | null)[],
+  region: string,
   specificPeriodType?: FitnessHeatmapPeriodType,
   specificPeriodKey?: string
 ): HeatmapVariant[] => {
@@ -216,7 +229,8 @@ const collectVariants = (
       variants.push({
         activityType,
         periodType: specificPeriodType,
-        periodKey: specificPeriodKey
+        periodKey: specificPeriodKey,
+        region
       })
       continue
     }
@@ -225,7 +239,8 @@ const collectVariants = (
     variants.push({
       activityType,
       periodType: 'all_time',
-      periodKey: 'all'
+      periodKey: 'all',
+      region
     })
 
     // Determine year/month range from activityStartTime
@@ -244,7 +259,8 @@ const collectVariants = (
       variants.push({
         activityType,
         periodType: 'yearly',
-        periodKey: String(year)
+        periodKey: String(year),
+        region
       })
     }
 
@@ -252,7 +268,8 @@ const collectVariants = (
       variants.push({
         activityType,
         periodType: 'monthly',
-        periodKey: month
+        periodKey: month,
+        region
       })
     }
   }
@@ -266,8 +283,9 @@ const generateSingleHeatmap = async (
   allFiles: FitnessFile[],
   variant: HeatmapVariant
 ): Promise<'completed' | 'empty' | 'failed'> => {
-  const { activityType, periodType, periodKey } = variant
-  const label = `${activityType ?? 'all'} / ${periodType} / ${periodKey}`
+  const { activityType, periodType, periodKey, region } = variant
+  const regionLabel = region !== '' ? ` / ${region}` : ''
+  const label = `${activityType ?? 'all'} / ${periodType} / ${periodKey}${regionLabel}`
 
   let heatmapId: string | undefined
 
@@ -278,7 +296,8 @@ const generateSingleHeatmap = async (
       actorId: actor.id,
       activityType,
       periodType,
-      periodKey
+      periodKey,
+      region
     })
 
     if (existing) {
@@ -294,7 +313,8 @@ const generateSingleHeatmap = async (
         periodType,
         periodKey,
         periodStart,
-        periodEnd
+        periodEnd,
+        region
       })
       heatmapId = created.id
       await database.updateFitnessHeatmapStatus({
@@ -333,6 +353,9 @@ const generateSingleHeatmap = async (
       }
     }
 
+    const regionBounds =
+      region !== '' ? getRegionBounds(deserializeRegions(region)) : []
+
     if (allRouteSegments.length === 0) {
       await database.updateFitnessHeatmapStatus({
         id: heatmapId,
@@ -345,7 +368,8 @@ const generateSingleHeatmap = async (
     }
 
     const imageBuffer = await generateHeatmapImage({
-      routeSegments: allRouteSegments
+      routeSegments: allRouteSegments,
+      regionBounds: regionBounds.length > 0 ? regionBounds : undefined
     })
 
     if (!imageBuffer) {
@@ -363,11 +387,12 @@ const generateSingleHeatmap = async (
 
     const imageBytes = new Uint8Array(imageBuffer)
     const activityTypePath = activityType ?? 'all'
-    const fileName = `heatmap-${activityTypePath}-${periodType}_${periodKey}.png`
+    const regionSuffix = region !== '' ? `-${region.replace(/,/g, '_')}` : ''
+    const fileName = `heatmap-${activityTypePath}-${periodType}_${periodKey}${regionSuffix}.png`
 
     const storedMedia = await saveMedia(database, actor, {
       file: new File([imageBytes], fileName, { type: 'image/png' }),
-      description: `Fitness heatmap: ${activityTypePath} ${periodType} ${periodKey}`
+      description: `Fitness heatmap: ${activityTypePath} ${periodType} ${periodKey}${regionLabel}`
     })
 
     if (!storedMedia) {
@@ -464,12 +489,28 @@ export async function generateFitnessHeatmaps(args = process.argv.slice(2)) {
     )
   }
 
+  const normalizedRegion = input.region
+    ? serializeRegions(deserializeRegions(input.region))
+    : ''
+
+  if (input.region && normalizedRegion === '' && input.region.trim() !== '') {
+    console.error(
+      `Error: --region "${input.region}" did not match any known region IDs`
+    )
+    return 1
+  }
+
+  if (normalizedRegion !== '') {
+    console.log(`Region filter: ${normalizedRegion}`)
+  }
+
   const specificPeriodType = input.periodType as
     | FitnessHeatmapPeriodType
     | undefined
   const variants = collectVariants(
     allFiles,
     activityTypes,
+    normalizedRegion,
     specificPeriodType,
     input.periodKey
   )
