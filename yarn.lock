@@ -3667,10 +3667,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sindresorhus/is@npm:^7.2.0":
-  version: 7.2.0
-  resolution: "@sindresorhus/is@npm:7.2.0"
-  checksum: 10c0/0040c17d7826414363f99f5d56077c200789d51e6dfe5542920bfb29ab3828ec0ebf2845e8bae796bee461debb646b5e4c0a623140131cf3143471e915b50b54
+"@sindresorhus/is@npm:^8.0.0":
+  version: 8.0.0
+  resolution: "@sindresorhus/is@npm:8.0.0"
+  checksum: 10c0/45fdbaf6abc77ce5b0a089b3acb02778799bd32ac9d55365ca18d6143871c99c2e1ccda1fa351b8c2678a23fe5a5097839d1796c69359258200e76222a852d40
   languageName: node
   linkType: hard
 
@@ -5644,7 +5644,7 @@ __metadata:
     fit-file-parser: "npm:^2.3.3"
     framer-motion: "npm:^12.38.0"
     globals: "npm:^17.4.0"
-    got: "npm:^15.0.0"
+    got: "npm:^15.0.3"
     html-react-parser: "npm:^6.0.1"
     husky: "npm:^9.1.7"
     jest: "npm:^30.3.0"
@@ -8414,11 +8414,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"got@npm:^15.0.0":
-  version: 15.0.0
-  resolution: "got@npm:15.0.0"
+"got@npm:^15.0.3":
+  version: 15.0.3
+  resolution: "got@npm:15.0.3"
   dependencies:
-    "@sindresorhus/is": "npm:^7.2.0"
+    "@sindresorhus/is": "npm:^8.0.0"
     byte-counter: "npm:^0.1.0"
     cacheable-lookup: "npm:^7.0.0"
     cacheable-request: "npm:^13.0.18"
@@ -8428,9 +8428,9 @@ __metadata:
     keyv: "npm:^5.6.0"
     lowercase-keys: "npm:^4.0.1"
     responselike: "npm:^4.0.2"
-    type-fest: "npm:^5.4.4"
+    type-fest: "npm:^5.6.0"
     uint8array-extras: "npm:^1.5.0"
-  checksum: 10c0/4d2fc5a6fd0888853db35fcbc4db0b1c7a89f76a20785c707972cc142ee3621be38479ac8f0e438b69cb962c5b9957c798d4a0092834484a3b87ed6314230ab1
+  checksum: 10c0/9d64657ffc0de0d70b09b347ff5dae7a9909a89206d2ffa9a4ac39ab24d3c7a11421bb76808d1be6e30b12433b2b97c8db409b016eebd4b523e5df7eb58b13d6
   languageName: node
   linkType: hard
 
@@ -13587,12 +13587,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"type-fest@npm:^5.4.4":
-  version: 5.5.0
-  resolution: "type-fest@npm:5.5.0"
+"type-fest@npm:^5.6.0":
+  version: 5.6.0
+  resolution: "type-fest@npm:5.6.0"
   dependencies:
     tagged-tag: "npm:^1.0.0"
-  checksum: 10c0/60bf79a8df45abf99490e3204eceb5cf7f915413f8a69fb578c75cab37ddcb7d29ee21f185f0e1617323ac0b2a441e001b8dc691e220d0b087e9c29ea205538c
+  checksum: 10c0/5468a8ffda7f3904e6f7bbd8069eb8b6dd4bd9156e206df7a01d09a73e28cd1afedf74ead9d0fc12841c8c90074194859feca240511c50800962fde1bd9ddcbc
   languageName: node
   linkType: hard
 
