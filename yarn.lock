@@ -5669,7 +5669,7 @@ __metadata:
     react-modal: "npm:^3.16.3"
     rehype-sanitize: "npm:^6.0.0"
     remark-breaks: "npm:^4.0.0"
-    resend: "npm:^6.10.0"
+    resend: "npm:^6.12.2"
     sanitize-html: "npm:^2.17.3"
     sharp: "npm:^0.34.5"
     tailwind-merge: "npm:^3.5.0"
@@ -12375,18 +12375,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"resend@npm:^6.10.0":
-  version: 6.10.0
-  resolution: "resend@npm:6.10.0"
+"resend@npm:^6.12.2":
+  version: 6.12.2
+  resolution: "resend@npm:6.12.2"
   dependencies:
     postal-mime: "npm:2.7.4"
-    svix: "npm:1.88.0"
+    svix: "npm:1.90.0"
   peerDependencies:
     "@react-email/render": "*"
   peerDependenciesMeta:
     "@react-email/render":
       optional: true
-  checksum: 10c0/f472729baa8a1f46d64abe82910cb1a564e7b99aa2baf8b08333245ce379746f0f5afdbd4ccacc66d3643e9a37d59be2b5e199f616fc1641d006b948963782c2
+  checksum: 10c0/24de17d936aa03727b466d8dc44bd18151d5d0c8a5fd2318b9eb67780ce9d1eddc0b0b862083319fb99439c0112d115106ecea93d2f66ac7b30fb50844b5ba5c
   languageName: node
   linkType: hard
 
@@ -13275,13 +13275,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"svix@npm:1.88.0":
-  version: 1.88.0
-  resolution: "svix@npm:1.88.0"
+"svix@npm:1.90.0":
+  version: 1.90.0
+  resolution: "svix@npm:1.90.0"
   dependencies:
     standardwebhooks: "npm:1.0.0"
     uuid: "npm:^10.0.0"
-  checksum: 10c0/e30c7488111790f6f358e8c0256bc7e08ec972e1124e4e6afb137fcadc0c0f21033455f5d82ac6a63d18ed4f5dc6c102d544588d2adcd0d3e03e7d7c1166309a
+  checksum: 10c0/11d7885ccdfe0b08f978a45afa9b51c4e57c8c63f86d75139e9803f0aa2563c5f7b8f5a20e280ad2850e31ba7c155f2c4c0ab56a0fa4518ae08a40973dedc51d
   languageName: node
   linkType: hard
 
