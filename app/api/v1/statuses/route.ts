@@ -24,6 +24,7 @@ const NoteSchema = z.object({
   status: z.string(),
   in_reply_to_id: z.string().optional(),
   spoiler_text: z.string().optional(),
+  sensitive: z.boolean().optional(),
   media_ids: z.array(z.string()).optional(),
   visibility: VisibilitySchema.optional()
 })
@@ -34,10 +35,20 @@ export const POST = traceApiRoute(
     const { currentActor, database } = context
     try {
       const content = await req.json()
-      const note = NoteSchema.parse(content)
+      const parsed = NoteSchema.safeParse(content)
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+      const note = parsed.data
       const status = await createNoteFromUserInput({
         currentActor,
         text: note.status,
+        summary: note.spoiler_text,
         replyNoteId: note.in_reply_to_id,
         visibility: note.visibility,
         attachments: [],

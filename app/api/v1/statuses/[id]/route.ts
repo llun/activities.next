@@ -80,6 +80,7 @@ export const GET = traceApiRoute(
 const EditNoteSchema = z.object({
   status: z.string().optional(),
   spoiler_text: z.string().optional(),
+  sensitive: z.boolean().optional(),
   visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional()
 })
 
@@ -99,18 +100,34 @@ export const PUT = traceApiRoute(
     const { database, currentActor } = context
     const statusId = idToUrl(encodedStatusId)
     try {
-      const changes = EditNoteSchema.parse(await req.json())
+      const parsed = EditNoteSchema.safeParse(await req.json())
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+      const changes = parsed.data
 
       let updatedNote
 
-      if (changes.visibility !== undefined && changes.status === undefined) {
+      if (
+        changes.visibility !== undefined &&
+        changes.status === undefined &&
+        changes.spoiler_text === undefined
+      ) {
         updatedNote = await updateNoteVisibilityFromUserInput({
           statusId,
           currentActor,
           visibility: changes.visibility,
           database
         })
-      } else if (changes.status !== undefined) {
+      } else if (
+        changes.status !== undefined ||
+        changes.spoiler_text !== undefined
+      ) {
         updatedNote = await updateNoteFromUserInput({
           statusId,
           currentActor,

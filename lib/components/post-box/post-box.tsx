@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Loader2, X } from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, Loader2, X } from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -56,6 +56,8 @@ import {
   removePollChoice,
   resetExtension,
   setAttachments,
+  setContentWarning,
+  setContentWarningVisibility,
   setFitnessFile,
   setFitnessFileUploaded,
   setFitnessFileUploading,
@@ -149,6 +151,7 @@ export const PostBox: FC<Props> = ({
         const poll = postExtension.poll
         await createPoll({
           message,
+          contentWarning: postExtension.contentWarning,
           choices: poll.choices.map((item) => item.text),
           durationInSeconds: poll.durationInSeconds,
           pollType: poll.pollType,
@@ -164,9 +167,11 @@ export const PostBox: FC<Props> = ({
       if (editStatus) {
         const { content } = await updateNote({
           statusId: urlToId(editStatus.id),
-          message
+          message,
+          contentWarning: postExtension.contentWarning
         })
         editStatus.text = content
+        editStatus.summary = postExtension.contentWarning.trim() || null
         onPostUpdated(editStatus)
         dispatch(resetExtension())
 
@@ -281,6 +286,7 @@ export const PostBox: FC<Props> = ({
 
       const response = await createNote({
         message,
+        contentWarning: postExtension.contentWarning,
         replyStatus,
         attachments,
         fitnessFileId,
@@ -364,18 +370,42 @@ export const PostBox: FC<Props> = ({
 
   const onTextChange = (value: string) => {
     setText(value)
+    textRef.current = value
     if (value.trim().length === 0) {
       setAllowPost(Boolean(postExtensionRef.current.fitnessFile))
       return
     }
     if (
       editStatus &&
-      value === sanitizeHtml(editStatus.text, { allowedTags: [] })
+      value === sanitizeHtml(editStatus.text, { allowedTags: [] }) &&
+      postExtensionRef.current.contentWarning === (editStatus.summary ?? '')
     ) {
       setAllowPost(false)
       return
     }
     setAllowPost(true)
+  }
+
+  const onContentWarningChange = (value: string) => {
+    dispatch(setContentWarning(value))
+    if (!editStatus) return
+
+    setAllowPost(
+      value !== (editStatus.summary ?? '') ||
+        textRef.current !== sanitizeHtml(editStatus.text, { allowedTags: [] })
+    )
+  }
+
+  const onToggleContentWarning = () => {
+    const nextVisible = !postExtension.contentWarningVisible
+    dispatch(setContentWarningVisibility(nextVisible))
+    if (!editStatus) return
+
+    const nextContentWarning = nextVisible ? postExtension.contentWarning : ''
+    setAllowPost(
+      nextContentWarning !== (editStatus.summary ?? '') ||
+        textRef.current !== sanitizeHtml(editStatus.text, { allowedTags: [] })
+    )
   }
 
   /**
@@ -436,6 +466,8 @@ export const PostBox: FC<Props> = ({
   useEffect(() => {
     if (editStatus) {
       setText(editStatus.text)
+      dispatch(setContentWarning(editStatus.summary ?? ''))
+      dispatch(setContentWarningVisibility(Boolean(editStatus.summary)))
       setAllowPost(false) // Initial state for edit is disabled until changed? Or should we check?
       // Original logic in onTextChange checked if text === editStatus.text.
       // So if we set text to editStatus.text, allowPost should be false.
@@ -443,6 +475,8 @@ export const PostBox: FC<Props> = ({
       return
     } else {
       setText('')
+      dispatch(setContentWarning(''))
+      dispatch(setContentWarningVisibility(false))
       setAllowPost(false)
     }
 
@@ -501,6 +535,18 @@ export const PostBox: FC<Props> = ({
               onClose={onCloseReply}
             />
             <Tabs value={currentTab} onValueChange={setCurrentTab}>
+              {postExtension.contentWarningVisible ? (
+                <input
+                  className="mb-3 flex h-9 w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  aria-label="Content warning"
+                  name="contentWarning"
+                  placeholder="Write your warning here"
+                  value={postExtension.contentWarning}
+                  onChange={(event) =>
+                    onContentWarningChange(event.target.value)
+                  }
+                />
+              ) : null}
               <TabsList className="mb-3">
                 <TabsTrigger value="write">Write</TabsTrigger>
                 <TabsTrigger value="preview">Preview</TabsTrigger>
@@ -567,6 +613,21 @@ export const PostBox: FC<Props> = ({
                 dispatch(setVisibility(visibility))
               }
             />
+            <Button
+              type="button"
+              variant={
+                postExtension.contentWarningVisible ? 'secondary' : 'link'
+              }
+              aria-label={
+                postExtension.contentWarningVisible
+                  ? 'Remove content warning'
+                  : 'Add content warning'
+              }
+              title="Content warning"
+              onClick={onToggleContentWarning}
+            >
+              <AlertTriangle className="size-4" />
+            </Button>
             <Button
               type="button"
               variant="link"

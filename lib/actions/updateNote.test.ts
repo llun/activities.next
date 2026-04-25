@@ -89,5 +89,24 @@ describe('Update note action', () => {
         text: 'This is markdown **text** that should get format'
       })
     })
+
+    it('updates content warning without changing text', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const statusId = `${actor1.id}/statuses/post-1`
+      const before = await database.getStatus({ statusId })
+      if (!before || before.type !== 'Note') fail('Note is required')
+
+      const status = (await updateNoteFromUserInput({
+        statusId,
+        currentActor: actor1,
+        database,
+        summary: 'Updated warning'
+      })) as Status
+
+      expect(status).toMatchObject({
+        text: before.text,
+        summary: 'Updated warning'
+      })
+    })
   })
 })

@@ -16,6 +16,7 @@ import { getSpan } from '@/lib/utils/trace'
 
 interface CreatePollFromUserInputParams {
   text: string
+  summary?: string | null
   replyStatusId?: string
   currentActor: Actor
   choices: string[]
@@ -26,6 +27,7 @@ interface CreatePollFromUserInputParams {
 }
 export const createPollFromUserInput = async ({
   text,
+  summary,
   replyStatusId,
   currentActor,
   choices = [],
@@ -71,7 +73,7 @@ export const createPollFromUserInput = async ({
     url: `https://${currentActor.domain}/${getMention(currentActor)}/${postId}`,
     actorId: currentActor.id,
     text: convertMarkdownText(config.host)(text),
-    summary: '',
+    summary: summary?.trim() || null,
     to,
     cc,
     reply: replyStatus?.id || '',

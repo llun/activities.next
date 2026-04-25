@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
+import { AlertTriangle, Loader2 } from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -17,6 +17,8 @@ import {
   addAttachment,
   resetExtension,
   setAttachments,
+  setContentWarning,
+  setContentWarningVisibility,
   statusExtensionReducer,
   updateAttachment
 } from '@/lib/components/post-box/reducers'
@@ -206,6 +208,7 @@ export const StatusReplyBox: FC<Props> = ({
 
       const response = await createNote({
         message,
+        contentWarning: postExtension.contentWarning,
         replyStatus,
         attachments
       })
@@ -296,6 +299,19 @@ export const StatusReplyBox: FC<Props> = ({
               value={text}
             />
 
+            {postExtension.contentWarningVisible ? (
+              <input
+                className="mt-2 flex h-8 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                aria-label="Content warning"
+                name="contentWarning"
+                placeholder="Write your warning here"
+                value={postExtension.contentWarning}
+                onChange={(event) =>
+                  dispatch(setContentWarning(event.target.value))
+                }
+              />
+            ) : null}
+
             {postExtension.attachments.length > 0 && (
               <div className="grid gap-2 grid-cols-8 mt-2">
                 {postExtension.attachments.map((item, index) => (
@@ -322,6 +338,28 @@ export const StatusReplyBox: FC<Props> = ({
             ) : null}
 
             <div className="flex items-center mt-2">
+              <Button
+                type="button"
+                variant={
+                  postExtension.contentWarningVisible ? 'secondary' : 'link'
+                }
+                size="icon-sm"
+                aria-label={
+                  postExtension.contentWarningVisible
+                    ? 'Remove content warning'
+                    : 'Add content warning'
+                }
+                title="Content warning"
+                onClick={() =>
+                  dispatch(
+                    setContentWarningVisibility(
+                      !postExtension.contentWarningVisible
+                    )
+                  )
+                }
+              >
+                <AlertTriangle className="size-4" />
+              </Button>
               <UploadMediaButton
                 isMediaUploadEnabled={isMediaUploadEnabled}
                 attachments={postExtension.attachments}

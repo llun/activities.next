@@ -9,8 +9,8 @@ import { getSpan } from '@/lib/utils/trace'
 interface UpdateNoteFromUserInput {
   statusId: string
   currentActor: Actor
-  text: string
-  summary?: string
+  text?: string
+  summary?: string | null
   database: Database
 }
 
@@ -34,8 +34,8 @@ export const updateNoteFromUserInput = async ({
 
   const updatedStatus = await database.updateNote({
     statusId,
-    summary,
-    text
+    summary: summary === undefined ? status.summary : summary?.trim() || null,
+    text: text ?? status.text
   })
   if (!updatedStatus) {
     span.end()

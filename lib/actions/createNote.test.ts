@@ -89,6 +89,20 @@ describe('Create note action', () => {
       )
     })
 
+    it('stores content warning text as note summary', async () => {
+      const status = (await createNoteFromUserInput({
+        text: 'Hidden behind a warning',
+        summary: 'Movie spoilers',
+        currentActor: actor1,
+        database
+      })) as StatusNote
+
+      expect(status.summary).toBe('Movie spoilers')
+
+      const note = getNoteFromStatus(status) as Note
+      expect(note.summary).toBe('Movie spoilers')
+    })
+
     it('set reply to replyStatus id', async () => {
       const status = (await createNoteFromUserInput({
         text: 'Hello',
