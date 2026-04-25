@@ -19,6 +19,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import {
+  type RegionBounds,
   deserializeRegions,
   getRegionBounds,
   serializeRegions
@@ -202,6 +203,24 @@ const filterFilesByPeriodAndType = (
   })
 }
 
+const countSegmentsInRegion = (
+  segments: FitnessCoordinate[][],
+  bounds: RegionBounds[]
+): number => {
+  if (bounds.length === 0) return segments.length
+  return segments.filter((segment) =>
+    segment.some((coord) =>
+      bounds.some(
+        (b) =>
+          coord.lat >= b.minLat &&
+          coord.lat <= b.maxLat &&
+          coord.lng >= b.minLng &&
+          coord.lng <= b.maxLng
+      )
+    )
+  ).length
+}
+
 interface HeatmapVariant {
   activityType: string | null
   periodType: FitnessHeatmapPeriodType
@@ -281,7 +300,8 @@ const generateSingleHeatmap = async (
   database: Database,
   actor: Actor,
   allFiles: FitnessFile[],
-  variant: HeatmapVariant
+  variant: HeatmapVariant,
+  regionBounds: RegionBounds[]
 ): Promise<'completed' | 'empty' | 'failed'> => {
   const { activityType, periodType, periodKey, region } = variant
   const regionLabel = region !== '' ? ` / ${region}` : ''
@@ -353,8 +373,7 @@ const generateSingleHeatmap = async (
       }
     }
 
-    const regionBounds =
-      region !== '' ? getRegionBounds(deserializeRegions(region)) : []
+    const activityCount = countSegmentsInRegion(allRouteSegments, regionBounds)
 
     if (allRouteSegments.length === 0) {
       await database.updateFitnessHeatmapStatus({
@@ -376,19 +395,19 @@ const generateSingleHeatmap = async (
       await database.updateFitnessHeatmapStatus({
         id: heatmapId,
         status: 'completed',
-        activityCount: matchingFiles.length,
+        activityCount,
         imagePath: null
       })
       console.log(
-        `  [${label}] Image generation returned null — marked completed (${matchingFiles.length} files)`
+        `  [${label}] Image generation returned null — marked completed (${activityCount} activities)`
       )
       return 'empty'
     }
 
     const imageBytes = new Uint8Array(imageBuffer)
+    const safeHeatmapId = heatmapId ?? 'unknown'
+    const fileName = `heatmap-${safeHeatmapId}.png`
     const activityTypePath = activityType ?? 'all'
-    const regionSuffix = region !== '' ? `-${region.replace(/,/g, '_')}` : ''
-    const fileName = `heatmap-${activityTypePath}-${periodType}_${periodKey}${regionSuffix}.png`
 
     const storedMedia = await saveMedia(database, actor, {
       file: new File([imageBytes], fileName, { type: 'image/png' }),
@@ -405,11 +424,11 @@ const generateSingleHeatmap = async (
       id: heatmapId,
       status: 'completed',
       imagePath,
-      activityCount: matchingFiles.length
+      activityCount
     })
 
     console.log(
-      `  [${label}] ✓ Generated (${matchingFiles.length} files, ${allRouteSegments.length} routes)`
+      `  [${label}] ✓ Generated (${activityCount} activities, ${allRouteSegments.length} routes)`
     )
     return 'completed'
   } catch (error) {
@@ -454,6 +473,33 @@ export async function generateFitnessHeatmaps(args = process.argv.slice(2)) {
     return 1
   }
 
+  let normalizedRegion = ''
+  let regionBounds: RegionBounds[] = []
+
+  if (input.region) {
+    const requestedRegions = input.region
+      .split(',')
+      .map((regionId) => regionId.trim())
+      .filter((regionId) => regionId !== '')
+    const validRegions = deserializeRegions(input.region)
+    const validRegionSet = new Set(validRegions)
+    const invalidRegions = [
+      ...new Set(
+        requestedRegions.filter(
+          (regionId) => !validRegionSet.has(regionId.toLowerCase())
+        )
+      )
+    ]
+
+    if (invalidRegions.length > 0) {
+      console.error(`Error: Unknown region IDs: ${invalidRegions.join(', ')}`)
+      return 1
+    }
+
+    normalizedRegion = serializeRegions(validRegions)
+    regionBounds = getRegionBounds(validRegions)
+  }
+
   const database = getDatabase()
   if (!database) {
     console.error('Error: Database is not available')
@@ -489,17 +535,6 @@ export async function generateFitnessHeatmaps(args = process.argv.slice(2)) {
     )
   }
 
-  const normalizedRegion = input.region
-    ? serializeRegions(deserializeRegions(input.region))
-    : ''
-
-  if (input.region && normalizedRegion === '' && input.region.trim() !== '') {
-    console.error(
-      `Error: --region "${input.region}" did not match any known region IDs`
-    )
-    return 1
-  }
-
   if (normalizedRegion !== '') {
     console.log(`Region filter: ${normalizedRegion}`)
   }
@@ -524,7 +559,8 @@ export async function generateFitnessHeatmaps(args = process.argv.slice(2)) {
       database,
       actor,
       allFiles,
-      variant
+      variant,
+      regionBounds
     )
     counts[result] += 1
   }
