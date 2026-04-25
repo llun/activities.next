@@ -1,0 +1,57 @@
+lib/actions/createNote.ts
+  38fbe22e9e13d45a 156,166,224
+lib/actions/createPoll.test.ts
+  38fbe22e9e13d45a 70-87
+lib/actions/updateNote.test.ts
+  38fbe22e9e13d45a 92-110
+lib/actions/updateNote.ts
+  38fbe22e9e13d45a 12-13,37-38
+lib/components/posts/content-warning.test.tsx
+  38fbe22e9e13d45a 1-24
+lib/components/post-box/post-box.tsx
+  38fbe22e9e13d45a 1,59-60,154,170-171,174,289,373,380-381,389-410,469-470,478-479,538-549,616-630
+lib/components/post-box/reducers.ts
+  38fbe22e9e13d45a 11-12,42-55,136-137,160-161,190-191,208,210,215-230
+app/api/v1/accounts/outbox/types.ts
+  38fbe22e9e13d45a 11,24
+lib/components/post-box/reducers.test.ts
+  38fbe22e9e13d45a 3-4,34-57
+lib/components/posts/post.tsx
+  38fbe22e9e13d45a 27,96-207,244-245,247
+app/api/v1/accounts/outbox/route.ts
+  38fbe22e9e13d45a 38-47,52,61,88,99,141-150
+app/api/v1/statuses/[id]/route.ts
+  38fbe22e9e13d45a 83,103-112,116-120,127-130
+lib/actions/createNote.test.ts
+  38fbe22e9e13d45a 92-105
+lib/actions/createPoll.ts
+  38fbe22e9e13d45a 19,30,76
+lib/components/posts/content-warning.tsx
+  38fbe22e9e13d45a 1-39
+app/api/v1/statuses/route.ts
+  38fbe22e9e13d45a 27,38-47,51
+lib/client.ts
+  38fbe22e9e13d45a 18,26,49,69,71-75,86-87,134,144,171
+lib/components/posts/status-reply-box.tsx
+  38fbe22e9e13d45a 3,20-21,211,302-314,341-362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "e0af72730a4df3a795b8d0d8cdb462ef2a4c7e0c",
+  "prompts": {
+    "38fbe22e9e13d45a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dc61f-748a-7602-84ac-2c766405edaa",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 482,
+      "total_deletions": 132,
+      "accepted_lines": 482,
+      "overriden_lines": 0
+    }
+  }
+}
