@@ -93,9 +93,10 @@ export const Post: FC<PostProps> = (props) => {
   const isOwner =
     Boolean(actualStatus.isLocalActor) &&
     props.currentActor?.id === actualStatus.actorId
+  const summary = actualStatus.summary?.trim()
   const statusBody = (
     <>
-      {collapsible && postLineLimit !== 0 ? (
+      {collapsible && postLineLimit !== 0 && !summary ? (
         <CollapsibleContent
           className="mt-1 text-sm leading-relaxed break-words markdown-content"
           maxLines={postLineLimit}
@@ -204,7 +205,6 @@ export const Post: FC<PostProps> = (props) => {
       <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
     </>
   )
-  const summary = actualStatus.summary?.trim()
 
   return (
     <div className="flex flex-col gap-1">

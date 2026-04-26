@@ -79,7 +79,7 @@ export const GET = traceApiRoute(
 
 const EditNoteSchema = z.object({
   status: z.string().optional(),
-  spoiler_text: z.string().optional(),
+  spoiler_text: z.string().nullish(),
   visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional()
 })
 
@@ -145,6 +145,7 @@ export const PUT = traceApiRoute(
           currentActor,
           visibility,
           publish: !shouldUpdateContent,
+          status: existingStatus,
           database
         })
         if (!updatedNote)
@@ -163,6 +164,10 @@ export const PUT = traceApiRoute(
           text: changes.status,
           summary: changes.spoiler_text,
           publish: true,
+          status:
+            updatedNote?.type === StatusType.enum.Note
+              ? updatedNote
+              : existingStatus,
           database
         })
         if (!updatedNote)

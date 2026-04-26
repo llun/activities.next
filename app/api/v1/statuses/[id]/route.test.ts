@@ -367,6 +367,44 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
     })
 
+    it('clears content warning when spoiler_text is null', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-null-cw`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Content warning target',
+        summary: 'Existing warning',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              spoiler_text: null
+            }),
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      const updatedStatus = await database.getStatus({ statusId })
+
+      expect(data.spoiler_text).toBe('')
+      expect(updatedStatus?.summary).toBeNull()
+    })
+
     it('does not partially apply visibility when content update is forbidden', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor2.email }

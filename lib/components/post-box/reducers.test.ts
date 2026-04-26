@@ -120,7 +120,7 @@ describe('post-box reducers', () => {
     expect(nextState.fitnessFile).toBeUndefined()
   })
 
-  it('preserves state when managing an existing attachment list', () => {
+  it('clears incompatible modes while managing an existing attachment list', () => {
     const stateWithAttachments = {
       ...DEFAULT_STATE,
       attachments: [
@@ -161,7 +161,7 @@ describe('post-box reducers', () => {
     expect(nextState.attachments).toHaveLength(1)
     expect(nextState.contentWarning).toBe('Spoilers')
     expect(nextState.contentWarningVisible).toBe(true)
-    expect(nextState.fitnessFile).toBe(stateWithAttachments.fitnessFile)
+    expect(nextState.fitnessFile).toBeUndefined()
   })
 
   it('clears poll and fitness state when adding an attachment', () => {

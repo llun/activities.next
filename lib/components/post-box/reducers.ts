@@ -183,13 +183,12 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       return DEFAULT_STATE
     }
     case 'setAttachments': {
-      const isEnteringAttachmentMode =
-        state.attachments.length === 0 && action.attachments.length > 0
+      const hasAttachments = action.attachments.length > 0
       return {
         ...state,
         attachments: action.attachments,
-        fitnessFile: isEnteringAttachmentMode ? undefined : state.fitnessFile,
-        poll: isEnteringAttachmentMode
+        fitnessFile: hasAttachments ? undefined : state.fitnessFile,
+        poll: hasAttachments
           ? {
               ...DEFAULT_STATE.poll
             }
