@@ -564,6 +564,7 @@ export const PostBox: FC<Props> = ({
             <Tabs value={currentTab} onValueChange={setCurrentTab}>
               {postExtension.contentWarningVisible ? (
                 <input
+                  type="text"
                   className="mb-3 flex h-9 w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                   aria-label="Content warning"
                   name="contentWarning"

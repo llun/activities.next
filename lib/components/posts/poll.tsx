@@ -26,12 +26,12 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
     if (status.type !== StatusType.enum.Poll) return
 
     setNow(new Date())
-    const interval = window.setInterval(() => {
+    const interval = setInterval(() => {
       setNow(new Date())
     }, 60_000)
 
     return () => {
-      window.clearInterval(interval)
+      clearInterval(interval)
     }
   }, [status.id, status.type])
 
