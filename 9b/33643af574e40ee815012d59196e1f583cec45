@@ -1,0 +1,27 @@
+lib/services/federation/blocklistSources.ts
+  aec9357be833f4ad 100-102
+lib/database/sql/admin.ts
+  aec9357be833f4ad 2,129,540
+lib/services/federation/blocklistSources.test.ts
+  aec9357be833f4ad 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "9b33643af574e40ee815012d59196e1f583cec45",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 6,
+      "accepted_lines": 751,
+      "overriden_lines": 0
+    }
+  }
+}
