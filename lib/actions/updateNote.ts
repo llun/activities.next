@@ -1,6 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -43,6 +44,8 @@ export const updateNoteFromUserInput = async ({
     span.end()
     return null
   }
+
+  await addStatusToTimelines(database, updatedStatus)
 
   if (publish) {
     await getQueue().publish({

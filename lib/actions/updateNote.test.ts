@@ -4,6 +4,7 @@ import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import * as timelinesService from '@/lib/services/timelines'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -18,6 +19,10 @@ jest.mock('@/lib/services/queue', () => ({
   getQueue: jest.fn().mockReturnValue({
     publish: jest.fn().mockResolvedValue(undefined)
   })
+}))
+
+jest.mock('@/lib/services/timelines', () => ({
+  addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
 }))
 
 describe('Update note action', () => {
@@ -73,6 +78,10 @@ describe('Update note action', () => {
           statusId
         }
       })
+      expect(timelinesService.addStatusToTimelines).toHaveBeenCalledWith(
+        database,
+        status
+      )
     })
 
     it('format text when updating text', async () => {
@@ -134,6 +143,10 @@ describe('Update note action', () => {
       expect(status).toMatchObject({
         summary: 'Draft warning'
       })
+      expect(timelinesService.addStatusToTimelines).toHaveBeenCalledWith(
+        database,
+        status
+      )
       expect(getQueue().publish).not.toHaveBeenCalled()
     })
   })

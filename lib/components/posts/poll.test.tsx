@@ -65,7 +65,7 @@ describe('Poll', () => {
     jest.useRealTimers()
   })
 
-  it('updates poll availability after the initial render time expires', () => {
+  it('updates poll availability when the poll reaches its end time', () => {
     render(
       <Poll
         status={pollStatus}
@@ -75,16 +75,18 @@ describe('Poll', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Vote' })).toBeInTheDocument()
+    expect(jest.getTimerCount()).toBe(1)
 
     act(() => {
-      jest.setSystemTime(new Date(currentTime.getTime() + 60_000))
-      jest.advanceTimersByTime(60_000)
+      jest.setSystemTime(new Date(pollStatus.endAt))
+      jest.advanceTimersByTime(pollStatus.endAt - currentTime.getTime())
     })
 
     expect(screen.getByText('Poll closed')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Vote' })
     ).not.toBeInTheDocument()
+    expect(jest.getTimerCount()).toBe(0)
   })
 
   it('does not start a timer for already closed polls', () => {

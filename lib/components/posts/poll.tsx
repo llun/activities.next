@@ -29,25 +29,21 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
 
     const nextNow = new Date()
     setNow(nextNow)
-    if (nextNow.getTime() > pollEndAt) return
+    if (nextNow.getTime() >= pollEndAt) return
 
-    const interval = setInterval(() => {
-      const nextNow = new Date()
-      setNow(nextNow)
-      if (nextNow.getTime() > pollEndAt) {
-        clearInterval(interval)
-      }
-    }, 60_000)
+    const timeout = setTimeout(() => {
+      setNow(new Date())
+    }, pollEndAt - nextNow.getTime())
 
     return () => {
-      clearInterval(interval)
+      clearTimeout(timeout)
     }
   }, [pollEndAt, status.id])
 
   if (status.type !== StatusType.enum.Poll) return null
   if (!status.choices) return null
 
-  const isPollClosed = now.getTime() > status.endAt
+  const isPollClosed = now.getTime() >= status.endAt
   const choices = status.choices
   const totalVotes =
     choices.reduce((sum, choice) => sum + choice.totalVotes, 0) || 1

@@ -144,6 +144,9 @@ export const StatusReplyBox: FC<Props> = ({
     setWarningMsg(null)
     removedAttachmentIdsRef.current.clear()
     const message = text
+    const contentWarning = postExtension.contentWarningVisible
+      ? postExtension.contentWarning
+      : ''
 
     try {
       const uploadResults = await Promise.all(
@@ -208,7 +211,7 @@ export const StatusReplyBox: FC<Props> = ({
 
       const response = await createNote({
         message,
-        contentWarning: postExtension.contentWarning,
+        contentWarning,
         replyStatus,
         attachments
       })
@@ -301,6 +304,7 @@ export const StatusReplyBox: FC<Props> = ({
 
             {postExtension.contentWarningVisible ? (
               <input
+                type="text"
                 className="mt-2 flex h-8 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 aria-label="Content warning"
                 name="contentWarning"
