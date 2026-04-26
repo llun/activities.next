@@ -1,7 +1,7 @@
 'use client'
 
 import { formatDistance } from 'date-fns'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 
 import { votePoll } from '@/lib/client'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -13,6 +13,7 @@ interface Props {
 }
 
 export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
+  const [now, setNow] = useState(currentTime)
   const [selectedChoices, setSelectedChoices] = useState<number[]>([])
   const [isVoting, setIsVoting] = useState(false)
   const [votedChoices, setVotedChoices] = useState<number[]>(
@@ -21,10 +22,23 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
       : []
   )
 
+  useEffect(() => {
+    if (status.type !== StatusType.enum.Poll) return
+
+    setNow(new Date())
+    const interval = window.setInterval(() => {
+      setNow(new Date())
+    }, 60_000)
+
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [status.id, status.type])
+
   if (status.type !== StatusType.enum.Poll) return null
   if (!status.choices) return null
 
-  const isPollClosed = currentTime.getTime() > status.endAt
+  const isPollClosed = now.getTime() > status.endAt
   const choices = status.choices
   const totalVotes =
     choices.reduce((sum, choice) => sum + choice.totalVotes, 0) || 1
@@ -123,7 +137,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
       {isPollClosed ? <div className="text-sm">Poll closed</div> : null}
       {!isPollClosed ? (
         <div className="text-sm">
-          Poll close in {formatDistance(status.endAt, currentTime)}
+          Poll close in {formatDistance(status.endAt, now)}
         </div>
       ) : null}
     </div>

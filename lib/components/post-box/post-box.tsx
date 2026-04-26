@@ -104,7 +104,10 @@ export const PostBox: FC<Props> = ({
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const textRef = useRef(text)
-  const fitnessCleanupInFlightRef = useRef<string | null>(null)
+  const fitnessCleanupInFlightRef = useRef<{
+    uploadedId: string
+    promise: Promise<boolean>
+  } | null>(null)
 
   const [postExtension, dispatch] = useReducer(
     statusExtensionReducer,
@@ -327,40 +330,59 @@ export const PostBox: FC<Props> = ({
   }
 
   const onRemoveFitnessFile = useCallback(async () => {
-    const fitnessFile = postExtension.fitnessFile
+    const fitnessFile = postExtensionRef.current.fitnessFile
     if (!fitnessFile) {
-      return
+      return true
+    }
+
+    const clearFitnessFile = () => {
+      dispatch(removeFitnessFile())
+      postExtensionRef.current = {
+        ...postExtensionRef.current,
+        fitnessFile: undefined
+      }
+      setAllowPost(textRef.current.trim().length > 0)
     }
 
     if (!fitnessFile.uploadedId) {
-      dispatch(removeFitnessFile())
-      setAllowPost(textRef.current.trim().length > 0)
-      return
+      clearFitnessFile()
+      return true
     }
 
-    if (fitnessCleanupInFlightRef.current === fitnessFile.uploadedId) {
-      return
+    const inFlight = fitnessCleanupInFlightRef.current
+    if (inFlight?.uploadedId === fitnessFile.uploadedId) {
+      return inFlight.promise
     }
 
-    fitnessCleanupInFlightRef.current = fitnessFile.uploadedId
+    const uploadedId = fitnessFile.uploadedId
 
-    try {
-      setWarningMsg(null)
-      await deleteFitnessFile(fitnessFile.uploadedId)
-      dispatch(removeFitnessFile())
-      setAllowPost(textRef.current.trim().length > 0)
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error && error.message
-          ? error.message
-          : 'Failed to delete uploaded fitness file'
-      setWarningMsg(errorMessage)
-    } finally {
-      if (fitnessCleanupInFlightRef.current === fitnessFile.uploadedId) {
-        fitnessCleanupInFlightRef.current = null
+    const cleanupPromise = (async () => {
+      try {
+        setWarningMsg(null)
+        await deleteFitnessFile(uploadedId)
+        clearFitnessFile()
+        return true
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error && error.message
+            ? error.message
+            : 'Failed to delete uploaded fitness file'
+        setWarningMsg(errorMessage)
+        return false
+      } finally {
+        if (fitnessCleanupInFlightRef.current?.uploadedId === uploadedId) {
+          fitnessCleanupInFlightRef.current = null
+        }
       }
+    })()
+
+    fitnessCleanupInFlightRef.current = {
+      uploadedId,
+      promise: cleanupPromise
     }
-  }, [postExtension.fitnessFile])
+
+    return cleanupPromise
+  }, [])
 
   const onQuickPost = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!(event.metaKey || event.ctrlKey)) return
@@ -660,6 +682,7 @@ export const PostBox: FC<Props> = ({
                 setWarningMsg('Some files are already selected')
               }
               onUploadStart={() => setWarningMsg(null)}
+              onBeforeAddAttachments={onRemoveFitnessFile}
             />
           </div>
           <div>
