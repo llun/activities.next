@@ -1,0 +1,31 @@
+app/(timeline)/settings/account/TwoFactorManager.test.tsx
+  38fbe22e9e13d45a 124
+app/(nosidebar)/auth/two-factor/TwoFactorForm.test.tsx
+  38fbe22e9e13d45a 63
+app/(nosidebar)/auth/two-factor/TwoFactorForm.tsx
+  38fbe22e9e13d45a 8,109
+app/(timeline)/settings/account/TwoFactorManager.tsx
+  38fbe22e9e13d45a 436
+lib/components/ui/checkbox.tsx
+  38fbe22e9e13d45a 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "d36fc4073a202329c51c17386ba793b99e0564f9",
+  "prompts": {
+    "38fbe22e9e13d45a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dc61f-748a-7602-84ac-2c766405edaa",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 27,
+      "total_deletions": 8,
+      "accepted_lines": 27,
+      "overriden_lines": 0
+    }
+  }
+}
