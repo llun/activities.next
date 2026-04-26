@@ -13,42 +13,45 @@ const DomainBlockListQueryParams = z.object({
   offset: z.coerce.number().int().min(0).default(0)
 })
 
-export const GET = traceApiRoute('getInstanceDomainBlocks', async (req) => {
-  const database = getDatabase()
-  if (!database) {
+export const GET = traceApiRoute(
+  'getInstanceDomainBlocks',
+  async (req: NextRequest) => {
+    const database = getDatabase()
+    if (!database) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Database unavailable' },
+        responseStatusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR
+      })
+    }
+
+    const queryParams = Object.fromEntries(new URL(req.url).searchParams)
+    const parsedParams = DomainBlockListQueryParams.safeParse(queryParams)
+    if (!parsedParams.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: HTTP_STATUS.BAD_REQUEST
+      })
+    }
+
+    const { limit, offset } = parsedParams.data
+    const [blocks, stats] = await Promise.all([
+      database.getDomainBlocks({ limit, offset, severity: 'suspend' }),
+      database.getDomainFederationRuleStats()
+    ])
+
     return apiResponse({
-      req: req as NextRequest,
+      req,
       allowedMethods: CORS_HEADERS,
-      data: { error: 'Database unavailable' },
-      responseStatusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR
+      data: blocks.map(toPublicDomainBlock),
+      additionalHeaders: [
+        ['X-Total-Count', `${stats.suspendBlocks}`],
+        ['X-Offset', `${offset}`],
+        ['X-Limit', `${limit}`]
+      ]
     })
   }
-
-  const queryParams = Object.fromEntries(new URL(req.url).searchParams)
-  const parsedParams = DomainBlockListQueryParams.safeParse(queryParams)
-  if (!parsedParams.success) {
-    return apiResponse({
-      req: req as NextRequest,
-      allowedMethods: CORS_HEADERS,
-      data: ERROR_400,
-      responseStatusCode: HTTP_STATUS.BAD_REQUEST
-    })
-  }
-
-  const { limit, offset } = parsedParams.data
-  const [blocks, stats] = await Promise.all([
-    database.getDomainBlocks({ limit, offset }),
-    database.getDomainFederationRuleStats()
-  ])
-
-  return apiResponse({
-    req: req as NextRequest,
-    allowedMethods: CORS_HEADERS,
-    data: blocks.map(toPublicDomainBlock),
-    additionalHeaders: [
-      ['X-Total-Count', `${stats.blocks}`],
-      ['X-Offset', `${offset}`],
-      ['X-Limit', `${limit}`]
-    ]
-  })
-})
+)

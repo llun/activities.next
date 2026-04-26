@@ -247,6 +247,63 @@ describe('AdminDatabase', () => {
         await expect(database.getDomainBlockById(block.id)).resolves.toBeNull()
       })
 
+      it('upserts domain blocks by domain and type', async () => {
+        const domain = `upsert-${crypto.randomUUID().slice(0, 8)}.test`
+        const first = await database.createDomainBlock({
+          domain,
+          severity: 'suspend',
+          publicComment: 'first'
+        })
+        const second = await database.createDomainBlock({
+          domain,
+          severity: 'silence',
+          publicComment: 'second'
+        })
+
+        expect(second.id).toBe(first.id)
+        expect(second).toMatchObject({
+          domain,
+          severity: 'silence',
+          publicComment: 'second'
+        })
+      })
+
+      it('filters domain blocks by severity and counts suspend blocks', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const suspendDomain = `000-suspend-${suffix}.test`
+        const silenceDomain = `000-silence-${suffix}.test`
+        const noopDomain = `000-noop-${suffix}.test`
+        const before = await database.getDomainFederationRuleStats()
+
+        await database.createDomainBlock({
+          domain: suspendDomain,
+          severity: 'suspend'
+        })
+        await database.createDomainBlock({
+          domain: silenceDomain,
+          severity: 'silence'
+        })
+        await database.createDomainBlock({
+          domain: noopDomain,
+          severity: 'noop'
+        })
+
+        const after = await database.getDomainFederationRuleStats()
+        expect(after.blocks).toBe(before.blocks + 3)
+        expect(after.suspendBlocks).toBe(before.suspendBlocks + 1)
+
+        const suspendBlocks = await database.getDomainBlocks({
+          limit: 1000,
+          severity: 'suspend'
+        })
+        const suspendDomains = new Set(
+          suspendBlocks.map((block) => block.domain)
+        )
+        expect(suspendDomains.has(suspendDomain)).toBe(true)
+        expect(suspendDomains.has(silenceDomain)).toBe(false)
+        expect(suspendDomains.has(noopDomain)).toBe(false)
+      })
+
       it('matches the most specific domain rule in SQL', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const parentDomain = `parent-${suffix}.test`

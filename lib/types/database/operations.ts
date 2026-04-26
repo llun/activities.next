@@ -1101,6 +1101,7 @@ export type ImportDomainBlockParams = CreateDomainBlockParams
 
 export type DomainFederationRuleStats = {
   blocks: number
+  suspendBlocks: number
   allows: number
   sourceBlocks: number
   sourceCounts: Record<string, number>
@@ -1119,6 +1120,7 @@ export interface AdminDatabase {
   getDomainBlocks(params?: {
     limit?: number
     offset?: number
+    severity?: DomainBlockSeverity
   }): Promise<DomainBlock[]>
   getDomainAllows(params?: {
     limit?: number

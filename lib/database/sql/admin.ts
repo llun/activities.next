@@ -396,14 +396,18 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     }
   },
 
-  async getDomainBlocks({ limit = 100, offset = 0 } = {}) {
-    const rows = await database<SQLDomainFederationRule>(
-      'domain_federation_rules'
-    )
+  async getDomainBlocks({ limit = 100, offset = 0, severity } = {}) {
+    const query = database<SQLDomainFederationRule>('domain_federation_rules')
       .where('type', 'block')
       .orderBy('domain', 'asc')
       .limit(limit)
       .offset(offset)
+
+    if (severity) {
+      query.where('severity', severity)
+    }
+
+    const rows = await query
 
     return rows.map(toDomainBlock)
   },
@@ -503,22 +507,30 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
   },
 
   async getDomainFederationRuleStats() {
-    const [blockCount, allowCount, sourceRows] = await Promise.all([
-      database('domain_federation_rules')
-        .where('type', 'block')
-        .count<{ count: string | number }>('id as count')
-        .first(),
-      database('domain_federation_rules')
-        .where('type', 'allow')
-        .count<{ count: string | number }>('id as count')
-        .first(),
-      database('domain_federation_rules')
-        .select('source')
-        .where('type', 'block')
-        .whereNotNull('source')
-        .groupBy('source')
-        .count<{ source: string; count: string | number }>('id as count')
-    ])
+    const [blockCount, suspendBlockCount, allowCount, sourceRows] =
+      await Promise.all([
+        database('domain_federation_rules')
+          .where('type', 'block')
+          .count<{ count: string | number }>('id as count')
+          .first(),
+        database('domain_federation_rules')
+          .where({
+            type: 'block',
+            severity: DEFAULT_DOMAIN_BLOCK_SEVERITY
+          })
+          .count<{ count: string | number }>('id as count')
+          .first(),
+        database('domain_federation_rules')
+          .where('type', 'allow')
+          .count<{ count: string | number }>('id as count')
+          .first(),
+        database('domain_federation_rules')
+          .select('source')
+          .where('type', 'block')
+          .whereNotNull('source')
+          .groupBy('source')
+          .count<{ source: string; count: string | number }>('id as count')
+      ])
     const sourceCounts = Object.fromEntries(
       (
         sourceRows as unknown as {
@@ -534,6 +546,7 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
 
     return {
       blocks: Number(blockCount?.count ?? 0),
+      suspendBlocks: Number(suspendBlockCount?.count ?? 0),
       allows: Number(allowCount?.count ?? 0),
       sourceBlocks,
       sourceCounts
@@ -543,25 +556,19 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
   async createDomainBlock(params) {
     const now = new Date()
     const row = buildDomainBlockInsert(params, now)
-    const existing = await database<SQLDomainFederationRule>(
+
+    await database('domain_federation_rules')
+      .insert(row)
+      .onConflict(['type', 'domain'])
+      .merge(buildDomainBlockUpdate(params, now))
+
+    const upserted = await database<SQLDomainFederationRule>(
       'domain_federation_rules'
     )
       .where({ type: 'block', domain: row.domain })
       .first()
-
-    if (existing) {
-      await database<SQLDomainFederationRule>('domain_federation_rules')
-        .where('id', existing.id)
-        .update(buildDomainBlockUpdate(params, now))
-      const updated = await this.getDomainBlockById(existing.id)
-      if (!updated) throw new Error('Failed to update domain block')
-      return updated
-    }
-
-    await database('domain_federation_rules').insert(row)
-    const created = await this.getDomainBlockById(row.id)
-    if (!created) throw new Error('Failed to create domain block')
-    return created
+    if (!upserted) throw new Error('Failed to upsert domain block')
+    return toDomainBlock(upserted)
   },
 
   async updateDomainBlock(params) {
@@ -602,13 +609,6 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
 
   async createDomainAllow({ domain }) {
     const normalized = normalizeOrThrow(domain)
-    const existing = await database<SQLDomainFederationRule>(
-      'domain_federation_rules'
-    )
-      .where({ type: 'allow', domain: normalized })
-      .first()
-    if (existing) return toDomainAllow(existing)
-
     const now = new Date()
     const row = {
       id: randomUUID(),
@@ -625,10 +625,18 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
       updatedAt: now
     }
 
-    await database('domain_federation_rules').insert(row)
-    const created = await this.getDomainAllowById(row.id)
-    if (!created) throw new Error('Failed to create domain allow')
-    return created
+    await database('domain_federation_rules')
+      .insert(row)
+      .onConflict(['type', 'domain'])
+      .ignore()
+
+    const upserted = await database<SQLDomainFederationRule>(
+      'domain_federation_rules'
+    )
+      .where({ type: 'allow', domain: normalized })
+      .first()
+    if (!upserted) throw new Error('Failed to create domain allow')
+    return toDomainAllow(upserted)
   },
 
   async deleteDomainAllow(id: string) {

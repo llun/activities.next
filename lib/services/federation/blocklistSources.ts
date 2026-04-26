@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import { z } from 'zod'
 
 import {
@@ -8,6 +9,7 @@ import {
   DomainBlockSeverity,
   ImportDomainBlockParams
 } from '@/lib/types/database/operations'
+import { RequestOptions, request } from '@/lib/utils/request'
 
 export const KnownDomainBlocklistSourceId = z.enum(['oliphant-tier0'])
 export type KnownDomainBlocklistSourceId = z.infer<
@@ -22,7 +24,19 @@ export const KNOWN_DOMAIN_BLOCKLIST_SOURCES = [
   }
 ] as const
 
-type FetchLike = typeof fetch
+export const KNOWN_DOMAIN_BLOCKLIST_TIMEOUT_MS = 30_000
+export const KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES = 10 * 1024 * 1024
+
+type BlocklistResponse = {
+  statusCode: number
+  headers: Record<string, string | string[] | undefined>
+  body: string
+}
+
+type BlocklistRequest = (options: RequestOptions) => Promise<BlocklistResponse>
+
+const defaultBlocklistRequest: BlocklistRequest = async (options) =>
+  request(options)
 
 const parseBoolean = (value: string | undefined): boolean =>
   value?.trim().toLowerCase() === 'true'
@@ -131,18 +145,35 @@ export const parseDomainBlockCsv = (
 
 export const fetchKnownDomainBlocklist = async (
   sourceId: KnownDomainBlocklistSourceId,
-  fetchImpl: FetchLike = fetch
+  requestImpl: BlocklistRequest = defaultBlocklistRequest
 ): Promise<ImportDomainBlockParams[]> => {
   const source = KNOWN_DOMAIN_BLOCKLIST_SOURCES.find(
     (item) => item.id === sourceId
   )
   if (!source) throw new Error('Unknown domain blocklist source')
 
-  const response = await fetchImpl(source.url)
-  if (!response.ok) {
+  const response = await requestImpl({
+    url: source.url,
+    responseTimeout: KNOWN_DOMAIN_BLOCKLIST_TIMEOUT_MS,
+    numberOfRetry: 0
+  })
+  if (response.statusCode < 200 || response.statusCode >= 300) {
     throw new Error(`Failed to fetch ${source.name}`)
   }
 
-  const csv = await response.text()
+  const contentLength = response.headers['content-length']
+  const contentLengthValue = Array.isArray(contentLength)
+    ? contentLength[0]
+    : contentLength
+  const expectedBytes = Number(contentLengthValue ?? 0)
+  if (expectedBytes > KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES) {
+    throw new Error('Blocklist response too large')
+  }
+
+  const csv = response.body
+  if (Buffer.byteLength(csv, 'utf8') > KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES) {
+    throw new Error('Blocklist response too large')
+  }
+
   return parseDomainBlockCsv(csv, source.id)
 }

@@ -35,6 +35,7 @@ describe('GET /api/v1/instance/domain_blocks', () => {
     ])
     const getDomainFederationRuleStats = jest.fn().mockResolvedValue({
       blocks: 42,
+      suspendBlocks: 7,
       allows: 0
     })
 
@@ -52,9 +53,13 @@ describe('GET /api/v1/instance/domain_blocks', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(getDomainBlocks).toHaveBeenCalledWith({ limit: 25, offset: 5 })
+    expect(getDomainBlocks).toHaveBeenCalledWith({
+      limit: 25,
+      offset: 5,
+      severity: 'suspend'
+    })
     expect(getDomainFederationRuleStats).toHaveBeenCalledTimes(1)
-    expect(response.headers.get('X-Total-Count')).toBe('42')
+    expect(response.headers.get('X-Total-Count')).toBe('7')
     expect(response.headers.get('X-Offset')).toBe('5')
     expect(response.headers.get('X-Limit')).toBe('25')
     expect(data).toEqual([

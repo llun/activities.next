@@ -1,4 +1,6 @@
 import {
+  KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES,
+  KNOWN_DOMAIN_BLOCKLIST_TIMEOUT_MS,
   fetchKnownDomainBlocklist,
   parseCsvLine,
   parseCsvRecords,
@@ -58,25 +60,53 @@ describe('blocklistSources', () => {
   })
 
   it('fetches a known source and parses the response', async () => {
-    const fetchImpl = jest.fn().mockResolvedValue({
-      ok: true,
-      text: async () =>
-        'domain,severity,reject_media,reject_reports,public_comment,obfuscate\nbad.test,suspend,False,False,spam,False'
+    const requestImpl = jest.fn().mockResolvedValue({
+      statusCode: 200,
+      headers: {},
+      body: 'domain,severity,reject_media,reject_reports,public_comment,obfuscate\nbad.test,suspend,False,False,spam,False'
     })
 
     const blocks = await fetchKnownDomainBlocklist(
       'oliphant-tier0',
-      fetchImpl as unknown as typeof fetch
+      requestImpl
     )
 
-    expect(fetchImpl).toHaveBeenCalledWith(
-      'https://codeberg.org/oliphant/blocklists/raw/branch/main/blocklists/_unified_tier0_blocklist.csv'
-    )
+    expect(requestImpl).toHaveBeenCalledWith({
+      url: 'https://codeberg.org/oliphant/blocklists/raw/branch/main/blocklists/_unified_tier0_blocklist.csv',
+      responseTimeout: KNOWN_DOMAIN_BLOCKLIST_TIMEOUT_MS,
+      numberOfRetry: 0
+    })
     expect(blocks).toHaveLength(1)
     expect(blocks[0]).toMatchObject({
       domain: 'bad.test',
       severity: 'suspend',
       source: 'oliphant-tier0'
     })
+  })
+
+  it('rejects oversized known source responses by content length', async () => {
+    const requestImpl = jest.fn().mockResolvedValue({
+      statusCode: 200,
+      headers: {
+        'content-length': String(KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES + 1)
+      },
+      body: ''
+    })
+
+    await expect(
+      fetchKnownDomainBlocklist('oliphant-tier0', requestImpl)
+    ).rejects.toThrow('Blocklist response too large')
+  })
+
+  it('rejects oversized known source response bodies', async () => {
+    const requestImpl = jest.fn().mockResolvedValue({
+      statusCode: 200,
+      headers: {},
+      body: 'a'.repeat(KNOWN_DOMAIN_BLOCKLIST_MAX_BYTES + 1)
+    })
+
+    await expect(
+      fetchKnownDomainBlocklist('oliphant-tier0', requestImpl)
+    ).rejects.toThrow('Blocklist response too large')
   })
 })

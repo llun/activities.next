@@ -1,4 +1,12 @@
-import { Download, ShieldBan, ShieldCheck, Trash2 } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ShieldBan,
+  ShieldCheck,
+  Trash2
+} from 'lucide-react'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import {
@@ -18,7 +26,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { KNOWN_DOMAIN_BLOCKLIST_SOURCES } from '@/lib/services/federation/blocklistSources'
-import { toPublicDomainBlock } from '@/lib/services/federation/domainRules'
+import { cn } from '@/lib/utils'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +46,13 @@ const STATUS_MESSAGES: Record<string, string> = {
   'import-failed': 'Unable to import the blocklist'
 }
 
+const ERROR_STATUSES = new Set([
+  'invalid-block-domain',
+  'invalid-allow-domain',
+  'invalid-source',
+  'import-failed'
+])
+
 const ADMIN_FEDERATION_PAGE_SIZE = 100
 
 const getStatusMessage = (status?: string): string | null => {
@@ -50,6 +65,87 @@ const getStatusMessage = (status?: string): string | null => {
   return `Imported ${match[1]} new block${match[1] === '1' ? '' : 's'}, updated ${match[2]}, skipped ${match[3]}`
 }
 
+const getOffset = (value?: string): number => {
+  const offset = Number(value ?? 0)
+  return Number.isInteger(offset) && offset > 0 ? offset : 0
+}
+
+const getPaginationHref = ({
+  blockOffset,
+  allowOffset
+}: {
+  blockOffset: number
+  allowOffset: number
+}): string => {
+  const params = new URLSearchParams()
+  if (blockOffset > 0) params.set('blockOffset', String(blockOffset))
+  if (allowOffset > 0) params.set('allowOffset', String(allowOffset))
+
+  const query = params.toString()
+  return query ? `/admin/federation?${query}` : '/admin/federation'
+}
+
+const getNextOffset = (offset: number, count: number): number => offset + count
+
+const getPreviousOffset = (offset: number): number =>
+  Math.max(0, offset - ADMIN_FEDERATION_PAGE_SIZE)
+
+const getPaginationLabel = (
+  noun: string,
+  offset: number,
+  count: number,
+  total: number
+): string => {
+  if (count === 0) return `Showing 0 of ${total} ${noun}`
+  return `Showing ${offset + 1}-${offset + count} of ${total} ${noun}`
+}
+
+const PaginationControls = ({
+  label,
+  previousHref,
+  nextHref,
+  hasPrevious,
+  hasNext
+}: {
+  label: string
+  previousHref: string
+  nextHref: string
+  hasPrevious: boolean
+  hasNext: boolean
+}) => (
+  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <p className="text-sm text-muted-foreground">{label}</p>
+    <div className="flex gap-2">
+      {hasPrevious ? (
+        <Button asChild variant="outline" size="sm">
+          <Link href={previousHref}>
+            <ChevronLeft className="h-4 w-4" />
+            Previous
+          </Link>
+        </Button>
+      ) : (
+        <Button disabled variant="outline" size="sm">
+          <ChevronLeft className="h-4 w-4" />
+          Previous
+        </Button>
+      )}
+      {hasNext ? (
+        <Button asChild variant="outline" size="sm">
+          <Link href={nextHref}>
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </Button>
+      ) : (
+        <Button disabled variant="outline" size="sm">
+          Next
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      )}
+    </div>
+  </div>
+)
+
 const Page = async ({ searchParams }: Props) => {
   const database = getDatabase()
   if (!database) throw new Error('Failed to load database')
@@ -58,16 +154,35 @@ const Page = async ({ searchParams }: Props) => {
   const admin = await getAdminFromSession(database, session)
   if (!admin) return redirect('/')
 
-  const [{ status }, blocks, allows, stats] = await Promise.all([
-    searchParams,
-    database.getDomainBlocks({ limit: ADMIN_FEDERATION_PAGE_SIZE }),
-    database.getDomainAllows({ limit: ADMIN_FEDERATION_PAGE_SIZE }),
+  const params = await searchParams
+  const { status } = params
+  const blockOffset = getOffset(params.blockOffset)
+  const allowOffset = getOffset(params.allowOffset)
+
+  const [blocks, allows, stats] = await Promise.all([
+    database.getDomainBlocks({
+      limit: ADMIN_FEDERATION_PAGE_SIZE,
+      offset: blockOffset
+    }),
+    database.getDomainAllows({
+      limit: ADMIN_FEDERATION_PAGE_SIZE,
+      offset: allowOffset
+    }),
     database.getDomainFederationRuleStats()
   ])
   const statusMessage = getStatusMessage(status)
+  const isErrorStatus = status ? ERROR_STATUSES.has(status) : false
   const sourceCounts = new Map(Object.entries(stats.sourceCounts))
   const config = getConfig()
   const federationMode = config.federationMode ?? 'open'
+  const hasPreviousBlocks = blockOffset > 0
+  const hasNextBlocks =
+    blocks.length > 0 &&
+    getNextOffset(blockOffset, blocks.length) < stats.blocks
+  const hasPreviousAllows = allowOffset > 0
+  const hasNextAllows =
+    allows.length > 0 &&
+    getNextOffset(allowOffset, allows.length) < stats.allows
 
   return (
     <div className="space-y-6">
@@ -81,7 +196,14 @@ const Page = async ({ searchParams }: Props) => {
       </div>
 
       {statusMessage && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-100">
+        <div
+          className={cn(
+            'rounded-lg border px-4 py-3 text-sm',
+            isErrorStatus
+              ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100'
+              : 'border-green-200 bg-green-50 text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-100'
+          )}
+        >
           {statusMessage}
         </div>
       )}
@@ -176,6 +298,14 @@ const Page = async ({ searchParams }: Props) => {
                 rows={2}
               />
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="block-private-comment">Private comment</Label>
+              <Textarea
+                id="block-private-comment"
+                name="privateComment"
+                rows={2}
+              />
+            </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <Label>
                 <Checkbox name="rejectMedia" />
@@ -213,54 +343,59 @@ const Page = async ({ searchParams }: Props) => {
 
       <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold">Domain Blocks</h2>
-        {stats.blocks > blocks.length && (
-          <p className="mb-3 text-sm text-muted-foreground">
-            Showing first {blocks.length} of {stats.blocks} blocked domains.
-          </p>
-        )}
         <div className="space-y-2">
           {blocks.length === 0 ? (
             <p className="text-sm text-muted-foreground">No domains blocked</p>
           ) : (
-            blocks.map((block) => {
-              const publicBlock = toPublicDomainBlock(block)
-              return (
-                <div
-                  key={block.id}
-                  className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{block.domain}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {block.severity}
-                      {publicBlock.comment ? ` - ${publicBlock.comment}` : ''}
-                    </p>
-                  </div>
-                  <form action={deleteDomainBlockAction}>
-                    <input type="hidden" name="id" value={block.id} />
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Delete block for ${block.domain}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </form>
+            blocks.map((block) => (
+              <div
+                key={block.id}
+                className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{block.domain}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {block.severity}
+                    {block.publicComment ? ` - ${block.publicComment}` : ''}
+                  </p>
                 </div>
-              )
-            })
+                <form action={deleteDomainBlockAction}>
+                  <input type="hidden" name="id" value={block.id} />
+                  <Button
+                    type="submit"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Delete block for ${block.domain}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </form>
+              </div>
+            ))
           )}
         </div>
+        <PaginationControls
+          label={getPaginationLabel(
+            'blocked domains',
+            blockOffset,
+            blocks.length,
+            stats.blocks
+          )}
+          previousHref={getPaginationHref({
+            blockOffset: getPreviousOffset(blockOffset),
+            allowOffset
+          })}
+          nextHref={getPaginationHref({
+            blockOffset: getNextOffset(blockOffset, blocks.length),
+            allowOffset
+          })}
+          hasPrevious={hasPreviousBlocks}
+          hasNext={hasNextBlocks}
+        />
       </section>
 
       <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold">Domain Allows</h2>
-        {stats.allows > allows.length && (
-          <p className="mb-3 text-sm text-muted-foreground">
-            Showing first {allows.length} of {stats.allows} allowed domains.
-          </p>
-        )}
         <div className="space-y-2">
           {allows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No domains allowed</p>
@@ -286,6 +421,24 @@ const Page = async ({ searchParams }: Props) => {
             ))
           )}
         </div>
+        <PaginationControls
+          label={getPaginationLabel(
+            'allowed domains',
+            allowOffset,
+            allows.length,
+            stats.allows
+          )}
+          previousHref={getPaginationHref({
+            blockOffset,
+            allowOffset: getPreviousOffset(allowOffset)
+          })}
+          nextHref={getPaginationHref({
+            blockOffset,
+            allowOffset: getNextOffset(allowOffset, allows.length)
+          })}
+          hasPrevious={hasPreviousAllows}
+          hasNext={hasNextAllows}
+        />
       </section>
     </div>
   )
