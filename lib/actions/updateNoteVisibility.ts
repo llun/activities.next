@@ -8,7 +8,7 @@ import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
-import { StatusType } from '@/lib/types/domain/status'
+import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getMentionFromTag } from '@/lib/types/domain/tag'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
@@ -18,6 +18,8 @@ interface UpdateNoteVisibilityFromUserInput {
   statusId: string
   currentActor: Actor
   visibility: MastodonVisibility
+  publish?: boolean
+  status?: StatusNote
   database: Database
 }
 
@@ -25,12 +27,15 @@ export const updateNoteVisibilityFromUserInput = async ({
   statusId,
   currentActor,
   visibility,
+  publish = true,
+  status: preloadedStatus,
   database
 }: UpdateNoteVisibilityFromUserInput) => {
   const span = getSpan('actions', 'updateNoteVisibilityFromUser', { statusId })
-  const status = await database.getStatus({ statusId })
+  const status = preloadedStatus ?? (await database.getStatus({ statusId }))
   if (
     !status ||
+    status.id !== statusId ||
     status.type !== StatusType.enum.Note ||
     status.actorId !== currentActor.id
   ) {
@@ -61,11 +66,13 @@ export const updateNoteVisibilityFromUserInput = async ({
 
   await addStatusToTimelines(database, updatedStatus)
 
-  await getQueue().publish({
-    id: getHashFromString(statusId),
-    name: SEND_UPDATE_NOTE_JOB_NAME,
-    data: { actorId: currentActor.id, statusId }
-  })
+  if (publish) {
+    await getQueue().publish({
+      id: getHashFromString(statusId),
+      name: SEND_UPDATE_NOTE_JOB_NAME,
+      data: { actorId: currentActor.id, statusId }
+    })
+  }
 
   span.end()
   return updatedStatus

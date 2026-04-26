@@ -67,6 +67,24 @@ describe('Create poll action', () => {
       expect(poll?.cc).toContain(`${actor1.id}/followers`)
     })
 
+    it('stores content warning text as poll summary', async () => {
+      await createPollFromUserInput({
+        text: 'Choose the culprit',
+        summary: 'Mystery spoilers',
+        currentActor: actor1,
+        choices: ['Butler', 'Gardener'],
+        database,
+        endAt: Date.now() + 24 * 60 * 60 * 1000
+      })
+
+      const statuses = await database.getActorStatuses({
+        actorId: actor1.id
+      })
+      const poll = statuses.find((s) => s.text.includes('Choose the culprit'))
+
+      expect(poll?.summary).toBe('Mystery spoilers')
+    })
+
     it('creates a poll with mentions in cc', async () => {
       await createPollFromUserInput({
         text: `@${actor2.username}@${actor2.domain} What do you think?`,

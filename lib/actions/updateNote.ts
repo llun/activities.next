@@ -1,16 +1,19 @@
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor } from '@/lib/types/domain/actor'
-import { StatusType } from '@/lib/types/domain/status'
+import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getSpan } from '@/lib/utils/trace'
 
 interface UpdateNoteFromUserInput {
   statusId: string
   currentActor: Actor
-  text: string
-  summary?: string
+  text?: string
+  summary?: string | null
+  publish?: boolean
+  status?: StatusNote
   database: Database
 }
 
@@ -19,12 +22,15 @@ export const updateNoteFromUserInput = async ({
   currentActor,
   text,
   summary,
+  publish = true,
+  status: preloadedStatus,
   database
 }: UpdateNoteFromUserInput) => {
   const span = getSpan('actions', 'updateNoteFromUser', { statusId })
-  const status = await database.getStatus({ statusId })
+  const status = preloadedStatus ?? (await database.getStatus({ statusId }))
   if (
     !status ||
+    status.id !== statusId ||
     status.type !== StatusType.enum.Note ||
     status.actorId !== currentActor.id
   ) {
@@ -34,22 +40,26 @@ export const updateNoteFromUserInput = async ({
 
   const updatedStatus = await database.updateNote({
     statusId,
-    summary,
-    text
+    summary: summary === undefined ? status.summary : summary?.trim() || null,
+    text: text ?? status.text
   })
   if (!updatedStatus) {
     span.end()
     return null
   }
 
-  await getQueue().publish({
-    id: getHashFromString(statusId),
-    name: SEND_UPDATE_NOTE_JOB_NAME,
-    data: {
-      actorId: currentActor.id,
-      statusId
-    }
-  })
+  await addStatusToTimelines(database, updatedStatus)
+
+  if (publish) {
+    await getQueue().publish({
+      id: getHashFromString(statusId),
+      name: SEND_UPDATE_NOTE_JOB_NAME,
+      data: {
+        actorId: currentActor.id,
+        statusId
+      }
+    })
+  }
 
   span.end()
   return updatedStatus

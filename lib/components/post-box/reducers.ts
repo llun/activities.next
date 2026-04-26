@@ -8,6 +8,8 @@ import { Choice, DEFAULT_DURATION, Duration } from './poll-choices'
 
 interface StatusExtension {
   attachments: PostBoxAttachment[]
+  contentWarning: string
+  contentWarningVisible: boolean
   poll: {
     showing: boolean
     choices: Choice[]
@@ -36,6 +38,20 @@ export const setPollVisibility = (visible: boolean) => ({
   visible
 })
 type ActionSetPollVisibility = ReturnType<typeof setPollVisibility>
+
+export const setContentWarning = (contentWarning: string) => ({
+  type: 'setContentWarning' as const,
+  contentWarning
+})
+type ActionSetContentWarning = ReturnType<typeof setContentWarning>
+
+export const setContentWarningVisibility = (visible: boolean) => ({
+  type: 'setContentWarningVisibility' as const,
+  visible
+})
+type ActionSetContentWarningVisibility = ReturnType<
+  typeof setContentWarningVisibility
+>
 
 export const addPollChoice = {
   type: 'addPollChoice' as const
@@ -117,6 +133,8 @@ type Actions =
   | ActionReset
   | ActionSetAttachments
   | ActionSetPollVisibility
+  | ActionSetContentWarning
+  | ActionSetContentWarningVisibility
   | ActionAddPollChoice
   | ActionRemovePollChoice
   | ActionSetPollDurationInSeconds
@@ -139,6 +157,8 @@ export const DEFAULT_CHOICES = [
 
 export const DEFAULT_STATE: StatusExtension = {
   attachments: [],
+  contentWarning: '',
+  contentWarningVisible: false,
   poll: {
     showing: false,
     choices: DEFAULT_CHOICES,
@@ -163,11 +183,16 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       return DEFAULT_STATE
     }
     case 'setAttachments': {
-      // Preserve visibility when loading attachments (e.g., when editing)
+      const hasAttachments = action.attachments.length > 0
       return {
-        ...DEFAULT_STATE,
+        ...state,
         attachments: action.attachments,
-        visibility: state.visibility
+        fitnessFile: hasAttachments ? undefined : state.fitnessFile,
+        poll: hasAttachments
+          ? {
+              ...DEFAULT_STATE.poll
+            }
+          : state.poll
       }
     }
     case 'setPollVisibility': {
@@ -183,13 +208,28 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
         : state.poll.durationInSeconds
       // Preserve visibility when toggling poll mode
       return {
+        ...state,
         attachments: [],
+        fitnessFile: action.visible ? undefined : state.fitnessFile,
         poll: {
           ...state.poll,
           showing: action.visible,
           durationInSeconds: duration
-        },
-        visibility: state.visibility
+        }
+      }
+    }
+    case 'setContentWarning': {
+      return {
+        ...state,
+        contentWarning: action.contentWarning,
+        contentWarningVisible:
+          state.contentWarningVisible || action.contentWarning.length > 0
+      }
+    }
+    case 'setContentWarningVisibility': {
+      return {
+        ...state,
+        contentWarningVisible: action.visible
       }
     }
     case 'addPollChoice': {
@@ -236,7 +276,11 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       if (state.attachments.length >= MAX_ATTACHMENTS) return state
       return {
         ...state,
-        attachments: [...state.attachments, action.attachment]
+        attachments: [...state.attachments, action.attachment],
+        fitnessFile: undefined,
+        poll: {
+          ...DEFAULT_STATE.poll
+        }
       }
     }
     case 'updateAttachment': {

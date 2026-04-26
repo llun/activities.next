@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Loader2, X } from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, Loader2, X } from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -56,6 +56,8 @@ import {
   removePollChoice,
   resetExtension,
   setAttachments,
+  setContentWarning,
+  setContentWarningVisibility,
   setFitnessFile,
   setFitnessFileUploaded,
   setFitnessFileUploading,
@@ -102,7 +104,10 @@ export const PostBox: FC<Props> = ({
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const textRef = useRef(text)
-  const fitnessCleanupInFlightRef = useRef<string | null>(null)
+  const fitnessCleanupInFlightRef = useRef<{
+    uploadedId: string
+    promise: Promise<boolean>
+  } | null>(null)
 
   const [postExtension, dispatch] = useReducer(
     statusExtensionReducer,
@@ -135,6 +140,9 @@ export const PostBox: FC<Props> = ({
     setIsPosting(true)
     setWarningMsg(null)
     const message = text
+    const contentWarning = postExtension.contentWarningVisible
+      ? postExtension.contentWarning
+      : ''
     try {
       if (postExtension.poll.showing && postExtension.fitnessFile) {
         setWarningMsg(
@@ -149,6 +157,7 @@ export const PostBox: FC<Props> = ({
         const poll = postExtension.poll
         await createPoll({
           message,
+          contentWarning,
           choices: poll.choices.map((item) => item.text),
           durationInSeconds: poll.durationInSeconds,
           pollType: poll.pollType,
@@ -162,12 +171,17 @@ export const PostBox: FC<Props> = ({
       }
 
       if (editStatus) {
-        const { content } = await updateNote({
+        const updateMessage = message.trim().length > 0 ? message : undefined
+        await updateNote({
           statusId: urlToId(editStatus.id),
-          message
+          message: updateMessage,
+          contentWarning
         })
-        editStatus.text = content
-        onPostUpdated(editStatus)
+        onPostUpdated({
+          ...editStatus,
+          text: updateMessage ?? editStatus.text,
+          summary: contentWarning.trim() || null
+        })
         dispatch(resetExtension())
 
         setText('')
@@ -281,6 +295,7 @@ export const PostBox: FC<Props> = ({
 
       const response = await createNote({
         message,
+        contentWarning,
         replyStatus,
         attachments,
         fitnessFileId,
@@ -319,40 +334,59 @@ export const PostBox: FC<Props> = ({
   }
 
   const onRemoveFitnessFile = useCallback(async () => {
-    const fitnessFile = postExtension.fitnessFile
+    const fitnessFile = postExtensionRef.current.fitnessFile
     if (!fitnessFile) {
-      return
+      return true
+    }
+
+    const clearFitnessFile = () => {
+      dispatch(removeFitnessFile())
+      postExtensionRef.current = {
+        ...postExtensionRef.current,
+        fitnessFile: undefined
+      }
+      setAllowPost(textRef.current.trim().length > 0)
     }
 
     if (!fitnessFile.uploadedId) {
-      dispatch(removeFitnessFile())
-      setAllowPost(textRef.current.trim().length > 0)
-      return
+      clearFitnessFile()
+      return true
     }
 
-    if (fitnessCleanupInFlightRef.current === fitnessFile.uploadedId) {
-      return
+    const inFlight = fitnessCleanupInFlightRef.current
+    if (inFlight?.uploadedId === fitnessFile.uploadedId) {
+      return inFlight.promise
     }
 
-    fitnessCleanupInFlightRef.current = fitnessFile.uploadedId
+    const uploadedId = fitnessFile.uploadedId
 
-    try {
-      setWarningMsg(null)
-      await deleteFitnessFile(fitnessFile.uploadedId)
-      dispatch(removeFitnessFile())
-      setAllowPost(textRef.current.trim().length > 0)
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error && error.message
-          ? error.message
-          : 'Failed to delete uploaded fitness file'
-      setWarningMsg(errorMessage)
-    } finally {
-      if (fitnessCleanupInFlightRef.current === fitnessFile.uploadedId) {
-        fitnessCleanupInFlightRef.current = null
+    const cleanupPromise = (async () => {
+      try {
+        setWarningMsg(null)
+        await deleteFitnessFile(uploadedId)
+        clearFitnessFile()
+        return true
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error && error.message
+            ? error.message
+            : 'Failed to delete uploaded fitness file'
+        setWarningMsg(errorMessage)
+        return false
+      } finally {
+        if (fitnessCleanupInFlightRef.current?.uploadedId === uploadedId) {
+          fitnessCleanupInFlightRef.current = null
+        }
       }
+    })()
+
+    fitnessCleanupInFlightRef.current = {
+      uploadedId,
+      promise: cleanupPromise
     }
-  }, [postExtension.fitnessFile])
+
+    return cleanupPromise
+  }, [])
 
   const onQuickPost = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!(event.metaKey || event.ctrlKey)) return
@@ -364,18 +398,42 @@ export const PostBox: FC<Props> = ({
 
   const onTextChange = (value: string) => {
     setText(value)
+    textRef.current = value
     if (value.trim().length === 0) {
       setAllowPost(Boolean(postExtensionRef.current.fitnessFile))
       return
     }
     if (
       editStatus &&
-      value === sanitizeHtml(editStatus.text, { allowedTags: [] })
+      value === sanitizeHtml(editStatus.text, { allowedTags: [] }) &&
+      postExtensionRef.current.contentWarning === (editStatus.summary ?? '')
     ) {
       setAllowPost(false)
       return
     }
     setAllowPost(true)
+  }
+
+  const onContentWarningChange = (value: string) => {
+    dispatch(setContentWarning(value))
+    if (!editStatus) return
+
+    setAllowPost(
+      value !== (editStatus.summary ?? '') ||
+        textRef.current !== sanitizeHtml(editStatus.text, { allowedTags: [] })
+    )
+  }
+
+  const onToggleContentWarning = () => {
+    const nextVisible = !postExtension.contentWarningVisible
+    dispatch(setContentWarningVisibility(nextVisible))
+    if (!editStatus) return
+
+    const nextContentWarning = nextVisible ? postExtension.contentWarning : ''
+    setAllowPost(
+      nextContentWarning !== (editStatus.summary ?? '') ||
+        textRef.current !== sanitizeHtml(editStatus.text, { allowedTags: [] })
+    )
   }
 
   /**
@@ -436,6 +494,8 @@ export const PostBox: FC<Props> = ({
   useEffect(() => {
     if (editStatus) {
       setText(editStatus.text)
+      dispatch(setContentWarning(editStatus.summary ?? ''))
+      dispatch(setContentWarningVisibility(Boolean(editStatus.summary)))
       setAllowPost(false) // Initial state for edit is disabled until changed? Or should we check?
       // Original logic in onTextChange checked if text === editStatus.text.
       // So if we set text to editStatus.text, allowPost should be false.
@@ -443,6 +503,8 @@ export const PostBox: FC<Props> = ({
       return
     } else {
       setText('')
+      dispatch(setContentWarning(''))
+      dispatch(setContentWarningVisibility(false))
       setAllowPost(false)
     }
 
@@ -501,6 +563,19 @@ export const PostBox: FC<Props> = ({
               onClose={onCloseReply}
             />
             <Tabs value={currentTab} onValueChange={setCurrentTab}>
+              {postExtension.contentWarningVisible ? (
+                <input
+                  type="text"
+                  className="mb-3 flex h-9 w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  aria-label="Content warning"
+                  name="contentWarning"
+                  placeholder="Write your warning here"
+                  value={postExtension.contentWarning}
+                  onChange={(event) =>
+                    onContentWarningChange(event.target.value)
+                  }
+                />
+              ) : null}
               <TabsList className="mb-3">
                 <TabsTrigger value="write">Write</TabsTrigger>
                 <TabsTrigger value="preview">Preview</TabsTrigger>
@@ -569,6 +644,21 @@ export const PostBox: FC<Props> = ({
             />
             <Button
               type="button"
+              variant={
+                postExtension.contentWarningVisible ? 'secondary' : 'link'
+              }
+              aria-label={
+                postExtension.contentWarningVisible
+                  ? 'Remove content warning'
+                  : 'Add content warning'
+              }
+              title="Content warning"
+              onClick={onToggleContentWarning}
+            >
+              <AlertTriangle className="size-4" />
+            </Button>
+            <Button
+              type="button"
               variant="link"
               onClick={() =>
                 dispatch(setPollVisibility(!postExtension.poll.showing))
@@ -597,6 +687,7 @@ export const PostBox: FC<Props> = ({
                 setWarningMsg('Some files are already selected')
               }
               onUploadStart={() => setWarningMsg(null)}
+              onBeforeAddAttachments={onRemoveFitnessFile}
             />
           </div>
           <div>

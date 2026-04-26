@@ -4,6 +4,7 @@ import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import * as timelinesService from '@/lib/services/timelines'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -18,6 +19,10 @@ jest.mock('@/lib/services/queue', () => ({
   getQueue: jest.fn().mockReturnValue({
     publish: jest.fn().mockResolvedValue(undefined)
   })
+}))
+
+jest.mock('@/lib/services/timelines', () => ({
+  addStatusToTimelines: jest.fn().mockResolvedValue(undefined)
 }))
 
 describe('Update note action', () => {
@@ -73,6 +78,10 @@ describe('Update note action', () => {
           statusId
         }
       })
+      expect(timelinesService.addStatusToTimelines).toHaveBeenCalledWith(
+        database,
+        status
+      )
     })
 
     it('format text when updating text', async () => {
@@ -88,6 +97,57 @@ describe('Update note action', () => {
       expect(status).toMatchObject({
         text: 'This is markdown **text** that should get format'
       })
+    })
+
+    it('updates content warning without changing text', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const statusId = `${actor1.id}/statuses/post-1`
+      const before = await database.getStatus({ statusId })
+      if (!before || before.type !== 'Note') fail('Note is required')
+
+      const status = (await updateNoteFromUserInput({
+        statusId,
+        currentActor: actor1,
+        database,
+        summary: 'Updated warning'
+      })) as Status
+
+      expect(status).toMatchObject({
+        text: before.text,
+        summary: 'Updated warning'
+      })
+
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: getHashFromString(statusId),
+        name: SEND_UPDATE_NOTE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId
+        }
+      })
+    })
+
+    it('does not publish when publish is false', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const statusId = `${actor1.id}/statuses/post-1`
+
+      const status = (await updateNoteFromUserInput({
+        statusId,
+        currentActor: actor1,
+        database,
+        summary: 'Draft warning',
+        publish: false
+      })) as Status
+
+      expect(status).toMatchObject({
+        summary: 'Draft warning'
+      })
+      expect(timelinesService.addStatusToTimelines).toHaveBeenCalledWith(
+        database,
+        status
+      )
+      expect(getQueue().publish).not.toHaveBeenCalled()
     })
   })
 })
