@@ -17,8 +17,19 @@ describe('ContentWarning', () => {
     expect(screen.getByText('Spoilers')).toBeInTheDocument()
     expect(screen.queryByText('Hidden details')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show' }))
+    const showButton = screen.getByRole('button', { name: 'Show content' })
+    expect(showButton).toHaveAttribute('aria-expanded', 'false')
+    expect(showButton).toHaveAttribute('aria-controls')
+
+    fireEvent.click(showButton)
 
     expect(screen.getByText('Hidden details')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Hide content' })
+    ).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide content' }))
+
+    expect(screen.queryByText('Hidden details')).not.toBeInTheDocument()
   })
 })

@@ -65,7 +65,7 @@ export const createNote = async ({
 
 export interface UpdateNoteParams {
   statusId: string
-  message: string
+  message?: string
   contentWarning?: string
 }
 export const updateNote = async ({
@@ -73,7 +73,10 @@ export const updateNote = async ({
   message,
   contentWarning
 }: UpdateNoteParams) => {
-  if (message.trim().length === 0) {
+  if (message === undefined && contentWarning === undefined) {
+    throw new Error('Message or content warning must be provided')
+  }
+  if (message !== undefined && message.trim().length === 0) {
     throw new Error('Message must not be empty')
   }
 
@@ -83,8 +86,8 @@ export const updateNote = async ({
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      status: message,
-      spoiler_text: contentWarning
+      ...(message !== undefined ? { status: message } : {}),
+      ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {})
     })
   })
   if (response.status !== 200) {

@@ -230,7 +230,6 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
     case 'setContentWarningVisibility': {
       return {
         ...state,
-        contentWarning: action.visible ? state.contentWarning : '',
         contentWarningVisible: action.visible
       }
     }

@@ -140,6 +140,9 @@ export const PostBox: FC<Props> = ({
     setIsPosting(true)
     setWarningMsg(null)
     const message = text
+    const contentWarning = postExtension.contentWarningVisible
+      ? postExtension.contentWarning
+      : ''
     try {
       if (postExtension.poll.showing && postExtension.fitnessFile) {
         setWarningMsg(
@@ -154,7 +157,7 @@ export const PostBox: FC<Props> = ({
         const poll = postExtension.poll
         await createPoll({
           message,
-          contentWarning: postExtension.contentWarning,
+          contentWarning,
           choices: poll.choices.map((item) => item.text),
           durationInSeconds: poll.durationInSeconds,
           pollType: poll.pollType,
@@ -171,12 +174,12 @@ export const PostBox: FC<Props> = ({
         const { content } = await updateNote({
           statusId: urlToId(editStatus.id),
           message,
-          contentWarning: postExtension.contentWarning
+          contentWarning
         })
         onPostUpdated({
           ...editStatus,
           text: content,
-          summary: postExtension.contentWarning.trim() || null
+          summary: contentWarning.trim() || null
         })
         dispatch(resetExtension())
 
@@ -291,7 +294,7 @@ export const PostBox: FC<Props> = ({
 
       const response = await createNote({
         message,
-        contentWarning: postExtension.contentWarning,
+        contentWarning,
         replyStatus,
         attachments,
         fitnessFileId,

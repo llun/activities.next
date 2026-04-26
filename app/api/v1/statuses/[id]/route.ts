@@ -125,6 +125,20 @@ export const PUT = traceApiRoute(
         })
       }
 
+      const existingStatus = await database.getStatus({ statusId })
+      if (
+        !existingStatus ||
+        existingStatus.type !== StatusType.enum.Note ||
+        existingStatus.actorId !== currentActor.id
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_403,
+          responseStatusCode: 403
+        })
+      }
+
       if (visibility !== undefined) {
         updatedNote = await updateNoteVisibilityFromUserInput({
           statusId,

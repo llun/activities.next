@@ -6,7 +6,7 @@ import { getQueue } from '@/lib/services/queue'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
-import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
@@ -365,6 +365,49 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(updatedStatus?.to).toEqual([`${ACTOR1_ID}/followers`])
       expect(updatedStatus?.cc).toEqual([])
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not partially apply visibility when content update is forbidden', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-forbidden-combined`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public edit target',
+        summary: 'Existing warning',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              visibility: 'private',
+              spoiler_text: ''
+            }),
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        ),
+        {
+          params: Promise.resolve({ id: urlToId(statusId) })
+        }
+      )
+
+      const updatedStatus = await database.getStatus({ statusId })
+
+      expect(response.status).toBe(403)
+      expect(updatedStatus?.summary).toBe('Existing warning')
+      expect(updatedStatus?.to).toEqual([ACTIVITY_STREAM_PUBLIC])
+      expect(updatedStatus?.cc).toEqual([`${ACTOR1_ID}/followers`])
+      expect(getQueue().publish).not.toHaveBeenCalled()
     })
   })
 

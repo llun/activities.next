@@ -1,7 +1,7 @@
 'use client'
 
 import { AlertTriangle } from 'lucide-react'
-import { FC, ReactNode, useState } from 'react'
+import { FC, ReactNode, useId, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 
@@ -12,6 +12,7 @@ interface Props {
 
 export const ContentWarning: FC<Props> = ({ children, summary }) => {
   const [isExpanded, setIsExpanded] = useState(false)
+  const contentId = useId()
 
   return (
     <div className="mt-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2">
@@ -29,11 +30,17 @@ export const ContentWarning: FC<Props> = ({ children, summary }) => {
             setIsExpanded(!isExpanded)
           }}
           aria-expanded={isExpanded}
+          aria-controls={contentId}
+          aria-label={isExpanded ? 'Hide content' : 'Show content'}
         >
           {isExpanded ? 'Hide' : 'Show'}
         </Button>
       </div>
-      {isExpanded ? <div className="mt-2">{children}</div> : null}
+      {isExpanded ? (
+        <div id={contentId} className="mt-2">
+          {children}
+        </div>
+      ) : null}
     </div>
   )
 }

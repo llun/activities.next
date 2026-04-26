@@ -44,7 +44,7 @@ describe('post-box reducers', () => {
     expect(nextState.contentWarningVisible).toBe(true)
   })
 
-  it('clears content warning when visibility is turned off', () => {
+  it('keeps content warning text when visibility is turned off', () => {
     const stateWithWarning = statusExtensionReducer(
       DEFAULT_STATE,
       setContentWarning('Spoilers')
@@ -55,7 +55,7 @@ describe('post-box reducers', () => {
       setContentWarningVisibility(false)
     )
 
-    expect(nextState.contentWarning).toBe('')
+    expect(nextState.contentWarning).toBe('Spoilers')
     expect(nextState.contentWarningVisible).toBe(false)
   })
 

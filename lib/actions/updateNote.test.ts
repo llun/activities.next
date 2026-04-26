@@ -107,6 +107,34 @@ describe('Update note action', () => {
         text: before.text,
         summary: 'Updated warning'
       })
+
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: getHashFromString(statusId),
+        name: SEND_UPDATE_NOTE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId
+        }
+      })
+    })
+
+    it('does not publish when publish is false', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const statusId = `${actor1.id}/statuses/post-1`
+
+      const status = (await updateNoteFromUserInput({
+        statusId,
+        currentActor: actor1,
+        database,
+        summary: 'Draft warning',
+        publish: false
+      })) as Status
+
+      expect(status).toMatchObject({
+        summary: 'Draft warning'
+      })
+      expect(getQueue().publish).not.toHaveBeenCalled()
     })
   })
 })
