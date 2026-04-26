@@ -1,0 +1,25 @@
+lib/components/posts/poll.test.tsx
+  38fbe22e9e13d45a 89-104
+lib/components/posts/poll.tsx
+  38fbe22e9e13d45a 16-17,28-32,35-39,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f8a4715d1437d4b0301f836841ea1b7e34bdf3fa",
+  "prompts": {
+    "38fbe22e9e13d45a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dc61f-748a-7602-84ac-2c766405edaa",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 4,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    }
+  }
+}
