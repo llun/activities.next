@@ -1,6 +1,6 @@
 {
   "name": "activities.next",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "license": "MIT",
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
@@ -81,6 +81,7 @@
     "nodemailer": "^8.0.5",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
+    "qrcode": "^1.5.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
@@ -116,6 +117,7 @@
     "@types/node": "^25.5.2",
     "@types/nodemailer": "^8.0.0",
     "@types/pg": "^8.20.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/react-modal": "^3.16.3",

@@ -5,6 +5,11 @@ const escapeLikeValue = (value: unknown): string => {
   return String(value).replace(/[%_\\]/g, '\\$&')
 }
 
+const supportsNativeBooleans = (db: Knex): boolean => {
+  const clientName = String(db.client.config.client)
+  return clientName !== 'better-sqlite3' && clientName !== 'sqlite3'
+}
+
 const applyWhere = (
   query: Knex.QueryBuilder,
   model: string,
@@ -83,7 +88,8 @@ export const knexAdapter = (db: Knex) =>
   createAdapterFactory({
     config: {
       adapterId: 'knex',
-      supportsNumericIds: false
+      supportsNumericIds: false,
+      supportsBooleans: supportsNativeBooleans(db)
     },
     adapter: ({ getModelName, getFieldName }) => {
       // The factory's createAdapterFactory already transforms `where` clauses
