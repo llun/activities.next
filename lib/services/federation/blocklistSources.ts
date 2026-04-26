@@ -97,7 +97,9 @@ export const parseDomainBlockCsv = (
   const [headerFields, ...rows] = parseCsvRecords(csv)
   if (!headerFields) return []
 
-  const headers = headerFields.map((field) => field.trim().replace(/^#/, ''))
+  const headers = headerFields.map((field) =>
+    field.trim().toLowerCase().replace(/^#/, '')
+  )
   const domainIndex = headers.indexOf('domain')
   if (domainIndex < 0) return []
 

@@ -25,7 +25,7 @@ describe('blocklistSources', () => {
   it('parses Mastodon-compatible domain block CSV rows', () => {
     const blocks = parseDomainBlockCsv(
       [
-        '#domain,severity,reject_media,reject_reports,public_comment,obfuscate',
+        '#Domain,Severity,Reject_Media,Reject_Reports,Public_Comment,Obfuscate',
         'Example.Social,suspend,True,False,"spam, abuse",False',
         'example.social,silence,False,False,duplicate,False',
         'bad.test,noop,False,True,,True'

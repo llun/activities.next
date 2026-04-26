@@ -1,5 +1,5 @@
-import crypto from 'crypto'
 import { Knex } from 'knex'
+import { randomUUID } from 'node:crypto'
 
 import {
   CounterKey,
@@ -126,7 +126,7 @@ const chunkArray = <T>(items: T[], size: number): T[][] => {
 const buildDomainBlockInsert = (
   params: CreateDomainBlockParams,
   now: Date,
-  id = crypto.randomUUID()
+  id = randomUUID()
 ) => ({
   id,
   domain: normalizeOrThrow(params.domain),
@@ -537,7 +537,7 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
 
     const now = new Date()
     const row = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       domain: normalized,
       type: 'allow',
       severity: null,
