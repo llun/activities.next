@@ -13,6 +13,8 @@ interface Props {
 }
 
 export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
+  const pollEndAt =
+    status.type === StatusType.enum.Poll ? status.endAt : undefined
   const [now, setNow] = useState(currentTime)
   const [selectedChoices, setSelectedChoices] = useState<number[]>([])
   const [isVoting, setIsVoting] = useState(false)
@@ -23,17 +25,24 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
   )
 
   useEffect(() => {
-    if (status.type !== StatusType.enum.Poll) return
+    if (pollEndAt === undefined) return
 
-    setNow(new Date())
+    const nextNow = new Date()
+    setNow(nextNow)
+    if (nextNow.getTime() > pollEndAt) return
+
     const interval = setInterval(() => {
-      setNow(new Date())
+      const nextNow = new Date()
+      setNow(nextNow)
+      if (nextNow.getTime() > pollEndAt) {
+        clearInterval(interval)
+      }
     }, 60_000)
 
     return () => {
       clearInterval(interval)
     }
-  }, [status.id, status.type])
+  }, [pollEndAt, status.id])
 
   if (status.type !== StatusType.enum.Poll) return null
   if (!status.choices) return null

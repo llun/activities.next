@@ -86,4 +86,20 @@ describe('Poll', () => {
       screen.queryByRole('button', { name: 'Vote' })
     ).not.toBeInTheDocument()
   })
+
+  it('does not start a timer for already closed polls', () => {
+    render(
+      <Poll
+        status={{
+          ...pollStatus,
+          endAt: currentTime.getTime() - 1_000
+        }}
+        currentTime={currentTime}
+        currentActorId="https://activities.local/actors/llun"
+      />
+    )
+
+    expect(screen.getByText('Poll closed')).toBeInTheDocument()
+    expect(jest.getTimerCount()).toBe(0)
+  })
 })
