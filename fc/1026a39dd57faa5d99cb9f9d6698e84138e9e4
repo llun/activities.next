@@ -1,0 +1,35 @@
+app/api/v1/instance/domain_blocks/route.test.ts
+  aec9357be833f4ad 15-40,42-43,47-49,55-59,70-86
+app/api/v1/admin/domain_allows/route.ts
+  aec9357be833f4ad 4,8,68
+lib/services/federation/domainPolicy.ts
+  aec9357be833f4ad 22-31
+app/api/v1/instance/domain_blocks/route.ts
+  aec9357be833f4ad 2,7,11-14,27-42,47-52
+app/api/v1/admin/domain_blocks/[id]/route.ts
+  aec9357be833f4ad 3,7,60
+lib/services/federation/domainPolicy.test.ts
+  aec9357be833f4ad 6-7,103-120
+app/api/v1/admin/domain_blocks/route.ts
+  aec9357be833f4ad 4,8,68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "fc1026a39dd57faa5d99cb9f9d6698e84138e9e4",
+  "prompts": {
+    "aec9357be833f4ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dcb00-9e97-7592-828b-dd28aea9a215",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maythee Anegboonlap",
+      "messages": [],
+      "total_additions": 153,
+      "total_deletions": 70,
+      "accepted_lines": 918,
+      "overriden_lines": 0
+    }
+  }
+}
