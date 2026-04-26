@@ -8,10 +8,13 @@ import { ContentWarning } from './content-warning'
 
 describe('ContentWarning', () => {
   it('hides content until expanded', () => {
+    const onParentClick = jest.fn()
     render(
-      <ContentWarning summary="Spoilers">
-        <p>Hidden details</p>
-      </ContentWarning>
+      <div onClick={onParentClick}>
+        <ContentWarning summary="Spoilers">
+          <p>Hidden details</p>
+        </ContentWarning>
+      </div>
     )
 
     expect(screen.getByText('Spoilers')).toBeInTheDocument()
@@ -19,7 +22,7 @@ describe('ContentWarning', () => {
 
     const showButton = screen.getByRole('button', { name: 'Show content' })
     expect(showButton).toHaveAttribute('aria-expanded', 'false')
-    expect(showButton).toHaveAttribute('aria-controls')
+    expect(showButton).not.toHaveAttribute('aria-controls')
 
     fireEvent.click(showButton)
 
@@ -27,6 +30,10 @@ describe('ContentWarning', () => {
     expect(
       screen.getByRole('button', { name: 'Hide content' })
     ).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen.getByRole('button', { name: 'Hide content' })
+    ).toHaveAttribute('aria-controls')
+    expect(onParentClick).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide content' }))
 

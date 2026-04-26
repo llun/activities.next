@@ -33,8 +33,8 @@ export const POST = traceApiRoute(
   'getAccountOutbox',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
-    const body = await req.json()
     try {
+      const body = await req.json()
       const parsed = PostRequest.safeParse(body)
       if (!parsed.success) {
         return apiResponse({
@@ -136,8 +136,8 @@ export const DELETE = traceApiRoute(
   'deleteAccountOutbox',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
-    const body = await req.json()
     try {
+      const body = await req.json()
       const parsed = DeleteStatusRequest.safeParse(body)
       if (!parsed.success) {
         return apiResponse({
