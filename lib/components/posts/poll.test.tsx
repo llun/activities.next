@@ -12,7 +12,7 @@ jest.mock('@/lib/client', () => ({
   votePoll: jest.fn()
 }))
 
-const currentTime = new Date('2026-04-26T10:00:00.000Z')
+const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
 
 const pollStatus: StatusPoll = {
   id: 'https://activities.local/statuses/poll-1',
@@ -22,8 +22,8 @@ const pollStatus: StatusPoll = {
   cc: [],
   edits: [],
   isLocalActor: true,
-  createdAt: currentTime.getTime(),
-  updatedAt: currentTime.getTime(),
+  createdAt: currentTime,
+  updatedAt: currentTime,
   type: StatusType.enum.Poll,
   url: 'https://activities.local/@llun/poll-1',
   text: 'Question',
@@ -40,25 +40,25 @@ const pollStatus: StatusPoll = {
       statusId: 'https://activities.local/statuses/poll-1',
       title: 'First',
       totalVotes: 0,
-      createdAt: currentTime.getTime(),
-      updatedAt: currentTime.getTime()
+      createdAt: currentTime,
+      updatedAt: currentTime
     },
     {
       statusId: 'https://activities.local/statuses/poll-1',
       title: 'Second',
       totalVotes: 0,
-      createdAt: currentTime.getTime(),
-      updatedAt: currentTime.getTime()
+      createdAt: currentTime,
+      updatedAt: currentTime
     }
   ],
-  endAt: currentTime.getTime() + 30_000,
+  endAt: currentTime + 30_000,
   pollType: 'oneOf'
 }
 
 describe('Poll', () => {
   beforeEach(() => {
     jest.useFakeTimers()
-    jest.setSystemTime(currentTime)
+    jest.setSystemTime(new Date(currentTime))
   })
 
   afterEach(() => {
@@ -79,7 +79,7 @@ describe('Poll', () => {
 
     act(() => {
       jest.setSystemTime(new Date(pollStatus.endAt))
-      jest.advanceTimersByTime(pollStatus.endAt - currentTime.getTime())
+      jest.advanceTimersByTime(pollStatus.endAt - currentTime)
     })
 
     expect(screen.getByText('Poll closed')).toBeInTheDocument()
@@ -89,12 +89,37 @@ describe('Poll', () => {
     expect(jest.getTimerCount()).toBe(0)
   })
 
+  it('syncs poll availability when currentTime prop changes', () => {
+    const { rerender } = render(
+      <Poll
+        status={pollStatus}
+        currentTime={currentTime}
+        currentActorId="https://activities.local/actors/llun"
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Vote' })).toBeInTheDocument()
+
+    rerender(
+      <Poll
+        status={pollStatus}
+        currentTime={pollStatus.endAt}
+        currentActorId="https://activities.local/actors/llun"
+      />
+    )
+
+    expect(screen.getByText('Poll closed')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Vote' })
+    ).not.toBeInTheDocument()
+  })
+
   it('does not start a timer for already closed polls', () => {
     render(
       <Poll
         status={{
           ...pollStatus,
-          endAt: currentTime.getTime() - 1_000
+          endAt: currentTime - 1_000
         }}
         currentTime={currentTime}
         currentActorId="https://activities.local/actors/llun"

@@ -8,7 +8,7 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 
 interface Props {
   status: Status
-  currentTime: Date
+  currentTime: number
   currentActorId?: string
 }
 
@@ -25,15 +25,19 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
   )
 
   useEffect(() => {
+    setNow(currentTime)
+  }, [currentTime])
+
+  useEffect(() => {
     if (pollEndAt === undefined) return
 
-    const nextNow = new Date()
+    const nextNow = Date.now()
     setNow(nextNow)
-    if (nextNow.getTime() >= pollEndAt) return
+    if (nextNow >= pollEndAt) return
 
     const timeout = setTimeout(() => {
-      setNow(new Date())
-    }, pollEndAt - nextNow.getTime())
+      setNow(Date.now())
+    }, pollEndAt - nextNow)
 
     return () => {
       clearTimeout(timeout)
@@ -43,7 +47,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
   if (status.type !== StatusType.enum.Poll) return null
   if (!status.choices) return null
 
-  const isPollClosed = now.getTime() >= status.endAt
+  const isPollClosed = now >= status.endAt
   const choices = status.choices
   const totalVotes =
     choices.reduce((sum, choice) => sum + choice.totalVotes, 0) || 1

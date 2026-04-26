@@ -31,7 +31,7 @@ import { RetryFitnessButton } from './retry-fitness-button'
 export interface PostProps {
   host: string
   currentActor?: ActorProfile
-  currentTime: Date
+  currentTime: number
   status: Status
   editable?: boolean
   showActions?: boolean

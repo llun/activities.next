@@ -272,7 +272,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
               <Posts
                 host={host}
                 className="mt-0"
-                currentTime={new Date()}
+                currentTime={Date.now()}
                 statuses={currentStatuses}
                 currentActor={profile}
                 showActions

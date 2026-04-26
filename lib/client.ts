@@ -73,11 +73,11 @@ export const updateNote = async ({
   message,
   contentWarning
 }: UpdateNoteParams) => {
-  if (message === undefined && contentWarning === undefined) {
+  const normalizedMessage =
+    message !== undefined && message.trim().length > 0 ? message : undefined
+
+  if (normalizedMessage === undefined && contentWarning === undefined) {
     throw new Error('Message or content warning must be provided')
-  }
-  if (message !== undefined && message.trim().length === 0) {
-    throw new Error('Message must not be empty')
   }
 
   const response = await fetch(`/api/v1/statuses/${statusId}`, {
@@ -86,7 +86,7 @@ export const updateNote = async ({
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      ...(message !== undefined ? { status: message } : {}),
+      ...(normalizedMessage !== undefined ? { status: normalizedMessage } : {}),
       ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {})
     })
   })

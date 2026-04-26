@@ -171,14 +171,15 @@ export const PostBox: FC<Props> = ({
       }
 
       if (editStatus) {
+        const updateMessage = message.trim().length > 0 ? message : undefined
         await updateNote({
           statusId: urlToId(editStatus.id),
-          message,
+          message: updateMessage,
           contentWarning
         })
         onPostUpdated({
           ...editStatus,
-          text: message,
+          text: updateMessage ?? editStatus.text,
           summary: contentWarning.trim() || null
         })
         dispatch(resetExtension())

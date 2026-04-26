@@ -42,7 +42,7 @@ export const ActorTimelines: FC<Props> = ({
   attachments,
   postLineLimit
 }) => {
-  const currentTime = new Date()
+  const currentTime = Date.now()
 
   const postStatuses = statuses.filter((status) => !isReply(status))
 

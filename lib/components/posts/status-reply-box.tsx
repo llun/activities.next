@@ -146,7 +146,7 @@ export const StatusReplyBox: FC<Props> = ({
     const message = text
     const contentWarning = postExtension.contentWarningVisible
       ? postExtension.contentWarning
-      : ''
+      : undefined
 
     try {
       const uploadResults = await Promise.all(

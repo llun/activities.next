@@ -94,7 +94,7 @@ describe('StatusReplyBox', () => {
     await waitFor(() => {
       expect(createNoteMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          contentWarning: ''
+          contentWarning: undefined
         })
       )
     })
